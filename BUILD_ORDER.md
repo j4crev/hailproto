@@ -12,6 +12,7 @@ protocol boundaries and invariants
   -> identity and discovery
   -> abstract operations
   -> Hail Grant
+  -> detached Hail Body
   -> Hail Envelope
   -> delivery state machine
   -> HTTPS binding
@@ -44,9 +45,9 @@ The required interoperable API is the server-to-server federation API.
 
 Protocol invariants:
 
-- A sender cannot deliver without a recipient-created grant.
+- A sender cannot deliver without a recipient-created grant or a single-use reply authorization.
 - A recipient server is the authority on whether its user granted delivery.
-- Grant revocation is immediate and unilateral.
+- Grant revocation immediately prevents new envelope acceptance and is unilateral.
 - New sender categories require explicit permission.
 - Unauthorized traffic is rejected before body transfer.
 - A valid grant does not remove the need for sender authentication.
@@ -154,73 +155,39 @@ The Hail Grant is the protocol's central authorization object. Its v1 target, sc
 
 Remaining grant work is limited to the shared security and HTTP binding decisions referenced by that specification, including canonical signatures, digest encoding, timestamp tolerance, size limits, and final RFC 9457 problem types.
 
-## 6. Define Hail Envelope V1
+## 6. Define Detached Hail Body V1
 
-After grants are understood, define the smallest object required to route and authorize delivery.
+The body must exist before envelope submission. Its POC publication, canonical encoding, hashing, recipient-specific bearer authorization, shared storage, retrieval, caching, integrity, resource limits, and 30-day retention semantics are defined in `spec/bodies.md`.
 
-Candidate fields:
+Remaining body work is limited to shared security, envelope, delivery-state, and HTTP binding decisions referenced by that specification.
 
-- protocol version
-- message ID
-- sender
-- recipient
-- grant ID or grant lookup information
-- category
-- protocol-defined message type
-- creation timestamp
-- expiration timestamp
-- body hash algorithm
-- body hash
-- body uncompressed size
-- body media type/profile
-- reply permission
-- reply deadline
-- reply target
-- reply routing hint
-- signing key ID
+## 7. Define Hail Envelope V1
 
-Conceptual body descriptor:
+The compact, single-recipient envelope payload, grant and reply authorization modes, body descriptor, signature representation, validation order, timestamp rules, and replay behavior are defined in `spec/envelopes.md`.
 
-```json
-{
-  "hash_algorithm": "sha-256",
-  "hash": "...",
-  "size": 8421,
-  "media_type": "application/spt+json"
-}
-```
+The POC uses RFC 8785 canonical JSON in an RFC 7515 flattened JWS, signed with the sender DID's `#hail-messaging` key using the RFC 9864 `Ed25519` algorithm identifier.
 
-Declared uncompressed size allows a recipient to enforce limits before accepting or decompressing a body.
+Remaining envelope work is limited to shared DID-history, delivery-state, and HTTP binding decisions referenced by that specification.
 
-## 7. Define The Delivery State Machine
+## 8. Define The Delivery State Machine
 
-Endpoint responses cannot be finalized until delivery states are clear.
+The delivery states, acceptance checkpoint, authorization races, retry ownership, failure reasons, multiple-recipient behavior, and signed status snapshots are defined in `spec/delivery-state.md`.
 
-Candidate states:
+Sender-visible states:
 
 ```text
-submitted
-rejected
-envelope-accepted
-body-retrieval-pending
-body-retrieved
-body-verified
+accepted
+on-hold
 delivered
+failed
+cancelled
 ```
 
-Questions to settle:
+Acceptance fixes authorization and durably transfers body-processing responsibility to the recipient server. Completed delivery requires a verified body and durable message storage. Terminal state is reported with a signed, recipient-specific status update; aggregate campaign state remains local to the sender.
 
-- Does envelope acceptance mean the message is delivered?
-- How does the sender learn that body retrieval succeeded or failed?
-- How long may a receiver retry body retrieval?
-- How long must a sender retain a detached body?
-- Can a sender proactively transfer a body after envelope acceptance?
-- How are permanent and transient failures distinguished?
-- Is a delivery status resource needed?
+Remaining work is the exact HTTPS push, query, acknowledgement, and Problem Details binding.
 
-Envelope acceptance and completed delivery should not be conflated. A receiver may accept an envelope and later fail to retrieve or verify its body.
-
-## 8. Bind Operations To HTTPS
+## 9. Bind Operations To HTTPS
 
 After operation semantics and state transitions are defined, bind them to HTTP.
 
@@ -239,7 +206,7 @@ Replies should preferably reuse `/hail/envelopes`; they are ordinary Hail Messag
 
 Body URLs should not be arbitrary URLs supplied by each envelope. Recipient-controlled fetching of arbitrary URLs introduces server-side request forgery risk. Body locations should be derived from authenticated discovery metadata or constrained to authenticated sender infrastructure.
 
-## 9. Define The Security And Encoding Profile
+## 10. Define The Security And Encoding Profile
 
 Once signed object fields are stable, decide:
 
@@ -255,12 +222,12 @@ Once signed object fields are stable, decide:
 - compression rules
 - decompression limits
 
-Possible prototype profile:
+Prototype profile:
 
 ```text
 Encoding: JSON
 Canonicalization: RFC 8785 JCS
-Signature: Ed25519 detached signature
+Signature: RFC 7515 flattened JWS with RFC 9864 Ed25519
 Body digest: SHA-256
 Transport: HTTPS
 Compression: gzip
@@ -278,7 +245,7 @@ Compression: zstd
 
 The first implementation should use one mandatory profile. Supporting multiple profiles before interoperability exists adds complexity without proving the central design.
 
-## 10. Build A Thin End-To-End Slice
+## 11. Build A Thin End-To-End Slice
 
 The first implementation should send one plain-text Hail Message between two toy servers.
 
@@ -324,14 +291,14 @@ Only Portable Text-compatible text blocks are needed for this slice. Custom SPT 
 
 The most important prototype measurement is the cost of rejecting unauthorized envelopes before signature verification and body transfer.
 
-## 11. Add Reply Capabilities
+## 12. Add Reply Capabilities
 
 After grant-authorized delivery works, add:
 
-- `reply`
-- `reply_to`
-- `reply_by`
-- `reply_handler`
+- `reply.allowed`
+- `reply.until`
+- `authorization.reply_to`
+- single-use reply-capability claims
 - replyable sent-message index
 - expired reply rejection
 - unsolicited reply rejection
@@ -339,7 +306,7 @@ After grant-authorized delivery works, add:
 
 Replies should reuse the normal Hail Envelope delivery operation unless implementation evidence shows a need for separate transport.
 
-## 12. Expand Safe Portable Text
+## 13. Expand Safe Portable Text
 
 Rich body nodes should be added after transport and authorization work end to end.
 
@@ -356,42 +323,13 @@ Recommended expansion order:
 
 This lets Safe Portable Text evolve from real message requirements rather than attempting to design a complete visual language before the protocol works.
 
-## Early Detached-Body Risks
+## Cross-Cutting Risks
 
-The detached-body design introduces issues that must be addressed before implementation:
-
-### Server-Side Request Forgery
-
-Recipient servers must not fetch arbitrary body URLs supplied in envelopes. Body retrieval must be constrained to authenticated sender infrastructure.
-
-### Body Authorization
-
-Sender body endpoints must not unintentionally expose private or recipient-specific content. Shared campaign bodies and recipient-specific bodies may require different access policies.
-
-### Body Retention
-
-The sender must keep an accepted body available for a defined retrieval and retry period.
+Detached-body security and resource risks are defined in `spec/bodies.md`. The remaining cross-cutting delivery risks are:
 
 ### Acceptance Semantics
 
 Envelope acceptance does not necessarily mean completed delivery. Protocol responses must make this distinction clear.
-
-### Shared-Body Privacy
-
-A shared content hash can reveal that recipients received identical content. The privacy implications of public or reusable body hashes need analysis.
-
-### Resource Limits
-
-Envelopes must declare body size. Receivers must enforce limits on:
-
-- compressed bytes
-- uncompressed bytes
-- compression ratio
-- document depth
-- node count
-- string lengths
-- asset count
-- aggregate asset size
 
 ### Replay Protection
 
@@ -423,4 +361,4 @@ It should define:
 - every expected failure path
 - idempotency and retry behavior
 
-That flow should then drive the exact Hail Grant V1 and Hail Envelope V1 schemas.
+The grant, body, and envelope specifications now provide these object semantics. The remaining work in this artifact is to finalize delivery state, failures, retries, revocation races, and the HTTP binding.

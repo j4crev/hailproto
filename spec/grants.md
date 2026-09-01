@@ -127,6 +127,8 @@ Unix time in seconds after which delivery is not authorized, or `null` for no pr
 
 Transactional grants should generally expire. Ongoing subscriptions may use `null`, subject to recipient policy.
 
+POC validation permits at most 300 seconds of clock tolerance. A grant with an `expires_at` value is expired when recipient time is more than 300 seconds after that value. Clock tolerance does not alter the signed expiration or permit local policy to extend it further.
+
 ### `consent_context`
 
 Optional non-authoritative metadata recording what the user verified during consent.
@@ -272,7 +274,7 @@ Sender acknowledgment is not required for local activation. Until publication su
 
 ## Local Lookup And Delivery
 
-Every grant-authorized Hail Envelope includes `grant_id`.
+Every grant-authorized Hail Envelope includes `authorization.grant_id` as defined in [envelopes.md](envelopes.md).
 
 The recipient server performs its initial local lookup using:
 
@@ -336,6 +338,7 @@ Rules:
 
 - The recipient server enforces revocation locally before notifying the sender.
 - Revocation notification failure cannot delay enforcement.
+- Revocation immediately prevents envelopes not yet accepted; an envelope whose acceptance transaction committed first retains its fixed authorization under [delivery-state.md](delivery-state.md).
 - A revoked grant ID can never become active again.
 - The recipient retains a tombstone sufficient to reject replayed older revisions.
 - The sender retains signed revocation evidence as needed for compliance and list cleanup.
@@ -481,7 +484,7 @@ The proof of concept implements:
 - `categories` and `uncategorized` scope selectors only
 - full-state signed revisions
 - local authoritative state
-- required envelope `grant_id`
+- required envelope `authorization.grant_id`
 - idempotent HTTPS `PUT`
 - conditional updates using ETags
 - signed terminal revocation
@@ -503,7 +506,6 @@ Deferred:
 
 - What exact canonical representation and signature wrapper signs a grant?
 - What exact digest representation is used by `previous` and ETags?
-- What clock skew is permitted for grant timestamps?
 - What maximum grant size must servers accept?
 - How long must revoked grant tombstones be retained?
 - How does historical DID key verification interact with old grant revisions?

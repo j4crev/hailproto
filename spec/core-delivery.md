@@ -129,7 +129,7 @@ Hail Grant semantics are defined in [grants.md](grants.md).
 For core delivery:
 
 - The recipient's local latest grant revision is authoritative.
-- Every grant-authorized envelope includes a UUIDv7 `grant_id` as a lookup hint.
+- Every grant-authorized envelope includes a UUIDv7 `authorization.grant_id` as a lookup hint.
 - The grant ID is not a bearer capability.
 - The grantor and grantee are exact DIDs.
 - V1 permits one active grant per grantor/grantee pair.
@@ -138,38 +138,34 @@ For core delivery:
 
 ### 4. Body Publication
 
-- Must the body exist before its envelope is submitted?
-- Is the body shared among recipients or unique per recipient?
-- How is its content hash computed: encoded bytes, canonical document bytes, compressed bytes, or uncompressed bytes?
-- Does the envelope declare compressed size, uncompressed size, or both?
-- How is body media type/profile declared?
-- Must the sender retain the exact body bytes originally hashed?
-- How long must the body remain retrievable after envelope submission?
-- Can a sender proactively upload the body after envelope acceptance instead of waiting for a fetch?
+Detached Hail Body semantics are defined in [bodies.md](bodies.md).
 
-Recommended starting direction: hash the exact uncompressed encoded body bytes, declare their uncompressed size and media type, and treat compression as a transport concern outside the content hash.
+For core delivery:
+
+- The immutable body exists before envelope submission.
+- The envelope signs its digest, uncompressed size, media type, profile, availability commitment, and recipient-specific access authorization.
+- The recipient server pulls or reuses the body only after envelope authorization.
+- Byte-identical bodies may share sender-side and underlying recipient-side storage, but retrieval-cache reuse follows recipient-and-sender provenance rules.
+- Every envelope commits to at least 30 days of body availability.
 
 ### 5. Hail Envelope Construction
 
-- Which fields are required in the first envelope?
-- Is one envelope always addressed to exactly one recipient?
-- Is `message_id` globally unique, sender-scoped, or recipient-scoped?
-- Is the ID random, time-sortable, or content-derived?
-- Are both creation and expiration timestamps required?
-- Does the envelope include a grant ID?
-- Does it include category and protocol-defined message type?
-- Which preview metadata belongs in the envelope rather than the body?
-- Which fields are covered by the signature?
-- Is the signature embedded or carried in an outer wrapper?
-- Does signing happen before or after compression?
+Hail Envelope construction, grant and reply authorization, the exact body descriptor, RFC 8785 canonicalization, RFC 7515 JWS representation, RFC 9864 Ed25519 signatures, timestamps, and replay behavior are defined in [envelopes.md](envelopes.md).
 
-Recommended starting direction: one envelope per recipient, a sender-generated 128-bit or stronger random message ID, and a signature over every semantic envelope field.
+For core delivery:
+
+- Each envelope has exactly one sender DID and one recipient DID.
+- The sender-scoped UUIDv7 `message_id` forms the idempotency key with the authenticated sender DID.
+- `created_at` and `expires_at` are required.
+- Every semantic payload field and the signing key ID are protected by the JWS.
+- Grant-authorized delivery carries `authorization.grant_id`; reply delivery uses a prior message's signed reply permission.
+- The POC envelope is not HTTP-compressed and never includes arbitrary body or reply URLs.
 
 ### 6. Envelope Submission
 
 - What abstract operation submits an envelope?
 - Is submission synchronous or asynchronous?
-- What maximum envelope size must every conforming recipient support?
+- The POC requires support for complete envelope representations through 16384 bytes, as defined in [envelopes.md](envelopes.md).
 - What transport authentication is required in addition to the envelope signature, if any?
 - Can one request contain multiple envelopes for recipients on the same server?
 - How does the sender identify the body retrieval location without supplying an arbitrary URL?
@@ -179,99 +175,35 @@ Recommended starting direction: submit one envelope per operation in the first p
 
 ### 7. Recipient Validation Order
 
-What exact order should the recipient server use?
+The normative validation order is defined in [envelopes.md](envelopes.md). It permits a cheap preliminary authorization lookup using claimed fields, requires externally uniform unauthenticated rejection, verifies the signature before state mutation or body retrieval, then atomically reserves idempotency and reply-capability state.
 
-Candidate order:
-
-1. Enforce transport and envelope byte limits.
-2. Decode the minimal envelope structure.
-3. Validate required fields and inexpensive syntax constraints.
-4. Perform a preliminary local grant lookup using claimed sender, recipient, and category.
-5. Return a privacy-preserving rejection if no candidate grant exists.
-6. Resolve or load the authenticated sender key.
-7. Verify the envelope signature.
-8. Confirm the authenticated identity exactly matches the candidate grant.
-9. Re-check grant status, scope, and expiration.
-10. Check message ID for duplicate or replay delivery.
-11. Check timestamps, body size, body type, and server policy.
-12. Reserve an idempotent pending-delivery record.
-13. Accept the envelope for body retrieval.
-
-Questions:
-
-- Can untrusted claimed fields safely be used for preliminary grant lookup?
-- Which checks must occur before cryptographic verification?
-- Should replay detection occur before or after signature verification?
-- Should the grant be re-checked after potentially slow key discovery?
-- Which failures are permanent, and which are retryable?
-- At what step is a pending delivery record created?
+Authorization is fixed by atomic acceptance. Envelope expiration is re-checked before completed delivery. Permanent and retryable body failures and delivery states are defined in [delivery-state.md](delivery-state.md).
 
 ### 8. Detached Body Retrieval
 
-- Does the recipient pull the body, does the sender push it after acceptance, or must both modes exist?
-- How is the body request authenticated and authorized?
-- Can a recipient fetch a shared campaign body without revealing which user received it?
-- Does the body server learn when the recipient reads the message, or only when its server retrieves it?
-- May recipient servers proxy, batch, or cache body retrieval?
-- How are redirects handled?
-- How are SSRF and DNS rebinding prevented?
-- What compressed and uncompressed limits apply?
-- How are decompression bombs detected?
-- What happens when the retrieved hash, size, or media type differs from the envelope?
-- May the recipient retry retrieval from another authorized sender endpoint?
+The recipient pulls from the authenticated sender Hail service using bearer authorization carried in the signed envelope, as defined in [bodies.md](bodies.md). Recipient-scoped caching and underlying digest-based storage deduplication are allowed. V1 accepts no envelope-supplied URLs or redirects.
 
-Recommended starting direction: recipient server pull, with the body endpoint derived from authenticated sender discovery; no arbitrary body URLs or redirects in the first profile.
+Body fetches are server delivery operations, not user open or read signals.
 
 ### 9. Delivery Completion
 
-- What does envelope acceptance mean?
-- At what point may the sender claim the message was delivered?
-- Is delivery complete after the body is retrieved and hash-verified, or only after durable storage?
-- Does client synchronization affect server-to-server delivery status?
-- How does the recipient report final completion after asynchronous body retrieval?
-- Is a delivery status resource required?
-- Does the sender receive a callback, poll status, or rely on a synchronous transfer?
-- How long must delivery status remain queryable?
+Acceptance, completed delivery, terminal failure, cancellation, and signed status reporting are defined in [delivery-state.md](delivery-state.md).
 
-Recommended starting definition: delivery is complete when the recipient server has verified and durably accepted the envelope and body. Delivery does not imply that the user opened or read the message.
+Acceptance durably fixes authorization and queues body processing. Delivery completes only when the recipient server has verified and durably stored the body and recipient-specific message record. It does not imply client synchronization, display, open, or read.
 
 ### 10. Idempotency And Replay Protection
 
-- What uniquely identifies the delivery attempt?
-- What happens when the same signed envelope is submitted twice?
-- Must the second request return the original result?
-- Can a sender retry with the same message ID but different envelope bytes?
-- How long must recipient servers retain deduplication records?
-- Can an expired message ID be reused?
-- How are concurrent duplicate submissions serialized?
-- Does a shared body hash have any role in message identity?
-
-Recommended starting direction: the sender identity plus `message_id` forms the idempotency key; identical retries return the existing state, while different signed content under the same key is a permanent conflict.
+Idempotency and replay protection are defined in [envelopes.md](envelopes.md). The authenticated sender DID plus `message_id` is the key. Identical canonical payloads reuse existing state, conflicting payloads are rejected, concurrent submissions are serialized, IDs are never reused, and body digest has no role in message identity.
 
 ### 11. Retry Behavior
 
-- Which failures should the sender retry?
-- What backoff and jitter expectations apply?
-- May a recipient provide `Retry-After` guidance?
-- When should stale recipient discovery be refreshed?
-- When should stale sender key discovery be refreshed?
-- How long may a delivery remain pending?
-- What happens if the envelope was accepted but the sender removes the body too early?
-- When may the sender permanently abandon delivery?
-
-The specification should distinguish protocol retry rules from implementation scheduling choices.
+The recipient server owns body-retrieval backoff, jitter, concurrency, and hold scheduling within the signed deadline. Retryable and permanent reason codes, `Retry-After` handling, and sender-unreachable versus body-failure behavior are defined in [delivery-state.md](delivery-state.md).
 
 ### 12. Revocation And Race Conditions
 
-- What happens if a grant is revoked while an envelope is being validated?
-- What happens if revocation occurs after envelope acceptance but before body retrieval?
-- What happens if revocation occurs after complete delivery?
-- Is a message already delivered retained, hidden, or deleted?
-- Is the sender proactively notified of revocation?
-- If not, what response does the sender receive on its next attempt?
-- How does the recipient prove a sender previously had a relationship before returning a detailed rejection?
+Grant changes and envelope acceptance are linearized against local authoritative state. If revocation commits first, the envelope is rejected. If acceptance commits first, body processing continues and later revocation affects only future envelopes. Neither revocation nor delivery-state changes retroactively delete delivered messages.
 
-Recommended starting direction: re-check grant status immediately before committing completed delivery. Revocation prevents incomplete deliveries but does not retroactively delete already delivered messages.
+Grant notification and disclosure behavior remain defined in [grants.md](grants.md). The acceptance race is defined in [delivery-state.md](delivery-state.md).
 
 ### 13. Failure Responses And Privacy
 
@@ -283,11 +215,9 @@ Recommended starting direction: re-check grant status immediately before committ
 - How are malformed, unauthorized, expired, oversized, duplicate, and rate-limited requests represented?
 - Which errors are safe to record in sender-facing logs?
 
-Candidate semantic result classes:
+Pre-acceptance envelope result classes remain distinct from the delivery states in [delivery-state.md](delivery-state.md). Candidate rejection classes:
 
 ```text
-accepted-pending-body
-delivered
 duplicate
 unauthorized
 grant-revoked
@@ -296,9 +226,7 @@ invalid-signature
 invalid-envelope
 message-expired
 body-too-large
-temporarily-unavailable
 rate-limited
-delivery-failed
 ```
 
 HTTP status codes should be assigned only after these semantic results are settled.
@@ -326,7 +254,7 @@ Limits should be defined in terms of both required interoperability floors and r
 - How are delivery receipts distinguished from read receipts?
 - Does the core flow expose any user activity beyond server acceptance?
 
-Recommended starting direction: define server delivery confirmation but exclude read/open receipts from the core delivery flow.
+Signed server delivery status is defined in [delivery-state.md](delivery-state.md). Read and open receipts remain excluded from core delivery.
 
 ## Questions That Can Be Deferred
 
@@ -349,19 +277,13 @@ These issues should not block the first grant-authorized delivery:
 
 The initial schemas should avoid making these features impossible, but they do not need complete v1 behavior yet.
 
-## First Decisions To Make
+## Next Decisions To Make
 
 The questions should be resolved in this order:
 
-1. Body publication and hashing rules.
-2. Minimum Hail Envelope fields.
-3. Recipient validation order.
-4. Body retrieval authorization and location.
-5. Meaning of envelope acceptance and completed delivery.
-6. Idempotency, replay, and retry behavior.
-7. Revocation races.
-8. Semantic failure results.
-9. HTTP binding.
-10. Encoding and signature profile.
+1. Semantic pre-acceptance rejection results and disclosure rules.
+2. HTTP envelope-submission binding.
+3. HTTP body-retrieval status mapping.
+4. HTTP delivery-status push, query, and acknowledgement binding.
 
-The next topic to settle is detached Hail Body publication, hashing, retrieval, and retention semantics.
+The next topic to settle is the Hail HTTPS binding and its privacy-preserving response behavior.

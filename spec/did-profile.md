@@ -55,7 +55,26 @@ Conceptual DID document:
 }
 ```
 
-The exact cryptographic algorithms and key encodings permitted by Hail v1 will be defined by the Hail security profile.
+## POC Key Algorithm And Encoding
+
+The POC uses Ed25519 for both Hail verification-method roles. The roles must still use distinct public keys.
+
+An Ed25519 Hail verification method uses the W3C Multikey representation:
+
+```json
+{
+  "type": "Multikey",
+  "publicKeyMultibase": "z..."
+}
+```
+
+`publicKeyMultibase` is the base58btc multibase encoding of the `ed25519-pub` multicodec prefix followed by exactly 32 public-key bytes. The multicodec value is `0xed`, whose unsigned-varint byte representation is `0xed 0x01`.
+
+For `did:web`, the DID document publishes that Multikey directly and references it from `assertionMethod`.
+
+For `did:plc`, the PLC operation stores the equivalent Ed25519 `did:key` value. Its multibase identifier encodes the same `ed25519-pub` multicodec prefix and public-key bytes; DID resolution renders the corresponding Hail verification method.
+
+The Hail Envelope JWS uses the fully specified RFC 9864 `Ed25519` algorithm identifier. The deprecated polymorphic `EdDSA` identifier is not accepted. Signature wrappers for grants, address bindings, and other Hail objects remain object-specific even when they use the same key algorithm.
 
 ## Hail Identity Key
 
@@ -122,7 +141,7 @@ When validating a Hail signature, an implementation:
 4. Requires `key_id` to be an absolute DID URL under the signer DID.
 5. Locates exactly one verification method with that ID.
 6. Requires the verification method controller to equal the signer DID.
-7. Requires the key type and algorithm to be allowed by the Hail security profile.
+7. Requires the key type and algorithm to be allowed by this DID profile and the signed object's security profile.
 8. Requires the key fragment to authorize the operation type.
 9. Verifies the signature over the canonical signed payload.
 
@@ -275,6 +294,8 @@ After the DID method considers the update current:
 - grants remain unchanged because they reference the DID
 - address bindings remain valid until they expire, unless their identity key also changed
 
+A provider migration that preserves protocol continuity must use the fenced state-transfer procedure in [delivery-state.md](delivery-state.md). The old provider freezes the DID's complete grant, reply, replay, delivery, and status serialization domain before export and never commits state after that snapshot. The new provider starts only after durable import and DID cutover. The old provider never receives the new messaging private key and stops signing Hail operations after removal. Emergency rotation without recoverable provider state may sacrifice pending delivery or status availability rather than continuing to trust a removed key.
+
 Implementations may temporarily cache prior DID state, so senders should re-resolve a DID after an endpoint failure or unknown-key signature failure. Exact cache and transition behavior remains part of the core delivery specification.
 
 ## Key Rotation
@@ -282,6 +303,8 @@ Implementations may temporarily cache prior DID state, so senders should re-reso
 Rotating either Hail key does not change the DID.
 
 At ingest, servers verify signatures using DID state valid under the resolution and historical-verification rules of the applicable DID method and Hail security profile.
+
+For the POC, a cached DID document used for new envelope intake must be no more than 300 seconds old. The recipient re-resolves immediately when the protected `kid` is absent, the cached key fails verification, or the discovered service fails. A successful refresh replaces cached state; removed keys do not remain valid for new intake. Method-specific finality and recovery windows remain production concerns.
 
 Recipient servers should retain the verification evidence needed to audit an accepted message after a key rotates. They should not require an old stored message to verify against only the current DID document.
 
@@ -301,7 +324,7 @@ If a provider holds both Hail private keys or controls the DID update/recovery a
 
 ### Stale Resolution
 
-Cached DID documents can leave a removed provider key temporarily trusted. Hail must define bounded cache lifetimes, forced refresh conditions, and method-specific finality behavior.
+Cached DID documents can leave a removed provider key temporarily trusted. The POC bounds cache lifetime and defines forced refresh conditions; production still requires method-specific finality and recovery-window behavior.
 
 ### Key Confusion
 
@@ -313,10 +336,10 @@ Resolving a DID must not grant unrestricted server-side network access. Hail cli
 
 ## Open Questions
 
-- Which signing algorithms and Multikey encodings are required by Hail v1?
-- What canonical signed-object and signature wrapper format is required?
-- How long may DID documents and verification methods be cached?
+- Will production retain Ed25519 as the only required signing algorithm or add another fully specified algorithm?
+- What canonical signed-object and signature wrapper formats apply to non-envelope Hail objects?
+- What production cache lifetime and method-specific finality rules replace the POC's 300-second maximum?
 - How is historical DID state identified and retained for audit verification?
 - How does the PLC recovery window affect acceptance of newly rotated keys and endpoints?
-- Should a provider migration require a temporary overlap period or support only an atomic cutover?
+- What interoperable authenticated export format and fencing acknowledgement implement the required atomic provider cutover?
 - What final standardized relative paths are derived from the Hail service base URL?

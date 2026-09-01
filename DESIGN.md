@@ -229,71 +229,46 @@ Category is sender-defined consent scope. Message type is protocol-defined rende
 
 Hail Messages should use a small signed Hail Envelope with a detached Hail Body.
 
-The envelope is delivered first. The body is fetched or transferred only after the receiving server has verified that the sender has an active grant.
+The complete immutable body exists before envelope submission. The envelope is delivered first, and the recipient server retrieves or reuses the body only after authorizing the envelope.
 
 Benefits:
 
 - unauthorized traffic can be rejected before parsing large bodies
 - signatures can be checked over compact metadata
 - one body can be reused for many recipients
-- recipient servers can deduplicate by content hash
+- recipient servers can deduplicate underlying storage by content hash without exposing cross-recipient cache membership
 - assets can be bundled, cached, and verified separately
 - remote tracking pixels become avoidable by design
 
-High-level delivery flow:
-
-1. Sender creates one body bundle and computes its hash.
-2. Sender creates one signed envelope per recipient.
-3. Sender posts the envelope to the recipient server.
-4. Recipient server checks grant existence and category scope.
-5. Recipient server verifies the sender signature.
-6. Recipient server accepts the envelope.
-7. Recipient server fetches or receives the body by hash.
-8. Recipient server verifies the body hash.
-9. Recipient server stores the message.
+The POC uses one content-addressed body for any number of byte-identical messages, plus a separate recipient-specific retrieval token in each signed envelope. Senders commit to at least 30 days of availability. Exact hashing, token, retrieval, caching, compression, integrity, and retention rules are defined in [`spec/bodies.md`](spec/bodies.md).
 
 ## Hail Envelope
 
-The envelope should be compact and should carry only data needed for routing, authorization, preview, threading, and body retrieval.
+The envelope is compact and carries only data needed for routing, authorization, presentation, threading, and body retrieval.
 
-Conceptual fields:
+V1 uses one recipient per envelope, UUIDv7 message IDs scoped by sender DID, grant or reply authorization, required timestamps, a signed detached body descriptor, and explicit reply behavior. The payload uses RFC 8785 canonical JSON in an RFC 7515 flattened JWS signed with the sender's `#hail-messaging` key and the RFC 9864 `Ed25519` algorithm identifier.
 
-```json
-{
-  "version": 1,
-  "message_id": "...",
-  "from": "did:web:example-store.com:updates",
-  "to": "did:plc:examplealiceidentifier",
-  "category": "promotions",
-  "message_type": "promotion",
-  "created_at": 1787851200,
-  "subject": "Weekend Sale",
-  "summary": "Save up to 40% on summer gear.",
-  "body_hash": "sha256:...",
-  "reply": false,
-  "reply_by": null,
-  "reply_to": null,
-  "reply_handler": null,
-  "key_id": "2026-main",
-  "signature": "..."
-}
-```
+The complete schema, signature profile, validation order, and replay behavior are defined in [`spec/envelopes.md`](spec/envelopes.md). Detached body behavior is defined in [`spec/bodies.md`](spec/bodies.md).
 
-Notes:
+## Delivery State
 
-- `reply` means the recipient may reply to this message.
-- `reply_to` means this message is itself a reply to an earlier message.
-- `reply_by` defines when the reply capability expires.
-- `reply_handler` is an opaque sender-defined routing hint, such as a ticket id or queue id.
-- Avatars should usually live in sender profile metadata, not every message.
+`accepted` means the recipient server authenticated and authorized the envelope, fixed its authorization, and durably assumed responsibility for body processing. A later grant change prevents future acceptance but does not cancel an already accepted envelope.
+
+`delivered` means the recipient server obtained or reused the body, verified it, and durably stored both the message record and verified body reference. It does not mean that a client synchronized, displayed, opened, or read the message.
+
+Retry scheduling belongs to the recipient server within the signed delivery deadline. Sender-visible state uses `accepted`, `on-hold`, `delivered`, `failed`, and `cancelled`, with separate reason codes. The recipient sends signed per-envelope status snapshots back to the sender's DID-discovered Hail service.
+
+For a logical message sent to many recipients, each recipient envelope has its own message ID and delivery state. Campaign grouping and aggregate counts remain local to the sender; byte-identical recipients may still share one body digest.
+
+The complete state machine and status object are defined in [`spec/delivery-state.md`](spec/delivery-state.md).
 
 ## Replies
 
 Replies are authorized by prior messages, not by standing grants in the reverse direction.
 
-When a recipient receives a message with `reply: true`, the recipient server records a reply capability based on the signed envelope.
+When a recipient receives a message with `reply.allowed: true`, the recipient server records the signed, single-use reply capability.
 
-When the recipient sends a reply, the reply includes `reply_to` pointing at the original message. The original sender's server accepts the reply only if it previously sent that message with `reply: true` and the reply is still within `reply_by`.
+When the recipient sends a reply, `authorization.reply_to` points at the original message. The original sender's server accepts one next message only if it previously sent that message with replies allowed and the reply is still within `reply.until`. The capability is atomically claimed during acceptance and consumed by completed delivery.
 
 Default reply window:
 
@@ -301,7 +276,7 @@ Default reply window:
 120 days
 ```
 
-Senders may set a longer or shorter `reply_by` timestamp when needed, such as for travel bookings made months in advance.
+Senders may set a longer or shorter `reply.until` timestamp when needed, such as for travel bookings made months in advance.
 
 Sender profiles may declare reply limits, such as maximum body size and whether attachments are accepted. The protocol should define a minimum guaranteed reply capacity so ordinary text replies always work.
 
@@ -311,7 +286,7 @@ Open starting point:
 minimum reply body size: 64 KiB
 ```
 
-Threads are chains of mutually solicited messages. Either side can end the thread by sending a message with `reply: false`.
+Threads are linear chains of mutually solicited messages. Either side can end the thread by sending a message with `reply.allowed: false`.
 
 ## Revocation
 
@@ -321,7 +296,7 @@ The recipient server enforces a signed revoked grant revision immediately and no
 
 To reduce address probing, detailed rejection reasons should only be returned when the sender previously had a valid grant relationship. Unknown never-granted senders should receive a generic rejection.
 
-Grant revocation is defined in [`spec/grants.md`](spec/grants.md). Delivery result semantics remain in [`spec/core-delivery.md`](spec/core-delivery.md) until the HTTP binding is finalized.
+Grant revocation is defined in [`spec/grants.md`](spec/grants.md). Revocation wins if it commits before envelope acceptance; acceptance wins if it commits first. Delivery state is defined in [`spec/delivery-state.md`](spec/delivery-state.md).
 
 ## Hail Body Format Strategy
 
@@ -428,12 +403,14 @@ The long-term efficient profile may use:
 
 Hail Envelopes and routine server objects must be signed with the sender DID's authorized `#hail-messaging` key. Hail Grants and Hail Address Bindings must be signed with the relevant DID's `#hail-identity` key.
 
-The main open design question is canonicalization.
-
-Possible v1 approach:
+The Hail Envelope v1 profile uses:
 
 - canonical JSON using RFC 8785 JSON Canonicalization Scheme
-- detached Ed25519 signatures
+- RFC 7515 flattened JWS JSON Serialization
+- the RFC 9864 `Ed25519` algorithm identifier
+- the sender DID's `#hail-messaging` key
+
+This exact profile is defined in [`spec/envelopes.md`](spec/envelopes.md). Other signed Hail object types require object-specific profiles so their types and key roles remain domain-separated.
 
 Possible later approach:
 
@@ -459,7 +436,7 @@ High-level delivery flow:
 
 1. Sender discovers recipient server from the recipient domain or profile.
 2. Sender sends a signed envelope to the recipient server.
-3. Recipient server checks for an active delivery grant.
+3. Recipient server checks for an active delivery grant or valid single-use reply authorization.
 4. Recipient server checks category, expiration, rate limits, and content constraints.
 5. Recipient server verifies sender identity and message signature.
 6. Recipient server accepts or rejects the envelope.
@@ -482,7 +459,7 @@ Possible analytics model:
 
 - delivery status is protocol-level
 - read/open receipts are opt-in
-- aggregate campaign stats may be provided by recipient servers or hosting providers
+- aggregate campaign stats may be computed by the sender from per-recipient delivery statuses
 - per-user surveillance should not be built into the protocol
 
 The pitch to legitimate senders is better deliverability and more honest engagement data in exchange for reduced covert tracking.
@@ -495,7 +472,7 @@ Suggested build phases:
 
 1. Shared protocol library for envelope encode/decode, signing, verification, and schema validation.
 2. Sender server with profile metadata, category manifest, grant receipt, body storage, and send pipeline.
-3. Receiver server with grant table, inbox endpoint, ingest checks, body retrieval, and message store.
+3. Receiver server with grant table, envelope endpoint, ingest checks, body retrieval, and message store.
 4. Test harness for subscribe, send, revoke, reply, expired reply, and unauthorized traffic rejection.
 5. Minimal receiver client for grant approval and message reading.
 
@@ -505,13 +482,10 @@ If the receiver can drop unauthorized envelopes cheaply before signature verific
 
 ## Open Questions
 
-- Should v1 require JSON, CBOR, or support JSON first with CBOR later?
-- Should signatures use JCS plus Ed25519, COSE, or both?
 - Will the PLC maintainers confirm non-AT Protocol production use of the public directory?
 - What exact normalization, lifetime, and signature profile should Hail Address Bindings use?
 - What non-DID profile fields are required for sender discovery?
 - What should the guaranteed minimum reply size be?
-- What is the initial body bundle format?
 - What is the first useful block vocabulary after plain text?
 - How should organization verification work beyond domain control?
 - How should bridge-to-email work without weakening the anti-spam model?
@@ -520,10 +494,8 @@ If the receiver can drop unauthorized envelopes cheaply before signature verific
 
 - Minimal v1 protocol endpoints in detail.
 - Discovery and domain ownership verification.
-- Message envelope schema and required fields.
-- Detached body bundle format.
+- Delivery state and HTTP behavior after envelope acceptance.
 - Reply path wire behavior.
-- JSON versus CBOR for the prototype.
 - Sender category manifest format.
 - Block document v1 vocabulary.
 - Server abuse protections and rate limits.
