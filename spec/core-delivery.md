@@ -81,7 +81,7 @@ alice@example.net
   -> https://current-provider.example/hail
 ```
 
-If Alice migrates providers, only the final service endpoint changes. Her DID and existing grants do not.
+If Alice migrates providers, the DID document changes the final service endpoint and the `#hail-messaging` operational key. Her DID and existing grants do not change.
 
 For domain-backed senders, domain control verifies that the human-readable sender address is an authorized alias for the sender DID. The provider operating the endpoint does not gain the sender's domain identity merely by hosting it.
 
@@ -163,15 +163,17 @@ For core delivery:
 
 ### 6. Envelope Submission
 
-- What abstract operation submits an envelope?
-- Is submission synchronous or asynchronous?
+- `SubmitEnvelope` submits one envelope per synchronous HTTPS exchange.
+- HTTP receipt, Hail acceptance, and completed delivery are distinct.
+- An unknown or unauthenticated sender receives a generic HTTP `202` response that reports only the `received` submission outcome.
+- An authenticated sender with a current or previous relationship may receive a detailed current result when privacy permits.
+- Terminal delivery status is reported asynchronously with a signed status snapshot.
 - The POC requires support for complete envelope representations through 16384 bytes, as defined in [envelopes.md](envelopes.md).
 - What transport authentication is required in addition to the envelope signature, if any?
-- Can one request contain multiple envelopes for recipients on the same server?
-- How does the sender identify the body retrieval location without supplying an arbitrary URL?
+- The body retrieval location is derived from authenticated sender discovery rather than supplied by the envelope.
 - What request identifier supports tracing without becoming part of message identity?
 
-Recommended starting direction: submit one envelope per operation in the first profile and derive body retrieval from authenticated sender discovery rather than an envelope-provided URL.
+Bulk submission remains deferred. Submission outcomes, disclosure, timing, retries, and idempotency are defined in [http-binding.md](http-binding.md).
 
 ### 7. Recipient Validation Order
 
@@ -207,29 +209,23 @@ Grant notification and disclosure behavior remain defined in [grants.md](grants.
 
 ### 13. Failure Responses And Privacy
 
-- Which failure classes must be distinguishable to an authenticated, previously granted sender?
-- What generic response is returned to unknown senders?
-- Can responses reveal whether a recipient address exists?
-- Can timing differences reveal grant existence before signature verification?
-- Should invalid signatures and unknown keys be distinguishable?
-- How are malformed, unauthorized, expired, oversized, duplicate, and rate-limited requests represented?
-- Which errors are safe to record in sender-facing logs?
-
-Pre-acceptance envelope result classes remain distinct from the delivery states in [delivery-state.md](delivery-state.md). Candidate rejection classes:
+Pre-acceptance envelope results remain distinct from the delivery states in [delivery-state.md](delivery-state.md). The closed submission-outcome set is:
 
 ```text
+received
+accepted
 duplicate
-unauthorized
-grant-revoked
-category-not-granted
-invalid-signature
+message-id-conflict
 invalid-envelope
+unauthorized
 message-expired
-body-too-large
 rate-limited
+temporarily-unavailable
 ```
 
-HTTP status codes should be assigned only after these semantic results are settled.
+Before a sender is authenticated with a current or previous relationship, protected failures return the same generic `202`/`received` response under a common measured bounded response schedule. The generic response contains no query handle or acceptance promise. Eligible authenticated senders may receive detailed current results; already-known reasons such as `grant-revoked` and `category-not-granted` may refine `unauthorized`. Safe transport errors, detailed disclosure, and retry classifications are defined in [http-binding.md](http-binding.md).
+
+Final detailed HTTP status codes, response media types, and RFC 9457 problem type URIs remain open.
 
 ### 14. Resource And Abuse Limits
 
@@ -249,12 +245,10 @@ Limits should be defined in terms of both required interoperability floors and r
 
 - What evidence does the sender retain that delivery was granted?
 - What evidence does the recipient retain about sender authentication and delivery?
-- Is the final delivery receipt signed?
-- Is a transport response sufficient for the first version?
 - How are delivery receipts distinguished from read receipts?
 - Does the core flow expose any user activity beyond server acceptance?
 
-Signed server delivery status is defined in [delivery-state.md](delivery-state.md). Read and open receipts remain excluded from core delivery.
+HTTP receipt is not evidence of Hail acceptance or delivery. Signed server delivery status is defined in [delivery-state.md](delivery-state.md). Read and open receipts remain excluded from core delivery.
 
 ## Questions That Can Be Deferred
 
@@ -279,11 +273,11 @@ The initial schemas should avoid making these features impossible, but they do n
 
 ## Next Decisions To Make
 
-The questions should be resolved in this order:
+The remaining HTTPS questions should be resolved in this order:
 
-1. Semantic pre-acceptance rejection results and disclosure rules.
-2. HTTP envelope-submission binding.
-3. HTTP body-retrieval status mapping.
+1. Final envelope-submission paths, media types, detailed status codes, and Problem Details mapping.
+2. HTTP body-retrieval status mapping.
+3. HTTP grant-publication binding.
 4. HTTP delivery-status push, query, and acknowledgement binding.
 
-The next topic to settle is the Hail HTTPS binding and its privacy-preserving response behavior.
+The privacy-preserving envelope-submission behavior is defined in [http-binding.md](http-binding.md). The next topic to settle is its exact wire representation.

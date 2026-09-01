@@ -185,11 +185,11 @@ cancelled
 
 Acceptance fixes authorization and durably transfers body-processing responsibility to the recipient server. Completed delivery requires a verified body and durable message storage. Terminal state is reported with a signed, recipient-specific status update; aggregate campaign state remains local to the sender.
 
-Remaining work is the exact HTTPS push, query, acknowledgement, and Problem Details binding.
+The distinction between generic HTTP receipt and authenticated Hail status is defined in `spec/http-binding.md`. Remaining work is the exact HTTPS status push, query, acknowledgement, and Problem Details binding.
 
 ## 9. Bind Operations To HTTPS
 
-After operation semantics and state transitions are defined, bind them to HTTP.
+After operation semantics and state transitions are defined, bind them to HTTP. `spec/http-binding.md` defines the envelope-submission outcome set, disclosure tiers, bounded response schedule, retry classifications, and replay-retention minimum. Exact wire representations remain open.
 
 Likely starting endpoints:
 
@@ -329,11 +329,11 @@ Detached-body security and resource risks are defined in `spec/bodies.md`. The r
 
 ### Acceptance Semantics
 
-Envelope acceptance does not necessarily mean completed delivery. Protocol responses must make this distinction clear.
+Generic HTTP `202` receipt, Hail envelope acceptance, and completed delivery are distinct. A generic receipt makes no acceptance promise; acceptance transfers body-processing responsibility, and delivery requires durable verified message storage.
 
 ### Replay Protection
 
-Message IDs need uniqueness, idempotency, and retention rules. A previously accepted envelope must not become a new message when replayed.
+The authenticated sender DID and message ID form the idempotency key. Replay records are retained through `max(expires_at, body.available_until) + 300 seconds`; after that deadline the signed envelope is already expired and cannot become a new delivery.
 
 ### Preliminary Grant Lookup
 
@@ -361,4 +361,4 @@ It should define:
 - every expected failure path
 - idempotency and retry behavior
 
-The grant, body, and envelope specifications now provide these object semantics. The remaining work in this artifact is to finalize delivery state, failures, retries, revocation races, and the HTTP binding.
+The grant, body, envelope, delivery-state, and partial HTTP-binding specifications now define these object and behavioral semantics, including failures, retries, revocation races, and privacy-preserving submission responses. The remaining work in this artifact is to finalize exact endpoint paths, media types, status mappings, Problem Details types, and status acknowledgement behavior.

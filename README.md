@@ -38,6 +38,7 @@ Human-readable address: signed, expiring Hail Address Binding
 - [`spec/bodies.md`](spec/bodies.md): Detached body publication, authorization, retrieval, and retention.
 - [`spec/envelopes.md`](spec/envelopes.md): Hail Envelope schema, authorization, signatures, and replay behavior.
 - [`spec/delivery-state.md`](spec/delivery-state.md): Acceptance, delivery, retries, failures, and signed status updates.
+- [`spec/http-binding.md`](spec/http-binding.md): HTTPS submission outcomes, privacy, timing, retries, and remaining wire bindings.
 
 ## License
 

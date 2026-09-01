@@ -443,6 +443,8 @@ High-level delivery flow:
 7. Recipient server fetches or receives the detached body by hash.
 8. Recipient server verifies and stores the message.
 
+The generic HTTP response reports only receipt and does not reveal Hail acceptance. Privacy-preserving submission outcomes, timing, retries, and idempotency are defined in [`spec/http-binding.md`](spec/http-binding.md).
+
 ## Unsolicited Messages
 
 V1 should not support unsolicited rich messages.
@@ -451,7 +453,7 @@ Unknown senders may eventually be allowed to send constrained contact or subscri
 
 ## Privacy And Analytics
 
-Delivery receipts are a natural part of the protocol because the sender receives an accept or reject response from the recipient server.
+HTTP receipt, Hail envelope acceptance, and completed delivery are separate. A generic transport response proves only receipt. Authenticated acceptance and delivery are reported by signed server status snapshots; they do not imply that a person opened or read the message.
 
 Read receipts should be receiver-controlled and explicit. They should not be possible through covert mechanisms like tracking pixels.
 
@@ -492,9 +494,9 @@ If the receiver can drop unauthorized envelopes cheaply before signature verific
 
 ## Topics To Discuss Next
 
-- Minimal v1 protocol endpoints in detail.
+- Exact v1 endpoint paths, media types, and status mappings.
 - Discovery and domain ownership verification.
-- Delivery state and HTTP behavior after envelope acceptance.
+- Delivery-status push, query, and acknowledgement binding.
 - Reply path wire behavior.
 - Sender category manifest format.
 - Block document v1 vocabulary.

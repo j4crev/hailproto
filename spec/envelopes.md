@@ -6,7 +6,7 @@ This document defines the Hail Envelope v1 payload, authorization modes, signatu
 
 A Hail Envelope is a compact, single-recipient, signed object. It authenticates the metadata needed to authorize delivery and retrieve an immutable detached Hail Body. It does not contain the body or an arbitrary body URL.
 
-Detached body publication and retrieval are defined in [bodies.md](bodies.md). Grant authorization is defined in [grants.md](grants.md). DID key roles and service discovery are defined in [did-profile.md](did-profile.md).
+Detached body publication and retrieval are defined in [bodies.md](bodies.md). Grant authorization is defined in [grants.md](grants.md). DID key roles and service discovery are defined in [did-profile.md](did-profile.md). HTTPS submission outcomes, disclosure, and retry behavior are defined in [http-binding.md](http-binding.md).
 
 ## Core Rules
 
@@ -396,7 +396,7 @@ A recipient should process an envelope in this order:
 
 Claimed unauthenticated fields may be used only to make rejection cheaper. No successful authorization, detailed sender-facing error, replay-cache mutation, body fetch, or durable message state may rely on them before signature verification.
 
-The externally visible response for a preliminary lookup miss must not be distinguishable from other unauthenticated processing by status, body, headers, or timing. Because DID resolution can have unbounded network latency, random delay alone is insufficient. The HTTP binding must use a common bounded response schedule or an asynchronous generic submission acknowledgement; authenticated detailed state is exposed separately only after verification. The POC must test repeated timing observations for grant and reply-record disclosure.
+The externally visible response for a preliminary lookup miss must not be distinguishable from other unauthenticated processing by status, body, headers, or timing. The HTTPS binding uses a synchronous generic `202` receipt under a common bounded response schedule; it exposes authenticated detailed state separately only after verification. The schedule is selected from measured validation behavior rather than a guessed delay, bounds network-dependent DID resolution, and is tested through repeated timing observations as defined in [http-binding.md](http-binding.md).
 
 ## Idempotency And Replay Protection
 
@@ -423,20 +423,21 @@ Behavior:
 
 This authenticated record is created before final authorization and policy checks, so an authenticated rejection under an existing candidate authorization also reserves the message ID. An identical retry returns its stored state without requiring the old authorization to remain active. A preliminary lookup miss deliberately does not trigger DID resolution or create a tombstone; the sender's no-reuse rule still applies, but the recipient cannot enforce it until an envelope under that ID is authenticated.
 
-The recipient retains the replay record until at least 300 seconds after the later of `expires_at` and `body.available_until`. A replay after that minimum retention is already expired and cannot become a new delivery. Implementations may retain compact tombstones longer.
+The recipient retains the replay record until at least `max(expires_at, body.available_until) + 300 seconds`. A replay after that minimum retention is already expired and cannot become a new delivery. Implementations may retain compact tombstones longer.
 
 Signature verification occurs before a caller receives duplicate state or causes replay-record mutation. This prevents an unauthenticated party that guesses a message ID from probing or occupying another sender's idempotency key.
 
 ## Acceptance And Delivery
 
-Envelope submission has two distinct successful phases:
+HTTP receipt, Hail acceptance, and delivery are distinct:
 
 ```text
-envelope accepted  -> authenticated, authorized, and reserved for body processing
-delivered          -> body verified and message durably stored
+HTTP received      -> request received; no Hail acceptance promise
+Hail accepted      -> authenticated, authorized, and reserved for body processing
+Hail delivered     -> body verified and message durably stored
 ```
 
-Acceptance fixes authorization for the envelope. A later grant restriction, expiration, or revocation applies to future envelope acceptance and does not cancel this accepted message. An accepted envelope may still fail because its body is unavailable, invalid, or not completed before the delivery deadline.
+The generic `received` submission outcome is not a delivery state and may lead to no protocol-state change. Acceptance fixes authorization for the envelope. A later grant restriction, expiration, or revocation applies to future envelope acceptance and does not cancel this accepted message. An accepted envelope may still fail because its body is unavailable, invalid, or not completed before the delivery deadline.
 
 The complete state machine, retry classifications, multi-recipient behavior, and signed status representation are defined in [delivery-state.md](delivery-state.md). Envelope acceptance must not be represented to the sender as completed delivery.
 
@@ -444,9 +445,9 @@ The complete state machine, retry classifications, multi-recipient behavior, and
 
 Preliminary authorization lookup must not turn the delivery endpoint into a recipient, grant, sent-message, or message-ID oracle.
 
-Before authenticating a sender with a current or previous relationship, implementations return a generic unauthorized result for absent recipients, absent grants, absent reply records, invalid keys, and invalid signatures where practical. Detailed revocation, category, duplicate, or delivery-state information is disclosed only to an authenticated sender for whom that information is already relationship state.
+Before authenticating a sender with a current or previous relationship, implementations return the mandatory generic `202`/`received` response for absent recipients, absent grants, absent reply records, invalid keys, invalid signatures, and other protected outcomes. Detailed revocation, category, duplicate, or delivery-state information is disclosed only to an authenticated sender for whom that information is already relationship state.
 
-Implementations should reduce timing differences between lookup failures and must rate-limit by network source, claimed DID, authenticated DID, and provider as appropriate.
+Protected generic responses follow the common measured bounded schedule in [http-binding.md](http-binding.md). Implementations must also rate-limit by network source, claimed DID, authenticated DID, and provider as appropriate without making protected relationship state observable.
 
 ## Security Considerations
 
@@ -491,7 +492,9 @@ The proof of concept implements:
 - 300-second timestamp tolerance
 - 16384-byte maximum envelope representation
 - idempotent duplicate handling and conflicting-payload rejection
-- generic pre-authentication failures
+- the closed submission-outcome set in the HTTPS binding
+- generic `202` receipt before authenticated relationship disclosure
+- a measured common bounded response schedule
 - no arbitrary body or reply URLs
 
 Deferred:
@@ -504,12 +507,12 @@ Deferred:
 - arbitrary extension fields
 - unsigned or unprotected JWS headers
 - non-grant authorization other than direct replies
-- HTTP status codes and final media-type registration
+- final detailed HTTP status codes and media-type registration
 
 ## Open Questions
 
 - What DID method version evidence must recipients retain for long-term audit verification?
 - What production cache lifetime and method-specific finality rules replace the POC behavior?
-- Which RFC 9457 problem types does the HTTP binding expose for pre-acceptance rejection?
+- Which RFC 9457 problem type URIs and fields represent eligible detailed pre-acceptance rejections?
 - Should production retain the POC message-type list or introduce a separately versioned registry?
 - What production envelope size must every conforming implementation accept?

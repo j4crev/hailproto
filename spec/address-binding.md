@@ -103,7 +103,7 @@ Conceptual signed payload:
   "did": "did:plc:examplealiceidentifier",
   "issued_at": 1787851200,
   "expires_at": 1795627200,
-  "key_id": "did:plc:examplealiceidentifier#hail-address"
+  "key_id": "did:plc:examplealiceidentifier#hail-identity"
 }
 ```
 

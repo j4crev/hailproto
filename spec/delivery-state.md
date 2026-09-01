@@ -111,7 +111,7 @@ on-hold
 
 Repeated `on-hold` snapshots may update the reason or retry schedule. Terminal states have no outgoing transitions.
 
-Malformed, unauthenticated, unauthorized, conflicting, oversized, or already expired submissions are rejected before acceptance. Rejection is an envelope-submission result, not a delivery state.
+The `received`, `duplicate`, `message-id-conflict`, `invalid-envelope`, `unauthorized`, `message-expired`, `rate-limited`, and `temporarily-unavailable` submission outcomes are not delivery states. Their disclosure and retry classifications are defined in [http-binding.md](http-binding.md).
 
 An idempotent retry of an accepted envelope returns its current state without creating a transition. A conflicting payload under the same sender and message ID is permanently rejected.
 
@@ -451,7 +451,7 @@ Snapshots are complete, so a sender may accept a higher revision even if an inte
 
 ## Status Reporting
 
-The current signed status snapshot is the authenticated result of envelope submission. The HTTP binding may return it synchronously only when doing so preserves the unauthenticated response protections in [envelopes.md](envelopes.md); otherwise it is delivered asynchronously after verification. If body processing completes before the first authenticated result is communicated, the recipient may communicate the later `delivered` snapshot instead.
+The current signed status snapshot is the authenticated Hail processing result for an accepted envelope. A generic HTTP `202` receipt is not a status snapshot and proves neither Hail acceptance nor delivery. The HTTPS binding may return the current snapshot synchronously to an authenticated sender with a current or previous relationship when privacy permits; otherwise it is delivered asynchronously after verification. If body processing completes before the first authenticated result is communicated, the recipient may communicate the later `delivered` snapshot instead.
 
 The recipient should report `on-hold` when delay is operationally significant. It need not publish every failed request or retry schedule adjustment.
 
@@ -462,10 +462,10 @@ Status reporting is an at-least-once operation:
 - The recipient retries an unacknowledged terminal status with bounded backoff and jitter.
 - The sender acknowledges exact duplicates idempotently.
 - Status-report failure does not change the recipient's delivery state.
-- The recipient retains the latest signed status at least as long as the envelope replay record.
+- The recipient retains the latest signed status at least through the envelope replay deadline defined in [envelopes.md](envelopes.md).
 - The sender may retrieve current status through a future HTTP-bound query operation if push delivery was missed.
 
-The HTTP binding will define the push and query paths, authenticated acknowledgements, response codes, and retry intervals.
+The HTTP binding will define the push and query paths, authenticated acknowledgements, response codes, and retry intervals. A generic submission receipt never includes a status-query handle; any future query operation must independently authenticate the original sender relationship.
 
 ## Privacy
 
