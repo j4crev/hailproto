@@ -507,12 +507,10 @@ Deferred:
 - arbitrary extension fields
 - unsigned or unprotected JWS headers
 - non-grant authorization other than direct replies
-- final detailed HTTP status codes and media-type registration
 
 ## Open Questions
 
 - What DID method version evidence must recipients retain for long-term audit verification?
 - What production cache lifetime and method-specific finality rules replace the POC behavior?
-- Which RFC 9457 problem type URIs and fields represent eligible detailed pre-acceptance rejections?
 - Should production retain the POC message-type list or introduce a separately versioned registry?
 - What production envelope size must every conforming implementation accept?

@@ -259,7 +259,7 @@ envelopes: https://provider.example/hail/envelopes
 bodies:    https://provider.example/hail/bodies/{hash}
 ```
 
-These paths remain provisional until the HTTP binding is finalized.
+The `envelopes` relative path is fixed by the HTTP binding. The grant and body paths remain provisional until their operation bindings are finalized.
 
 ## Service Validation
 
@@ -268,7 +268,7 @@ The v1 Hail DID profile requires exactly one active `HailMessaging` service with
 Its endpoint must:
 
 - use HTTPS
-- use a valid public DNS hostname
+- use a valid public ASCII DNS hostname in canonical IDNA A-label form
 - contain no username or password
 - contain no query string
 - contain no fragment
@@ -276,7 +276,9 @@ Its endpoint must:
 - not resolve to loopback, link-local, or private network addresses for public federation
 - satisfy the URL canonicalization rules defined by the Hail HTTP binding
 
-Protocol clients must not follow arbitrary service redirects unless a future HTTP binding explicitly defines safe redirect behavior.
+Publishers emit the canonical form without a trailing slash. Consumers perform the limited normalization and strict path validation defined by the HTTP binding before using or comparing the endpoint.
+
+Protocol clients must not follow service redirects. They re-resolve the DID under the endpoint-refresh rules in the HTTP binding instead of trusting a redirect target.
 
 ## Provider Migration
 
@@ -296,7 +298,7 @@ After the DID method considers the update current:
 
 A provider migration that preserves protocol continuity must use the fenced state-transfer procedure in [delivery-state.md](delivery-state.md). The old provider freezes the DID's complete grant, reply, replay, delivery, and status serialization domain before export and never commits state after that snapshot. The new provider starts only after durable import and DID cutover. The old provider never receives the new messaging private key and stops signing Hail operations after removal. Emergency rotation without recoverable provider state may sacrifice pending delivery or status availability rather than continuing to trust a removed key.
 
-Implementations may temporarily cache prior DID state, so senders should re-resolve a DID after an endpoint failure or unknown-key signature failure. Exact cache and transition behavior remains part of the core delivery specification.
+Implementations may temporarily cache prior DID state. The HTTP binding defines which endpoint failures force early DID re-resolution, how canonical endpoints are compared, and when an operation may be retried at a newly authenticated endpoint.
 
 ## Key Rotation
 
@@ -304,7 +306,7 @@ Rotating either Hail key does not change the DID.
 
 At ingest, servers verify signatures using DID state valid under the resolution and historical-verification rules of the applicable DID method and Hail security profile.
 
-For the POC, a cached DID document used for new envelope intake must be no more than 300 seconds old. The recipient re-resolves immediately when the protected `kid` is absent, the cached key fails verification, or the discovered service fails. A successful refresh replaces cached state; removed keys do not remain valid for new intake. Method-specific finality and recovery windows remain production concerns.
+For the POC, a cached DID document used for new envelope intake must be no more than 300 seconds old. The recipient re-resolves immediately when the protected `kid` is absent or the cached key fails verification. Clients using the discovered service follow the endpoint-refresh triggers in the HTTP binding. A successful refresh replaces cached state; removed keys and endpoints do not remain valid for new operations. Method-specific finality and recovery windows remain production concerns.
 
 Recipient servers should retain the verification evidence needed to audit an accepted message after a key rotates. They should not require an old stored message to verify against only the current DID document.
 

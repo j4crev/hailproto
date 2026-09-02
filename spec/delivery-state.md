@@ -508,7 +508,7 @@ Deferred:
 
 ## Open Questions
 
-- Which exact HTTPS methods, paths, response codes, and RFC 9457 problem types bind status push and query operations?
+- Which exact HTTPS methods, paths, response codes, and disclosure-safe RFC 9457 `detail` and `instance` behavior bind status push and query operations?
 - How does a sender authenticate a status query without creating a message-ID oracle?
 - Should production require terminal status retry for a minimum duration independent of replay retention?
 - Should status snapshots include standardized provider trace identifiers for support without exposing internal topology?

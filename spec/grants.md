@@ -435,14 +435,14 @@ Conceptual conflict response:
 
 ```json
 {
-  "type": "https://hailprotocol.example/problems/grant-revision-conflict",
-  "title": "Grant revision conflict",
+  "type": "about:blank",
+  "title": "Conflict",
   "status": 409,
   "detail": "The submitted revision does not follow the stored revision."
 }
 ```
 
-Problem type URIs and disclosure rules will be finalized by the HTTP binding.
+The shared HTTP binding defines the v1 Problem Details members and type rules. The grant binding will finalize status mappings and which occurrence-specific `detail` may be disclosed.
 
 ## Retry And Synchronization
 
@@ -509,4 +509,4 @@ Deferred:
 - What maximum grant size must servers accept?
 - How long must revoked grant tombstones be retained?
 - How does historical DID key verification interact with old grant revisions?
-- Which exact RFC 9457 problem types and disclosure rules are required?
+- Which HTTP statuses represent grant-publication errors, and which occurrence-specific `detail` may be disclosed?

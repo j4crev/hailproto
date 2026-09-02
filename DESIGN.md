@@ -421,20 +421,19 @@ Canonicalization means converting data into exactly one byte representation befo
 
 ## Server-To-Server Delivery
 
-Minimal conceptual endpoints:
+Minimal conceptual Hail service endpoints:
 
 ```text
-GET  /.well-known/hail
 PUT  /hail/grants/{grant_id}
 POST /hail/envelopes
 GET  /hail/bodies/{hash}
 ```
 
-Replies should reuse `POST /hail/envelopes` as normal messages with reply-based authorization.
+`SubmitEnvelope` uses `POST {hail-service-base}/envelopes`. Replies reuse it as normal messages with reply-based authorization.
 
 High-level delivery flow:
 
-1. Sender discovers recipient server from the recipient domain or profile.
+1. Sender resolves the recipient's address binding to a DID when necessary, then resolves that DID's current Hail service.
 2. Sender sends a signed envelope to the recipient server.
 3. Recipient server checks for an active delivery grant or valid single-use reply authorization.
 4. Recipient server checks category, expiration, rate limits, and content constraints.

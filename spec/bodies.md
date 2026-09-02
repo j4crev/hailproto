@@ -253,7 +253,7 @@ Conceptual endpoint:
 
 An envelope does not carry a full body URL. This prevents envelopes from directing recipient servers to arbitrary networks or hosts.
 
-V1 retrieval does not follow redirects. A provider migration is represented by updating the DID's `#hail` service and is handled by DID re-resolution, not HTTP redirection.
+V1 retrieval does not follow redirects. A provider migration is represented by updating the DID's `#hail` service and is handled by the canonical endpoint comparison and DID re-resolution rules in the HTTP binding, not HTTP redirection. A retry at a newly authenticated endpoint uses the same digest and signed bearer authorization, subject to its original validity period.
 
 ## Retrieval Response
 
@@ -336,7 +336,7 @@ Delivery state, retry ownership, and reason codes are defined in [delivery-state
 - body unavailable after commitment ends: permanent failure
 - size, digest, media type, or schema mismatch: permanent integrity failure
 
-Exact HTTP status codes and RFC 9457 problem types belong to the Hail HTTP binding.
+Exact HTTP status codes and disclosure-safe RFC 9457 `detail` and `instance` behavior belong to the Hail HTTP binding.
 
 ## Privacy And Analytics
 
@@ -410,4 +410,3 @@ Deferred:
 - What final body media type should be registered?
 - What production uncompressed body size must every server accept?
 - Which compression algorithms are required or optional after the POC?
-- How does provider migration affect in-progress retrieval from an old service endpoint?
