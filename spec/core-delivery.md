@@ -169,7 +169,7 @@ For core delivery:
 - An authenticated sender with a current or previous relationship may receive a detailed current result when privacy permits.
 - Terminal delivery status is reported asynchronously with a signed status snapshot.
 - The POC requires support for complete envelope representations through 16384 bytes, as defined in [envelopes.md](envelopes.md).
-- What transport authentication is required in addition to the envelope signature, if any?
+- V1 requires no transport authentication in addition to HTTPS and the envelope JWS. Private deployment controls carry no Hail protocol semantics and never replace JWS verification.
 - The body retrieval location is derived from authenticated sender discovery rather than supplied by the envelope.
 - What request identifier supports tracing without becoming part of message identity?
 
@@ -275,9 +275,7 @@ The initial schemas should avoid making these features impossible, but they do n
 
 The remaining HTTPS questions should be resolved in this order:
 
-1. Envelope-submission transport authentication, if any, in addition to the envelope JWS.
-2. HTTP body-retrieval status mapping.
-3. HTTP grant-publication binding.
-4. HTTP delivery-status push, query, and acknowledgement binding.
+1. HTTP grant-publication binding.
+2. HTTP delivery-status push, query, and acknowledgement binding.
 
 The privacy-preserving envelope-submission behavior and `POST {hail-service-base}/envelopes` method and path are defined in [http-binding.md](http-binding.md). The next topic to settle is the remainder of its exact wire representation.

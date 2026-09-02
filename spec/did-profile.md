@@ -256,10 +256,10 @@ Conceptual derivation:
 base:      https://provider.example/hail
 grants:    https://provider.example/hail/grants
 envelopes: https://provider.example/hail/envelopes
-bodies:    https://provider.example/hail/bodies/{hash}
+bodies:    https://provider.example/hail/bodies/{digest}
 ```
 
-The `envelopes` relative path is fixed by the HTTP binding. The grant and body paths remain provisional until their operation bindings are finalized.
+The `envelopes` and `bodies/{digest}` relative paths are fixed by the HTTP binding. The grant path remains provisional until its operation binding is finalized.
 
 ## Service Validation
 

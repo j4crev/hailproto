@@ -75,6 +75,8 @@ The POC uses SHA-256 over the exact canonical body bytes.
 
 The digest value is encoded using unpadded base64url as defined by RFC 4648.
 
+The retrieval path uses this exact value as its `{digest}` segment. A SHA-256 value is exactly 43 ASCII base64url characters, uses no `=` padding or percent encoding, and decodes to exactly 32 bytes.
+
 Conceptual descriptor fragment:
 
 ```json
@@ -178,7 +180,7 @@ The sender accepts retrieval only when:
 - the authorization has not expired
 - the token is presented over HTTPS
 
-Invalid, unknown, mismatched, and expired tokens fail without revealing whether the body digest exists.
+Missing, malformed, invalid, unknown, mismatched, and expired tokens receive the uniform `404` response defined by the HTTP binding without revealing whether the body digest exists. A missing committed body may return `503` only after the token and requested digest match an unexpired authorization record.
 
 ## Signatures Versus Encryption
 
@@ -245,11 +247,13 @@ Consequences:
 
 The body endpoint is derived from the sender DID's authenticated `#hail` service base URL.
 
-Conceptual endpoint:
+Retrieval endpoint:
 
 ```text
 {hail-service-base}/bodies/{digest}
 ```
+
+Retrieval uses `GET`. The relative operation path, no-trailing-slash rule, and exact unpadded base64url digest segment are defined by the HTTP binding.
 
 An envelope does not carry a full body URL. This prevents envelopes from directing recipient servers to arbitrary networks or hosts.
 
@@ -257,7 +261,7 @@ V1 retrieval does not follow redirects. A provider migration is represented by u
 
 ## Retrieval Response
 
-Conceptual successful response:
+Successful response:
 
 ```http
 HTTP/1.1 200 OK
@@ -336,7 +340,7 @@ Delivery state, retry ownership, and reason codes are defined in [delivery-state
 - body unavailable after commitment ends: permanent failure
 - size, digest, media type, or schema mismatch: permanent integrity failure
 
-Exact HTTP status codes and disclosure-safe RFC 9457 `detail` and `instance` behavior belong to the Hail HTTP binding.
+The exact HTTP status mapping and disclosure-safe RFC 9457 behavior are defined in the Hail HTTP binding. In particular, authorization failures use a uniform permanent `404`, a temporarily missing committed body under valid authorization uses retryable `503`, and rate limiting uses retryable `429`.
 
 ## Privacy And Analytics
 
@@ -362,7 +366,7 @@ A body digest may be guessable when content is public or predictable. Retrieval 
 
 ### Token Enumeration
 
-At least 256 random token bits make online guessing infeasible. The sender must rate-limit failures and return responses that do not distinguish a missing body from invalid authorization.
+At least 256 random token bits make online guessing infeasible. The sender must rate-limit failures. Requests without matching unexpired authorization receive the same `404` whether or not body bytes exist; only a caller presenting valid authorization for the requested digest may receive `503` for a temporarily missing committed body.
 
 ### Decompression Bombs
 

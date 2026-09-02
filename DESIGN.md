@@ -418,7 +418,7 @@ Minimal conceptual Hail service endpoints:
 ```text
 PUT  /hail/grants/{grant_id}
 POST /hail/envelopes
-GET  /hail/bodies/{hash}
+GET  /hail/bodies/{digest}
 ```
 
 `SubmitEnvelope` uses `POST {hail-service-base}/envelopes`. Replies reuse it as normal messages with reply-based authorization.

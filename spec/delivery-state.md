@@ -274,19 +274,19 @@ The recipient explicitly cancelled accepted but incomplete delivery through loca
 
 The recipient-server operator explicitly cancelled accepted but incomplete delivery during administration or incident response.
 
-## Indicative Retrieval Classification
+## Retrieval Classification
 
-The future HTTP binding will define exact status-code handling. The POC uses these semantic defaults:
+The HTTP binding defines exact status-code handling. The POC uses these semantic classifications:
 
 | Observation | Classification |
 | --- | --- |
 | DNS, connection, TLS, or pre-response timeout | `on-hold`: `sender-unreachable` |
-| Temporary `5xx` body response | `on-hold`: `body-temporarily-unavailable` |
-| Missing body before deadline | `on-hold`: `body-temporarily-unavailable` |
+| `503` or unexpected temporary `5xx` body response | `on-hold`: `body-temporarily-unavailable` |
+| Valid authorization followed by `503` for a missing body before deadline | `on-hold`: `body-temporarily-unavailable` |
 | Interrupted or truncated body response | `on-hold`: `body-transfer-interrupted` |
-| Rate limit with or without `Retry-After` | `on-hold`: `sender-rate-limited` |
+| `429` rate limit with or without `Retry-After` | `on-hold`: `sender-rate-limited` |
 | Temporary local resource shortage | `on-hold`: `receiver-resource-constrained` |
-| Bearer authorization rejected before expiration | `failed`: `body-authorization-failed` |
+| Uniform `404` authorization rejection before the signed expiration | `failed`: `body-authorization-failed` |
 | Size or digest mismatch | `failed`: `body-integrity-failed` |
 | Invalid canonical JSON or SPT document | `failed`: `body-invalid` |
 | Unsupported required representation | `failed`: `body-unsupported` |

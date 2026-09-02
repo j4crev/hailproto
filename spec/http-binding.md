@@ -65,8 +65,8 @@ This inventory consolidates operations already defined across the Hail specifica
 | --- | --- | --- | --- | --- | --- | --- |
 | `DiscoverIdentity` | Required composite prerequisite with context-dependent stages | A participant resolving an alias -> address domain and domain-selected binding host; a participant routing to or verifying a known DID -> DID resolver | HTTPS authenticates the address domain's WebFinger response and protects retrieval from its selected binding URL; address authority comes from that domain selection plus the binding's `#hail-identity` signature; the DID method authenticates Hail keys and service | A Hail address and canonical `acct:` URI when resolving an alias; otherwise a known DID. Address resolution yields a signed binding before DID resolution | Alias resolution yields a verified address-to-DID binding with an expiration; DID resolution yields current Hail keys and canonical service base URL | WebFinger, binding retrieval, and method-specific DID resolution; this is not one Hail service-base endpoint. Their redirect, cache, and retry profiles remain partly open. See [address-binding.md](address-binding.md) and [did-profile.md](did-profile.md). |
 | `PublishGrantRevision` | Required for the POC | Recipient server acting for the grantor DID -> grantee DID's current Hail service | Complete grant revision signed by the grantor DID's `#hail-identity` key; exact signature wrapper open; additional HTTP Message Signatures deferred | Complete signed grant state with stable `grant_id`, ordered `revision`, predecessor, parties, scope, status, and timestamps | Sender verifies and stores a new revision as consent/list state; exact duplicate converges idempotently; conceptual creation returns `201`, `Location`, and strong `ETag`; conceptual update returns `204` and a new strong `ETag` | Conceptual conditional `PUT` to `grants/{grant_id}` using `If-None-Match` or `If-Match`; exact path, media type, ETag digest, statuses, and duplicate-create handling under `If-None-Match: *` are open. See [grants.md](grants.md#web-native-publication). |
-| `SubmitEnvelope` | Required; includes grant- and reply-authorized variants | Sender server -> recipient DID's current Hail service | Envelope JWS signed by the authenticated `from` DID's `#hail-messaging` key; additional transport authentication open | One closed signed `hail.envelope` for one recipient, containing grant or reply authorization and a detached-body descriptor | Generic `received` discloses only HTTP receipt; `accepted` fixes authorization and transfers body-processing responsibility; an identical `duplicate` reuses stored/current state. An eligible caller may receive the current signed status, including a later state | `POST` to relative operation path `envelopes` with `Content-Type: application/jose+json`; generic receipt is `202 application/json`; authenticated signed success is `200 application/jose+json`. See [envelopes.md](envelopes.md) and the submission sections below. |
-| `RetrieveBody` | Required for the POC | Recipient server -> authenticated sender DID's current Hail service | An opaque bearer token authorizes retrieval and is bound by the signed envelope to the recipient, body, and message; v1 does not prove that the requester possesses the recipient DID's key; proof of possession is deferred | Body digest in the operation path and bearer token in `Authorization`; optional supported content negotiation | Conceptual `200` carrying immutable canonical body bytes, optionally gzip-coded; the recipient verifies size, digest, media type, profile, canonical encoding, and schema | Conceptual `GET` from `bodies/{digest}`; redirects prohibited; exact digest path encoding and failure statuses open. See [bodies.md](bodies.md#retrieval-endpoint). |
+| `SubmitEnvelope` | Required; includes grant- and reply-authorized variants | Sender server -> recipient DID's current Hail service | HTTPS authenticates the recipient endpoint; the envelope JWS authenticates the `from` DID and signed contents; v1 requires no additional transport authentication | One closed signed `hail.envelope` for one recipient, containing grant or reply authorization and a detached-body descriptor | Generic `received` discloses only HTTP receipt; `accepted` fixes authorization and transfers body-processing responsibility; an identical `duplicate` reuses stored/current state. An eligible caller may receive the current signed status, including a later state | `POST` to relative operation path `envelopes` with `Content-Type: application/jose+json`; generic receipt is `202 application/json`; authenticated signed success is `200 application/jose+json`. See [envelopes.md](envelopes.md) and the submission sections below. |
+| `RetrieveBody` | Required for the POC | Recipient server -> authenticated sender DID's current Hail service | An opaque bearer token authorizes retrieval and is bound by the signed envelope to the recipient, body, and message; v1 does not prove that the requester possesses the recipient DID's key; proof of possession is deferred | Body digest in the operation path and bearer token in `Authorization`; optional supported content negotiation | `200` carrying immutable canonical body bytes, optionally gzip-coded; the recipient verifies size, digest, media type, profile, canonical encoding, and schema | `GET` from `bodies/{digest}`, where `{digest}` is the exact 43-character unpadded base64url SHA-256 value from the envelope; redirects prohibited. Failure statuses are defined below. See [bodies.md](bodies.md#retrieval-endpoint). |
 | `PushDeliveryStatus` | Terminal push required; exact HTTP binding open | Recipient server -> original sender DID's current Hail service | Complete status snapshot signed by the recipient DID's current `#hail-messaging` key; the sender also matches it to its original sent-envelope record | Closed signed `hail.delivery-status` snapshot with parties, message ID, envelope digest, revision, state, occurrence time, and state-dependent fields | A higher valid revision is stored as current and acknowledged; an exact duplicate succeeds; a lower valid revision is acknowledged as stale without changing sender state | Method, path, acknowledgement representation, status codes, and any additional acknowledgement authentication are open. No separate acknowledgement request is defined. See [delivery-state.md](delivery-state.md#status-reporting). |
 | `QueryDeliveryStatus` | Deferred recovery operation with incomplete abstract semantics | Expected caller: original sender server; expected receiver: service authoritative for the recipient/status signer | Must independently authenticate the original sender relationship; exact mechanism open | Open; must identify the delivery without turning message IDs into an oracle | Expected to return the current complete signed delivery-status snapshot; availability, concealment, and response semantics open | Method, path, request schema, failures, and retry behavior open. A generic receipt supplies no query handle. See [delivery-state.md](delivery-state.md#status-reporting). |
 
@@ -104,6 +104,8 @@ Content-Type: application/jose+json
 ```
 
 The request body is exactly one Hail Envelope in RFC 7515 flattened JWS JSON Serialization. The protected `typ` value `hail-envelope+jws` identifies the Hail object profile as defined in [envelopes.md](envelopes.md#signature-profile). The `Content-Type` carries no parameters. A missing or different request media type is an unsupported-media-type safe transport error and is rejected before protected envelope processing.
+
+V1 requires no transport authentication in addition to HTTPS and the envelope JWS. HTTPS authenticates the recipient service endpoint and protects the exchange in transit. The JWS authenticates the sender DID and signed envelope contents. Mutual TLS, bearer credentials, RFC 9421 HTTP Message Signatures, and private reverse-proxy authentication carry no Hail envelope-submission semantics and never replace JWS verification. Deployments may use additional private transport controls without requiring federation peers to support them.
 
 ## Receipt, Acceptance, And Delivery
 
@@ -301,12 +303,42 @@ max(envelope.expires_at, envelope.body.available_until) + 300 seconds
 
 After that deadline the signed envelope is already expired and cannot become a new delivery. Providers may retain compact tombstones longer for auditing, support, or abuse prevention.
 
+## Body Retrieval Method And Path
+
+`RetrieveBody` uses:
+
+```http
+GET {hail-service-base}/bodies/{digest}
+```
+
+The relative operation path begins with the literal segment `bodies`, followed by one dynamic digest segment. No trailing slash is allowed. `{digest}` is the exact `body.digest.value` from the signed envelope: the canonical unpadded base64url encoding of the 32-byte SHA-256 digest. It is exactly 43 ASCII characters from `A-Z`, `a-z`, `0-9`, `-`, and `_`, contains no `=` padding, and is inserted as a literal path segment without percent encoding. A noncanonical or invalid digest segment receives the uniform `404` response.
+
+## Body Retrieval Status Mapping
+
+`RetrieveBody` uses `GET`. Its success and explicit error responses are:
+
+| Condition | HTTP status | Recipient behavior |
+| --- | --- | --- |
+| Successful body response | `200 OK` | Verify the complete response under the signed body descriptor before delivery |
+| Missing, malformed, unknown, expired, or mismatched bearer authorization | `404 Not Found` | Treat as permanent authorization failure while the signed authorization should still be valid |
+| No authorization record for the requested digest | `404 Not Found` | Do not infer whether body bytes exist |
+| Valid token and matching digest, but committed body temporarily unavailable | `503 Service Unavailable` | Retry within the effective delivery deadline |
+| Retrieval rate limited | `429 Too Many Requests` | Retry within the deadline and honor valid `Retry-After` guidance |
+| Requested representation is not acceptable | `406 Not Acceptable` | Treat as unsupported representation |
+| Method other than `GET` | `405 Method Not Allowed` | Do not retry with that method; response includes `Allow: GET` |
+
+Every explicit error uses `application/problem+json` under the shared Problem Details profile. The uniform `404` response uses `type: about:blank`, `title: Not Found`, and `status: 404`; it omits `detail`, `instance`, and `WWW-Authenticate`. Its status, body shape, privacy-relevant headers, and bounded timing behavior are the same for all authorization failures and do not depend on whether body bytes exist.
+
+A `503` response is permitted for a missing committed body only after the token and requested digest match an unexpired authorization record. That authorized caller already knows the body should exist. After authorization expiration, the server returns the uniform `404`; the recipient determines from its signed envelope deadline that retrieval has failed permanently.
+
+A `429` or `503` response may include disclosure-safe `detail` and `instance` and includes `Retry-After` when the server supplies retry timing. Unexpected `5xx` responses and transport failures remain retryable under the body and delivery-state deadlines. A Hail body server uses `503`, rather than another `5xx`, when intentionally reporting temporary body unavailability.
+
+Size, digest, media-type, canonicalization, schema, decompression, and other integrity failures detected after a `200` response are not remapped to HTTP statuses. The recipient discards the response and applies the permanent delivery failure defined by the delivery-state specification.
+
 ## Remaining Binding Work
 
 The following decisions remain open:
 
-- transport authentication, if any, in addition to the envelope JWS
-- body-retrieval HTTP status mapping
 - grant-publication HTTP details
 - delivery-status push, acknowledgement, and authenticated query methods and paths
 - standardized retry intervals and terminal-status retry duration

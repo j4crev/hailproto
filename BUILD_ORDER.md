@@ -198,12 +198,12 @@ Current Hail service endpoint decision and remaining candidates:
 ```http
 PUT  /hail/grants/{grant_id}
 POST /hail/envelopes
-GET  /hail/bodies/{hash}
+GET  /hail/bodies/{digest}
 ```
 
 `/hail/envelopes` is more precise than `/hail/inbox` because the receiving server initially accepts an envelope, not necessarily a completed inbox message.
 
-`SubmitEnvelope` uses `POST {hail-service-base}/envelopes`. Replies reuse that operation because they are ordinary Hail Messages with a different authorization path. The grant and body paths shown above remain provisional.
+`SubmitEnvelope` uses `POST {hail-service-base}/envelopes`. Replies reuse that operation because they are ordinary Hail Messages with a different authorization path. `RetrieveBody` uses `GET {hail-service-base}/bodies/{digest}`, with the exact 43-character unpadded base64url SHA-256 value as `{digest}`. The grant path shown above remains provisional.
 
 Body URLs should not be arbitrary URLs supplied by each envelope. Recipient-controlled fetching of arbitrary URLs introduces server-side request forgery risk. Body locations should be derived from authenticated discovery metadata or constrained to authenticated sender infrastructure.
 
