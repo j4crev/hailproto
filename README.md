@@ -1,20 +1,14 @@
 # Hail Protocol
 
-Hail Protocol is an early-stage design for federated, permission-based messaging. It changes email's default delivery model: a sender may deliver under an explicit, revocable Hail Grant or a single-use reply authorization created by an earlier solicited message.
+Hail Protocol is a federated, permission-based messaging concept intended to solve the downfalls of email by changing the default delivery model and strengthening sender identity, message authorization, deliverability, and client-side safety.
 
-The project aims to support secure rich messages, independent providers, portable DID-based identities, and inexpensive rejection of unauthorized traffic.
+Instead of allowing anyone who knows an address to send a message, Hail requires recipient-controlled permission before messages can appear in a user's inbox.
+
+The project aims to support beautiful messages, independent providers, portable DID-based identities, and inexpensive rejection of unauthorized traffic.
 
 ## Status
 
 Hail is currently in the protocol design phase. There is no working server or client implementation yet.
-
-Current provisional identity model:
-
-```text
-Bring your own domain: did:web
-Provider-issued identity: did:plc
-Human-readable address: signed, expiring Hail Address Binding
-```
 
 ## Core Principles
 

@@ -1,19 +1,11 @@
 # Hail Protocol Concept Design Notes
 
-Hail Protocol is a federated, permission-based messaging concept intended to solve the downfalls of email by changing the default delivery model and strengthening sender identity, message authorization, and client-side safety.
-
-Instead of allowing anyone who knows an address to attempt delivery, Hail requires recipient-controlled permission before messages can appear in a user's inbox.
-
-## Core Principle
-
-Only explicitly authorized senders can deliver messages to a recipient.
-
-The central primitive is a recipient-issued, revocable, scoped delivery grant.
+Hail Protocol is a federated, permission-based messaging concept intended to solve the downfalls of email by changing the default delivery model and strengthening sender identity, message authorization, deliverability, and client-side safety.
 
 ## Goals
 
 - Prevent spam by default rather than filtering it after receipt.
-- Support rich messages for newsletters, receipts, bookings, promotions, alerts, and personal messages.
+- Support rich messages.
 - Allow federation between independently operated servers.
 - Support user choice of providers and clients.
 - Support portable identities for users and organizations that control their own domains.
@@ -24,7 +16,7 @@ The central primitive is a recipient-issued, revocable, scoped delivery grant.
 
 ## V1 Scope
 
-V1 should focus primarily on B2C communication:
+V1 should focus primarily on B2C communication such as:
 
 - newsletters
 - receipts
