@@ -187,11 +187,11 @@ cancelled
 
 Acceptance fixes authorization and durably transfers body-processing responsibility to the recipient server. Completed delivery requires a verified body and durable message storage. Terminal state is reported with a signed, recipient-specific status update; aggregate campaign state remains local to the sender.
 
-The distinction between generic HTTP receipt and authenticated Hail status is defined in `spec/http-binding.md`. Remaining work is the exact HTTPS status push, query, acknowledgement, and Problem Details binding.
+The distinction between generic HTTP receipt and authenticated Hail status, plus the terminal-status push and acknowledgement binding, is defined in `spec/http-binding.md`. Authenticated status query is deferred from v1.
 
 ## 9. Bind Operations To HTTPS
 
-After operation semantics and state transitions are defined, bind them to HTTP. `spec/http-binding.md` defines envelope submission, body retrieval, and grant publication, including disclosure, retry, idempotency, and exact core wire behavior. Delivery-status transport remains open.
+After operation semantics and state transitions are defined, bind them to HTTP. `spec/http-binding.md` defines envelope submission, body retrieval, grant publication, and terminal delivery-status push, including disclosure, retry, idempotency, and exact core wire behavior.
 
 Current Hail service endpoint decisions:
 
@@ -199,11 +199,12 @@ Current Hail service endpoint decisions:
 PUT  /hail/grants/{grant_id}
 POST /hail/envelopes
 GET  /hail/bodies/{digest}
+PUT  /hail/deliveries/{envelope_digest}
 ```
 
 `/hail/envelopes` is more precise than `/hail/inbox` because the receiving server initially accepts an envelope, not necessarily a completed inbox message.
 
-`SubmitEnvelope` uses `POST {hail-service-base}/envelopes`. Replies reuse that operation because they are ordinary Hail Messages with a different authorization path. `RetrieveBody` uses `GET {hail-service-base}/bodies/{digest}`, with the exact 43-character unpadded base64url SHA-256 value as `{digest}`. `PublishGrantRevision` uses conditional `PUT {hail-service-base}/grants/{grant_id}` with the canonical lowercase UUIDv7 as `{grant_id}`.
+`SubmitEnvelope` uses `POST {hail-service-base}/envelopes`. Replies reuse that operation because they are ordinary Hail Messages with a different authorization path. `RetrieveBody` uses `GET {hail-service-base}/bodies/{digest}`, with the exact 43-character unpadded base64url SHA-256 value as `{digest}`. `PublishGrantRevision` uses conditional `PUT {hail-service-base}/grants/{grant_id}` with the canonical lowercase UUIDv7 as `{grant_id}`. `PushDeliveryStatus` uses `PUT {hail-service-base}/deliveries/{envelope_digest}` with the signed envelope-payload digest as `{envelope_digest}`.
 
 Body URLs should not be arbitrary URLs supplied by each envelope. Recipient-controlled fetching of arbitrary URLs introduces server-side request forgery risk. Body locations should be derived from authenticated discovery metadata or constrained to authenticated sender infrastructure.
 
@@ -362,4 +363,4 @@ It should define:
 - every expected failure path
 - idempotency and retry behavior
 
-The grant, body, envelope, delivery-state, and partial HTTP-binding specifications now define these object and behavioral semantics, including failures, retries, revocation races, and privacy-preserving submission responses. Envelope submission, body retrieval, and grant publication now have exact core HTTP bindings. Remaining wire work includes delivery-status push, query, and acknowledgement, plus retry-duration rules and deferred production limits.
+The grant, body, envelope, delivery-state, and HTTP-binding specifications now define these object and behavioral semantics, including failures, retries, revocation races, privacy-preserving responses, exact core HTTP operations, and terminal-status retry duration. Remaining work concerns deferred production limits and later protocol features.

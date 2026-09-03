@@ -257,9 +257,10 @@ base:      https://provider.example/hail
 grants:    https://provider.example/hail/grants/{grant_id}
 envelopes: https://provider.example/hail/envelopes
 bodies:    https://provider.example/hail/bodies/{digest}
+deliveries: https://provider.example/hail/deliveries/{envelope_digest}
 ```
 
-The `envelopes`, `bodies/{digest}`, and `grants/{grant_id}` relative paths are fixed by the HTTP binding.
+The `envelopes`, `bodies/{digest}`, `grants/{grant_id}`, and `deliveries/{envelope_digest}` relative paths are fixed by the HTTP binding.
 
 ## Service Validation
 

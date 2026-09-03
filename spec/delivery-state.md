@@ -438,6 +438,10 @@ The sender indexes status by:
 
 Before accepting a status, the sender verifies that it previously created the referenced envelope and that the message ID, parties, and envelope digest all match its sent-envelope record.
 
+That durable sent-envelope record establishes the sender's delivery-tracking resource before any pushed status arrives. A status push updates an existing resource and cannot create one for an unknown envelope.
+
+The sender retains the sent-envelope and delivery-tracking record through at least `envelope replay deadline + 2592000 seconds`. It does not use an unauthenticated status timestamp to extend retention.
+
 Status handling:
 
 - Exact duplicate revision and payload: idempotent success.
@@ -445,27 +449,29 @@ Status handling:
 - Lower revision: acknowledge as stale without changing current state.
 - Same revision with different payload: permanent conflict.
 - Invalid state transition: permanent conflict.
-- Any update after a terminal state: permanent conflict, except an exact duplicate.
+- A higher revision after a terminal state, or the same revision with different payload, is a permanent conflict. A lower revision remains a stale success and does not change terminal state.
+
+If the sender has no previously received status snapshot, it must accept a first-observed terminal snapshot whose revision is at least `2` when that terminal state is reachable from the mandatory revision-1 `accepted` state and all sent-envelope correlations are valid. Omitted revisions are recorded as an audit gap. A terminal snapshot at revision `1` is invalid because revision `1` is always `accepted`.
 
 Snapshots are complete, so a sender may accept a higher revision even if an intermediate `on-hold` update was never received. Revision gaps are recorded for audit but do not prevent convergence on a valid terminal snapshot.
 
 ## Status Reporting
 
-The current signed status snapshot is the authenticated Hail processing result for an accepted envelope. A generic HTTP `202` receipt is not a status snapshot and proves neither Hail acceptance nor delivery. The HTTPS binding may return the current snapshot synchronously to an authenticated sender with a current or previous relationship when privacy permits; otherwise it is delivered asynchronously after verification. If body processing completes before the first authenticated result is communicated, the recipient may communicate the later `delivered` snapshot instead.
+The current signed status snapshot is the authenticated Hail processing result for an accepted envelope. A generic HTTP `202` receipt is not a status snapshot and proves neither Hail acceptance nor delivery. The HTTPS binding may return the current snapshot synchronously to an authenticated sender with a current or previous relationship when privacy permits. If body processing completes before the first authenticated result is communicated, the recipient may communicate the later `delivered` snapshot instead.
 
-The recipient should report `on-hold` when delay is operationally significant. It need not publish every failed request or retry schedule adjustment.
+V1 does not asynchronously push `accepted` or `on-hold`. Those nonterminal states remain available as the current signed result through authenticated envelope submission or duplicate retry. A recipient need not create a new `on-hold` revision for every failed request or retry schedule adjustment.
 
 The recipient must push every terminal `delivered`, `failed`, or `cancelled` snapshot to the sender's current authenticated Hail service. The destination is derived from the original sender DID's `#hail` service; neither the envelope nor status contains a callback URL.
 
 Status reporting is an at-least-once operation:
 
-- The recipient retries an unacknowledged terminal status with bounded backoff and jitter.
-- The sender acknowledges exact duplicates idempotently.
+- The recipient retries an unacknowledged terminal status under the fixed schedule and 30-day minimum defined by the HTTP binding.
+- The sender returns `204 No Content` after handling a valid new, duplicate, or stale snapshot. Only `204` acknowledges the status revision and ends its retries.
 - Status-report failure does not change the recipient's delivery state.
-- The recipient retains the latest signed status at least through the envelope replay deadline defined in [envelopes.md](envelopes.md).
-- The sender may retrieve current status through a future HTTP-bound query operation if push delivery was missed.
+- The recipient retains the latest signed terminal status, verification evidence, and retry state through at least `max(envelope replay deadline, terminal status occurred_at + 2592000 seconds)`, even if acknowledgement ends transmission earlier.
+- During the envelope retry window, the original sender may recover current status by resubmitting the byte-identical signed envelope under the authenticated duplicate-submission rules.
 
-The HTTP binding will define the push and query paths, authenticated acknowledgements, response codes, and retry intervals. A generic submission receipt never includes a status-query handle; any future query operation must independently authenticate the original sender relationship.
+The recipient pushes one terminal snapshot per request using `PUT {sender-hail-service-base}/deliveries/{envelope_digest}` with `application/jose+json`, no content coding, and a 16384-byte maximum complete representation. The HTTP binding defines authentication, acknowledgement, errors, and privacy behavior. `QueryDeliveryStatus` is deferred from v1; any future query must independently authenticate the original sender relationship. A generic receipt never includes a status-query handle.
 
 ## Privacy
 
@@ -493,22 +499,24 @@ The proof of concept implements:
 - signed full-state delivery-status snapshots
 - ordered idempotent status revisions
 - terminal status push to the sender's DID-discovered Hail service
+- one flattened JWS status per `PUT {sender-hail-service-base}/deliveries/{envelope_digest}` request
+- 16384-byte status representation limit and no HTTP content coding
+- `204` acknowledgement for valid new, duplicate, and stale snapshots
+- privacy-preserving generic `202` for protected unknown or unauthenticated push outcomes
+- immediate terminal push followed by fixed jittered retries capped at a 24-hour nominal interval
+- recipient terminal-status retry and retention through at least 30 days after `occurred_at` and no earlier than the envelope replay deadline
+- sender correlation-record retention through at least 30 days after the envelope replay deadline
 - pending status handoff during continuity-preserving provider migration
 - no read or open receipts
 
 Deferred:
 
-- exact HTTP push and query paths
 - batching status updates for many recipients
 - campaign-level federation objects
-- standardized operational retry intervals
 - client synchronization and optional read receipts
-- production status-retention requirements beyond replay-record retention
+- authenticated delivery-status query
 - emergency status recovery when provider state and backups are unavailable
 
 ## Open Questions
 
-- Which exact HTTPS methods, paths, response codes, and disclosure-safe RFC 9457 `detail` and `instance` behavior bind status push and query operations?
-- How does a sender authenticate a status query without creating a message-ID oracle?
-- Should production require terminal status retry for a minimum duration independent of replay retention?
 - Should status snapshots include standardized provider trace identifiers for support without exposing internal topology?

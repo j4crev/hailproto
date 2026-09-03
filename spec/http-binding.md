@@ -2,7 +2,7 @@
 
 Status: Draft, partial
 
-This document defines the HTTPS behavior shared by Hail server-to-server operations. The current draft settles common service URL and Problem Details rules plus the core envelope-submission, body-retrieval, and grant-publication bindings. Delivery-status transport and remaining operational retry rules remain to be specified.
+This document defines the HTTPS behavior shared by Hail server-to-server operations. The current draft settles common service URL and Problem Details rules plus the core envelope-submission, body-retrieval, grant-publication, and delivery-status-push bindings, including terminal-status retries.
 
 Grant, envelope, body, and delivery-state semantics remain authoritative in their respective specifications. This binding must not change their authorization or state-transition rules.
 
@@ -67,8 +67,8 @@ This inventory consolidates operations already defined across the Hail specifica
 | `PublishGrantRevision` | Required for the POC | Recipient server acting for the grantor DID -> grantee DID's current Hail service | Canonical flattened JWS signed by the grantor DID's `#hail-identity` key; HTTPS authenticates the destination; additional HTTP Message Signatures deferred | Complete signed grant state with stable `grant_id`, ordered `revision`, predecessor, parties, scope, status, and timestamps | Sender verifies and stores a new revision as consent/list state; creation returns `201`; update and exact update retry return `204`; exact creation retry converges through `412` with a matching ETag | Conditional `PUT` to `grants/{grant_id}` with `application/hail-grant+json`; `If-None-Match: *` creates revision 1 and `If-Match` orders later revisions. See [grants.md](grants.md#web-native-publication). |
 | `SubmitEnvelope` | Required; includes grant- and reply-authorized variants | Sender server -> recipient DID's current Hail service | HTTPS authenticates the recipient endpoint; the envelope JWS authenticates the `from` DID and signed contents; v1 requires no additional transport authentication | One closed signed `hail.envelope` for one recipient, containing grant or reply authorization and a detached-body descriptor | Generic `received` discloses only HTTP receipt; `accepted` fixes authorization and transfers body-processing responsibility; an identical `duplicate` reuses stored/current state. An eligible caller may receive the current signed status, including a later state | `POST` to relative operation path `envelopes` with `Content-Type: application/jose+json`; generic receipt is `202 application/json`; authenticated signed success is `200 application/jose+json`. See [envelopes.md](envelopes.md) and the submission sections below. |
 | `RetrieveBody` | Required for the POC | Recipient server -> authenticated sender DID's current Hail service | An opaque bearer token authorizes retrieval and is bound by the signed envelope to the recipient, body, and message; v1 does not prove that the requester possesses the recipient DID's key; proof of possession is deferred | Body digest in the operation path and bearer token in `Authorization`; optional supported content negotiation | `200` carrying immutable canonical body bytes, optionally gzip-coded; the recipient verifies size, digest, media type, profile, canonical encoding, and schema | `GET` from `bodies/{digest}`, where `{digest}` is the exact 43-character unpadded base64url SHA-256 value from the envelope; redirects prohibited. Failure statuses are defined below. See [bodies.md](bodies.md#retrieval-endpoint). |
-| `PushDeliveryStatus` | Terminal push required; exact HTTP binding open | Recipient server -> original sender DID's current Hail service | Complete status snapshot signed by the recipient DID's current `#hail-messaging` key; the sender also matches it to its original sent-envelope record | Closed signed `hail.delivery-status` snapshot with parties, message ID, envelope digest, revision, state, occurrence time, and state-dependent fields | A higher valid revision is stored as current and acknowledged; an exact duplicate succeeds; a lower valid revision is acknowledged as stale without changing sender state | Method, path, acknowledgement representation, status codes, and any additional acknowledgement authentication are open. No separate acknowledgement request is defined. See [delivery-state.md](delivery-state.md#status-reporting). |
-| `QueryDeliveryStatus` | Deferred recovery operation with incomplete abstract semantics | Expected caller: original sender server; expected receiver: service authoritative for the recipient/status signer | Must independently authenticate the original sender relationship; exact mechanism open | Open; must identify the delivery without turning message IDs into an oracle | Expected to return the current complete signed delivery-status snapshot; availability, concealment, and response semantics open | Method, path, request schema, failures, and retry behavior open. A generic receipt supplies no query handle. See [delivery-state.md](delivery-state.md#status-reporting). |
+| `PushDeliveryStatus` | Terminal push required | Recipient server -> original sender DID's current Hail service | HTTPS authenticates the sender endpoint; the status JWS authenticates the recipient DID and status contents; no additional v1 transport authentication | One closed signed `hail.delivery-status` snapshot with parties, message ID, envelope digest, revision, state, occurrence time, and state-dependent fields | `204` acknowledges a valid new, duplicate, or stale snapshot; a stale snapshot does not replace newer state | `PUT` to `deliveries/{envelope_digest}` with `application/jose+json`; one status per request; terminal snapshots are pushed at least once. See [delivery-state.md](delivery-state.md#status-reporting). |
+| `QueryDeliveryStatus` | Deferred from v1 | Expected caller and receiver, authentication, request, result, and anti-oracle behavior remain future work | Open | Open | Open | No v1 method or path. An authenticated duplicate envelope submission provides current-status recovery during its retry window. See [delivery-state.md](delivery-state.md#status-reporting). |
 
 ### Behavior And Privacy
 
@@ -78,12 +78,12 @@ This inventory consolidates operations already defined across the Hail specifica
 | `PublishGrantRevision` | Malformed or unauthenticated protected requests use uniform `400`; missing preconditions use `428`; failed preconditions use `412`; revision and lineage conflicts use `409`; throttling uses `429`; temporary failure uses `503` | Conditional `PUT`, full-state revisions, canonical signed-state digests, and strong ETags make exact retransmission convergent; revocation is a terminal revision, not `DELETE` | Queue and retry transient publication failure with bounded exponential backoff and jitter; honor `Retry-After`; retransmit missing revisions; local consent changes never wait for publication | Grants are private relationship state, use `Cache-Control: no-store`, and receive uniform failures before grantor authentication and local-target confirmation. They contain no message body or contact-request content. |
 | `SubmitEnvelope` | Uses the closed outcome set below. Conflict, invalid representation, unauthorized submission, and expiration are permanent; rate limiting and temporary unavailability are retryable. Reply authorization additionally rejects missing, expired, disallowed, or competing claims | `(authenticated sender DID, message_id)` is the key; an identical canonical payload returns stored/current state, while different content is a permanent conflict. Reply acceptance atomically claims the single-use capability; delivery consumes it; terminal failure or cancellation releases it | Ambiguous transport or generic `received` permits byte-identical retry with the same ID; honor `Retry-After`; after `accepted`, the recipient owns body retries | Protected outcomes remain generic until the sender is authenticated with current or previous relationship state. Generic responses reveal no recipient, relationship, replay, or acceptance state and follow the bounded schedule below. |
 | `RetrieveBody` | Missing body and invalid, mismatched, or expired authorization must not be distinguishable; retryable transport or availability failures and permanent integrity or authorization failures feed the delivery state machine | Immutable body bytes and the same token may be retrieved repeatedly for the same envelope; matching recipient-and-sender cache provenance may avoid another fetch | Recipient retries with bounded backoff and jitter until the effective deadline, preserving digest and token; endpoint migration follows fresh DID resolution rather than redirects | Token appears only in `Authorization`, is excluded from logs, and is stored hashed by the sender. Fetches are delivery operations, not open/read signals. Cross-recipient cache state must not leak. |
-| `PushDeliveryStatus` | Same-revision divergent payload, invalid transition, and nonduplicate post-terminal update are permanent conflicts. Other signature, sent-envelope, party, and digest validation failures are rejected, but their HTTP, disclosure, and retry classifications remain open | At-least-once push; exact duplicates succeed, higher valid revisions advance state, and lower revisions are acknowledged without rollback | Recipient retries unacknowledged terminal snapshots with bounded backoff and jitter; exact intervals and minimum duration open | Status is disclosed only to the authenticated original sender and reports server processing, never client synchronization, display, open, read, click, other recipients, or campaign state. |
-| `QueryDeliveryStatus` | Open; required design must avoid recipient, relationship, replay, and message-ID oracles | Expected to be read-only and return the current snapshot, but exact semantics remain open | Open | Must authenticate the original sender independently; possession of a message ID or generic receipt is insufficient. |
+| `PushDeliveryStatus` | Validly handled status uses `204`; authenticated malformed semantics use `400`; authenticated stream conflicts use `409`; protected unknown or unauthenticated cases use generic `202`; throttling uses `429`; temporary failure uses `503` | At-least-once `PUT`; exact duplicates and stale snapshots are acknowledged without mutation, while higher valid revisions advance state | Recipient uses the fixed jittered schedule and retries through the later of the replay deadline or 30 days after the terminal transition unless acknowledged or permanently rejected | Generic `202` conceals sent-envelope and relationship state. Detailed errors require an authenticated signer and matching sent-envelope relationship. Status reports server processing only, never user activity. |
+| `QueryDeliveryStatus` | Deferred; any future design must avoid recipient, relationship, replay, and message-ID oracles | Open | Open | A future query must independently authenticate the original sender; possession of a message ID or generic receipt is insufficient. |
 
 `SubmitReply` is not a separate transport operation. A reply is an ordinary `SubmitEnvelope` request with reply authorization and the role reversal defined in [envelopes.md](envelopes.md#reply-authorization).
 
-Status acknowledgement is required as part of `PushDeliveryStatus`. No separate acknowledgement request object, destination, lifecycle, method, or path is currently defined; its representation, authentication, and HTTP response codes remain open.
+Status acknowledgement is the `204 No Content` response to `PushDeliveryStatus`. There is no separate acknowledgement request object, method, path, or signature.
 
 Body creation and publication are sender-local prerequisites, not federation requests. Missing grant revisions are retransmitted with `PublishGrantRevision`; grant acknowledgement is its synchronous HTTP result. Read/open receipts, bulk submission, campaign status, unsolicited contact requests, and provider state-transfer transport are outside this inventory or deferred.
 
@@ -384,11 +384,113 @@ All explicit errors use `application/problem+json`. `429` and `503` include `Ret
 
 Before a valid grantor `#hail-identity` signature is verified and the signed grantee is confirmed as locally authoritative, every protected failure uses the same `400` Problem Details response with `type: about:blank`, `title: Bad Request`, and `status: 400`. It omits `detail` and `instance` and uses a common representation shape, privacy-relevant headers, and bounded timing behavior. This includes missing or revision-inappropriate conditional fields before authentication; the detailed `428` mapping applies only after authentication and local-target confirmation. Safe transport errors selected independently of claimed or actual grant state may return explicit `405`, `413`, or `415` responses before that schedule. A source-wide or service-wide `429` may also be returned early only when selected independently of protected grant state. After authentication and local-target confirmation, disclosure-safe `detail` may explain the applicable conflict, throttling, or temporary failure; clients determine behavior from the HTTP status.
 
-## Remaining Binding Work
+## Delivery Status Push Binding
 
-The following decisions remain open:
+`PushDeliveryStatus` uses:
 
-- delivery-status push, acknowledgement, and authenticated query methods and paths
-- standardized retry intervals and terminal-status retry duration
+```http
+PUT {sender-hail-service-base}/deliveries/{envelope_digest}
+Content-Type: application/jose+json
+Cache-Control: no-store
+```
 
-An authenticated status query, if included, must prove the original sender relationship and must not rely on a handle returned by the generic receipt.
+The destination is the original sender DID's current authenticated Hail service. The relative path contains the literal `deliveries` segment followed by the status payload's exact `envelope_digest.value`: 43 ASCII characters containing the canonical unpadded base64url encoding of the 32-byte SHA-256 envelope-payload digest. It contains no padding or percent encoding and must match the sender's original sent-envelope record.
+
+The original sender creates this target delivery-tracking resource when it durably records the outbound signed envelope, before submission. A status `PUT` updates that existing resource and never creates a delivery record from an unsolicited status. This is why the first valid status push returns `204 No Content` rather than `201 Created`.
+
+The delivery resource is monotonic rather than an unconstrained replaceable representation. `PUT` asks the sender to incorporate the signed snapshot if it advances the stream or confirm that the sender already holds equal or later valid state. A stale snapshot therefore succeeds without replacing newer state.
+
+Each request contains exactly one Hail delivery-status snapshot in RFC 7515 flattened JWS JSON Serialization with protected `typ: hail-delivery-status+jws`. The request uses `application/jose+json` with no parameters, applies no HTTP content coding, and has a maximum complete representation size of 16384 bytes. Batching is not part of v1.
+
+V1 recipients asynchronously push `delivered`, `failed`, and `cancelled` terminal snapshots. They do not asynchronously push `accepted` or `on-hold`; a current nonterminal snapshot can be returned through authenticated envelope submission or duplicate retry. A conforming sender endpoint may safely acknowledge an already-known valid stale snapshot without changing state. Read and open receipts are not delivery states and are deferred to a future, separately consented protocol.
+
+HTTPS authenticates the original sender's receiving endpoint and protects the exchange. The status JWS authenticates the recipient DID and signed status contents. V1 requires no mutual TLS, bearer credential, HTTP Message Signature, or other transport authentication. Before accepting a status, the sender verifies the JWS profile and signature against the status `from` DID's current `#hail-messaging` key, then matches `from`, `to`, `message_id`, and `envelope_digest` to its original sent-envelope record and validates revision ordering and the state transition.
+
+### Acknowledgement And Errors
+
+A validly handled status receives:
+
+```http
+HTTP/1.1 204 No Content
+Cache-Control: no-store
+```
+
+`204` acknowledges a newly accepted higher revision, an exact duplicate, or a valid lower revision that is stale relative to the sender's current state. A duplicate or stale request does not mutate state. The response has no content and no ETag. Receipt of `204` ends retries for that status revision.
+
+Explicit errors use these mappings:
+
+| Condition | HTTP status |
+| --- | --- |
+| Method other than `PUT` | `405 Method Not Allowed` with `Allow: PUT` |
+| Media type other than `application/jose+json`, or any HTTP content coding | `415 Unsupported Media Type` |
+| Request exceeds 16384 bytes | `413 Content Too Large` |
+| Malformed or noncanonical envelope-digest path segment | `400 Bad Request` |
+| Authenticated malformed status semantics or authenticated path/payload mismatch | `400 Bad Request` |
+| Same revision with different payload, invalid state transition, or higher revision after a terminal state | `409 Conflict` |
+| Rate limited | `429 Too Many Requests` |
+| Temporarily unavailable | `503 Service Unavailable` |
+
+All explicit errors use `application/problem+json`. `429` and `503` include `Retry-After` when the server supplies retry timing. An authenticated `400` or `409` is permanent for that signed snapshot. Transport failure, generic `202`, `429`, and `503` remain retryable under the status retry rules.
+
+### Disclosure
+
+Safe errors selected entirely from bounded HTTP request properties may return `400` for a malformed digest segment, `405`, `413`, or `415` before protected status processing. A source-wide or service-wide `429` may also be returned early only when selected independently of protected delivery state. A syntactically valid but unknown digest remains protected and does not receive the explicit `400`.
+
+Before the sender authenticates the status signer and matches the snapshot to an original sent-envelope record, every protected outcome uses:
+
+```http
+HTTP/1.1 202 Accepted
+Content-Type: application/json
+Cache-Control: no-store
+
+{"outcome":"received"}
+```
+
+This response reports only HTTP receipt and is not a status acknowledgement. The recipient continues bounded retries because only `204` acknowledges the snapshot. The generic response has the same shape, privacy-relevant headers, and bounded timing behavior for invalid JSON or JWS, unknown or invalid keys, invalid signatures, a nonlocal `to` DID, an absent sent-envelope record, party or message-ID mismatch, envelope-digest mismatch, and protected processing that cannot finish within the schedule. It discloses no sent-message, relationship, revision, or terminal-state information.
+
+After the signer and sent-envelope relationship are authenticated, the server returns the applicable `204`, `400`, `409`, `429`, or `503`. Disclosure-safe `detail` may explain malformed semantics, a revision conflict, an invalid transition, throttling, or temporary failure; clients determine behavior from the HTTP status.
+
+### Status Query
+
+`QueryDeliveryStatus` is not part of v1. During the envelope retry window, an original sender can resubmit the byte-identical signed envelope and receive the current signed status under the authenticated duplicate-submission rules. A future query operation must independently authenticate the original sender and define anti-oracle behavior before receiving a method or path. A generic submission or status-push receipt never supplies a query handle.
+
+### Terminal Status Retry Schedule
+
+The recipient attempts to push a newly committed terminal status immediately. After each unsuccessful attempt, it uses these nominal delays:
+
+| Retry | Nominal delay after the preceding attempt |
+| --- | --- |
+| 1 | 30 seconds |
+| 2 | 2 minutes |
+| 3 | 10 minutes |
+| 4 | 1 hour |
+| 5 | 6 hours |
+| Every later retry | 24 hours |
+
+For a nominal delay of `D` whole seconds, the recipient independently selects a uniformly distributed integer number of seconds from `ceil(0.8 * D)` through `floor(1.2 * D)`, inclusive. It durably stores the resulting absolute `next_attempt_at` before completing processing of the failed attempt. Retry count and schedule do not reset after generic `202`, connection or transport failure, provider restart, DID endpoint migration, or another attempt carrying the same status revision.
+
+Response handling is:
+
+| Result | Retry behavior |
+| --- | --- |
+| `204` | Acknowledged; stop retrying this revision |
+| Generic `202` | Not acknowledged; continue the schedule |
+| `429` or `503` | Continue using the schedule and valid `Retry-After` guidance |
+| Unexpected temporary `5xx` or ambiguous transport failure | Continue the schedule |
+| `3xx` | Do not follow; refresh the destination DID under the endpoint-refresh rules and continue |
+| Authenticated `400` or `409` | Permanent for this signed snapshot; stop automatic retry and flag local reconciliation |
+| `405`, `413`, or `415` | Permanent interoperability or configuration failure; stop automatic retry and flag locally |
+
+For `429` and `503`, the next delay is the later of the jittered local delay and a valid `Retry-After` delay after limiting the remote value to 24 hours. An invalid `Retry-After` is ignored. This prevents a remote server from suppressing status delivery for an arbitrary period while still honoring bounded retry guidance.
+
+The minimum terminal-status retry deadline is:
+
+```text
+max(envelope replay deadline, terminal status occurred_at + 2592000 seconds)
+```
+
+The recipient continues scheduled attempts through this deadline unless it receives `204` or a permanent response identified above. It may retry longer by local policy. The recipient retains the canonical terminal status payload, signature-verification evidence, retry state, and destination DID through the deadline even if acknowledgement ends transmission earlier.
+
+The sender cannot rely on an unauthenticated status `occurred_at` to decide retention. It retains the original sent-envelope and delivery-tracking record through at least `envelope replay deadline + 2592000 seconds`. This guarantees a full 30-day correlation window after any conforming terminal transition without allowing untrusted status input to extend retention.
+
+A provider restart or continuity-preserving migration retains the retry count and next-attempt time. If the recipient's `#hail-messaging` key changes, the current provider signs a new wrapper around the same canonical status payload without changing its revision or `occurred_at`, as defined by the delivery-state signature profile.

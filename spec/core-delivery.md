@@ -1,10 +1,10 @@
 # Hail Core Delivery
 
-Status: Draft decision checklist
+Status: Draft normative flow
 
-This document will define one complete grant-authorized delivery of a Hail Message between independently operated sender and recipient servers.
+This document defines one complete grant-authorized delivery of a Hail Message between independently operated sender and recipient servers.
 
-Its first purpose is to identify and resolve the behavioral questions that must be answered before specifying exact schemas, signatures, or HTTP endpoints. Once resolved, this document should become a normative protocol flow.
+The object-specific specifications define exact schemas and signatures, and [http-binding.md](http-binding.md) defines the core HTTPS operations. This document connects those decisions into one normative protocol flow while retaining explicit production questions that remain unresolved.
 
 ## Scope
 
@@ -111,16 +111,9 @@ Questions still to resolve:
 
 ### 2. Preconditions And Discovery
 
-- What information must the sender know before attempting delivery?
-- How does the sender discover the current recipient server?
-- How does the recipient server discover and authenticate the sender's signing keys?
-- Is discovery performed for every delivery, cached, or refreshed only after failure?
-- What cache lifetime and refresh behavior apply?
-- What happens when DNS and `/.well-known/hail` disagree?
-- How does a DID delegate Hail hosting to a provider through its service endpoint?
-- How is a cached Address Binding refreshed during delivery discovery?
-- Can discovery endpoints redirect, and if so, under what restrictions?
-- How does delivery behave during provider migration or stale discovery caches?
+Before initial delivery, a sender resolves a human-readable address through its signed Address Binding when necessary, then resolves the recipient DID's current `#hail` service and keys. Routine federation between known DIDs resolves the DID directly and does not re-resolve a human-readable address on every operation.
+
+The POC DID cache lifetime, forced key and endpoint refresh, canonical service-base URLs, redirect prohibition for federation operations, and provider-migration behavior are defined in [did-profile.md](did-profile.md) and [http-binding.md](http-binding.md). Address Binding cache, refresh, and discovery-redirect behavior and production DID finality remain open in their respective identity specifications; they are not unresolved HTTPS operation-binding questions.
 
 ### 3. Grant Preconditions
 
@@ -271,10 +264,6 @@ These issues should not block the first grant-authorized delivery:
 
 The initial schemas should avoid making these features impossible, but they do not need complete v1 behavior yet.
 
-## Next Decisions To Make
+## HTTPS Binding Status
 
-The remaining HTTPS questions should be resolved in this order:
-
-1. HTTP delivery-status push, query, and acknowledgement binding.
-
-Envelope submission, body retrieval, and grant publication are bound in [http-binding.md](http-binding.md). The next HTTPS topic is delivery-status push, query, and acknowledgement.
+Envelope submission, body retrieval, grant publication, terminal delivery-status push and acknowledgement, and terminal-status retry behavior are bound in [http-binding.md](http-binding.md). Authenticated status query is deferred from v1. No core v1 HTTPS binding decision remains open in this specification.

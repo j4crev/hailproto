@@ -419,6 +419,7 @@ Minimal conceptual Hail service endpoints:
 PUT  /hail/grants/{grant_id}
 POST /hail/envelopes
 GET  /hail/bodies/{digest}
+PUT  /hail/deliveries/{envelope_digest}
 ```
 
 `SubmitEnvelope` uses `POST {hail-service-base}/envelopes`. Replies reuse it as normal messages with reply-based authorization.
@@ -485,9 +486,7 @@ If the receiver can drop unauthorized envelopes cheaply before signature verific
 
 ## Topics To Discuss Next
 
-- Exact v1 endpoint paths, media types, and status mappings.
 - Discovery and domain ownership verification.
-- Delivery-status push, query, and acknowledgement binding.
 - Reply path wire behavior.
 - Sender category manifest format.
 - Block document v1 vocabulary.
