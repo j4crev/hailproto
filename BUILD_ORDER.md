@@ -155,7 +155,7 @@ The consolidated caller, receiver, authentication, request, result, idempotency,
 
 The Hail Grant is the protocol's central authorization object. Its v1 target, scope, lookup, revision, replacement, revocation, and web-native publication semantics are defined in `spec/grants.md`.
 
-Remaining grant work is limited to the shared security and HTTP binding decisions referenced by that specification, including canonical signatures, digest encoding, timestamp tolerance, size limits, HTTP statuses, and disclosure-safe Problem Details content.
+Grant canonicalization, flattened JWS signatures, signed-state digests, ETags, conditional publication, HTTP statuses, timestamp tolerance, and disclosure-safe Problem Details behavior are defined. Remaining grant work includes the interoperable size limit, tombstone retention, and historical DID verification.
 
 ## 6. Define Detached Hail Body V1
 
@@ -191,9 +191,9 @@ The distinction between generic HTTP receipt and authenticated Hail status is de
 
 ## 9. Bind Operations To HTTPS
 
-After operation semantics and state transitions are defined, bind them to HTTP. `spec/http-binding.md` defines the envelope-submission outcome set, disclosure tiers, bounded response schedule, retry classifications, and replay-retention minimum. Exact wire representations remain open.
+After operation semantics and state transitions are defined, bind them to HTTP. `spec/http-binding.md` defines envelope submission, body retrieval, and grant publication, including disclosure, retry, idempotency, and exact core wire behavior. Delivery-status transport remains open.
 
-Current Hail service endpoint decision and remaining candidates:
+Current Hail service endpoint decisions:
 
 ```http
 PUT  /hail/grants/{grant_id}
@@ -203,7 +203,7 @@ GET  /hail/bodies/{digest}
 
 `/hail/envelopes` is more precise than `/hail/inbox` because the receiving server initially accepts an envelope, not necessarily a completed inbox message.
 
-`SubmitEnvelope` uses `POST {hail-service-base}/envelopes`. Replies reuse that operation because they are ordinary Hail Messages with a different authorization path. `RetrieveBody` uses `GET {hail-service-base}/bodies/{digest}`, with the exact 43-character unpadded base64url SHA-256 value as `{digest}`. The grant path shown above remains provisional.
+`SubmitEnvelope` uses `POST {hail-service-base}/envelopes`. Replies reuse that operation because they are ordinary Hail Messages with a different authorization path. `RetrieveBody` uses `GET {hail-service-base}/bodies/{digest}`, with the exact 43-character unpadded base64url SHA-256 value as `{digest}`. `PublishGrantRevision` uses conditional `PUT {hail-service-base}/grants/{grant_id}` with the canonical lowercase UUIDv7 as `{grant_id}`.
 
 Body URLs should not be arbitrary URLs supplied by each envelope. Recipient-controlled fetching of arbitrary URLs introduces server-side request forgery risk. Body locations should be derived from authenticated discovery metadata or constrained to authenticated sender infrastructure.
 
@@ -362,4 +362,4 @@ It should define:
 - every expected failure path
 - idempotency and retry behavior
 
-The grant, body, envelope, delivery-state, and partial HTTP-binding specifications now define these object and behavioral semantics, including failures, retries, revocation races, and privacy-preserving submission responses. The remaining work in this artifact is to finalize exact endpoint paths, media types, status mappings, Problem Details types, and status acknowledgement behavior.
+The grant, body, envelope, delivery-state, and partial HTTP-binding specifications now define these object and behavioral semantics, including failures, retries, revocation races, and privacy-preserving submission responses. Envelope submission, body retrieval, and grant publication now have exact core HTTP bindings. Remaining wire work includes delivery-status push, query, and acknowledgement, plus retry-duration rules and deferred production limits.

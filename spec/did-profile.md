@@ -254,12 +254,12 @@ Conceptual derivation:
 
 ```text
 base:      https://provider.example/hail
-grants:    https://provider.example/hail/grants
+grants:    https://provider.example/hail/grants/{grant_id}
 envelopes: https://provider.example/hail/envelopes
 bodies:    https://provider.example/hail/bodies/{digest}
 ```
 
-The `envelopes` and `bodies/{digest}` relative paths are fixed by the HTTP binding. The grant path remains provisional until its operation binding is finalized.
+The `envelopes`, `bodies/{digest}`, and `grants/{grant_id}` relative paths are fixed by the HTTP binding.
 
 ## Service Validation
 
@@ -339,9 +339,8 @@ Resolving a DID must not grant unrestricted server-side network access. Hail cli
 ## Open Questions
 
 - Will production retain Ed25519 as the only required signing algorithm or add another fully specified algorithm?
-- What canonical signed-object and signature wrapper formats apply to non-envelope Hail objects?
+- What canonical signed-object and signature wrapper format applies to Hail Address Bindings?
 - What production cache lifetime and method-specific finality rules replace the POC's 300-second maximum?
 - How is historical DID state identified and retained for audit verification?
 - How does the PLC recovery window affect acceptance of newly rotated keys and endpoints?
 - What interoperable authenticated export format and fencing acknowledgement implement the required atomic provider cutover?
-- What final standardized relative paths are derived from the Hail service base URL?

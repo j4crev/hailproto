@@ -49,9 +49,46 @@ Conceptual v1 payload:
 }
 ```
 
-The signature wrapper is separate from the payload. Its exact encoding is defined by the Hail security profile.
+The signature wrapper is separate from the payload and uses the flattened JWS profile defined below.
 
 Unknown top-level fields are rejected in v1 unless a future specification explicitly defines an extension mechanism.
+
+## Signature And Representation Profile
+
+Hail Grant v1 uses RFC 8785 canonical JSON in RFC 7515 flattened JWS JSON Serialization. The complete wrapper is a closed JSON object containing exactly `protected`, `payload`, and `signature`; an unprotected `header` member is prohibited.
+
+Conceptual wrapper:
+
+```json
+{
+  "payload": "base64url-jcs-grant-payload",
+  "protected": "base64url-protected-header",
+  "signature": "base64url-ed25519-signature"
+}
+```
+
+The decoded protected header is the closed object:
+
+```json
+{
+  "alg": "Ed25519",
+  "kid": "did:plc:recipient123#hail-identity",
+  "typ": "hail-grant+jws"
+}
+```
+
+Rules:
+
+- The grant payload, protected header, and complete flattened JWS wrapper use their exact RFC 8785 canonical UTF-8 representations.
+- `alg` is the RFC 9864 value `Ed25519`; `EdDSA` and algorithm fallback are rejected.
+- `kid` is the absolute DID URL of the grantor's authorized `#hail-identity` verification method.
+- `kid` exactly equals the payload's `key_id`, and its controller exactly equals the payload's `grantor`.
+- `typ` is the exact string `hail-grant+jws`.
+- All three protected parameters are required. Unknown protected parameters and all unprotected parameters are rejected.
+- The payload and protected-header bytes are base64url encoded without padding and signed using the RFC 7515 JWS Signing Input.
+- Duplicate member names, invalid UTF-8, non-I-JSON values, padded or noncanonical base64url, and decoded payload or header bytes that are not their exact JCS representations are rejected.
+
+The complete canonical JWS bytes are the immutable signed representation of one grant revision. A receiver stores those exact bytes and does not parse and reserialize an accepted revision. The HTTP request uses `Content-Type: application/hail-grant+json`; this provisional v1 media type contains the flattened JWS wrapper and carries no parameters.
 
 ## Fields
 
@@ -88,7 +125,7 @@ A positive integer beginning at `1` and increasing by exactly one for each state
 
 Revision `1` uses `null`. Later revisions contain the digest of the preceding signed grant state.
 
-The Hail security profile will define the exact hashed representation and digest encoding.
+For later revisions, `previous` is the exact 43-character unpadded base64url encoding of SHA-256 over the preceding revision's complete canonical flattened JWS bytes. It decodes to exactly 32 bytes. Padding, percent encoding, and noncanonical base64url are rejected.
 
 ### `grantor`
 
@@ -199,8 +236,8 @@ These boundaries are intended to resist pressure to turn `scope` into a general 
 Rules:
 
 - `values` is required and non-empty.
-- Every value is a stable sender-defined category ID.
-- Values are unique and serialized in the canonical order required by the security profile.
+- Every value is a stable sender-defined category ID using the v1 grammar defined in [envelopes.md](envelopes.md#category).
+- Values are unique and serialized in ascending bytewise order of their ASCII category IDs.
 - The grant authorizes a message when its category equals any listed value.
 - The grant does not authorize messages without a category.
 - There is no wildcard category.
@@ -310,7 +347,7 @@ The sender accepts a revision when:
 
 Revision handling:
 
-- Exact duplicate: idempotent success.
+- Exact same canonical JWS representation: idempotent success.
 - Same revision with different content: conflict.
 - Lower revision: stale conflict.
 - Revision gap: conflict; the recipient retransmits missing revisions.
@@ -372,31 +409,44 @@ A future `replaces_grant_id` field may connect lineages for auditing, but it wou
 
 DNS and WebFinger discover identities and services. They are not used to publish grants because grants are private, user-specific, mutable, and immediately revocable.
 
-The recipient publishes a signed grant state to the sender's resolved Hail base endpoint using idempotent HTTP `PUT`.
-
-Conceptual initial request:
+The recipient publishes a signed grant state to the sender's resolved Hail base endpoint using idempotent HTTP `PUT`:
 
 ```http
-PUT /hail/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1
+PUT {hail-service-base}/grants/{grant_id}
+```
+
+The relative path contains the literal `grants` segment followed by the grant's canonical lowercase UUIDv7. The path value is exactly 36 ASCII characters, matches `[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`, contains no percent encoding, and exactly equals the signed payload's `grant_id`. A malformed or mismatched ID follows the generic `400` behavior below.
+
+The request body is the exact canonical flattened JWS representation and uses `Content-Type: application/hail-grant+json` with no parameters. V1 applies no HTTP content coding to a grant request. HTTPS authenticates the destination and protects the exchange; the grant JWS authenticates the grantor and signed state. V1 requires no additional transport authentication.
+
+Initial publication requires `If-None-Match: *`:
+
+```http
+PUT {hail-service-base}/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1
 Content-Type: application/hail-grant+json
 If-None-Match: *
 Cache-Control: no-store
 ```
 
-Conceptual response:
+Revision `1` includes exactly `If-None-Match: *` and omits `If-Match`. A later revision includes exactly one `If-Match` field containing one strong entity-tag and omits `If-None-Match`. The entity-tag's opaque value exactly equals the signed payload's `previous` value. Weak entity-tags, entity-tag lists, `If-Match: *`, both conditional fields, and the conditional field inappropriate for the revision are invalid grant requests.
+
+Successful creation returns:
 
 ```http
 HTTP/1.1 201 Created
-ETag: "sha256-current-state"
-Location: /hail/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1
+ETag: "base64url-sha256-canonical-jws"
+Location: {hail-service-base}/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1
 Cache-Control: no-store
 ```
 
-Conceptual update:
+The `ETag` is a strong validator whose opaque value is the same 43-character digest used by a successor's `previous` field, enclosed in double quotes. It hashes the complete canonical JWS bytes, including the protected header and signature. The server emits an ETag only after storing the exact request representation without transformation.
+
+A later revision, including revocation, requires `If-Match` with the preceding revision's ETag:
 
 ```http
-PUT /hail/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1
-If-Match: "sha256-previous-state"
+PUT {hail-service-base}/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1
+Content-Type: application/hail-grant+json
+If-Match: "base64url-sha256-previous-canonical-jws"
 Cache-Control: no-store
 ```
 
@@ -404,11 +454,25 @@ Successful update:
 
 ```http
 HTTP/1.1 204 No Content
-ETag: "sha256-new-state"
+ETag: "base64url-sha256-new-canonical-jws"
 Cache-Control: no-store
 ```
 
-The HTTP binding will finalize media types, paths, ETag calculation, and response codes.
+`201` and `204` responses have no content. `Location` appears on `201` and is the target grant URL. Every `201` or `204` response includes the current strong ETag.
+
+### Conditional Creation And Exact Retries
+
+The server performs ordinary request validation, signature verification, and Hail conflict detection before applying HTTP preconditions, as permitted by RFC 9110. Initial publication has these outcomes:
+
+| Stored state | HTTP result |
+| --- | --- |
+| No grant uses the ID and revision `1` is valid | Store it and return `201 Created` |
+| The exact canonical signed revision is already current | Return `412 Precondition Failed` with the matching current ETag; do not write again |
+| Different signed state already uses the grant ID | Return `409 Conflict` |
+
+RFC 9110 requires `412` when `If-None-Match: *` is false for `PUT`. Hail treats that response as successful idempotent convergence only when its ETag exactly equals the digest of the submitted canonical JWS. A missing or different ETag is not evidence that publication succeeded.
+
+For later revisions, an exact retry after the update was already applied returns `204 No Content` with the current matching ETag. RFC 9110 permits a successful response to a false `If-Match` when the origin server verifies that the requested state change was already applied. Any different current state follows the conflict or precondition rules below.
 
 Grant publication uses:
 
@@ -442,7 +506,39 @@ Conceptual conflict response:
 }
 ```
 
-The shared HTTP binding defines the v1 Problem Details members and type rules. The grant binding will finalize status mappings and which occurrence-specific `detail` may be disclosed.
+The shared HTTP binding defines the v1 Problem Details members and type rules. Grant publication uses these status mappings:
+
+| Condition | HTTP status |
+| --- | --- |
+| Method other than `PUT` | `405 Method Not Allowed` with `Allow: PUT` |
+| Media type other than `application/hail-grant+json`, or unsupported HTTP content coding | `415 Unsupported Media Type` |
+| Request exceeds the supported grant transport limit | `413 Content Too Large` |
+| Malformed path, JSON, JWS, protected header, or grant payload | `400 Bad Request` |
+| Invalid or unverifiable grant signature before caller authentication | Uniform `400 Bad Request` |
+| Required `If-None-Match` or `If-Match` is absent after grantor authentication | `428 Precondition Required` |
+| Conditional field is malformed, uses a prohibited form, or is inappropriate for the signed revision | `400 Bad Request` |
+| A nonduplicate HTTP precondition fails without a more specific Hail conflict | `412 Precondition Failed` |
+| Same revision with different content, stale revision, revision gap, predecessor fork, immutable-field change, grant-ID reuse, or update after terminal revocation | `409 Conflict` |
+| Rate limited | `429 Too Many Requests` |
+| Temporarily unavailable | `503 Service Unavailable` |
+
+`429` and `503` include `Retry-After` when the server supplies retry timing. Precondition and conflict failures are permanent until the publisher reconciles its state; they are not retried unchanged except for the exact-convergence cases above.
+
+### Disclosure
+
+Before the server verifies a valid grantor `#hail-identity` signature and confirms that the signed grantee is locally authoritative, every protected failure uses the same response:
+
+```http
+HTTP/1.1 400 Bad Request
+Content-Type: application/problem+json
+Cache-Control: no-store
+
+{"type":"about:blank","title":"Bad Request","status":400}
+```
+
+The generic response omits `detail` and `instance` and uses the same representation shape, privacy-relevant headers, and bounded timing behavior for malformed protected content, unknown keys, invalid signatures, claimed-party mismatches, unknown or nonlocal grantees, and missing or revision-inappropriate preconditions before authentication. The detailed `428` mapping applies only after grantor authentication and local-target confirmation. Safe transport errors selected independently of claimed or actual grant state may return their explicit `405`, `413`, or `415` responses before this schedule. A source-wide or service-wide `429` may also be returned early only when selected independently of protected grant state.
+
+After authentication and local-target confirmation, the server returns the applicable detailed status. Disclosure-safe `detail` may explain a stale revision, gap, fork, immutable-field conflict, throttling, or temporary outage. Clients determine protocol behavior from the status and never parse `detail`.
 
 ## Retry And Synchronization
 
@@ -469,11 +565,11 @@ Grant publication contains no message body, HTML, assets, attachments, or user-v
 
 ## HTTP Message Signatures
 
-RFC 9421 HTTP Message Signatures may later authenticate transport requests, but they do not replace the portable signed Hail Grant.
+RFC 9421 HTTP Message Signatures may be defined by a future transport profile, but they do not replace the portable signed Hail Grant.
 
 The grant must remain independently verifiable after transport and storage.
 
-HTTP Message Signatures are deferred from the POC until the complete HTTP binding is specified.
+HTTP Message Signatures are not part of Hail v1.
 
 ## POC Requirements
 
@@ -487,6 +583,11 @@ The proof of concept implements:
 - required envelope `authorization.grant_id`
 - idempotent HTTPS `PUT`
 - conditional updates using ETags
+- RFC 8785 canonical payload, protected header, and flattened JWS wrapper
+- RFC 7515 flattened JWS signed with RFC 9864 `Ed25519` and `#hail-identity`
+- `application/hail-grant+json`
+- canonical UUIDv7 grant path segment
+- strong ETags and `previous` over complete canonical signed revisions
 - signed terminal revocation
 - RFC 9457 errors
 - asynchronous publication retries
@@ -504,9 +605,6 @@ Deferred:
 
 ## Open Questions
 
-- What exact canonical representation and signature wrapper signs a grant?
-- What exact digest representation is used by `previous` and ETags?
 - What maximum grant size must servers accept?
 - How long must revoked grant tombstones be retained?
 - How does historical DID key verification interact with old grant revisions?
-- Which HTTP statuses represent grant-publication errors, and which occurrence-specific `detail` may be disclosed?

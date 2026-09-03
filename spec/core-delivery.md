@@ -275,7 +275,6 @@ The initial schemas should avoid making these features impossible, but they do n
 
 The remaining HTTPS questions should be resolved in this order:
 
-1. HTTP grant-publication binding.
-2. HTTP delivery-status push, query, and acknowledgement binding.
+1. HTTP delivery-status push, query, and acknowledgement binding.
 
-The privacy-preserving envelope-submission behavior and `POST {hail-service-base}/envelopes` method and path are defined in [http-binding.md](http-binding.md). The next topic to settle is the remainder of its exact wire representation.
+Envelope submission, body retrieval, and grant publication are bound in [http-binding.md](http-binding.md). The next HTTPS topic is delivery-status push, query, and acknowledgement.

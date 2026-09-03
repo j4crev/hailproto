@@ -2,7 +2,7 @@
 
 Status: Draft, partial
 
-This document defines the HTTPS behavior shared by Hail server-to-server operations. The current draft settles envelope-submission outcomes, privacy, timing, retry, idempotency semantics, and the v1 use of RFC 9457 Problem Details for explicit unsuccessful responses. Exact endpoint paths, representations, and HTTP status mappings for the remaining operations remain to be specified.
+This document defines the HTTPS behavior shared by Hail server-to-server operations. The current draft settles common service URL and Problem Details rules plus the core envelope-submission, body-retrieval, and grant-publication bindings. Delivery-status transport and remaining operational retry rules remain to be specified.
 
 Grant, envelope, body, and delivery-state semantics remain authoritative in their respective specifications. This binding must not change their authorization or state-transition rules.
 
@@ -64,7 +64,7 @@ This inventory consolidates operations already defined across the Hail specifica
 | Operation | Status | Caller -> receiver | Authentication or authorization | Request | Successful result | Current binding |
 | --- | --- | --- | --- | --- | --- | --- |
 | `DiscoverIdentity` | Required composite prerequisite with context-dependent stages | A participant resolving an alias -> address domain and domain-selected binding host; a participant routing to or verifying a known DID -> DID resolver | HTTPS authenticates the address domain's WebFinger response and protects retrieval from its selected binding URL; address authority comes from that domain selection plus the binding's `#hail-identity` signature; the DID method authenticates Hail keys and service | A Hail address and canonical `acct:` URI when resolving an alias; otherwise a known DID. Address resolution yields a signed binding before DID resolution | Alias resolution yields a verified address-to-DID binding with an expiration; DID resolution yields current Hail keys and canonical service base URL | WebFinger, binding retrieval, and method-specific DID resolution; this is not one Hail service-base endpoint. Their redirect, cache, and retry profiles remain partly open. See [address-binding.md](address-binding.md) and [did-profile.md](did-profile.md). |
-| `PublishGrantRevision` | Required for the POC | Recipient server acting for the grantor DID -> grantee DID's current Hail service | Complete grant revision signed by the grantor DID's `#hail-identity` key; exact signature wrapper open; additional HTTP Message Signatures deferred | Complete signed grant state with stable `grant_id`, ordered `revision`, predecessor, parties, scope, status, and timestamps | Sender verifies and stores a new revision as consent/list state; exact duplicate converges idempotently; conceptual creation returns `201`, `Location`, and strong `ETag`; conceptual update returns `204` and a new strong `ETag` | Conceptual conditional `PUT` to `grants/{grant_id}` using `If-None-Match` or `If-Match`; exact path, media type, ETag digest, statuses, and duplicate-create handling under `If-None-Match: *` are open. See [grants.md](grants.md#web-native-publication). |
+| `PublishGrantRevision` | Required for the POC | Recipient server acting for the grantor DID -> grantee DID's current Hail service | Canonical flattened JWS signed by the grantor DID's `#hail-identity` key; HTTPS authenticates the destination; additional HTTP Message Signatures deferred | Complete signed grant state with stable `grant_id`, ordered `revision`, predecessor, parties, scope, status, and timestamps | Sender verifies and stores a new revision as consent/list state; creation returns `201`; update and exact update retry return `204`; exact creation retry converges through `412` with a matching ETag | Conditional `PUT` to `grants/{grant_id}` with `application/hail-grant+json`; `If-None-Match: *` creates revision 1 and `If-Match` orders later revisions. See [grants.md](grants.md#web-native-publication). |
 | `SubmitEnvelope` | Required; includes grant- and reply-authorized variants | Sender server -> recipient DID's current Hail service | HTTPS authenticates the recipient endpoint; the envelope JWS authenticates the `from` DID and signed contents; v1 requires no additional transport authentication | One closed signed `hail.envelope` for one recipient, containing grant or reply authorization and a detached-body descriptor | Generic `received` discloses only HTTP receipt; `accepted` fixes authorization and transfers body-processing responsibility; an identical `duplicate` reuses stored/current state. An eligible caller may receive the current signed status, including a later state | `POST` to relative operation path `envelopes` with `Content-Type: application/jose+json`; generic receipt is `202 application/json`; authenticated signed success is `200 application/jose+json`. See [envelopes.md](envelopes.md) and the submission sections below. |
 | `RetrieveBody` | Required for the POC | Recipient server -> authenticated sender DID's current Hail service | An opaque bearer token authorizes retrieval and is bound by the signed envelope to the recipient, body, and message; v1 does not prove that the requester possesses the recipient DID's key; proof of possession is deferred | Body digest in the operation path and bearer token in `Authorization`; optional supported content negotiation | `200` carrying immutable canonical body bytes, optionally gzip-coded; the recipient verifies size, digest, media type, profile, canonical encoding, and schema | `GET` from `bodies/{digest}`, where `{digest}` is the exact 43-character unpadded base64url SHA-256 value from the envelope; redirects prohibited. Failure statuses are defined below. See [bodies.md](bodies.md#retrieval-endpoint). |
 | `PushDeliveryStatus` | Terminal push required; exact HTTP binding open | Recipient server -> original sender DID's current Hail service | Complete status snapshot signed by the recipient DID's current `#hail-messaging` key; the sender also matches it to its original sent-envelope record | Closed signed `hail.delivery-status` snapshot with parties, message ID, envelope digest, revision, state, occurrence time, and state-dependent fields | A higher valid revision is stored as current and acknowledged; an exact duplicate succeeds; a lower valid revision is acknowledged as stale without changing sender state | Method, path, acknowledgement representation, status codes, and any additional acknowledgement authentication are open. No separate acknowledgement request is defined. See [delivery-state.md](delivery-state.md#status-reporting). |
@@ -75,7 +75,7 @@ This inventory consolidates operations already defined across the Hail specifica
 | Operation | Rejection or failure semantics | Idempotency | Retry behavior | Privacy constraints |
 | --- | --- | --- | --- | --- |
 | `DiscoverIdentity` | Address, WebFinger, binding, signature, expiration, DID-resolution, or safe-fetch failure prevents verified resolution; exact external error taxonomy open | Component retrievals are read-only, but discovery results may change or expire; no abstract idempotency contract is defined | Address discovery and DID-method retry, redirect, and caching rules remain partly open. Endpoint refresh rules above apply only after a `#hail` service has been discovered | WebFinger may enable address enumeration; implementations rate-limit and minimize metadata. Address bindings intentionally avoid permanent address history. Routine federation from known DIDs does not re-resolve human-readable addresses. |
-| `PublishGrantRevision` | Same revision with different content, stale revision, revision gap, predecessor fork, immutable-field change, invalid signature/schema, throttling, and service failure follow the classifications in the grant specification; exact HTTP mapping remains open | Conditional `PUT`, full-state revisions, predecessor digests, and strong ETags make exact retransmission idempotent; revocation is a terminal revision, not `DELETE`; the initial-create retry interaction remains open | Queue and retry transient publication failure with bounded exponential backoff and jitter; honor `Retry-After`; retransmit missing revisions; local consent changes never wait for publication | Grants are private relationship state, use `Cache-Control: no-store`, and receive generic failures before caller authentication. They contain no message body or contact-request content. |
+| `PublishGrantRevision` | Malformed or unauthenticated protected requests use uniform `400`; missing preconditions use `428`; failed preconditions use `412`; revision and lineage conflicts use `409`; throttling uses `429`; temporary failure uses `503` | Conditional `PUT`, full-state revisions, canonical signed-state digests, and strong ETags make exact retransmission convergent; revocation is a terminal revision, not `DELETE` | Queue and retry transient publication failure with bounded exponential backoff and jitter; honor `Retry-After`; retransmit missing revisions; local consent changes never wait for publication | Grants are private relationship state, use `Cache-Control: no-store`, and receive uniform failures before grantor authentication and local-target confirmation. They contain no message body or contact-request content. |
 | `SubmitEnvelope` | Uses the closed outcome set below. Conflict, invalid representation, unauthorized submission, and expiration are permanent; rate limiting and temporary unavailability are retryable. Reply authorization additionally rejects missing, expired, disallowed, or competing claims | `(authenticated sender DID, message_id)` is the key; an identical canonical payload returns stored/current state, while different content is a permanent conflict. Reply acceptance atomically claims the single-use capability; delivery consumes it; terminal failure or cancellation releases it | Ambiguous transport or generic `received` permits byte-identical retry with the same ID; honor `Retry-After`; after `accepted`, the recipient owns body retries | Protected outcomes remain generic until the sender is authenticated with current or previous relationship state. Generic responses reveal no recipient, relationship, replay, or acceptance state and follow the bounded schedule below. |
 | `RetrieveBody` | Missing body and invalid, mismatched, or expired authorization must not be distinguishable; retryable transport or availability failures and permanent integrity or authorization failures feed the delivery state machine | Immutable body bytes and the same token may be retrieved repeatedly for the same envelope; matching recipient-and-sender cache provenance may avoid another fetch | Recipient retries with bounded backoff and jitter until the effective deadline, preserving digest and token; endpoint migration follows fresh DID resolution rather than redirects | Token appears only in `Authorization`, is excluded from logs, and is stored hashed by the sender. Fetches are delivery operations, not open/read signals. Cross-recipient cache state must not leak. |
 | `PushDeliveryStatus` | Same-revision divergent payload, invalid transition, and nonduplicate post-terminal update are permanent conflicts. Other signature, sent-envelope, party, and digest validation failures are rejected, but their HTTP, disclosure, and retry classifications remain open | At-least-once push; exact duplicates succeed, higher valid revisions advance state, and lower revisions are acknowledged without rollback | Recipient retries unacknowledged terminal snapshots with bounded backoff and jitter; exact intervals and minimum duration open | Status is disclosed only to the authenticated original sender and reports server processing, never client synchronization, display, open, read, click, other recipients, or campaign state. |
@@ -335,11 +335,59 @@ A `429` or `503` response may include disclosure-safe `detail` and `instance` an
 
 Size, digest, media-type, canonicalization, schema, decompression, and other integrity failures detected after a `200` response are not remapped to HTTP statuses. The recipient discards the response and applies the permanent delivery failure defined by the delivery-state specification.
 
+## Grant Publication Binding
+
+`PublishGrantRevision` uses:
+
+```http
+PUT {hail-service-base}/grants/{grant_id}
+Content-Type: application/hail-grant+json
+Cache-Control: no-store
+```
+
+The request body is exactly one canonical flattened JWS using the grant signature profile in [grants.md](grants.md#signature-and-representation-profile). The media type carries no parameters, and v1 applies no HTTP content coding. The path ID is the exact canonical lowercase UUIDv7 from the signed payload and matches `[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}` without percent encoding.
+
+Revision `1` requires `If-None-Match: *`. A later revision, including revocation, requires `If-Match` containing the strong ETag of the preceding revision. That ETag's opaque value is the 43-character unpadded base64url SHA-256 digest of the preceding revision's complete canonical JWS bytes and exactly equals the new payload's `previous` value when the ETag quotes are removed.
+
+Revision `1` includes exactly `If-None-Match: *` and omits `If-Match`. A later revision includes exactly one `If-Match` field containing one strong entity-tag and omits `If-None-Match`. Its opaque value exactly equals the signed `previous` value. Weak entity-tags, lists, `If-Match: *`, both conditional fields, and the conditional field inappropriate for the signed revision are invalid.
+
+Success and convergence use these mappings:
+
+| Condition | HTTP result |
+| --- | --- |
+| Valid revision `1` and no existing grant with that ID | `201 Created` with `Location` and the new strong `ETag` |
+| Valid later revision applied | `204 No Content` with the new strong `ETag` |
+| Exact later revision already current | `204 No Content` with the matching current strong `ETag` |
+| Exact revision `1` already current | `412 Precondition Failed` with the matching current strong `ETag` |
+
+The `201` and `204` responses have no content and include `Cache-Control: no-store`. `Location` is the target grant URL and appears only on `201`.
+
+The publishing client treats the `412` creation response as successful idempotent convergence only when the response ETag exactly equals its submitted canonical JWS digest. A missing or different ETag is not evidence of publication. A different signed representation under the same grant ID is a `409` conflict rather than a duplicate. For an exact later-revision retry, RFC 9110 permits `204` after the server verifies that the requested state change was already applied even though the original `If-Match` value no longer identifies the current revision.
+
+Grant publication errors use:
+
+| Condition | HTTP status |
+| --- | --- |
+| Method other than `PUT` | `405 Method Not Allowed` with `Allow: PUT` |
+| Wrong media type or unsupported HTTP content coding | `415 Unsupported Media Type` |
+| Request exceeds the supported grant transport limit | `413 Content Too Large` |
+| Malformed path, JSON, JWS, protected header, or grant payload | `400 Bad Request` |
+| Invalid or unverifiable signature before grantor authentication | Uniform `400 Bad Request` |
+| Required `If-None-Match` or `If-Match` absent after grantor authentication | `428 Precondition Required` |
+| Conditional field malformed, prohibited, or inappropriate for the signed revision | `400 Bad Request` |
+| Nonduplicate precondition failure without a more specific Hail conflict | `412 Precondition Failed` |
+| Same revision with different content, stale revision, revision gap, predecessor fork, immutable-field change, grant-ID reuse, or update after revocation | `409 Conflict` |
+| Rate limited | `429 Too Many Requests` |
+| Temporarily unavailable | `503 Service Unavailable` |
+
+All explicit errors use `application/problem+json`. `429` and `503` include `Retry-After` when the server supplies retry timing. Conflict and precondition failures require reconciliation rather than unchanged automatic retry, except for the exact-convergence cases above.
+
+Before a valid grantor `#hail-identity` signature is verified and the signed grantee is confirmed as locally authoritative, every protected failure uses the same `400` Problem Details response with `type: about:blank`, `title: Bad Request`, and `status: 400`. It omits `detail` and `instance` and uses a common representation shape, privacy-relevant headers, and bounded timing behavior. This includes missing or revision-inappropriate conditional fields before authentication; the detailed `428` mapping applies only after authentication and local-target confirmation. Safe transport errors selected independently of claimed or actual grant state may return explicit `405`, `413`, or `415` responses before that schedule. A source-wide or service-wide `429` may also be returned early only when selected independently of protected grant state. After authentication and local-target confirmation, disclosure-safe `detail` may explain the applicable conflict, throttling, or temporary failure; clients determine behavior from the HTTP status.
+
 ## Remaining Binding Work
 
 The following decisions remain open:
 
-- grant-publication HTTP details
 - delivery-status push, acknowledgement, and authenticated query methods and paths
 - standardized retry intervals and terminal-status retry duration
 
