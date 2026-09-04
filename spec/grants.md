@@ -29,8 +29,8 @@ Conceptual v1 payload:
   "grant_id": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
   "revision": 1,
   "previous": null,
-  "grantor": "did:plc:recipient123",
-  "grantee": "did:web:example-store.com:updates",
+  "grantor": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+  "grantee": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
   "scope": [
     {
       "type": "categories",
@@ -48,7 +48,7 @@ Conceptual v1 payload:
       "value": "base64url-sha256-address-binding-jws"
     }
   },
-  "key_id": "did:plc:recipient123#hail-identity"
+  "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity"
 }
 ```
 
@@ -75,7 +75,7 @@ The decoded protected header is the closed object:
 ```json
 {
   "alg": "Ed25519",
-  "kid": "did:plc:recipient123#hail-identity",
+  "kid": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
   "typ": "hail-grant+jws"
 }
 ```

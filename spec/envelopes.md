@@ -31,8 +31,8 @@ Conceptual grant-authorized v1 payload:
   "type": "hail.envelope",
   "version": 1,
   "message_id": "01a0443c-5600-7c43-969f-9fca31321a64",
-  "from": "did:web:example-store.com:updates",
-  "to": "did:plc:recipient123",
+  "from": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+  "to": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
   "authorization": {
     "type": "grant",
     "grant_id": "01954144-8097-7a9d-a7a8-ef29a823eaf1"
@@ -318,7 +318,7 @@ The decoded protected header is the closed object:
 ```json
 {
   "alg": "Ed25519",
-  "kid": "did:web:example-store.com:updates#hail-messaging",
+  "kid": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb#hail-messaging",
   "typ": "hail-envelope+jws"
 }
 ```
@@ -457,7 +457,7 @@ The bearer token is secret but appears inside the signed envelope payload. Envel
 
 ### Key Rotation
 
-A newly submitted envelope must verify against current authoritative DID state under the Hail DID method and cache-refresh rules. A key removed during provider migration cannot authorize new submissions merely because a receiver cached it indefinitely.
+A newly submitted envelope must verify against authoritative PLC state under the Hail recovery-window and cache-refresh rules. A key removed during provider migration cannot authorize new submissions merely because a receiver cached it indefinitely.
 
 Recipients retain the accepted JWS, resolved key material, DID version evidence where available, and acceptance time needed to audit a message after key rotation. Complete historical verification rules remain a shared DID and security-profile concern.
 
@@ -510,7 +510,7 @@ Deferred:
 
 ## Open Questions
 
-- What DID method version evidence must recipients retain for long-term audit verification?
-- What production cache lifetime and method-specific finality rules replace the POC behavior?
+- What PLC operation and chain evidence must recipients retain for long-term audit verification?
+- What production cache lifetime and PLC finality rules replace the POC behavior?
 - Should production retain the POC message-type list or introduce a separately versioned registry?
 - What production envelope size must every conforming implementation accept?

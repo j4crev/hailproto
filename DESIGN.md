@@ -8,7 +8,7 @@ Hail Protocol is a federated, permission-based messaging concept intended to sol
 - Support rich messages.
 - Allow federation between independently operated servers.
 - Support user choice of providers and clients.
-- Support portable identities for users and organizations that control their own domains.
+- Support portable identities for users and organizations with provider-issued or custom-domain addresses.
 - Use open standards where practical.
 - Keep v1 implementable by hobbyists and independent developers.
 - Allow existing email clients and tools to eventually adopt delivery and receipt of these messages, enabling side-by-side existence with email.
@@ -43,7 +43,7 @@ The initial prototype should validate:
 
 - Replacing all email use cases immediately.
 - Solving provider-owned address portability.
-- Building a global central identity registry.
+- Building a Hail-specific global identity registry. Hail uses the external PLC registry and its verifiable operation log.
 - Supporting arbitrary browser-grade HTML.
 - Supporting unsolicited rich messages.
 - Solving lookalike-domain phishing completely.
@@ -70,7 +70,7 @@ Receivers may use provider-issued identities, especially if they only receive me
 alice@provider.example
 ```
 
-Provider-issued identities use `did:plc` as their durable identity in the provisional v1 design. The provider-issued Hail address is an alias and may change when the user migrates, while the DID and grants remain stable.
+All identities use `did:plc` as their durable identity. A provider-issued Hail address is an alias and may change when the user migrates, while the DID and grants remain stable.
 
 Senders should generally be domain-backed:
 
@@ -86,13 +86,12 @@ alice@alice-me.com
 updates@example-store.com
 ```
 
-Bring-your-own-domain identities use `did:web`. Their Hail address and DID remain stable while the domain owner changes Hail hosting providers.
+Custom-domain identities also use `did:plc`. Their domain-backed Hail address remains stable while the domain owner changes Hail hosting providers, and their DID remains independent of domain registration, DNS, and web hosting.
 
-The provisional v1 identity policy is:
+The v1 identity policy is:
 
 ```text
-Bring your own domain: did:web
-Provider-issued identity: did:plc
+All identities: did:plc
 ```
 
 A provider may later offer managed personal-domain registration and DNS as a paid service. This is optional rather than a baseline requirement because every user would otherwise incur domain registration and renewal costs. For meaningful portability, the user should be the registrant or otherwise have a guaranteed right to transfer the managed domain away from the provider.
@@ -107,15 +106,13 @@ The intended resolution chain is:
 human address -> DID -> current Hail service endpoint and verification keys
 ```
 
-Address-to-DID resolution uses an expiring Hail Address Binding discovered through the address domain. The address domain publishes the mapping, and a key authorized by the DID signs the same address and DID values. Hail does not require `alsoKnownAs` for this proof, avoiding permanent provider-address history in the public PLC log.
+Address-to-DID resolution uses an expiring Hail Address Binding discovered through the address domain. The address domain publishes the mapping, and a key authorized by the DID signs the same address and DID values. Hail addresses are not written to `alsoKnownAs`, avoiding permanent address history in the public PLC log.
 
 If Alice changes providers, she updates the service endpoint associated with her DID. Her DID, grants, and message relationships remain stable.
 
 For domain-backed sender addresses, DNS or a well-known document proves that the domain authorizes the address-to-DID association. Hosting that DID's Hail service does not itself make a provider the identity owner.
 
-V1 provisionally supports `did:web` for domain owners and `did:plc` for users who do not bring a domain.
-
-`did:plc` use remains provisional until its maintainers confirm that the public PLC directory is intended to accept non-AT Protocol production identities and custom Hail verification methods and services. Hail implementations should access PLC through a configurable DID resolver boundary so caching, mirrors, audit verification, and alternative resolution infrastructure can be introduced later.
+V1 supports `did:plc` for individuals and organizations, whether their address is provider-issued or under a custom domain. The published PLC specification permits application-specific verification methods and services. Hail implementations access PLC through a configurable resolver boundary so caching, mirrors, audit verification, and alternative directory infrastructure do not affect protocol objects.
 
 ## Hail DID Profile
 
@@ -131,11 +128,24 @@ The identity and messaging roles use separate keys. This allows a provider to op
 
 The `#hail` service has type `HailMessaging` and one HTTPS base endpoint. Standard server-to-server paths are derived from that base URL.
 
-For `did:web`, v1 uses plain JSON without JSON-LD context processing. Both Hail keys are unique top-level `verificationMethod` definitions referenced once from `assertionMethod`; the Hail service type and endpoint are single strings. Resolution rejects ambiguity, redirects, unsafe network targets, invalid or deactivated results, and oversized documents.
+PLC operations store both Hail keys as named Ed25519 `did:key` values and store the Hail service as a named string endpoint. Resolvers expand relative IDs in PLC-rendered DID documents before validating the exact key roles, controllers, service type, and endpoint.
 
-Provider migration updates `#hail-messaging` and `#hail` while preserving the DID, `#hail-identity`, grants, and message relationships. DID update and recovery keys remain separate from both Hail keys.
+Provider migration updates `#hail-messaging` and `#hail` through a PLC operation while preserving the DID, `#hail-identity`, grants, and message relationships. PLC rotation keys remain separate from both Hail keys.
 
 The complete profile is defined in [`spec/did-profile.md`](spec/did-profile.md).
+
+### PLC Operational Consequences
+
+Using PLC for every identity establishes one recovery and resolution model, but also makes several constraints universal:
+
+- Every account needs PLC rotation-key management using P-256 or secp256k1 in addition to Hail's Ed25519 signing keys.
+- Hail consumes two of PLC's maximum ten verification-method slots; an existing PLC identity needs two free slots before it can enable Hail.
+- Every identity and provider migration depends on PLC directory availability, so production servers need validated mirrors or local log replication.
+- PLC updates are full state snapshots. Key rotation and provider migration tooling must preserve unrelated keys, aliases, and services rather than patching one field.
+- PLC's 72-hour higher-authority recovery window can reverse a lower-authority update. Hail must define when new keys and endpoints become authoritative before production migration is safe.
+- PLC rotation keys act unilaterally rather than by threshold. A user-held higher-priority key protects a provider-held update key only if unauthorized changes are detected and recovered within 72 hours, so monitoring is part of the recovery model.
+- Verification keys, service endpoints, update timestamps, nullified operations, and tombstones are permanently public. Hail addresses stay in expiring Address Bindings and out of PLC state.
+- Custom-domain control authenticates the human-readable address, while PLC rotation authority independently controls the durable identity. Losing or transferring the domain does not transfer DID-bound grants or message history.
 
 ## Discovery
 
@@ -478,7 +488,9 @@ If the receiver can drop unauthorized envelopes cheaply before signature verific
 
 ## Open Questions
 
-- Will the PLC maintainers confirm non-AT Protocol production use of the public directory?
+- When does Hail treat a PLC update as authoritative during the 72-hour recovery window?
+- What PLC mirror, checkpoint, and locally validated log behavior is required for production resolution?
+- What minimum PLC rotation-key custody and backup arrangement is required at onboarding?
 - What exact normalization and lifetime should Hail Address Bindings use?
 - What non-DID profile fields are required for sender discovery?
 - What should the guaranteed minimum reply size be?

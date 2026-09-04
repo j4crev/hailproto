@@ -338,8 +338,8 @@ Conceptual delivered payload:
     "algorithm": "sha-256",
     "value": "base64url-sha256-envelope-payload-digest"
   },
-  "from": "did:plc:recipient123",
-  "to": "did:web:example-store.com:updates",
+  "from": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+  "to": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
   "revision": 2,
   "state": "delivered",
   "occurred_at": 1787851260
@@ -395,7 +395,7 @@ The protected header is:
 ```json
 {
   "alg": "Ed25519",
-  "kid": "did:plc:recipient123#hail-messaging",
+  "kid": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-messaging",
   "typ": "hail-delivery-status+jws"
 }
 ```
@@ -420,11 +420,11 @@ A continuity-preserving provider migration uses a fenced ownership cutover rathe
 2. The old provider acquires an exclusive migration fence and stops accepting envelopes, committing delivery transitions, changing grants or reply capabilities, and creating status revisions for the DID.
 3. While fenced, the old provider exports the complete serialization domain: current grants and tombstones, reply-capability state, all retained envelope idempotency and rejection records, accepted and terminal delivery records, canonical current status payloads and revision history, body/cache provenance needed for continuation, and retained signature-verification evidence.
 4. The new provider validates and durably imports that complete state and acknowledges the exact snapshot.
-5. The DID controller updates `#hail-messaging` and `#hail` to the new provider.
-6. Only after the DID method considers that update current does the new provider take ownership, resume pending work, and sign status wrappers with its current key.
+5. The DID controller publishes a PLC operation updating `#hail-messaging` and `#hail` to the new provider.
+6. Only after the PLC update satisfies Hail's recovery-window acceptance policy does the new provider take ownership, resume pending work, and sign status wrappers with its current key.
 7. The old provider remains fenced and rejects stale requests. It never commits state after export and never receives the new provider's private key.
 
-Requests during the fenced interval may receive temporary generic failure and retry through normal discovery-refresh behavior. If cutover is abandoned before the DID update, the old provider may resume only after invalidating the unactivated import so one serialization owner still exists.
+Requests during the fenced interval may receive temporary generic failure and retry through normal discovery-refresh behavior. If cutover is abandoned before the PLC update, the old provider may resume only after invalidating the unactivated import so one serialization owner still exists.
 
 An emergency rotation after compromise or provider loss may make untransferred status unavailable. Hail does not accept signatures from a removed key merely to mask that availability failure. Recovery of missing provider state requires backup or a future authenticated migration-recovery mechanism.
 

@@ -10,8 +10,8 @@ Hail addresses are aliases. Hail Grants, Hail Envelopes, and durable relationshi
 
 - Resolve a human-readable address to a DID.
 - Require agreement from both the address domain and DID controller.
-- Work with both `did:web` and `did:plc`.
-- Avoid permanently publishing provider-address history in a PLC operation log.
+- Bind either a provider-issued or custom-domain address to a `did:plc` identity.
+- Avoid permanently publishing Hail address history in a PLC operation log.
 - Allow an address binding to expire or be replaced without changing the DID.
 - Prevent address reassignment from transferring grants or message history.
 - Use existing web standards where practical.
@@ -49,6 +49,8 @@ DID controller  ----signs----> address + DID
 Neither statement is sufficient by itself.
 
 A DID can claim an address it does not own, and a domain can point an address at a DID whose controller did not agree. Verification succeeds only when the published and signed values match.
+
+Because every Hail identity uses PLC, the address domain and PLC rotation authority are separate trust anchors. Domain control alone cannot rotate the named DID's keys or service, and PLC control alone cannot publish the domain's WebFinger mapping. A compromised domain can redirect the address to another DID, but it cannot inherit grants or message history bound to the original DID.
 
 ## Discovery
 
@@ -101,10 +103,10 @@ Conceptual signed payload:
   "version": 1,
   "type": "hail.address-binding",
   "address": "alice@example.com",
-  "did": "did:plc:examplealiceidentifier",
+  "did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
   "issued_at": 1787851200,
   "expires_at": 1795627200,
-  "key_id": "did:plc:examplealiceidentifier#hail-identity"
+  "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity"
 }
 ```
 
@@ -115,7 +117,7 @@ Required payload fields:
 - `version`: Address Binding profile version.
 - `type`: Exact value `hail.address-binding` for v1.
 - `address`: Canonical Hail address without the `acct:` prefix.
-- `did`: Exact DID associated with the address.
+- `did`: Canonical `did:plc` identifier associated with the address, as defined by the Hail DID profile.
 - `issued_at`: UTC issuance time represented as Unix seconds.
 - `expires_at`: UTC expiration time represented as Unix seconds.
 - `key_id`: DID URL identifying the DID's `#hail-identity` verification method.
@@ -141,7 +143,7 @@ The decoded protected header is the closed object:
 ```json
 {
   "alg": "Ed25519",
-  "kid": "did:plc:examplealiceidentifier#hail-identity",
+  "kid": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
   "typ": "hail-address-binding+jws"
 }
 ```
@@ -190,7 +192,7 @@ Given a user-supplied Hail address, a verifier:
 7. Validates the binding schema.
 8. Requires the binding `address` to equal the canonical requested address.
 9. Checks `issued_at` and `expires_at` using the allowed clock-skew policy.
-10. Resolves the exact DID from the binding according to its DID method.
+10. Resolves the exact `did:plc` DID from the binding through a conforming PLC resolver.
 11. Requires `key_id` to be that DID's `#hail-identity` verification method as defined by [did-profile.md](did-profile.md).
 12. Verifies the flattened JWS and exact canonical representation under the Address Binding signature profile.
 13. Returns the verified DID and binding expiration.
@@ -199,11 +201,9 @@ Any mismatch or ambiguity causes address verification to fail.
 
 ## Use Of `alsoKnownAs`
 
-Hail does not require `alsoKnownAs` for address verification.
+Hail v1 publishers must not place Hail addresses in PLC `alsoKnownAs`. Clients ignore any such value and must not treat it as proof of address ownership.
 
-A DID document may include a Hail address in `alsoKnownAs` as informational metadata, but clients must not treat it as sufficient proof of address ownership.
-
-In particular, Hail should not require provider-issued addresses to be written into PLC operations because PLC history is permanent and publicly enumerable. Signed, expiring Address Bindings avoid creating a permanent history of every provider address used by one identity.
+PLC history is permanent and publicly enumerable. Signed, expiring Address Bindings keep both provider-issued and custom-domain address changes out of that permanent history.
 
 ## Address Changes
 
@@ -212,8 +212,8 @@ Changing a Hail address does not change the DID.
 Example:
 
 ```text
-alice@provider-a.example -> did:plc:examplealiceidentifier
-alice@provider-b.example -> did:plc:examplealiceidentifier
+alice@provider-a.example -> did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
+alice@provider-b.example -> did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
 ```
 
 The new address domain publishes a new binding signed by the same DID. Existing grants continue to reference the DID and remain valid.
@@ -254,7 +254,7 @@ If an attacker controls the address domain and an attacker-controlled DID, the a
 
 ### DID Key Compromise
 
-Compromise of `#hail-identity` allows unauthorized bindings and grants until the key is rotated or revoked through the DID method. The identity key is separate from `#hail-messaging` and from DID update or recovery keys.
+Compromise of `#hail-identity` allows unauthorized bindings and grants until the key is rotated or revoked through PLC. The identity key is separate from `#hail-messaging` and from PLC rotation keys.
 
 ### Binding Replay
 
@@ -286,7 +286,7 @@ The POC needs:
 - WebFinger lookup using canonical `acct:` URIs
 - one Address Binding link
 - one signed binding payload
-- `did:web` and `did:plc` resolution
+- `did:plc` resolution
 - binding expiration checks
 - RFC 8785 canonical payload, protected header, and flattened JWS wrapper
 - RFC 9864 `Ed25519` signature verification using `#hail-identity`

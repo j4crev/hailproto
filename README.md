@@ -4,7 +4,7 @@ Hail Protocol is a federated, permission-based messaging concept intended to sol
 
 Instead of allowing anyone who knows an address to send a message, Hail requires recipient-controlled permission before messages can appear in a user's inbox.
 
-The project aims to support beautiful messages, independent providers, portable DID-based identities, and inexpensive rejection of unauthorized traffic.
+The project aims to support beautiful messages, independent providers, portable `did:plc` identities, and inexpensive rejection of unauthorized traffic.
 
 ## Status
 
@@ -27,7 +27,7 @@ Hail is currently in the protocol design phase. There is no working server or cl
 - [`BODY_FORMAT.md`](BODY_FORMAT.md): Safe Portable Text body-format design.
 - [`spec/core-delivery.md`](spec/core-delivery.md): Core grant-authorized delivery flow.
 - [`spec/address-binding.md`](spec/address-binding.md): Human-readable address-to-DID binding.
-- [`spec/did-profile.md`](spec/did-profile.md): Required Hail DID keys and service entry.
+- [`spec/did-profile.md`](spec/did-profile.md): PLC identity, Hail key roles, resolution, recovery, and service entry.
 - [`spec/grants.md`](spec/grants.md): Hail Grant schema and lifecycle.
 - [`spec/bodies.md`](spec/bodies.md): Detached body publication, authorization, retrieval, and retention.
 - [`spec/envelopes.md`](spec/envelopes.md): Hail Envelope schema, authorization, signatures, and replay behavior.

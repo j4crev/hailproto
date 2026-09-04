@@ -58,11 +58,10 @@ Decisions:
 - Hail addresses are case-insensitive and must be normalized before resolution or comparison.
 - Address-to-DID association uses a signed, expiring Hail Address Binding discovered through the address domain.
 - Verification requires the address domain to publish the binding and a DID-authorized key to sign it.
-- Hail does not require DID `alsoKnownAs` entries for address verification.
+- Hail addresses are not written to PLC `alsoKnownAs`; address verification uses Address Bindings.
 - A DID remains stable when its owner changes hosting providers. Grants, message relationships, and other durable records continue to reference the same DID.
 - The current hosting endpoint is delegated infrastructure discovered through the DID. It is not the sender's or recipient's identity.
-- Bring-your-own-domain identities provisionally use `did:web`.
-- Provider-issued identities provisionally use `did:plc`.
+- Provider-issued and custom-domain identities use `did:plc`.
 - Hail Grants and Hail Address Bindings are signed by the DID's `#hail-identity` key.
 - Hail Envelopes and routine server objects are signed by the DID's `#hail-messaging` key.
 - The DID's current server is the endpoint of its `#hail` service with type `HailMessaging`.
@@ -77,19 +76,18 @@ Example:
 
 ```text
 alice@example.net
-  -> did:plc:examplealiceidentifier
+  -> did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
   -> https://current-provider.example/hail
 ```
 
-If Alice migrates providers, the DID document changes the final service endpoint and the `#hail-messaging` operational key. Her DID and existing grants do not change.
+If Alice migrates providers, a PLC operation changes the service endpoint and the `#hail-messaging` operational key. Her DID and existing grants do not change.
 
 For domain-backed senders, domain control verifies that the human-readable sender address is an authorized alias for the sender DID. The provider operating the endpoint does not gain the sender's domain identity merely by hosting it.
 
-Method policy:
+Identity method:
 
 ```text
-Bring your own domain: did:web
-Provider-issued identity: did:plc
+did:plc
 ```
 
 This policy avoids mandatory domain costs for ordinary users. Managed personal domains may be offered as an optional paid provider service, but they are not required for a portable Hail identity because a provider-issued address resolves to a stable `did:plc` identity.
@@ -106,7 +104,6 @@ Questions still to resolve:
 - Can one DID have multiple current Hail addresses?
 - Which address, if any, is included as display metadata in grants and envelopes?
 - What cache and historical-version rules apply to DID resolution?
-- Will the public PLC directory accept non-AT Protocol production identities and Hail-specific entries?
 - What resolver mirrors, audit verification, or fallback behavior does Hail require for `did:plc`?
 
 ### 2. Preconditions And Discovery
@@ -258,7 +255,6 @@ These issues should not block the first grant-authorized delivery:
 - unsolicited communication
 - email bridges
 - global directories
-- additional DID methods beyond `did:web` and `did:plc`
 - custom encoding negotiation
 - organization verification beyond domain control
 

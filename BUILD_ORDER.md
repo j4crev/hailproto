@@ -98,16 +98,15 @@ Verification keys: resolved from the DID document
 
 DIDs are part of the first prototype because identity portability, grants, key discovery, and provider migration depend on them.
 
-Provisional v1 DID methods:
+V1 identity method:
 
 ```text
-Bring your own domain: did:web
-Provider-issued identity: did:plc
+did:plc
 ```
 
-All Hail implementations should isolate method-specific behavior behind a DID resolver interface. Grants and envelopes contain generic DID strings and must not contain PLC- or Web-specific fields.
+All Hail implementations should isolate PLC directory access, log validation, and mirror selection behind a resolver interface. Grants and envelopes contain canonical `did:plc` identifiers.
 
-Human-readable Hail addresses resolve through WebFinger to signed, expiring Hail Address Bindings. The address domain publishes the binding and a DID-authorized key signs it. `alsoKnownAs` is not required for address verification.
+Human-readable Hail addresses resolve through WebFinger to signed, expiring Hail Address Bindings. The address domain publishes the binding and a DID-authorized key signs it. Hail addresses are not written to PLC `alsoKnownAs`.
 
 The Hail DID profile requires:
 
@@ -117,11 +116,11 @@ The Hail DID profile requires:
 #hail            HailMessaging service with an HTTPS base endpoint
 ```
 
-The identity and messaging keys are distinct. DID update and recovery keys are separate from both. See `spec/did-profile.md`.
+The identity and messaging keys are distinct. PLC rotation keys are separate from both. See `spec/did-profile.md`.
 
-The v1 `did:web` profile uses plain JSON without `@context`, defines both Hail keys once in top-level `verificationMethod`, and references both once from `assertionMethod`. It rejects ambiguous key or service IDs, embedded Hail role definitions, non-string Hail service types or endpoints, additional `HailMessaging` services, redirects, unsafe network targets, and DID documents that exceed its retrieval limits.
+PLC operations store the two Ed25519 Hail verification methods as named `did:key` values and the Hail endpoint as a named service. Resolvers expand PLC's relative DID document IDs before comparison. Development can use a local PLC server and fixture operation logs; production resolution should support validated mirrors or local audit-log verification rather than coupling protocol behavior to one HTTP origin.
 
-Production dependence on the public PLC directory requires confirmation that non-AT Protocol identities and Hail-specific verification methods and services are supported. Development can use a local PLC server and fixture operation logs.
+The five PLC requirements that must be resolved before production are tracked in `spec/did-profile.md#before-production`.
 
 ## 4. Define Abstract Operations
 
