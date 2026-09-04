@@ -60,14 +60,14 @@ alice@example.com
 
 The address resolves to a DID. Grants, envelopes, and durable relationships bind to DIDs rather than addresses or provider endpoints.
 
-Hail addresses are case-insensitive and must be normalized before resolution or comparison.
+Hail addresses are case-insensitive and serialize in lowercase canonical form. V1 permits ASCII dot-atom local parts and IDNA2008 domains serialized as A-labels; quoted local parts, domain literals, and internationalized local parts are excluded.
 
 V1 should distinguish receiver onboarding requirements from sender verification requirements.
 
 Receivers may use provider-issued identities, especially if they only receive messages:
 
 ```text
-alice@provider.example
+alice@provider.example.com
 ```
 
 All identities use `did:plc` as their durable identity. A provider-issued Hail address is an alias and may change when the user migrates, while the DID and grants remain stable.
@@ -75,15 +75,15 @@ All identities use `did:plc` as their durable identity. A provider-issued Hail a
 Senders should generally be domain-backed:
 
 ```text
-updates@example-store.com
-receipts@airline.example
+updates@store.example.com
+receipts@airline.example.com
 ```
 
 For v1, portability of the human-readable Hail address itself is available to users and organizations that control their own domain:
 
 ```text
-alice@alice-me.com
-updates@example-store.com
+alice@alice.example.com
+updates@store.example.com
 ```
 
 Custom-domain identities also use `did:plc`. Their domain-backed Hail address remains stable while the domain owner changes Hail hosting providers, and their DID remains independent of domain registration, DNS, and web hosting.
@@ -491,7 +491,6 @@ If the receiver can drop unauthorized envelopes cheaply before signature verific
 - When does Hail treat a PLC update as authoritative during the 72-hour recovery window?
 - What PLC mirror, checkpoint, and locally validated log behavior is required for production resolution?
 - What minimum PLC rotation-key custody and backup arrangement is required at onboarding?
-- What exact normalization and lifetime should Hail Address Bindings use?
 - What non-DID profile fields are required for sender discovery?
 - What should the guaranteed minimum reply size be?
 - What is the first useful block vocabulary after plain text?

@@ -55,7 +55,7 @@ Decisions:
 - Hail Grants bind a grantor DID to a grantee DID.
 - Hail Envelopes identify `from` and `to` using DIDs.
 - Human-readable Hail addresses are aliases that resolve to DIDs; they are not durable protocol identities.
-- Hail addresses are case-insensitive and must be normalized before resolution or comparison.
+- Hail addresses use the case-insensitive lowercase canonical syntax defined by the Address Binding profile.
 - Address-to-DID association uses a signed, expiring Hail Address Binding discovered through the address domain.
 - Verification requires the address domain to publish the binding and a DID-authorized key to sign it.
 - Hail addresses are not written to PLC `alsoKnownAs`; address verification uses Address Bindings.
@@ -98,10 +98,6 @@ Required DID entries and key roles are specified in [did-profile.md](did-profile
 
 Questions still to resolve:
 
-- What exact lowercase and Unicode normalization algorithm applies to Hail addresses?
-- Are internationalized local parts and domains allowed in v1?
-- Does one domain support multiple addresses resolving to separate DIDs?
-- Can one DID have multiple current Hail addresses?
 - Which address, if any, is included as display metadata in grants and envelopes?
 - What cache and historical-version rules apply to DID resolution?
 - What resolver mirrors, audit verification, or fallback behavior does Hail require for `did:plc`?
@@ -110,7 +106,7 @@ Questions still to resolve:
 
 Before initial delivery, a sender resolves a human-readable address through its signed Address Binding when necessary, then resolves the recipient DID's current `#hail` service and keys. Routine federation between known DIDs resolves the DID directly and does not re-resolve a human-readable address on every operation.
 
-The POC DID cache lifetime, forced key and endpoint refresh, canonical service-base URLs, redirect prohibition for federation operations, and provider-migration behavior are defined in [did-profile.md](did-profile.md) and [http-binding.md](http-binding.md). Address Binding cache, refresh, and discovery-redirect behavior and production DID finality remain open in their respective identity specifications; they are not unresolved HTTPS operation-binding questions.
+The POC DID cache lifetime, forced key and endpoint refresh, canonical service-base URLs, redirect prohibition for federation operations, and provider-migration behavior are defined in [did-profile.md](did-profile.md) and [http-binding.md](http-binding.md). Address Binding cache, refresh, redirect, and safe-fetch behavior is defined in [address-binding.md](address-binding.md). Production PLC finality remains open; it is not an unresolved HTTPS operation-binding question.
 
 ### 3. Grant Preconditions
 

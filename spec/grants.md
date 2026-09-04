@@ -42,7 +42,7 @@ Conceptual v1 payload:
   "updated_at": 1787851200,
   "expires_at": null,
   "consent_context": {
-    "grantee_address": "updates@example-store.com",
+    "grantee_address": "updates@store.example.com",
     "address_binding_hash": {
       "algorithm": "sha-256",
       "value": "base64url-sha256-address-binding-jws"

@@ -74,7 +74,7 @@ Threat actors and failures to consider:
 
 Grants and envelopes cannot be finalized until their parties are defined.
 
-Decisions needed:
+V1 identity decisions:
 
 - exact Hail address syntax
 - address normalization and comparison
@@ -119,6 +119,8 @@ The Hail DID profile requires:
 The identity and messaging keys are distinct. PLC rotation keys are separate from both. See `spec/did-profile.md`.
 
 PLC operations store the two Ed25519 Hail verification methods as named `did:key` values and the Hail endpoint as a named service. Resolvers expand PLC's relative DID document IDs before comparison. Development can use a local PLC server and fixture operation logs; production resolution should support validated mirrors or local audit-log verification rather than coupling protocol behavior to one HTTP origin.
+
+Hail addresses use a lowercase canonical email-shaped form with ASCII dot-atom local parts and IDNA2008 A-label domains. WebFinger uses `https://hailproto.com/rel/address-binding`; binding hosting may be delegated across origins, WebFinger redirects are bounded, binding redirects are prohibited, and verified address results are cached for at most one hour. See `spec/address-binding.md`.
 
 The five PLC requirements that must be resolved before production are tracked in `spec/did-profile.md#before-production`.
 

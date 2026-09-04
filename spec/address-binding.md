@@ -32,6 +32,27 @@ Hail addresses are aliases. Hail Grants, Hail Envelopes, and durable relationshi
 - **Address authority**: The domain that publishes the address mapping over authenticated HTTPS.
 - **DID controller**: The entity authorized to use a verification method in the resolved DID document.
 
+## Address Syntax And Canonicalization
+
+Hail v1 uses common email-shaped addresses but does not adopt every legacy SMTP mailbox form. An address consists of one ASCII dot-atom local part, one `@`, and one public DNS domain.
+
+The local-part grammar is:
+
+```abnf
+local-part = atom *("." atom)
+atom = 1*(ALPHA / DIGIT / "!" / "#" / "$" / "%" / "&" / "'" /
+          "*" / "+" / "-" / "/" / "=" / "?" / "^" / "_" / "`" /
+          "{" / "|" / "}" / "~")
+```
+
+Consequently, a local part cannot be empty, begin or end with `.`, contain consecutive dots, whitespace, controls, non-ASCII characters, or another `@`. Quoted local parts, comments, display names, route syntax, and domain literals are not Hail addresses. The local part is at most 64 ASCII bytes.
+
+The domain accepts Unicode U-label or ASCII A-label input. A verifier applies IDNA2008 lookup processing, rejects invalid or non-round-tripping labels, and emits every label as its lowercase ASCII A-label. A trailing root dot is invalid. Each resulting label is from 1 through 63 bytes, does not begin or end with `-`, and the complete domain is at most 253 ASCII bytes. The domain must have a registrable domain beneath a suffix recognized by the current [Public Suffix List](https://publicsuffix.org/list/); a bare public suffix, unqualified name, address literal, and special-use or unknown suffix are invalid for public Hail federation.
+
+The complete canonical address is at most 254 ASCII bytes. To canonicalize an accepted address, lowercase the ASCII local part, append `@`, and append the lowercase IDNA A-label domain. Hail address comparison is exact bytewise comparison of this canonical form. This deliberately overrides SMTP's theoretical case sensitivity for mailbox local parts.
+
+To construct the RFC 7565 `acct:` URI, prefix the canonical address with `acct:` and percent-encode local-part bytes not permitted directly by the `acct` URI `userpart` grammar using uppercase hexadecimal digits. The delimiter `@` and canonical A-label domain remain literal. The complete `acct:` URI is then percent-encoded as an RFC 7033 query-parameter value when constructing the WebFinger request.
+
 ## Trust Model
 
 An address is verified only when both sides agree:
@@ -54,7 +75,13 @@ Because every Hail identity uses PLC, the address domain and PLC rotation author
 
 ## Discovery
 
-The provisional discovery mechanism is WebFinger, defined by RFC 7033, using an `acct` URI as defined by RFC 7565.
+Hail address discovery uses WebFinger, defined by RFC 7033, with an `acct` URI defined by RFC 7565. The permanent Hail Address Binding link relation is:
+
+```text
+https://hailproto.com/rel/address-binding
+```
+
+This is an RFC 8288 extension relation URI. Clients compare it as the exact lowercase string above and do not dereference it during discovery.
 
 Given:
 
@@ -71,8 +98,9 @@ acct:alice@example.com
 and requests:
 
 ```http
-GET https://example.com/.well-known/webfinger?resource=acct%3Aalice%40example.com
+GET https://example.com/.well-known/webfinger?resource=acct%3Aalice%40example.com&rel=https%3A%2F%2Fhailproto.com%2Frel%2Faddress-binding
 Accept: application/jrd+json
+Accept-Encoding: identity
 ```
 
 Conceptual response:
@@ -82,7 +110,7 @@ Conceptual response:
   "subject": "acct:alice@example.com",
   "links": [
     {
-      "rel": "https://hailprotocol.example/rel/address-binding",
+      "rel": "https://hailproto.com/rel/address-binding",
       "type": "application/hail-address-binding+json",
       "href": "https://example.com/.well-known/hail/addresses/alice"
     }
@@ -90,9 +118,17 @@ Conceptual response:
 }
 ```
 
-The final relation URI and publication domain remain to be selected before standardization.
+The `rel` request parameter is a response filter, not a guarantee that the returned JRD contains only that relation. A verifier requires the JRD `subject` to exactly equal the canonical `acct:` URI and selects exactly one link whose `rel` and `type` exactly equal the Hail values above. No match or multiple matches fail address verification.
 
-The WebFinger response proves that the address domain selected the binding resource. The binding resource may be hosted by delegated infrastructure, but the client must first obtain its URL from the address domain's authenticated WebFinger response.
+The WebFinger response proves that the address domain selected the binding resource. The binding `href` may use a different origin, allowing delegated providers and CDNs, but the client must first obtain that URL from the address domain's authenticated WebFinger response.
+
+### WebFinger Retrieval
+
+A verifier sends the WebFinger request to the canonical address domain over HTTPS. It may follow at most three WebFinger redirects, as permitted by RFC 7033. Every redirect target must use HTTPS, contain a public ASCII DNS hostname in canonical IDNA A-label form, contain no username, password, or fragment, and pass the network-address checks below. The verifier follows the supplied `Location` URI rather than reconstructing or appending query parameters.
+
+The complete redirect chain shares a 10-second response deadline, with a 5-second connection timeout for each connection. Every TLS connection requires normal hostname and certificate validation. Every DNS result and connection address is checked to reject IP-address hostnames, loopback, link-local, private, reserved, or otherwise non-public addresses and to prevent DNS rebinding. Requests send no `Authorization`, `Cookie`, or `Referer` fields and use `Accept-Encoding: identity`.
+
+The final WebFinger response must be `200 OK` with exact parameterless `Content-Type: application/jrd+json` and no `Content-Encoding`. The transmitted JRD is limited to 65536 bytes, must be valid UTF-8 JSON with one top-level object, and must not contain duplicate member names. Unknown JRD members and unrelated links are ignored as required by RFC 7033.
 
 ## Binding Payload
 
@@ -123,6 +159,8 @@ Required payload fields:
 - `key_id`: DID URL identifying the DID's `#hail-identity` verification method.
 
 Unknown payload fields are rejected in v1.
+
+`issued_at` and `expires_at` are non-negative integers. `expires_at` must be greater than `issued_at`, and their difference must not exceed 7776000 seconds, or 90 days. At verification time, `issued_at` must not be more than 300 seconds in the future and current time must not be more than 300 seconds after `expires_at`. Clock tolerance does not alter either signed timestamp or extend the cache lifetime below.
 
 ## Signature And Representation Profile
 
@@ -163,15 +201,17 @@ The complete canonical JWS bytes are the immutable signed representation of one 
 
 ## Retrieval Representation And Limits
 
-The WebFinger link and binding response use the provisional v1 media type:
+The WebFinger link and binding response use the v1 media type:
 
 ```text
 application/hail-address-binding+json
 ```
 
-The media type contains the flattened JWS wrapper and carries no parameters. A verifier requests it with `Accept: application/hail-address-binding+json`. A successful binding retrieval returns `200 OK` with that exact parameterless `Content-Type` and no `Content-Encoding`. A verifier rejects another success status, a different or parameterized media type, or any HTTP content coding.
+The media type contains the flattened JWS wrapper and carries no parameters. A verifier requests it with `Accept: application/hail-address-binding+json` and `Accept-Encoding: identity`. A successful binding retrieval returns `200 OK` with that exact parameterless `Content-Type` and no `Content-Encoding`. A verifier rejects another success status, a different or parameterized media type, or any HTTP content coding.
 
 A conforming publisher produces, and a conforming verifier accepts, complete valid Address Binding JWS representations through 16384 bytes. A verifier rejects a larger response before cryptographic verification. This limit applies to the transmitted UTF-8 representation; the WebFinger JRD has a separate response-size limit.
+
+The binding `href` must be an absolute HTTPS URL with a public ASCII DNS hostname in canonical IDNA A-label form. It contains no username, password, query, or fragment and does not use an IP-address hostname. Binding retrieval does not follow redirects; any `3xx` response fails verification. It uses a 5-second connection timeout, a 10-second total response deadline, normal TLS hostname and certificate validation, the same per-connection DNS and public-address checks as WebFinger, and sends no credentials, cookies, or referrer information. Cross-origin retrieval receives no ambient authority beyond the URL selected by the address domain.
 
 ## Binding Representation Digest
 
@@ -188,7 +228,7 @@ Given a user-supplied Hail address, a verifier:
 3. Performs WebFinger discovery against the address domain over HTTPS.
 4. Requires the WebFinger `subject` to equal the canonical `acct:` URI.
 5. Selects exactly one supported Hail Address Binding link.
-6. Fetches the binding with strict response-size, timeout, redirect, and network-address limits.
+6. Validates the selected `href` and fetches the binding without redirects under the binding retrieval profile.
 7. Validates the binding schema.
 8. Requires the binding `address` to equal the canonical requested address.
 9. Checks `issued_at` and `expires_at` using the allowed clock-skew policy.
@@ -212,13 +252,19 @@ Changing a Hail address does not change the DID.
 Example:
 
 ```text
-alice@provider-a.example -> did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
-alice@provider-b.example -> did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
+alice@provider-a.example.com -> did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
+alice@provider-b.example.net -> did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
 ```
 
 The new address domain publishes a new binding signed by the same DID. Existing grants continue to reference the DID and remain valid.
 
 The old binding may be removed or allowed to expire. If the old address is later reassigned, its new binding must name a different DID. The new address holder does not inherit grants, messages, or reply capabilities belonging to the previous DID.
+
+At any instant, one canonical Hail address has exactly one currently selected Address Binding and therefore names exactly one DID. Hail defines no overlapping transition in which one address verifies for two DIDs. For reassignment, the authority makes the new binding available before replacing the WebFinger link, then removes the old binding after replacement. Each observed WebFinger response still selects only one binding; previously cached results remain usable only through their bounded cache lifetime.
+
+One DID may have multiple simultaneously verified Hail addresses. Each address requires its own WebFinger response and independently signed binding, and changing or losing one address does not affect the others.
+
+One address domain may publish independent bindings for any number of valid local parts. Each WebFinger query is scoped to one complete canonical `acct:` URI and reveals no authority over another local part.
 
 ## Grant And Delivery Behavior
 
@@ -238,11 +284,12 @@ The verified address used during consent may be retained as grant metadata for d
 
 A successful address-resolution result must not be cached beyond:
 
+- 3600 seconds after successful verification
 - the binding's `expires_at` time
-- any shorter HTTP cache lifetime
+- the shorter freshness lifetime of the WebFinger and binding HTTP responses
 - any shorter local security policy
 
-Clients should refresh a binding before displaying an address as currently verified after its cached lifetime expires.
+An absent explicit HTTP freshness lifetime does not extend the 3600-second maximum. `no-store` prevents caching. Clock tolerance does not extend caching beyond the signed `expires_at`. After the cached lifetime expires, a client must re-run discovery before displaying the address as currently verified; until successful refresh, it displays the address as unverified rather than treating expiration as a protocol revocation.
 
 Changing or expiring an address binding does not revoke grants issued to the DID.
 
@@ -266,7 +313,7 @@ Applications must key grants, messages, and contacts by DID rather than address.
 
 ### Server-Side Request Forgery
 
-Binding retrieval must use an HTTP client with URL, redirect, DNS rebinding, private-network, timeout, and response-size protections. The WebFinger response must not provide unrestricted access to internal network resources.
+WebFinger and binding retrieval use the URL, redirect, DNS rebinding, private-network, timeout, credential-isolation, and response-size protections defined above. The address domain must not be able to direct a verifier to internal network resources.
 
 ### Enumeration
 
@@ -282,29 +329,19 @@ The proof of concept should implement the same signed binding model rather than 
 
 The POC needs:
 
-- case-insensitive ASCII Hail addresses
+- case-insensitive ASCII local parts and IDNA2008 A-label domains
+- canonical dot-atom address validation and lowercase serialization
 - WebFinger lookup using canonical `acct:` URIs
-- one Address Binding link
+- exact `https://hailproto.com/rel/address-binding` relation and one Address Binding link
+- at most three HTTPS WebFinger redirects and no binding redirects
+- delegated cross-origin binding hosting with strict safe-fetch behavior
 - one signed binding payload
 - `did:plc` resolution
-- binding expiration checks
+- 90-day maximum binding lifetime, 300-second clock tolerance, and one-hour maximum cache
 - RFC 8785 canonical payload, protected header, and flattened JWS wrapper
 - RFC 9864 `Ed25519` signature verification using `#hail-identity`
 - `application/hail-address-binding+json` with no HTTP content coding
 - 16384-byte maximum complete binding representation
 - strict fetch limits
 
-The POC may use a temporary relation URI. It uses the v1 signature and representation profile defined above.
-
-## Open Questions
-
-- What exact ASCII and Unicode normalization rules define a canonical Hail address?
-- Are internationalized local parts or domains supported in v1?
-- What permanent WebFinger link relation URI should identify an Address Binding?
-- May a binding URL use a different origin than the address domain?
-- Are redirects ever allowed when fetching bindings?
-- What maximum binding lifetime is allowed?
-- What clock skew is permitted?
-- Can one address have overlapping bindings during a DID transition?
-- Can one DID have multiple simultaneously verified Hail addresses?
-- What response should clients show when a previously verified binding expires?
+The POC uses the v1 discovery, signature, representation, lifetime, caching, and cardinality profiles defined above.
