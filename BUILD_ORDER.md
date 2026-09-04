@@ -119,6 +119,8 @@ The Hail DID profile requires:
 
 The identity and messaging keys are distinct. DID update and recovery keys are separate from both. See `spec/did-profile.md`.
 
+The v1 `did:web` profile uses plain JSON without `@context`, defines both Hail keys once in top-level `verificationMethod`, and references both once from `assertionMethod`. It rejects ambiguous key or service IDs, embedded Hail role definitions, non-string Hail service types or endpoints, additional `HailMessaging` services, redirects, unsafe network targets, and DID documents that exceed its retrieval limits.
+
 Production dependence on the public PLC directory requires confirmation that non-AT Protocol identities and Hail-specific verification methods and services are supported. Development can use a local PLC server and fixture operation logs.
 
 ## 4. Define Abstract Operations
@@ -224,7 +226,7 @@ Once signed object fields are stable, decide:
 - compression rules
 - decompression limits
 
-Prototype profile:
+V1 profile:
 
 ```text
 Encoding: JSON
@@ -232,7 +234,8 @@ Canonicalization: RFC 8785 JCS
 Signature: RFC 7515 flattened JWS with RFC 9864 Ed25519
 Body digest: SHA-256
 Transport: HTTPS
-Compression: gzip
+Body transfer compression: gzip
+Signed JWS HTTP content coding: none
 ```
 
 Alternative profile to evaluate later:

@@ -473,6 +473,12 @@ Status reporting is an at-least-once operation:
 
 The recipient pushes one terminal snapshot per request using `PUT {sender-hail-service-base}/deliveries/{envelope_digest}` with `application/jose+json`, no content coding, and a 16384-byte maximum complete representation. The HTTP binding defines authentication, acknowledgement, errors, and privacy behavior. `QueryDeliveryStatus` is deferred from v1; any future query must independently authenticate the original sender relationship. A generic receipt never includes a status-query handle.
 
+## Trace And Support Correlation
+
+V1 delivery-status snapshots contain no provider trace identifier. Cross-provider support and audit correlation use the signed status `from`, `to`, `message_id`, `envelope_digest`, and `revision`. These values identify the parties, original sent-envelope record, and exact status position without exposing provider process, host, shard, region, or request topology.
+
+Providers may index private logs by those protocol identifiers and may maintain additional local trace identifiers. A disclosure-safe RFC 9457 `instance` URI may identify a specific HTTP error occurrence as defined by the HTTP binding, but it is not part of the signed delivery status, need not be dereferenceable, and carries no delivery-state semantics. Private tracing headers and log identifiers are implementation details and are not required to survive provider migration.
+
 ## Privacy
 
 Delivery status confirms server processing only. It contains no client synchronization, display, open, read, click, or user-activity signal.
@@ -507,6 +513,7 @@ The proof of concept implements:
 - recipient terminal-status retry and retention through at least 30 days after `occurred_at` and no earlier than the envelope replay deadline
 - sender correlation-record retention through at least 30 days after the envelope replay deadline
 - pending status handoff during continuity-preserving provider migration
+- no provider trace identifiers in signed status snapshots
 - no read or open receipts
 
 Deferred:
@@ -516,7 +523,3 @@ Deferred:
 - client synchronization and optional read receipts
 - authenticated delivery-status query
 - emergency status recovery when provider state and backups are unavailable
-
-## Open Questions
-
-- Should status snapshots include standardized provider trace identifiers for support without exposing internal topology?

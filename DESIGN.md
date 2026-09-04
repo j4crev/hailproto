@@ -131,6 +131,8 @@ The identity and messaging roles use separate keys. This allows a provider to op
 
 The `#hail` service has type `HailMessaging` and one HTTPS base endpoint. Standard server-to-server paths are derived from that base URL.
 
+For `did:web`, v1 uses plain JSON without JSON-LD context processing. Both Hail keys are unique top-level `verificationMethod` definitions referenced once from `assertionMethod`; the Hail service type and endpoint are single strings. Resolution rejects ambiguity, redirects, unsafe network targets, invalid or deactivated results, and oversized documents.
+
 Provider migration updates `#hail-messaging` and `#hail` while preserving the DID, `#hail-identity`, grants, and message relationships. DID update and recovery keys remain separate from both Hail keys.
 
 The complete profile is defined in [`spec/did-profile.md`](spec/did-profile.md).
@@ -477,7 +479,7 @@ If the receiver can drop unauthorized envelopes cheaply before signature verific
 ## Open Questions
 
 - Will the PLC maintainers confirm non-AT Protocol production use of the public directory?
-- What exact normalization, lifetime, and signature profile should Hail Address Bindings use?
+- What exact normalization and lifetime should Hail Address Bindings use?
 - What non-DID profile fields are required for sender discovery?
 - What should the guaranteed minimum reply size be?
 - What is the first useful block vocabulary after plain text?

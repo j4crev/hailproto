@@ -43,7 +43,10 @@ Conceptual v1 payload:
   "expires_at": null,
   "consent_context": {
     "grantee_address": "updates@example-store.com",
-    "address_binding_hash": "sha256:..."
+    "address_binding_hash": {
+      "algorithm": "sha-256",
+      "value": "base64url-sha256-address-binding-jws"
+    }
   },
   "key_id": "did:plc:recipient123#hail-identity"
 }
@@ -168,12 +171,14 @@ POC validation permits at most 300 seconds of clock tolerance. A grant with an `
 
 ### `consent_context`
 
-Optional non-authoritative metadata recording what the user verified during consent.
+Optional non-authoritative metadata recording what the user verified during consent. When present in v1, it is a closed object containing exactly `grantee_address` and `address_binding_hash`; both fields are required.
 
-Candidate fields:
+Fields:
 
 - `grantee_address`: Canonical sender address shown to the recipient.
-- `address_binding_hash`: Digest of the verified Hail Address Binding.
+- `address_binding_hash`: A closed object containing `algorithm` with exact value `sha-256` and `value` with the exact 43-character unpadded base64url SHA-256 digest of the verified Address Binding's complete canonical flattened JWS bytes.
+
+The retained Address Binding's canonical `address` must exactly equal `grantee_address`, and its `did` must exactly equal the grant's `grantee`. The grantor retains the exact Address Binding JWS and its DID-resolution verification evidence for as long as it retains the corresponding grant revision or consent evidence. The digest therefore commits to the matching binding payload, protected signer key, and signature that were verified, as defined in [address-binding.md](address-binding.md#binding-representation-digest).
 
 Authorization still targets `grantee`, not this address metadata.
 

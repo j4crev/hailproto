@@ -55,9 +55,9 @@ Conceptual DID document:
 }
 ```
 
-## POC Key Algorithm And Encoding
+## V1 Key Algorithm And Encoding
 
-The POC uses Ed25519 for both Hail verification-method roles. The roles must still use distinct public keys.
+Hail v1 uses Ed25519 as the only permitted signing algorithm for both Hail verification-method roles. The roles must still use distinct public keys. V1 performs no signature-algorithm negotiation or fallback.
 
 An Ed25519 Hail verification method uses the W3C Multikey representation:
 
@@ -74,7 +74,7 @@ For `did:web`, the DID document publishes that Multikey directly and references 
 
 For `did:plc`, the PLC operation stores the equivalent Ed25519 `did:key` value. Its multibase identifier encodes the same `ed25519-pub` multicodec prefix and public-key bytes; DID resolution renders the corresponding Hail verification method.
 
-The Hail Envelope JWS uses the fully specified RFC 9864 `Ed25519` algorithm identifier. The deprecated polymorphic `EdDSA` identifier is not accepted. Signature wrappers for grants, address bindings, and other Hail objects remain object-specific even when they use the same key algorithm.
+Every Hail v1 JWS uses the fully specified RFC 9864 `Ed25519` algorithm identifier. The deprecated polymorphic `EdDSA` identifier is not accepted. Signature wrappers remain object-specific even though they use the same key algorithm. Supporting another algorithm requires a future versioned Hail security profile that defines its key representation, object applicability, negotiation, downgrade prevention, and migration behavior; adding an arbitrary optional algorithm to v1 is prohibited.
 
 ## Hail Identity Key
 
@@ -139,7 +139,7 @@ When validating a Hail signature, an implementation:
 2. Resolves the exact DID using the appropriate method resolver.
 3. Requires the resolved DID document `id` to equal the signer DID according to that method's comparison rules.
 4. Requires `key_id` to be an absolute DID URL under the signer DID.
-5. Locates exactly one verification method with that ID.
+5. Locates exactly one top-level verification method with that ID.
 6. Requires the verification method controller to equal the signer DID.
 7. Requires the key type and algorithm to be allowed by this DID profile and the signed object's security profile.
 8. Requires the key fragment to authorize the operation type.
@@ -163,7 +163,19 @@ A cryptographically valid signature from the wrong Hail key role must be rejecte
 
 ### `did:web`
 
-A `did:web` document must contain both Hail verification methods in `verificationMethod` and must reference them from `assertionMethod`.
+A Hail v1 `did:web` publisher uses the plain JSON representation permitted by the `did:web` method specification. The root document omits `@context`; Hail does not perform JSON-LD processing or fetch remote contexts during `did:web` resolution. Consequently, no JSON-LD context is required for `Multikey` in this profile. A future JSON-LD Hail profile would need to define its complete context and processing rules explicitly.
+
+The current resolved document must:
+
+- be a JSON object whose `id` exactly equals the requested DID
+- define exactly one `#hail-identity` and exactly one `#hail-messaging` verification method as entries in the top-level `verificationMethod` array
+- reference both complete verification-method DID URLs as JSON strings in `assertionMethod`
+- contain each reference exactly once in `assertionMethod`
+- define exactly one Hail service, whose ID is the complete `#hail` DID URL
+
+The Hail verification methods must not be embedded as objects in `assertionMethod` or another verification relationship. Each is defined only in `verificationMethod` and authorized for Hail signing by its `assertionMethod` reference. Other verification methods and verification-relationship entries are allowed, but they do not authorize Hail operations.
+
+Every verification-method definition ID in the document must be unique, including definitions embedded in verification relationships. Every service ID must also be unique. A consumer rejects the document for Hail use if an ID has multiple definitions, if either Hail role has multiple definitions or references, or if a Hail role reference does not resolve to its unique top-level definition. Repeating one verification method by reference across different verification relationships is not a duplicate definition.
 
 Conceptual example:
 
@@ -197,6 +209,23 @@ Conceptual example:
   ]
 }
 ```
+
+The requirements above deliberately narrow DID Core, which permits verification methods to be embedded in verification relationships. Requiring one top-level definition and one string reference for each Hail role avoids representation-dependent lookup and key-confusion behavior.
+
+#### `did:web` Retrieval Profile
+
+Before applying the Hail document rules, a direct `did:web` resolver:
+
+1. Validates the DID syntax and derives the one HTTPS `did.json` URL exactly as specified by the `did:web` method. Invalid input fails before DNS or HTTP access.
+2. Requires a public ASCII DNS hostname in canonical IDNA A-label form. An IP-address hostname is invalid for public Hail federation.
+3. Resolves DNS and rejects loopback, link-local, private, reserved, or otherwise non-public addresses. It repeats address validation for every connection to prevent DNS rebinding.
+4. Sends one HTTPS `GET` with `Accept: application/did+json, application/json` and does not follow redirects.
+5. Requires `200 OK`. A redirect, missing document, `404`, `410`, TLS failure, or other non-success result is a resolution failure and supplies no Hail keys or endpoint.
+6. Accepts `application/did+json` or `application/json`, either without parameters or with the sole parameter `charset=utf-8` matched case-insensitively. It rejects another media type or parameter and rejects every `Content-Encoding`.
+7. Limits the response to 262144 transmitted bytes, uses a 5-second connection timeout and a 10-second total response deadline, and aborts as soon as any limit is exceeded.
+8. Requires valid UTF-8 JSON with one top-level object and rejects duplicate JSON member names.
+
+A conforming Hail publisher serves a representation meeting those limits. A DID Resolution error of any type, including `https://www.w3.org/ns/did#INVALID_DID`, `https://www.w3.org/ns/did#INVALID_DID_DOCUMENT`, or `https://www.w3.org/ns/did#NOT_FOUND`, is a hard failure for operations requiring current authority. The same applies to an empty DID document or DID document metadata whose `deactivated` value is `true`. Hail does not use keys or services from a failed, invalid, unavailable, or deactivated resolution. Historical verification behavior remains separately specified.
 
 ### `did:plc`
 
@@ -264,7 +293,11 @@ The `envelopes`, `bodies/{digest}`, `grants/{grant_id}`, and `deliveries/{envelo
 
 ## Service Validation
 
-The v1 Hail DID profile requires exactly one active `HailMessaging` service with fragment `#hail`.
+The v1 Hail DID profile requires exactly one service whose `type` is the exact, case-sensitive JSON string `HailMessaging`; that service's `id` must be the absolute DID URL formed by appending `#hail` to the document's DID. An array-valued `type`, another spelling, and any additional `HailMessaging` service are invalid. Unrelated service entries are allowed.
+
+`active` is not a per-service state in this profile. Every service in the successfully resolved current DID document is current; a removed service is absent. A resolution marked deactivated or otherwise unsuccessful has no active Hail service.
+
+The Hail service's `serviceEndpoint` must be exactly one JSON string containing the base URL. DID Core's map and set forms are not supported, and an array, object, empty string, or multiple endpoint value is invalid.
 
 Its endpoint must:
 
@@ -339,8 +372,6 @@ Resolving a DID must not grant unrestricted server-side network access. Hail cli
 
 ## Open Questions
 
-- Will production retain Ed25519 as the only required signing algorithm or add another fully specified algorithm?
-- What canonical signed-object and signature wrapper format applies to Hail Address Bindings?
 - What production cache lifetime and method-specific finality rules replace the POC's 300-second maximum?
 - How is historical DID state identified and retained for audit verification?
 - How does the PLC recovery window affect acceptance of newly rotated keys and endpoints?
