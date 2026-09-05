@@ -28,6 +28,7 @@ Hail is currently in the protocol design phase. There is no working server or cl
 - [`spec/core-delivery.md`](spec/core-delivery.md): Core grant-authorized delivery flow.
 - [`spec/address-binding.md`](spec/address-binding.md): Human-readable address-to-DID binding.
 - [`spec/did-profile.md`](spec/did-profile.md): PLC identity, Hail key roles, resolution, recovery, and service entry.
+- [`spec/sender-profile.md`](spec/sender-profile.md): Signed sender metadata and category manifest.
 - [`spec/grants.md`](spec/grants.md): Hail Grant schema and lifecycle.
 - [`spec/bodies.md`](spec/bodies.md): Detached body publication, authorization, retrieval, and retention.
 - [`spec/envelopes.md`](spec/envelopes.md): Hail Envelope schema, authorization, signatures, and replay behavior.

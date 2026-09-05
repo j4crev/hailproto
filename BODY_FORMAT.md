@@ -515,20 +515,7 @@ Links and buttons remain a phishing surface even without HTML.
 
 Clients should clearly show destination domains and warn when a link points away from the verified sender domain.
 
-Sender profiles may declare approved link domains.
-
-Example:
-
-```json
-{
-  "verified_domain": "airline.example",
-  "allowed_link_domains": [
-    "airline.example",
-    "booking.airline.example",
-    "payments.airline.example"
-  ]
-}
-```
+The v1 Sender Profile does not contain a link-domain allowlist. Any signed declaration of additional approved domains requires a later Sender Profile or Safe Portable Text version with explicit phishing and delegation semantics.
 
 ## Accessibility
 

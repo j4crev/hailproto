@@ -2,7 +2,7 @@
 
 Status: Draft, partial
 
-This document defines the HTTPS behavior shared by Hail server-to-server operations. The current draft settles common service URL and Problem Details rules plus the core envelope-submission, body-retrieval, grant-publication, and delivery-status-push bindings, including terminal-status retries.
+This document defines the HTTPS behavior shared by Hail server-to-server operations. The current draft settles common service URL and Problem Details rules plus Sender Profile retrieval, envelope submission, body retrieval, grant publication, and delivery-status push, including terminal-status retries.
 
 Grant, envelope, body, and delivery-state semantics remain authoritative in their respective specifications. This binding must not change their authorization or state-transition rules.
 
@@ -64,6 +64,7 @@ This inventory consolidates operations already defined across the Hail specifica
 | Operation | Status | Caller -> receiver | Authentication or authorization | Request | Successful result | Current binding |
 | --- | --- | --- | --- | --- | --- | --- |
 | `DiscoverIdentity` | Required composite prerequisite with context-dependent stages | A participant resolving an alias -> address domain and domain-selected binding host; a participant routing to or verifying a known DID -> PLC resolver | HTTPS authenticates the address domain's WebFinger response and protects retrieval from its selected binding URL; address authority comes from that domain selection plus the binding's `#hail-identity` signature; the verified PLC state authenticates Hail keys and service | A Hail address and canonical `acct:` URI when resolving an alias; otherwise a known `did:plc` DID. Address resolution yields a signed binding before DID resolution | Alias resolution yields a verified address-to-DID binding with an expiration; PLC resolution yields current Hail keys and canonical service base URL | WebFinger with relation `https://hailproto.com/rel/address-binding`, binding retrieval, and PLC resolution; this is not one Hail service-base endpoint. See [address-binding.md](address-binding.md) and [did-profile.md](did-profile.md). |
+| `RetrieveSenderProfile` | Required for grant discovery | Prospective recipient client or server -> sender DID's current Hail service | Public HTTPS retrieval; the profile JWS is authenticated by the sender DID's `#hail-messaging` key | Canonical sender DID in the path | Current signed profile with embedded category manifest | Conditional `GET` from `profiles/{sender_did}` with `application/hail-sender-profile+json`; redirects prohibited. See [sender-profile.md](sender-profile.md). |
 | `PublishGrantRevision` | Required for the POC | Recipient server acting for the grantor DID -> grantee DID's current Hail service | Canonical flattened JWS signed by the grantor DID's `#hail-identity` key; HTTPS authenticates the destination; additional HTTP Message Signatures deferred | Complete signed grant state with stable `grant_id`, ordered `revision`, predecessor, parties, scope, status, and timestamps | Sender verifies and stores a new revision as consent/list state; creation returns `201`; update and exact update retry return `204`; exact creation retry converges through `412` with a matching ETag | Conditional `PUT` to `grants/{grant_id}` with `application/hail-grant+json`; `If-None-Match: *` creates revision 1 and `If-Match` orders later revisions. See [grants.md](grants.md#web-native-publication). |
 | `SubmitEnvelope` | Required; includes grant- and reply-authorized variants | Sender server -> recipient DID's current Hail service | HTTPS authenticates the recipient endpoint; the envelope JWS authenticates the `from` DID and signed contents; v1 requires no additional transport authentication | One closed signed `hail.envelope` for one recipient, containing grant or reply authorization and a detached-body descriptor | Generic `received` discloses only HTTP receipt; `accepted` fixes authorization and transfers body-processing responsibility; an identical `duplicate` reuses stored/current state. An eligible caller may receive the current signed status, including a later state | `POST` to relative operation path `envelopes` with `Content-Type: application/jose+json`; generic receipt is `202 application/json`; authenticated signed success is `200 application/jose+json`. See [envelopes.md](envelopes.md) and the submission sections below. |
 | `RetrieveBody` | Required for the POC | Recipient server -> authenticated sender DID's current Hail service | An opaque bearer token authorizes retrieval and is bound by the signed envelope to the recipient, body, and message; v1 does not prove that the requester possesses the recipient DID's key; proof of possession is deferred | Body digest in the operation path and bearer token in `Authorization`; optional supported content negotiation | `200` carrying immutable canonical body bytes, optionally gzip-coded; the recipient verifies size, digest, media type, profile, canonical encoding, and schema | `GET` from `bodies/{digest}`, where `{digest}` is the exact 43-character unpadded base64url SHA-256 value from the envelope; redirects prohibited. Failure statuses are defined below. See [bodies.md](bodies.md#retrieval-endpoint). |
@@ -75,6 +76,7 @@ This inventory consolidates operations already defined across the Hail specifica
 | Operation | Rejection or failure semantics | Idempotency | Retry behavior | Privacy constraints |
 | --- | --- | --- | --- | --- |
 | `DiscoverIdentity` | Address, WebFinger, binding, signature, expiration, PLC-resolution, or safe-fetch failure prevents verified resolution; exact external error taxonomy open | Component retrievals are read-only, but discovery results may change or expire; no abstract idempotency contract is defined | Address discovery permits up to three safe HTTPS WebFinger redirects, prohibits binding redirects, and caches a verified result for at most one hour. PLC mirror and recovery-window policy remains partly open. Endpoint refresh rules above apply only after a `#hail` service has been discovered | WebFinger may enable address enumeration; implementations rate-limit and minimize metadata. Address bindings intentionally avoid permanent address history. Routine federation from known DIDs does not re-resolve human-readable addresses. |
+| `RetrieveSenderProfile` | Malformed path or absent profile uses `404`; unsupported representation uses `406`; throttling uses `429`; temporary failure uses `503` | Safe and cacheable `GET`; strong ETag identifies the exact signed representation | Retry transient failure with bounded backoff; never follow redirects; re-resolve PLC under endpoint-refresh rules | Profiles are intentionally public and contain no recipient, grant, subscriber, or delivery state. Search results remain untrusted until profile verification. |
 | `PublishGrantRevision` | Malformed or unauthenticated protected requests use uniform `400`; missing preconditions use `428`; failed preconditions use `412`; revision and lineage conflicts use `409`; throttling uses `429`; temporary failure uses `503` | Conditional `PUT`, full-state revisions, canonical signed-state digests, and strong ETags make exact retransmission convergent; revocation is a terminal revision, not `DELETE` | Queue and retry transient publication failure with bounded exponential backoff and jitter; honor `Retry-After`; retransmit missing revisions; local consent changes never wait for publication | Grants are private relationship state, use `Cache-Control: no-store`, and receive uniform failures before grantor authentication and local-target confirmation. They contain no message body or contact-request content. |
 | `SubmitEnvelope` | Uses the closed outcome set below. Conflict, invalid representation, unauthorized submission, and expiration are permanent; rate limiting and temporary unavailability are retryable. Reply authorization additionally rejects missing, expired, disallowed, or competing claims | `(authenticated sender DID, message_id)` is the key; an identical canonical payload returns stored/current state, while different content is a permanent conflict. Reply acceptance atomically claims the single-use capability; delivery consumes it; terminal failure or cancellation releases it | Ambiguous transport or generic `received` permits byte-identical retry with the same ID; honor `Retry-After`; after `accepted`, the recipient owns body retries | Protected outcomes remain generic until the sender is authenticated with current or previous relationship state. Generic responses reveal no recipient, relationship, replay, or acceptance state and follow the bounded schedule below. |
 | `RetrieveBody` | Missing body and invalid, mismatched, or expired authorization must not be distinguishable; retryable transport or availability failures and permanent integrity or authorization failures feed the delivery state machine | Immutable body bytes and the same token may be retrieved repeatedly for the same envelope; matching recipient-and-sender cache provenance may avoid another fetch | Recipient retries with bounded backoff and jitter until the effective deadline, preserving digest and token; endpoint migration follows fresh DID resolution rather than redirects | Token appears only in `Authorization`, is excluded from logs, and is stored hashed by the sender. Fetches are delivery operations, not open/read signals. Cross-recipient cache state must not leak. |
@@ -83,9 +85,54 @@ This inventory consolidates operations already defined across the Hail specifica
 
 `SubmitReply` is not a separate transport operation. A reply is an ordinary `SubmitEnvelope` request with reply authorization and the role reversal defined in [envelopes.md](envelopes.md#reply-authorization).
 
+The category manifest is embedded in the signed Sender Profile and is not a separate retrieval operation.
+
 Status acknowledgement is the `204 No Content` response to `PushDeliveryStatus`. There is no separate acknowledgement request object, method, path, or signature.
 
 Body creation and publication are sender-local prerequisites, not federation requests. Missing grant revisions are retransmitted with `PublishGrantRevision`; grant acknowledgement is its synchronous HTTP result. Read/open receipts, bulk submission, campaign status, unsolicited contact requests, and provider state-transfer transport are outside this inventory or deferred.
+
+## Sender Profile Retrieval Binding
+
+`RetrieveSenderProfile` uses:
+
+```http
+GET {sender-hail-service-base}/profiles/{sender_did}
+Accept: application/hail-sender-profile+json
+Accept-Encoding: identity
+```
+
+The relative operation path begins with the literal `profiles` segment followed by the sender's complete canonical `did:plc` identifier as one literal segment. `{sender_did}` is exactly 32 lowercase ASCII characters matching `did:plc:[a-z2-7]{24}`, contains no percent encoding, and equals the DID whose service base URL was resolved. The request carries no `Authorization`, `Cookie`, or `Referer` field.
+
+A successful response uses:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/hail-sender-profile+json
+Content-Length: 1234
+ETag: "base64url-sha256-canonical-profile-jws"
+Cache-Control: public, max-age=3600
+```
+
+The response body is exactly one canonical flattened JWS under the profile in [sender-profile.md](sender-profile.md). `Content-Type` carries no parameters, `Content-Encoding` is absent, and the complete transmitted representation is at most 65536 bytes. The strong ETag's opaque value is the exact 43-character unpadded base64url SHA-256 digest of those bytes.
+
+The server may choose a `max-age` from `0` through `3600`; a client never treats a cached profile as fresh for longer than one hour. A request may include one strong `If-None-Match` value previously returned for this profile. If that validator still identifies the current exact representation, the server may return `304 Not Modified` with the same ETag and current cache policy and no content. Weak validators and validator lists are not used by this binding.
+
+The client requires the payload `did` and path DID to match, verifies the current `#hail-messaging` signature, and applies profile revision rules before display or grant creation. It retains the exact JWS when committing its digest to grant consent context.
+
+Profile retrieval uses these status mappings:
+
+| Condition | HTTP status |
+| --- | --- |
+| Current valid profile | `200 OK` |
+| Matching current strong ETag | `304 Not Modified` |
+| Malformed path, unknown or nonlocal DID, or absent profile | `404 Not Found` |
+| Method other than `GET` | `405 Method Not Allowed` with `Allow: GET` |
+| Requested representation is not acceptable | `406 Not Acceptable` |
+| Malformed, weak, or list-valued `If-None-Match` | `400 Bad Request` |
+| Rate limited | `429 Too Many Requests` |
+| Temporarily unavailable | `503 Service Unavailable` |
+
+Every explicit error uses the shared `application/problem+json` profile. `429` and `503` include `Retry-After` when timing guidance is supplied. Profile retrieval does not follow redirects. A `3xx`, `404`, or `421` response triggers one PLC refresh under the endpoint-refresh rules; the client retries only at a changed authenticated service endpoint.
 
 ## Envelope Submission Method And Path
 

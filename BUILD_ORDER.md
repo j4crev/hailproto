@@ -11,6 +11,7 @@ protocol boundaries and invariants
   -> threat model
   -> identity and discovery
   -> abstract operations
+  -> sender profile and categories
   -> Hail Grant
   -> detached Hail Body
   -> Hail Envelope
@@ -132,6 +133,7 @@ Initial operations:
 
 ```text
 DiscoverIdentity
+RetrieveSenderProfile
 PublishGrantRevision
 SubmitEnvelope
 RetrieveBody
@@ -153,6 +155,8 @@ For each operation, specify:
 - privacy implications
 
 The consolidated caller, receiver, authentication, request, result, idempotency, retry, privacy, and binding information for these operations is maintained in the federation operation inventory in `spec/http-binding.md`.
+
+`RetrieveSenderProfile` returns one public `#hail-messaging`-signed profile with its category manifest embedded. QR codes and search indexes are application-specific entry points that yield an untrusted Hail address; clients verify the Address Binding, PLC identity, and current Sender Profile before consent. See `spec/sender-profile.md`.
 
 ## 5. Define Hail Grant V1
 
@@ -200,6 +204,7 @@ Current Hail service endpoint decisions:
 
 ```http
 PUT  /hail/grants/{grant_id}
+GET  /hail/profiles/{sender_did}
 POST /hail/envelopes
 GET  /hail/bodies/{digest}
 PUT  /hail/deliveries/{envelope_digest}
@@ -207,7 +212,7 @@ PUT  /hail/deliveries/{envelope_digest}
 
 `/hail/envelopes` is more precise than `/hail/inbox` because the receiving server initially accepts an envelope, not necessarily a completed inbox message.
 
-`SubmitEnvelope` uses `POST {hail-service-base}/envelopes`. Replies reuse that operation because they are ordinary Hail Messages with a different authorization path. `RetrieveBody` uses `GET {hail-service-base}/bodies/{digest}`, with the exact 43-character unpadded base64url SHA-256 value as `{digest}`. `PublishGrantRevision` uses conditional `PUT {hail-service-base}/grants/{grant_id}` with the canonical lowercase UUIDv7 as `{grant_id}`. `PushDeliveryStatus` uses `PUT {hail-service-base}/deliveries/{envelope_digest}` with the signed envelope-payload digest as `{envelope_digest}`.
+`RetrieveSenderProfile` uses `GET {hail-service-base}/profiles/{sender_did}` with the complete canonical PLC DID as `{sender_did}`. `SubmitEnvelope` uses `POST {hail-service-base}/envelopes`. Replies reuse that operation because they are ordinary Hail Messages with a different authorization path. `RetrieveBody` uses `GET {hail-service-base}/bodies/{digest}`, with the exact 43-character unpadded base64url SHA-256 value as `{digest}`. `PublishGrantRevision` uses conditional `PUT {hail-service-base}/grants/{grant_id}` with the canonical lowercase UUIDv7 as `{grant_id}`. `PushDeliveryStatus` uses `PUT {hail-service-base}/deliveries/{envelope_digest}` with the signed envelope-payload digest as `{envelope_digest}`.
 
 Body URLs should not be arbitrary URLs supplied by each envelope. Recipient-controlled fetching of arbitrary URLs introduces server-side request forgery risk. Body locations should be derived from authenticated discovery metadata or constrained to authenticated sender infrastructure.
 
@@ -257,11 +262,12 @@ The first implementation should send one plain-text Hail Message between two toy
 
 Include:
 
-- static domain discovery
-- one signing key per server
+- verified Address Binding and PLC discovery
+- distinct Hail identity and messaging keys
 - one sender
 - one recipient
 - one category
+- one signed Sender Profile with its category manifest
 - one signed grant
 - one signed envelope
 - one detached body
@@ -359,6 +365,7 @@ It should define:
 - identities
 - trust anchors
 - discovery
+- sender profile retrieval and category selection
 - grant creation and publication
 - envelope creation and signing
 - authorization checks
@@ -367,4 +374,4 @@ It should define:
 - every expected failure path
 - idempotency and retry behavior
 
-The grant, body, envelope, delivery-state, and HTTP-binding specifications now define these object and behavioral semantics, including failures, retries, revocation races, privacy-preserving responses, exact core HTTP operations, and terminal-status retry duration. Remaining work concerns deferred production limits and later protocol features.
+The identity, Sender Profile, grant, body, envelope, delivery-state, and HTTP-binding specifications now define these object and behavioral semantics, including failures, retries, revocation races, privacy-preserving responses, exact core HTTP operations, and terminal-status retry duration. Remaining work concerns deferred production limits and later protocol features.

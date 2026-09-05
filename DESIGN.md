@@ -147,46 +147,31 @@ Using PLC for every identity establishes one recovery and resolution model, but 
 - Verification keys, service endpoints, update timestamps, nullified operations, and tombstones are permanently public. Hail addresses stay in expiring Address Bindings and out of PLC state.
 - Custom-domain control authenticates the human-readable address, while PLC rotation authority independently controls the durable identity. Losing or transferring the domain does not transfer DID-bound grants or message history.
 
-## Discovery
+## Sender Discovery
 
-Sender and recipient discovery should support both domain-local metadata and DNS indirection.
+QR codes, application search, curated directories, and recommendations are entry points rather than identity authorities. They yield a Hail address that the client treats as untrusted until verification.
 
-Default discovery:
-
-```text
-https://example.com/.well-known/hail
-```
-
-DNS indirection:
+The grant-discovery chain is:
 
 ```text
-_hail.example.com TXT "v=hail1 profile=https://hail-host.example/profiles/example.com"
+Hail address
+  -> signed Address Binding
+  -> did:plc identity
+  -> PLC-discovered Hail service and #hail-messaging key
+  -> signed Sender Profile with embedded categories
 ```
 
-DNS indirection allows a verified domain to host its Hail profile and server infrastructure somewhere else.
+The profile is retrieved from `GET {hail-service-base}/profiles/{sender_did}`. It is DID-scoped so one signed profile works with multiple independently verified addresses for that DID. The client displays the separately verified address alongside the profile rather than allowing profile metadata to claim an address.
 
-Key rules:
+The v1 profile contains a display name, optional description, whether uncategorized subscription is offered, stable category IDs with labels and descriptions, revision, update time, and signer key. It excludes avatars, remote assets, subscriber data, and recipient-specific state. The complete profile is signed by `#hail-messaging`, and its representation digest can be retained in grant consent context.
 
-- The verified identity remains the domain that published the DNS or well-known record.
-- The hosted profile URL is infrastructure, not identity.
-- Clients should display the verified domain during subscription and grant approval.
-- Profiles should be signed so hosted infrastructure cannot silently mutate sender metadata without authorization.
-
-Profile metadata may include:
-
-- sender DID; authoritative keys and the Hail service base endpoint come from DID resolution
-- display name
-- avatar
-- description
-- category manifest
-- reply size limits
-- supported encodings
+Search and QR encoding remain application-specific. A forged or stale search result cannot authorize a sender because the client independently verifies the Address Binding, PLC state, profile DID, and profile signature before consent.
 
 ## Sender Verification
 
-For v1, sender authenticity is anchored to domain control.
+For v1, sender authenticity is anchored jointly to the address domain's WebFinger publication, the DID-signed Address Binding, and the PLC-authorized profile key.
 
-A sender claiming to represent `example-store.com` must prove control of `example-store.com` through DNS or a well-known HTTPS document.
+A sender claiming `updates@store.example.com` must have that address domain publish its Address Binding, and the binding and Sender Profile must verify under the same PLC identity.
 
 This does not fully solve lookalike domains such as `example-store-security.com`, but it gives users and clients a concrete verified domain to inspect during the grant flow.
 
@@ -282,7 +267,7 @@ Default reply window:
 
 Senders may set a longer or shorter `reply.until` timestamp when needed, such as for travel bookings made months in advance.
 
-Sender profiles may declare reply limits, such as maximum body size and whether attachments are accepted. The protocol should define a minimum guaranteed reply capacity so ordinary text replies always work.
+The v1 Sender Profile does not advertise sender-specific reply limits. The protocol should define one guaranteed minimum reply capacity so ordinary text replies always work; attachments remain outside the initial profile.
 
 Open starting point:
 
@@ -477,7 +462,7 @@ The first prototype should validate the wire protocol between two toy servers.
 Suggested build phases:
 
 1. Shared protocol library for envelope encode/decode, signing, verification, and schema validation.
-2. Sender server with profile metadata, category manifest, grant receipt, body storage, and send pipeline.
+2. Sender server with a signed Sender Profile, grant receipt, body storage, and send pipeline.
 3. Receiver server with grant table, envelope endpoint, ingest checks, body retrieval, and message store.
 4. Test harness for subscribe, send, revoke, reply, expired reply, and unauthorized traffic rejection.
 5. Minimal receiver client for grant approval and message reading.
@@ -491,7 +476,6 @@ If the receiver can drop unauthorized envelopes cheaply before signature verific
 - When does Hail treat a PLC update as authoritative during the 72-hour recovery window?
 - What PLC mirror, checkpoint, and locally validated log behavior is required for production resolution?
 - What minimum PLC rotation-key custody and backup arrangement is required at onboarding?
-- What non-DID profile fields are required for sender discovery?
 - What should the guaranteed minimum reply size be?
 - What is the first useful block vocabulary after plain text?
 - How should organization verification work beyond domain control?
@@ -499,9 +483,7 @@ If the receiver can drop unauthorized envelopes cheaply before signature verific
 
 ## Topics To Discuss Next
 
-- Discovery and domain ownership verification.
-- Reply path wire behavior.
-- Sender category manifest format.
+- Guaranteed minimum reply capacity.
 - Block document v1 vocabulary.
 - Server abuse protections and rate limits.
 - Email bridge strategy.

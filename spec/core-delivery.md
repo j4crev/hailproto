@@ -62,6 +62,7 @@ Decisions:
 - A DID remains stable when its owner changes hosting providers. Grants, message relationships, and other durable records continue to reference the same DID.
 - The current hosting endpoint is delegated infrastructure discovered through the DID. It is not the sender's or recipient's identity.
 - Provider-issued and custom-domain identities use `did:plc`.
+- Prospective recipients retrieve one DID-scoped, `#hail-messaging`-signed Sender Profile containing the sender's category manifest.
 - Hail Grants and Hail Address Bindings are signed by the DID's `#hail-identity` key.
 - Hail Envelopes and routine server objects are signed by the DID's `#hail-messaging` key.
 - The DID's current server is the endpoint of its `#hail` service with type `HailMessaging`.
@@ -96,15 +97,14 @@ Address binding is specified in [address-binding.md](address-binding.md).
 
 Required DID entries and key roles are specified in [did-profile.md](did-profile.md).
 
-Questions still to resolve:
+Production questions still to resolve:
 
-- Which address, if any, is included as display metadata in grants and envelopes?
 - What cache and historical-version rules apply to DID resolution?
 - What resolver mirrors, audit verification, or fallback behavior does Hail require for `did:plc`?
 
 ### 2. Preconditions And Discovery
 
-Before initial delivery, a sender resolves a human-readable address through its signed Address Binding when necessary, then resolves the recipient DID's current `#hail` service and keys. Routine federation between known DIDs resolves the DID directly and does not re-resolve a human-readable address on every operation.
+Before grant creation, the recipient verifies the sender's Address Binding and current signed Sender Profile, displays the verified address separately from profile metadata, and selects only offered categories or uncategorized delivery. Before initial delivery, a sender resolves a human-readable recipient address through its signed Address Binding when necessary, then resolves the recipient DID's current `#hail` service and keys. Routine federation between known DIDs resolves the DID directly and does not re-resolve a human-readable address on every operation.
 
 The POC DID cache lifetime, forced key and endpoint refresh, canonical service-base URLs, redirect prohibition for federation operations, and provider-migration behavior are defined in [did-profile.md](did-profile.md) and [http-binding.md](http-binding.md). Address Binding cache, refresh, redirect, and safe-fetch behavior is defined in [address-binding.md](address-binding.md). Production PLC finality remains open; it is not an unresolved HTTPS operation-binding question.
 
@@ -258,4 +258,4 @@ The initial schemas should avoid making these features impossible, but they do n
 
 ## HTTPS Binding Status
 
-Envelope submission, body retrieval, grant publication, terminal delivery-status push and acknowledgement, and terminal-status retry behavior are bound in [http-binding.md](http-binding.md). Authenticated status query is deferred from v1. No core v1 HTTPS binding decision remains open in this specification.
+Sender Profile retrieval, envelope submission, body retrieval, grant publication, terminal delivery-status push and acknowledgement, and terminal-status retry behavior are bound in [http-binding.md](http-binding.md). Authenticated status query is deferred from v1. No core v1 HTTPS binding decision remains open in this specification.

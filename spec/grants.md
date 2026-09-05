@@ -2,7 +2,7 @@
 
 Status: Draft
 
-This document defines the Hail Grant authorization object and its lifecycle.
+This document defines the Hail Grant authorization object and its lifecycle. Sender metadata and offered consent categories are defined in [sender-profile.md](sender-profile.md).
 
 A Hail Grant is a recipient-created, recipient-signed authorization permitting one sender DID to deliver a limited set of messages to one recipient DID.
 
@@ -46,6 +46,10 @@ Conceptual v1 payload:
     "address_binding_hash": {
       "algorithm": "sha-256",
       "value": "base64url-sha256-address-binding-jws"
+    },
+    "sender_profile_hash": {
+      "algorithm": "sha-256",
+      "value": "base64url-sha256-sender-profile-jws"
     }
   },
   "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity"
@@ -171,16 +175,19 @@ POC validation permits at most 300 seconds of clock tolerance. A grant with an `
 
 ### `consent_context`
 
-Optional non-authoritative metadata recording what the user verified during consent. When present in v1, it is a closed object containing exactly `grantee_address` and `address_binding_hash`; both fields are required.
+Non-authoritative metadata recording what the user verified during consent. It is a closed object containing exactly `grantee_address`, `address_binding_hash`, and `sender_profile_hash`; all three fields are required.
 
 Fields:
 
 - `grantee_address`: Canonical sender address shown to the recipient.
 - `address_binding_hash`: A closed object containing `algorithm` with exact value `sha-256` and `value` with the exact 43-character unpadded base64url SHA-256 digest of the verified Address Binding's complete canonical flattened JWS bytes.
+- `sender_profile_hash`: A closed object containing `algorithm` with exact value `sha-256` and `value` with the exact 43-character unpadded base64url SHA-256 digest of the verified Sender Profile's complete canonical flattened JWS bytes.
 
-The retained Address Binding's canonical `address` must exactly equal `grantee_address`, and its `did` must exactly equal the grant's `grantee`. The grantor retains the exact Address Binding JWS and its DID-resolution verification evidence for as long as it retains the corresponding grant revision or consent evidence. The digest therefore commits to the matching binding payload, protected signer key, and signature that were verified, as defined in [address-binding.md](address-binding.md#binding-representation-digest).
+The retained Address Binding's canonical `address` must exactly equal `grantee_address`, and its `did` must exactly equal the grant's `grantee`. The retained Sender Profile's `did` must also equal `grantee`. For categorized consent, every selected category must appear in that profile revision; for uncategorized consent, its `offers_uncategorized` value must be `true`.
 
-Authorization still targets `grantee`, not this address metadata.
+The grantor retains both exact JWS representations and their PLC verification evidence for as long as it retains the corresponding grant revision or consent evidence. The digests commit to the matching binding and profile payloads, protected signer keys, and signatures that were verified, as defined in [address-binding.md](address-binding.md#binding-representation-digest) and [sender-profile.md](sender-profile.md#representation-digest).
+
+Authorization still targets `grantee`, not this consent metadata.
 
 ### `key_id`
 
@@ -304,13 +311,14 @@ Changing either DID requires a new grant.
 High-level creation flow:
 
 1. The recipient resolves and verifies the sender's Hail Address Binding.
-2. The client displays the verified address, DID, sender profile, and available categories.
-3. The recipient explicitly selects categorized or uncategorized delivery.
-4. The recipient creates revision `1` and signs it with `#hail-identity`.
-5. The recipient server verifies and stores the grant locally.
-6. The grant becomes active locally immediately.
-7. The recipient server asynchronously publishes it to the sender's current Hail service.
-8. The sender verifies and stores the signed grant as consent evidence and send-list state.
+2. The client retrieves and verifies the sender's current signed Sender Profile.
+3. The client displays the verified address, DID, sender profile, and available categories.
+4. The recipient explicitly selects categorized or uncategorized delivery.
+5. The recipient creates revision `1` and signs it with `#hail-identity`.
+6. The recipient server verifies and stores the grant locally.
+7. The grant becomes active locally immediately.
+8. The recipient server asynchronously publishes it to the sender's current Hail service.
+9. The sender verifies and stores the signed grant as consent evidence and send-list state.
 
 Sender acknowledgment is not required for local activation. Until publication succeeds, the sender simply does not know to deliver.
 
@@ -371,6 +379,8 @@ Updates can:
 - revoke the grant
 
 Removing the last selected category revokes the grant unless the recipient explicitly approves uncategorized scope.
+
+Adding a category or switching to uncategorized scope requires explicit consent against a current verified Sender Profile that offers that choice, and the revision updates `consent_context` to commit to that profile. Removing permission does not require the sender's current profile to continue advertising the removed choice.
 
 ## Revocation
 
@@ -583,6 +593,7 @@ The proof of concept implements:
 - UUIDv7 grant IDs
 - one active grant per grantor/grantee pair
 - `categories` and `uncategorized` scope selectors only
+- verified Address Binding and Sender Profile consent evidence
 - full-state signed revisions
 - local authoritative state
 - required envelope `authorization.grant_id`

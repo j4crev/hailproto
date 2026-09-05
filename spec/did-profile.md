@@ -106,8 +106,7 @@ It signs:
 - Hail Envelopes
 - replies
 - delivery receipts
-- sender profiles
-- category manifests
+- Sender Profiles, including their embedded category manifests
 - other server-to-server operational metadata
 
 A hosting provider may hold the messaging private key. Publishing its public key in the DID document delegates operational Hail messaging authority to that provider.
@@ -161,7 +160,6 @@ Hail Envelope         -> #hail-messaging
 Reply Envelope        -> #hail-messaging
 Delivery Receipt      -> #hail-messaging
 Sender Profile        -> #hail-messaging
-Category Manifest     -> #hail-messaging
 ```
 
 A cryptographically valid signature from the wrong Hail key role must be rejected.
@@ -244,13 +242,14 @@ Conceptual derivation:
 
 ```text
 base:      https://provider.example/hail
+profiles:  https://provider.example/hail/profiles/{sender_did}
 grants:    https://provider.example/hail/grants/{grant_id}
 envelopes: https://provider.example/hail/envelopes
 bodies:    https://provider.example/hail/bodies/{digest}
 deliveries: https://provider.example/hail/deliveries/{envelope_digest}
 ```
 
-The `envelopes`, `bodies/{digest}`, `grants/{grant_id}`, and `deliveries/{envelope_digest}` relative paths are fixed by the HTTP binding.
+The `profiles/{sender_did}`, `envelopes`, `bodies/{digest}`, `grants/{grant_id}`, and `deliveries/{envelope_digest}` relative paths are fixed by the HTTP binding.
 
 ## Service Validation
 
