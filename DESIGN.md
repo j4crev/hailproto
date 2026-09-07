@@ -163,7 +163,7 @@ Hail address
 
 The profile is retrieved from `GET {hail-service-base}/profiles/{sender_did}`. It is DID-scoped so one signed profile works with multiple independently verified addresses for that DID. The client displays the separately verified address alongside the profile rather than allowing profile metadata to claim an address.
 
-The v1 profile contains a display name, optional description, whether uncategorized subscription is offered, stable category IDs with labels and descriptions, revision, update time, and signer key. It excludes avatars, remote assets, subscriber data, and recipient-specific state. The complete profile is signed by `#hail-messaging`, and its representation digest can be retained in grant consent context.
+The v1 profile contains a display name, optional description, whether uncategorized subscription is offered, stable category IDs with labels and descriptions, revision, update time, and signer key. It excludes avatars, remote assets, subscriber data, and recipient-specific state. The complete profile is signed by `#hail-messaging`, and its representation digest is retained in every grant's required consent context.
 
 Search and QR encoding remain application-specific. A forged or stale search result cannot authorize a sender because the client independently verifies the Address Binding, PLC state, profile DID, and profile signature before consent.
 
@@ -188,7 +188,7 @@ Possible later mitigations:
 
 A Hail Grant is a recipient-created, recipient-signed authorization from one DID to another. The recipient server is authoritative, and the sender cannot create or expand consent on the recipient's behalf.
 
-V1 supports categorized and uncategorized grants. New categories always require explicit opt-in, and unknown scope types fail closed. Grant state uses signed revisions, local immediate enforcement, asynchronous sender notification, and terminal revocation.
+V1 supports categorized and uncategorized grants. Every revision carries consent context committing to the verified Address Binding and Sender Profile shown during consent. New categories and scope-mode changes require fresh evidence and explicit opt-in; restrictions and revocation preserve prior evidence and never depend on sender availability. Unknown scope types fail closed. Grant state uses signed revisions, local immediate enforcement, asynchronous sender notification, and terminal revocation.
 
 The complete grant schema, scope semantics, lookup rules, revision lifecycle, and HTTP publication behavior are defined in [`spec/grants.md`](spec/grants.md).
 

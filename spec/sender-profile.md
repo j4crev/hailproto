@@ -145,7 +145,7 @@ V1 applies no HTTP content coding to the signed representation.
 
 The Sender Profile digest is SHA-256 over the exact complete canonical flattened JWS bytes, including the payload, protected header, and signature. It is encoded as exactly 43 unpadded base64url characters representing 32 bytes.
 
-The `sender_profile_hash`, inside a grant consent context, records the profile reviewed during consent. The grantor retains the exact signed profile and its PLC verification evidence with that consent evidence. The digest is evidence of presentation context; delivery authorization still comes exclusively from the signed grant's DID parties and scope.
+Every grant's required `consent_context` includes `sender_profile_hash`, which records the profile reviewed during consent. The grantor retains the exact signed profile and its PLC verification evidence with that consent evidence. The digest is evidence of presentation context; delivery authorization still comes exclusively from the signed grant's DID parties and scope.
 
 ## Retrieval
 
@@ -191,5 +191,5 @@ The POC implements:
 - `application/hail-sender-profile+json`
 - 65536-byte maximum signed representation
 - no redirects or HTTP content coding
-- Sender Profile digest support in grant consent context
+- required Sender Profile digest in grant consent context
 - application-specific QR and search entry points that yield a Hail address

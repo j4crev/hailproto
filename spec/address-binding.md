@@ -217,7 +217,7 @@ The binding `href` must be an absolute HTTPS URL with a public ASCII DNS hostnam
 
 The Address Binding representation digest is SHA-256 over the complete exact canonical flattened JWS bytes, including the protected header, payload, and signature. Its value is encoded as exactly 43 unpadded base64url characters representing 32 digest bytes.
 
-When a grant records the binding used during consent, its `address_binding_hash` commits to this digest. The recipient retains the exact Address Binding JWS and its DID-resolution verification evidence for as long as it retains the corresponding grant revision or consent evidence, subject to the historical DID evidence rules still to be finalized. The digest identifies the signer key, signature, and payload that were verified.
+Every grant's required `consent_context` records the binding used during consent, and its `address_binding_hash` commits to this digest. The recipient retains the exact Address Binding JWS and its DID-resolution verification evidence for as long as it retains the corresponding grant revision or consent evidence, subject to the historical DID evidence rules still to be finalized. The digest identifies the signer key, signature, and payload that were verified.
 
 ## Verification Algorithm
 

@@ -175,7 +175,7 @@ POC validation permits at most 300 seconds of clock tolerance. A grant with an `
 
 ### `consent_context`
 
-Non-authoritative metadata recording what the user verified during consent. It is a closed object containing exactly `grantee_address`, `address_binding_hash`, and `sender_profile_hash`; all three fields are required.
+Required non-authoritative metadata recording what the user verified during consent. Every v1 grant revision contains `consent_context` as a closed object with exactly `grantee_address`, `address_binding_hash`, and `sender_profile_hash`; all three fields are required.
 
 Fields:
 
@@ -183,7 +183,7 @@ Fields:
 - `address_binding_hash`: A closed object containing `algorithm` with exact value `sha-256` and `value` with the exact 43-character unpadded base64url SHA-256 digest of the verified Address Binding's complete canonical flattened JWS bytes.
 - `sender_profile_hash`: A closed object containing `algorithm` with exact value `sha-256` and `value` with the exact 43-character unpadded base64url SHA-256 digest of the verified Sender Profile's complete canonical flattened JWS bytes.
 
-The retained Address Binding's canonical `address` must exactly equal `grantee_address`, and its `did` must exactly equal the grant's `grantee`. The retained Sender Profile's `did` must also equal `grantee`. For categorized consent, every selected category must appear in that profile revision; for uncategorized consent, its `offers_uncategorized` value must be `true`.
+The retained Address Binding's canonical `address` must exactly equal `grantee_address`, and its `did` must exactly equal the grant's `grantee`. The retained Sender Profile's `did` must also equal `grantee`. On revision `1`, every selected category must appear in that profile revision; for uncategorized consent, its `offers_uncategorized` value must be `true`.
 
 The grantor retains both exact JWS representations and their PLC verification evidence for as long as it retains the corresponding grant revision or consent evidence. The digests commit to the matching binding and profile payloads, protected signer keys, and signatures that were verified, as defined in [address-binding.md](address-binding.md#binding-representation-digest) and [sender-profile.md](sender-profile.md#representation-digest).
 
@@ -314,7 +314,7 @@ High-level creation flow:
 2. The client retrieves and verifies the sender's current signed Sender Profile.
 3. The client displays the verified address, DID, sender profile, and available categories.
 4. The recipient explicitly selects categorized or uncategorized delivery.
-5. The recipient creates revision `1` and signs it with `#hail-identity`.
+5. The recipient creates revision `1` with the verified Address Binding and Sender Profile consent context and signs it with `#hail-identity`.
 6. The recipient server verifies and stores the grant locally.
 7. The grant becomes active locally immediately.
 8. The recipient server asynchronously publishes it to the sender's current Hail service.
@@ -380,7 +380,9 @@ Updates can:
 
 Removing the last selected category revokes the grant unless the recipient explicitly approves uncategorized scope.
 
-Adding a category or switching to uncategorized scope requires explicit consent against a current verified Sender Profile that offers that choice, and the revision updates `consent_context` to commit to that profile. Removing permission does not require the sender's current profile to continue advertising the removed choice.
+An active revision that adds any category, replaces any category with a new category, or switches between categorized and uncategorized scope requires explicit consent against a current verified Address Binding and Sender Profile. The profile must offer every newly authorized choice, and the revision replaces `consent_context` with hashes of that current evidence.
+
+A revision that only removes categories, shortens expiration, or revokes the grant carries the preceding `consent_context` forward unchanged. Restricting or revoking authorization must not depend on sender profile availability. Other revisions may preserve the preceding context or replace it only after re-verifying both evidence objects. No revision may omit `consent_context`.
 
 ## Revocation
 
@@ -593,7 +595,7 @@ The proof of concept implements:
 - UUIDv7 grant IDs
 - one active grant per grantor/grantee pair
 - `categories` and `uncategorized` scope selectors only
-- verified Address Binding and Sender Profile consent evidence
+- required Address Binding and Sender Profile consent context on every revision
 - full-state signed revisions
 - local authoritative state
 - required envelope `authorization.grant_id`
