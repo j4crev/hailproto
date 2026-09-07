@@ -20,7 +20,7 @@ A Hail Grant is a recipient-created, recipient-signed authorization permitting o
 
 ## Grant Payload
 
-Conceptual v1 payload:
+Diagnostic JSON for the conceptual v1 payload. Byte-string values use their base64url diagnostic rendering:
 
 ```json
 {
@@ -45,57 +45,26 @@ Conceptual v1 payload:
     "grantee_address": "updates@store.example.com",
     "address_binding_hash": {
       "algorithm": "sha-256",
-      "value": "base64url-sha256-address-binding-jws"
+      "value": "base64url-sha256-address-binding-cose"
     },
     "sender_profile_hash": {
       "algorithm": "sha-256",
-      "value": "base64url-sha256-sender-profile-jws"
+      "value": "base64url-sha256-sender-profile-cose"
     }
   },
   "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity"
 }
 ```
 
-The signature wrapper is separate from the payload and uses the flattened JWS profile defined below.
+The signature wrapper is separate from the payload and uses the tagged COSE_Sign1 profile defined below.
 
 Unknown top-level fields are rejected in v1 unless a future specification explicitly defines an extension mechanism.
 
 ## Signature And Representation Profile
 
-Hail Grant v1 uses RFC 8785 canonical JSON in RFC 7515 flattened JWS JSON Serialization. The complete wrapper is a closed JSON object containing exactly `protected`, `payload`, and `signature`; an unprotected `header` member is prohibited.
+Hail Grant v1 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md), with protected content type `application/hail-grant+cbor` and the `#hail-identity` key role. Protected `kid` is the UTF-8 encoding of payload `key_id`; its controller exactly equals payload `grantor`.
 
-Conceptual wrapper:
-
-```json
-{
-  "payload": "base64url-jcs-grant-payload",
-  "protected": "base64url-protected-header",
-  "signature": "base64url-ed25519-signature"
-}
-```
-
-The decoded protected header is the closed object:
-
-```json
-{
-  "alg": "Ed25519",
-  "kid": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
-  "typ": "hail-grant+jws"
-}
-```
-
-Rules:
-
-- The grant payload, protected header, and complete flattened JWS wrapper use their exact RFC 8785 canonical UTF-8 representations.
-- `alg` is the RFC 9864 value `Ed25519`; `EdDSA` and algorithm fallback are rejected.
-- `kid` is the absolute DID URL of the grantor's authorized `#hail-identity` verification method.
-- `kid` exactly equals the payload's `key_id`, and its controller exactly equals the payload's `grantor`.
-- `typ` is the exact string `hail-grant+jws`.
-- All three protected parameters are required. Unknown protected parameters and all unprotected parameters are rejected.
-- The payload and protected-header bytes are base64url encoded without padding and signed using the RFC 7515 JWS Signing Input.
-- Duplicate member names, invalid UTF-8, non-I-JSON values, padded or noncanonical base64url, and decoded payload or header bytes that are not their exact JCS representations are rejected.
-
-The complete canonical JWS bytes are the immutable signed representation of one grant revision. A receiver stores those exact bytes and does not parse and reserialize an accepted revision. The HTTP request uses `Content-Type: application/hail-grant+json`; this provisional v1 media type contains the flattened JWS wrapper and carries no parameters.
+The complete signed representation bytes are the immutable representation of one grant revision. A receiver stores those exact bytes and does not parse and reserialize an accepted revision. The HTTP request uses `Content-Type: application/cose; cose-type="cose-sign1"` and no HTTP content coding.
 
 ## Fields
 
@@ -111,7 +80,7 @@ The grant schema version. V1 uses integer `1`.
 
 `version` differs from `revision`:
 
-- `version` selects schema, field semantics, canonicalization, and validation rules.
+- `version` selects schema, field semantics, deterministic encoding, and validation rules.
 - `revision` orders state changes within one grant lineage.
 
 All revisions in a v1 grant lineage use the same `version`. A future specification may define a secure cross-version transition; otherwise an incompatible schema requires a new grant lineage.
@@ -132,7 +101,7 @@ A positive integer beginning at `1` and increasing by exactly one for each state
 
 Revision `1` uses `null`. Later revisions contain the digest of the preceding signed grant state.
 
-For later revisions, `previous` is the exact 43-character unpadded base64url encoding of SHA-256 over the preceding revision's complete canonical flattened JWS bytes. It decodes to exactly 32 bytes. Padding, percent encoding, and noncanonical base64url are rejected.
+For later revisions, `previous` is exactly 32 bytes containing SHA-256 over the preceding revision's complete signed representation bytes. Its HTTP ETag and diagnostic JSON rendering use the exact 43-character unpadded base64url form defined by [encoding.md](encoding.md).
 
 ### `grantor`
 
@@ -180,12 +149,12 @@ Required non-authoritative metadata recording what the user verified during cons
 Fields:
 
 - `grantee_address`: Canonical sender address shown to the recipient.
-- `address_binding_hash`: A closed object containing `algorithm` with exact value `sha-256` and `value` with the exact 43-character unpadded base64url SHA-256 digest of the verified Address Binding's complete canonical flattened JWS bytes.
-- `sender_profile_hash`: A closed object containing `algorithm` with exact value `sha-256` and `value` with the exact 43-character unpadded base64url SHA-256 digest of the verified Sender Profile's complete canonical flattened JWS bytes.
+- `address_binding_hash`: A closed map containing `algorithm` with exact value `sha-256` and `value` with the exact 32-byte SHA-256 digest of the verified Address Binding's complete signed representation bytes.
+- `sender_profile_hash`: A closed map containing `algorithm` with exact value `sha-256` and `value` with the exact 32-byte SHA-256 digest of the verified Sender Profile's complete signed representation bytes.
 
 The retained Address Binding's canonical `address` must exactly equal `grantee_address`, and its `did` must exactly equal the grant's `grantee`. The retained Sender Profile's `did` must also equal `grantee`. On revision `1`, every selected category must appear in that profile revision; for uncategorized consent, its `offers_uncategorized` value must be `true`.
 
-The grantor retains both exact JWS representations and their PLC verification evidence for as long as it retains the corresponding grant revision or consent evidence. The digests commit to the matching binding and profile payloads, protected signer keys, and signatures that were verified, as defined in [address-binding.md](address-binding.md#binding-representation-digest) and [sender-profile.md](sender-profile.md#representation-digest).
+The grantor retains both exact COSE representations and their PLC verification evidence for as long as it retains the corresponding grant revision or consent evidence. The digests commit to the matching binding and profile payloads, protected signer keys, and signatures that were verified, as defined in [address-binding.md](address-binding.md#binding-representation-digest) and [sender-profile.md](sender-profile.md#representation-digest).
 
 Authorization still targets `grantee`, not this consent metadata.
 
@@ -303,6 +272,7 @@ Mutable through a signed revision:
 - `updated_at`
 - `expires_at`
 - `consent_context`
+- `key_id`, only to identify the grantor's current `#hail-identity` key after rotation
 
 Changing either DID requires a new grant.
 
@@ -360,7 +330,7 @@ The sender accepts a revision when:
 
 Revision handling:
 
-- Exact same canonical JWS representation: idempotent success.
+- Exact same complete signed representation bytes: idempotent success.
 - Same revision with different content: conflict.
 - Lower revision: stale conflict.
 - Revision gap: conflict; the recipient retransmits missing revisions.
@@ -368,6 +338,8 @@ Revision handling:
 - Changed immutable field: invalid grant.
 
 Full snapshots simplify validation, recovery, and auditing and avoid patch-order ambiguity.
+
+Before removing or replacing `#hail-identity`, the grantor ensures the current revision has been acknowledged by the grantee. After the DID rotation becomes authoritative, it creates a higher revision with unchanged authorization semantics, the new `key_id`, an updated `updated_at`, and `previous` equal to the acknowledged revision's complete signed representation digest, then signs with the new key. Re-signing the same revision is prohibited because it changes the complete representation digest and can conflict with a copy already received. Recovery when the preceding revision was not acknowledged depends on the historical DID verification rules that remain to be finalized.
 
 Updates can:
 
@@ -434,36 +406,36 @@ PUT {hail-service-base}/grants/{grant_id}
 
 The relative path contains the literal `grants` segment followed by the grant's canonical lowercase UUIDv7. The path value is exactly 36 ASCII characters, matches `[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`, contains no percent encoding, and exactly equals the signed payload's `grant_id`. A malformed or mismatched ID follows the generic `400` behavior below.
 
-The request body is the exact canonical flattened JWS representation and uses `Content-Type: application/hail-grant+json` with no parameters. V1 applies no HTTP content coding to a grant request. HTTPS authenticates the destination and protects the exchange; the grant JWS authenticates the grantor and signed state. V1 requires no additional transport authentication.
+The request body is the exact complete signed COSE representation and uses `Content-Type: application/cose; cose-type="cose-sign1"`. V1 applies no HTTP content coding to a grant request. HTTPS authenticates the destination and protects the exchange; COSE authenticates the grantor and signed state. V1 requires no additional transport authentication.
 
 Initial publication requires `If-None-Match: *`:
 
 ```http
 PUT {hail-service-base}/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1
-Content-Type: application/hail-grant+json
+Content-Type: application/cose; cose-type="cose-sign1"
 If-None-Match: *
 Cache-Control: no-store
 ```
 
-Revision `1` includes exactly `If-None-Match: *` and omits `If-Match`. A later revision includes exactly one `If-Match` field containing one strong entity-tag and omits `If-None-Match`. The entity-tag's opaque value exactly equals the signed payload's `previous` value. Weak entity-tags, entity-tag lists, `If-Match: *`, both conditional fields, and the conditional field inappropriate for the revision are invalid grant requests.
+Revision `1` includes exactly `If-None-Match: *` and omits `If-Match`. A later revision includes exactly one `If-Match` field containing one strong entity-tag and omits `If-None-Match`. The entity-tag's opaque value is the 43-character unpadded base64url rendering of the signed payload's 32-byte `previous` value. Weak entity-tags, entity-tag lists, `If-Match: *`, both conditional fields, and the conditional field inappropriate for the revision are invalid grant requests.
 
 Successful creation returns:
 
 ```http
 HTTP/1.1 201 Created
-ETag: "base64url-sha256-canonical-jws"
+ETag: "base64url-sha256-complete-cose"
 Location: {hail-service-base}/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1
 Cache-Control: no-store
 ```
 
-The `ETag` is a strong validator whose opaque value is the same 43-character digest used by a successor's `previous` field, enclosed in double quotes. It hashes the complete canonical JWS bytes, including the protected header and signature. The server emits an ETag only after storing the exact request representation without transformation.
+The `ETag` is a strong validator whose opaque value is the 43-character unpadded base64url rendering of the same 32 digest bytes used by a successor's `previous` field, enclosed in double quotes. It hashes the complete signed representation bytes, including the protected header and signature. The server emits an ETag only after storing the exact request representation without transformation.
 
 A later revision, including revocation, requires `If-Match` with the preceding revision's ETag:
 
 ```http
 PUT {hail-service-base}/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1
-Content-Type: application/hail-grant+json
-If-Match: "base64url-sha256-previous-canonical-jws"
+Content-Type: application/cose; cose-type="cose-sign1"
+If-Match: "base64url-sha256-previous-complete-cose"
 Cache-Control: no-store
 ```
 
@@ -471,7 +443,7 @@ Successful update:
 
 ```http
 HTTP/1.1 204 No Content
-ETag: "base64url-sha256-new-canonical-jws"
+ETag: "base64url-sha256-new-complete-cose"
 Cache-Control: no-store
 ```
 
@@ -484,10 +456,10 @@ The server performs ordinary request validation, signature verification, and Hai
 | Stored state | HTTP result |
 | --- | --- |
 | No grant uses the ID and revision `1` is valid | Store it and return `201 Created` |
-| The exact canonical signed revision is already current | Return `412 Precondition Failed` with the matching current ETag; do not write again |
+| The exact complete signed representation is already current | Return `412 Precondition Failed` with the matching current ETag; do not write again |
 | Different signed state already uses the grant ID | Return `409 Conflict` |
 
-RFC 9110 requires `412` when `If-None-Match: *` is false for `PUT`. Hail treats that response as successful idempotent convergence only when its ETag exactly equals the digest of the submitted canonical JWS. A missing or different ETag is not evidence that publication succeeded.
+RFC 9110 requires `412` when `If-None-Match: *` is false for `PUT`. Hail treats that response as successful idempotent convergence only when its ETag exactly equals the base64url rendering of the submitted complete signed representation digest. A missing or different ETag is not evidence that publication succeeded.
 
 For later revisions, an exact retry after the update was already applied returns `204 No Content` with the current matching ETag. RFC 9110 permits a successful response to a false `If-Match` when the origin server verifies that the requested state change was already applied. Any different current state follows the conflict or precondition rules below.
 
@@ -528,9 +500,9 @@ The shared HTTP binding defines the v1 Problem Details members and type rules. G
 | Condition | HTTP status |
 | --- | --- |
 | Method other than `PUT` | `405 Method Not Allowed` with `Allow: PUT` |
-| Media type other than `application/hail-grant+json`, or unsupported HTTP content coding | `415 Unsupported Media Type` |
+| Media type other than `application/cose; cose-type="cose-sign1"`, or unsupported HTTP content coding | `415 Unsupported Media Type` |
 | Request exceeds the supported grant transport limit | `413 Content Too Large` |
-| Malformed path, JSON, JWS, protected header, or grant payload | `400 Bad Request` |
+| Malformed path, CBOR, COSE, protected header, or grant payload | `400 Bad Request` |
 | Invalid or unverifiable grant signature before caller authentication | Uniform `400 Bad Request` |
 | Required `If-None-Match` or `If-Match` is absent after grantor authentication | `428 Precondition Required` |
 | Conditional field is malformed, uses a prohibited form, or is inappropriate for the signed revision | `400 Bad Request` |
@@ -601,11 +573,11 @@ The proof of concept implements:
 - required envelope `authorization.grant_id`
 - idempotent HTTPS `PUT`
 - conditional updates using ETags
-- RFC 8785 canonical payload, protected header, and flattened JWS wrapper
-- RFC 7515 flattened JWS signed with RFC 9864 `Ed25519` and `#hail-identity`
-- `application/hail-grant+json`
+- deterministic Hail CBOR and tagged COSE_Sign1
+- RFC 9864 COSE `Ed25519` (`-19`) signed with `#hail-identity`
+- `application/cose; cose-type="cose-sign1"` with protected content type `application/hail-grant+cbor`
 - canonical UUIDv7 grant path segment
-- strong ETags and `previous` over complete canonical signed revisions
+- strong ETags and `previous` over complete signed representation bytes
 - signed terminal revocation
 - RFC 9457 errors
 - asynchronous publication retries

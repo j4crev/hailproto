@@ -4,7 +4,7 @@ Status: Draft, partial
 
 This document defines the HTTPS behavior shared by Hail server-to-server operations. The current draft settles common service URL and Problem Details rules plus Sender Profile retrieval, envelope submission, body retrieval, grant publication, and delivery-status push, including terminal-status retries.
 
-Grant, envelope, body, and delivery-state semantics remain authoritative in their respective specifications. This binding must not change their authorization or state-transition rules.
+Grant, envelope, body, and delivery-state semantics remain authoritative in their respective specifications. The shared data, COSE, media-type comparison, and text-boundary rules are defined in [encoding.md](encoding.md). This binding must not change their authorization or state-transition rules.
 
 ## Hail Service Base URL
 
@@ -64,11 +64,11 @@ This inventory consolidates operations already defined across the Hail specifica
 | Operation | Status | Caller -> receiver | Authentication or authorization | Request | Successful result | Current binding |
 | --- | --- | --- | --- | --- | --- | --- |
 | `DiscoverIdentity` | Required composite prerequisite with context-dependent stages | A participant resolving an alias -> address domain and domain-selected binding host; a participant routing to or verifying a known DID -> PLC resolver | HTTPS authenticates the address domain's WebFinger response and protects retrieval from its selected binding URL; address authority comes from that domain selection plus the binding's `#hail-identity` signature; the verified PLC state authenticates Hail keys and service | A Hail address and canonical `acct:` URI when resolving an alias; otherwise a known `did:plc` DID. Address resolution yields a signed binding before DID resolution | Alias resolution yields a verified address-to-DID binding with an expiration; PLC resolution yields current Hail keys and canonical service base URL | WebFinger with relation `https://hailproto.com/rel/address-binding`, binding retrieval, and PLC resolution; this is not one Hail service-base endpoint. See [address-binding.md](address-binding.md) and [did-profile.md](did-profile.md). |
-| `RetrieveSenderProfile` | Required for grant discovery | Prospective recipient client or server -> sender DID's current Hail service | Public HTTPS retrieval; the profile JWS is authenticated by the sender DID's `#hail-messaging` key | Canonical sender DID in the path | Current signed profile with embedded category manifest | Conditional `GET` from `profiles/{sender_did}` with `application/hail-sender-profile+json`; redirects prohibited. See [sender-profile.md](sender-profile.md). |
-| `PublishGrantRevision` | Required for the POC | Recipient server acting for the grantor DID -> grantee DID's current Hail service | Canonical flattened JWS signed by the grantor DID's `#hail-identity` key; HTTPS authenticates the destination; additional HTTP Message Signatures deferred | Complete signed grant state with stable `grant_id`, ordered `revision`, predecessor, parties, scope, status, and timestamps | Sender verifies and stores a new revision as consent/list state; creation returns `201`; update and exact update retry return `204`; exact creation retry converges through `412` with a matching ETag | Conditional `PUT` to `grants/{grant_id}` with `application/hail-grant+json`; `If-None-Match: *` creates revision 1 and `If-Match` orders later revisions. See [grants.md](grants.md#web-native-publication). |
-| `SubmitEnvelope` | Required; includes grant- and reply-authorized variants | Sender server -> recipient DID's current Hail service | HTTPS authenticates the recipient endpoint; the envelope JWS authenticates the `from` DID and signed contents; v1 requires no additional transport authentication | One closed signed `hail.envelope` for one recipient, containing grant or reply authorization and a detached-body descriptor | Generic `received` discloses only HTTP receipt; `accepted` fixes authorization and transfers body-processing responsibility; an identical `duplicate` reuses stored/current state. An eligible caller may receive the current signed status, including a later state | `POST` to relative operation path `envelopes` with `Content-Type: application/jose+json`; generic receipt is `202 application/json`; authenticated signed success is `200 application/jose+json`. See [envelopes.md](envelopes.md) and the submission sections below. |
-| `RetrieveBody` | Required for the POC | Recipient server -> authenticated sender DID's current Hail service | An opaque bearer token authorizes retrieval and is bound by the signed envelope to the recipient, body, and message; v1 does not prove that the requester possesses the recipient DID's key; proof of possession is deferred | Body digest in the operation path and bearer token in `Authorization`; optional supported content negotiation | `200` carrying immutable canonical body bytes, optionally gzip-coded; the recipient verifies size, digest, media type, profile, canonical encoding, and schema | `GET` from `bodies/{digest}`, where `{digest}` is the exact 43-character unpadded base64url SHA-256 value from the envelope; redirects prohibited. Failure statuses are defined below. See [bodies.md](bodies.md#retrieval-endpoint). |
-| `PushDeliveryStatus` | Terminal push required | Recipient server -> original sender DID's current Hail service | HTTPS authenticates the sender endpoint; the status JWS authenticates the recipient DID and status contents; no additional v1 transport authentication | One closed signed `hail.delivery-status` snapshot with parties, message ID, envelope digest, revision, state, occurrence time, and state-dependent fields | `204` acknowledges a valid new, duplicate, or stale snapshot; a stale snapshot does not replace newer state | `PUT` to `deliveries/{envelope_digest}` with `application/jose+json`; one status per request; terminal snapshots are pushed at least once. See [delivery-state.md](delivery-state.md#status-reporting). |
+| `RetrieveSenderProfile` | Required for grant discovery | Prospective recipient client or server -> sender DID's current Hail service | Public HTTPS retrieval; the profile COSE signature is authenticated by the sender DID's `#hail-messaging` key | Canonical sender DID in the path | Current signed profile with embedded category manifest | Conditional `GET` from `profiles/{sender_did}` with signed-object COSE media type; redirects prohibited. See [sender-profile.md](sender-profile.md). |
+| `PublishGrantRevision` | Required for the POC | Recipient server acting for the grantor DID -> grantee DID's current Hail service | Tagged COSE_Sign1 signed by the grantor DID's `#hail-identity` key; HTTPS authenticates the destination; additional HTTP Message Signatures deferred | Complete signed grant state with stable `grant_id`, ordered `revision`, predecessor, parties, scope, status, and timestamps | Sender verifies and stores a new revision as consent/list state; creation returns `201`; update and exact update retry return `204`; exact creation retry converges through `412` with a matching ETag | Conditional `PUT` to `grants/{grant_id}` with signed-object COSE media type; `If-None-Match: *` creates revision 1 and `If-Match` orders later revisions. See [grants.md](grants.md#web-native-publication). |
+| `SubmitEnvelope` | Required; includes grant- and reply-authorized variants | Sender server -> recipient DID's current Hail service | HTTPS authenticates the recipient endpoint; the envelope COSE signature authenticates the `from` DID and signed contents; v1 requires no additional transport authentication | One closed signed `hail.envelope` for one recipient, containing grant or reply authorization and a detached-body descriptor | Generic `received` discloses only HTTP receipt; `accepted` fixes authorization and transfers body-processing responsibility; an identical `duplicate` reuses stored/current state. An eligible caller may receive the current signed status, including a later state | `POST` to relative operation path `envelopes` with `Content-Type: application/cose; cose-type="cose-sign1"`; generic receipt is `202 application/json`; authenticated signed success uses the COSE media type. See [envelopes.md](envelopes.md) and the submission sections below. |
+| `RetrieveBody` | Required for the POC | Recipient server -> authenticated sender DID's current Hail service | An opaque bearer token authorizes retrieval and is bound by the signed envelope to the recipient, body, and message; v1 does not prove that the requester possesses the recipient DID's key; proof of possession is deferred | Body digest in the operation path and bearer token in `Authorization`; optional supported content negotiation | `200` carrying immutable deterministic body bytes, optionally gzip-coded; the recipient verifies size, digest, media type, profile, deterministic encoding, and schema | `GET` from `bodies/{digest}`, where `{digest}` is the exact 43-character unpadded base64url rendering of the envelope's 32-byte SHA-256 value; redirects prohibited. Failure statuses are defined below. See [bodies.md](bodies.md#retrieval-endpoint). |
+| `PushDeliveryStatus` | Terminal push required | Recipient server -> original sender DID's current Hail service | HTTPS authenticates the sender endpoint; the status COSE signature authenticates the recipient DID and status contents; no additional v1 transport authentication | One closed signed `hail.delivery-status` snapshot with parties, message ID, envelope digest, revision, state, occurrence time, and state-dependent fields | `204` acknowledges a valid new, duplicate, or stale snapshot; a stale snapshot does not replace newer state | `PUT` to `deliveries/{envelope_digest}` with the signed-object COSE media type; one status per request; terminal snapshots are pushed at least once. See [delivery-state.md](delivery-state.md#status-reporting). |
 | `QueryDeliveryStatus` | Deferred from v1 | Expected caller and receiver, authentication, request, result, and anti-oracle behavior remain future work | Open | Open | Open | No v1 method or path. An authenticated duplicate envelope submission provides current-status recovery during its retry window. See [delivery-state.md](delivery-state.md#status-reporting). |
 
 ### Behavior And Privacy
@@ -77,8 +77,8 @@ This inventory consolidates operations already defined across the Hail specifica
 | --- | --- | --- | --- | --- |
 | `DiscoverIdentity` | Address, WebFinger, binding, signature, expiration, PLC-resolution, or safe-fetch failure prevents verified resolution; exact external error taxonomy open | Component retrievals are read-only, but discovery results may change or expire; no abstract idempotency contract is defined | Address discovery permits up to three safe HTTPS WebFinger redirects, prohibits binding redirects, and caches a verified result for at most one hour. PLC mirror and recovery-window policy remains partly open. Endpoint refresh rules above apply only after a `#hail` service has been discovered | WebFinger may enable address enumeration; implementations rate-limit and minimize metadata. Address bindings intentionally avoid permanent address history. Routine federation from known DIDs does not re-resolve human-readable addresses. |
 | `RetrieveSenderProfile` | Malformed path or absent profile uses `404`; unsupported representation uses `406`; throttling uses `429`; temporary failure uses `503` | Safe and cacheable `GET`; strong ETag identifies the exact signed representation | Retry transient failure with bounded backoff; never follow redirects; re-resolve PLC under endpoint-refresh rules | Profiles are intentionally public and contain no recipient, grant, subscriber, or delivery state. Search results remain untrusted until profile verification. |
-| `PublishGrantRevision` | Malformed or unauthenticated protected requests use uniform `400`; missing preconditions use `428`; failed preconditions use `412`; revision and lineage conflicts use `409`; throttling uses `429`; temporary failure uses `503` | Conditional `PUT`, full-state revisions, canonical signed-state digests, and strong ETags make exact retransmission convergent; revocation is a terminal revision, not `DELETE` | Queue and retry transient publication failure with bounded exponential backoff and jitter; honor `Retry-After`; retransmit missing revisions; local consent changes never wait for publication | Grants are private relationship state, use `Cache-Control: no-store`, and receive uniform failures before grantor authentication and local-target confirmation. They contain no message body or contact-request content. |
-| `SubmitEnvelope` | Uses the closed outcome set below. Conflict, invalid representation, unauthorized submission, and expiration are permanent; rate limiting and temporary unavailability are retryable. Reply authorization additionally rejects missing, expired, disallowed, or competing claims | `(authenticated sender DID, message_id)` is the key; an identical canonical payload returns stored/current state, while different content is a permanent conflict. Reply acceptance atomically claims the single-use capability; delivery consumes it; terminal failure or cancellation releases it | Ambiguous transport or generic `received` permits byte-identical retry with the same ID; honor `Retry-After`; after `accepted`, the recipient owns body retries | Protected outcomes remain generic until the sender is authenticated with current or previous relationship state. Generic responses reveal no recipient, relationship, replay, or acceptance state and follow the bounded schedule below. |
+| `PublishGrantRevision` | Malformed or unauthenticated protected requests use uniform `400`; missing preconditions use `428`; failed preconditions use `412`; revision and lineage conflicts use `409`; throttling uses `429`; temporary failure uses `503` | Conditional `PUT`, full-state revisions, signed-representation digests, and strong ETags make exact retransmission convergent; revocation is a terminal revision, not `DELETE` | Queue and retry transient publication failure with bounded exponential backoff and jitter; honor `Retry-After`; retransmit missing revisions; local consent changes never wait for publication | Grants are private relationship state, use `Cache-Control: no-store`, and receive uniform failures before grantor authentication and local-target confirmation. They contain no message body or contact-request content. |
+| `SubmitEnvelope` | Uses the closed outcome set below. Conflict, invalid representation, unauthorized submission, and expiration are permanent; rate limiting and temporary unavailability are retryable. Reply authorization additionally rejects missing, expired, disallowed, or competing claims | `(authenticated sender DID, message_id)` is the key; an identical deterministic payload returns stored/current state, while different content is a permanent conflict. Reply acceptance atomically claims the single-use capability; delivery consumes it; terminal failure or cancellation releases it | Ambiguous transport or generic `received` permits byte-identical retry with the same ID; honor `Retry-After`; after `accepted`, the recipient owns body retries | Protected outcomes remain generic until the sender is authenticated with current or previous relationship state. Generic responses reveal no recipient, relationship, replay, or acceptance state and follow the bounded schedule below. |
 | `RetrieveBody` | Missing body and invalid, mismatched, or expired authorization must not be distinguishable; retryable transport or availability failures and permanent integrity or authorization failures feed the delivery state machine | Immutable body bytes and the same token may be retrieved repeatedly for the same envelope; matching recipient-and-sender cache provenance may avoid another fetch | Recipient retries with bounded backoff and jitter until the effective deadline, preserving digest and token; endpoint migration follows fresh DID resolution rather than redirects | Token appears only in `Authorization`, is excluded from logs, and is stored hashed by the sender. Fetches are delivery operations, not open/read signals. Cross-recipient cache state must not leak. |
 | `PushDeliveryStatus` | Validly handled status uses `204`; authenticated malformed semantics use `400`; authenticated stream conflicts use `409`; protected unknown or unauthenticated cases use generic `202`; throttling uses `429`; temporary failure uses `503` | At-least-once `PUT`; exact duplicates and stale snapshots are acknowledged without mutation, while higher valid revisions advance state | Recipient uses the fixed jittered schedule and retries through the later of the replay deadline or 30 days after the terminal transition unless acknowledged or permanently rejected | Generic `202` conceals sent-envelope and relationship state. Detailed errors require an authenticated signer and matching sent-envelope relationship. Status reports server processing only, never user activity. |
 | `QueryDeliveryStatus` | Deferred; any future design must avoid recipient, relationship, replay, and message-ID oracles | Open | Open | A future query must independently authenticate the original sender; possession of a message ID or generic receipt is insufficient. |
@@ -97,7 +97,7 @@ Body creation and publication are sender-local prerequisites, not federation req
 
 ```http
 GET {sender-hail-service-base}/profiles/{sender_did}
-Accept: application/hail-sender-profile+json
+Accept: application/cose; cose-type="cose-sign1"
 Accept-Encoding: identity
 ```
 
@@ -107,17 +107,17 @@ A successful response uses:
 
 ```http
 HTTP/1.1 200 OK
-Content-Type: application/hail-sender-profile+json
+Content-Type: application/cose; cose-type="cose-sign1"
 Content-Length: 1234
-ETag: "base64url-sha256-canonical-profile-jws"
+ETag: "base64url-sha256-complete-profile-cose"
 Cache-Control: public, max-age=3600
 ```
 
-The response body is exactly one canonical flattened JWS under the profile in [sender-profile.md](sender-profile.md). `Content-Type` carries no parameters, `Content-Encoding` is absent, and the complete transmitted representation is at most 65536 bytes. The strong ETag's opaque value is the exact 43-character unpadded base64url SHA-256 digest of those bytes.
+The response body is exactly one tagged COSE_Sign1 under the profile in [sender-profile.md](sender-profile.md). The protected content type is `application/hail-sender-profile+cbor`, `Content-Encoding` is absent, and the complete transmitted representation is at most 65536 octets. The strong ETag's opaque value is the exact 43-character unpadded base64url SHA-256 digest of those bytes.
 
 The server may choose a `max-age` from `0` through `3600`; a client never treats a cached profile as fresh for longer than one hour. A request may include one strong `If-None-Match` value previously returned for this profile. If that validator still identifies the current exact representation, the server may return `304 Not Modified` with the same ETag and current cache policy and no content. Weak validators and validator lists are not used by this binding.
 
-The client requires the payload `did` and path DID to match, verifies the current `#hail-messaging` signature, and applies profile revision rules before display or grant creation. It retains the exact JWS when committing its digest to grant consent context.
+The client requires the payload `did` and path DID to match, verifies the current `#hail-messaging` signature, and applies profile revision rules before display or grant creation. It retains the exact COSE representation when committing its digest to grant consent context.
 
 Profile retrieval uses these status mappings:
 
@@ -144,15 +144,15 @@ POST {hail-service-base}/envelopes
 
 The relative operation path is the single segment `envelopes`, appended to the canonical Hail service base URL under the construction rules above. Each request submits exactly one signed envelope. Grant-authorized messages and reply-authorized messages use the same method and path.
 
-The request uses the registered RFC 7515 media type for JWS JSON Serialization:
+The request uses the registered COSE media type profiled by [encoding.md](encoding.md):
 
 ```http
-Content-Type: application/jose+json
+Content-Type: application/cose; cose-type="cose-sign1"
 ```
 
-The request body is exactly one Hail Envelope in RFC 7515 flattened JWS JSON Serialization. The protected `typ` value `hail-envelope+jws` identifies the Hail object profile as defined in [envelopes.md](envelopes.md#signature-profile). The `Content-Type` carries no parameters. A missing or different request media type is an unsupported-media-type safe transport error and is rejected before protected envelope processing.
+The request body is exactly one tagged COSE_Sign1 Hail Envelope. Protected content type `application/hail-envelope+cbor` identifies the object profile defined in [envelopes.md](envelopes.md#signature-profile). A missing or different request media type is an unsupported-media-type safe transport error and is rejected before protected envelope processing.
 
-V1 requires no transport authentication in addition to HTTPS and the envelope JWS. HTTPS authenticates the recipient service endpoint and protects the exchange in transit. The JWS authenticates the sender DID and signed envelope contents. Mutual TLS, bearer credentials, RFC 9421 HTTP Message Signatures, and private reverse-proxy authentication carry no Hail envelope-submission semantics and never replace JWS verification. Deployments may use additional private transport controls without requiring federation peers to support them.
+V1 requires no transport authentication in addition to HTTPS and the envelope COSE signature. HTTPS authenticates the recipient service endpoint and protects the exchange in transit. COSE authenticates the sender DID and signed envelope contents. Mutual TLS, bearer credentials, RFC 9421 HTTP Message Signatures, and private reverse-proxy authentication carry no Hail envelope-submission semantics and never replace COSE verification. Deployments may use additional private transport controls without requiring federation peers to support them.
 
 ## Receipt, Acceptance, And Delivery
 
@@ -174,8 +174,8 @@ Envelope submission uses this closed semantic outcome set:
 
 - `received`: The request was received, but no protocol-acceptance information is disclosed.
 - `accepted`: The envelope was authenticated, authorized, atomically reserved, and entered the Hail `accepted` delivery state.
-- `duplicate`: The same authenticated sender DID and `message_id` already reserved an identical canonical payload. No new delivery was created; the stored result or current state applies.
-- `message-id-conflict`: The same authenticated sender DID and `message_id` reserved a different canonical payload.
+- `duplicate`: The same authenticated sender DID and `message_id` already reserved an identical deterministic payload. No new delivery was created; the stored result or current state applies.
+- `message-id-conflict`: The same authenticated sender DID and `message_id` reserved a different deterministic payload.
 - `invalid-envelope`: The envelope representation, schema, signature, timestamps, or other envelope-level validation is invalid.
 - `unauthorized`: No usable grant or reply authorization permits this envelope.
 - `message-expired`: The envelope expired before acceptance.
@@ -216,7 +216,7 @@ A server may explicitly reject failures determined solely from bounded HTTP requ
 
 These responses must not depend on the claimed or actual recipient, sender, grant, reply capability, signature, message ID, or other relationship state. An explicit source-wide or service-wide rate-limit response is also safe only when it is selected independently of protected relationship state.
 
-Invalid JSON, an invalid JWS, absent recipients, absent grants, absent reply records, unknown keys, invalid signatures, replay records, and recipient policy are part of protected envelope processing rather than this transport allowlist.
+Invalid CBOR, invalid COSE, absent recipients, absent grants, absent reply records, unknown keys, invalid signatures, replay records, and recipient policy are part of protected envelope processing rather than this transport allowlist.
 
 ### Generic Receipt
 
@@ -255,11 +255,11 @@ An eligible successful result returns the current signed delivery-status snapsho
 
 ```http
 HTTP/1.1 200 OK
-Content-Type: application/jose+json
+Content-Type: application/cose; cose-type="cose-sign1"
 Cache-Control: no-store
 ```
 
-The response body is exactly one Hail delivery-status snapshot in RFC 7515 flattened JWS JSON Serialization, using the profile defined in [delivery-state.md](delivery-state.md#status-signature-profile). The media type carries no parameters. The snapshot may report `accepted` or a later current state if processing advanced before the response. An identical duplicate of an accepted envelope returns the stored/current signed snapshot with the same `200` response. A duplicate whose stored result is an unsuccessful submission returns the applicable Problem Details response instead.
+The response body is exactly one tagged COSE_Sign1 Hail delivery-status snapshot using the profile defined in [delivery-state.md](delivery-state.md#status-signature-profile), with protected content type `application/hail-delivery-status+cbor`. The snapshot may report `accepted` or a later current state if processing advanced before the response. An identical duplicate of an accepted envelope returns the stored/current signed snapshot with the same `200` response. A duplicate whose stored result is an unsuccessful submission returns the applicable Problem Details response instead.
 
 ### Detailed Error Statuses
 
@@ -268,7 +268,7 @@ Safe transport errors use these mappings when the server can produce an HTTP res
 | Condition | HTTP status |
 | --- | --- |
 | Method other than `POST` | `405 Method Not Allowed` |
-| Media type other than `application/jose+json` | `415 Unsupported Media Type` |
+| Media type other than `application/cose; cose-type="cose-sign1"` | `415 Unsupported Media Type` |
 | Unsupported HTTP content encoding | `415 Unsupported Media Type` |
 | Invalid HTTP framing | `400 Bad Request` |
 | Request exceeds the envelope transport limit | `413 Content Too Large` |
@@ -335,8 +335,8 @@ Once an envelope reaches Hail `accepted`, the recipient owns body retrieval, bac
 
 The idempotency key is `(authenticated sender DID, message_id)`.
 
-- The same key and canonical payload digest returns the stored result or current state without creating another delivery.
-- The same key and a different canonical payload digest produces permanent `message-id-conflict`.
+- The same key and deterministic payload digest returns the stored result or current state without creating another delivery.
+- The same key and a different deterministic payload digest produces permanent `message-id-conflict`.
 - Concurrent submissions for one key are serialized.
 - A duplicate never causes an additional body retrieval or body/message publication solely because it was retried.
 - A generic `received` response to an unknown or unauthenticated caller creates neither a replay record nor an acceptance record.
@@ -358,7 +358,7 @@ After that deadline the signed envelope is already expired and cannot become a n
 GET {hail-service-base}/bodies/{digest}
 ```
 
-The relative operation path begins with the literal segment `bodies`, followed by one dynamic digest segment. No trailing slash is allowed. `{digest}` is the exact `body.digest.value` from the signed envelope: the canonical unpadded base64url encoding of the 32-byte SHA-256 digest. It is exactly 43 ASCII characters from `A-Z`, `a-z`, `0-9`, `-`, and `_`, contains no `=` padding, and is inserted as a literal path segment without percent encoding. A noncanonical or invalid digest segment receives the uniform `404` response.
+The relative operation path begins with the literal segment `bodies`, followed by one dynamic digest segment. No trailing slash is allowed. `{digest}` is the unpadded base64url rendering of the signed envelope's 32-byte `body.digest.value`. It is exactly 43 ASCII characters from `A-Z`, `a-z`, `0-9`, `-`, and `_`, contains no `=` padding, and is inserted as a literal path segment without percent encoding. A noncanonical or invalid digest segment receives the uniform `404` response.
 
 ## Body Retrieval Status Mapping
 
@@ -380,7 +380,7 @@ A `503` response is permitted for a missing committed body only after the token 
 
 A `429` or `503` response may include disclosure-safe `detail` and `instance` and includes `Retry-After` when the server supplies retry timing. Unexpected `5xx` responses and transport failures remain retryable under the body and delivery-state deadlines. A Hail body server uses `503`, rather than another `5xx`, when intentionally reporting temporary body unavailability.
 
-Size, digest, media-type, canonicalization, schema, decompression, and other integrity failures detected after a `200` response are not remapped to HTTP statuses. The recipient discards the response and applies the permanent delivery failure defined by the delivery-state specification.
+Size, digest, media-type, deterministic-encoding, schema, decompression, and other integrity failures detected after a `200` response are not remapped to HTTP statuses. The recipient discards the response and applies the permanent delivery failure defined by the delivery-state specification.
 
 ## Grant Publication Binding
 
@@ -388,15 +388,15 @@ Size, digest, media-type, canonicalization, schema, decompression, and other int
 
 ```http
 PUT {hail-service-base}/grants/{grant_id}
-Content-Type: application/hail-grant+json
+Content-Type: application/cose; cose-type="cose-sign1"
 Cache-Control: no-store
 ```
 
-The request body is exactly one canonical flattened JWS using the grant signature profile in [grants.md](grants.md#signature-and-representation-profile). The media type carries no parameters, and v1 applies no HTTP content coding. The path ID is the exact canonical lowercase UUIDv7 from the signed payload and matches `[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}` without percent encoding.
+The request body is exactly one tagged COSE_Sign1 using the grant signature profile in [grants.md](grants.md#signature-and-representation-profile), with protected content type `application/hail-grant+cbor`. V1 applies no HTTP content coding. The path ID is the exact canonical lowercase UUIDv7 from the signed payload and matches `[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}` without percent encoding.
 
-Revision `1` requires `If-None-Match: *`. A later revision, including revocation, requires `If-Match` containing the strong ETag of the preceding revision. That ETag's opaque value is the 43-character unpadded base64url SHA-256 digest of the preceding revision's complete canonical JWS bytes and exactly equals the new payload's `previous` value when the ETag quotes are removed.
+Revision `1` requires `If-None-Match: *`. A later revision, including revocation, requires `If-Match` containing the strong ETag of the preceding revision. That ETag's opaque value is the 43-character unpadded base64url rendering of the SHA-256 digest of the preceding revision's complete signed representation bytes and decodes to the new payload's 32-byte `previous` value.
 
-Revision `1` includes exactly `If-None-Match: *` and omits `If-Match`. A later revision includes exactly one `If-Match` field containing one strong entity-tag and omits `If-None-Match`. Its opaque value exactly equals the signed `previous` value. Weak entity-tags, lists, `If-Match: *`, both conditional fields, and the conditional field inappropriate for the signed revision are invalid.
+Revision `1` includes exactly `If-None-Match: *` and omits `If-Match`. A later revision includes exactly one `If-Match` field containing one strong entity-tag and omits `If-None-Match`. Its opaque value is the unpadded base64url rendering of the signed 32-byte `previous` value. Weak entity-tags, lists, `If-Match: *`, both conditional fields, and the conditional field inappropriate for the signed revision are invalid.
 
 Success and convergence use these mappings:
 
@@ -409,7 +409,7 @@ Success and convergence use these mappings:
 
 The `201` and `204` responses have no content and include `Cache-Control: no-store`. `Location` is the target grant URL and appears only on `201`.
 
-The publishing client treats the `412` creation response as successful idempotent convergence only when the response ETag exactly equals its submitted canonical JWS digest. A missing or different ETag is not evidence of publication. A different signed representation under the same grant ID is a `409` conflict rather than a duplicate. For an exact later-revision retry, RFC 9110 permits `204` after the server verifies that the requested state change was already applied even though the original `If-Match` value no longer identifies the current revision.
+The publishing client treats the `412` creation response as successful idempotent convergence only when the response ETag exactly equals the base64url rendering of its submitted complete signed representation digest. A missing or different ETag is not evidence of publication. A different signed representation under the same grant ID is a `409` conflict rather than a duplicate. For an exact later-revision retry, RFC 9110 permits `204` after the server verifies that the requested state change was already applied even though the original `If-Match` value no longer identifies the current revision.
 
 Grant publication errors use:
 
@@ -418,7 +418,7 @@ Grant publication errors use:
 | Method other than `PUT` | `405 Method Not Allowed` with `Allow: PUT` |
 | Wrong media type or unsupported HTTP content coding | `415 Unsupported Media Type` |
 | Request exceeds the supported grant transport limit | `413 Content Too Large` |
-| Malformed path, JSON, JWS, protected header, or grant payload | `400 Bad Request` |
+| Malformed path, CBOR, COSE, protected header, or grant payload | `400 Bad Request` |
 | Invalid or unverifiable signature before grantor authentication | Uniform `400 Bad Request` |
 | Required `If-None-Match` or `If-Match` absent after grantor authentication | `428 Precondition Required` |
 | Conditional field malformed, prohibited, or inappropriate for the signed revision | `400 Bad Request` |
@@ -437,21 +437,21 @@ Before a valid grantor `#hail-identity` signature is verified and the signed gra
 
 ```http
 PUT {sender-hail-service-base}/deliveries/{envelope_digest}
-Content-Type: application/jose+json
+Content-Type: application/cose; cose-type="cose-sign1"
 Cache-Control: no-store
 ```
 
-The destination is the original sender DID's current authenticated Hail service. The relative path contains the literal `deliveries` segment followed by the status payload's exact `envelope_digest.value`: 43 ASCII characters containing the canonical unpadded base64url encoding of the 32-byte SHA-256 envelope-payload digest. It contains no padding or percent encoding and must match the sender's original sent-envelope record.
+The destination is the original sender DID's current authenticated Hail service. The relative path contains the literal `deliveries` segment followed by the unpadded base64url rendering of the status payload's 32-byte `envelope_digest.value`. It is exactly 43 ASCII characters, contains no padding or percent encoding, and must match the sender's original sent-envelope record.
 
 The original sender creates this target delivery-tracking resource when it durably records the outbound signed envelope, before submission. A status `PUT` updates that existing resource and never creates a delivery record from an unsolicited status. This is why the first valid status push returns `204 No Content` rather than `201 Created`.
 
 The delivery resource is monotonic rather than an unconstrained replaceable representation. `PUT` asks the sender to incorporate the signed snapshot if it advances the stream or confirm that the sender already holds equal or later valid state. A stale snapshot therefore succeeds without replacing newer state.
 
-Each request contains exactly one Hail delivery-status snapshot in RFC 7515 flattened JWS JSON Serialization with protected `typ: hail-delivery-status+jws`. The request uses `application/jose+json` with no parameters, applies no HTTP content coding, and has a maximum complete representation size of 16384 bytes. Batching is not part of v1.
+Each request contains exactly one tagged COSE_Sign1 Hail delivery-status snapshot with protected content type `application/hail-delivery-status+cbor`. The request uses `application/cose; cose-type="cose-sign1"`, applies no HTTP content coding, and has a maximum complete representation size of 16384 octets. Batching is not part of v1.
 
 V1 recipients asynchronously push `delivered`, `failed`, and `cancelled` terminal snapshots. They do not asynchronously push `accepted` or `on-hold`; a current nonterminal snapshot can be returned through authenticated envelope submission or duplicate retry. A conforming sender endpoint may safely acknowledge an already-known valid stale snapshot without changing state. Read and open receipts are not delivery states and are deferred to a future, separately consented protocol.
 
-HTTPS authenticates the original sender's receiving endpoint and protects the exchange. The status JWS authenticates the recipient DID and signed status contents. V1 requires no mutual TLS, bearer credential, HTTP Message Signature, or other transport authentication. Before accepting a status, the sender verifies the JWS profile and signature against the status `from` DID's current `#hail-messaging` key, then matches `from`, `to`, `message_id`, and `envelope_digest` to its original sent-envelope record and validates revision ordering and the state transition.
+HTTPS authenticates the original sender's receiving endpoint and protects the exchange. The status COSE signature authenticates the recipient DID and signed status contents. V1 requires no mutual TLS, bearer credential, HTTP Message Signature, or other transport authentication. Before accepting a status, the sender verifies the COSE profile and signature against the status `from` DID's current `#hail-messaging` key, then matches `from`, `to`, `message_id`, and `envelope_digest` to its original sent-envelope record and validates revision ordering and the state transition.
 
 ### Acknowledgement And Errors
 
@@ -469,7 +469,7 @@ Explicit errors use these mappings:
 | Condition | HTTP status |
 | --- | --- |
 | Method other than `PUT` | `405 Method Not Allowed` with `Allow: PUT` |
-| Media type other than `application/jose+json`, or any HTTP content coding | `415 Unsupported Media Type` |
+| Media type other than `application/cose; cose-type="cose-sign1"`, or any HTTP content coding | `415 Unsupported Media Type` |
 | Request exceeds 16384 bytes | `413 Content Too Large` |
 | Malformed or noncanonical envelope-digest path segment | `400 Bad Request` |
 | Authenticated malformed status semantics or authenticated path/payload mismatch | `400 Bad Request` |
@@ -493,7 +493,7 @@ Cache-Control: no-store
 {"outcome":"received"}
 ```
 
-This response reports only HTTP receipt and is not a status acknowledgement. The recipient continues bounded retries because only `204` acknowledges the snapshot. The generic response has the same shape, privacy-relevant headers, and bounded timing behavior for invalid JSON or JWS, unknown or invalid keys, invalid signatures, a nonlocal `to` DID, an absent sent-envelope record, party or message-ID mismatch, envelope-digest mismatch, and protected processing that cannot finish within the schedule. It discloses no sent-message, relationship, revision, or terminal-state information.
+This response reports only HTTP receipt and is not a status acknowledgement. The recipient continues bounded retries because only `204` acknowledges the snapshot. The generic response has the same shape, privacy-relevant headers, and bounded timing behavior for invalid CBOR or COSE, unknown or invalid keys, invalid signatures, a nonlocal `to` DID, an absent sent-envelope record, party or message-ID mismatch, envelope-digest mismatch, and protected processing that cannot finish within the schedule. It discloses no sent-message, relationship, revision, or terminal-state information.
 
 After the signer and sent-envelope relationship are authenticated, the server returns the applicable `204`, `400`, `409`, `429`, or `503`. Disclosure-safe `detail` may explain malformed semantics, a revision conflict, an invalid transition, throttling, or temporary failure; clients determine behavior from the HTTP status.
 
@@ -536,8 +536,8 @@ The minimum terminal-status retry deadline is:
 max(envelope replay deadline, terminal status occurred_at + 2592000 seconds)
 ```
 
-The recipient continues scheduled attempts through this deadline unless it receives `204` or a permanent response identified above. It may retry longer by local policy. The recipient retains the canonical terminal status payload, signature-verification evidence, retry state, and destination DID through the deadline even if acknowledgement ends transmission earlier.
+The recipient continues scheduled attempts through this deadline unless it receives `204` or a permanent response identified above. It may retry longer by local policy. The recipient retains the deterministic terminal status payload bytes, signature-verification evidence, retry state, and destination DID through the deadline even if acknowledgement ends transmission earlier.
 
 The sender cannot rely on an unauthenticated status `occurred_at` to decide retention. It retains the original sent-envelope and delivery-tracking record through at least `envelope replay deadline + 2592000 seconds`. This guarantees a full 30-day correlation window after any conforming terminal transition without allowing untrusted status input to extend retention.
 
-A provider restart or continuity-preserving migration retains the retry count and next-attempt time. If the recipient's `#hail-messaging` key changes, the current provider signs a new wrapper around the same canonical status payload without changing its revision or `occurred_at`, as defined by the delivery-state signature profile.
+A provider restart or continuity-preserving migration retains the retry count and next-attempt time. If the recipient's `#hail-messaging` key changes, the current provider signs a new COSE wrapper around the same deterministic status payload bytes without changing its revision or `occurred_at`, as defined by the delivery-state signature profile.

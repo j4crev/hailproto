@@ -24,7 +24,7 @@ Detached body publication and retrieval are defined in [bodies.md](bodies.md). G
 
 ## Signed Payload
 
-Conceptual grant-authorized v1 payload:
+Diagnostic JSON for the conceptual grant-authorized v1 payload. Byte-string values use their base64url diagnostic rendering:
 
 ```json
 {
@@ -47,7 +47,7 @@ Conceptual grant-authorized v1 payload:
       "value": "base64url-sha256-digest"
     },
     "size": 8421,
-    "media_type": "application/spt+json",
+    "media_type": "application/hail-body+cbor",
     "profile": "spt-1",
     "available_until": 1790443200,
     "access": {
@@ -63,7 +63,7 @@ Conceptual grant-authorized v1 payload:
 }
 ```
 
-Conceptual reply-authorized payload fragment:
+Diagnostic JSON for a conceptual reply-authorized payload fragment:
 
 ```json
 {
@@ -77,7 +77,7 @@ Conceptual reply-authorized payload fragment:
 }
 ```
 
-The payload is a closed object. Its fields are serialized and signed using the profile in [Signature Profile](#signature-profile).
+The payload is a closed Hail map. Its fields are serialized and signed using the profile in [Signature Profile](#signature-profile).
 
 ## Payload Fields
 
@@ -91,7 +91,7 @@ This identifies the signed object and provides protocol-level domain separation.
 
 Required. The integer `1`.
 
-The version selects the payload schema, field semantics, canonicalization, and validation rules. It is not a message revision number; envelopes are immutable.
+The version selects the payload schema, field semantics, deterministic encoding, and validation rules. It is not a message revision number; envelopes are immutable.
 
 ### `message_id`
 
@@ -105,7 +105,7 @@ The ID is not content-derived, does not identify the body, and is not an authori
 
 Required. The exact DID whose `#hail-messaging` key signed the envelope.
 
-The JWS `kid` must be an absolute DID URL under this DID and must identify its `#hail-messaging` verification method.
+The protected COSE `kid` must be the UTF-8 bytes of the absolute DID URL under this DID identifying its `#hail-messaging` verification method.
 
 ### `to`
 
@@ -243,7 +243,7 @@ The `body` value is a closed object with this exact v1 shape:
     "value": "base64url-sha256-digest"
   },
   "size": 8421,
-  "media_type": "application/spt+json",
+  "media_type": "application/hail-body+cbor",
   "profile": "spt-1",
   "available_until": 1790443200,
   "access": {
@@ -258,14 +258,14 @@ V1 rules:
 
 - `digest` is a closed object containing only `algorithm` and `value`.
 - `digest.algorithm` is the exact string `sha-256`.
-- `digest.value` is the unpadded base64url encoding of exactly 32 digest bytes.
-- `size` is the exact uncompressed canonical body size in bytes, from 1 through 262144 inclusive.
-- `media_type` is the exact provisional string `application/spt+json`.
+- `digest.value` is exactly 32 digest bytes. Diagnostic JSON and the retrieval path use its unpadded base64url rendering.
+- `size` is the exact uncompressed deterministic body size in octets, from 1 through 262144 inclusive.
+- `media_type` is the exact provisional string `application/hail-body+cbor`.
 - `profile` is the exact string `spt-1`.
 - `available_until` is a UTC Unix timestamp at least 2592000 seconds after `created_at` and at least 300 seconds after `expires_at`.
 - `access` is a closed object containing only `type`, `token`, and `expires_at`.
 - `access.type` is the exact string `bearer`.
-- `access.token` is the unpadded base64url encoding of exactly 32 cryptographically random bytes generated for this recipient envelope.
+- `access.token` is exactly 32 cryptographically random bytes generated for this recipient envelope. The HTTP Bearer credential uses its unpadded base64url rendering.
 - `access.expires_at` is no earlier than `available_until` and therefore covers the complete envelope clock-tolerance window.
 
 The sender must retain both the immutable body and its retrieval authorization through `available_until`. The recipient derives the retrieval endpoint from the authenticated `from` DID service as defined in [bodies.md](bodies.md).
@@ -299,58 +299,15 @@ The suggested product default is 120 days, but the signed timestamp is authorita
 
 ## Signature Profile
 
-The POC represents an envelope as a JWS using the flattened JSON Serialization from RFC 7515.
+The POC represents an envelope using the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md). The protected content type is `application/hail-envelope+cbor`, and the required role is `#hail-messaging`. Protected `kid` is the UTF-8 encoding of the sender's absolute `#hail-messaging` DID URL. The embedded payload is the exact deterministic encoding of the closed envelope map, and the unprotected map and external AAD are empty.
 
-Conceptual wrapper:
-
-```json
-{
-  "protected": "base64url-protected-header",
-  "payload": "base64url-jcs-payload",
-  "signature": "base64url-ed25519-signature"
-}
-```
-
-The wrapper is a closed JSON object containing exactly `protected`, `payload`, and `signature`. It has no unprotected `header` member and uses the normal JWS base64url-encoded payload.
-
-The decoded protected header is the closed object:
-
-```json
-{
-  "alg": "Ed25519",
-  "kid": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb#hail-messaging",
-  "typ": "hail-envelope+jws"
-}
-```
-
-Header rules:
-
-- `alg` is the exact string `Ed25519` registered by RFC 9864.
-- The deprecated polymorphic `EdDSA` identifier is not accepted.
-- `kid` is the absolute DID URL of the sender's `#hail-messaging` verification method.
-- `typ` is the exact string `hail-envelope+jws`.
-- All three parameters are protected and required.
-- Unknown protected or unprotected header parameters are rejected in v1.
-- `alg` is selected by this profile, not trusted from arbitrary input; algorithm substitution or fallback is prohibited.
-
-Payload signing procedure:
-
-1. Validate the envelope payload against the complete v1 schema.
-2. Canonicalize the payload using the JSON Canonicalization Scheme in RFC 8785.
-3. UTF-8 encode the canonical JSON.
-4. Base64url encode those bytes without padding to produce the JWS `payload` value.
-5. JCS-canonicalize and UTF-8 encode the protected header.
-6. Base64url encode the protected-header bytes without padding.
-7. Sign the RFC 7515 JWS Signing Input using Ed25519 and the `kid` private key.
-8. Base64url encode the 64-byte signature without padding.
-
-A receiver must reject duplicate member names and invalid UTF-8 in the outer JWS object. It must also require both decoded JSON objects to use their exact JCS byte representations. It must reject duplicate member names, invalid UTF-8, non-I-JSON values, padded or non-canonical base64url, and any decoded payload that does not byte-for-byte equal its RFC 8785 serialization.
+A receiver rejects every non-deterministic or prohibited CBOR/COSE form defined by the shared profile, even when its signature is cryptographically valid.
 
 The `kid` key must resolve under `from`, have controller `from`, use an Ed25519 verification method representation allowed by the Hail DID profile, and be authorized for the `#hail-messaging` role. A valid signature from another key or role is invalid.
 
-RFC 9864 supersedes the older RFC 8037 algorithm identifier for new deployments. The Ed25519 key representation remains compatible with RFC 8037; only the JWS `alg` value changes from `EdDSA` to `Ed25519`.
+RFC 9864 supplies the fully specified COSE `Ed25519` algorithm value `-19`; deprecated polymorphic `EdDSA` value `-8` is rejected.
 
-This signature profile is authoritative for Hail Envelope v1. Reuse by grants, address bindings, or other signed Hail objects requires an object-specific specification so their `typ`, key role, and payload rules remain domain-separated.
+This signature profile is authoritative for Hail Envelope v1. Other signed Hail objects use their own protected content type, key role, and payload rules under the shared profile so they remain domain-separated.
 
 ## Timestamp Validation
 
@@ -369,23 +326,23 @@ The recipient re-checks envelope expiration immediately before committing comple
 
 ## Envelope Size
 
-A POC recipient must accept a valid JWS envelope whose complete UTF-8 JSON representation is no larger than 16384 bytes. It may reject a larger envelope before parsing or cryptographic verification.
+A POC recipient must accept a valid tagged COSE_Sign1 envelope whose complete transmitted representation is no larger than 16384 octets. It may reject a larger envelope before parsing or cryptographic verification.
 
-The limit applies to the transmitted JWS representation before HTTP content decoding. The POC does not apply HTTP content coding to individual envelopes. Batch submission is not part of v1.
+The limit applies to the transmitted COSE representation. The POC does not apply HTTP content coding to individual envelopes. Batch submission is not part of v1.
 
 ## Validation Order
 
 A recipient should process an envelope in this order:
 
 1. Enforce transport requirements and the 16384-byte envelope limit.
-2. Parse only enough JSON to enforce the exact JWS wrapper shape and base64url bounds.
-3. Decode the protected header and payload; reject malformed, non-canonical, unknown, or unsupported fields.
+2. Perform bounded structural CBOR and COSE decoding sufficient to enforce the exact tagged COSE_Sign1 shape.
+3. Decode the protected header and payload; reject malformed, non-deterministic, unknown, or unsupported fields.
 4. Validate inexpensive payload syntax, types, timestamp relationships, and body limits.
 5. Require `to` to identify a local recipient DID served by this endpoint.
 6. Use the claimed authorization fields for a preliminary local grant or sent-message lookup.
 7. If no candidate authorization exists, follow the uniform unauthenticated rejection path without body retrieval or durable protocol-state mutation.
 8. Resolve or load the current `from` DID and exact protected `kid`, refreshing once if cached state lacks the key.
-9. Validate the key controller, Ed25519 algorithm, and `#hail-messaging` role, then verify the JWS signature.
+9. Validate the key controller, Ed25519 algorithm, and `#hail-messaging` role, then verify the COSE signature.
 10. Require the authenticated signer DID to exactly equal `from`.
 11. Atomically check `(from, message_id)`. Return stored state for an identical authenticated retry, reject conflicting content, or reserve a new authenticated pending-validation record.
 12. Apply recipient policy, rate limits, and current timestamp checks. Store any rejection as the terminal result for the reserved message ID.
@@ -409,14 +366,14 @@ The idempotency key is:
 On first successful signature verification for a candidate authorization, the recipient stores at least:
 
 - the idempotency key
-- a SHA-256 digest of the exact canonical payload bytes
+- a SHA-256 digest of the exact deterministic payload bytes
 - the current delivery state or terminal result
 - timestamps needed for retention
 
 Behavior:
 
-- The same key and same canonical payload digest is an idempotent retry and returns the existing state or result.
-- The same key and different canonical payload digest is a permanent message-ID conflict.
+- The same key and same deterministic payload digest is an idempotent retry and returns the existing state or result.
+- The same key and different deterministic payload digest is a permanent message-ID conflict.
 - Concurrent submissions for one key are serialized by the same atomic reservation.
 - Body digest equality has no effect on envelope identity; many messages may intentionally share one body.
 - A sender must not reuse a message ID after any result, including rejection or expiration.
@@ -459,11 +416,11 @@ The bearer token is secret but appears inside the signed envelope payload. Envel
 
 A newly submitted envelope must verify against authoritative PLC state under the Hail recovery-window and cache-refresh rules. A key removed during provider migration cannot authorize new submissions merely because a receiver cached it indefinitely.
 
-Recipients retain the accepted JWS, resolved key material, DID version evidence where available, and acceptance time needed to audit a message after key rotation. Complete historical verification rules remain a shared DID and security-profile concern.
+Recipients retain the accepted COSE representation, resolved key material, DID version evidence where available, and acceptance time needed to audit a message after key rotation. Complete historical verification rules remain a shared DID and security-profile concern.
 
 ### Cross-Protocol Use
 
-The protected `typ`, payload `type`, fixed `alg`, exact key role, and closed schema prevent a valid signature over another Hail object from being reinterpreted as an envelope. Implementations must validate all of these values rather than only checking the cryptographic signature.
+The protected content type, payload `type`, fixed `alg`, exact key role, and closed schema prevent a valid signature over another Hail object from being reinterpreted as an envelope. Implementations must validate all of these values rather than only checking the cryptographic signature.
 
 ### UUID Predictability
 
@@ -471,7 +428,7 @@ UUIDv7 message IDs expose approximate creation order and are not secrets. Author
 
 ### Canonicalization
 
-Receivers reject non-canonical payload and protected-header bytes even when their signatures are cryptographically valid. This gives every accepted semantic envelope one signed byte representation and avoids ambiguity in stored digests and idempotent retries.
+Receivers reject non-deterministic payload, protected-header, or COSE bytes even when their signatures are cryptographically valid. This gives every accepted semantic envelope one signed byte representation and avoids ambiguity in stored digests and idempotent retries.
 
 ## POC Requirements
 
@@ -486,9 +443,9 @@ The proof of concept implements:
 - required creation and expiration timestamps
 - the exact detached body descriptor in this specification
 - explicit reply permission and deadline
-- RFC 8785 JCS payload and protected-header bytes
-- RFC 7515 flattened JWS JSON Serialization
-- RFC 9864 `Ed25519` signatures using `#hail-messaging`
+- deterministic Hail CBOR and tagged COSE_Sign1
+- protected content type `application/hail-envelope+cbor`
+- RFC 9864 COSE `Ed25519` (`-19`) signatures using `#hail-messaging`
 - 300-second timestamp tolerance
 - 16384-byte maximum envelope representation
 - idempotent duplicate handling and conflicting-payload rejection
@@ -502,10 +459,9 @@ Deferred:
 - multiple recipients
 - bulk envelope submission
 - alternate signature algorithms
-- CBOR and COSE representations
 - end-to-end envelope encryption
 - arbitrary extension fields
-- unsigned or unprotected JWS headers
+- unsigned objects or nonempty COSE unprotected headers
 - non-grant authorization other than direct replies
 
 ## Open Questions

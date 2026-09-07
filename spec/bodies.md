@@ -12,7 +12,7 @@ Safe Portable Text document semantics are defined separately in [`../BODY_FORMAT
 
 - The complete body must exist before any referencing envelope is submitted.
 - A published body is immutable.
-- The body digest covers exact uncompressed canonical body bytes.
+- The body digest covers exact uncompressed deterministic body bytes.
 - HTTP compression is a transport concern and does not change body identity.
 - The body endpoint is derived from the sender DID's authenticated `#hail` service.
 - Envelopes must not contain arbitrary body URLs.
@@ -29,7 +29,7 @@ Safe Portable Text document semantics are defined separately in [`../BODY_FORMAT
 Before submitting a Hail Envelope, the sender:
 
 1. Constructs the complete body document.
-2. Encodes it into the canonical uncompressed byte representation.
+2. Encodes it into the deterministic uncompressed byte representation.
 3. Computes its body digest and uncompressed size.
 4. Stores the exact bytes in immutable content-addressed storage.
 5. Makes the body available through its authenticated Hail service.
@@ -38,13 +38,13 @@ Before submitting a Hail Envelope, the sender:
 
 An envelope must never refer to a body that the sender intends to generate later. This avoids acceptance races, inconsistent personalized content, and hash commitments to unavailable data.
 
-## Canonical Body Bytes
+## Deterministic Body Bytes
 
-For the POC, a Hail Body is a Safe Portable Text `spt-1` JSON document.
+For the POC, a Hail Body is a Safe Portable Text `spt-1` map in the Hail Data Model defined by [encoding.md](encoding.md).
 
-The sender canonicalizes the document using the JSON Canonicalization Scheme defined by RFC 8785 and encodes the result as UTF-8. Those bytes are the canonical body bytes.
+The sender encodes the document using deterministic Hail CBOR. Those bytes are the deterministic body bytes.
 
-Example source document:
+Diagnostic JSON for an example source document:
 
 ```json
 {
@@ -67,17 +67,17 @@ Example source document:
 }
 ```
 
-The exact canonical bytes are stored and served. A receiver hashes the bytes it receives after removing HTTP content coding; it does not use a reserialized document to reproduce that digest. After the raw-byte digest succeeds, it separately parses and JCS-canonicalizes the document and requires the result to equal the received bytes.
+The exact deterministic bytes are stored and served. A receiver hashes the bytes it receives after removing HTTP content coding; it does not use a reserialized document to reproduce that digest. After the raw-byte digest succeeds, it performs bounded CBOR decoding, re-encodes under the deterministic Hail profile, and requires the result to equal the received bytes.
 
 ## Body Digest
 
-The POC uses SHA-256 over the exact canonical body bytes.
+The POC uses SHA-256 over the exact deterministic body bytes.
 
-The digest value is encoded using unpadded base64url as defined by RFC 4648.
+Inside a Hail payload, the digest value is exactly 32 bytes. Diagnostic JSON and HTTP text boundaries use unpadded base64url as defined by RFC 4648.
 
-The retrieval path uses this exact value as its `{digest}` segment. A SHA-256 value is exactly 43 ASCII base64url characters, uses no `=` padding or percent encoding, and decodes to exactly 32 bytes.
+The retrieval path uses the digest's exact unpadded base64url rendering as its `{digest}` segment. It is exactly 43 ASCII characters, uses no `=` padding or percent encoding, and decodes to exactly 32 bytes.
 
-Conceptual descriptor fragment:
+Diagnostic JSON for a conceptual descriptor fragment:
 
 ```json
 {
@@ -94,7 +94,7 @@ The digest is not secret. Implementations must not treat knowledge of it as auth
 
 Every envelope contains a signed body descriptor.
 
-Conceptual v1 shape:
+Diagnostic JSON for the conceptual v1 shape. Byte-string values use their base64url diagnostic rendering:
 
 ```json
 {
@@ -104,7 +104,7 @@ Conceptual v1 shape:
       "value": "base64url-sha256-digest"
     },
     "size": 8421,
-    "media_type": "application/spt+json",
+    "media_type": "application/hail-body+cbor",
     "profile": "spt-1",
     "available_until": 1790443200,
     "access": {
@@ -120,7 +120,7 @@ The final placement, naming, and closed v1 schema of this descriptor are defined
 
 ### `digest`
 
-The content digest of the exact uncompressed canonical body bytes.
+The content digest of the exact uncompressed deterministic body bytes. Its `value` is a 32-byte byte string.
 
 ### `size`
 
@@ -128,7 +128,7 @@ The exact uncompressed byte length. A recipient checks this limit before retriev
 
 ### `media_type`
 
-The POC value is `application/spt+json`. This media type is provisional until registration or final specification.
+The POC value is `application/hail-body+cbor`. This media type is provisional until registration or final specification.
 
 ### `profile`
 
@@ -148,7 +148,7 @@ Recipient-specific retrieval authorization covered by the envelope signature.
 
 The POC uses a recipient-specific opaque bearer token.
 
-The sender generates at least 256 bits of cryptographically secure random data and encodes it with unpadded base64url. The same token may be reused for retries of the same envelope but must not be reused for another recipient or unrelated envelope.
+The sender generates exactly 256 bits of cryptographically secure random data and places those 32 bytes in the envelope. The same token may be reused for retries of the same envelope but must not be reused for another recipient or unrelated envelope. HTTP renders it with unpadded base64url.
 
 The sender stores only a cryptographic digest of the token, mapped to:
 
@@ -165,7 +165,7 @@ The recipient presents the token in the HTTP `Authorization` header, never in th
 ```http
 GET /hail/bodies/{digest}
 Authorization: Bearer base64url-random-token
-Accept: application/spt+json
+Accept: application/hail-body+cbor
 Accept-Encoding: gzip
 ```
 
@@ -221,11 +221,11 @@ token C     -> recipient C + body digest
 
 This preserves body deduplication while preventing the digest itself from becoming a public retrieval capability.
 
-Personalized bodies naturally produce different canonical bytes and digests. Senders must not claim two bodies are shared unless every byte is identical.
+Personalized bodies naturally produce different deterministic bytes and digests. Senders must not claim two bodies are shared unless every byte is identical.
 
 ## Recipient Deduplication
 
-A recipient server may already possess verified canonical bytes for a digest from an earlier delivery to the same recipient from the same sender.
+A recipient server may already possess verified deterministic bytes for a digest from an earlier delivery to the same recipient from the same sender.
 
 After authorizing an envelope, the server may satisfy body retrieval from its local content-addressed cache only when the cache has verified provenance for the same recipient DID and sender DID, and when:
 
@@ -265,13 +265,13 @@ Successful response:
 
 ```http
 HTTP/1.1 200 OK
-Content-Type: application/spt+json
+Content-Type: application/hail-body+cbor
 Content-Encoding: gzip
 Cache-Control: private, no-store
 Content-Digest: sha-256=:base64-standard-digest:
 ```
 
-The RFC 9530 `Content-Digest` header is recommended as transport-level integrity metadata. The digest committed by the signed envelope remains authoritative.
+The RFC 9530 `Content-Digest` header is recommended as transport-level integrity metadata. It hashes the HTTP message content, including gzip-coded bytes when `Content-Encoding: gzip` is present. The digest committed by the signed envelope separately hashes the uncompressed deterministic body bytes and remains authoritative for Hail content identity.
 
 The response body may use an allowed HTTP content coding. After bounded decompression, the recipient verifies:
 
@@ -279,7 +279,7 @@ The response body may use an allowed HTTP content coding. After bounded decompre
 2. SHA-256 digest exactly equals the envelope digest.
 3. HTTP media type equals the declared media type.
 4. Body profile equals the declared and supported profile.
-5. The bytes exactly equal the RFC 8785 canonicalization of the parsed JSON document.
+5. The bytes exactly equal the deterministic Hail CBOR re-encoding of the parsed item.
 6. The SPT document passes strict schema and resource-limit validation.
 
 The recipient does not render or store the message as delivered until all checks succeed.
@@ -289,7 +289,7 @@ The recipient does not render or store the message as delivered until all checks
 Compression is outside body identity.
 
 ```text
-canonical uncompressed bytes -> size and SHA-256 body digest
+deterministic uncompressed bytes -> size and SHA-256 body digest
 HTTP content coding          -> transfer optimization only
 ```
 
@@ -381,11 +381,11 @@ The same digest indicates byte-identical content. DIDs and envelopes are not glo
 The proof of concept implements:
 
 - body creation before envelope submission
-- immutable JCS-canonicalized `spt-1` JSON bytes
+- immutable deterministic-CBOR `spt-1` bytes
 - SHA-256 digest over uncompressed bytes
-- unpadded base64url digest representation
+- 32-byte digest values with unpadded base64url HTTP rendering
 - exact uncompressed size declaration
-- provisional `application/spt+json` media type
+- provisional `application/hail-body+cbor` media type
 - recipient pull from the authenticated sender Hail service
 - one random 256-bit bearer token per recipient envelope
 - token presentation in the HTTP `Authorization` header

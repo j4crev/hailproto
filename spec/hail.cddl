@@ -1,0 +1,197 @@
+; Hail v1 structural schemas
+;
+; Status: Draft
+;
+; This file defines the structural Hail Data Model shapes used by the v1
+; specifications. The Markdown object specifications remain authoritative for
+; semantic constraints, conditional fields, identifier grammars, ordering,
+; normalization, and cross-field validation.
+
+start =
+  hail-address-binding /
+  hail-sender-profile /
+  hail-grant /
+  hail-envelope /
+  hail-delivery-status /
+  hail-body-spt-1
+
+hail-int = -9007199254740991..9007199254740991
+hail-uint = 0..9007199254740991
+hail-positive = 1..9007199254740991
+timestamp = hail-uint
+did = tstr
+did-url = tstr
+uuidv7 = tstr
+category-id = tstr
+sha256 = bstr .size 32
+bearer-token = bstr .size 32
+
+digest = {
+  "algorithm": "sha-256",
+  "value": sha256
+}
+
+hail-address-binding = {
+  "version": 1,
+  "type": "hail.address-binding",
+  "address": tstr,
+  "did": did,
+  "issued_at": timestamp,
+  "expires_at": timestamp,
+  "key_id": did-url
+}
+
+hail-sender-profile = {
+  "type": "hail.sender-profile",
+  "version": 1,
+  "did": did,
+  "revision": hail-positive,
+  "display_name": tstr,
+  ? "description": tstr,
+  "offers_uncategorized": bool,
+  "categories": [0*100 sender-category],
+  "updated_at": timestamp,
+  "key_id": did-url
+}
+
+sender-category = {
+  "id": category-id,
+  "label": tstr,
+  ? "description": tstr
+}
+
+hail-grant = {
+  "type": "hail.grant",
+  "version": 1,
+  "grant_id": uuidv7,
+  "revision": hail-positive,
+  "previous": null / sha256,
+  "grantor": did,
+  "grantee": did,
+  "scope": [grant-scope],
+  "status": "active" / "revoked",
+  "issued_at": timestamp,
+  "updated_at": timestamp,
+  "expires_at": null / timestamp,
+  "consent_context": consent-context,
+  "key_id": did-url
+}
+
+grant-scope = category-scope / uncategorized-scope
+
+category-scope = {
+  "type": "categories",
+  "values": [1* category-id]
+}
+
+uncategorized-scope = {
+  "type": "uncategorized"
+}
+
+consent-context = {
+  "grantee_address": tstr,
+  "address_binding_hash": digest,
+  "sender_profile_hash": digest
+}
+
+hail-envelope = {
+  "type": "hail.envelope",
+  "version": 1,
+  "message_id": uuidv7,
+  "from": did,
+  "to": did,
+  "authorization": envelope-authorization,
+  ? "category": category-id,
+  ? "message_type": message-type,
+  "created_at": timestamp,
+  "expires_at": timestamp,
+  "body": body-descriptor,
+  "reply": reply-permission
+}
+
+envelope-authorization = grant-authorization / reply-authorization
+
+grant-authorization = {
+  "type": "grant",
+  "grant_id": uuidv7
+}
+
+reply-authorization = {
+  "type": "reply",
+  "reply_to": uuidv7
+}
+
+message-type =
+  "personal" /
+  "newsletter" /
+  "promotion" /
+  "receipt" /
+  "invoice" /
+  "ticket" /
+  "boarding-pass" /
+  "account-alert" /
+  "security-alert" /
+  "package-update" /
+  "calendar-event"
+
+body-descriptor = {
+  "digest": digest,
+  "size": 1..262144,
+  "media_type": "application/hail-body+cbor",
+  "profile": "spt-1",
+  "available_until": timestamp,
+  "access": bearer-access
+}
+
+bearer-access = {
+  "type": "bearer",
+  "token": bearer-token,
+  "expires_at": timestamp
+}
+
+reply-permission = replies-prohibited / replies-permitted
+
+replies-prohibited = {
+  "allowed": false
+}
+
+replies-permitted = {
+  "allowed": true,
+  "until": timestamp
+}
+
+hail-delivery-status = {
+  "type": "hail.delivery-status",
+  "version": 1,
+  "message_id": uuidv7,
+  "envelope_digest": digest,
+  "from": did,
+  "to": did,
+  "revision": hail-positive,
+  "state": delivery-state,
+  ? "reason": tstr,
+  ? "retry_at": timestamp,
+  "occurred_at": timestamp
+}
+
+delivery-state = "accepted" / "on-hold" / "delivered" / "failed" / "cancelled"
+
+; The initial spt-1 POC supports plain text in Portable Text-shaped blocks.
+hail-body-spt-1 = {
+  "version": 1,
+  "profile": "spt-1",
+  "blocks": [* spt-text-block]
+}
+
+spt-text-block = {
+  "_type": "block",
+  "style": "normal",
+  "children": [1* spt-span],
+  "markDefs": []
+}
+
+spt-span = {
+  "_type": "span",
+  "text": tstr,
+  "marks": []
+}

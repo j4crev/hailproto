@@ -20,7 +20,7 @@ The client displays the separately verified Hail address with the profile. The p
 
 ## Payload
 
-Conceptual v1 payload:
+Diagnostic JSON for the conceptual v1 payload:
 
 ```json
 {
@@ -48,7 +48,7 @@ Conceptual v1 payload:
 }
 ```
 
-The payload is a closed JSON object. Unknown fields are rejected in v1.
+The payload is a closed Hail map under [encoding.md](encoding.md). Unknown fields are rejected in v1.
 
 ## Fields
 
@@ -98,52 +98,21 @@ Required non-negative Unix timestamp in seconds. It changes with every revision 
 
 ### `key_id`
 
-The exact absolute DID URL formed from `did` and `#hail-messaging`. It must equal the protected JWS `kid` and identify the currently authorized Hail messaging key under the PLC rules in [did-profile.md](did-profile.md).
+The exact absolute DID URL formed from `did` and `#hail-messaging`. Its UTF-8 bytes must equal the protected COSE `kid` and identify the currently authorized Hail messaging key under the PLC rules in [did-profile.md](did-profile.md).
 
 ## Signature And Representation
 
-Hail Sender Profile v1 uses RFC 8785 canonical JSON in RFC 7515 flattened JWS JSON Serialization. The complete wrapper is a closed object containing exactly `payload`, `protected`, and `signature`; unprotected headers are prohibited.
-
-Conceptual wrapper:
-
-```json
-{
-  "payload": "base64url-jcs-sender-profile-payload",
-  "protected": "base64url-protected-header",
-  "signature": "base64url-ed25519-signature"
-}
-```
-
-The decoded protected header is the closed object:
-
-```json
-{
-  "alg": "Ed25519",
-  "kid": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb#hail-messaging",
-  "typ": "hail-sender-profile+jws"
-}
-```
-
-Rules:
-
-- `alg` is the RFC 9864 value `Ed25519`; another algorithm or fallback is rejected.
-- `kid` exactly equals payload `key_id` and is authorized for `#hail-messaging` under the profile DID.
-- `typ` is the exact string `hail-sender-profile+jws`.
-- Unknown protected parameters and all unprotected parameters are rejected.
-- Payload and protected-header bytes are base64url encoded without padding and signed using the RFC 7515 JWS Signing Input.
-- Duplicate member names, invalid UTF-8, non-I-JSON values, padded or noncanonical base64url, non-NFC profile text, and decoded payload or header bytes that are not their exact JCS representations are rejected.
-
-The media type is the parameterless value:
+Hail Sender Profile v1 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md). Its protected content type is:
 
 ```text
-application/hail-sender-profile+json
+application/hail-sender-profile+cbor
 ```
 
 V1 applies no HTTP content coding to the signed representation.
 
 ## Representation Digest
 
-The Sender Profile digest is SHA-256 over the exact complete canonical flattened JWS bytes, including the payload, protected header, and signature. It is encoded as exactly 43 unpadded base64url characters representing 32 bytes.
+The Sender Profile representation digest is SHA-256 over the complete signed representation bytes, including protected headers, payload, and signature. A Hail payload carries it as exactly 32 bytes; an HTTP ETag or diagnostic value uses the exact 43-character unpadded base64url rendering defined by [encoding.md](encoding.md).
 
 Every grant's required `consent_context` includes `sender_profile_hash`, which records the profile reviewed during consent. The grantor retains the exact signed profile and its PLC verification evidence with that consent evidence. The digest is evidence of presentation context; delivery authorization still comes exclusively from the signed grant's DID parties and scope.
 
@@ -155,7 +124,7 @@ The HTTPS binding defines:
 GET {sender-hail-service-base}/profiles/{sender_did}
 ```
 
-The complete canonical `did:plc` value is inserted as one literal path segment without percent encoding. The response is public, but its JWS is still required so profile evidence remains verifiable after retrieval and storage.
+The complete canonical `did:plc` value is inserted as one literal path segment without percent encoding. The response is public, but its signed COSE representation is still required so profile evidence remains verifiable after retrieval and storage.
 
 Clients do not follow redirects. Provider migration is discovered through PLC. A client may retry at a newly resolved Hail service under the endpoint-refresh rules in [http-binding.md](http-binding.md).
 
@@ -173,7 +142,7 @@ The recipient creates and signs the grant or instructs its own provider to do so
 
 ## Security And Privacy
 
-Sender Profiles are public and may be copied or indexed. They contain no recipient-specific state and must not reveal subscriber counts, grant existence, delivery history, or other relationship information. (It may or may not be beneficial to show unique subscriber counts across the profile or for each "category" as a partial way of verifying identity - e.g. "The Rock" wouldn't have only 2 subscribers in a mature ecosystem)
+Sender Profiles are public and may be copied or indexed. They contain no recipient-specific state and must not reveal subscriber counts, grant existence, delivery history, or other relationship information.
 
 Search indexes can omit, reorder, or forge profile metadata. Clients treat search results only as discovery hints and verify the address, DID, current signed profile, and profile-to-DID match before consent.
 
@@ -187,8 +156,8 @@ The POC implements:
 - deterministic retrieval from the sender's PLC-discovered Hail service
 - revision and rollback checks
 - `#hail-messaging` Ed25519 signatures
-- RFC 8785 canonical flattened JWS
-- `application/hail-sender-profile+json`
+- deterministic Hail CBOR and tagged COSE_Sign1
+- protected content type `application/hail-sender-profile+cbor`
 - 65536-byte maximum signed representation
 - no redirects or HTTP content coding
 - required Sender Profile digest in grant consent context

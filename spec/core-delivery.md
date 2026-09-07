@@ -136,14 +136,14 @@ For core delivery:
 
 ### 5. Hail Envelope Construction
 
-Hail Envelope construction, grant and reply authorization, the exact body descriptor, RFC 8785 canonicalization, RFC 7515 JWS representation, RFC 9864 Ed25519 signatures, timestamps, and replay behavior are defined in [envelopes.md](envelopes.md).
+Hail Envelope construction, grant and reply authorization, the exact body descriptor, deterministic Hail CBOR, tagged COSE_Sign1, RFC 9864 Ed25519 signatures, timestamps, and replay behavior are defined in [envelopes.md](envelopes.md).
 
 For core delivery:
 
 - Each envelope has exactly one sender DID and one recipient DID.
 - The sender-scoped UUIDv7 `message_id` forms the idempotency key with the authenticated sender DID.
 - `created_at` and `expires_at` are required.
-- Every semantic payload field and the signing key ID are protected by the JWS.
+- Every semantic payload field and the signing key ID are protected by COSE.
 - Grant-authorized delivery carries `authorization.grant_id`; reply delivery uses a prior message's signed reply permission.
 - The POC envelope is not HTTP-compressed and never includes arbitrary body or reply URLs.
 
@@ -155,7 +155,7 @@ For core delivery:
 - An authenticated sender with a current or previous relationship may receive a detailed current result when privacy permits.
 - Terminal delivery status is reported asynchronously with a signed status snapshot.
 - The POC requires support for complete envelope representations through 16384 bytes, as defined in [envelopes.md](envelopes.md).
-- V1 requires no transport authentication in addition to HTTPS and the envelope JWS. Private deployment controls carry no Hail protocol semantics and never replace JWS verification.
+- V1 requires no transport authentication in addition to HTTPS and the envelope COSE signature. Private deployment controls carry no Hail protocol semantics and never replace COSE verification.
 - The body retrieval location is derived from authenticated sender discovery rather than supplied by the envelope.
 - What request identifier supports tracing without becoming part of message identity?
 
@@ -181,7 +181,7 @@ Acceptance durably fixes authorization and queues body processing. Delivery comp
 
 ### 10. Idempotency And Replay Protection
 
-Idempotency and replay protection are defined in [envelopes.md](envelopes.md). The authenticated sender DID plus `message_id` is the key. Identical canonical payloads reuse existing state, conflicting payloads are rejected, concurrent submissions are serialized, IDs are never reused, and body digest has no role in message identity.
+Idempotency and replay protection are defined in [envelopes.md](envelopes.md). The authenticated sender DID plus `message_id` is the key. Identical deterministic payloads reuse existing state, conflicting payloads are rejected, concurrent submissions are serialized, IDs are never reused, and body digest has no role in message identity.
 
 ### 11. Retry Behavior
 
@@ -211,7 +211,7 @@ temporarily-unavailable
 
 Before a sender is authenticated with a current or previous relationship, protected failures return the same generic `202`/`received` response under a common measured bounded response schedule. The generic response contains no query handle or acceptance promise. Eligible authenticated senders may receive detailed current results; human-readable `detail` may mention already-known causes such as `grant-revoked` and `category-not-granted`, but clients do not parse it for protocol behavior. Every explicit unsuccessful HTTP response uses RFC 9457 Problem Details, but its fields disclose no more than the caller's tier permits. Protected failures concealed by the generic receipt are not exposed as Problem Details responses. Safe transport errors, detailed disclosure, and retry classifications are defined in [http-binding.md](http-binding.md).
 
-The generic receipt uses `202` with `application/json`; an authenticated successful result uses `200` with an `application/jose+json` signed delivery-status snapshot. Detailed envelope error status codes and the v1 RFC 9457 profile are fixed by the HTTP binding. The error media type is `application/problem+json`.
+The generic receipt uses `202` with `application/json`; an authenticated successful result uses `200` with an `application/cose; cose-type="cose-sign1"` signed delivery-status snapshot. Detailed envelope error status codes and the v1 RFC 9457 profile are fixed by the HTTP binding. The error media type is `application/problem+json`.
 
 ### 14. Resource And Abuse Limits
 

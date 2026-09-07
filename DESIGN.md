@@ -235,7 +235,7 @@ The POC uses one content-addressed body for any number of byte-identical message
 
 The envelope is compact and carries only data needed for routing, authorization, presentation, threading, and body retrieval.
 
-V1 uses one recipient per envelope, UUIDv7 message IDs scoped by sender DID, grant or reply authorization, required timestamps, a signed detached body descriptor, and explicit reply behavior. The payload uses RFC 8785 canonical JSON in an RFC 7515 flattened JWS signed with the sender's `#hail-messaging` key and the RFC 9864 `Ed25519` algorithm identifier.
+V1 uses one recipient per envelope, UUIDv7 message IDs scoped by sender DID, grant or reply authorization, required timestamps, a signed detached body descriptor, and explicit reply behavior. The payload uses deterministic Hail CBOR in tagged COSE_Sign1 signed with the sender's `#hail-messaging` key and the RFC 9864 fully specified COSE `Ed25519` algorithm.
 
 The complete schema, signature profile, validation order, and replay behavior are defined in [`spec/envelopes.md`](spec/envelopes.md). Detached body behavior is defined in [`spec/bodies.md`](spec/bodies.md).
 
@@ -293,7 +293,7 @@ V1 should not depend on arbitrary HTML as the long-term rich message format.
 
 The preferred direction is a structured block document model: a schema-validated tree of typed blocks and inline nodes. This makes unsafe behavior inexpressible instead of relying on sanitization after parsing untrusted markup.
 
-Long-term body model examples:
+Diagnostic JSON for possible long-term body models:
 
 ```json
 {
@@ -307,13 +307,21 @@ Long-term body model examples:
 }
 ```
 
-For the proof of concept, plain text is sufficient, but it should still be wrapped in a versioned body structure:
+For the proof of concept, plain text is sufficient, but it should still be wrapped in a versioned body structure. The shown JSON is diagnostic rather than wire data:
 
 ```json
 {
   "version": 1,
+  "profile": "spt-1",
   "blocks": [
-    { "type": "text", "text": "Hello from the prototype." }
+    {
+      "_type": "block",
+      "style": "normal",
+      "children": [
+        { "_type": "span", "text": "Hello from the prototype.", "marks": [] }
+      ],
+      "markDefs": []
+    }
   ]
 }
 ```
@@ -363,30 +371,18 @@ spt-asset:hero
 
 ## Encoding And Compression
 
-The logical message model should be JSON-compatible.
+The logical message model is deliberately JSON-shaped, but the sole authoritative v1 federation representation for Hail-owned objects and bodies is deterministic CBOR. Application developers may use diagnostic JSON, generated models, or provider-local JSON APIs without implementing the wire codec.
 
-Likely v1 baseline:
+V1 detached-body transfer:
 
 ```text
-Content-Type: application/hail+json
+Content-Type: application/hail-body+cbor
 Content-Encoding: gzip
 ```
 
-Possible optional advanced support:
+Signed objects use tagged COSE_Sign1 and are not HTTP-compressed. WebFinger, rendered DID documents, Problem Details, and generic receipts retain their externally defined JSON representations. Zstd remains a separate future body-transfer decision.
 
-```text
-Content-Type: application/hail+cbor
-Content-Encoding: zstd
-```
-
-JSON keeps the barrier to entry low for hobbyists and independent developers. CBOR, COSE, and zstd are attractive for efficiency and standards alignment, but they add implementation and debugging complexity.
-
-The long-term efficient profile may use:
-
-- CBOR or DAG-CBOR for compact deterministic encoding
-- CDDL for schemas
-- COSE for signatures
-- zstd for compression
+The shared codec, schemas, generated models, diagnostic converters, and conformance vectors keep CBOR and COSE mechanics out of ordinary application code. Hail follows the constrained-data-model precedent of DRISL and AT Protocol where useful but does not require AT Protocol interoperability, CIDs, CAR files, or repository structures.
 
 ## Signatures
 
@@ -394,19 +390,14 @@ Hail Envelopes and routine server objects must be signed with the sender DID's a
 
 The Hail Envelope v1 profile uses:
 
-- canonical JSON using RFC 8785 JSON Canonicalization Scheme
-- RFC 7515 flattened JWS JSON Serialization
-- the RFC 9864 `Ed25519` algorithm identifier
+- deterministic Hail CBOR
+- tagged COSE_Sign1 with embedded payload
+- the RFC 9864 fully specified COSE `Ed25519` algorithm value `-19`
 - the sender DID's `#hail-messaging` key
 
-This exact profile is defined in [`spec/envelopes.md`](spec/envelopes.md). Other signed Hail object types require object-specific profiles so their types and key roles remain domain-separated.
+The common profile is defined in [`spec/encoding.md`](spec/encoding.md), and envelope-specific rules are defined in [`spec/envelopes.md`](spec/envelopes.md). Every signed object has an exact protected content type and key role so types remain domain-separated.
 
-Possible later approach:
-
-- CBOR
-- COSE signatures
-
-Canonicalization means converting data into exactly one byte representation before signing. Without this, semantically identical JSON can have different byte encodings and break signatures.
+Deterministic encoding produces exactly one accepted byte representation before signing or hashing. Receivers reject alternate valid-CBOR spellings to prevent ambiguous signatures, digests, and replay identities.
 
 ## Server-To-Server Delivery
 

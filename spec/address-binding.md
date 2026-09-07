@@ -111,14 +111,14 @@ Conceptual response:
   "links": [
     {
       "rel": "https://hailproto.com/rel/address-binding",
-      "type": "application/hail-address-binding+json",
+      "type": "application/cose; cose-type=\"cose-sign1\"",
       "href": "https://example.com/.well-known/hail/addresses/alice"
     }
   ]
 }
 ```
 
-The `rel` request parameter is a response filter, not a guarantee that the returned JRD contains only that relation. A verifier requires the JRD `subject` to exactly equal the canonical `acct:` URI and selects exactly one link whose `rel` and `type` exactly equal the Hail values above. No match or multiple matches fail address verification.
+The `rel` request parameter is a response filter, not a guarantee that the returned JRD contains only that relation. A verifier requires the JRD `subject` to exactly equal the canonical `acct:` URI and selects exactly one link whose `rel` equals the Hail relation and whose parsed `type` is equivalent to the Hail COSE media type above. No match or multiple matches fail address verification.
 
 The WebFinger response proves that the address domain selected the binding resource. The binding `href` may use a different origin, allowing delegated providers and CDNs, but the client must first obtain that URL from the address domain's authenticated WebFinger response.
 
@@ -132,7 +132,7 @@ The final WebFinger response must be `200 OK` with exact parameterless `Content-
 
 ## Binding Payload
 
-Conceptual signed payload:
+Diagnostic JSON for the conceptual signed payload:
 
 ```json
 {
@@ -164,60 +164,27 @@ Unknown payload fields are rejected in v1.
 
 ## Signature And Representation Profile
 
-Hail Address Binding v1 uses RFC 8785 canonical JSON in RFC 7515 flattened JWS JSON Serialization. The complete wrapper is a closed JSON object containing exactly `payload`, `protected`, and `signature`; an unprotected `header` member is prohibited.
-
-Conceptual wrapper, shown in canonical member order:
-
-```json
-{
-  "payload": "base64url-jcs-address-binding-payload",
-  "protected": "base64url-protected-header",
-  "signature": "base64url-ed25519-signature"
-}
-```
-
-The decoded protected header is the closed object:
-
-```json
-{
-  "alg": "Ed25519",
-  "kid": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
-  "typ": "hail-address-binding+jws"
-}
-```
-
-Rules:
-
-- The payload, protected header, and complete flattened JWS wrapper use their exact RFC 8785 canonical UTF-8 representations.
-- `alg` is the RFC 9864 value `Ed25519`; `EdDSA`, other algorithms, negotiation, and fallback are rejected in v1.
-- `kid` is an absolute DID URL under the payload's `did`, has that DID as its controller, and identifies its authorized `#hail-identity` verification method.
-- Protected `kid` exactly equals payload `key_id`.
-- `typ` is the exact string `hail-address-binding+jws`.
-- All three protected parameters are required. Unknown protected parameters and all unprotected parameters are rejected.
-- Payload and protected-header bytes are base64url encoded without padding and signed using the RFC 7515 JWS Signing Input.
-- Duplicate member names, invalid UTF-8, non-I-JSON values, padded or noncanonical base64url, and decoded payload or header bytes that are not their exact JCS representations are rejected.
-
-The complete canonical JWS bytes are the immutable signed representation of one Address Binding. A verifier retains and hashes those exact bytes rather than parsing and reserializing the binding.
+Hail Address Binding v1 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md), with protected content type `application/hail-address-binding+cbor` and the `#hail-identity` key role. The protected `kid` is the UTF-8 encoding of payload `key_id`. The complete signed representation bytes are immutable evidence; a verifier retains and hashes those exact bytes rather than parsing and reserializing the binding.
 
 ## Retrieval Representation And Limits
 
 The WebFinger link and binding response use the v1 media type:
 
 ```text
-application/hail-address-binding+json
+application/cose; cose-type="cose-sign1"
 ```
 
-The media type contains the flattened JWS wrapper and carries no parameters. A verifier requests it with `Accept: application/hail-address-binding+json` and `Accept-Encoding: identity`. A successful binding retrieval returns `200 OK` with that exact parameterless `Content-Type` and no `Content-Encoding`. A verifier rejects another success status, a different or parameterized media type, or any HTTP content coding.
+The media type contains tagged COSE_Sign1 with protected content type `application/hail-address-binding+cbor`. A verifier requests it with `Accept: application/cose; cose-type="cose-sign1"` and `Accept-Encoding: identity`. A successful binding retrieval returns `200 OK` with an equivalent parsed `Content-Type` under [encoding.md](encoding.md) and no `Content-Encoding`. A verifier rejects another success status, a different parsed media type, or any HTTP content coding. The WebFinger link `type` is compared using the same parsed media-type rules.
 
-A conforming publisher produces, and a conforming verifier accepts, complete valid Address Binding JWS representations through 16384 bytes. A verifier rejects a larger response before cryptographic verification. This limit applies to the transmitted UTF-8 representation; the WebFinger JRD has a separate response-size limit.
+A conforming publisher produces, and a conforming verifier accepts, complete valid Address Binding COSE representations through 16384 octets. A verifier rejects a larger response before cryptographic verification. The WebFinger JRD has a separate response-size limit.
 
 The binding `href` must be an absolute HTTPS URL with a public ASCII DNS hostname in canonical IDNA A-label form. It contains no username, password, query, or fragment and does not use an IP-address hostname. Binding retrieval does not follow redirects; any `3xx` response fails verification. It uses a 5-second connection timeout, a 10-second total response deadline, normal TLS hostname and certificate validation, the same per-connection DNS and public-address checks as WebFinger, and sends no credentials, cookies, or referrer information. Cross-origin retrieval receives no ambient authority beyond the URL selected by the address domain.
 
 ## Binding Representation Digest
 
-The Address Binding representation digest is SHA-256 over the complete exact canonical flattened JWS bytes, including the protected header, payload, and signature. Its value is encoded as exactly 43 unpadded base64url characters representing 32 digest bytes.
+The Address Binding representation digest is SHA-256 over the complete signed representation bytes, including the protected header, payload, and signature. A Hail payload carries the digest as exactly 32 bytes; its diagnostic or HTTP text rendering is exactly 43 unpadded base64url characters.
 
-Every grant's required `consent_context` records the binding used during consent, and its `address_binding_hash` commits to this digest. The recipient retains the exact Address Binding JWS and its DID-resolution verification evidence for as long as it retains the corresponding grant revision or consent evidence, subject to the historical DID evidence rules still to be finalized. The digest identifies the signer key, signature, and payload that were verified.
+Every grant's required `consent_context` records the binding used during consent, and its `address_binding_hash` commits to this digest. The recipient retains the exact Address Binding COSE representation and its DID-resolution verification evidence for as long as it retains the corresponding grant revision or consent evidence, subject to the historical DID evidence rules still to be finalized. The digest identifies the signer key, signature, and payload that were verified.
 
 ## Verification Algorithm
 
@@ -234,7 +201,7 @@ Given a user-supplied Hail address, a verifier:
 9. Checks `issued_at` and `expires_at` using the allowed clock-skew policy.
 10. Resolves the exact `did:plc` DID from the binding through a conforming PLC resolver.
 11. Requires `key_id` to be that DID's `#hail-identity` verification method as defined by [did-profile.md](did-profile.md).
-12. Verifies the flattened JWS and exact canonical representation under the Address Binding signature profile.
+12. Verifies the tagged COSE_Sign1 and exact deterministic representation under the Address Binding signature profile.
 13. Returns the verified DID and binding expiration.
 
 Any mismatch or ambiguity causes address verification to fail.
@@ -338,9 +305,9 @@ The POC needs:
 - one signed binding payload
 - `did:plc` resolution
 - 90-day maximum binding lifetime, 300-second clock tolerance, and one-hour maximum cache
-- RFC 8785 canonical payload, protected header, and flattened JWS wrapper
-- RFC 9864 `Ed25519` signature verification using `#hail-identity`
-- `application/hail-address-binding+json` with no HTTP content coding
+- deterministic Hail CBOR and tagged COSE_Sign1
+- RFC 9864 COSE `Ed25519` (`-19`) signature verification using `#hail-identity`
+- `application/cose; cose-type="cose-sign1"` with protected content type `application/hail-address-binding+cbor` and no HTTP content coding
 - 16384-byte maximum complete binding representation
 - strict fetch limits
 

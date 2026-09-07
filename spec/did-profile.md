@@ -25,7 +25,7 @@ A Hail DID is exactly 32 lowercase ASCII characters and matches:
 did:plc:[a-z2-7]{24}
 ```
 
-Case folding is not performed. A producer emits, and a consumer requires, this canonical form. A `key_id` or JWS `kid` is the canonical DID followed by the exact fragment required for its role.
+Case folding is not performed. A producer emits, and a consumer requires, this canonical form. A `key_id` is the canonical DID followed by the exact fragment required for its role; protected COSE `kid` contains that absolute DID URL's UTF-8 bytes.
 
 ## Required Entries
 
@@ -81,7 +81,7 @@ An Ed25519 Hail verification method uses the W3C Multikey representation:
 
 The PLC operation stores each Hail key as an Ed25519 `did:key` value. Its multibase identifier encodes the same `ed25519-pub` multicodec prefix and public-key bytes; DID resolution renders the corresponding Hail Multikey verification method.
 
-Every Hail v1 JWS uses the fully specified RFC 9864 `Ed25519` algorithm identifier. The deprecated polymorphic `EdDSA` identifier is not accepted. Signature wrappers remain object-specific even though they use the same key algorithm. Supporting another algorithm requires a future versioned Hail security profile that defines its key representation, object applicability, negotiation, downgrade prevention, and migration behavior; adding an arbitrary optional algorithm to v1 is prohibited.
+Every Hail v1 COSE_Sign1 uses the fully specified RFC 9864 COSE `Ed25519` algorithm value `-19`. The deprecated polymorphic `EdDSA` value `-8` is not accepted. Protected content types and key roles remain object-specific even though every object uses the same key algorithm. Supporting another algorithm requires a future versioned Hail security profile that defines its key representation, object applicability, negotiation, downgrade prevention, and migration behavior; adding an arbitrary optional algorithm to v1 is prohibited.
 
 ## Hail Identity Key
 
@@ -141,15 +141,15 @@ Each PLC rotation key acts unilaterally; the ordered list is a priority and reco
 
 When validating a Hail signature, an implementation:
 
-1. Takes the signer DID and `key_id` from the signed object or its signature wrapper and validates their canonical `did:plc` syntax.
+1. Takes the signer DID and `key_id` or protected COSE `kid` from the signed object and validates their canonical `did:plc` syntax and exact UTF-8 encoding.
 2. Resolves the exact DID through a PLC resolver.
 3. Requires the resolved DID document `id` to exactly equal the canonical signer DID.
 4. Requires `key_id` to be an absolute DID URL under the signer DID.
 5. Expands relative verification-method IDs against the resolved document DID and locates exactly one top-level verification method with the resulting absolute ID.
 6. Requires the verification method controller to equal the signer DID.
-7. Requires the key type and algorithm to be allowed by this DID profile and the signed object's security profile.
+7. Requires the key type, protected COSE algorithm, and content type to be allowed by this DID profile and the signed object's security profile.
 8. Requires the key fragment to authorize the operation type.
-9. Verifies the signature over the canonical signed payload.
+9. Verifies the tagged COSE_Sign1 signature over the RFC 9052 `Sig_structure`, which binds the protected headers, empty external AAD, and deterministic payload under [encoding.md](encoding.md).
 
 Role rules:
 
@@ -158,7 +158,7 @@ Hail Grant            -> #hail-identity
 Hail Address Binding  -> #hail-identity
 Hail Envelope         -> #hail-messaging
 Reply Envelope        -> #hail-messaging
-Delivery Receipt      -> #hail-messaging
+Delivery Status       -> #hail-messaging
 Sender Profile        -> #hail-messaging
 ```
 
@@ -198,7 +198,7 @@ Conceptual PLC state:
 
 PLC renders those entries as DID document verification methods and a service. Because PLC's rendered document does not necessarily express Hail's roles through standard verification relationships, the exact fragments defined by this profile provide the role authorization for `did:plc`.
 
-The PLC operation is a full state snapshot. Creation and every update retain all intended rotation keys, verification methods, aliases, and services; omitting an existing entry removes it from current state. The encoded operation must remain within PLC's 7500-byte DAG-CBOR limit, and the state must remain within PLC's limit of ten verification methods. Hail requires two of those methods.
+The PLC operation is a full state snapshot. Creation and every update retain all intended rotation keys, verification methods, aliases, and services; omitting an existing entry removes it from current state. The encoded operation must remain within PLC's 7500-byte DAG-CBOR limit, and the state must remain within PLC's limit of ten verification methods. Hail requires two of those methods. PLC DAG-CBOR is an external DID-method encoding and is distinct from Hail's deterministic CBOR profile.
 
 A newly created Hail identity uses the regular `plc_operation` format, not the deprecated legacy `create` format. An existing PLC identity can enable Hail by publishing an update that adds the two Hail verification methods and Hail service while preserving every unrelated state entry. An identity with fewer than two free verification-method slots cannot enable Hail without first removing other methods.
 

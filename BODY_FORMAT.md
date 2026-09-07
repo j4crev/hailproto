@@ -8,7 +8,7 @@ The preferred direction is not raw HTML. It is a structured visual document form
 
 Authoring format and wire format do not need to be the same thing.
 
-Senders may use visual composers, drag-and-drop editors, templates, or conversion tools. The transmitted body should be a schema-validated document structure, not arbitrary markup.
+Senders may use visual composers, drag-and-drop editors, templates, or conversion tools. The transmitted body is a schema-validated deterministic Hail CBOR document, not arbitrary markup. JSON-shaped authoring and diagnostic forms remain available to tools and provider-local APIs.
 
 ```text
 Sender composer -> Hail Body document -> recipient client renderer -> safe UI
@@ -45,7 +45,9 @@ A Hail Body should mimic Portable Text's general shape while allowing only a str
 
 A Hail Body should be a tree of typed blocks and inline content, plus optional theme tokens and declared asset references.
 
-Example:
+Every JSON example in this document is an authoring or diagnostic projection. It is not a Hail federation wire representation and is never hashed directly.
+
+Diagnostic JSON example:
 
 ```json
 {
@@ -90,7 +92,7 @@ Hail should start with a constrained Portable Text-like profile rather than arbi
 
 Portable Text uses arrays of blocks, where text blocks contain child spans and mark definitions. Hail can preserve that familiar syntax while restricting what is valid.
 
-Starter document shape:
+Diagnostic JSON for the starter document shape:
 
 ```json
 {
@@ -557,7 +559,7 @@ Portable Text is an open JSON-based rich text specification originally from Sani
 Strengths:
 
 - open specification
-- JSON-based and easy to inspect
+- JSON-shaped and easy to inspect through diagnostic tools
 - good model for spans, marks, annotations, and rich text
 - supports custom block types
 - avoids raw HTML as the primary content representation
@@ -607,17 +609,20 @@ This captures the benefits of Portable Text without outsourcing Hail's security 
 
 ## POC Recommendation
 
-For the prototype, use the body structure even if only plain text is supported.
+For the prototype, use the `spt-1` `_type: "block"` and `_type: "span"` structure defined in `spec/bodies.md`, even if only plain text is supported. Its authoring and diagnostic JSON form is:
 
 ```json
 {
   "version": 1,
+  "profile": "spt-1",
   "blocks": [
     {
-      "type": "paragraph",
-      "inlines": [
-        { "type": "text", "text": "Hello from the prototype." }
-      ]
+      "_type": "block",
+      "style": "normal",
+      "children": [
+        { "_type": "span", "text": "Hello from the prototype.", "marks": [] }
+      ],
+      "markDefs": []
     }
   ]
 }
@@ -635,11 +640,10 @@ This keeps the prototype simple while preserving the path to a richer block docu
 - Define design tokens.
 - Define fallback rules for unsupported blocks.
 - Define renderer conformance tests.
-- Define whether body documents are JSON, CBOR, or both.
 - Define how semantic message types like receipts and itineraries map to visual blocks.
 
 ## Current Recommendation
 
 Use a structured visual document format, not raw HTML.
 
-For v1, define a strict Hail Body profile that uses Safe Portable Text: a Portable Text-inspired profile with security, asset, link, theme, and renderer rules suitable for untrusted messaging.
+For v1, define a strict Hail Body profile that uses Safe Portable Text: a Portable Text-inspired profile with security, asset, link, theme, and renderer rules suitable for untrusted messaging. Its sole federation encoding is deterministic Hail CBOR; JSON is an authoring and diagnostic projection.

@@ -62,7 +62,7 @@ The recipient may resume retrieval without publishing another intermediate updat
 The recipient server has:
 
 1. Retrieved the detached body or selected an already verified local copy.
-2. Verified uncompressed size, SHA-256 digest, media type, profile, canonical bytes, and SPT schema.
+2. Verified uncompressed size, SHA-256 digest, media type, profile, deterministic bytes, and SPT schema.
 3. Durably stored the body or a durable reference to the verified content-addressed copy.
 4. Durably stored the recipient-specific message record and its accepted envelope.
 
@@ -186,7 +186,7 @@ The protocol constrains that discretion:
 - Retries must remain within the effective delivery deadline.
 - Retry schedules must use bounded backoff and jitter.
 - A valid `Retry-After` value should be respected when it does not exceed the delivery deadline.
-- TLS, authorization, digest, size, canonicalization, or schema checks must never be weakened to make a retry succeed.
+- TLS, authorization, digest, size, deterministic-encoding, or schema checks must never be weakened to make a retry succeed.
 - Permanent failures must not be retried as though they were transient.
 - Temporary sender or network failure must not immediately become a permanent content failure.
 - Recipient resource exhaustion may pause retrieval but does not extend the sender's signed deadline.
@@ -288,7 +288,7 @@ The HTTP binding defines exact status-code handling. The POC uses these semantic
 | Temporary local resource shortage | `on-hold`: `receiver-resource-constrained` |
 | Uniform `404` authorization rejection before the signed expiration | `failed`: `body-authorization-failed` |
 | Size or digest mismatch | `failed`: `body-integrity-failed` |
-| Invalid canonical JSON or SPT document | `failed`: `body-invalid` |
+| Invalid or non-deterministic CBOR or invalid SPT document | `failed`: `body-invalid` |
 | Unsupported required representation | `failed`: `body-unsupported` |
 | Retryable condition reaches deadline | `failed`: `delivery-expired` |
 
@@ -327,7 +327,7 @@ This restriction prevents a malicious but granted sender from submitting an unus
 
 Every externally communicated delivery status is a complete signed snapshot.
 
-Conceptual delivered payload:
+Diagnostic JSON for a conceptual delivered payload. The digest byte string uses its base64url diagnostic rendering:
 
 ```json
 {
@@ -346,7 +346,7 @@ Conceptual delivered payload:
 }
 ```
 
-Conceptual hold payload fragment:
+Diagnostic JSON for a conceptual hold payload fragment:
 
 ```json
 {
@@ -368,7 +368,7 @@ The payload and all nested values are closed v1 objects.
 
 `message_id` exactly equals the accepted envelope's message ID.
 
-`envelope_digest` contains `algorithm` with exact value `sha-256` and `value` with the unpadded base64url encoding of SHA-256 over the accepted envelope's exact RFC 8785 canonical payload bytes.
+`envelope_digest` contains `algorithm` with exact value `sha-256` and `value` with exactly 32 bytes containing SHA-256 over the accepted envelope's deterministic payload bytes. Diagnostic JSON and the HTTP path use its unpadded base64url rendering.
 
 `from` is the recipient DID from the accepted envelope's `to` field and is the signer of the status.
 
@@ -388,37 +388,17 @@ Unknown fields are rejected in v1.
 
 ## Status Signature Profile
 
-Delivery status uses the same JCS and flattened JWS mechanics as Hail Envelopes, with object-specific domain separation.
-
-The protected header is:
-
-```json
-{
-  "alg": "Ed25519",
-  "kid": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-messaging",
-  "typ": "hail-delivery-status+jws"
-}
-```
-
-Rules:
-
-- The payload and protected header use exact RFC 8785 canonical bytes.
-- The JWS uses RFC 7515 flattened JSON Serialization.
-- `alg` is the RFC 9864 value `Ed25519`; `EdDSA` is rejected.
-- `kid` is the status `from` DID's authorized `#hail-messaging` key.
-- `typ` is the exact string `hail-delivery-status+jws`.
-- Every semantic status field is signed.
-- Unknown or unprotected header parameters are rejected.
+Delivery status uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md), with protected content type `application/hail-delivery-status+cbor` and the status `from` DID's `#hail-messaging` key. Protected `kid` is the UTF-8 encoding of that absolute key DID URL. Every semantic status field is in the embedded signed payload; unknown payload or protected-header members and every unprotected header are rejected.
 
 The sender verifies the status signature against current DID state at receipt and retains the verification evidence needed for later audit under the shared DID-history rules.
 
-If the recipient rotates `#hail-messaging` before a status is acknowledged, every later retry must wrap and sign the same canonical status payload using the new current key without incrementing `revision`. Signature-wrapper changes do not create a semantic status revision. A provider whose key was removed must stop retrying and must not backdate newly signed status.
+If the recipient rotates `#hail-messaging` before a status is acknowledged, every later retry must wrap and sign the same deterministic status payload bytes using the new current key without incrementing `revision`. COSE-wrapper changes do not create a semantic status revision. A provider whose key was removed must stop retrying and must not backdate newly signed status.
 
 A continuity-preserving provider migration uses a fenced ownership cutover rather than two active providers or an unfenced live snapshot:
 
 1. The new provider prepares an authenticated import but does not process Hail operations for the DID.
 2. The old provider acquires an exclusive migration fence and stops accepting envelopes, committing delivery transitions, changing grants or reply capabilities, and creating status revisions for the DID.
-3. While fenced, the old provider exports the complete serialization domain: current grants and tombstones, reply-capability state, all retained envelope idempotency and rejection records, accepted and terminal delivery records, canonical current status payloads and revision history, body/cache provenance needed for continuation, and retained signature-verification evidence.
+3. While fenced, the old provider exports the complete serialization domain: current grants and tombstones, reply-capability state, all retained envelope idempotency and rejection records, accepted and terminal delivery records, deterministic current status payloads and revision history, body/cache provenance needed for continuation, and retained signature-verification evidence.
 4. The new provider validates and durably imports that complete state and acknowledges the exact snapshot.
 5. The DID controller publishes a PLC operation updating `#hail-messaging` and `#hail` to the new provider.
 6. Only after the PLC update satisfies Hail's recovery-window acceptance policy does the new provider take ownership, resume pending work, and sign status wrappers with its current key.
@@ -471,7 +451,7 @@ Status reporting is an at-least-once operation:
 - The recipient retains the latest signed terminal status, verification evidence, and retry state through at least `max(envelope replay deadline, terminal status occurred_at + 2592000 seconds)`, even if acknowledgement ends transmission earlier.
 - During the envelope retry window, the original sender may recover current status by resubmitting the byte-identical signed envelope under the authenticated duplicate-submission rules.
 
-The recipient pushes one terminal snapshot per request using `PUT {sender-hail-service-base}/deliveries/{envelope_digest}` with `application/jose+json`, no content coding, and a 16384-byte maximum complete representation. The HTTP binding defines authentication, acknowledgement, errors, and privacy behavior. `QueryDeliveryStatus` is deferred from v1; any future query must independently authenticate the original sender relationship. A generic receipt never includes a status-query handle.
+The recipient pushes one terminal snapshot per request using `PUT {sender-hail-service-base}/deliveries/{envelope_digest}` with `application/cose; cose-type="cose-sign1"`, no content coding, and a 16384-octet maximum complete representation. The HTTP binding defines authentication, acknowledgement, errors, and privacy behavior. `QueryDeliveryStatus` is deferred from v1; any future query must independently authenticate the original sender relationship. A generic receipt never includes a status-query handle.
 
 ## Trace And Support Correlation
 
@@ -505,7 +485,7 @@ The proof of concept implements:
 - signed full-state delivery-status snapshots
 - ordered idempotent status revisions
 - terminal status push to the sender's DID-discovered Hail service
-- one flattened JWS status per `PUT {sender-hail-service-base}/deliveries/{envelope_digest}` request
+- one tagged COSE_Sign1 status per `PUT {sender-hail-service-base}/deliveries/{envelope_digest}` request
 - 16384-byte status representation limit and no HTTP content coding
 - `204` acknowledgement for valid new, duplicate, and stale snapshots
 - privacy-preserving generic `202` for protected unknown or unauthenticated push outcomes

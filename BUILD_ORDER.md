@@ -162,7 +162,7 @@ The consolidated caller, receiver, authentication, request, result, idempotency,
 
 The Hail Grant is the protocol's central authorization object. Its v1 target, scope, lookup, revision, replacement, revocation, and web-native publication semantics are defined in `spec/grants.md`.
 
-Grant canonicalization, flattened JWS signatures, signed-state digests, ETags, conditional publication, HTTP statuses, timestamp tolerance, and disclosure-safe Problem Details behavior are defined. Remaining grant work includes the interoperable size limit, tombstone retention, and historical DID verification.
+Grant deterministic encoding, COSE signatures, signed-state digests, ETags, conditional publication, HTTP statuses, timestamp tolerance, and disclosure-safe Problem Details behavior are defined. Remaining grant work includes the interoperable size limit, tombstone retention, and historical DID verification.
 
 ## 6. Define Detached Hail Body V1
 
@@ -174,7 +174,7 @@ Remaining body work is limited to shared security, envelope, delivery-state, and
 
 The compact, single-recipient envelope payload, grant and reply authorization modes, body descriptor, signature representation, validation order, timestamp rules, and replay behavior are defined in `spec/envelopes.md`.
 
-The POC uses RFC 8785 canonical JSON in an RFC 7515 flattened JWS, signed with the sender DID's `#hail-messaging` key using the RFC 9864 `Ed25519` algorithm identifier.
+The POC uses deterministic Hail CBOR in tagged COSE_Sign1, signed with the sender DID's `#hail-messaging` key using the RFC 9864 fully specified COSE `Ed25519` algorithm value `-19`.
 
 Remaining envelope work is limited to shared DID-history, delivery-state, and HTTP binding decisions referenced by that specification.
 
@@ -218,11 +218,10 @@ Body URLs should not be arbitrary URLs supplied by each envelope. Recipient-cont
 
 ## 10. Define The Security And Encoding Profile
 
-Once signed object fields are stable, decide:
+The v1 profile fixes:
 
-- JSON, CBOR, or both
-- canonicalization rules
-- signature wrapper
+- the Hail Data Model and deterministic CBOR rules
+- the tagged COSE_Sign1 signature wrapper
 - required signing algorithms
 - key ID rules
 - timestamp tolerance
@@ -235,30 +234,19 @@ Once signed object fields are stable, decide:
 V1 profile:
 
 ```text
-Encoding: JSON
-Canonicalization: RFC 8785 JCS
-Signature: RFC 7515 flattened JWS with RFC 9864 Ed25519
+Encoding: deterministic Hail CBOR
+Signature: tagged COSE_Sign1 with RFC 9864 Ed25519 (-19)
 Body digest: SHA-256
 Transport: HTTPS
 Body transfer compression: gzip
-Signed JWS HTTP content coding: none
+Signed COSE HTTP content coding: none
 ```
 
-Alternative profile to evaluate later:
-
-```text
-Encoding: CBOR
-Signature wrapper: COSE
-Body digest: SHA-256
-Transport: HTTPS
-Compression: zstd
-```
-
-The first implementation should use one mandatory profile. Supporting multiple profiles before interoperability exists adds complexity without proving the central design.
+The first implementation uses this one mandatory profile. JSON/JWS fallback, representation negotiation, and zstd are not part of v1. Supporting multiple profiles before interoperability exists adds complexity without proving the central design.
 
 ## 11. Build A Thin End-To-End Slice
 
-The first implementation should send one plain-text Hail Message between two toy servers.
+The first implementation should send one plain-text Hail Message between two toy servers. Any JSON shown in this build step is a diagnostic authoring form; the body and signed objects use deterministic CBOR on the wire.
 
 Include:
 
@@ -276,7 +264,7 @@ Include:
 - duplicate and replay rejection
 - revocation rejection
 
-Safe Portable Text body:
+Diagnostic JSON for the Safe Portable Text body:
 
 ```json
 {
