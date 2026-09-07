@@ -1,0 +1,35 @@
+{
+  "name": "@hail-protocol/codec",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "hail-codec": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json"
+  },
+  "dependencies": {
+    "cborg": "^6.1.2",
+    "tldts": "^7.4.12",
+    "tr46": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.0",
+    "@types/tr46": "^5.0.1"
+  }
+}

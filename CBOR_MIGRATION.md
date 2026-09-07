@@ -129,6 +129,18 @@ These domains remain intentionally distinct. Evidence and grant-lineage digests 
 - Provide a diagnostic JSON converter and a CBOR diagnostic-notation command.
 - Ensure high-level SDK calls do not expose canonicalization or COSE construction.
 
+Implementation status:
+
+- TypeScript is the reference and first application language.
+- The repository uses Bun workspaces, supports Node.js 24 and newer, and tests with Vitest.
+- `packages/hail-codec` implements strict deterministic CBOR, typed v1 payload models, structural and semantic validators, tagged COSE_Sign1 signing and verification, Web Crypto adapters, schema-aware diagnostic JSON, and a disclosure-safe inspection CLI.
+- Decoder-side structural scanning enforces byte, nesting, item, collection, text, and byte-string limits before general CBOR decoding. Signed COSE structures and protected headers receive the same pre-decode treatment.
+- Inspected and cryptographically verified values have distinct public types; only successful verification returns the nominally branded `VerifiedHailObject`.
+- Address validation applies non-transitional UTS #46 checks and the current ICANN public suffix list. Protocol contexts that permit special-use domains remain future explicit policy inputs rather than implicit exceptions.
+- `cborg` is the selected CBOR primitive; Hail layers constrained-model validation and mandatory decode/re-encode equality over it. A generic TypeScript COSE dependency was not selected because the evaluated package identifies itself as unstable and does not replace Hail's exact profile checks.
+- Diagnostic JSON file encoding is intentionally absent until a duplicate-member-aware, lossless parser is selected. The typed conversion API remains available for already-parsed, schema-validated values.
+- Remaining Phase 6 work includes stabilizing production resource limits, deriving or checking generated models against CDDL, adding a CBOR diagnostic-notation command, and expanding API documentation.
+
 ### 7. Conformance And Performance
 
 - Publish exact hexadecimal payload and complete COSE vectors for every signed object.

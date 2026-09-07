@@ -246,7 +246,7 @@ The uncompressed size or SHA-256 digest does not equal the signed descriptor. Th
 
 #### `body-invalid`
 
-The body is malformed, non-canonical, fails the declared SPT schema, or violates mandatory structural resource limits.
+The body is malformed, non-deterministic, fails the declared SPT schema, or violates mandatory structural resource limits.
 
 #### `body-unsupported`
 

@@ -8,7 +8,7 @@ The project aims to support beautiful messages, independent providers, portable 
 
 ## Status
 
-Hail is currently in the protocol design phase. There is no working server or client implementation yet. The sole intended v1 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
+Hail is currently in the protocol design phase. There is no working server or client implementation yet; the TypeScript reference codec is under active development. The sole intended v1 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
 
 ## Core Principles
 
@@ -28,6 +28,7 @@ Hail is currently in the protocol design phase. There is no working server or cl
 - [`BODY_FORMAT.md`](BODY_FORMAT.md): Safe Portable Text body-format design.
 - [`spec/encoding.md`](spec/encoding.md): Normative Hail data model, deterministic CBOR, COSE, and diagnostic JSON profile.
 - [`spec/hail.cddl`](spec/hail.cddl): Draft machine-readable structural schemas for Hail v1 payloads and the initial body profile.
+- [`packages/hail-codec`](packages/hail-codec): Bun-workspace TypeScript reference codec, validators, COSE implementation, diagnostic tooling, and tests.
 - [`spec/core-delivery.md`](spec/core-delivery.md): Core grant-authorized delivery flow.
 - [`spec/address-binding.md`](spec/address-binding.md): Human-readable address-to-DID binding.
 - [`spec/did-profile.md`](spec/did-profile.md): PLC identity, Hail key roles, resolution, recovery, and service entry.
