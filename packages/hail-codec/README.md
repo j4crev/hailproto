@@ -1,4 +1,4 @@
-# `@hail-protocol/codec`
+# `@hailproto/codec`
 
 Reference TypeScript implementation of the Hail v1 deterministic CBOR and COSE_Sign1 profile.
 
@@ -25,7 +25,7 @@ import {
   signPayload,
   verifySignedPayload,
   type HailAddressBinding,
-} from "@hail-protocol/codec";
+} from "@hailproto/codec";
 
 const binding: HailAddressBinding = {
   version: 1,
@@ -62,6 +62,8 @@ bun run typecheck
 bun run test
 bun run build
 ```
+
+The checked-in language-neutral vectors are documented in [`vectors/README.md`](vectors/README.md). Tests consume these fixed values directly. `bun run --cwd packages/hail-codec vectors:generate` is a maintainer command for intentional protocol changes, not part of normal test execution.
 
 After building, inspect a signed object without verifying its signature:
 

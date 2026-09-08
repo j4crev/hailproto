@@ -1,5 +1,5 @@
 {
-  "name": "@hail-protocol/codec",
+  "name": "@hailproto/codec",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,18 +10,21 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./vectors/v1.json": "./vectors/v1.json"
   },
   "bin": {
     "hail-codec": "./dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "vectors"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json && tsc -p scripts/tsconfig.json",
+    "vectors:generate": "bun run scripts/generate-vectors.ts"
   },
   "dependencies": {
     "cborg": "^6.1.2",
