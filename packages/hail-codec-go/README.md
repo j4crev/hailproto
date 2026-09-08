@@ -16,7 +16,7 @@ The codec rejects non-deterministic encodings, tags in payloads, floats and unsu
 
 ## Development
 
-Tests consume the shared vectors directly from `../hail-codec/vectors/v1.json`; they are not copied into this module.
+Tests consume the shared vectors directly from `../hail-codec-ts/vectors/v1.json`; they are not copied into this module.
 
 ```sh
 mise exec -- gofmt -w .

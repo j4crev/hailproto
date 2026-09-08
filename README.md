@@ -28,7 +28,7 @@ Hail is currently in the protocol design phase. There is no working server or cl
 - [`BODY_FORMAT.md`](BODY_FORMAT.md): Safe Portable Text body-format design.
 - [`spec/encoding.md`](spec/encoding.md): Normative Hail data model, deterministic CBOR, COSE, and diagnostic JSON profile.
 - [`spec/hail.cddl`](spec/hail.cddl): Draft machine-readable structural schemas for Hail v1 payloads and the initial body profile.
-- [`packages/hail-codec`](packages/hail-codec): Bun-workspace TypeScript reference codec, validators, COSE implementation, diagnostic tooling, and tests.
+- [`packages/hail-codec-ts`](packages/hail-codec-ts): Bun-workspace TypeScript reference codec, validators, COSE implementation, diagnostic tooling, and tests.
 - [`spec/core-delivery.md`](spec/core-delivery.md): Core grant-authorized delivery flow.
 - [`spec/address-binding.md`](spec/address-binding.md): Human-readable address-to-DID binding.
 - [`spec/did-profile.md`](spec/did-profile.md): PLC identity, Hail key roles, resolution, recovery, and service entry.

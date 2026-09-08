@@ -133,7 +133,7 @@ Implementation status:
 
 - TypeScript is the reference and first application language.
 - The repository uses Bun workspaces, supports Node.js 24 and newer, and tests with Vitest.
-- `packages/hail-codec` implements strict deterministic CBOR, typed v1 payload models, structural and semantic validators, tagged COSE_Sign1 signing and verification, Web Crypto adapters, schema-aware diagnostic JSON, and a disclosure-safe inspection CLI.
+- `packages/hail-codec-ts` implements strict deterministic CBOR, typed v1 payload models, structural and semantic validators, tagged COSE_Sign1 signing and verification, Web Crypto adapters, schema-aware diagnostic JSON, and a disclosure-safe inspection CLI.
 - Decoder-side structural scanning enforces byte, nesting, item, collection, text, and byte-string limits before general CBOR decoding. Signed COSE structures and protected headers receive the same pre-decode treatment.
 - Inspected and cryptographically verified values have distinct public types; only successful verification returns the nominally branded `VerifiedHailObject`.
 - Address validation applies non-transitional UTS #46 checks and the current ICANN public suffix list. Protocol contexts that permit special-use domains remain future explicit policy inputs rather than implicit exceptions.
@@ -153,7 +153,7 @@ Implementation status:
 
 Implementation status:
 
-- `packages/hail-codec/vectors/v1.json` publishes deterministic payload vectors for all six payload families and complete COSE_Sign1 vectors for all five signed families using explicitly public test-only Ed25519 seeds.
+- `packages/hail-codec-ts/vectors/v1.json` publishes deterministic payload vectors for all six payload families and complete COSE_Sign1 vectors for all five signed families using explicitly public test-only Ed25519 seeds.
 - The manifest links every v1 digest domain across its source and target object, includes exact Sig_structure bytes, and publishes SHA-256, base64url, URL-segment, ETag, bearer-token, and `Content-Digest` boundary values plus malformed CBOR, payload, and COSE vectors.
 - The conformance suite reads checked-in vectors independently and compares exact encoding, deterministic signatures, independent signature verification, cross-object digest domains, boundary conversions, and reference-codec error classifications.
 - The independent Go codec consumes the same checked-in vectors and verifies exact payload encoding, COSE signing and verification, Sig_structure bytes, digest links, boundary conversions, malformed-input rejection, and mutation/resource safety without importing TypeScript implementation code.

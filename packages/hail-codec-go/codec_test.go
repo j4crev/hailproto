@@ -72,7 +72,7 @@ func (value customMarshaler) MarshalCBOR() ([]byte, error) {
 
 func vectors(t testing.TB) manifest {
 	t.Helper()
-	b, err := os.ReadFile("../hail-codec/vectors/v1.json")
+	b, err := os.ReadFile("../hail-codec-ts/vectors/v1.json")
 	if err != nil {
 		t.Fatal(err)
 	}

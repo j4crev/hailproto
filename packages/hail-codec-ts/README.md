@@ -63,12 +63,12 @@ bun run test
 bun run build
 ```
 
-The checked-in language-neutral vectors are documented in [`vectors/README.md`](vectors/README.md). Tests consume these fixed values directly. `bun run --cwd packages/hail-codec vectors:generate` is a maintainer command for intentional protocol changes, not part of normal test execution.
+The checked-in language-neutral vectors are documented in [`vectors/README.md`](vectors/README.md). Tests consume these fixed values directly. `bun run --cwd packages/hail-codec-ts vectors:generate` is a maintainer command for intentional protocol changes, not part of normal test execution.
 
 After building, inspect a signed object without verifying its signature:
 
 ```text
-node packages/hail-codec/dist/cli.js inspect hail.envelope envelope.cose
+node packages/hail-codec-ts/dist/cli.js inspect hail.envelope envelope.cose
 ```
 
 Bearer tokens are redacted unless `--show-secrets` is explicitly supplied. Inspection returns an `InspectedHailObject` and never establishes authenticity; only `verifySignedPayload` returns the nominally branded `VerifiedHailObject`.
@@ -76,7 +76,7 @@ Bearer tokens are redacted unless `--show-secrets` is explicitly supplied. Inspe
 Render a strict deterministic payload as CBOR diagnostic notation:
 
 ```text
-node packages/hail-codec/dist/cli.js diagnose hail.body.spt-1 body.cbor
+node packages/hail-codec-ts/dist/cli.js diagnose hail.body.spt-1 body.cbor
 ```
 
 The diagnostic-notation command bounds file reads, validates the payload against its named Hail schema, and escapes terminal-control Unicode before rendering it. Byte strings use `h'...'` notation, map keys retain deterministic CBOR ordering, and bearer tokens are redacted unless `--show-secrets` is the sole optional argument.

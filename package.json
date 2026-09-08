@@ -10,9 +10,9 @@
   },
   "scripts": {
     "build": "bun run --filter '*' build",
-    "bench:codec": "bun run --cwd packages/hail-codec bench",
+    "bench:ts": "bun run --cwd packages/hail-codec-ts bench",
     "bench:go": "mise exec -- go -C packages/hail-codec-go test -run=^$ -bench=. -benchmem ./...",
-    "bench:sizes": "bun run --cwd packages/hail-codec bench:sizes",
+    "bench:sizes": "bun run --cwd packages/hail-codec-ts bench:sizes",
     "test": "bun run test:ts && bun run test:go",
     "test:ts": "bun run --filter '*' test",
     "test:go": "mise exec -- go -C packages/hail-codec-go test ./...",

@@ -22,7 +22,7 @@ Conformance tests consume `v1.json` directly. They do not invoke the generator. 
 To intentionally regenerate the manifest after a reviewed protocol change:
 
 ```text
-bun run --cwd packages/hail-codec vectors:generate
+bun run --cwd packages/hail-codec-ts vectors:generate
 ```
 
 Review the complete manifest diff. Any changed payload, signature, digest, or negative-vector classification is a protocol-visible change and requires an explanation.
