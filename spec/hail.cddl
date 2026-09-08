@@ -160,19 +160,75 @@ replies-permitted = {
   "until": timestamp
 }
 
-hail-delivery-status = {
+delivery-status-common = (
   "type": "hail.delivery-status",
   "version": 1,
   "message_id": uuidv7,
   "envelope_digest": digest,
   "from": did,
   "to": did,
-  "revision": hail-positive,
-  "state": delivery-state,
-  ? "reason": tstr,
-  ? "retry_at": timestamp,
   "occurred_at": timestamp
+)
+
+hail-delivery-status =
+  delivery-accepted /
+  delivery-on-hold /
+  delivery-delivered /
+  delivery-failed /
+  delivery-cancelled
+
+delivery-accepted = {
+  delivery-status-common,
+  "revision": 1,
+  "state": "accepted"
 }
+
+delivery-on-hold = {
+  delivery-status-common,
+  "revision": 2..9007199254740991,
+  "state": "on-hold",
+  "reason": hold-reason,
+  "retry_at": timestamp
+}
+
+delivery-delivered = {
+  delivery-status-common,
+  "revision": 2..9007199254740991,
+  "state": "delivered"
+}
+
+delivery-failed = {
+  delivery-status-common,
+  "revision": 2..9007199254740991,
+  "state": "failed",
+  "reason": failure-reason
+}
+
+delivery-cancelled = {
+  delivery-status-common,
+  "revision": 2..9007199254740991,
+  "state": "cancelled",
+  "reason": cancellation-reason
+}
+
+hold-reason =
+  "sender-unreachable" /
+  "body-temporarily-unavailable" /
+  "body-transfer-interrupted" /
+  "sender-rate-limited" /
+  "receiver-resource-constrained"
+
+failure-reason =
+  "body-authorization-failed" /
+  "body-integrity-failed" /
+  "body-invalid" /
+  "body-unsupported" /
+  "delivery-expired" /
+  "receiver-policy-rejected"
+
+cancellation-reason =
+  "recipient-cancelled" /
+  "receiver-administrative-cancellation"
 
 delivery-state = "accepted" / "on-hold" / "delivered" / "failed" / "cancelled"
 

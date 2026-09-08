@@ -16,6 +16,7 @@ export {
   toDiagnosticJson,
   type DiagnosticJson,
 } from "./diagnostic.js";
+export { toDiagnosticNotation } from "./diagnostic-notation.js";
 export { HailCodecError, type HailCodecErrorCode } from "./errors.js";
 export type {
   HailAddressBinding,

@@ -32,6 +32,7 @@
     "tr46": "^6.0.0"
   },
   "devDependencies": {
+    "@cbortech/cbor": "0.27.1",
     "@types/node": "^26.5.0",
     "@types/tr46": "^5.0.1"
   }

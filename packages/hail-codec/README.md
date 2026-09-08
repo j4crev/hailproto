@@ -73,4 +73,18 @@ node packages/hail-codec/dist/cli.js inspect hail.envelope envelope.cose
 
 Bearer tokens are redacted unless `--show-secrets` is explicitly supplied. Inspection returns an `InspectedHailObject` and never establishes authenticity; only `verifySignedPayload` returns the nominally branded `VerifiedHailObject`.
 
+Render a strict deterministic payload as CBOR diagnostic notation:
+
+```text
+node packages/hail-codec/dist/cli.js diagnose hail.body.spt-1 body.cbor
+```
+
+The diagnostic-notation command bounds file reads, validates the payload against its named Hail schema, and escapes terminal-control Unicode before rendering it. Byte strings use `h'...'` notation, map keys retain deterministic CBOR ordering, and bearer tokens are redacted unless `--show-secrets` is the sole optional argument.
+
 Diagnostic JSON file input is intentionally not exposed by the CLI until a duplicate-aware, lossless JSON parser is integrated. This prevents JSON number rounding or duplicate members from silently changing deterministic payload bytes. Federation endpoints never accept diagnostic JSON.
+
+## Schema Consistency
+
+Tests compile `spec/hail.cddl` with the exactly pinned, development-only `@cbortech/cbor` validator and apply it directly to checked-in payload bytes. The suite checks every positive vector, missing required members, closed maps, byte-string and collection boundaries, and structural negative vectors. It separately records cases where Hail's semantic validator is intentionally stricter than CDDL.
+
+This dependency is a test oracle only. It is not used by the production encoder or decoder, and it does not replace deterministic re-encoding, resource scanning, or semantic validation.

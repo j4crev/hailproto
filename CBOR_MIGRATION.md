@@ -139,7 +139,9 @@ Implementation status:
 - Address validation applies non-transitional UTS #46 checks and the current ICANN public suffix list. Protocol contexts that permit special-use domains remain future explicit policy inputs rather than implicit exceptions.
 - `cborg` is the selected CBOR primitive; Hail layers constrained-model validation and mandatory decode/re-encode equality over it. A generic TypeScript COSE dependency was not selected because the evaluated package identifies itself as unstable and does not replace Hail's exact profile checks.
 - Diagnostic JSON file encoding is intentionally absent until a duplicate-member-aware, lossless parser is selected. The typed conversion API remains available for already-parsed, schema-validated values.
-- Remaining Phase 6 work includes stabilizing production resource limits, deriving or checking generated models against CDDL, adding a CBOR diagnostic-notation command, and expanding API documentation.
+- The test suite compiles `spec/hail.cddl` with a pinned, development-only validator and checks raw positive vectors, structural mutation boundaries, payload registries, and the intentional boundary between CDDL structure and stricter semantic validation.
+- The CLI renders validated payloads as deterministic-key-ordered CBOR diagnostic notation with bearer-token redaction by default.
+- Remaining Phase 6 work includes stabilizing production resource limits and expanding API documentation.
 
 ### 7. Conformance And Performance
 

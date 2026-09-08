@@ -11,7 +11,7 @@
       },
     },
     "packages/hail-codec": {
-      "name": "@hail-protocol/codec",
+      "name": "@hailproto/codec",
       "version": "0.0.0",
       "bin": {
         "hail-codec": "./dist/cli.js",
@@ -22,13 +22,16 @@
         "tr46": "^6.0.0",
       },
       "devDependencies": {
+        "@cbortech/cbor": "0.27.1",
         "@types/node": "^26.5.0",
         "@types/tr46": "^5.0.1",
       },
     },
   },
   "packages": {
-    "@hail-protocol/codec": ["@hail-protocol/codec@workspace:packages/hail-codec"],
+    "@cbortech/cbor": ["@cbortech/cbor@0.27.1", "", {}, "sha512-sHiHbWeDSZUmUzQbIqjDxQeX56Bttyjw/RyS1vCDFjR43m/e++4H+CxChjkqi8NMkKWtvH8rtfpqApVi3wCzwQ=="],
+
+    "@hailproto/codec": ["@hailproto/codec@workspace:packages/hail-codec"],
 
     "@jridgewell/resolve-uri": ["@jridgewell/resolve-uri@3.1.2", "", {}, "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw=="],
 
@@ -212,8 +215,8 @@
 
     "why-is-node-running": ["why-is-node-running@2.3.0", "", { "dependencies": { "siginfo": "^2.0.0", "stackback": "0.0.2" }, "bin": { "why-is-node-running": "cli.js" } }, "sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w=="],
 
-    "@hail-protocol/codec/@types/node": ["@types/node@26.5.0", "", { "dependencies": { "undici-types": "~8.9.0" } }, "sha512-dVSGpriSoCgz8WnDNTuSSuSv1PC/ALXihO4ulRZt7Md8k9mlbdin3lGOcDE8SnWOgf513ByWlXd7BK4azmyg/A=="],
+    "@hailproto/codec/@types/node": ["@types/node@26.5.0", "", { "dependencies": { "undici-types": "~8.9.0" } }, "sha512-dVSGpriSoCgz8WnDNTuSSuSv1PC/ALXihO4ulRZt7Md8k9mlbdin3lGOcDE8SnWOgf513ByWlXd7BK4azmyg/A=="],
 
-    "@hail-protocol/codec/@types/node/undici-types": ["undici-types@8.9.0", "", {}, "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="],
+    "@hailproto/codec/@types/node/undici-types": ["undici-types@8.9.0", "", {}, "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="],
   }
 }
