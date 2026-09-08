@@ -88,3 +88,15 @@ Diagnostic JSON file input is intentionally not exposed by the CLI until a dupli
 Tests compile `spec/hail.cddl` with the exactly pinned, development-only `@cbortech/cbor` validator and apply it directly to checked-in payload bytes. The suite checks every positive vector, missing required members, closed maps, byte-string and collection boundaries, and structural negative vectors. It separately records cases where Hail's semantic validator is intentionally stricter than CDDL.
 
 This dependency is a test oracle only. It is not used by the production encoder or decoder, and it does not replace deterministic re-encoding, resource scanning, or semantic validation.
+
+## Benchmarks
+
+Run repeatable TypeScript payload, deterministic-CBOR, and complete COSE envelope benchmarks with:
+
+```text
+bun run bench:codec
+```
+
+Run the deterministic representation-size report with `bun run bench:sizes`. It compares CBOR with compact diagnostic JSON for developer context and reports gzip-compressed CBOR; diagnostic JSON is not a federation representation or a substitute for historical JSON/JWS wire measurements.
+
+Go benchmarks use the same checked-in envelope and body vectors and report native allocations through `go test -benchmem`; see `packages/hail-codec-go/README.md`. Benchmark output is environment-dependent and is not checked in as a protocol guarantee.

@@ -10,7 +10,12 @@
   },
   "scripts": {
     "build": "bun run --filter '*' build",
-    "test": "bun run --filter '*' test",
+    "bench:codec": "bun run --cwd packages/hail-codec bench",
+    "bench:go": "mise exec -- go -C packages/hail-codec-go test -run=^$ -bench=. -benchmem ./...",
+    "bench:sizes": "bun run --cwd packages/hail-codec bench:sizes",
+    "test": "bun run test:ts && bun run test:go",
+    "test:ts": "bun run --filter '*' test",
+    "test:go": "mise exec -- go -C packages/hail-codec-go test ./...",
     "typecheck": "bun run --filter '*' typecheck"
   },
   "devDependencies": {

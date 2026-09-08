@@ -156,7 +156,9 @@ Implementation status:
 - `packages/hail-codec/vectors/v1.json` publishes deterministic payload vectors for all six payload families and complete COSE_Sign1 vectors for all five signed families using explicitly public test-only Ed25519 seeds.
 - The manifest links every v1 digest domain across its source and target object, includes exact Sig_structure bytes, and publishes SHA-256, base64url, URL-segment, ETag, bearer-token, and `Content-Digest` boundary values plus malformed CBOR, payload, and COSE vectors.
 - The conformance suite reads checked-in vectors independently and compares exact encoding, deterministic signatures, independent signature verification, cross-object digest domains, boundary conversions, and reference-codec error classifications.
-- Remaining Phase 7 work includes broader schema-negative vectors, cross-language conformance results, and size, allocation, cryptographic, and end-to-end benchmarks.
+- The independent Go codec consumes the same checked-in vectors and verifies exact payload encoding, COSE signing and verification, Sig_structure bytes, digest links, boundary conversions, malformed-input rejection, and mutation/resource safety without importing TypeScript implementation code.
+- Repeatable Tinybench and Go `benchmem` harnesses measure matching payload and complete envelope COSE workloads; a deterministic report records CBOR, compact diagnostic JSON, gzip-CBOR, and COSE sizes. Historical JSON/JWS results are not claimed because no authoritative former wire vectors were retained.
+- Remaining Phase 7 work includes end-to-end measurements from the two-server prototype and any broader vectors discovered during that implementation.
 
 ## Completion Criteria
 

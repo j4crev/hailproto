@@ -115,34 +115,48 @@ export type HailDeliveryState =
   | "failed"
   | "cancelled";
 
-export type HailDeliveryReason =
+export type HailHoldReason =
   | "sender-unreachable"
   | "body-temporarily-unavailable"
   | "body-transfer-interrupted"
   | "sender-rate-limited"
-  | "receiver-resource-constrained"
+  | "receiver-resource-constrained";
+
+export type HailFailureReason =
   | "body-authorization-failed"
   | "body-integrity-failed"
   | "body-invalid"
   | "body-unsupported"
   | "delivery-expired"
-  | "receiver-policy-rejected"
+  | "receiver-policy-rejected";
+
+export type HailCancellationReason =
   | "recipient-cancelled"
   | "receiver-administrative-cancellation";
 
-export interface HailDeliveryStatus {
+export type HailDeliveryReason =
+  | HailHoldReason
+  | HailFailureReason
+  | HailCancellationReason;
+
+interface HailDeliveryStatusBase {
   type: "hail.delivery-status";
   version: 1;
   message_id: string;
   envelope_digest: HailDigest;
   from: string;
   to: string;
-  revision: number;
-  state: HailDeliveryState;
-  reason?: HailDeliveryReason;
-  retry_at?: number;
   occurred_at: number;
 }
+
+export type HailDeliveryStatus = HailDeliveryStatusBase &
+  (
+    | { revision: 1; state: "accepted"; reason?: never; retry_at?: never }
+    | { revision: number; state: "on-hold"; reason: HailHoldReason; retry_at: number }
+    | { revision: number; state: "delivered"; reason?: never; retry_at?: never }
+    | { revision: number; state: "failed"; reason: HailFailureReason; retry_at?: never }
+    | { revision: number; state: "cancelled"; reason: HailCancellationReason; retry_at?: never }
+  );
 
 export interface HailSptSpan {
   _type: "span";

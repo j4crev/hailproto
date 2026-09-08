@@ -22,8 +22,10 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "bench": "bun run bench/codec.bench.ts",
+    "bench:sizes": "bun run scripts/report-sizes.ts",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json && tsc -p scripts/tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json && tsc -p scripts/tsconfig.json && tsc -p bench/tsconfig.json",
     "vectors:generate": "bun run scripts/generate-vectors.ts"
   },
   "dependencies": {
@@ -34,6 +36,7 @@
   "devDependencies": {
     "@cbortech/cbor": "0.27.1",
     "@types/node": "^26.5.0",
-    "@types/tr46": "^5.0.1"
+    "@types/tr46": "^5.0.1",
+    "tinybench": "6.1.6"
   }
 }

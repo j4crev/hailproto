@@ -20,6 +20,9 @@ import {
   type HailEnvelopeAuthorization,
   type HailGrant,
   type HailGrantScope,
+  type HailHoldReason,
+  type HailFailureReason,
+  type HailCancellationReason,
   type HailMessageType,
   type HailPayloadType,
   type HailReplyPermission,
@@ -129,33 +132,43 @@ type ExpectedDeliveryState =
   | "delivered"
   | "failed"
   | "cancelled";
-type ExpectedDeliveryReason =
+type ExpectedHoldReason =
   | "sender-unreachable"
   | "body-temporarily-unavailable"
   | "body-transfer-interrupted"
   | "sender-rate-limited"
-  | "receiver-resource-constrained"
+  | "receiver-resource-constrained";
+type ExpectedFailureReason =
   | "body-authorization-failed"
   | "body-integrity-failed"
   | "body-invalid"
   | "body-unsupported"
   | "delivery-expired"
-  | "receiver-policy-rejected"
+  | "receiver-policy-rejected";
+type ExpectedCancellationReason =
   | "recipient-cancelled"
   | "receiver-administrative-cancellation";
-type ExpectedDeliveryStatus = {
+type ExpectedDeliveryReason =
+  | ExpectedHoldReason
+  | ExpectedFailureReason
+  | ExpectedCancellationReason;
+type ExpectedDeliveryStatusBase = {
   type: "hail.delivery-status";
   version: 1;
   message_id: string;
   envelope_digest: ExpectedDigest;
   from: string;
   to: string;
-  revision: number;
-  state: ExpectedDeliveryState;
-  reason?: ExpectedDeliveryReason;
-  retry_at?: number;
   occurred_at: number;
 };
+type ExpectedDeliveryStatus = ExpectedDeliveryStatusBase &
+  (
+    | { revision: 1; state: "accepted"; reason?: never; retry_at?: never }
+    | { revision: number; state: "on-hold"; reason: ExpectedHoldReason; retry_at: number }
+    | { revision: number; state: "delivered"; reason?: never; retry_at?: never }
+    | { revision: number; state: "failed"; reason: ExpectedFailureReason; retry_at?: never }
+    | { revision: number; state: "cancelled"; reason: ExpectedCancellationReason; retry_at?: never }
+  );
 type ExpectedSpan = { _type: "span"; text: string; marks: [] };
 type ExpectedBlock = {
   _type: "block";
@@ -179,6 +192,9 @@ type ModelAssertions = [
   Assert<Equivalent<HailReplyPermission, ExpectedReply>>,
   Assert<Equivalent<HailEnvelope, ExpectedEnvelope>>,
   Assert<Equivalent<HailDeliveryState, ExpectedDeliveryState>>,
+  Assert<Equivalent<HailHoldReason, ExpectedHoldReason>>,
+  Assert<Equivalent<HailFailureReason, ExpectedFailureReason>>,
+  Assert<Equivalent<HailCancellationReason, ExpectedCancellationReason>>,
   Assert<Equivalent<HailDeliveryReason, ExpectedDeliveryReason>>,
   Assert<Equivalent<HailDeliveryStatus, ExpectedDeliveryStatus>>,
   Assert<Equivalent<HailSptSpan, ExpectedSpan>>,
@@ -512,6 +528,122 @@ describe("CDDL and TypeScript structural consistency", () => {
     }
     for (const status of statusCases) {
       expectStructuralAcceptance("hail.delivery-status", status);
+    }
+  });
+
+  it("accepts every message-type and delivery-reason literal", () => {
+    const messageTypes: HailMessageType[] = [
+      "personal",
+      "newsletter",
+      "promotion",
+      "receipt",
+      "invoice",
+      "ticket",
+      "boarding-pass",
+      "account-alert",
+      "security-alert",
+      "package-update",
+      "calendar-event",
+    ];
+    for (const messageType of messageTypes) {
+      const value = record(structuredClone(validPayload("hail.envelope")));
+      value.message_type = messageType;
+      expectStructuralAcceptance("hail.envelope", value);
+    }
+
+    const reasonGroups = [
+      [
+        "on-hold",
+        [
+          "sender-unreachable",
+          "body-temporarily-unavailable",
+          "body-transfer-interrupted",
+          "sender-rate-limited",
+          "receiver-resource-constrained",
+        ],
+      ],
+      [
+        "failed",
+        [
+          "body-authorization-failed",
+          "body-integrity-failed",
+          "body-invalid",
+          "body-unsupported",
+          "delivery-expired",
+          "receiver-policy-rejected",
+        ],
+      ],
+      [
+        "cancelled",
+        ["recipient-cancelled", "receiver-administrative-cancellation"],
+      ],
+    ] as const;
+    for (const [state, reasons] of reasonGroups) {
+      for (const reason of reasons) {
+        const value = record(
+          structuredClone(validPayload("hail.delivery-status")),
+        );
+        value.state = state;
+        value.reason = reason;
+        if (state === "on-hold") value.retry_at = value.occurred_at as number;
+        expectStructuralAcceptance("hail.delivery-status", value);
+      }
+    }
+  });
+
+  it("keeps alternate nested map branches closed and required", () => {
+    const cases: Array<{
+      type: HailPayloadType;
+      value: HailValue;
+      path: readonly (string | number)[];
+      required: string;
+    }> = [];
+
+    const uncategorized = record(structuredClone(validPayload("hail.grant")));
+    uncategorized.scope = [{ type: "uncategorized" }];
+    cases.push({
+      type: "hail.grant",
+      value: uncategorized,
+      path: ["scope", 0],
+      required: "type",
+    });
+
+    const replyAuthorization = record(
+      structuredClone(validPayload("hail.envelope")),
+    );
+    replyAuthorization.authorization = {
+      type: "reply",
+      reply_to: "01a0443c-5600-7c43-969f-9fca31321a64",
+    };
+    delete replyAuthorization.category;
+    cases.push({
+      type: "hail.envelope",
+      value: replyAuthorization,
+      path: ["authorization"],
+      required: "reply_to",
+    });
+
+    const permittedReply = record(
+      structuredClone(validPayload("hail.envelope")),
+    );
+    permittedReply.reply = {
+      allowed: true,
+      until: (permittedReply.created_at as number) + 60,
+    };
+    cases.push({
+      type: "hail.envelope",
+      value: permittedReply,
+      path: ["reply"],
+      required: "until",
+    });
+
+    for (const item of cases) {
+      const missing = structuredClone(item.value);
+      delete nestedRecord(missing, item.path)[item.required];
+      expectStructuralRejection(item.type, missing);
+      const unknown = structuredClone(item.value);
+      nestedRecord(unknown, item.path).unknown = true;
+      expectStructuralRejection(item.type, unknown);
     }
   });
 
