@@ -57,14 +57,14 @@ To construct the RFC 7565 `acct:` URI, prefix the canonical address with `acct:`
 
 An address is verified only when both sides agree:
 
-1. The address domain publishes a mapping to the DID.
-2. A key authorized by that DID signs the same mapping.
+1. The address domain's authenticated WebFinger JRD selects one Address Binding representation.
+2. That representation contains the canonical address and DID and is signed by the DID's authorized `#hail-identity` key.
 
 Conceptually:
 
 ```text
-address domain --publishes--> address + DID
-DID controller  ----signs----> address + DID
+address domain --selects--> signed Address Binding representation
+DID controller  ----signs----> address + DID payload
 ```
 
 Neither statement is sufficient by itself.
@@ -132,7 +132,7 @@ The final WebFinger response must be `200 OK` with exact parameterless `Content-
 
 ## Binding Payload
 
-Diagnostic JSON for the conceptual signed payload:
+Diagnostic JSON rendering of the Address Binding payload map. The embedded wire payload is deterministic Hail CBOR; this JSON rendering is neither signed nor accepted as a federation representation, and its displayed member order has no canonical significance:
 
 ```json
 {
@@ -146,9 +146,9 @@ Diagnostic JSON for the conceptual signed payload:
 }
 ```
 
-The signature wrapper is separate from the payload so the exact signed fields are unambiguous. Its representation is defined below.
+The payload map is deterministically CBOR-encoded and embedded as the payload byte string of one tagged COSE_Sign1 structure. The protected headers, embedded payload bytes, and signature are validated under the profile below.
 
-Required payload fields:
+Required members of the closed Address Binding payload map:
 
 - `version`: Address Binding profile version.
 - `type`: Exact value `hail.address-binding` for v0.
@@ -158,33 +158,33 @@ Required payload fields:
 - `expires_at`: UTC expiration time represented as Unix seconds.
 - `key_id`: DID URL identifying the DID's `#hail-identity` verification method.
 
-Unknown payload fields are rejected in v0.
+The payload is a closed Hail map; unknown map members are rejected in v0.
 
 `issued_at` and `expires_at` are non-negative integers. `expires_at` must be greater than `issued_at`, and their difference must not exceed 7776000 seconds, or 90 days. At verification time, `issued_at` must not be more than 300 seconds in the future and current time must not be more than 300 seconds after `expires_at`. Clock tolerance does not alter either signed timestamp or extend the cache lifetime below.
 
 ## Signature And Representation Profile
 
-Hail Address Binding v0 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md), with protected content type `application/hail-address-binding+cbor` and the `#hail-identity` key role. The protected `kid` is the UTF-8 encoding of payload `key_id`. The complete signed representation bytes are immutable evidence; a verifier retains and hashes those exact bytes rather than parsing and reserializing the binding.
+Hail Address Binding v0 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md), with protected content type `application/hail-address-binding+cbor` and the `#hail-identity` key role. The protected `kid` is the UTF-8 encoding of payload `key_id`. The complete signed representation bytes are immutable evidence. A verifier parses and validates them as required, but retains and hashes the originally received bytes rather than a reserialized copy.
 
 ## Retrieval Representation And Limits
 
-The WebFinger link and binding response use the v0 media type:
+The WebFinger link's `type` hint and the binding HTTP response's `Content-Type` identify the outer signed representation as:
 
 ```text
 application/cose; cose-type="cose-sign1"
 ```
 
-The media type contains tagged COSE_Sign1 with protected content type `application/hail-address-binding+cbor`. A verifier requests it with `Accept: application/cose; cose-type="cose-sign1"` and `Accept-Encoding: identity`. A successful binding retrieval returns `200 OK` with an equivalent parsed `Content-Type` under [encoding.md](encoding.md) and no `Content-Encoding`. A verifier rejects another success status, a different parsed media type, or any HTTP content coding. The WebFinger link `type` is compared using the same parsed media-type rules.
+The response content is exactly one tagged COSE_Sign1 representation whose protected content-type header is the exact text string `application/hail-address-binding+cbor`. A verifier sends `Accept: application/cose; cose-type="cose-sign1"` and `Accept-Encoding: identity`. A successful retrieval must be `200 OK`, must have an equivalent parsed outer `Content-Type` under [encoding.md](encoding.md), and must have no `Content-Encoding`. A verifier rejects another success status, a different parsed media type, or any HTTP content coding. The WebFinger link `type` is compared using those same outer media-type rules.
 
-A conforming publisher produces, and a conforming verifier accepts, complete valid Address Binding COSE representations through 16384 octets. A verifier rejects a larger response before cryptographic verification. The WebFinger JRD has a separate response-size limit.
+A conforming publisher produces, and a conforming verifier accepts, complete valid Address Binding COSE representations up to and including 16384 octets. A verifier rejects response content larger than 16384 octets before CBOR or COSE decoding. The WebFinger JRD has its separate 65536-byte transmitted-content limit.
 
 The binding `href` must be an absolute HTTPS URL with a public ASCII DNS hostname in canonical IDNA A-label form. It contains no username, password, query, or fragment and does not use an IP-address hostname. Binding retrieval does not follow redirects; any `3xx` response fails verification. It uses a 5-second connection timeout, a 10-second total response deadline, normal TLS hostname and certificate validation, the same per-connection DNS and public-address checks as WebFinger, and sends no credentials, cookies, or referrer information. Cross-origin retrieval receives no ambient authority beyond the URL selected by the address domain.
 
 ## Binding Representation Digest
 
-The Address Binding representation digest is SHA-256 over the complete signed representation bytes, including the protected header, payload, and signature. A Hail payload carries the digest as exactly 32 bytes; its diagnostic or HTTP text rendering is exactly 43 unpadded base64url characters.
+The Address Binding representation digest is SHA-256 over the exact complete tagged deterministic COSE_Sign1 representation bytes. In a grant's `consent_context.address_binding_hash`, `algorithm` is `sha-256` and `value` is this digest as a 32-byte CBOR byte string. Diagnostic JSON renders `value` as exactly 43 unpadded base64url characters.
 
-Every grant's required `consent_context` records the binding used during consent, and its `address_binding_hash` commits to this digest. The recipient retains the exact Address Binding COSE representation and its DID-resolution verification evidence for as long as it retains the corresponding grant revision or consent evidence, subject to the historical DID evidence rules still to be finalized. The digest identifies the signer key, signature, and payload that were verified.
+Every grant's required `consent_context` records the verified address and commits to the exact Address Binding representation through `address_binding_hash`. The recipient separately retains the exact Address Binding COSE representation and its DID-resolution verification evidence for as long as it retains the corresponding grant revision or consent evidence, subject to the historical DID evidence rules still to be finalized. Given the retained representation, the digest commits to the protected `kid`, embedded payload bytes, signature, and all other bytes in the complete tagged COSE_Sign1 representation.
 
 ## Verification Algorithm
 
@@ -196,13 +196,14 @@ Given a user-supplied Hail address, a verifier:
 4. Requires the WebFinger `subject` to equal the canonical `acct:` URI.
 5. Selects exactly one supported Hail Address Binding link.
 6. Validates the selected `href` and fetches the binding without redirects under the binding retrieval profile.
-7. Validates the binding schema.
-8. Requires the binding `address` to equal the canonical requested address.
-9. Checks `issued_at` and `expires_at` using the allowed clock-skew policy.
-10. Resolves the exact `did:plc` DID from the binding through a conforming PLC resolver.
-11. Requires `key_id` to be that DID's `#hail-identity` verification method as defined by [did-profile.md](did-profile.md).
-12. Verifies the tagged COSE_Sign1 and exact deterministic representation under the Address Binding signature profile.
-13. Returns the verified DID and binding expiration.
+7. Enforces the representation-size limit, performs bounded CBOR and COSE decoding, and requires the exact tagged deterministic COSE_Sign1 structure and protected-header profile.
+8. Requires the embedded payload to be one exact deterministic encoding of the closed Address Binding payload map and validates its schema.
+9. Requires payload `address` to equal the canonical requested address.
+10. Checks `issued_at` and `expires_at` using the allowed clock-skew policy.
+11. Resolves the exact payload `did` through a conforming PLC resolver.
+12. Requires payload `key_id` and protected `kid` to identify that DID's `#hail-identity` verification method as defined by [did-profile.md](did-profile.md).
+13. Verifies the COSE signature under the Address Binding signature profile.
+14. Returns the verified DID and binding expiration.
 
 Any mismatch or ambiguity causes address verification to fail.
 
@@ -302,7 +303,7 @@ The POC needs:
 - exact `https://hailproto.com/rel/address-binding` relation and one Address Binding link
 - at most three HTTPS WebFinger redirects and no binding redirects
 - delegated cross-origin binding hosting with strict safe-fetch behavior
-- one signed binding payload
+- one closed Address Binding payload map embedded in one complete tagged COSE_Sign1 representation
 - `did:plc` resolution
 - 90-day maximum binding lifetime, 300-second clock tolerance, and one-hour maximum cache
 - deterministic Hail CBOR and tagged COSE_Sign1
