@@ -29,7 +29,7 @@ interface VectorManifest {
 }
 
 const manifest = JSON.parse(
-  readFileSync(new URL("../vectors/v1.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../vectors/v0.json", import.meta.url), "utf8"),
 ) as VectorManifest;
 
 function vectorBytes(id: string): Uint8Array {

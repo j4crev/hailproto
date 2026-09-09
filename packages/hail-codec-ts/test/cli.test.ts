@@ -18,7 +18,7 @@ interface VectorManifest {
 const directory = mkdtempSync(join(tmpdir(), "hail-codec-cli-"));
 const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
 const manifest = JSON.parse(
-  readFileSync(new URL("../vectors/v1.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../vectors/v0.json", import.meta.url), "utf8"),
 ) as VectorManifest;
 
 afterAll(() => rmSync(directory, { force: true, recursive: true }));

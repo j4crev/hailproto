@@ -9,13 +9,13 @@ The profile answers two questions:
 - Which keys may authorize Hail operations for this DID?
 - Where is this DID's current Hail server?
 
-The v1 DID method is:
+The v0 DID method is:
 
 ```text
 did:plc
 ```
 
-Every DID and DID URL in a Hail v1 protocol object uses `did:plc`. PLC resolution and validation remain behind a resolver interface so implementations can use a local validator, mirror, or configured directory without changing protocol objects.
+Every DID and DID URL in a Hail v0 protocol object uses `did:plc`. PLC resolution and validation remain behind a resolver interface so implementations can use a local validator, mirror, or configured directory without changing protocol objects.
 
 ## Identifier Syntax
 
@@ -64,9 +64,9 @@ Conceptual normalized DID document after relative-ID expansion:
 }
 ```
 
-## V1 Key Algorithm And Encoding
+## v0 Key Algorithm And Encoding
 
-Hail v1 uses Ed25519 as the only permitted signing algorithm for both Hail verification-method roles. The roles must still use distinct public keys. V1 performs no signature-algorithm negotiation or fallback.
+Hail v0 uses Ed25519 as the only permitted signing algorithm for both Hail verification-method roles. The roles must still use distinct public keys. v0 performs no signature-algorithm negotiation or fallback.
 
 An Ed25519 Hail verification method uses the W3C Multikey representation:
 
@@ -81,7 +81,7 @@ An Ed25519 Hail verification method uses the W3C Multikey representation:
 
 The PLC operation stores each Hail key as an Ed25519 `did:key` value. Its multibase identifier encodes the same `ed25519-pub` multicodec prefix and public-key bytes; DID resolution renders the corresponding Hail Multikey verification method.
 
-Every Hail v1 COSE_Sign1 uses the fully specified RFC 9864 COSE `Ed25519` algorithm value `-19`. The deprecated polymorphic `EdDSA` value `-8` is not accepted. Protected content types and key roles remain object-specific even though every object uses the same key algorithm. Supporting another algorithm requires a future versioned Hail security profile that defines its key representation, object applicability, negotiation, downgrade prevention, and migration behavior; adding an arbitrary optional algorithm to v1 is prohibited.
+Every Hail v0 COSE_Sign1 uses the fully specified RFC 9864 COSE `Ed25519` algorithm value `-19`. The deprecated polymorphic `EdDSA` value `-8` is not accepted. Protected content types and key roles remain object-specific even though every object uses the same key algorithm. Supporting another algorithm requires a future versioned Hail security profile that defines its key representation, object applicability, negotiation, downgrade prevention, and migration behavior; adding an arbitrary optional algorithm to v0 is prohibited.
 
 ## Hail Identity Key
 
@@ -118,7 +118,7 @@ The messaging key does not authorize:
 - PLC state updates
 - PLC recovery
 
-The identity and messaging roles must use distinct public keys in v1. Reusing one key for both roles defeats the intended separation between consent and routine provider operations.
+The identity and messaging roles must use distinct public keys in v0. Reusing one key for both roles defeats the intended separation between consent and routine provider operations.
 
 ## PLC Rotation And Recovery
 
@@ -253,7 +253,7 @@ The `profiles/{sender_did}`, `envelopes`, `bodies/{digest}`, `grants/{grant_id}`
 
 ## Service Validation
 
-The v1 Hail DID profile requires exactly one service whose `type` is the exact, case-sensitive JSON string `HailMessaging`; after relative-ID expansion, that service's `id` must be the absolute DID URL formed by appending `#hail` to the document's DID. An array-valued `type`, another spelling, and any additional `HailMessaging` service are invalid. Unrelated service entries are allowed.
+The v0 Hail DID profile requires exactly one service whose `type` is the exact, case-sensitive JSON string `HailMessaging`; after relative-ID expansion, that service's `id` must be the absolute DID URL formed by appending `#hail` to the document's DID. An array-valued `type`, another spelling, and any additional `HailMessaging` service are invalid. Unrelated service entries are allowed.
 
 `active` is not a per-service state in this profile. Every service in the successfully resolved current DID document is current; a removed service is absent. A resolution marked deactivated or otherwise unsuccessful has no active Hail service.
 

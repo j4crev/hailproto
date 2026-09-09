@@ -11,7 +11,7 @@ This document coordinates the pre-implementation migration of Hail-owned wire ob
 - Hide CBOR and COSE mechanics behind schemas, generated types, and shared codecs for application developers.
 - Preserve Hail's authorization, privacy, delivery, replay, and identity semantics.
 - Reuse sound AT Protocol and DRISL design constraints without creating an AT Protocol interoperability requirement.
-- Complete the representation change before any public v1 implementation creates persistent signed objects.
+- Complete the representation change before any public v0 implementation creates persistent signed objects.
 
 ## Non-Goals
 
@@ -23,7 +23,7 @@ This document coordinates the pre-implementation migration of Hail-owned wire ob
 
 ## Target Architecture
 
-Hail v1 has three deliberately separate layers:
+Hail v0 has three deliberately separate layers:
 
 1. The Hail Data Model defines null, booleans, bounded integers, UTF-8 text, bytes, arrays, and text-keyed maps.
 2. Deterministic Hail CBOR is the sole authoritative encoding of Hail-owned payloads and bodies.
@@ -33,7 +33,7 @@ Signed Hail objects use tagged COSE_Sign1 with embedded deterministic-CBOR paylo
 
 The client-to-provider API remains outside the federation specification. Providers may expose JSON, GraphQL, native SDK models, or another local interface. A client application should not need to construct CBOR or COSE directly.
 
-## Fixed V1 Decisions
+## Fixed v0 Decisions
 
 | Area | Decision |
 | --- | --- |
@@ -53,7 +53,7 @@ The client-to-provider API remains outside the federation specification. Provide
 | Body HTTP type | `application/hail-body+cbor` |
 | Signed-object compression | None |
 | Detached body compression | Identity or gzip |
-| Federation alternatives | No JSON/JWS fallback or negotiation in v1 |
+| Federation alternatives | No JSON/JWS fallback or negotiation in v0 |
 
 The older JSON/JWS text in repository history describes an unimplemented draft and is not a deployed Hail version.
 
@@ -89,7 +89,7 @@ These domains remain intentionally distinct. Evidence and grant-lineage digests 
 
 - Add the normative Hail Data Model, deterministic encoding, diagnostic JSON, COSE, media-type, boundary-conversion, and digest-domain rules.
 - Define one vocabulary for deterministic payload bytes and complete signed representation bytes.
-- State that v1 has one mandatory representation.
+- State that v0 has one mandatory representation.
 
 ### 2. Signed Objects
 
@@ -119,7 +119,7 @@ These domains remain intentionally distinct. Evidence and grant-lineage digests 
 - Keep WebFinger JRD, Problem Details, and generic receipts in JSON.
 - Update safe transport errors and protected malformed-object behavior from JSON/JWS to CBOR/COSE.
 - Preserve privacy timing, retry, redirect, conditional request, and acknowledgement semantics.
-- Finalize or register every provisional Hail `+cbor` media type before stable v1 publication.
+- Finalize or register every provisional Hail `+cbor` media type before stable v0 publication.
 
 ### 6. Developer Tooling
 
@@ -133,7 +133,7 @@ Implementation status:
 
 - TypeScript is the reference and first application language.
 - The repository uses Bun workspaces, supports Node.js 24 and newer, and tests with Vitest.
-- `packages/hail-codec-ts` implements strict deterministic CBOR, typed v1 payload models, structural and semantic validators, tagged COSE_Sign1 signing and verification, Web Crypto adapters, schema-aware diagnostic JSON, and a disclosure-safe inspection CLI.
+- `packages/hail-codec-ts` implements strict deterministic CBOR, typed v0 payload models, structural and semantic validators, tagged COSE_Sign1 signing and verification, Web Crypto adapters, schema-aware diagnostic JSON, and a disclosure-safe inspection CLI.
 - Decoder-side structural scanning enforces byte, nesting, item, collection, text, and byte-string limits before general CBOR decoding. Signed COSE structures and protected headers receive the same pre-decode treatment.
 - Inspected and cryptographically verified values have distinct public types; only successful verification returns the nominally branded `VerifiedHailObject`.
 - Address validation applies non-transitional UTS #46 checks and the current ICANN public suffix list. Protocol contexts that permit special-use domains remain future explicit policy inputs rather than implicit exceptions.
@@ -153,8 +153,8 @@ Implementation status:
 
 Implementation status:
 
-- `packages/hail-codec-ts/vectors/v1.json` publishes deterministic payload vectors for all six payload families and complete COSE_Sign1 vectors for all five signed families using explicitly public test-only Ed25519 seeds.
-- The manifest links every v1 digest domain across its source and target object, includes exact Sig_structure bytes, and publishes SHA-256, base64url, URL-segment, ETag, bearer-token, and `Content-Digest` boundary values plus malformed CBOR, payload, and COSE vectors.
+- `packages/hail-codec-ts/vectors/v0.json` publishes deterministic payload vectors for all six payload families and complete COSE_Sign1 vectors for all five signed families using explicitly public test-only Ed25519 seeds.
+- The manifest links every v0 digest domain across its source and target object, includes exact Sig_structure bytes, and publishes SHA-256, base64url, URL-segment, ETag, bearer-token, and `Content-Digest` boundary values plus malformed CBOR, payload, and COSE vectors.
 - The conformance suite reads checked-in vectors independently and compares exact encoding, deterministic signatures, independent signature verification, cross-object digest domains, boundary conversions, and reference-codec error classifications.
 - The independent Go codec consumes the same checked-in vectors and verifies exact payload encoding, COSE signing and verification, Sig_structure bytes, digest links, boundary conversions, malformed-input rejection, and mutation/resource safety without importing TypeScript implementation code.
 - Repeatable Tinybench and Go `benchmem` harnesses measure matching payload and complete envelope COSE workloads; a deterministic report records CBOR, compact diagnostic JSON, gzip-CBOR, and COSE sizes. Historical JSON/JWS results are not claimed because no authoritative former wire vectors were retained.
@@ -164,7 +164,7 @@ Implementation status:
 
 The migration is complete when:
 
-- No Hail-owned v1 signed object normatively depends on JSON, JCS, JWS, or I-JSON.
+- No Hail-owned v0 signed object normatively depends on JSON, JCS, JWS, or I-JSON.
 - No Hail Body normatively uses JSON as its federation encoding.
 - Every binary field has one schema type and one explicit HTTP/diagnostic conversion.
 - Every hash identifies an exact byte domain.
@@ -183,4 +183,4 @@ The migration is complete when:
 - CIDs or other typed content links if Hail later develops a concrete need
 - Integer map labels in a future incompatible profile
 
-None of these decisions blocks the deterministic CBOR and COSE v1 profile.
+None of these decisions blocks the deterministic CBOR and COSE v0 profile.

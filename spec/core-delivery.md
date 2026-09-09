@@ -118,7 +118,7 @@ For core delivery:
 - Every grant-authorized envelope includes a UUIDv7 `authorization.grant_id` as a lookup hint.
 - The grant ID is not a bearer capability.
 - The grantor and grantee are exact DIDs.
-- V1 permits one active grant per grantor/grantee pair.
+- v0 permits one active grant per grantor/grantee pair.
 - Scope, status, expiration, recipient policy, and authenticated sender identity are checked before delivery.
 - Sender acknowledgment is not required for local grant activation or revocation.
 
@@ -155,7 +155,7 @@ For core delivery:
 - An authenticated sender with a current or previous relationship may receive a detailed current result when privacy permits.
 - Terminal delivery status is reported asynchronously with a signed status snapshot.
 - The POC requires support for complete envelope representations through 16384 bytes, as defined in [envelopes.md](envelopes.md).
-- V1 requires no transport authentication in addition to HTTPS and the envelope COSE signature. Private deployment controls carry no Hail protocol semantics and never replace COSE verification.
+- v0 requires no transport authentication in addition to HTTPS and the envelope COSE signature. Private deployment controls carry no Hail protocol semantics and never replace COSE verification.
 - The body retrieval location is derived from authenticated sender discovery rather than supplied by the envelope.
 - What request identifier supports tracing without becoming part of message identity?
 
@@ -169,7 +169,7 @@ Authorization is fixed by atomic acceptance. Envelope expiration is re-checked b
 
 ### 8. Detached Body Retrieval
 
-The recipient pulls from the authenticated sender Hail service using bearer authorization carried in the signed envelope, as defined in [bodies.md](bodies.md). Recipient-scoped caching and underlying digest-based storage deduplication are allowed. V1 accepts no envelope-supplied URLs or redirects.
+The recipient pulls from the authenticated sender Hail service using bearer authorization carried in the signed envelope, as defined in [bodies.md](bodies.md). Recipient-scoped caching and underlying digest-based storage deduplication are allowed. v0 accepts no envelope-supplied URLs or redirects.
 
 Body fetches are server delivery operations, not user open or read signals.
 
@@ -211,7 +211,7 @@ temporarily-unavailable
 
 Before a sender is authenticated with a current or previous relationship, protected failures return the same generic `202`/`received` response under a common measured bounded response schedule. The generic response contains no query handle or acceptance promise. Eligible authenticated senders may receive detailed current results; human-readable `detail` may mention already-known causes such as `grant-revoked` and `category-not-granted`, but clients do not parse it for protocol behavior. Every explicit unsuccessful HTTP response uses RFC 9457 Problem Details, but its fields disclose no more than the caller's tier permits. Protected failures concealed by the generic receipt are not exposed as Problem Details responses. Safe transport errors, detailed disclosure, and retry classifications are defined in [http-binding.md](http-binding.md).
 
-The generic receipt uses `202` with `application/json`; an authenticated successful result uses `200` with an `application/cose; cose-type="cose-sign1"` signed delivery-status snapshot. Detailed envelope error status codes and the v1 RFC 9457 profile are fixed by the HTTP binding. The error media type is `application/problem+json`.
+The generic receipt uses `202` with `application/json`; an authenticated successful result uses `200` with an `application/cose; cose-type="cose-sign1"` signed delivery-status snapshot. Detailed envelope error status codes and the v0 RFC 9457 profile are fixed by the HTTP binding. The error media type is `application/problem+json`.
 
 ### 14. Resource And Abuse Limits
 
@@ -254,8 +254,8 @@ These issues should not block the first grant-authorized delivery:
 - custom encoding negotiation
 - organization verification beyond domain control
 
-The initial schemas should avoid making these features impossible, but they do not need complete v1 behavior yet.
+The initial schemas should avoid making these features impossible, but they do not need complete v0 behavior yet.
 
 ## HTTPS Binding Status
 
-Sender Profile retrieval, envelope submission, body retrieval, grant publication, terminal delivery-status push and acknowledgement, and terminal-status retry behavior are bound in [http-binding.md](http-binding.md). Authenticated status query is deferred from v1. No core v1 HTTPS binding decision remains open in this specification.
+Sender Profile retrieval, envelope submission, body retrieval, grant publication, terminal delivery-status push and acknowledgement, and terminal-status retry behavior are bound in [http-binding.md](http-binding.md). Authenticated status query is deferred from v0. No core v0 HTTPS binding decision remains open in this specification.

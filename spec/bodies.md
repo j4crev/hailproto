@@ -94,7 +94,7 @@ The digest is not secret. Implementations must not treat knowledge of it as auth
 
 Every envelope contains a signed body descriptor.
 
-Diagnostic JSON for the conceptual v1 shape. Byte-string values use their base64url diagnostic rendering:
+Diagnostic JSON for the conceptual v0 shape. Byte-string values use their base64url diagnostic rendering:
 
 ```json
 {
@@ -116,7 +116,7 @@ Diagnostic JSON for the conceptual v1 shape. Byte-string values use their base64
 }
 ```
 
-The final placement, naming, and closed v1 schema of this descriptor are defined in [envelopes.md](envelopes.md).
+The final placement, naming, and closed v0 schema of this descriptor are defined in [envelopes.md](envelopes.md).
 
 ### `digest`
 
@@ -186,7 +186,7 @@ Missing, malformed, invalid, unknown, mismatched, and expired tokens receive the
 
 A signature is created with a private key and verified with a public key. A token cannot be "signed with the receiver's public key."
 
-The token could be encrypted to a recipient public key, but Hail v1 does not otherwise provide end-to-end envelope encryption. Encrypting only the retrieval token would add key-agreement and recovery complexity without protecting the rest of the envelope metadata.
+The token could be encrypted to a recipient public key, but Hail v0 does not otherwise provide end-to-end envelope encryption. Encrypting only the retrieval token would add key-agreement and recovery complexity without protecting the rest of the envelope metadata.
 
 For the POC, HTTPS protects the envelope in transit and the sender's `#hail-messaging` signature authenticates the token and body descriptor.
 
@@ -234,7 +234,7 @@ After authorizing an envelope, the server may satisfy body retrieval from its lo
 - the media type and profile match
 - local retention policy permits reuse
 
-The server does not need to redeem another token for a cache entry with matching recipient and sender provenance. Cross-recipient cache presence must not determine delivery behavior. V1 performs recipient-specific retrieval when matching provenance is absent; coordinated cross-recipient retrieval requires a future privacy-preserving authorization profile.
+The server does not need to redeem another token for a cache entry with matching recipient and sender provenance. Cross-recipient cache presence must not determine delivery behavior. v0 performs recipient-specific retrieval when matching provenance is absent; coordinated cross-recipient retrieval requires a future privacy-preserving authorization profile.
 
 Consequences:
 
@@ -257,7 +257,7 @@ Retrieval uses `GET`. The relative operation path, no-trailing-slash rule, and e
 
 An envelope does not carry a full body URL. This prevents envelopes from directing recipient servers to arbitrary networks or hosts.
 
-V1 retrieval does not follow redirects. A provider migration is represented by updating the DID's `#hail` service and is handled by the canonical endpoint comparison and DID re-resolution rules in the HTTP binding, not HTTP redirection. A retry at a newly authenticated endpoint uses the same digest and signed bearer authorization, subject to its original validity period.
+v0 retrieval does not follow redirects. A provider migration is represented by updating the DID's `#hail` service and is handled by the canonical endpoint comparison and DID re-resolution rules in the HTTP binding, not HTTP redirection. A retry at a newly authenticated endpoint uses the same digest and signed bearer authorization, subject to its original validity period.
 
 ## Retrieval Response
 

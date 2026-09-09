@@ -2,7 +2,7 @@
 
 Status: Draft
 
-This document defines the Hail Envelope v1 payload, authorization modes, signature representation, validation rules, and replay behavior.
+This document defines the Hail Envelope v0 payload, authorization modes, signature representation, validation rules, and replay behavior.
 
 A Hail Envelope is a compact, single-recipient, signed object. It authenticates the metadata needed to authorize delivery and retrieve an immutable detached Hail Body. It does not contain the body or an arbitrary body URL.
 
@@ -20,11 +20,11 @@ Detached body publication and retrieval are defined in [bodies.md](bodies.md). G
 - The tuple `(from, message_id)` is the delivery and idempotency key.
 - Repeating the same signed envelope is idempotent; reusing its key with different content is a permanent conflict.
 - Envelope acceptance is not completed delivery. Delivery completes only after the recipient verifies and durably accepts the envelope and body.
-- Unknown top-level fields and unknown fields in closed v1 objects are rejected.
+- Unknown top-level fields and unknown fields in closed v0 objects are rejected.
 
 ## Signed Payload
 
-Diagnostic JSON for the conceptual grant-authorized v1 payload. Byte-string values use their base64url diagnostic rendering:
+Diagnostic JSON for the conceptual grant-authorized v0 payload. Byte-string values use their base64url diagnostic rendering:
 
 ```json
 {
@@ -121,7 +121,7 @@ Required. A closed object with exactly one of the shapes defined in [Authorizati
 
 Conditionally required. A case-sensitive sender-defined category ID.
 
-V1 category IDs contain 1 to 64 ASCII characters. The first character is a lowercase letter or digit. Remaining characters are lowercase letters, digits, `.`, `_`, or `-`.
+v0 category IDs contain 1 to 64 ASCII characters. The first character is a lowercase letter or digit. Remaining characters are lowercase letters, digits, `.`, `_`, or `-`.
 
 For grant-authorized delivery:
 
@@ -135,7 +135,7 @@ For reply-authorized delivery, `category` must be omitted. A reply capability au
 
 Optional. Protocol-defined presentation and organization metadata. It does not grant delivery permission and cannot broaden grant scope.
 
-V1 values are:
+v0 values are:
 
 ```text
 personal
@@ -151,7 +151,7 @@ package-update
 calendar-event
 ```
 
-Unknown values are rejected in v1 rather than silently treated as an existing type. A reply envelope should normally use `personal` or omit the field.
+Unknown values are rejected in v0 rather than silently treated as an existing type. A reply envelope should normally use `personal` or omit the field.
 
 ### `created_at`
 
@@ -230,11 +230,11 @@ A reply capability authorizes one next message, not an unlimited set of sibling 
 
 A reply envelope may itself permit one further reply. This forms a linear chain of explicitly solicited messages without creating a standing grant in the reverse direction. Sending an envelope with `reply.allowed` set to `false` ends the chain after that message.
 
-V1 has no reply routing hint or handler URL. Replies resolve the current recipient DID's authenticated `#hail` service and use the normal envelope submission operation.
+v0 has no reply routing hint or handler URL. Replies resolve the current recipient DID's authenticated `#hail` service and use the normal envelope submission operation.
 
 ## Body Descriptor
 
-The `body` value is a closed object with this exact v1 shape:
+The `body` value is a closed object with this exact v0 shape:
 
 ```json
 {
@@ -254,7 +254,7 @@ The `body` value is a closed object with this exact v1 shape:
 }
 ```
 
-V1 rules:
+v0 rules:
 
 - `digest` is a closed object containing only `algorithm` and `value`.
 - `digest.algorithm` is the exact string `sha-256`.
@@ -307,7 +307,7 @@ The `kid` key must resolve under `from`, have controller `from`, use an Ed25519 
 
 RFC 9864 supplies the fully specified COSE `Ed25519` algorithm value `-19`; deprecated polymorphic `EdDSA` value `-8` is rejected.
 
-This signature profile is authoritative for Hail Envelope v1. Other signed Hail objects use their own protected content type, key role, and payload rules under the shared profile so they remain domain-separated.
+This signature profile is authoritative for Hail Envelope v0. Other signed Hail objects use their own protected content type, key role, and payload rules under the shared profile so they remain domain-separated.
 
 ## Timestamp Validation
 
@@ -328,7 +328,7 @@ The recipient re-checks envelope expiration immediately before committing comple
 
 A POC recipient must accept a valid tagged COSE_Sign1 envelope whose complete transmitted representation is no larger than 16384 octets. It may reject a larger envelope before parsing or cryptographic verification.
 
-The limit applies to the transmitted COSE representation. The POC does not apply HTTP content coding to individual envelopes. Batch submission is not part of v1.
+The limit applies to the transmitted COSE representation. The POC does not apply HTTP content coding to individual envelopes. Batch submission is not part of v0.
 
 ## Validation Order
 

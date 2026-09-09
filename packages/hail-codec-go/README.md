@@ -1,6 +1,6 @@
 # Hail Codec for Go
 
-Independent Go implementation of the strict Hail v1 deterministic-CBOR profile. It supports typed payloads for all six families, constrained value and resource validation, tagged COSE_Sign1 inspection/signing/Ed25519 verification, SHA-256 digest inputs, and canonical unpadded base64url.
+Independent Go implementation of the strict Hail v0 deterministic-CBOR profile. It supports typed payloads for all six families, constrained value and resource validation, tagged COSE_Sign1 inspection/signing/Ed25519 verification, SHA-256 digest inputs, and canonical unpadded base64url.
 
 ## API
 
@@ -16,7 +16,7 @@ The codec rejects non-deterministic encodings, tags in payloads, floats and unsu
 
 ## Development
 
-Tests consume the shared vectors directly from `../hail-codec-ts/vectors/v1.json`; they are not copied into this module.
+Tests consume the shared vectors directly from `../hail-codec-ts/vectors/v0.json`; they are not copied into this module.
 
 ```sh
 mise exec -- gofmt -w .

@@ -11,7 +11,7 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./vectors/v1.json": "./vectors/v1.json"
+    "./vectors/v0.json": "./vectors/v0.json"
   },
   "bin": {
     "hail-codec": "./dist/cli.js"

@@ -5,18 +5,18 @@ Hail Protocol is a federated, permission-based messaging concept intended to sol
 ## Goals
 
 - Prevent spam by default rather than filtering it after receipt.
-- Support rich messages.
+- Support safe, rich messages.
 - Allow federation between independently operated servers.
 - Support user choice of providers and clients.
 - Support portable identities for users and organizations with provider-issued or custom-domain addresses.
-- Use open standards where practical.
-- Keep v1 implementable by hobbyists and independent developers.
-- Allow existing email clients and tools to eventually adopt delivery and receipt of these messages, enabling side-by-side existence with email.
 - Make sender authenticity visible at the consent moment, not hidden in technical headers.
+- Use open standards where practical.
+- Implementation should be approachable by hobbyists and independent developers.
+- Allow existing email clients and tools to adopt delivery and receipt of these messages, enabling side-by-side existence with email.
 
-## V1 Scope
+## v0 Scope
 
-V1 should focus primarily on B2C communication such as:
+v0 should focus primarily on B2C communication such as:
 
 - newsletters
 - receipts
@@ -39,14 +39,12 @@ The initial prototype should validate:
 - reply capabilities
 - revocation behavior
 
-## Non-Goals For V1
+## Non-Goals For v0
 
 - Replacing all email use cases immediately.
 - Solving provider-owned address portability.
 - Building a Hail-specific global identity registry. Hail uses the external PLC registry and its verifiable operation log.
-- Supporting arbitrary browser-grade HTML.
-- Supporting unsolicited rich messages.
-- Solving lookalike-domain phishing completely.
+- Supporting unsolicited messages.
 - End-to-end encryption.
 - A complete rich block-document vocabulary.
 
@@ -60,9 +58,9 @@ alice@example.com
 
 The address resolves to a DID. Grants, envelopes, and durable relationships bind to DIDs rather than addresses or provider endpoints.
 
-Hail addresses are case-insensitive and serialize in lowercase canonical form. V1 permits ASCII dot-atom local parts and IDNA2008 domains serialized as A-labels; quoted local parts, domain literals, and internationalized local parts are excluded.
+Hail addresses are case-insensitive and serialize in lowercase canonical form. v0 permits ASCII dot-atom local parts and IDNA2008 domains serialized as A-labels; quoted local parts, domain literals, and internationalized local parts are excluded.
 
-V1 should distinguish receiver onboarding requirements from sender verification requirements.
+v0 should distinguish receiver onboarding requirements from sender verification requirements.
 
 Receivers may use provider-issued identities, especially if they only receive messages:
 
@@ -72,14 +70,14 @@ alice@provider.example.com
 
 All identities use `did:plc` as their durable identity. A provider-issued Hail address is an alias and may change when the user migrates, while the DID and grants remain stable.
 
-Senders should generally be domain-backed:
+Senders should generally be custom domain-backed:
 
 ```text
 updates@store.example.com
 receipts@airline.example.com
 ```
 
-For v1, portability of the human-readable Hail address itself is available to users and organizations that control their own domain:
+For v0, portability of the human-readable Hail address itself is available to users and organizations that control their own domain:
 
 ```text
 alice@alice.example.com
@@ -87,12 +85,6 @@ updates@store.example.com
 ```
 
 Custom-domain identities also use `did:plc`. Their domain-backed Hail address remains stable while the domain owner changes Hail hosting providers, and their DID remains independent of domain registration, DNS, and web hosting.
-
-The v1 identity policy is:
-
-```text
-All identities: did:plc
-```
 
 A provider may later offer managed personal-domain registration and DNS as a paid service. This is optional rather than a baseline requirement because every user would otherwise incur domain registration and renewal costs. For meaningful portability, the user should be the registrant or otherwise have a guaranteed right to transfer the managed domain away from the provider.
 
@@ -112,7 +104,7 @@ If Alice changes providers, she updates the service endpoint associated with her
 
 For domain-backed sender addresses, DNS or a well-known document proves that the domain authorizes the address-to-DID association. Hosting that DID's Hail service does not itself make a provider the identity owner.
 
-V1 supports `did:plc` for individuals and organizations, whether their address is provider-issued or under a custom domain. The published PLC specification permits application-specific verification methods and services. Hail implementations access PLC through a configurable resolver boundary so caching, mirrors, audit verification, and alternative directory infrastructure do not affect protocol objects.
+Hail supports `did:plc` for individuals and organizations, whether their address is provider-issued or under a custom domain. The published PLC specification permits application-specific verification methods and services. Hail implementations access PLC through a configurable resolver boundary so caching, mirrors, audit verification, and alternative directory infrastructure do not affect protocol objects.
 
 ## Hail DID Profile
 
@@ -163,13 +155,13 @@ Hail address
 
 The profile is retrieved from `GET {hail-service-base}/profiles/{sender_did}`. It is DID-scoped so one signed profile works with multiple independently verified addresses for that DID. The client displays the separately verified address alongside the profile rather than allowing profile metadata to claim an address.
 
-The v1 profile contains a display name, optional description, whether uncategorized subscription is offered, stable category IDs with labels and descriptions, revision, update time, and signer key. It excludes avatars, remote assets, subscriber data, and recipient-specific state. The complete profile is signed by `#hail-messaging`, and its representation digest is retained in every grant's required consent context.
+The v0 profile contains a display name, optional description, whether uncategorized subscription is offered, stable category IDs with labels and descriptions, revision, update time, and signer key. It excludes avatars, remote assets, subscriber data, and recipient-specific state. The complete profile is signed by `#hail-messaging`, and its representation digest is retained in every grant's required consent context.
 
 Search and QR encoding remain application-specific. A forged or stale search result cannot authorize a sender because the client independently verifies the Address Binding, PLC state, profile DID, and profile signature before consent.
 
 ## Sender Verification
 
-For v1, sender authenticity is anchored jointly to the address domain's WebFinger publication, the DID-signed Address Binding, and the PLC-authorized profile key.
+For v0, sender authenticity is anchored jointly to the address domain's WebFinger publication, the DID-signed Address Binding, and the PLC-authorized profile key.
 
 A sender claiming `updates@store.example.com` must have that address domain publish its Address Binding, and the binding and Sender Profile must verify under the same PLC identity.
 
@@ -188,7 +180,7 @@ Possible later mitigations:
 
 A Hail Grant is a recipient-created, recipient-signed authorization from one DID to another. The recipient server is authoritative, and the sender cannot create or expand consent on the recipient's behalf.
 
-V1 supports categorized and uncategorized grants. Every revision carries consent context committing to the verified Address Binding and Sender Profile shown during consent. New categories and scope-mode changes require fresh evidence and explicit opt-in; restrictions and revocation preserve prior evidence and never depend on sender availability. Unknown scope types fail closed. Grant state uses signed revisions, local immediate enforcement, asynchronous sender notification, and terminal revocation.
+v0 supports categorized and uncategorized grants. Every revision carries consent context committing to the verified Address Binding and Sender Profile shown during consent. New categories and scope-mode changes require fresh evidence and explicit opt-in; restrictions and revocation preserve prior evidence and never depend on sender availability. Unknown scope types fail closed. Grant state uses signed revisions, local immediate enforcement, asynchronous sender notification, and terminal revocation.
 
 The complete grant schema, scope semantics, lookup rules, revision lifecycle, and HTTP publication behavior are defined in [`spec/grants.md`](spec/grants.md).
 
@@ -218,7 +210,7 @@ Category is sender-defined consent scope. Message type is protocol-defined rende
 
 Hail Messages should use a small signed Hail Envelope with a detached Hail Body.
 
-The complete immutable body exists before envelope submission. The envelope is delivered first, and the recipient server retrieves or reuses the body only after authorizing the envelope.
+The complete immutable body must exist before envelope submission. The envelope is delivered first, and the recipient server retrieves or reuses the body only after authorizing the envelope.
 
 Benefits:
 
@@ -229,13 +221,13 @@ Benefits:
 - assets can be bundled, cached, and verified separately
 - remote tracking pixels become avoidable by design
 
-The POC uses one content-addressed body for any number of byte-identical messages, plus a separate recipient-specific retrieval token in each signed envelope. Senders commit to at least 30 days of availability. Exact hashing, token, retrieval, caching, compression, integrity, and retention rules are defined in [`spec/bodies.md`](spec/bodies.md).
+V0 uses one content-addressed body for any number of byte-identical messages, plus a separate recipient-specific retrieval token in each signed envelope. Senders commit to at least 30 days of availability. Exact hashing, token, retrieval, caching, compression, integrity, and retention rules are defined in [`spec/bodies.md`](spec/bodies.md).
 
 ## Hail Envelope
 
 The envelope is compact and carries only data needed for routing, authorization, presentation, threading, and body retrieval.
 
-V1 uses one recipient per envelope, UUIDv7 message IDs scoped by sender DID, grant or reply authorization, required timestamps, a signed detached body descriptor, and explicit reply behavior. The payload uses deterministic Hail CBOR in tagged COSE_Sign1 signed with the sender's `#hail-messaging` key and the RFC 9864 fully specified COSE `Ed25519` algorithm.
+v0 uses one recipient per envelope, UUIDv7 message IDs scoped by sender DID, grant or reply authorization, required timestamps, a signed detached body descriptor, and explicit reply behavior. The payload uses deterministic Hail CBOR in tagged COSE_Sign1 signed with the sender's `#hail-messaging` key and the RFC 9864 fully specified COSE `Ed25519` algorithm.
 
 The complete schema, signature profile, validation order, and replay behavior are defined in [`spec/envelopes.md`](spec/envelopes.md). Detached body behavior is defined in [`spec/bodies.md`](spec/bodies.md).
 
@@ -267,7 +259,7 @@ Default reply window:
 
 Senders may set a longer or shorter `reply.until` timestamp when needed, such as for travel bookings made months in advance.
 
-The v1 Sender Profile does not advertise sender-specific reply limits. The protocol should define one guaranteed minimum reply capacity so ordinary text replies always work; attachments remain outside the initial profile.
+The v0 Sender Profile does not advertise sender-specific reply limits. The protocol should define one guaranteed minimum reply capacity so ordinary text replies always work; attachments remain outside the initial profile.
 
 Open starting point:
 
@@ -277,19 +269,21 @@ minimum reply body size: 64 KiB
 
 Threads are linear chains of mutually solicited messages. Either side can end the thread by sending a message with `reply.allowed: false`.
 
+> We need to account for a receiver wanting to send multiple replies. e.g. sending "I'll find that document and send it later" shouldn't prevent them from replying with the document within the `reply.until' timeframe. But, this also shouldn't be a license to spam senders.
+
 ## Revocation
 
 Revocation is local and unilateral.
 
 The recipient server enforces a signed revoked grant revision immediately and notifies the sender asynchronously. The sender does not approve revocation, and notification failure cannot delay it.
 
-To reduce address probing, detailed rejection reasons should only be returned when the sender previously had a valid grant relationship. Unknown never-granted senders should receive a generic rejection.
+To reduce address probing, detailed rejection reasons should only be returned when the sender previously had a valid grant relationship (how would they know this?). Unknown never-granted senders should receive a generic rejection.
 
 Grant revocation is defined in [`spec/grants.md`](spec/grants.md). Revocation wins if it commits before envelope acceptance; acceptance wins if it commits first. Delivery state is defined in [`spec/delivery-state.md`](spec/delivery-state.md).
 
 ## Hail Body Format Strategy
 
-V1 should not depend on arbitrary HTML as the long-term rich message format.
+V0 does not depend on arbitrary HTML as the rich message format.
 
 The preferred direction is a structured block document model: a schema-validated tree of typed blocks and inline nodes. This makes unsafe behavior inexpressible instead of relying on sanitization after parsing untrusted markup.
 
@@ -326,7 +320,7 @@ For the proof of concept, plain text is sufficient, but it should still be wrapp
 }
 ```
 
-This allows the POC to evolve into a richer block vocabulary without changing the transport model.
+This allows Hail to evolve into a richer block vocabulary without changing the transport model.
 
 Useful prior art to research:
 
@@ -371,9 +365,9 @@ spt-asset:hero
 
 ## Encoding And Compression
 
-The logical message model is deliberately JSON-shaped, but the sole authoritative v1 federation representation for Hail-owned objects and bodies is deterministic CBOR. Application developers may use diagnostic JSON, generated models, or provider-local JSON APIs without implementing the wire codec.
+The logical message model is deliberately JSON-shaped, but the sole authoritative v0 federation representation for Hail-owned objects and bodies is deterministic CBOR. Application developers may use diagnostic JSON, generated models, or provider-local JSON APIs without implementing the wire codec.
 
-V1 detached-body transfer:
+v0 detached-body transfer:
 
 ```text
 Content-Type: application/hail-body+cbor
@@ -388,7 +382,7 @@ The shared codec, schemas, generated models, diagnostic converters, and conforma
 
 Hail Envelopes and routine server objects must be signed with the sender DID's authorized `#hail-messaging` key. Hail Grants and Hail Address Bindings must be signed with the relevant DID's `#hail-identity` key.
 
-The Hail Envelope v1 profile uses:
+The Hail Envelope v0 profile uses:
 
 - deterministic Hail CBOR
 - tagged COSE_Sign1 with embedded payload
@@ -427,7 +421,7 @@ The generic HTTP response reports only receipt and does not reveal Hail acceptan
 
 ## Unsolicited Messages
 
-V1 should not support unsolicited rich messages.
+V0 should not support unsolicited messages.
 
 Unknown senders may eventually be allowed to send constrained contact or subscription requests, but those requests should be small, plain, rate-limited, and free of rich content or arbitrary links.
 
@@ -475,7 +469,7 @@ If the receiver can drop unauthorized envelopes cheaply before signature verific
 ## Topics To Discuss Next
 
 - Guaranteed minimum reply capacity.
-- Block document v1 vocabulary.
+- Block document v0 vocabulary.
 - Server abuse protections and rate limits.
 - Email bridge strategy.
 - Business model and ecosystem incentives.

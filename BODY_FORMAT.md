@@ -160,7 +160,7 @@ Allowed top-level fields:
 - `theme`: optional safe design tokens.
 - `blocks`: ordered array of valid blocks.
 
-No unknown top-level fields should be accepted in v1. Strict validation is better than permissive parsing for the first security profile.
+No unknown top-level fields should be accepted in v0. Strict validation is better than permissive parsing for the first security profile.
 
 ### Allowed Text Block
 
@@ -179,7 +179,7 @@ Disallowed fields:
 
 - arbitrary custom styles
 - raw HTML
-- inline objects inside `children` for v1
+- inline objects inside `children` for v0
 - hidden text flags
 - layout or positioning fields
 
@@ -212,7 +212,7 @@ Disallowed span behavior:
 
 ### Allowed Mark Definitions
 
-The only recommended v1 annotation is a link.
+The only recommended v0 annotation is a link.
 
 Example:
 
@@ -235,7 +235,7 @@ Allowed link fields:
 Link restrictions:
 
 - `href` must use `https://`.
-- `mailto:`, `tel:`, `javascript:`, `data:`, and custom schemes are disallowed in v1.
+- `mailto:`, `tel:`, `javascript:`, `data:`, and custom schemes are disallowed in v0.
 - clients should warn when `href` points outside the verified sender domain or approved link domains.
 - visible raw URLs should match the destination URL or be rendered with a warning.
 
@@ -306,7 +306,7 @@ Button restrictions are the same as link restrictions.
 }
 ```
 
-No additional fields are needed for v1.
+No additional fields are needed for v0.
 
 ### `spt.callout`
 
@@ -341,7 +341,7 @@ Allowed fields:
 
 - `items`: array of key/value text pairs.
 
-This is useful for receipts, bookings, account notices, and summaries without needing tables in v1.
+This is useful for receipts, bookings, account notices, and summaries without needing tables in v0.
 
 ### `spt.footer`
 
@@ -367,7 +367,7 @@ Footer links do not replace protocol-level grant revocation. Clients should alwa
 
 ### Excluded From Starter Kit
 
-These should not be part of the v1 Safe Portable Text profile:
+These should not be part of the v0 Safe Portable Text profile:
 
 - raw HTML blocks
 - arbitrary custom blocks
@@ -392,7 +392,7 @@ Some excluded features may become safe later as Safe Portable Text-specific bloc
 
 ### Unknown Fields And Unknown Blocks
 
-For v1, unknown fields and unknown block types should be rejected during validation.
+For v0, unknown fields and unknown block types should be rejected during validation.
 
 Longer term, Hail can allow versioned extensions only if they include safe fallbacks and cannot introduce active behavior.
 
@@ -402,13 +402,13 @@ The body format should enforce these rules:
 
 - no script execution
 - no iframes or embeds
-- no forms in v1
+- no forms in v0
 - no arbitrary CSS
 - no absolute positioning
 - no z-index or overlays
 - no undeclared external resources
 - no hidden tracking pixels
-- no remote fonts in v1
+- no remote fonts in v0
 - mandatory alt text for meaningful images
 - mandatory readable fallback for visual blocks
 
@@ -436,7 +436,7 @@ Examples:
 
 This gives brands expressive control without giving them a full browser layout engine.
 
-## Candidate V1 Blocks
+## Candidate v0 Blocks
 
 The first useful body vocabulary should be small but expressive.
 
@@ -517,7 +517,7 @@ Links and buttons remain a phishing surface even without HTML.
 
 Clients should clearly show destination domains and warn when a link points away from the verified sender domain.
 
-The v1 Sender Profile does not contain a link-domain allowlist. Any signed declaration of additional approved domains requires a later Sender Profile or Safe Portable Text version with explicit phishing and delegation semantics.
+The v0 Sender Profile does not contain a link-domain allowlist. Any signed declaration of additional approved domains requires a later Sender Profile or Safe Portable Text version with explicit phishing and delegation semantics.
 
 ## Accessibility
 
@@ -594,10 +594,10 @@ Risky use of Portable Text:
 The best path may be a Safe Portable Text profile inspired by Portable Text:
 
 ```text
-Safe Portable Text Profile v1
+Safe Portable Text Profile v0
 - Portable Text-like inline spans and marks
 - fixed Safe Portable Text block vocabulary
-- no arbitrary custom blocks in v1
+- no arbitrary custom blocks in v0
 - declared assets only
 - design tokens instead of CSS
 - mandatory fallback rules
@@ -633,7 +633,7 @@ This keeps the prototype simple while preserving the path to a richer block docu
 ## Open Gaps
 
 - Decide whether Hail Body should use Portable Text directly, Safe Portable Text, or a custom format inspired by Portable Text.
-- Define the exact v1 block vocabulary.
+- Define the exact v0 block vocabulary.
 - Define the inline text model.
 - Define the asset manifest schema.
 - Define allowed URL behavior and client warning rules.
@@ -646,4 +646,4 @@ This keeps the prototype simple while preserving the path to a richer block docu
 
 Use a structured visual document format, not raw HTML.
 
-For v1, define a strict Hail Body profile that uses Safe Portable Text: a Portable Text-inspired profile with security, asset, link, theme, and renderer rules suitable for untrusted messaging. Its sole federation encoding is deterministic Hail CBOR; JSON is an authoring and diagnostic projection.
+For v0, define a strict Hail Body profile that uses Safe Portable Text: a Portable Text-inspired profile with security, asset, link, theme, and renderer rules suitable for untrusted messaging. Its sole federation encoding is deterministic Hail CBOR; JSON is an authoring and diagnostic projection.

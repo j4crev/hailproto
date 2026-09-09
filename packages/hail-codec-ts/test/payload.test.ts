@@ -29,7 +29,7 @@ describe("payload validation", () => {
     expect(decodePayload("hail.envelope", encoded)).toEqual(envelope);
   });
 
-  it("round trips every remaining v1 payload family", () => {
+  it("round trips every remaining v0 payload family", () => {
     expect(
       decodePayload(
         "hail.sender-profile",

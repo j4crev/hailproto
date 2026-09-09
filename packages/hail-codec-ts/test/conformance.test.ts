@@ -101,7 +101,7 @@ interface VectorManifest {
 }
 
 const manifest = JSON.parse(
-  readFileSync(new URL("../vectors/v1.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../vectors/v0.json", import.meta.url), "utf8"),
 ) as VectorManifest;
 const PKCS8_PREFIX = "302e020100300506032b657004220420";
 const SPKI_PREFIX = "302a300506032b6570032100";
@@ -153,7 +153,7 @@ function valueAtPath(value: DiagnosticJson, path: string): DiagnosticJson {
   return current;
 }
 
-describe("v1 conformance vectors", () => {
+describe("v0 conformance vectors", () => {
   it("uses the recognized manifest format", () => {
     expect(manifest.format).toBe("hail-conformance-vectors-1");
     expect(manifest.positive).toHaveLength(7);

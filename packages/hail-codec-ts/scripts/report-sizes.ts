@@ -13,7 +13,7 @@ interface Manifest {
 }
 
 const manifest = JSON.parse(
-  await readFile(new URL("../vectors/v1.json", import.meta.url), "utf8"),
+  await readFile(new URL("../vectors/v0.json", import.meta.url), "utf8"),
 ) as Manifest;
 
 const rows = manifest.positive.map((vector) => {

@@ -20,7 +20,7 @@ A Hail Grant is a recipient-created, recipient-signed authorization permitting o
 
 ## Grant Payload
 
-Diagnostic JSON for the conceptual v1 payload. Byte-string values use their base64url diagnostic rendering:
+Diagnostic JSON for the conceptual v0 payload. Byte-string values use their base64url diagnostic rendering:
 
 ```json
 {
@@ -58,11 +58,11 @@ Diagnostic JSON for the conceptual v1 payload. Byte-string values use their base
 
 The signature wrapper is separate from the payload and uses the tagged COSE_Sign1 profile defined below.
 
-Unknown top-level fields are rejected in v1 unless a future specification explicitly defines an extension mechanism.
+Unknown top-level fields are rejected in v0 unless a future specification explicitly defines an extension mechanism.
 
 ## Signature And Representation Profile
 
-Hail Grant v1 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md), with protected content type `application/hail-grant+cbor` and the `#hail-identity` key role. Protected `kid` is the UTF-8 encoding of payload `key_id`; its controller exactly equals payload `grantor`.
+Hail Grant v0 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md), with protected content type `application/hail-grant+cbor` and the `#hail-identity` key role. Protected `kid` is the UTF-8 encoding of payload `key_id`; its controller exactly equals payload `grantor`.
 
 The complete signed representation bytes are the immutable representation of one grant revision. A receiver stores those exact bytes and does not parse and reserialize an accepted revision. The HTTP request uses `Content-Type: application/cose; cose-type="cose-sign1"` and no HTTP content coding.
 
@@ -76,18 +76,18 @@ This provides object identification and signature domain separation.
 
 ### `version`
 
-The grant schema version. V1 uses integer `1`.
+The grant schema version. v0 uses integer `1`.
 
 `version` differs from `revision`:
 
 - `version` selects schema, field semantics, deterministic encoding, and validation rules.
 - `revision` orders state changes within one grant lineage.
 
-All revisions in a v1 grant lineage use the same `version`. A future specification may define a secure cross-version transition; otherwise an incompatible schema requires a new grant lineage.
+All revisions in a v0 grant lineage use the same `version`. A future specification may define a secure cross-version transition; otherwise an incompatible schema requires a new grant lineage.
 
 ### `grant_id`
 
-V1 uses a UUIDv7 conforming to RFC 9562 in canonical lowercase string form.
+v0 uses a UUIDv7 conforming to RFC 9562 in canonical lowercase string form.
 
 UUIDv7 provides standardized distributed generation, chronological ordering, and database index locality. Its embedded timestamp is not considered private because the signed grant already includes issuance time.
 
@@ -144,7 +144,7 @@ POC validation permits at most 300 seconds of clock tolerance. A grant with an `
 
 ### `consent_context`
 
-Required non-authoritative metadata recording what the user verified during consent. Every v1 grant revision contains `consent_context` as a closed object with exactly `grantee_address`, `address_binding_hash`, and `sender_profile_hash`; all three fields are required.
+Required non-authoritative metadata recording what the user verified during consent. Every v0 grant revision contains `consent_context` as a closed object with exactly `grantee_address`, `address_binding_hash`, and `sender_profile_hash`; all three fields are required.
 
 Fields:
 
@@ -168,7 +168,7 @@ The absolute DID URL of the grantor's `#hail-identity` key, as defined by [did-p
 
 It is not an open extension system.
 
-V1 defines exactly two selector types:
+v0 defines exactly two selector types:
 
 ```text
 categories
@@ -186,9 +186,9 @@ General scope rules:
 - Different selector types are combined with logical AND.
 - Multiple values within one selector are combined with logical OR.
 - Empty value arrays are invalid.
-- V1 grants contain exactly one selector because `categories` and `uncategorized` are mutually exclusive.
+- v0 grants contain exactly one selector because `categories` and `uncategorized` are mutually exclusive.
 
-The AND rule is defined now so a small number of future, broadly applicable selectors can be composed without creating a Boolean authorization language. Any future change to v1 relationship cardinality or alternative authorization paths requires an explicit specification amendment.
+The AND rule is defined now so a small number of future, broadly applicable selectors can be composed without creating a Boolean authorization language. Any future change to v0 relationship cardinality or alternative authorization paths requires an explicit specification amendment.
 
 ### Scope Boundaries
 
@@ -217,7 +217,7 @@ These boundaries are intended to resist pressure to turn `scope` into a general 
 Rules:
 
 - `values` is required and non-empty.
-- Every value is a stable sender-defined category ID using the v1 grammar defined in [envelopes.md](envelopes.md#category).
+- Every value is a stable sender-defined category ID using the v0 grammar defined in [envelopes.md](envelopes.md#category).
 - Values are unique and serialized in ascending bytewise order of their ASCII category IDs.
 - The grant authorizes a message when its category equals any listed value.
 - The grant does not authorize messages without a category.
@@ -248,7 +248,7 @@ Rules:
 
 ## Relationship Cardinality
 
-V1 permits at most one active grant between one grantor DID and one grantee DID.
+v0 permits at most one active grant between one grantor DID and one grantee DID.
 
 Category changes update that grant's scope rather than creating parallel active grants.
 
@@ -392,7 +392,7 @@ A new grant ID is required when:
 - the parties intentionally establish a new consent lineage
 - an incompatible future schema does not define a secure lineage upgrade
 
-A future `replaces_grant_id` field may connect lineages for auditing, but it would not inherit authorization. It is not part of v1.
+A future `replaces_grant_id` field may connect lineages for auditing, but it would not inherit authorization. It is not part of v0.
 
 ## Web-Native Publication
 
@@ -406,7 +406,7 @@ PUT {hail-service-base}/grants/{grant_id}
 
 The relative path contains the literal `grants` segment followed by the grant's canonical lowercase UUIDv7. The path value is exactly 36 ASCII characters, matches `[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}`, contains no percent encoding, and exactly equals the signed payload's `grant_id`. A malformed or mismatched ID follows the generic `400` behavior below.
 
-The request body is the exact complete signed COSE representation and uses `Content-Type: application/cose; cose-type="cose-sign1"`. V1 applies no HTTP content coding to a grant request. HTTPS authenticates the destination and protects the exchange; COSE authenticates the grantor and signed state. V1 requires no additional transport authentication.
+The request body is the exact complete signed COSE representation and uses `Content-Type: application/cose; cose-type="cose-sign1"`. v0 applies no HTTP content coding to a grant request. HTTPS authenticates the destination and protects the exchange; COSE authenticates the grantor and signed state. v0 requires no additional transport authentication.
 
 Initial publication requires `If-None-Match: *`:
 
@@ -495,7 +495,7 @@ Conceptual conflict response:
 }
 ```
 
-The shared HTTP binding defines the v1 Problem Details members and type rules. Grant publication uses these status mappings:
+The shared HTTP binding defines the v0 Problem Details members and type rules. Grant publication uses these status mappings:
 
 | Condition | HTTP status |
 | --- | --- |
@@ -558,7 +558,7 @@ RFC 9421 HTTP Message Signatures may be defined by a future transport profile, b
 
 The grant must remain independently verifiable after transport and storage.
 
-HTTP Message Signatures are not part of Hail v1.
+HTTP Message Signatures are not part of Hail v0.
 
 ## POC Requirements
 

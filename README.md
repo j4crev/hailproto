@@ -8,15 +8,15 @@ The project aims to support beautiful messages, independent providers, portable 
 
 ## Status
 
-Hail is currently in the protocol design phase. There is no working server or client implementation yet; the TypeScript reference codec is under active development. The sole intended v1 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
+Hail is currently in the protocol design phase. There is no working server or client implementation yet, but there are Typescript and Go reference codecs in the `packages` directory. The sole intended v0 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
 
 ## Core Principles
 
 - Recipients control who may deliver messages.
-- Grants bind stable DIDs rather than addresses or providers.
-- Revocation immediately prevents new envelope acceptance and does not require sender cooperation.
+- Send permissions (grants) bind to stable DIDs rather than addresses or providers.
 - Servers reject unauthorized envelopes before transferring message bodies.
-- Rich content uses Safe Portable Text rather than arbitrary HTML.
+- Grant revocation immediately prevents new envelope acceptance and does not require sender cooperation.
+- Rich content uses Safe Portable Text, a custom subset of Sanity's Portable Text.
 - Federation uses open web standards where practical.
 - The protocol should remain approachable to hobbyists and independent implementers.
 
@@ -27,7 +27,7 @@ Hail is currently in the protocol design phase. There is no working server or cl
 - [`CBOR_MIGRATION.md`](CBOR_MIGRATION.md): Active migration plan from the earlier JSON/JWS draft to deterministic CBOR and COSE.
 - [`BODY_FORMAT.md`](BODY_FORMAT.md): Safe Portable Text body-format design.
 - [`spec/encoding.md`](spec/encoding.md): Normative Hail data model, deterministic CBOR, COSE, and diagnostic JSON profile.
-- [`spec/hail.cddl`](spec/hail.cddl): Draft machine-readable structural schemas for Hail v1 payloads and the initial body profile.
+- [`spec/hail.cddl`](spec/hail.cddl): Draft machine-readable structural schemas for Hail v0 payloads and the initial body profile.
 - [`packages/hail-codec-ts`](packages/hail-codec-ts): Bun-workspace TypeScript reference codec, validators, COSE implementation, diagnostic tooling, and tests.
 - [`spec/core-delivery.md`](spec/core-delivery.md): Core grant-authorized delivery flow.
 - [`spec/address-binding.md`](spec/address-binding.md): Human-readable address-to-DID binding.

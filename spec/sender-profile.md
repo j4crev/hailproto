@@ -2,7 +2,7 @@
 
 Status: Draft
 
-This document defines the public signed metadata a prospective recipient reviews before granting a sender permission. The v1 Sender Profile includes the sender's category manifest; there is no separate Category Manifest object.
+This document defines the public signed metadata a prospective recipient reviews before granting a sender permission. The v0 Sender Profile includes the sender's category manifest; there is no separate Category Manifest object.
 
 ## Discovery Boundary
 
@@ -20,7 +20,7 @@ The client displays the separately verified Hail address with the profile. The p
 
 ## Payload
 
-Diagnostic JSON for the conceptual v1 payload:
+Diagnostic JSON for the conceptual v0 payload:
 
 ```json
 {
@@ -48,7 +48,7 @@ Diagnostic JSON for the conceptual v1 payload:
 }
 ```
 
-The payload is a closed Hail map under [encoding.md](encoding.md). Unknown fields are rejected in v1.
+The payload is a closed Hail map under [encoding.md](encoding.md). Unknown fields are rejected in v0.
 
 ## Fields
 
@@ -102,13 +102,13 @@ The exact absolute DID URL formed from `did` and `#hail-messaging`. Its UTF-8 by
 
 ## Signature And Representation
 
-Hail Sender Profile v1 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md). Its protected content type is:
+Hail Sender Profile v0 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md). Its protected content type is:
 
 ```text
 application/hail-sender-profile+cbor
 ```
 
-V1 applies no HTTP content coding to the signed representation.
+v0 applies no HTTP content coding to the signed representation.
 
 ## Representation Digest
 
@@ -146,7 +146,7 @@ Sender Profiles are public and may be copied or indexed. They contain no recipie
 
 Search indexes can omit, reorder, or forge profile metadata. Clients treat search results only as discovery hints and verify the address, DID, current signed profile, and profile-to-DID match before consent.
 
-Profile text is untrusted display content. Clients render it without HTML, active links, bidirectional-control characters, remote assets, or other behavior that could obscure the verified Hail address. Avatars and profile assets are excluded from v1 so profile retrieval cannot become a tracking or active-content channel.
+Profile text is untrusted display content. Clients render it without HTML, active links, bidirectional-control characters, remote assets, or other behavior that could obscure the verified Hail address. Avatars and profile assets are excluded from v0 so profile retrieval cannot become a tracking or active-content channel.
 
 ## POC Requirements
 

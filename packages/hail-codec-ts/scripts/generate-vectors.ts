@@ -26,7 +26,7 @@ import {
   senderProfile,
 } from "../test/fixtures.js";
 
-const outputUrl = new URL("../vectors/v1.json", import.meta.url);
+const outputUrl = new URL("../vectors/v0.json", import.meta.url);
 const PKCS8_PREFIX = "302e020100300506032b657004220420";
 const SPKI_PREFIX_BYTES = 12;
 

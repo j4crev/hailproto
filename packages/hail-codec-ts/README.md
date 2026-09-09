@@ -1,6 +1,6 @@
 # `@hailproto/codec`
 
-Reference TypeScript implementation of the Hail v1 deterministic CBOR and COSE_Sign1 profile.
+Reference TypeScript implementation of the Hail v0 deterministic CBOR and COSE_Sign1 profile.
 
 Status: pre-release protocol work. The package is private until schemas and conformance vectors stabilize.
 

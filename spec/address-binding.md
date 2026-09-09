@@ -34,7 +34,7 @@ Hail addresses are aliases. Hail Grants, Hail Envelopes, and durable relationshi
 
 ## Address Syntax And Canonicalization
 
-Hail v1 uses common email-shaped addresses but does not adopt every legacy SMTP mailbox form. An address consists of one ASCII dot-atom local part, one `@`, and one public DNS domain.
+Hail v0 uses common email-shaped addresses but does not adopt every legacy SMTP mailbox form. An address consists of one ASCII dot-atom local part, one `@`, and one public DNS domain.
 
 The local-part grammar is:
 
@@ -151,24 +151,24 @@ The signature wrapper is separate from the payload so the exact signed fields ar
 Required payload fields:
 
 - `version`: Address Binding profile version.
-- `type`: Exact value `hail.address-binding` for v1.
+- `type`: Exact value `hail.address-binding` for v0.
 - `address`: Canonical Hail address without the `acct:` prefix.
 - `did`: Canonical `did:plc` identifier associated with the address, as defined by the Hail DID profile.
 - `issued_at`: UTC issuance time represented as Unix seconds.
 - `expires_at`: UTC expiration time represented as Unix seconds.
 - `key_id`: DID URL identifying the DID's `#hail-identity` verification method.
 
-Unknown payload fields are rejected in v1.
+Unknown payload fields are rejected in v0.
 
 `issued_at` and `expires_at` are non-negative integers. `expires_at` must be greater than `issued_at`, and their difference must not exceed 7776000 seconds, or 90 days. At verification time, `issued_at` must not be more than 300 seconds in the future and current time must not be more than 300 seconds after `expires_at`. Clock tolerance does not alter either signed timestamp or extend the cache lifetime below.
 
 ## Signature And Representation Profile
 
-Hail Address Binding v1 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md), with protected content type `application/hail-address-binding+cbor` and the `#hail-identity` key role. The protected `kid` is the UTF-8 encoding of payload `key_id`. The complete signed representation bytes are immutable evidence; a verifier retains and hashes those exact bytes rather than parsing and reserializing the binding.
+Hail Address Binding v0 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md), with protected content type `application/hail-address-binding+cbor` and the `#hail-identity` key role. The protected `kid` is the UTF-8 encoding of payload `key_id`. The complete signed representation bytes are immutable evidence; a verifier retains and hashes those exact bytes rather than parsing and reserializing the binding.
 
 ## Retrieval Representation And Limits
 
-The WebFinger link and binding response use the v1 media type:
+The WebFinger link and binding response use the v0 media type:
 
 ```text
 application/cose; cose-type="cose-sign1"
@@ -208,7 +208,7 @@ Any mismatch or ambiguity causes address verification to fail.
 
 ## Use Of `alsoKnownAs`
 
-Hail v1 publishers must not place Hail addresses in PLC `alsoKnownAs`. Clients ignore any such value and must not treat it as proof of address ownership.
+Hail v0 publishers must not place Hail addresses in PLC `alsoKnownAs`. Clients ignore any such value and must not treat it as proof of address ownership.
 
 PLC history is permanent and publicly enumerable. Signed, expiring Address Bindings keep both provider-issued and custom-domain address changes out of that permanent history.
 
@@ -311,4 +311,4 @@ The POC needs:
 - 16384-byte maximum complete binding representation
 - strict fetch limits
 
-The POC uses the v1 discovery, signature, representation, lifetime, caching, and cardinality profiles defined above.
+The POC uses the v0 discovery, signature, representation, lifetime, caching, and cardinality profiles defined above.

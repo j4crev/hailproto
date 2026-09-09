@@ -2,11 +2,11 @@
 
 Status: Draft
 
-This document defines the sole Hail-owned payload, body, and signed-object representation for v1. It is influenced by the constrained data-model approach used by DRISL and AT Protocol, but Hail does not claim representation or protocol interoperability with either system.
+This document defines the sole Hail-owned payload, body, and signed-object representation for v0. It is influenced by the constrained data-model approach used by DRISL and AT Protocol, but Hail does not claim representation or protocol interoperability with either system.
 
 ## Protocol Boundary
 
-Deterministic Hail CBOR is used whenever a Hail-owned value is signed, hashed as protocol content, transferred as a Hail Body, or retained as exact protocol evidence. JSON is not an alternate v1 federation representation.
+Deterministic Hail CBOR is used whenever a Hail-owned value is signed, hashed as protocol content, transferred as a Hail Body, or retained as exact protocol evidence. JSON is not an alternate v0 federation representation.
 
 Externally defined formats retain their own encodings. In particular, WebFinger JRD and rendered DID documents remain JSON. RFC 9457 Problem Details and the fixed generic HTTP receipt also remain JSON. Client-to-provider APIs are outside the Hail federation boundary and may expose JSON or native application types.
 
@@ -24,7 +24,7 @@ A Hail value is exactly one of:
 
 Floating-point values, CBOR undefined, non-text map keys, and CBOR tags inside Hail payloads and bodies are prohibited. A schema may prohibit null, negative integers, empty values, or other values admitted by the general model. Null and an absent map member are distinct.
 
-Application map keys remain descriptive text strings. Integer application labels are not part of v1. Every v1 protocol payload and nested application map is closed unless its object specification explicitly says otherwise; an unknown member is rejected.
+Application map keys remain descriptive text strings. Integer application labels are not part of v0. Every v0 protocol payload and nested application map is closed unless its object specification explicitly says otherwise; an unknown member is rejected.
 
 ## Deterministic Encoding
 
@@ -53,7 +53,7 @@ Examples in object specifications are diagnostic JSON unless explicitly identifi
 
 ## COSE_Sign1 Profile
 
-Every signed Hail v1 object is one tagged COSE_Sign1 structure under RFC 9052:
+Every signed Hail v0 object is one tagged COSE_Sign1 structure under RFC 9052:
 
 ```cbor-diag
 18([
@@ -75,7 +75,7 @@ Rules:
 - `alg` is integer `-19`, the fully specified COSE `Ed25519` algorithm registered by RFC 9864. Deprecated polymorphic `EdDSA` value `-8`, other algorithms, negotiation, and fallback are rejected.
 - `content type` is the exact object-specific parameterless Hail `+cbor` media-type text string named by that object's specification.
 - `kid` is the byte string containing the UTF-8 encoding of the canonical absolute DID URL for the required key role. When the payload has a `key_id` field, it exactly matches that field after UTF-8 decoding; otherwise it is derived from the signed party DID and the object-specific role.
-- The unprotected map is empty. Unknown protected or any unprotected parameters are rejected in v1.
+- The unprotected map is empty. Unknown protected or any unprotected parameters are rejected in v0.
 - The payload is embedded; detached payloads and a null payload element are rejected.
 - External AAD is the empty byte string.
 - The signature is exactly 64 bytes and is created and verified using the RFC 9052 `Sig_structure` and the key identified by `kid`.
@@ -103,7 +103,7 @@ application/cose; cose-type="cose-sign1"
 
 Media types are parsed and compared under HTTP media-type rules, not as raw strings. For the outer signed-object type, the type and subtype must be `application/cose`, the `cose-type` parameter must have value `cose-sign1`, and no other parameter is permitted; insignificant whitespace, case-insensitive type or parameter names, and equivalent quoted or token parameter values do not cause rejection.
 
-The protected content type identifies the embedded object. The five Hail `+cbor` values are provisional until registration or final allocation, but they are fixed domain-separation values within this draft and must not be changed by implementations. Finalizing their registration is required before stable v1 publication. V1 applies no HTTP content coding to a signed COSE representation.
+The protected content type identifies the embedded object. The five Hail `+cbor` values are provisional until registration or final allocation, but they are fixed domain-separation values within this draft and must not be changed by implementations. Finalizing their registration is required before stable v0 publication. v0 applies no HTTP content coding to a signed COSE representation.
 
 ## Binary Values At Text Boundaries
 
@@ -143,7 +143,7 @@ Object specifications may add checks but do not weaken this sequence.
 
 ## Versioning
 
-Hail v1 has one mandatory deterministic CBOR and COSE profile. The earlier JSON/JCS/JWS draft was not deployed and is not an alternate v1 representation. Supporting another encoding or security algorithm requires an explicit future profile with negotiation, downgrade prevention, digest-domain, retained-evidence, and migration rules.
+Hail v0 has one mandatory deterministic CBOR and COSE profile. The earlier JSON/JCS/JWS draft was not deployed and is not an alternate v0 representation. Supporting another encoding or security algorithm requires an explicit future profile with negotiation, downgrade prevention, digest-domain, retained-evidence, and migration rules.
 
 ## Structural Schemas
 

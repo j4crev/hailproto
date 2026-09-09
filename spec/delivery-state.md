@@ -21,7 +21,7 @@ Envelope validation and idempotency are defined in [envelopes.md](envelopes.md).
 
 ## Sender-Visible States
 
-V1 defines five states:
+v0 defines five states:
 
 ```text
 accepted
@@ -296,7 +296,7 @@ Recipient implementations may retry an ambiguous transport failure conservativel
 
 ## Multiple Recipients
 
-V1 uses one Hail Envelope per recipient. A logical outbound message sent to many recipients therefore has:
+v0 uses one Hail Envelope per recipient. A logical outbound message sent to many recipients therefore has:
 
 - one distinct `message_id` per recipient envelope
 - one independent acceptance decision per recipient
@@ -305,9 +305,9 @@ V1 uses one Hail Envelope per recipient. A logical outbound message sent to many
 
 The sender maintains any campaign, mailing, or logical outbound-message grouping locally. It maps recipient-specific message IDs into that local record and may aggregate results such as delivered, pending, or failed counts.
 
-V1 does not put a campaign or recipient-group identifier in the envelope or delivery status. Such an identifier is unnecessary for federation and would add cross-recipient correlation metadata.
+v0 does not put a campaign or recipient-group identifier in the envelope or delivery status. Such an identifier is unnecessary for federation and would add cross-recipient correlation metadata.
 
-Each recipient receives a separate durable message record and delivery result. Underlying storage may deduplicate identical bytes, but v1 delivery processing does not use one recipient's verified cache provenance to skip another recipient's retrieval.
+Each recipient receives a separate durable message record and delivery result. Underlying storage may deduplicate identical bytes, but v0 delivery processing does not use one recipient's verified cache provenance to skip another recipient's retrieval.
 
 ### Cache Provenance And Isolation
 
@@ -319,7 +319,7 @@ Cached bytes may satisfy delivery without a new body fetch only when the cache r
 (recipient DID, sender DID, body digest, media type, profile)
 ```
 
-Underlying blob storage may deduplicate identical bytes globally, but a delivery cannot consult global or cross-recipient blob presence when choosing status, timing, or retrieval behavior. V1 performs recipient-specific retrieval when matching provenance is absent. A future profile may define privacy-preserving coordinated authorization and retrieval, but ordinary envelope signature validation is not enough to enable cross-recipient cache reuse.
+Underlying blob storage may deduplicate identical bytes globally, but a delivery cannot consult global or cross-recipient blob presence when choosing status, timing, or retrieval behavior. v0 performs recipient-specific retrieval when matching provenance is absent. A future profile may define privacy-preserving coordinated authorization and retrieval, but ordinary envelope signature validation is not enough to enable cross-recipient cache reuse.
 
 This restriction prevents a malicious but granted sender from submitting an unusable body authorization for chosen content and learning from `delivered` status that another tenant previously caused those bytes to be cached.
 
@@ -358,7 +358,7 @@ Diagnostic JSON for a conceptual hold payload fragment:
 }
 ```
 
-The payload and all nested values are closed v1 objects.
+The payload and all nested values are closed v0 objects.
 
 ### Status Fields
 
@@ -376,7 +376,7 @@ The payload and all nested values are closed v1 objects.
 
 `revision` is a positive integer beginning at `1` for `accepted` and increasing by exactly one for every status snapshot created by the recipient.
 
-`state` is one of the five v1 states.
+`state` is one of the five v0 states.
 
 `reason` is required for `on-hold`, `failed`, and `cancelled`; it is prohibited for `accepted` and `delivered`. The reason must be valid for that state.
 
@@ -384,7 +384,7 @@ The payload and all nested values are closed v1 objects.
 
 `occurred_at` is the recipient server's UTC Unix time in whole seconds when it durably recorded this state revision.
 
-Unknown fields are rejected in v1.
+Unknown fields are rejected in v0.
 
 ## Status Signature Profile
 
@@ -439,7 +439,7 @@ Snapshots are complete, so a sender may accept a higher revision even if an inte
 
 The current signed status snapshot is the authenticated Hail processing result for an accepted envelope. A generic HTTP `202` receipt is not a status snapshot and proves neither Hail acceptance nor delivery. The HTTPS binding may return the current snapshot synchronously to an authenticated sender with a current or previous relationship when privacy permits. If body processing completes before the first authenticated result is communicated, the recipient may communicate the later `delivered` snapshot instead.
 
-V1 does not asynchronously push `accepted` or `on-hold`. Those nonterminal states remain available as the current signed result through authenticated envelope submission or duplicate retry. A recipient need not create a new `on-hold` revision for every failed request or retry schedule adjustment.
+v0 does not asynchronously push `accepted` or `on-hold`. Those nonterminal states remain available as the current signed result through authenticated envelope submission or duplicate retry. A recipient need not create a new `on-hold` revision for every failed request or retry schedule adjustment.
 
 The recipient must push every terminal `delivered`, `failed`, or `cancelled` snapshot to the sender's current authenticated Hail service. The destination is derived from the original sender DID's `#hail` service; neither the envelope nor status contains a callback URL.
 
@@ -451,11 +451,11 @@ Status reporting is an at-least-once operation:
 - The recipient retains the latest signed terminal status, verification evidence, and retry state through at least `max(envelope replay deadline, terminal status occurred_at + 2592000 seconds)`, even if acknowledgement ends transmission earlier.
 - During the envelope retry window, the original sender may recover current status by resubmitting the byte-identical signed envelope under the authenticated duplicate-submission rules.
 
-The recipient pushes one terminal snapshot per request using `PUT {sender-hail-service-base}/deliveries/{envelope_digest}` with `application/cose; cose-type="cose-sign1"`, no content coding, and a 16384-octet maximum complete representation. The HTTP binding defines authentication, acknowledgement, errors, and privacy behavior. `QueryDeliveryStatus` is deferred from v1; any future query must independently authenticate the original sender relationship. A generic receipt never includes a status-query handle.
+The recipient pushes one terminal snapshot per request using `PUT {sender-hail-service-base}/deliveries/{envelope_digest}` with `application/cose; cose-type="cose-sign1"`, no content coding, and a 16384-octet maximum complete representation. The HTTP binding defines authentication, acknowledgement, errors, and privacy behavior. `QueryDeliveryStatus` is deferred from v0; any future query must independently authenticate the original sender relationship. A generic receipt never includes a status-query handle.
 
 ## Trace And Support Correlation
 
-V1 delivery-status snapshots contain no provider trace identifier. Cross-provider support and audit correlation use the signed status `from`, `to`, `message_id`, `envelope_digest`, and `revision`. These values identify the parties, original sent-envelope record, and exact status position without exposing provider process, host, shard, region, or request topology.
+v0 delivery-status snapshots contain no provider trace identifier. Cross-provider support and audit correlation use the signed status `from`, `to`, `message_id`, `envelope_digest`, and `revision`. These values identify the parties, original sent-envelope record, and exact status position without exposing provider process, host, shard, region, or request topology.
 
 Providers may index private logs by those protocol identifiers and may maintain additional local trace identifiers. A disclosure-safe RFC 9457 `instance` URI may identify a specific HTTP error occurrence as defined by the HTTP binding, but it is not part of the signed delivery status, need not be dereferenceable, and carries no delivery-state semantics. Private tracing headers and log identifiers are implementation details and are not required to survive provider migration.
 
@@ -465,7 +465,7 @@ Delivery status confirms server processing only. It contains no client synchroni
 
 A status is sent only to the authenticated sender of the corresponding envelope. The sender already knows the recipient DID and message ID, but providers still protect status objects from unrelated parties.
 
-Multi-recipient aggregate results remain sender-local. Recipient servers do not explicitly report other recipients, campaign membership, fetch counts, or cache-reuse metadata, and cross-recipient cache state never affects delivery behavior. A sender may still observe whether its service receives a request for a later envelope to the same recipient; v1 does not attempt to conceal same-relationship cache reuse or eviction from that sender.
+Multi-recipient aggregate results remain sender-local. Recipient servers do not explicitly report other recipients, campaign membership, fetch counts, or cache-reuse metadata, and cross-recipient cache state never affects delivery behavior. A sender may still observe whether its service receives a request for a later envelope to the same recipient; v0 does not attempt to conceal same-relationship cache reuse or eviction from that sender.
 
 ## POC Requirements
 

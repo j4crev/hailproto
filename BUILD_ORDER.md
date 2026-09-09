@@ -75,7 +75,7 @@ Threat actors and failures to consider:
 
 Grants and envelopes cannot be finalized until their parties are defined.
 
-V1 identity decisions:
+V0 identity decisions:
 
 - exact Hail address syntax
 - address normalization and comparison
@@ -99,7 +99,7 @@ Verification keys: resolved from the DID document
 
 DIDs are part of the first prototype because identity portability, grants, key discovery, and provider migration depend on them.
 
-V1 identity method:
+V0 identity method:
 
 ```text
 did:plc
@@ -158,19 +158,19 @@ The consolidated caller, receiver, authentication, request, result, idempotency,
 
 `RetrieveSenderProfile` returns one public `#hail-messaging`-signed profile with its category manifest embedded. QR codes and search indexes are application-specific entry points that yield an untrusted Hail address; clients verify the Address Binding, PLC identity, and current Sender Profile before consent. See `spec/sender-profile.md`.
 
-## 5. Define Hail Grant V1
+## 5. Define Hail Grant v0
 
-The Hail Grant is the protocol's central authorization object. Its v1 target, scope, lookup, revision, replacement, revocation, and web-native publication semantics are defined in `spec/grants.md`.
+The Hail Grant is the protocol's central authorization object. Its v0 target, scope, lookup, revision, replacement, revocation, and web-native publication semantics are defined in `spec/grants.md`.
 
 Grant deterministic encoding, COSE signatures, signed-state digests, ETags, conditional publication, HTTP statuses, timestamp tolerance, and disclosure-safe Problem Details behavior are defined. Remaining grant work includes the interoperable size limit, tombstone retention, and historical DID verification.
 
-## 6. Define Detached Hail Body V1
+## 6. Define Detached Hail Body v0
 
 The body must exist before envelope submission. Its POC publication, canonical encoding, hashing, recipient-specific bearer authorization, shared storage, retrieval, caching, integrity, resource limits, and 30-day retention semantics are defined in `spec/bodies.md`.
 
 Remaining body work is limited to shared security, envelope, delivery-state, and HTTP binding decisions referenced by that specification.
 
-## 7. Define Hail Envelope V1
+## 7. Define Hail Envelope v0
 
 The compact, single-recipient envelope payload, grant and reply authorization modes, body descriptor, signature representation, validation order, timestamp rules, and replay behavior are defined in `spec/envelopes.md`.
 
@@ -194,7 +194,7 @@ cancelled
 
 Acceptance fixes authorization and durably transfers body-processing responsibility to the recipient server. Completed delivery requires a verified body and durable message storage. Terminal state is reported with a signed, recipient-specific status update; aggregate campaign state remains local to the sender.
 
-The distinction between generic HTTP receipt and authenticated Hail status, plus the terminal-status push and acknowledgement binding, is defined in `spec/http-binding.md`. Authenticated status query is deferred from v1.
+The distinction between generic HTTP receipt and authenticated Hail status, plus the terminal-status push and acknowledgement binding, is defined in `spec/http-binding.md`. Authenticated status query is deferred from v0.
 
 ## 9. Bind Operations To HTTPS
 
@@ -218,7 +218,7 @@ Body URLs should not be arbitrary URLs supplied by each envelope. Recipient-cont
 
 ## 10. Define The Security And Encoding Profile
 
-The v1 profile fixes:
+The v0 profile fixes:
 
 - the Hail Data Model and deterministic CBOR rules
 - the tagged COSE_Sign1 signature wrapper
@@ -231,7 +231,7 @@ The v1 profile fixes:
 - compression rules
 - decompression limits
 
-V1 profile:
+V0 profile:
 
 ```text
 Encoding: deterministic Hail CBOR
@@ -242,7 +242,7 @@ Body transfer compression: gzip
 Signed COSE HTTP content coding: none
 ```
 
-The first implementation uses this one mandatory profile. JSON/JWS fallback, representation negotiation, and zstd are not part of v1. Supporting multiple profiles before interoperability exists adds complexity without proving the central design.
+The first implementation uses this one mandatory profile. JSON/JWS fallback, representation negotiation, and zstd are not part of v0. Supporting multiple profiles before interoperability exists adds complexity without proving the central design.
 
 ## 11. Build A Thin End-To-End Slice
 
