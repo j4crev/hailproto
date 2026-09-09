@@ -60,7 +60,7 @@ alice@example.com
 
 The address resolves to a DID. Grants, envelopes, and durable relationships bind to DIDs rather than addresses or provider endpoints.
 
-Hail addresses are case-insensitive and serialize in lowercase canonical form. The strict public-federation profile permits an ASCII dot-atom local part of at most 64 bytes and an IDNA2008 A-label public DNS domain, subject to label, Public Suffix List, and 254-byte total limits. Bare public suffixes, special-use or unknown suffixes, root dots, quoted local parts, domain literals, and internationalized local parts are excluded. [`spec/address-binding.md`](spec/address-binding.md) is authoritative for the complete syntax and `acct:` URI mapping.
+Hail addresses are case-insensitive and serialize in lowercase canonical form. The strict public-federation profile permits an ASCII LDH-style local part of at most 63 bytes and an IDNA2008 A-label public DNS domain, subject to label, Public Suffix List, and 254-byte total limits. Bare public suffixes, special-use or unknown suffixes, root dots, quoted local parts, domain literals, and internationalized local parts are excluded. [`spec/address-binding.md`](spec/address-binding.md) is authoritative for the complete syntax and `acct:` URI mapping.
 
 v0 should distinguish receiver onboarding requirements from sender verification requirements.
 

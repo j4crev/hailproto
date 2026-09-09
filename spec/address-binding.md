@@ -34,24 +34,23 @@ Hail addresses are aliases. Hail Grants, Hail Envelopes, and durable relationshi
 
 ## Address Syntax And Canonicalization
 
-Hail v0 uses common email-shaped addresses but does not adopt every legacy SMTP mailbox form. An address consists of one ASCII dot-atom local part, one `@`, and one public DNS domain.
+Hail v0 uses email-shaped addresses but does not adopt SMTP mailbox syntax. An address consists of one ASCII LDH-style local part, one `@`, and one public DNS domain. The local-part labels follow the letter-digit-hyphen character and boundary rules of the preferred Internet hostname syntax in [RFC 1034 section 3.5](https://www.rfc-editor.org/rfc/rfc1034#section-3.5), as relaxed by [RFC 1123 section 2.1](https://www.rfc-editor.org/rfc/rfc1123#section-2.1) to permit an initial digit.
 
 The local-part grammar is:
 
 ```abnf
-local-part = atom *("." atom)
-atom = 1*(ALPHA / DIGIT / "!" / "#" / "$" / "%" / "&" / "'" /
-          "*" / "+" / "-" / "/" / "=" / "?" / "^" / "_" / "`" /
-          "{" / "|" / "}" / "~")
+local-part = ldh-label *("." ldh-label)
+ldh-label  = let-dig [*(let-dig / "-") let-dig]
+let-dig    = ALPHA / DIGIT
 ```
 
-Consequently, a local part cannot be empty, begin or end with `.`, contain consecutive dots, whitespace, controls, non-ASCII characters, or another `@`. Quoted local parts, comments, display names, route syntax, and domain literals are not Hail addresses. The local part is at most 64 ASCII bytes.
+`ALPHA` accepts uppercase or lowercase ASCII input. Consequently, a local part contains only ASCII letters, digits, hyphens, and label-separating dots. It cannot be empty; begin or end with `.` or `-`; contain consecutive dots; or contain whitespace, controls, non-ASCII characters, or another `@`. Consecutive hyphens are valid. An `xn--` prefix is syntactically valid in a local-part label but has no IDNA meaning in v0. Quoted local parts, comments, display names, route syntax, and domain literals are not Hail addresses. The complete local part is at most 63 ASCII bytes.
 
 The domain accepts Unicode U-label or ASCII A-label input. A verifier applies IDNA2008 lookup processing, rejects invalid or non-round-tripping labels, and emits every label as its lowercase ASCII A-label. A trailing root dot is invalid. Each resulting label is from 1 through 63 bytes, does not begin or end with `-`, and the complete domain is at most 253 ASCII bytes. The domain must have a registrable domain beneath a suffix recognized by the current [Public Suffix List](https://publicsuffix.org/list/); a bare public suffix, unqualified name, address literal, and special-use or unknown suffix are invalid for public Hail federation.
 
-The complete canonical address is at most 254 ASCII bytes. To canonicalize an accepted address, lowercase the ASCII local part, append `@`, and append the lowercase IDNA A-label domain. Hail address comparison is exact bytewise comparison of this canonical form. This deliberately overrides SMTP's theoretical case sensitivity for mailbox local parts.
+The complete canonical address is at most 254 ASCII bytes. To canonicalize an accepted address, lowercase the ASCII local part, append `@`, and append the lowercase IDNA A-label domain. Clients should canonicalize addresses before submitting them; servers and verifiers must canonicalize accepted input rather than requiring callers to supply lowercase. Hail address comparison is exact bytewise comparison of the canonical form. This deliberately overrides SMTP's theoretical case sensitivity for mailbox local parts.
 
-To construct the RFC 7565 `acct:` URI, prefix the canonical address with `acct:` and percent-encode local-part bytes not permitted directly by the `acct` URI `userpart` grammar using uppercase hexadecimal digits. The delimiter `@` and canonical A-label domain remain literal. The complete `acct:` URI is then percent-encoded as an RFC 7033 query-parameter value when constructing the WebFinger request.
+To construct the RFC 7565 `acct:` URI, prefix the canonical address with `acct:`. The LDH-style local part, delimiter `@`, and canonical A-label domain remain literal. The complete `acct:` URI is then percent-encoded as an RFC 7033 query-parameter value when constructing the WebFinger request.
 
 ## Trust Model
 
@@ -298,7 +297,7 @@ The proof of concept should implement the same signed binding model rather than 
 The POC needs:
 
 - case-insensitive ASCII local parts and IDNA2008 A-label domains
-- canonical dot-atom address validation and lowercase serialization
+- canonical LDH-style address validation and lowercase serialization
 - WebFinger lookup using canonical `acct:` URIs
 - exact `https://hailproto.com/rel/address-binding` relation and one Address Binding link
 - at most three HTTPS WebFinger redirects and no binding redirects

@@ -137,4 +137,27 @@ describe("payload validation", () => {
     } as unknown as HailAddressBinding;
     expect(() => encodePayload("hail.address-binding", invalid)).toThrow(/IDNA/);
   });
+
+  it("accepts LDH-style address local parts", () => {
+    for (const local of ["xn--alice--2.dev", "a".repeat(63)]) {
+      const valid = {
+        ...addressBinding,
+        address: `${local}@example.com`,
+      } as HailAddressBinding;
+      expect(() => encodePayload("hail.address-binding", valid)).not.toThrow();
+    }
+  });
+
+  it.each(["alice+tag", "-alice", "alice-", "alice..dev", "a".repeat(64)])(
+    "rejects non-LDH address local part %s",
+    (local) => {
+      const invalid = {
+        ...addressBinding,
+        address: `${local}@example.com`,
+      } as unknown as HailAddressBinding;
+      expect(() => encodePayload("hail.address-binding", invalid)).toThrow(
+        /Hail address/,
+      );
+    },
+  );
 });

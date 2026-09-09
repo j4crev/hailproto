@@ -55,7 +55,8 @@ const CANCELLATION_REASONS = new Set([
   "recipient-cancelled",
   "receiver-administrative-cancellation",
 ]);
-const LOCAL_PART_PATTERN = /^[a-z0-9!#$%&'*+\-/=?^_`{|}~]+(?:\.[a-z0-9!#$%&'*+\-/=?^_`{|}~]+)*$/;
+const LOCAL_PART_PATTERN =
+  /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$/;
 const DOMAIN_LABEL_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 function fail(message: string, path = "$."): never {
@@ -151,7 +152,7 @@ function hailAddress(value: unknown, path: string): string {
   const domain = address.slice(separator + 1);
   if (
     address.length > 254 ||
-    local.length > 64 ||
+    local.length > 63 ||
     !LOCAL_PART_PATTERN.test(local) ||
     domain.length === 0 ||
     domain.length > 253 ||

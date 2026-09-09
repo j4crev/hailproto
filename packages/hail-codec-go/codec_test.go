@@ -415,6 +415,20 @@ func TestAddressPublicSuffixes(t *testing.T) {
 	}
 }
 
+func TestAddressLocalPart(t *testing.T) {
+	for _, local := range []string{"xn--alice--2.dev", strings.Repeat("a", 63)} {
+		if err := hailAddress(local+"@example.com", "$.address"); err != nil {
+			t.Fatalf("rejected LDH-style local part %q: %v", local, err)
+		}
+	}
+	for _, local := range []string{"alice+tag", "-alice", "alice-", "alice..dev", strings.Repeat("a", 64)} {
+		address := local + "@example.com"
+		if err := hailAddress(address, "$.address"); err == nil {
+			t.Fatalf("accepted non-LDH local part %q", local)
+		}
+	}
+}
+
 func TestVerifierReceivesKeyID(t *testing.T) {
 	m := vectors(t)
 	vector := m.Positive[0]

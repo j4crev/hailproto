@@ -17,7 +17,7 @@ var (
 	didPattern      = regexp.MustCompile(`^did:plc:[a-z2-7]{24}$`)
 	uuidV7Pattern   = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 	categoryPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
-	localPattern    = regexp.MustCompile(`^[a-z0-9!#$%&'*+\-/=?^_` + "`" + `{|}~]+(?:\.[a-z0-9!#$%&'*+\-/=?^_` + "`" + `{|}~]+)*$`)
+	localPattern    = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$`)
 	domainLabel     = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
 )
 
@@ -390,7 +390,7 @@ func hailAddress(v any, path string) error {
 		return fmt.Errorf("%s invalid address", path)
 	}
 	local, domain := s[:at], s[at+1:]
-	if len(s) > 254 || len(local) > 64 || !localPattern.MatchString(local) || len(domain) == 0 || len(domain) > 253 || !strings.Contains(domain, ".") || domain != strings.ToLower(domain) {
+	if len(s) > 254 || len(local) > 63 || !localPattern.MatchString(local) || len(domain) == 0 || len(domain) > 253 || !strings.Contains(domain, ".") || domain != strings.ToLower(domain) {
 		return fmt.Errorf("%s invalid address", path)
 	}
 	for _, label := range strings.Split(domain, ".") {
