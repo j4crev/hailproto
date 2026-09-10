@@ -136,7 +136,7 @@ Using PLC for every identity establishes one recovery and resolution model, but 
 - Every account needs PLC rotation-key management using P-256 or secp256k1 in addition to Hail's Ed25519 signing keys.
 - Hail consumes two of PLC's maximum ten verification-method slots; an existing PLC identity needs two free slots before it can enable Hail.
 - Every identity and provider migration depends on PLC directory availability, so production servers need validated mirrors or local log replication.
-- PLC updates are full state snapshots. Key rotation and provider migration tooling must preserve unrelated keys, aliases, and services rather than patching one field.
+- PLC updates are full state snapshots. Key rotation and provider migration tooling starts from validated current state and preserves unrelated keys and services rather than patching one field. Every existing non-Hail `alsoKnownAs` value and its order are preserved unless the DID controller explicitly authorizes an alias change in the exact signed update.
 - PLC's 72-hour higher-authority recovery window can reverse a lower-authority update. Hail must define when new keys and endpoints become authoritative before production migration is safe.
 - PLC rotation keys act unilaterally rather than by threshold. A user-held higher-priority key protects a provider-held update key only if unauthorized changes are detected and recovered within 72 hours, so monitoring is part of the recovery model.
 - Verification keys, service endpoints, update timestamps, nullified operations, and tombstones are permanently public. Hail addresses stay in expiring Address Bindings and out of PLC state.

@@ -121,7 +121,7 @@ The Hail DID profile requires:
 
 The identity and messaging keys are distinct. PLC rotation keys are separate from both. See `spec/did-profile.md`.
 
-PLC operations store the two Ed25519 Hail verification methods as named `did:key` values and the Hail endpoint as a named service. Resolvers expand PLC's relative DID document IDs before comparison. Development can use a local PLC server and fixture operation logs, but DIDs registered only there are isolated test identities. Production resolution should support validated mirrors or local audit-log verification rather than coupling reads to one HTTP origin.
+PLC operations store the two Ed25519 Hail verification methods as named `did:key` values and the Hail endpoint as a named service. A normal update is built from validated current full state; a recovery operation is built from its validated pre-fork state. Both preserve all non-Hail `alsoKnownAs` values from that baseline in order unless the DID controller explicitly authorizes an alias change. Resolvers expand PLC's relative DID document IDs before comparison. Development can use a local PLC server and fixture operation logs, but DIDs registered only there are isolated test identities. Production resolution should support validated mirrors or local audit-log verification rather than coupling reads to one HTTP origin.
 
 Hail addresses use a lowercase canonical email-shaped form with ASCII LDH-style local parts and IDNA2008 A-label domains. WebFinger uses `https://hailproto.com/rel/address-binding`; binding hosting may be delegated across origins, WebFinger redirects are bounded, binding redirects are prohibited, and verified address results are cached for at most one hour. See `spec/address-binding.md`.
 

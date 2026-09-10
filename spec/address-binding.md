@@ -208,7 +208,7 @@ Any mismatch or ambiguity causes address verification to fail.
 
 ## Use Of `alsoKnownAs`
 
-Every regular PLC operation contains an `alsoKnownAs` array, but the array may be empty. A newly created Hail identity uses an empty array. Updates to an existing DID preserve unrelated aliases required by other applications, but Hail v0 publishers must not add a Hail address to `alsoKnownAs` in `acct:`, hypothetical `hail:` or `hail://`, or any other form. Hail v0 defines no `hail:` URI scheme.
+Every regular PLC operation contains an `alsoKnownAs` array, but the array may be empty. A newly created Hail identity uses an empty array. Every Hail-constructed update to an existing DID preserves all non-Hail aliases in their existing order unless the DID controller explicitly authorizes an alias change in the exact signed full-state operation. Hail v0 publishers must not add a Hail address to `alsoKnownAs` in `acct:`, hypothetical `hail:` or `hail://`, or any other form. Hail v0 defines no `hail:` URI scheme.
 
 Clients ignore any `alsoKnownAs` value for Hail discovery and must not treat it as proof of address ownership. The field is a unilateral DID-controller assertion: the PLC directory does not verify it against the named domain, it may become stale after address reassignment, and every prior value remains public in PLC history. It also cannot represent a trustworthy primary address because one DID may have multiple Hail addresses.
 

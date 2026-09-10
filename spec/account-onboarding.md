@@ -112,11 +112,11 @@ New devices obtain the user keys through authenticated device-to-device transfer
 
 Before activation, the user must have at least one continuously operating PLC monitor outside the Hail provider's administrative control. It may be a user-operated client or an independently operated monitoring service.
 
-The monitor must detect a new operation for the DID within 24 hours of its acceptance into the canonical PLC log. It maintains a durable cursor or otherwise detects missed events after restart, validates the operation and preceding chain, compares the resulting rotation keys, Hail keys, and service against expected state, and sends an out-of-band alert for every unexpected change. It also reports loss of monitoring coverage before 24 hours can elapse without observation. Monitoring only through infrastructure controlled by the Hail provider is insufficient for the portable profile.
+The monitor must detect a new operation for the DID within 24 hours of its acceptance into the canonical PLC log. It maintains a durable cursor or otherwise detects missed events after restart, validates the operation and preceding chain, compares the complete resulting PLC state, including `alsoKnownAs`, against expected state, and sends an out-of-band alert for every unexpected change. It also reports loss of monitoring coverage before 24 hours can elapse without observation. Monitoring only through infrastructure controlled by the Hail provider is insufficient for the portable profile.
 
-The onboarding flow must test the monitor's alert and health-reporting paths. Detection does not itself recover the DID. To recover, the user or an authorized recovery agent validates the complete audit log, identifies the last valid operation before the unwanted lower-priority fork, constructs the intended full state with that operation's CID as `prev`, and signs it using a higher-priority key authorized by the fork-point state. The recovery operation must reach the canonical write registry within 72 hours of the first operation it nullifies. The implementation verifies the resulting nullification and current state before treating recovery as complete.
+The onboarding flow must test the monitor's alert and health-reporting paths. Detection does not itself recover the DID. To recover, the user or an authorized recovery agent validates the complete audit log, identifies the last valid operation before the unwanted lower-priority fork, and uses that validated pre-fork state as the baseline for the intended full state with its CID as `prev`. Every non-Hail `alsoKnownAs` value from the pre-fork state is preserved in order unless the DID controller explicitly authorizes an alias change in the exact recovery operation; alias changes introduced only by the unwanted fork are not preserved. The user or recovery agent signs using a higher-priority key authorized by the fork-point state. The recovery operation must reach the canonical write registry within 72 hours of the first operation it nullifies. The implementation verifies the resulting nullification and current state before treating recovery as complete.
 
-The monitor retains the expected current operation CID, rotation-key order, Hail keys, and service needed to diagnose a fork. Implementations must communicate the recovery deadline and must not describe an unmonitored higher-priority key as effective provider-compromise protection.
+The monitor retains the expected current operation CID and complete expected PLC state needed to diagnose a fork. Implementations must communicate the recovery deadline and must not describe an unmonitored higher-priority key as effective provider-compromise protection.
 
 ## New DID Registration
 
@@ -181,13 +181,14 @@ Before proposing an update, the provider and user-controlled client validate the
 
 The update is a complete PLC state snapshot. It must:
 
-- Preserve every unrelated rotation key, verification method, alias, and service the user intends to retain.
+- Preserve every unrelated rotation key, verification method, and service not explicitly changed with the user's approval.
+- Preserve every existing non-Hail `alsoKnownAs` value in its existing order unless the user explicitly authorizes its removal, replacement, or reordering in this exact update.
 - Retain a user-controlled key at rotation-key index zero and place the provider rotation key below every user-controlled recovery key.
 - Add or replace the exact `hail-identity`, `hail-messaging`, and `hail` entries required by the Hail DID profile.
 - Use the current valid operation CID as `prev`.
 - Avoid adding the Hail address to `alsoKnownAs`.
 
-The update includes the required `alsoKnownAs` field even when the preserved result is an empty array. Removing an unrelated entry to make room requires explicit user approval; omission must not occur as an implementation side effect. If the rotation-key or verification-method limits leave no acceptable capacity, onboarding stops until the user intentionally changes existing state.
+The update includes the required `alsoKnownAs` field even when the preserved result is an empty array. Removing any unrelated state requires explicit user approval; omission must not occur as an implementation side effect. If the rotation-key or verification-method limits leave no acceptable capacity, onboarding stops until the user intentionally changes existing state.
 
 The current user-controlled index-zero rotation key signs the exact full update. The provider never requests or imports that private key. If another party controls the current index-zero key, that party must first authorize a separate transfer to user control; ordinary Hail onboarding cannot safely promote a lower-priority user key because the former higher-priority key could nullify that change during the recovery window.
 
