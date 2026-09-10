@@ -187,6 +187,7 @@ Conceptual PLC state:
     "hail-identity": "did:key:z...",
     "hail-messaging": "did:key:z..."
   },
+  "alsoKnownAs": [],
   "services": {
     "hail": {
       "type": "HailMessaging",
@@ -198,7 +199,7 @@ Conceptual PLC state:
 
 PLC renders those entries as DID document verification methods and a service. Because PLC's rendered document does not necessarily express Hail's roles through standard verification relationships, the exact fragments defined by this profile provide the role authorization for `did:plc`.
 
-The PLC operation is a full state snapshot. Creation and every update retain all intended rotation keys, verification methods, aliases, and services; omitting an existing entry removes it from current state. The encoded operation must remain within PLC's 7500-byte DAG-CBOR limit, the state must contain from one through five rotation keys, and the state must remain within PLC's limit of ten verification methods. Hail requires two of those methods. PLC DAG-CBOR is an external DID-method encoding and is distinct from Hail's deterministic CBOR profile.
+The PLC operation is a full state snapshot. Every regular `plc_operation` includes the required `alsoKnownAs` field as an array, including when it is empty. Creation and every update retain all intended rotation keys, verification methods, unrelated aliases, and services; omitting an existing entry removes it from current state. A newly created Hail identity uses an empty `alsoKnownAs` array. An existing DID update preserves unrelated aliases but does not add a Hail address. The encoded operation must remain within PLC's 7500-byte DAG-CBOR limit, the state must contain from one through five rotation keys, and the state must remain within PLC's limit of ten verification methods. Hail requires two of those methods. PLC DAG-CBOR is an external DID-method encoding and is distinct from Hail's deterministic CBOR profile.
 
 A newly created Hail identity uses the regular `plc_operation` format, not the deprecated legacy `create` format. An existing PLC identity can enable Hail by publishing an update that adds the two Hail verification methods and Hail service while preserving every unrelated state entry. An identity with fewer than two free verification-method slots cannot enable Hail without first removing other methods. The complete creation and existing-DID procedures are defined in [account-onboarding.md](account-onboarding.md).
 

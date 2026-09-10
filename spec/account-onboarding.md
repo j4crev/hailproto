@@ -142,7 +142,7 @@ The proposed operation uses the regular PLC `plc_operation` format, never the de
 - The provider rotation key after every user-controlled recovery key.
 - `hail-identity` and `hail-messaging` verification methods encoded as `did:key` values.
 - One `hail` service of type `HailMessaging` with the prepared HTTPS endpoint.
-- An empty `alsoKnownAs` array unless a non-Hail application requires an unrelated entry.
+- `alsoKnownAs` present as an empty array. The PLC operation schema requires the field even when it has no entries.
 - No Hail address, account email address, display name, tenant name, or other unnecessary personal information.
 
 The complete operation must satisfy the PLC size, key-count, encoding, and state rules incorporated by [did-profile.md](did-profile.md).
@@ -187,7 +187,7 @@ The update is a complete PLC state snapshot. It must:
 - Use the current valid operation CID as `prev`.
 - Avoid adding the Hail address to `alsoKnownAs`.
 
-Removing an unrelated entry to make room requires explicit user approval; omission must not occur as an implementation side effect. If the rotation-key or verification-method limits leave no acceptable capacity, onboarding stops until the user intentionally changes existing state.
+The update includes the required `alsoKnownAs` field even when the preserved result is an empty array. Removing an unrelated entry to make room requires explicit user approval; omission must not occur as an implementation side effect. If the rotation-key or verification-method limits leave no acceptable capacity, onboarding stops until the user intentionally changes existing state.
 
 The current user-controlled index-zero rotation key signs the exact full update. The provider never requests or imports that private key. If another party controls the current index-zero key, that party must first authorize a separate transfer to user control; ordinary Hail onboarding cannot safely promote a lower-priority user key because the former higher-priority key could nullify that change during the recovery window.
 

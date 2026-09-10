@@ -208,9 +208,11 @@ Any mismatch or ambiguity causes address verification to fail.
 
 ## Use Of `alsoKnownAs`
 
-Hail v0 publishers must not place Hail addresses in PLC `alsoKnownAs`. Clients ignore any such value and must not treat it as proof of address ownership.
+Every regular PLC operation contains an `alsoKnownAs` array, but the array may be empty. A newly created Hail identity uses an empty array. Updates to an existing DID preserve unrelated aliases required by other applications, but Hail v0 publishers must not add a Hail address to `alsoKnownAs` in `acct:`, hypothetical `hail:` or `hail://`, or any other form. Hail v0 defines no `hail:` URI scheme.
 
-PLC history is permanent and publicly enumerable. Signed, expiring Address Bindings keep both provider-issued and custom-domain address changes out of that permanent history.
+Clients ignore any `alsoKnownAs` value for Hail discovery and must not treat it as proof of address ownership. The field is a unilateral DID-controller assertion: the PLC directory does not verify it against the named domain, it may become stale after address reassignment, and every prior value remains public in PLC history. It also cannot represent a trustworthy primary address because one DID may have multiple Hail addresses.
+
+Authenticated WebFinger plus the signed, expiring Address Binding supplies the current two-sided authorization that `alsoKnownAs` lacks. Keeping Hail addresses out of PLC avoids a permanent address history while preserving address changes and multiple-address support. A future reverse-discovery mechanism would need an explicit trust, privacy, staleness, and primary-address model rather than assigning semantics to `alsoKnownAs` retroactively.
 
 ## Publisher Activation
 
