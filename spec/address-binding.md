@@ -212,6 +212,14 @@ Hail v0 publishers must not place Hail addresses in PLC `alsoKnownAs`. Clients i
 
 PLC history is permanent and publicly enumerable. Signed, expiring Address Bindings keep both provider-issued and custom-domain address changes out of that permanent history.
 
+## Publisher Activation
+
+An address reservation is provider-private state and supplies no Hail authority. Before publishing an Address Binding, the publisher requires the named DID to have valid, non-tombstoned PLC state resolvable with the exact `#hail-identity`, `#hail-messaging`, and `#hail` entries expected for the account.
+
+The publisher makes the immutable signed binding representation retrievable at its final HTTPS URL before publishing the WebFinger response that selects it. It then performs this document's complete verification algorithm from the public address through the binding to the DID. A provider activates the account for Hail federation only after that verification and separate confirmation of its own exact Hail service endpoint and messaging key succeed.
+
+If activation fails after WebFinger begins selecting the binding, the address authority removes that selection or repairs it before retrying. Before assigning the address to another account, it waits until the earlier of 300 seconds after the prior binding's `expires_at` and 3600 seconds after WebFinger withdrawal, so no conforming cached discovery result can verify the prior binding. New-account sequencing and partial-failure behavior are defined in [account-onboarding.md](account-onboarding.md).
+
 ## Address Changes
 
 Changing a Hail address does not change the DID.

@@ -62,7 +62,7 @@ The address resolves to a DID. Grants, envelopes, and durable relationships bind
 
 Hail addresses are case-insensitive and serialize in lowercase canonical form. The strict public-federation profile permits an ASCII LDH-style local part of at most 63 bytes and an IDNA2008 A-label public DNS domain, subject to label, Public Suffix List, and 254-byte total limits. Bare public suffixes, special-use or unknown suffixes, root dots, quoted local parts, domain literals, and internationalized local parts are excluded. [`spec/address-binding.md`](spec/address-binding.md) is authoritative for the complete syntax and `acct:` URI mapping.
 
-v0 should distinguish receiver onboarding requirements from sender verification requirements.
+v0 distinguishes receiver onboarding requirements from sender verification requirements.
 
 Receivers may use provider-issued Hail address aliases, especially if they only receive messages:
 
@@ -141,6 +141,20 @@ Using PLC for every identity establishes one recovery and resolution model, but 
 - PLC rotation keys act unilaterally rather than by threshold. A user-held higher-priority key protects a provider-held update key only if unauthorized changes are detected and recovered within 72 hours, so monitoring is part of the recovery model.
 - Verification keys, service endpoints, update timestamps, nullified operations, and tombstones are permanently public. Hail addresses stay in expiring Address Bindings and out of PLC state.
 - Custom-domain control authenticates the human-readable address, while PLC rotation authority independently controls the durable identity. Losing or transferring the domain does not transfer DID-bound grants or message history.
+
+## Account Onboarding
+
+Creating a provider-local account, registering a DID, and publishing a Hail address are separate steps. Public Hail v0 DIDs submit their signed PLC operations to `https://plc.directory`; implementations may resolve the resulting canonical log through validated mirrors or local replicas. A local PLC directory is suitable for an isolated development network, but a DID registered only there is not a public-federation Hail identity because the DID itself contains no registry or network identifier.
+
+Production providers must support portable custody. The user controls the top-priority PLC recovery key and `#hail-identity`; the provider controls a lower-priority PLC rotation key and `#hail-messaging`. User private keys are generated client-side, recoverable through an encrypted provider-independent backup, and unavailable in plaintext to the provider. A password alone is not sufficient protection for provider-accessible backup ciphertext.
+
+An accepted operation from the provider's lower-priority PLC key becomes current immediately and can remove the user's keys; the user's higher-priority key can nullify it only during PLC's 72-hour recovery window. Each production account therefore configures a continuously operating PLC monitor outside the provider's administrative control that detects changes within 24 hours and alerts the user through an out-of-band channel.
+
+For a new identity, the client validates and signs the exact full genesis `plc_operation`, both sides derive the DID, the provider submits it, and the client and provider verify the registered operation and resulting state. A user may instead bring an existing `did:plc`; onboarding publishes a user-authorized full-state update that preserves unrelated entries and adds the provider below every user recovery key. An existing active Hail identity uses the provider-migration flow rather than ordinary onboarding.
+
+Address publication occurs only after the expected DID state resolves. The immutable signed Address Binding is staged first, WebFinger selects it second, and the provider activates the account only after complete address-to-DID and DID-to-service verification. Ambiguous PLC submissions reuse and look up the already-derived DID rather than generating another genesis operation. PLC registration is permanent and is never rolled back by automatically tombstoning a failed onboarding attempt.
+
+An isolated POC may use disclosed provider custody and a local PLC directory, but it does not conform to the production portable custody profile. The complete lifecycle, failure states, retained evidence, and existing-DID procedure are defined in [`spec/account-onboarding.md`](spec/account-onboarding.md).
 
 ## Sender Discovery
 
@@ -490,7 +504,6 @@ If the receiver can drop unauthorized envelopes cheaply before signature verific
 
 - When does Hail treat a PLC update as authoritative during the 72-hour recovery window?
 - What PLC mirror, checkpoint, and locally validated log behavior is required for production resolution?
-- What minimum PLC rotation-key custody and backup arrangement is required at onboarding?
 - What production uncompressed body size must every conforming server accept, and what recipient-configurable ceiling is permitted?
 - What is the first useful post-POC block vocabulary after plain text?
 - How should organization verification work beyond domain control?

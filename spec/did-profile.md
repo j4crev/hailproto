@@ -2,7 +2,7 @@
 
 Status: Draft
 
-This document defines the verification methods and service entry a DID uses to participate in Hail Protocol.
+This document defines the verification methods and service entry a DID uses to participate in Hail Protocol. DID creation, registration, custody, and account activation are defined in [account-onboarding.md](account-onboarding.md).
 
 The profile answers two questions:
 
@@ -95,7 +95,7 @@ It signs:
 
 It does not sign routine Hail Envelopes or delivery receipts.
 
-The identity key represents the DID controller's consent. It should be controlled by the user or organization when practical. A provider may offer custodial key management, but custodial operation is a product choice and weaker trust model, not a protocol requirement.
+The identity key represents the DID controller's consent. The production portable custody profile requires it to be controlled by the user or organization and unavailable in plaintext to the provider. An isolated POC may use disclosed provider custody under [account-onboarding.md](account-onboarding.md), but that is a weaker trust model and does not conform to production portable custody.
 
 ## Hail Messaging Key
 
@@ -135,7 +135,7 @@ PLC rotation authority
 
 PLC rotation keys control the DID state and are not rendered as ordinary DID document verification methods. PLC rotation keys use P-256 or secp256k1; Hail verification methods use Ed25519. A Hail identity or messaging key therefore cannot also be used as a PLC rotation key.
 
-Each PLC rotation key acts unilaterally; the ordered list is a priority and recovery mechanism, not a threshold signature. A lower-priority key can publish state that removes a higher-priority key. The removed higher-priority key can reverse that operation only during PLC's 72-hour recovery window. A user-held recovery key therefore protects a provider-custodied rotation key only when the user or a delegated monitor detects and recovers from an unauthorized update before that window closes.
+Each PLC rotation key acts unilaterally; the ordered list is a priority and recovery mechanism, not a threshold signature. A lower-priority key can publish state that removes a higher-priority key. The removed higher-priority key can reverse that operation only during PLC's 72-hour recovery window. The production portable custody profile therefore requires a user-held top-priority recovery key and monitoring outside the provider's administrative control that detects changes within 24 hours, as defined in [account-onboarding.md](account-onboarding.md).
 
 ## Verification Method Validation
 
@@ -198,13 +198,21 @@ Conceptual PLC state:
 
 PLC renders those entries as DID document verification methods and a service. Because PLC's rendered document does not necessarily express Hail's roles through standard verification relationships, the exact fragments defined by this profile provide the role authorization for `did:plc`.
 
-The PLC operation is a full state snapshot. Creation and every update retain all intended rotation keys, verification methods, aliases, and services; omitting an existing entry removes it from current state. The encoded operation must remain within PLC's 7500-byte DAG-CBOR limit, and the state must remain within PLC's limit of ten verification methods. Hail requires two of those methods. PLC DAG-CBOR is an external DID-method encoding and is distinct from Hail's deterministic CBOR profile.
+The PLC operation is a full state snapshot. Creation and every update retain all intended rotation keys, verification methods, aliases, and services; omitting an existing entry removes it from current state. The encoded operation must remain within PLC's 7500-byte DAG-CBOR limit, the state must contain from one through five rotation keys, and the state must remain within PLC's limit of ten verification methods. Hail requires two of those methods. PLC DAG-CBOR is an external DID-method encoding and is distinct from Hail's deterministic CBOR profile.
 
-A newly created Hail identity uses the regular `plc_operation` format, not the deprecated legacy `create` format. An existing PLC identity can enable Hail by publishing an update that adds the two Hail verification methods and Hail service while preserving every unrelated state entry. An identity with fewer than two free verification-method slots cannot enable Hail without first removing other methods.
+A newly created Hail identity uses the regular `plc_operation` format, not the deprecated legacy `create` format. An existing PLC identity can enable Hail by publishing an update that adds the two Hail verification methods and Hail service while preserving every unrelated state entry. An identity with fewer than two free verification-method slots cannot enable Hail without first removing other methods. The complete creation and existing-DID procedures are defined in [account-onboarding.md](account-onboarding.md).
 
 PLC-rendered DID documents may express verification-method and service IDs as relative fragment references such as `#hail-identity` and `#hail`. A Hail resolver expands each relative DID URL against the document's exact `did:plc` ID before uniqueness, role, controller, or service validation. Protocol objects always carry the resulting absolute DID URLs.
 
 Every expanded verification-method ID and every expanded service ID must be unique. The two Hail methods must be top-level `verificationMethod` definitions with exact expanded IDs and controllers. Other PLC verification methods and services are allowed, but they authorize no Hail operation. Hail does not require `assertionMethod`; the two reserved PLC map names and their exact fragments define Hail role authorization.
+
+## PLC Registration And Directory Selection
+
+Publicly federated Hail v0 identities register creation, update, recovery, and tombstone operations with the canonical PLC write registry at `https://plc.directory`. A `did:plc` identifier has no embedded registry or network identifier, so a deployment cannot select another public write registry without creating an ambiguous operation-history authority. Changing the public write registry requires an explicit future Hail network profile.
+
+Write-registry selection is distinct from resolution. A production implementation may read and validate the canonical operation log through configured mirrors, a local replica, or another conforming resolver. An isolated development network may use a local PLC directory, but DIDs registered only there do not participate in public Hail v0 federation.
+
+New-account and existing-DID registration, operation submission, read-back verification, retry behavior, and retained evidence follow [account-onboarding.md](account-onboarding.md).
 
 ## PLC Resolution And Validation
 
@@ -342,10 +350,9 @@ PLC resolution contacts only configured directory or mirror origins. Hail client
 
 ## Before Production
 
-The POC may use the simplified trust and cache behavior defined above. A production Hail profile must resolve all five requirements below:
+The POC may use the simplified trust and cache behavior defined above. Production onboarding custody, backup, monitoring, and public write-registry selection are defined in [account-onboarding.md](account-onboarding.md). A production Hail profile must still resolve all four requirements below:
 
 1. Define when PLC state becomes authoritative during the 72-hour recovery window, including the production cache lifetime and treatment of newly added or removed Hail keys and endpoints.
-2. Define minimum PLC rotation-key custody, backup, monitoring, compromise detection, and recovery requirements for onboarding and ongoing operation.
-3. Define required PLC mirrors or checkpoints, local operation-log validation, directory disagreement handling, and the maximum outage period during which cached state may be used.
-4. Define the exact PLC operation, CID, chain, timestamp, and resolver evidence retained with accepted Hail objects for historical signature verification and audit.
-5. Define provider migration while its PLC update remains recoverable, including old- and new-provider authority during the pending window, authenticated state export, fencing acknowledgement, rollback, and abandoned-cutover behavior.
+2. Define required PLC mirrors or checkpoints, local operation-log validation, directory disagreement handling, and the maximum outage period during which cached state may be used.
+3. Define the exact PLC operation, CID, chain, timestamp, and resolver evidence retained with accepted Hail objects for historical signature verification and audit.
+4. Define provider migration while its PLC update remains recoverable, including old- and new-provider authority during the pending window, authenticated state export, fencing acknowledgement, rollback, and abandoned-cutover behavior.

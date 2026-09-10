@@ -31,6 +31,7 @@ Hail is currently in the protocol design and prototype phase. There is no workin
 - [`packages/hail-codec-ts`](packages/hail-codec-ts): Bun-workspace TypeScript reference codec, validators, COSE implementation, diagnostic tooling, and tests.
 - [`packages/hail-codec-go`](packages/hail-codec-go): Independent Go reference codec and cross-language conformance implementation.
 - [`spec/core-delivery.md`](spec/core-delivery.md): Core grant-authorized delivery flow.
+- [`spec/account-onboarding.md`](spec/account-onboarding.md): New and existing DID registration, portable key custody, address activation, and onboarding failure handling.
 - [`spec/address-binding.md`](spec/address-binding.md): Human-readable address-to-DID binding.
 - [`spec/did-profile.md`](spec/did-profile.md): PLC identity, Hail key roles, resolution, recovery, and service entry.
 - [`spec/sender-profile.md`](spec/sender-profile.md): Signed sender metadata and category manifest.

@@ -84,6 +84,8 @@ V0 identity decisions:
 - how a domain delegates to a hosting provider
 - how signing keys are discovered
 - how signing keys rotate
+- how new and existing DIDs are registered and activated
+- which party controls and recovers each identity key
 - what remains stable during provider migration
 
 Starting identity model:
@@ -105,7 +107,7 @@ V0 identity method:
 did:plc
 ```
 
-All Hail implementations should isolate PLC directory access, log validation, and mirror selection behind a resolver interface. Grants and envelopes contain canonical `did:plc` identifiers.
+All Hail implementations should isolate PLC resolution, log validation, and mirror selection behind a resolver interface. Public Hail v0 writes register with `https://plc.directory`; resolution may use validated mirrors or a local replica. Grants and envelopes contain canonical `did:plc` identifiers.
 
 Human-readable Hail addresses resolve through WebFinger to signed, expiring Hail Address Bindings. The address domain publishes the binding and a DID-authorized key signs it. Hail addresses are not written to PLC `alsoKnownAs`.
 
@@ -119,11 +121,13 @@ The Hail DID profile requires:
 
 The identity and messaging keys are distinct. PLC rotation keys are separate from both. See `spec/did-profile.md`.
 
-PLC operations store the two Ed25519 Hail verification methods as named `did:key` values and the Hail endpoint as a named service. Resolvers expand PLC's relative DID document IDs before comparison. Development can use a local PLC server and fixture operation logs; production resolution should support validated mirrors or local audit-log verification rather than coupling protocol behavior to one HTTP origin.
+PLC operations store the two Ed25519 Hail verification methods as named `did:key` values and the Hail endpoint as a named service. Resolvers expand PLC's relative DID document IDs before comparison. Development can use a local PLC server and fixture operation logs, but DIDs registered only there are isolated test identities. Production resolution should support validated mirrors or local audit-log verification rather than coupling reads to one HTTP origin.
 
 Hail addresses use a lowercase canonical email-shaped form with ASCII LDH-style local parts and IDNA2008 A-label domains. WebFinger uses `https://hailproto.com/rel/address-binding`; binding hosting may be delegated across origins, WebFinger redirects are bounded, binding redirects are prohibited, and verified address results are cached for at most one hour. See `spec/address-binding.md`.
 
-The five PLC requirements that must be resolved before production are tracked in `spec/did-profile.md#before-production`.
+Account onboarding treats local account creation, PLC registration, and address publication as separate durable steps. Production portable custody gives the user the top PLC recovery key and `#hail-identity`, gives the provider a lower-priority PLC key and `#hail-messaging`, and requires independent PLC change detection within 24 hours. New DIDs and existing DIDs are both supported. The binding resource is staged before WebFinger publication, and the account activates only after complete address-to-DID-to-service verification. See `spec/account-onboarding.md`.
+
+The four remaining PLC requirements that must be resolved before production are tracked in `spec/did-profile.md#before-production`.
 
 ## 4. Define Abstract Operations
 
