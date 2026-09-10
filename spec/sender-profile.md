@@ -142,7 +142,7 @@ The recipient creates and signs the grant or instructs its own provider to do so
 
 ## Security And Privacy
 
-Sender Profiles are public and may be copied or indexed. They contain no recipient-specific state and must not reveal subscriber counts, grant existence, delivery history, or other relationship information.
+Sender Profiles are public and may be copied or indexed. They contain no recipient-specific state and must not reveal subscriber counts, grant existence, delivery history, or other relationship information. Public profile content does not make profile-access telemetry public; servers should minimize requester-identifying logs and retention, and clients send no credentials, cookies, or referrer information during retrieval.
 
 Search indexes can omit, reorder, or forge profile metadata. Clients treat search results only as discovery hints and verify the address, DID, current signed profile, and profile-to-DID match before consent.
 

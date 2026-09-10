@@ -294,11 +294,15 @@ WebFinger and binding retrieval use the URL, redirect, DNS rebinding, private-ne
 
 ### Enumeration
 
-WebFinger may reveal whether a Hail address exists. Providers should apply rate limits and should avoid returning unnecessary account metadata.
+A successful complete Hail discovery intentionally reveals that the canonical address currently has a Hail mapping, including the verified signed Address Binding and DID, after which an observer can resolve that DID's public PLC keys and current Hail service. A successful WebFinger response alone selects a binding URL; binding retrieval, validation, and DID resolution can still fail. Implementations must not treat difficulty of enumeration as an authorization or confidentiality boundary.
+
+Providers should rate-limit discovery and must avoid returning unrelated account metadata to reduce bulk harvesting and operational abuse. Hail v0 defines no address-listing or reverse-DID-to-address operation. A failed lookup is not authoritative proof that an address does not exist because throttling, outage, expiration, or validation failure can also prevent verified resolution.
+
+Although the mapping is public, the WebFinger and binding hosts can observe requester network information, lookup timing, and the queried address. The retrieval profile sends no credentials, cookies, or referrer information to limit ambient-identity leakage. Providers should minimize discovery logs and retention consistent with abuse prevention.
 
 ### Correlation
 
-The current address-to-DID mapping is public by nature. Avoiding `alsoKnownAs` prevents PLC from retaining a permanent address history, but observers may still collect mappings while they are active.
+The current address-to-DID mapping is public and may be collected and archived while active. Avoiding `alsoKnownAs` prevents a mandatory permanent PLC address history and PLC-based reverse correlation; it does not make an active Address Binding confidential or prevent observers from retaining it.
 
 ## POC Profile
 

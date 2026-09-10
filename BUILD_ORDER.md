@@ -56,7 +56,7 @@ Protocol invariants:
 - Message bodies cannot trigger undeclared network requests.
 - A hosting provider is infrastructure, not necessarily identity.
 - Durable identity objects must not permanently embed a provider endpoint.
-- Detailed errors must not allow unknown parties to probe whether an address exists.
+- Address discovery and the current address-to-DID mapping are public. Detailed federation errors must not expose private relationship, message, local-account, capability, cache, policy, or user-activity state to unauthenticated or unrelated parties.
 
 Threat actors and failures to consider:
 
@@ -144,7 +144,7 @@ RetrieveBody
 PushDeliveryStatus
 ```
 
-`SubmitEnvelope` includes both grant- and reply-authorized envelopes. Idempotent acknowledgement is a required result of `PushDeliveryStatus`; no separate acknowledgement operation is currently defined. A future `QueryDeliveryStatus` recovery operation remains deferred until its authentication and anti-oracle behavior are defined.
+`SubmitEnvelope` includes both grant- and reply-authorized envelopes. Idempotent acknowledgement is a required result of `PushDeliveryStatus`; no separate acknowledgement operation is currently defined. A future `QueryDeliveryStatus` recovery operation remains deferred until its authentication and protections against relationship, sent-envelope, replay, message-ID, and delivery-state probing are defined.
 
 For each operation, specify:
 

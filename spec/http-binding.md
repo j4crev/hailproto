@@ -55,6 +55,18 @@ If fresh authenticated DID state contains a different canonical `#hail` service 
 
 If the refreshed endpoint is unchanged or DID resolution fails, the client applies the operation's ordinary retry or failure behavior without repeatedly resolving during the same failed attempt. A `429` response or an ordinary `5xx` response is not by itself evidence of migration and does not force early DID refresh. Normal cache expiration still applies.
 
+### Public Identity Routing
+
+A canonical DID's current `#hail` service assignment is public PLC state. For profile retrieval, the target DID is the canonical DID in the path. For envelope, grant, and delivery-status operations, a server may perform bounded structural decoding and syntactic validation to extract the claimed target DID from the unverified signed-object payload. The claim is not authenticated and authorizes nothing, but it may be used only for the public routing check described here.
+
+A server may return `421 Misdirected Request` when sufficiently fresh authenticated PLC state proves that the canonical base URL receiving an operation is not the current Hail service base for that target DID. The decision must depend only on the canonical request endpoint, the syntactically valid target DID, and authenticated public PLC state. It must not depend on local account presence, activation, suspension, storage, relationship state, grant or reply state, message state, bearer-token or capability state, or recipient policy. Body retrieval has no target DID in its public request fields and therefore does not return `421` under this rule.
+
+For the POC, PLC state used to emit `421` must be no more than 300 seconds old. Production uses the final PLC recovery-window and cache policy required by [did-profile.md](did-profile.md); if an implementation cannot establish state sufficiently fresh under that policy, it does not emit `421`.
+
+The `421` response uses the shared `application/problem+json` profile with `type: about:blank`, `title: Misdirected Request`, and `status: 421`; it omits `detail` and `instance` and includes `Cache-Control: no-store`. A client handles it through the endpoint-refresh procedure above. It performs an immediate migration retry only when fresh PLC state supplies a different authenticated endpoint; otherwise it applies the operation's ordinary failure or scheduled-retry behavior without treating the response as evidence of a new destination.
+
+An absent or invalid DID, malformed signed-object structure, inability to obtain sufficiently fresh PLC state, or failure to find expected local state does not establish a public routing mismatch. In those cases the operation follows its ordinary public-resource or protected generic response rules. Implementations must rate-limit claimed-DID resolution so this public routing check cannot be used as an unbounded PLC lookup proxy.
+
 ## Federation Operation Inventory
 
 This inventory consolidates operations already defined across the Hail specifications. It does not replace the object-specific specifications, which remain authoritative. An entry marked `Open` records a gap rather than supplying new behavior.
@@ -75,13 +87,13 @@ This inventory consolidates operations already defined across the Hail specifica
 
 | Operation | Rejection or failure semantics | Idempotency | Retry behavior | Privacy constraints |
 | --- | --- | --- | --- | --- |
-| `DiscoverIdentity` | Address, WebFinger, binding, signature, expiration, PLC-resolution, or safe-fetch failure prevents verified resolution; exact external error taxonomy open | Component retrievals are read-only, but discovery results may change or expire; no abstract idempotency contract is defined | Address discovery permits up to three safe HTTPS WebFinger redirects, prohibits binding redirects, and caches a verified result for at most one hour. PLC mirror and recovery-window policy remains partly open. Endpoint refresh rules above apply only after a `#hail` service has been discovered | WebFinger may enable address enumeration; implementations rate-limit and minimize metadata. Address bindings intentionally avoid permanent address history. Routine federation from known DIDs does not re-resolve human-readable addresses. |
-| `RetrieveSenderProfile` | Malformed path or absent profile uses `404`; unsupported representation uses `406`; throttling uses `429`; temporary failure uses `503` | Safe and cacheable `GET`; strong ETag identifies the exact signed representation | Retry transient failure with bounded backoff; never follow redirects; re-resolve PLC under endpoint-refresh rules | Profiles are intentionally public and contain no recipient, grant, subscriber, or delivery state. Search results remain untrusted until profile verification. |
-| `PublishGrantRevision` | Malformed or unauthenticated protected requests use uniform `400`; missing preconditions use `428`; failed preconditions use `412`; revision and lineage conflicts use `409`; throttling uses `429`; temporary failure uses `503` | Conditional `PUT`, full-state revisions, signed-representation digests, and strong ETags make exact retransmission convergent; revocation is a terminal revision, not `DELETE` | Queue and retry transient publication failure with bounded exponential backoff and jitter; honor `Retry-After`; retransmit missing revisions; local consent changes never wait for publication | Grants are private relationship state, use `Cache-Control: no-store`, and receive uniform failures before grantor authentication and local-target confirmation. They contain no message body or contact-request content. |
-| `SubmitEnvelope` | Uses the closed outcome set below. Conflict, invalid representation, unauthorized submission, and expiration are permanent; rate limiting and temporary unavailability are retryable. Reply authorization additionally rejects missing, expired, disallowed, or competing claims | `(authenticated sender DID, message_id)` is the key; an identical deterministic payload returns stored/current state, while different content is a permanent conflict. Reply acceptance atomically claims the single-use capability; delivery consumes it; terminal failure or cancellation releases it | Ambiguous transport or generic `received` permits byte-identical retry with the same ID; honor `Retry-After`; after `accepted`, the recipient owns body retries | Protected outcomes remain generic until the sender is authenticated with current or previous relationship state. Generic responses reveal no recipient, relationship, replay, or acceptance state and follow the bounded schedule below. |
+| `DiscoverIdentity` | Address, WebFinger, binding, signature, expiration, PLC-resolution, or safe-fetch failure prevents verified resolution; exact external error taxonomy open | Component retrievals are read-only, but discovery results may change or expire; no abstract idempotency contract is defined | Address discovery permits up to three safe HTTPS WebFinger redirects, prohibits binding redirects, and caches a verified result for at most one hour. PLC mirror and recovery-window policy remains partly open. Endpoint refresh rules above apply only after a `#hail` service has been discovered | Successful WebFinger discovery intentionally discloses the current address-to-DID mapping. Rate limiting and metadata minimization reduce bulk harvesting but do not make the mapping confidential. Address bindings avoid mandatory permanent PLC address history. Routine federation from known DIDs does not re-resolve human-readable addresses. |
+| `RetrieveSenderProfile` | Malformed path or absent profile uses `404`; public PLC routing mismatch may use `421`; unsupported representation uses `406`; throttling uses `429`; temporary failure uses `503` | Safe and cacheable `GET`; strong ETag identifies the exact signed representation | Retry transient failure with bounded backoff; never follow redirects; re-resolve PLC after `404` or `421` under endpoint-refresh rules | Profiles are intentionally public and contain no recipient, grant, subscriber, or delivery state. Search results remain untrusted until profile verification. |
+| `PublishGrantRevision` | Malformed or unauthenticated protected requests use uniform `400`; public PLC routing mismatch may use `421`; missing preconditions use `428`; failed preconditions use `412`; revision and lineage conflicts use `409`; throttling uses `429`; temporary failure uses `503` | Conditional `PUT`, full-state revisions, signed-representation digests, and strong ETags make exact retransmission convergent; revocation is a terminal revision, not `DELETE` | Refresh the grantee DID after `421`; queue and retry transient publication failure with bounded exponential backoff and jitter; honor `Retry-After`; retransmit missing revisions; local consent changes never wait for publication | Grants are private relationship state, use `Cache-Control: no-store`, and receive uniform failures before grantor authentication and local-target confirmation. They contain no message body or contact-request content. |
+| `SubmitEnvelope` | Uses the closed outcome set below. Public PLC routing mismatch may use `421`; conflict, invalid representation, unauthorized submission, and expiration are permanent; rate limiting and temporary unavailability are retryable. Reply authorization additionally rejects missing, expired, disallowed, or competing claims | `(authenticated sender DID, message_id)` is the key; an identical deterministic payload returns stored/current state, while different content is a permanent conflict. Reply acceptance atomically claims the single-use capability; delivery consumes it; terminal failure or cancellation releases it | Refresh the recipient DID after `421`; ambiguous transport or generic `received` permits byte-identical retry with the same ID; honor `Retry-After`; after `accepted`, the recipient owns body retries | Protected outcomes remain generic until the sender is authenticated with current or previous relationship state. Generic responses reveal no local-account, relationship, replay, or acceptance state and follow the bounded schedule below. |
 | `RetrieveBody` | Missing body and invalid, mismatched, or expired authorization must not be distinguishable; retryable transport or availability failures and permanent integrity or authorization failures feed the delivery state machine | Immutable body bytes and the same token may be retrieved repeatedly for the same envelope; matching recipient-and-sender cache provenance may avoid another fetch | Recipient retries with bounded backoff and jitter until the effective deadline, preserving digest and token; endpoint migration follows fresh DID resolution rather than redirects | Token appears only in `Authorization`, is excluded from logs, and is stored hashed by the sender. Fetches are delivery operations, not open/read signals. Cross-recipient cache state must not leak. |
-| `PushDeliveryStatus` | Validly handled status uses `204`; authenticated malformed semantics use `400`; authenticated stream conflicts use `409`; protected unknown or unauthenticated cases use generic `202`; throttling uses `429`; temporary failure uses `503` | At-least-once `PUT`; exact duplicates and stale snapshots are acknowledged without mutation, while higher valid revisions advance state | Recipient uses the fixed jittered schedule and retries through the later of the replay deadline or 30 days after the terminal transition unless acknowledged or permanently rejected | Generic `202` conceals sent-envelope and relationship state. Detailed errors require an authenticated signer and matching sent-envelope relationship. Status reports server processing only, never user activity. |
-| `QueryDeliveryStatus` | Deferred; any future design must avoid recipient, relationship, replay, and message-ID oracles | Open | Open | A future query must independently authenticate the original sender; possession of a message ID or generic receipt is insufficient. |
+| `PushDeliveryStatus` | Validly handled status uses `204`; public PLC routing mismatch may use `421`; authenticated malformed semantics use `400`; authenticated stream conflicts use `409`; protected unknown or unauthenticated cases use generic `202`; throttling uses `429`; temporary failure uses `503` | At-least-once `PUT`; exact duplicates and stale snapshots are acknowledged without mutation, while higher valid revisions advance state | Refresh the original sender DID after `421`; otherwise use the fixed jittered schedule through the later of the replay deadline or 30 days after the terminal transition unless acknowledged or permanently rejected | Generic `202` conceals sent-envelope and relationship state. Detailed errors require an authenticated signer and matching sent-envelope relationship. Status reports server processing only, never user activity. |
+| `QueryDeliveryStatus` | Deferred; any future design must prevent relationship, sent-envelope, replay, message-ID, and delivery-state probing | Open | Open | A future query must independently authenticate the original sender; possession of a message ID or generic receipt is insufficient. |
 
 `SubmitReply` is not a separate transport operation. A reply is an ordinary `SubmitEnvelope` request with reply authorization and the role reversal defined in [envelopes.md](envelopes.md#reply-authorization).
 
@@ -125,7 +137,8 @@ Profile retrieval uses these status mappings:
 | --- | --- |
 | Current valid profile | `200 OK` |
 | Matching current strong ETag | `304 Not Modified` |
-| Malformed path, unknown or nonlocal DID, or absent profile | `404 Not Found` |
+| Malformed path, unresolved DID, unavailable local profile state, or absent profile | `404 Not Found` |
+| Fresh authenticated PLC state designates a different Hail service base for the path DID | `421 Misdirected Request` |
 | Method other than `GET` | `405 Method Not Allowed` with `Allow: GET` |
 | Requested representation is not acceptable | `406 Not Acceptable` |
 | Malformed, weak, or list-valued `If-None-Match` | `400 Bad Request` |
@@ -196,7 +209,7 @@ v0 defines no Hail-specific problem type URI and no problem `reason` extension. 
 
 `instance` is a URI reference identifying this specific occurrence. It may identify a disclosure-safe provider log or support resource, but its presence does not grant access to that resource and clients are not required to dereference it.
 
-Problem Details is the common error representation, not permission to disclose protected state. Every included member must comply with the disclosure tier determined below. A server omits `detail` and `instance` whenever either would reveal protected information. Problem responses must not expose recipient existence, relationship state, grant state, reply-capability state, replay state, key-resolution internals, provider topology, or policy decisions beyond what the authenticated caller is eligible to learn.
+Problem Details is the common error representation, not permission to disclose protected state. Every included member must comply with the disclosure tier determined below. A server omits `detail` and `instance` whenever either would reveal protected information. Problem responses must not expose unpublished or unavailable local-account state, relationship state, grant state, reply-capability state, replay state, message or delivery state, key-resolution internals, nonpublic provider topology, cache state, user activity, or policy decisions beyond what the authenticated caller is eligible to learn. Current address-to-DID and DID-to-service mappings are public discovery state.
 
 The generic `202`/`received` response is not an unsuccessful response and does not use Problem Details. Protected outcomes for callers that are not eligible for detail remain concealed by that generic receipt rather than converted into even a vague `4xx` or `5xx` response. `accepted` and `duplicate` are also not Problem Details errors; they return the applicable successful result or current signed delivery-status snapshot.
 
@@ -216,7 +229,7 @@ A server may explicitly reject failures determined solely from bounded HTTP requ
 
 These responses must not depend on the claimed or actual recipient, sender, grant, reply capability, signature, message ID, or other relationship state. An explicit source-wide or service-wide rate-limit response is also safe only when it is selected independently of protected relationship state.
 
-Invalid CBOR, invalid COSE, absent recipients, absent grants, absent reply records, unknown keys, invalid signatures, replay records, and recipient policy are part of protected envelope processing rather than this transport allowlist.
+Invalid CBOR, invalid COSE, unavailable local-account state, absent grants, absent reply records, unknown keys, invalid signatures, replay records, and recipient policy are part of protected envelope processing rather than this transport allowlist. The public PLC-derived `421` is separately permitted after bounded structural decoding and target-DID syntax validation; it is not a safe transport error.
 
 ### Generic Receipt
 
@@ -237,6 +250,8 @@ The response semantically reports only `received`. It includes no `Location`, st
 ### Authenticated Relationship Detail
 
 After signature verification, a sender with a current or previous grant or reply relationship may receive a detailed submission outcome when recipient privacy policy permits. Eligibility comes from authenticated local relationship state, never from a claimed DID, grant ID, reply reference, message ID, or signing key alone.
+
+Pair-level relationship eligibility does not authorize arbitrary object lookup. Duplicate or delivery state requires an exact authenticated `(sender DID, message_id)` replay match; reply detail requires the exact correlated sent-message record; grant-specific detail requires a grant lineage already known to the authenticated parties. A current or previous relationship with the recipient does not permit probing unrelated identifiers or another party's state.
 
 An eligible sender may receive:
 
@@ -276,6 +291,8 @@ Safe transport errors use these mappings when the server can produce an HTTP res
 
 A `405` response includes `Allow: POST`. A `429` response includes `Retry-After` when the server supplies retry timing. These responses use only information determined independently of protected envelope and relationship state.
 
+After bounded structural decoding and target-DID syntax validation, the public routing rule may additionally return `421 Misdirected Request`. It remains independent of protected envelope, local-account, and relationship state.
+
 When the authenticated relationship disclosure rules permit an explicit protected rejection, these mappings are fixed:
 
 | Submission outcome | HTTP status |
@@ -301,7 +318,7 @@ The proof of concept must:
 4. Impose a processing deadline so network-dependent DID resolution cannot make preliminary misses distinguishable through unbounded latency.
 5. Return the scheduled generic receipt when authenticated detailed processing cannot finish within the bound; processing may continue asynchronously.
 6. Rate-limit abusive sources before expensive cryptographic or network work where this does not disclose protected state.
-7. Test repeated timing observations across absent recipients, absent grants, absent reply records, unknown keys, invalid signatures, revoked grants, duplicates, and successful acceptance.
+7. Test repeated timing observations across unavailable local-account state, absent grants, absent reply records, unknown keys, invalid signatures, revoked grants, duplicates, and successful acceptance.
 
 Safe transport errors may be rejected before this schedule because their selection is independent of protected state.
 
@@ -367,18 +384,18 @@ The relative operation path begins with the literal segment `bodies`, followed b
 | Condition | HTTP status | Recipient behavior |
 | --- | --- | --- |
 | Successful body response | `200 OK` | Verify the complete response under the signed body descriptor before delivery |
-| Missing, malformed, unknown, expired, or mismatched bearer authorization | `404 Not Found` | Treat as permanent authorization failure while the signed authorization should still be valid |
-| No authorization record for the requested digest | `404 Not Found` | Do not infer whether body bytes exist |
+| Missing, malformed, unknown, expired, or mismatched bearer authorization | `404 Not Found` | Refresh the sender DID once; retry at a changed authenticated endpoint, otherwise treat as permanent authorization failure |
+| No authorization record for the requested digest | `404 Not Found` | Refresh the sender DID once; do not infer whether body bytes exist, and treat as permanent if the endpoint is unchanged |
 | Valid token and matching digest, but committed body temporarily unavailable | `503 Service Unavailable` | Retry within the effective delivery deadline |
-| Retrieval rate limited | `429 Too Many Requests` | Retry within the deadline and honor valid `Retry-After` guidance |
+| Relationship-independent source-wide or service-wide rate limit, or rate limit after valid token-and-digest authorization | `429 Too Many Requests` | Retry within the deadline and honor valid `Retry-After` guidance |
 | Requested representation is not acceptable | `406 Not Acceptable` | Treat as unsupported representation |
 | Method other than `GET` | `405 Method Not Allowed` | Do not retry with that method; response includes `Allow: GET` |
 
 Every explicit error uses `application/problem+json` under the shared Problem Details profile. The uniform `404` response uses `type: about:blank`, `title: Not Found`, and `status: 404`; it omits `detail`, `instance`, and `WWW-Authenticate`. Its status, body shape, privacy-relevant headers, and bounded timing behavior are the same for all authorization failures and do not depend on whether body bytes exist.
 
-A `503` response is permitted for a missing committed body only after the token and requested digest match an unexpired authorization record. That authorized caller already knows the body should exist. After authorization expiration, the server returns the uniform `404`; the recipient determines from its signed envelope deadline that retrieval has failed permanently.
+A `503` response is permitted for a missing committed body only after the token and requested digest match an unexpired authorization record. That authorized caller already knows the body should exist. After a uniform `404`, the recipient performs the one required sender-DID refresh and retries at a changed authenticated endpoint. If the endpoint is unchanged, or the retry at the changed endpoint also returns `404`, the recipient determines from its signed envelope that authorization has failed permanently.
 
-A `429` or `503` response may include disclosure-safe `detail` and `instance` and includes `Retry-After` when the server supplies retry timing. Unexpected `5xx` responses and transport failures remain retryable under the body and delivery-state deadlines. A Hail body server uses `503`, rather than another `5xx`, when intentionally reporting temporary body unavailability.
+A `429` selected before successful token-and-digest authorization must be source-wide or service-wide and independent of token validity, authorization-record existence, and body existence. Otherwise an unauthorized request receives the uniform `404`; after valid authorization, an authorization-scoped rate limit may return `429`. A `429` or `503` response may include disclosure-safe `detail` and `instance` and includes `Retry-After` when the server supplies retry timing. Unexpected `5xx` responses and transport failures remain retryable under the body and delivery-state deadlines. A Hail body server uses `503`, rather than another `5xx`, when intentionally reporting temporary body unavailability.
 
 Size, digest, media-type, deterministic-encoding, schema, decompression, and other integrity failures detected after a `200` response are not remapped to HTTP statuses. The recipient discards the response and applies the permanent delivery failure defined by the delivery-state specification.
 
@@ -418,6 +435,7 @@ Grant publication errors use:
 | Method other than `PUT` | `405 Method Not Allowed` with `Allow: PUT` |
 | Wrong media type or unsupported HTTP content coding | `415 Unsupported Media Type` |
 | Request exceeds the supported grant transport limit | `413 Content Too Large` |
+| Fresh authenticated PLC state designates a different Hail service base for the grantee DID associated with this endpoint | `421 Misdirected Request` |
 | Malformed path, CBOR, COSE, protected header, or grant payload | `400 Bad Request` |
 | Invalid or unverifiable signature before grantor authentication | Uniform `400 Bad Request` |
 | Required `If-None-Match` or `If-Match` absent after grantor authentication | `428 Precondition Required` |
@@ -427,9 +445,9 @@ Grant publication errors use:
 | Rate limited | `429 Too Many Requests` |
 | Temporarily unavailable | `503 Service Unavailable` |
 
-All explicit errors use `application/problem+json`. `429` and `503` include `Retry-After` when the server supplies retry timing. Conflict and precondition failures require reconciliation rather than unchanged automatic retry, except for the exact-convergence cases above.
+All explicit errors use `application/problem+json`. `429` and `503` include `Retry-After` when the server supplies retry timing. A `421` is handled only through the shared endpoint-refresh procedure. Conflict and precondition failures require reconciliation rather than unchanged automatic retry, except for the exact-convergence cases above.
 
-Before a valid grantor `#hail-identity` signature is verified and the signed grantee is confirmed as locally authoritative, every protected failure uses the same `400` Problem Details response with `type: about:blank`, `title: Bad Request`, and `status: 400`. It omits `detail` and `instance` and uses a common representation shape, privacy-relevant headers, and bounded timing behavior. This includes missing or revision-inappropriate conditional fields before authentication; the detailed `428` mapping applies only after authentication and local-target confirmation. Safe transport errors selected independently of claimed or actual grant state may return explicit `405`, `413`, or `415` responses before that schedule. A source-wide or service-wide `429` may also be returned early only when selected independently of protected grant state. After authentication and local-target confirmation, disclosure-safe `detail` may explain the applicable conflict, throttling, or temporary failure; clients determine behavior from the HTTP status.
+Before a valid grantor `#hail-identity` signature is verified and the signed grantee is confirmed as locally authoritative, every protected failure uses the same `400` Problem Details response with `type: about:blank`, `title: Bad Request`, and `status: 400`. It omits `detail` and `instance` and uses a common representation shape, privacy-relevant headers, and bounded timing behavior. This includes missing or revision-inappropriate conditional fields before authentication; the detailed `428` mapping applies only after authentication and local-target confirmation. Safe transport errors selected independently of claimed or actual grant state may return explicit `405`, `413`, or `415` responses before that schedule. A public PLC-derived `421` and a source-wide or service-wide `429` may also be returned early only when selected independently of protected grant state and local-account state. After authentication and local-target confirmation, disclosure-safe `detail` may explain the applicable conflict, throttling, or temporary failure; clients determine behavior from the HTTP status.
 
 ## Delivery Status Push Binding
 
@@ -472,16 +490,17 @@ Explicit errors use these mappings:
 | Media type other than `application/cose; cose-type="cose-sign1"`, or any HTTP content coding | `415 Unsupported Media Type` |
 | Request exceeds 16384 bytes | `413 Content Too Large` |
 | Malformed or noncanonical envelope-digest path segment | `400 Bad Request` |
+| Fresh authenticated PLC state designates a different Hail service base for the original sender DID associated with this endpoint | `421 Misdirected Request` |
 | Authenticated malformed status semantics or authenticated path/payload mismatch | `400 Bad Request` |
 | Same revision with different payload, invalid state transition, or higher revision after a terminal state | `409 Conflict` |
 | Rate limited | `429 Too Many Requests` |
 | Temporarily unavailable | `503 Service Unavailable` |
 
-All explicit errors use `application/problem+json`. `429` and `503` include `Retry-After` when the server supplies retry timing. An authenticated `400` or `409` is permanent for that signed snapshot. Transport failure, generic `202`, `429`, and `503` remain retryable under the status retry rules.
+All explicit errors use `application/problem+json`. `429` and `503` include `Retry-After` when the server supplies retry timing. A `421` is handled only through the shared endpoint-refresh procedure. An authenticated `400` or `409` is permanent for that signed snapshot. Transport failure, generic `202`, `429`, and `503` remain retryable under the status retry rules.
 
 ### Disclosure
 
-Safe errors selected entirely from bounded HTTP request properties may return `400` for a malformed digest segment, `405`, `413`, or `415` before protected status processing. A source-wide or service-wide `429` may also be returned early only when selected independently of protected delivery state. A syntactically valid but unknown digest remains protected and does not receive the explicit `400`.
+Safe errors selected entirely from bounded HTTP request properties may return `400` for a malformed digest segment, `405`, `413`, or `415` before protected status processing. A public PLC-derived `421` and a source-wide or service-wide `429` may also be returned early only when selected independently of protected delivery state and local-account state. A syntactically valid but unknown digest remains protected and does not receive the explicit `400`.
 
 Before the sender authenticates the status signer and matches the snapshot to an original sent-envelope record, every protected outcome uses:
 
@@ -493,13 +512,13 @@ Cache-Control: no-store
 {"outcome":"received"}
 ```
 
-This response reports only HTTP receipt and is not a status acknowledgement. The recipient continues bounded retries because only `204` acknowledges the snapshot. The generic response has the same shape, privacy-relevant headers, and bounded timing behavior for invalid CBOR or COSE, unknown or invalid keys, invalid signatures, a nonlocal `to` DID, an absent sent-envelope record, party or message-ID mismatch, envelope-digest mismatch, and protected processing that cannot finish within the schedule. It discloses no sent-message, relationship, revision, or terminal-state information.
+This response reports only HTTP receipt and is not a status acknowledgement. The recipient continues bounded retries because only `204` acknowledges the snapshot. Except for a public PLC-derived routing mismatch, the generic response has the same shape, privacy-relevant headers, and bounded timing behavior for invalid CBOR or COSE, unknown or invalid keys, invalid signatures, unavailable local-account state, an absent sent-envelope record, party or message-ID mismatch, envelope-digest mismatch, and protected processing that cannot finish within the schedule. It discloses no sent-message, relationship, revision, or terminal-state information.
 
 After the signer and sent-envelope relationship are authenticated, the server returns the applicable `204`, `400`, `409`, `429`, or `503`. Disclosure-safe `detail` may explain malformed semantics, a revision conflict, an invalid transition, throttling, or temporary failure; clients determine behavior from the HTTP status.
 
 ### Status Query
 
-`QueryDeliveryStatus` is not part of v0. During the envelope retry window, an original sender can resubmit the byte-identical signed envelope and receive the current signed status under the authenticated duplicate-submission rules. A future query operation must independently authenticate the original sender and define anti-oracle behavior before receiving a method or path. A generic submission or status-push receipt never supplies a query handle.
+`QueryDeliveryStatus` is not part of v0. During the envelope retry window, an original sender can resubmit the byte-identical signed envelope and receive the current signed status under the authenticated duplicate-submission rules. A future query operation must independently authenticate the original sender and prevent relationship, sent-envelope, replay, message-ID, and delivery-state probing before receiving a method or path. A generic submission or status-push receipt never supplies a query handle.
 
 ### Terminal Status Retry Schedule
 
@@ -525,6 +544,7 @@ Response handling is:
 | `429` or `503` | Continue using the schedule and valid `Retry-After` guidance |
 | Unexpected temporary `5xx` or ambiguous transport failure | Continue the schedule |
 | `3xx` | Do not follow; refresh the destination DID under the endpoint-refresh rules and continue |
+| `421` | Refresh the original sender DID; if it yields a changed authenticated endpoint, continue the existing schedule at that endpoint; otherwise continue the schedule without changing destination |
 | Authenticated `400` or `409` | Permanent for this signed snapshot; stop automatic retry and flag local reconciliation |
 | `405`, `413`, or `415` | Permanent interoperability or configuration failure; stop automatic retry and flag locally |
 

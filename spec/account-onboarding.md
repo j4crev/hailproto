@@ -282,7 +282,7 @@ If the user loses every usable device, independent backup, and recovery secret, 
 
 ### Permanent Public State
 
-Genesis and later PLC operations are permanently public, including nullified operations and tombstones. Service endpoints and public keys reveal provider and migration history. Hail addresses and local account metadata remain outside PLC state, and service paths use opaque identifiers to reduce correlation.
+Genesis and later PLC operations are permanently public, including nullified operations and tombstones. Service endpoints and public keys reveal provider and migration history. Hail addresses and local account metadata remain outside PLC state, and service paths use opaque identifiers to reduce correlation. Outside PLC state does not mean confidential: an active Address Binding and its current address-to-DID mapping are publicly retrievable through WebFinger. The privacy benefit is avoiding mandatory permanent PLC history and PLC-based reverse correlation.
 
 ### Address Squatting And Reassignment
 

@@ -286,7 +286,7 @@ The HTTP binding defines exact status-code handling. The POC uses these semantic
 | Interrupted or truncated body response | `on-hold`: `body-transfer-interrupted` |
 | `429` rate limit with or without `Retry-After` | `on-hold`: `sender-rate-limited` |
 | Temporary local resource shortage | `on-hold`: `receiver-resource-constrained` |
-| Uniform `404` authorization rejection before the signed expiration | `failed`: `body-authorization-failed` |
+| Uniform `404` authorization rejection after the required sender-DID refresh and any changed-endpoint retry | `failed`: `body-authorization-failed` |
 | Size or digest mismatch | `failed`: `body-integrity-failed` |
 | Invalid or non-deterministic CBOR or invalid SPT document | `failed`: `body-invalid` |
 | Unsupported required representation | `failed`: `body-unsupported` |
@@ -451,7 +451,7 @@ Status reporting is an at-least-once operation:
 - The recipient retains the latest signed terminal status, verification evidence, and retry state through at least `max(envelope replay deadline, terminal status occurred_at + 2592000 seconds)`, even if acknowledgement ends transmission earlier.
 - During the envelope retry window, the original sender may recover current status by resubmitting the byte-identical signed envelope under the authenticated duplicate-submission rules.
 
-The recipient pushes one terminal snapshot per request using `PUT {sender-hail-service-base}/deliveries/{envelope_digest}` with `application/cose; cose-type="cose-sign1"`, no content coding, and a 16384-octet maximum complete representation. The HTTP binding defines authentication, acknowledgement, errors, and privacy behavior. `QueryDeliveryStatus` is deferred from v0; any future query must independently authenticate the original sender relationship. A generic receipt never includes a status-query handle.
+The recipient pushes one terminal snapshot per request using `PUT {sender-hail-service-base}/deliveries/{envelope_digest}` with `application/cose; cose-type="cose-sign1"`, no content coding, and a 16384-octet maximum complete representation. The HTTP binding defines authentication, acknowledgement, errors, and privacy behavior. `QueryDeliveryStatus` is deferred from v0; any future query must independently authenticate the original sender relationship and prevent relationship, sent-envelope, replay, message-ID, and delivery-state probing. A generic receipt never includes a status-query handle.
 
 ## Trace And Support Correlation
 

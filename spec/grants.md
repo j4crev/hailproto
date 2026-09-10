@@ -91,7 +91,7 @@ v0 uses a UUIDv7 conforming to RFC 9562 in canonical lowercase string form.
 
 UUIDv7 provides standardized distributed generation, chronological ordering, and database index locality. Its embedded timestamp is not considered private because the signed grant already includes issuance time.
 
-The grant ID is public relationship metadata and must not be treated as a secret or authorization token.
+The grant ID is a non-secret relationship identifier shared in signed objects and HTTP paths between the relationship parties. Hail provides no public grant listing or discovery mechanism. Knowledge of the ID is never authorization.
 
 ### `revision`
 
@@ -502,6 +502,7 @@ The shared HTTP binding defines the v0 Problem Details members and type rules. G
 | Method other than `PUT` | `405 Method Not Allowed` with `Allow: PUT` |
 | Media type other than `application/cose; cose-type="cose-sign1"`, or unsupported HTTP content coding | `415 Unsupported Media Type` |
 | Request exceeds the supported grant transport limit | `413 Content Too Large` |
+| Fresh authenticated PLC state designates a different Hail service base for the grantee DID associated with this endpoint | `421 Misdirected Request` |
 | Malformed path, CBOR, COSE, protected header, or grant payload | `400 Bad Request` |
 | Invalid or unverifiable grant signature before caller authentication | Uniform `400 Bad Request` |
 | Required `If-None-Match` or `If-Match` is absent after grantor authentication | `428 Precondition Required` |
@@ -511,7 +512,7 @@ The shared HTTP binding defines the v0 Problem Details members and type rules. G
 | Rate limited | `429 Too Many Requests` |
 | Temporarily unavailable | `503 Service Unavailable` |
 
-`429` and `503` include `Retry-After` when the server supplies retry timing. Precondition and conflict failures are permanent until the publisher reconciles its state; they are not retried unchanged except for the exact-convergence cases above.
+`429` and `503` include `Retry-After` when the server supplies retry timing. A `421` is handled only through the endpoint-refresh procedure in the shared HTTP binding. Precondition and conflict failures are permanent until the publisher reconciles its state; they are not retried unchanged except for the exact-convergence cases above.
 
 ### Disclosure
 
@@ -525,7 +526,7 @@ Cache-Control: no-store
 {"type":"about:blank","title":"Bad Request","status":400}
 ```
 
-The generic response omits `detail` and `instance` and uses the same representation shape, privacy-relevant headers, and bounded timing behavior for malformed protected content, unknown keys, invalid signatures, claimed-party mismatches, unknown or nonlocal grantees, and missing or revision-inappropriate preconditions before authentication. The detailed `428` mapping applies only after grantor authentication and local-target confirmation. Safe transport errors selected independently of claimed or actual grant state may return their explicit `405`, `413`, or `415` responses before this schedule. A source-wide or service-wide `429` may also be returned early only when selected independently of protected grant state.
+Except when fresh authenticated PLC state establishes the public routing mismatch defined by the HTTP binding, the generic response omits `detail` and `instance` and uses the same representation shape, privacy-relevant headers, and bounded timing behavior for malformed protected content, unknown keys, invalid signatures, claimed-party mismatches, unavailable local-account state, and missing or revision-inappropriate preconditions before authentication. The detailed `428` mapping applies only after grantor authentication and local-target confirmation. Safe transport errors selected independently of claimed or actual grant state may return their explicit `405`, `413`, or `415` responses before this schedule. A public PLC-derived `421` and a source-wide or service-wide `429` may also be returned early only when selected independently of protected grant and local-account state.
 
 After authentication and local-target confirmation, the server returns the applicable detailed status. Disclosure-safe `detail` may explain a stale revision, gap, fork, immutable-field conflict, throttling, or temporary outage. Clients determine protocol behavior from the status and never parse `detail`.
 

@@ -338,7 +338,7 @@ A recipient should process an envelope in this order:
 2. Perform bounded structural CBOR and COSE decoding sufficient to enforce the exact tagged COSE_Sign1 shape.
 3. Decode the protected header and payload; reject malformed, non-deterministic, unknown, or unsupported fields.
 4. Validate inexpensive payload syntax, types, timestamp relationships, and body limits.
-5. Require `to` to identify a local recipient DID served by this endpoint.
+5. Require `to` to identify a recipient DID served by this endpoint. A server may return the public PLC-derived `421` routing mismatch defined by the HTTP binding; inability to establish that mismatch and unavailable local-account state follow the protected response path.
 6. Use the claimed authorization fields for a preliminary local grant or sent-message lookup.
 7. If no candidate authorization exists, follow the uniform unauthenticated rejection path without body retrieval or durable protocol-state mutation.
 8. Resolve or load the current `from` DID and exact protected `kid`, refreshing once if cached state lacks the key.
@@ -351,7 +351,7 @@ A recipient should process an envelope in this order:
 15. Perform all body verification and place the body and message data in durable staging.
 16. Using the serialized terminal transaction defined in [delivery-state.md](delivery-state.md), atomically re-check the effective deadline, publish the message, mark it delivered, and consume any claimed reply capability. A competing failure or cancellation may win instead.
 
-Claimed unauthenticated fields may be used only to make rejection cheaper. No successful authorization, detailed sender-facing error, replay-cache mutation, body fetch, or durable message state may rely on them before signature verification.
+Claimed unauthenticated fields may be used only to make rejection cheaper and, after bounded structural decoding and syntax validation, to perform the public PLC routing check defined by the HTTP binding. Apart from that public `421` response, no successful authorization, detailed sender-facing error, replay-cache mutation, body fetch, or durable message state may rely on them before signature verification.
 
 The externally visible response for a preliminary lookup miss must not be distinguishable from other unauthenticated processing by status, body, headers, or timing. The HTTPS binding uses a synchronous generic `202` receipt under a common bounded response schedule; it exposes authenticated detailed state separately only after verification. The schedule is selected from measured validation behavior rather than a guessed delay, bounds network-dependent DID resolution, and is tested through repeated timing observations as defined in [http-binding.md](http-binding.md).
 
@@ -400,9 +400,9 @@ The complete state machine, retry classifications, multi-recipient behavior, and
 
 ## Privacy And Error Disclosure
 
-Preliminary authorization lookup must not turn the delivery endpoint into a recipient, grant, sent-message, or message-ID oracle.
+Preliminary authorization lookup must not turn the delivery endpoint into a local-account-state, grant, reply-capability, sent-message, replay-record, message-ID, delivery-state, recipient-policy, cache-state, or user-activity oracle. Current address-to-DID and DID-to-service mappings are public discovery state and are not protected by this rule.
 
-Before authenticating a sender with a current or previous relationship, implementations return the mandatory generic `202`/`received` response for absent recipients, absent grants, absent reply records, invalid keys, invalid signatures, and other protected outcomes. Detailed revocation, category, duplicate, or delivery-state information is disclosed only to an authenticated sender for whom that information is already relationship state.
+Except when fresh authenticated PLC state establishes the public routing mismatch defined by the HTTP binding, implementations return the mandatory generic `202`/`received` response for unavailable local-account state, absent grants, absent reply records, absent replay records, invalid keys, invalid signatures, and other protected outcomes before authenticating a sender with a current or previous relationship. Detailed revocation, category, duplicate, reply, or delivery-state information additionally requires the exact object correlation defined by this specification; a relationship with the recipient does not authorize probing unrelated identifiers or another party's state.
 
 Protected generic responses follow the common measured bounded schedule in [http-binding.md](http-binding.md). Implementations must also rate-limit by network source, claimed DID, authenticated DID, and provider as appropriate without making protected relationship state observable.
 

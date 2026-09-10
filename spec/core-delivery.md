@@ -42,7 +42,7 @@ The first flow should use a plain-text Safe Portable Text body. Rich SPT nodes a
 - A body must match the hash and size declared by its authenticated envelope.
 - Replaying an accepted envelope must not create another message.
 - Revocation must take effect without sender cooperation.
-- Unknown senders must not be able to use delivery errors to probe recipient existence.
+- Current address-to-DID and DID-to-service mappings are public. Unknown or unrelated senders must not be able to use delivery behavior to probe grants, reply capabilities, replay records, message state, local-account state, recipient policy, cache state, or user activity.
 
 ## Questions Required For The First Flow
 

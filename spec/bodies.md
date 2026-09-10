@@ -180,7 +180,7 @@ The sender accepts retrieval only when:
 - the authorization has not expired
 - the token is presented over HTTPS
 
-Missing, malformed, invalid, unknown, mismatched, and expired tokens receive the uniform `404` response defined by the HTTP binding without revealing whether the body digest exists. A missing committed body may return `503` only after the token and requested digest match an unexpired authorization record.
+Missing, malformed, invalid, unknown, mismatched, and expired tokens receive the uniform `404` response defined by the HTTP binding without revealing whether the body digest exists. The recipient performs the HTTP binding's one required sender-DID refresh before classifying that response as permanent, because provider migration may move the same authorization record to a newly authenticated endpoint. A missing committed body may return `503` only after the token and requested digest match an unexpired authorization record.
 
 ## Signatures Versus Encryption
 
@@ -340,7 +340,7 @@ Delivery state, retry ownership, and reason codes are defined in [delivery-state
 - body unavailable after commitment ends: permanent failure
 - size, digest, media type, or schema mismatch: permanent integrity failure
 
-The exact HTTP status mapping and disclosure-safe RFC 9457 behavior are defined in the Hail HTTP binding. In particular, authorization failures use a uniform permanent `404`, a temporarily missing committed body under valid authorization uses retryable `503`, and rate limiting uses retryable `429`.
+The exact HTTP status mapping and disclosure-safe RFC 9457 behavior are defined in the Hail HTTP binding. In particular, an authorization failure uses a uniform `404` and becomes permanent only when the required sender-DID refresh leaves the endpoint unchanged or a retry at the changed authenticated endpoint also returns `404`. Other changed-endpoint results retain their ordinary retry classification. A temporarily missing committed body under valid authorization uses retryable `503`, and rate limiting uses retryable `429`.
 
 ## Privacy And Analytics
 
@@ -366,7 +366,7 @@ A body digest may be guessable when content is public or predictable. Retrieval 
 
 ### Token Enumeration
 
-At least 256 random token bits make online guessing infeasible. The sender must rate-limit failures. Requests without matching unexpired authorization receive the same `404` whether or not body bytes exist; only a caller presenting valid authorization for the requested digest may receive `503` for a temporarily missing committed body.
+At least 256 random token bits make online guessing infeasible. The sender must rate-limit failures. Before successful token-and-digest authorization, a `429` may be selected only by a source-wide or service-wide limit independent of token validity, authorization-record existence, and body existence; otherwise the request receives the uniform `404`. After valid authorization, an authorization-scoped limit may return `429`, and only a caller presenting valid authorization for the requested digest may receive `503` for a temporarily missing committed body.
 
 ### Decompression Bombs
 

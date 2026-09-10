@@ -288,7 +288,7 @@ Revocation is local and unilateral.
 
 The recipient server enforces a signed revoked grant revision immediately and notifies the sender asynchronously. The sender does not approve revocation, and notification failure cannot delay it.
 
-To reduce address probing, protected failures use the generic `202`/`received` response until the sender signature is verified and local state confirms a current or previous grant or reply relationship. Only then may privacy policy permit detailed outcomes such as revoked grant or ungranted category.
+Current address-to-DID discovery and DID routing are public. To prevent probing of grants, replies, replay records, message state, local-account state, recipient policy, cache state, and user activity, protected failures use the generic `202`/`received` response until the sender signature is verified and local state confirms a current or previous grant or reply relationship. Only then may privacy policy permit detailed outcomes such as revoked grant or ungranted category.
 
 Grant revocation is defined in [`spec/grants.md`](spec/grants.md). Revocation wins if it commits before envelope acceptance; acceptance wins if it commits first. Delivery state is defined in [`spec/delivery-state.md`](spec/delivery-state.md).
 
@@ -452,7 +452,7 @@ High-level delivery flow:
 
 1. The sender resolves the recipient's address binding to a DID when necessary, then resolves that DID's current Hail service.
 2. The recipient applies transport-size, bounded CBOR/COSE, closed-schema, and inexpensive field checks to the submitted envelope.
-3. Claimed fields may support only a privacy-safe preliminary local grant or reply lookup.
+3. Claimed fields may support only a preliminary local grant or reply lookup whose result is not externally distinguishable and reveals no relationship state.
 4. The recipient resolves current DID keys, verifies COSE, and binds the authenticated sender and recipient.
 5. It atomically checks `(from, message_id)` and either returns the stored result or reserves a pending authenticated replay record before final policy and authorization checks.
 6. It applies policy, then atomically rechecks grant category scope or reply authority, claims any reply capability, and creates `accepted`; otherwise it stores the authenticated rejection.
