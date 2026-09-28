@@ -657,6 +657,79 @@ The first successful scenario is:
 11. Bob's provider pushes a signed terminal status.
 12. Alice's provider idempotently acknowledges that status.
 
+## Phase 11: Single-Use Reply Capabilities
+
+The reply authorization rules in [`../spec/envelopes.md`](../spec/envelopes.md#reply-authorization)
+and terminal atomicity rules in
+[`../spec/delivery-state.md`](../spec/delivery-state.md#terminal-transition-atomicity)
+are the authority for this phase. Replies reuse `POST /hail/envelopes` and
+the detached-body and signed-status operations; they do not depend on a Grant
+in the reverse direction. A reply invitation is an explicit signed
+`reply.allowed: true` with a signed `reply.until` on the original envelope.
+Possession of its UUID alone does not authorize a reply.
+
+Migration 12 adds a persisted authorization discriminator and original-message
+reference to both sent and received envelopes, plus one durable capability row
+for each outgoing replyable envelope. Existing Grant envelopes remain valid.
+The capability's `available`, `claimed`, or `consumed` state and its claim
+owner are serialized under a PostgreSQL row lock. A recipient checks the
+original sent envelope's exact parties, signed permission and deadline, and
+the authenticated reply signature before reserving a new reply. A duplicate
+reuses its stored replay result; a competing sibling cannot take the claim.
+`on-hold` retains the claim; the serialized terminal delivery transaction
+consumes it on `delivered` or releases it on `failed` or `cancelled`. A released
+invitation can accept one replacement with a **new** UUIDv7 before its signed
+deadline. A delivered reply may opt in to a further single-use invitation,
+forming a linear conversation; replies default to `reply.allowed: false`.
+
+Local authoring from `/home/j4crev/Dev/hail-server-ts`, after publishing the
+body bytes and using the correct provider environment:
+
+```bash
+bun run envelope:create -- <original-sender-did> <active-grant-id> <body-digest> updates --reply-until <future-unix-seconds>
+bun run envelope:submit -- <original-sender-did> <original-message-id>
+bun run body:publish -- <reply-sender-did> examples/alice-body.txt
+bun run envelope:reply -- <reply-sender-did> <original-message-id> <published-reply-body-digest>
+bun run envelope:submit -- <reply-sender-did> <reply-message-id>
+```
+
+The original and reply commands run on **different** providers. The first
+sender must have a current Grant from the original recipient; the reply sender
+needs the original *accepted* incoming envelope and the valid signed
+invitation, not a Grant. Optional `--reply-until <future-unix-seconds>` on
+`envelope:reply` invites exactly one further reply. Both creation commands
+print the new message ID and payload digest without printing bearer tokens.
+The recipient returns a signed current status when processing completes within
+the response window; generic `202` remains indeterminate. Unsolicited or
+expired invitations, wrong-party claims and competing siblings do not result
+in acceptance or body retrieval. Exact retries preserve the original claim.
+
+The existing provider environment is sufficient; this phase adds no secret
+or configuration variable. The sender and recipient must each
+retain their existing publicly activated custodial POC DID state. Recovery
+after restart uses the committed capability, replay, delivery-work, and status
+rows; the in-process workers remain executors over those durable records.
+Do not delete an accepted reply or its claim while delivery is nonterminal.
+Migration 12 is forward-only. A production deployment requires backups of
+both provider databases and a matching provider image; reverting the image
+alone does not reverse persisted reply state.
+
+To verify the local PostgreSQL 14.4 integration case against a disposable
+`DATABASE_URL`, run:
+
+```bash
+bun --bun vitest run test/reply-capabilities.integration.test.ts
+```
+
+It exercises competing signed replies, authenticated retry, on-hold claim
+retention, failure and cancellation release, replacement delivery and terminal
+consumption, expired or unsolicited invitations, a further solicited reply,
+and independence from subsequent original-Grant revocation. Local validation
+does not demonstrate public HTTPS or independent infrastructure. The first
+public reply scenario requires a **new** active Grant and a fresh signed
+original envelope: the prior end-to-end demonstration Grant is terminally
+revoked and its envelope did not permit replies.
+
 ## Required Verification Cases
 
 Automated tests must cover at least:
@@ -1274,6 +1347,35 @@ or populated `.env` files. Commit only safe `.env.example` files.
 - Production provider logs had no application errors. The detailed, measured
   common response schedule and full multi-provider adversarial timing trials
   remain deployment-hardening work beyond this successful POC exchange.
+
+### 2026-09-28: Reply Capabilities (Local)
+
+- Added forward-only migration 12 with explicit Grant-vs-reply authorization
+  columns on sent and received envelopes, cross-references to the original
+  received/sent message, and durable single-use reply-capability state.
+- Sender authoring now optionally invites a reply through a signed `reply.until`
+  value; `envelope:reply` signs an ordinary Hail Envelope using the recipient's
+  accepted original message instead of requiring a reverse-direction Grant.
+  The default reply has `reply.allowed: false`; an explicit further invitation
+  can support a linear chain.
+- Recipient validation performs a relationship-scoped preliminary sent-message
+  lookup, authenticates the current sender messaging key, and transactionally
+  locks the original sender's capability before admitting a reply. An identical
+  authenticated retry preserves its claim; a sibling cannot claim the same
+  invitation. The delivery transaction keeps the claim on hold, consumes it
+  on `delivered`, and releases it on `failed` or `cancelled` so one replacement
+  with a new ID may be admitted before `reply.until`.
+- Passed strict TypeScript, build, and ordinary tests. PostgreSQL 14.4
+  integration exercised six reply cases, including competing signed siblings,
+  on-hold retention, terminal failure/cancellation release, replacement and
+  consumption, expiry, unsolicited traffic, a further solicited reply, and
+  independence from later Grant revocation. The existing 11-case envelope/status,
+  one-case body, and one-case Grant integrations also passed after migration 12.
+  Built the production image and validated the Compose interpolation. Provider
+  source commit: `63d3188` (`feat: add single-use reply capabilities`).
+- This is local validation only. Migrations 12 and the reply endpoints are not
+  deployed to the public VPS. Public reply verification needs a fresh active
+  Grant and a fresh original envelope that explicitly permits replies.
 
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
