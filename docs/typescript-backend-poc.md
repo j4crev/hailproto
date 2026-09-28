@@ -583,15 +583,19 @@ in `BUILD_ORDER.md`; they do not add protocol scope:
    locally; public deployment verification remains part of Phase 10.
 3. **Detached Body:** publish one plain-text Safe Portable Text body from
    Alice's provider and enforce recipient authorization, digest, media type,
-   size, and availability during retrieval.
+   size, and availability during retrieval. Implemented locally; public
+   deployment verification remains pending.
 4. **Envelope Submission:** sign and submit one Alice-to-Bob envelope; enforce
    recipient, grant, category, timestamp, signature, and replay checks before
-   any body transfer.
+   any body transfer. Implemented locally with an indeterminate generic receipt;
+   public end-to-end verification remains pending.
 5. **Durable Delivery Worker:** persist accepted work before acknowledging it,
    retrieve and verify the body after acceptance, and durably store Bob's
-   delivered message across process restarts.
+   delivered message across process restarts. Implemented and tested locally;
+   public end-to-end verification remains pending.
 6. **Delivery Status:** have Bob sign and push a terminal status to Alice, then
-   acknowledge the byte-identical status idempotently.
+   acknowledge the byte-identical status idempotently. Implemented and
+   PostgreSQL-tested locally; public end-to-end verification remains pending.
 
 The completed demonstration must also reject an unauthorized category, reject
 new envelope acceptance when revocation commits first, preserve delivery
@@ -604,6 +608,30 @@ Run persisted jobs for body retrieval, integrity checks, state transitions,
 terminal status signing, and retry delivery. The earliest slice may execute the
 worker loop in the server process, but accepted work must already be durable so
 a restart does not lose responsibility.
+
+Migration 10 persists leased delivery work, recipient-and-sender verified body
+provenance, and recipient-visible delivered messages. The server runs one
+delivery-work claim every five seconds. For isolated local processing, run
+`bun run delivery:once` with the provider environment configured; this claims
+at most one due item and prints `idle`, `on-hold`, `delivered`, or `failed`.
+Repeated invocation after a crash recovers work when its lease expires.
+
+The worker re-resolves the sender DID for each attempt and uses DNS-pinned HTTPS
+GET with the signed bearer credential only in the Authorization header. It
+does not follow redirects. A `404` triggers one current-DID refresh and a retry
+only if the authenticated service endpoint changed. It bounds compressed
+transfer and gzip output, checks any `Content-Digest` over transferred bytes,
+then verifies the exact uncompressed size, SHA-256 digest, deterministic CBOR,
+and `spt-1` schema. It persists retryable conditions with jittered backoff and
+a finite signed deadline. A delivered transition stores verified body bytes,
+the recipient-specific message, and terminal state in one transaction under a
+delivery-row lock. A deadline or failure transition uses the same lock and
+cannot publish a message after a competing terminal outcome.
+
+Delivery state and its signed status snapshots are stored locally. An
+authenticated submission may receive a `200` signed current status, including
+`accepted`; `202` remains only an indeterminate network receipt. Bob pushes
+terminal signed snapshots to Alice and retains a durable retry outbox.
 
 The intended process split is:
 
@@ -1029,6 +1057,186 @@ or populated `.env` files. Commit only safe `.env.example` files.
   Repeating the revoke command returned the existing revision and digest.
 - All eight production containers remained healthy and provider logs contained
   no errors during the rollout and live Grant lifecycle.
+
+### 2026-09-28: Detached Body Slice (Local)
+
+- Added migration 8 for immutable per-sender exact deterministic CBOR bodies
+  and recipient/message-scoped authorizations. Body bytes are content-addressed
+  by SHA-256; the database stores only SHA-256 bearer-token hashes and retains
+  each shared body through the latest authorization commitment.
+- `body:publish` builds a plain-text `spt-1` document from a UTF-8 file,
+  validates the codec schema and deterministic encoding, enforces 256 KiB, and
+  publishes it for a publicly activated local sender DID. An exact repeat reuses the bytes.
+- `body:authorize` allocates a random 32-byte token for one recipient DID and
+  UUIDv7 message ID and returns it **once** to its local caller. Preserve that
+  value for the future signed envelope; repeating this command with the same
+  message ID is a conflict. No bearer token or populated environment file is
+  committed to source control. The minimum commitment is 30 days from issuance.
+- `GET /hail/bodies/{digest}` checks canonical unpadded base64url path and
+  header token, token hash, expiration and digest match. It returns exact
+  uncompressed CBOR bytes and a `Content-Digest` header on success. Invalid
+  credentials and paths return uniform `404` Problem Details with a 150 ms
+  process-local minimum response interval; valid-token missing bodies return
+  retryable `503`. A process-local provider-wide rate cap applies before lookup.
+- Local usage from `/home/j4crev/Dev/hail-server-ts` after setting the
+  provider's existing `.env` values and applying migration 8:
+
+  ```bash
+  bun run db:migrate
+  bun run body:publish -- did:plc:rewawq7tylmrzaaprd27sdhb examples/alice-body.txt
+  bun run body:authorize -- did:plc:rewawq7tylmrzaaprd27sdhb did:plc:ih42yibclij7lv6264hoaodo <new-uuidv7> <digest-from-publish> <unix-seconds-at-least-30-days-ahead>
+  ```
+
+  The publish command prints the 43-character digest, exact size, media type,
+  profile, and HTTPS URL. The authorize command prints the one-time bearer
+  value. A recipient uses `GET` with `Authorization: Bearer <token>` and
+  `Accept: application/hail-body+cbor` over HTTPS. Invalid credentials return
+  `404`; the same valid credential may be retried until expiration. Client
+  transport, envelope-signature binding, and receiver integrity verification
+  are part of the subsequent envelope/delivery slices.
+- Verified TypeScript and build, 82 ordinary tests, and a clean PostgreSQL 14.4 integration
+  run of migration 8, exact-byte persistence, token hashing, expiration,
+  mismatch rejection, and retention extension. The temporary database was
+  removed. To repeat the integration case with a disposable database, set
+  `DATABASE_URL` and run
+  `bun --bun vitest run test/body-repository.integration.test.ts`.
+- No public deployment or end-to-end body fetch has been performed for this
+  slice. Rollback before a public rollout consists of redeploying the previous
+  provider image; keep migration 8 applied because migrations are forward-only.
+  A body or authorization already committed for a signed envelope must not be
+  deleted before its availability commitment ends.
+
+### 2026-09-28: Envelope Submission Slice (Local)
+
+- Added migration 9 for byte-exact sent envelopes and received replay/acceptance
+  records, including signed token-bearing representations, digests, signing PLC
+  evidence, and accepted timestamps. An accepted row is durable work for the
+  subsequent delivery worker; it does not mean the body was retrieved.
+- Alice's `envelope:create` checks public activation, a currently active
+  received Grant, category scope, a previously published body, and current
+  sender PLC messaging-key authorization. It signs a fresh UUIDv7 envelope
+  with a seven-day delivery deadline, 31-day body commitment and independently
+  generated recipient-specific bearer token. One database transaction stores
+  the signed bytes, token hash, and retention extension; the raw token appears
+  only inside the persisted signed envelope and is never printed by this CLI.
+- `envelope:submit` reads the stored representation by sender DID and message
+  ID, refreshes Bob's current PLC service, and posts those exact bytes using
+  DNS-pinned HTTPS without redirects. A `202 {"outcome":"received"}` response
+  is explicitly **indeterminate**. The same command and message ID may be
+  retried after a transport failure; do not run `envelope:create` again for
+  the same logical send.
+- Bob's `POST /hail/envelopes` applies the 16 KiB streamed limit and safe
+  transport errors before protocol work. It performs a preliminary Grant
+  candidate lookup, verifies the `#hail-messaging` signature against current
+  PLC state, checks recipient public activation and service authority, then
+  locks the authoritative Grant lineage while checking scope, expiry, replay,
+  and acceptance. A Grant revocation committed first prevents new acceptance;
+  an acceptance committed first remains durable. Exact retries do not create
+  another acceptance, and authenticated message-ID conflicts are fenced.
+  The endpoint emits only the privacy-preserving generic `202` receipt at a
+  fixed 750 ms minimum. The measured, deployment-calibrated common schedule
+  and signed detailed acceptance snapshot are future delivery-status work;
+  no `202` claims successful Hail acceptance.
+- After publishing Alice's body and **creating/publishing a new active Bob-to-
+  Alice Grant** (the earlier demonstration Grant was terminally revoked), run
+  from `/home/j4crev/Dev/hail-server-ts` with the appropriate provider `.env`:
+
+  ```bash
+  bun run db:migrate
+  bun run envelope:create -- did:plc:rewawq7tylmrzaaprd27sdhb <new-active-grant-id> <published-body-digest> updates
+  bun run envelope:submit -- did:plc:rewawq7tylmrzaaprd27sdhb <message-id-from-create>
+  ```
+
+  The first command prints a message ID, SHA-256 digest of the exact signed
+  envelope **payload** bytes (not the COSE wrapper), and
+  destination without printing the bearer token. The second prints the
+  indeterminate `received` result or an authenticated signed current status
+  when it is available within the response window. The public route is not deployed yet; a
+  local end-to-end listener exercise and public verification are still needed.
+- Local verification used PostgreSQL 14.4 for migration 9, exact sent-envelope
+  persistence, token hashing, successful acceptance, exact retry, ID conflict,
+  invalid signature, out-of-scope rejection, and acceptance versus revocation
+  ordering. Run the integration test against a disposable `DATABASE_URL` with
+  `bun --bun vitest run test/envelope-repository.integration.test.ts`.
+  The disposable database is removed after testing; migration rollback is
+  forward-only. Accepted rows and signed sent envelopes must remain available
+  for the later body worker, retries, and status acknowledgments.
+
+### 2026-09-28: Durable Delivery Worker (Local)
+
+- Added migration 10 and transactionally coupled future envelope acceptance to
+  an initial delivery-work row. Existing accepted rows from migration 9 are
+  backfilled when migration 10 applies. Two workers claim with row locks,
+  `SKIP LOCKED`, and expiring leases rather than duplicating delivery work.
+- Added a credential-restricted DNS-pinned HTTPS body GET path, bounded
+  identity/gzip transport handling, RFC 9530 Content-Digest checking when
+  supplied, recipient/sender-specific body provenance, and exact CBOR/SPT
+  verification. Missing authorization is permanent only after the required
+  sender-DID refresh; `429`, `503`, transport failures, and interrupted streams
+  follow retry classifications.
+- Added `delivery:once` and an in-process loop that claims due work, applies
+  bounded jittered backoff and Retry-After within the effective deadline, and
+  stores delivered body bytes, visible message, and terminal delivery state in
+  one locked transaction. A competing failure/deadline transition prevents
+  late publication. Terminal rows are immutable in worker operations.
+- Passed strict TypeScript checking, build, 89 ordinary tests, and a clean
+  PostgreSQL 14.4 migration and integration scenarios for
+  post-restart claims, expired-lease recovery, on-hold retry, idempotent
+  delivery, permanent body failure, expiration before final publication, and
+  grant-revocation ordering. The database container was removed afterward.
+  To reproduce, set `DATABASE_URL` to a disposable PostgreSQL database and run
+  `bun --bun vitest run test/envelope-repository.integration.test.ts`.
+- The public stack has not been updated. For a future rollout, back up both
+  provider databases, apply forward-only migrations 8–10, deploy the matching
+  provider image to both instances, and verify a **new active Grant** before
+  sending an envelope. A terminally revoked Grant cannot authorize a new one.
+
+### 2026-09-28: Signed Acceptance And Terminal Status (Local)
+
+- Corrected the status `envelope_digest` identity to SHA-256 over the exact
+  deterministic **envelope payload bytes**, as the protocol requires. Earlier
+  temporary integration databases were removed; no migration 9 data was
+  deployed to production. Freshly created sent and received records agree on
+  this digest and retain the full COSE representation separately.
+- Added migration 11 for immutable deterministic status payloads, COSE wrappers
+  and signing PLC evidence, a leased terminal publication outbox, and Alice's
+  monotonic received-status record. Existing terminal rows from migration 10
+  are queued when migration 11 applies. The Bob-side worker writes its terminal
+  outbox entry in the same transaction as `delivered` or `failed`.
+- Bob signs current status using the currently authorized local
+  `#hail-messaging` key after checking public activation and the current PLC
+  service. An authenticated eligible `POST /hail/envelopes` may return `200`
+  with one tagged COSE_Sign1 accepted or later status snapshot; if processing
+  cannot complete within the generic response window it returns the unchanged
+  `202 {"outcome":"received"}`. The latter does **not** confirm acceptance.
+- Bob publishes terminal `delivered`/`failed` snapshots to Alice's current
+  DID-authenticated service via DNS-pinned HTTPS `PUT
+  /hail/deliveries/{envelope_digest}`. The outbox persists claims, attempts,
+  bounded jittered fixed-schedule retries, `Retry-After`, and acknowledgement.
+  `204` alone ends retries; `202` is indeterminate. The deterministic status
+  payload and revision remain stable if the local messaging key is replaced by
+  a newly PLC-authorized key, allowing another retained COSE wrapper. The POC
+  does not yet provide a key-rotation CLI.
+- Alice checks the current `#hail-messaging` signer and exact pre-existing
+  `(sender DID, message ID, recipient DID, payload digest)` correlation before
+  returning `204` for new, duplicate, or stale valid snapshots. Unknown and
+  unauthenticated pushes receive generic `202`; authenticated conflicting
+  revisions or terminal transitions receive `409`. A first-observed terminal
+  revision is accepted and its skipped revisions counted as an audit gap.
+- Run `bun run status:publish` in the provider environment to claim at most
+  one due terminal status. The server also runs the publisher loop every five
+  seconds. `envelope:submit` now verifies and retains a signed `200` response
+  at Alice; it still reports `received` without claiming acceptance for `202`.
+- Passed the TypeScript checks, build, 92 ordinary tests and 11 disposable
+  PostgreSQL 14.4 integration cases covering migration 11, signed acceptance,
+  byte-identical status replay, stale acknowledgement, conflicts, audit gaps,
+  terminal push, scheduled retry after `202`, and eventual `204`. Repeat with
+  a disposable `DATABASE_URL` and
+  `bun --bun vitest run test/envelope-repository.integration.test.ts`.
+  Forward-only migrations 8–11 require backups before deployment to both
+  providers. Provider source commit:
+  `0dd5860` (`feat: add detached bodies and signed delivery`). No public
+  rollout had been performed at the time of this local validation.
 
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
