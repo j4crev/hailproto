@@ -1015,8 +1015,20 @@ or populated `.env` files. Commit only safe `.env.example` files.
   14.4 integration test applied migration 7 and exercised authoritative and
   received creation, exact retry, revocation, conflict rollback, publication
   ordering, acknowledgement, and cleanup against a clean database.
-- Public deployment and Bob-to-Alice federation verification remain pending;
-  no public Grant state is claimed by this entry.
+- Built and deployed provider commit `a2eb41fd280a9c1f7992bbb8a684544d4d341c83`
+  after custom-format logical backups of both provider databases were written to
+  `/var/backups/hail-poc/pre-grant-20260928T020119Z`. Both databases applied
+  migration 7 and both replacement providers became healthy before testing.
+- Bob created Grant `01a0e5c0-8657-7496-928b-a598cc79d0d0` for Alice's
+  `updates` category. Revision 1 was 697 bytes and converged in one publication
+  attempt with `201`; Bob's repeated unchanged create returned the same Grant ID,
+  digest, and exact representation.
+- Bob then committed terminal revision 2 locally. Its 731-byte representation
+  carried the 32-byte revision-1 digest, converged at Alice in one attempt with
+  `204`, and left both providers at current revision 2 with status `revoked`.
+  Repeating the revoke command returned the existing revision and digest.
+- All eight production containers remained healthy and provider logs contained
+  no errors during the rollout and live Grant lifecycle.
 
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
