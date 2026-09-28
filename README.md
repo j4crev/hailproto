@@ -24,6 +24,7 @@ Hail is currently in the protocol design and prototype phase. There is no workin
 
 - [`DESIGN.md`](DESIGN.md): High-level product and protocol design.
 - [`BUILD_ORDER.md`](BUILD_ORDER.md): Recommended specification and implementation sequence.
+- [`docs/typescript-backend-poc.md`](docs/typescript-backend-poc.md): Reproducible Bun/Hono two-provider POC implementation and deployment guide.
 - [`CBOR_MIGRATION.md`](CBOR_MIGRATION.md): Active migration plan from the earlier JSON/JWS draft to deterministic CBOR and COSE.
 - [`BODY_FORMAT.md`](BODY_FORMAT.md): Safe Portable Text body-format design.
 - [`spec/encoding.md`](spec/encoding.md): Normative Hail data model, deterministic CBOR, COSE, and diagnostic JSON profile.
