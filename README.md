@@ -8,7 +8,7 @@ The project aims to support beautiful messages, independent providers, portable 
 
 ## Status
 
-Hail is currently in the protocol design and prototype phase. There is no working server or client implementation yet, but the repository includes TypeScript and Go reference codecs, shared conformance vectors, executable schema checks, diagnostic tooling, and benchmarks. The sole intended v0 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
+Hail is currently in the protocol design and prototype phase. A public two-provider TypeScript server POC implements custodial PLC onboarding, address discovery, public activation, and signed Sender Profile publication and verification; it does not yet implement complete message delivery or a client. The repository also includes TypeScript and Go reference codecs, shared conformance vectors, executable schema checks, diagnostic tooling, and benchmarks. The sole intended v0 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
 
 ## Core Principles
 

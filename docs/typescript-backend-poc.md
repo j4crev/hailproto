@@ -521,6 +521,34 @@ Hono handlers remain thin. Protocol validation, PLC resolution, safe network
 fetching, transactions, and state transitions live in focused modules that can
 be tested without an HTTP listener.
 
+### Phase 8-10 Implementation Checklist
+
+The following six milestones decompose Phases 8 through 10 and the thin slice
+in `BUILD_ORDER.md`; they do not add protocol scope:
+
+1. **Sender Profile:** publish Alice's DID-scoped, `#hail-messaging`-signed
+   profile with one category; retrieve and verify it from Bob's provider, then
+   durably retain its exact representation, digest, revision, and PLC evidence
+   for rollback checks and later grant consent evidence.
+2. **Grant:** have Bob create and sign a grant for Alice; persist immutable
+   revisions and publish them through `PUT /hail/grants/{grant_id}`.
+3. **Detached Body:** publish one plain-text Safe Portable Text body from
+   Alice's provider and enforce recipient authorization, digest, media type,
+   size, and availability during retrieval.
+4. **Envelope Submission:** sign and submit one Alice-to-Bob envelope; enforce
+   recipient, grant, category, timestamp, signature, and replay checks before
+   any body transfer.
+5. **Durable Delivery Worker:** persist accepted work before acknowledging it,
+   retrieve and verify the body after acceptance, and durably store Bob's
+   delivered message across process restarts.
+6. **Delivery Status:** have Bob sign and push a terminal status to Alice, then
+   acknowledge the byte-identical status idempotently.
+
+The completed demonstration must also reject an unauthorized category, reject
+new envelope acceptance when revocation commits first, preserve delivery
+responsibility when acceptance wins that race, reject an invalid signature,
+and treat an exact envelope retry as one delivery.
+
 ## Phase 9: Durable Delivery Work
 
 Run persisted jobs for body retrieval, integrity checks, state transitions,
@@ -886,6 +914,35 @@ or populated `.env` files. Commit only safe `.env.example` files.
 - Confirmed public WebFinger and immutable COSE resources over HTTP/2 with exact
   media types, no content encoding, bounded content lengths, and Caddy-only
   public ingress.
+
+### 2026-09-27: Sender Profile Slice
+
+- Added the six-step implementation checklist as a decomposition of existing
+  Phases 8 through 10 rather than new protocol scope.
+- Extracted reusable current-state PLC resolution that validates the operation
+  log, cross-checks document data, compares the complete rendered document,
+  enforces distinct Hail keys, and canonicalizes the Hail service base.
+- Added immutable local Sender Profile revisions signed by the current
+  `#hail-messaging` key, exact COSE persistence, representation digests,
+  idempotent unchanged-content retries, and transactional revision fencing.
+- Added `GET /hail/profiles/{sender_did}` with exact path handling, content
+  negotiation, strong ETags, conditional `304`, explicit Problem Details, and
+  no content coding.
+- Added hardened remote profile verification with current PLC authorization,
+  safe public HTTPS transport, redirect rejection, size bounds, exact ETag
+  checks, timestamp and rollback checks, and conditional retrieval.
+- Added durable remote profile and PLC evidence retention so rollback and
+  same-revision conflict protection survives process restarts and exact consent
+  evidence is available to the grant milestone.
+- Added `profile:create` and `profile:verify` CLIs plus the first Alice profile
+  authoring example.
+- Corrected PostgreSQL JSONB writes to bind structured values rather than JSON
+  strings and retained decoding compatibility for previously stored onboarding
+  evidence.
+- Passed strict TypeScript checking and 44 tests. A clean seven-service local
+  stack applied migration 6, created and idempotently reused Alice's profile,
+  served its exact COSE bytes, and had Bob's provider verify and retain it twice
+  with the second request using conditional `304` behavior.
 
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
