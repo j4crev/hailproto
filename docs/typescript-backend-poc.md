@@ -1238,6 +1238,43 @@ or populated `.env` files. Commit only safe `.env.example` files.
   `0dd5860` (`feat: add detached bodies and signed delivery`). No public
   rollout had been performed at the time of this local validation.
 
+### 2026-09-28: Public Detached-Body And Delivery Verification
+
+- Committed and pushed provider implementation `0dd5860` and protocol guide
+  `58b25fe`. Rebuilt the provider production image on the VPS at
+  `sha256:7f8d8bea504d42d12feee077bccc02a2cde0cab1a1cb3d46f9ac715941553f74`.
+- Before replacement, saved and validated both PostgreSQL custom-format dumps
+  under `/var/backups/hail-poc/pre-delivery-20260928T123933Z`. Retained the
+  previous provider image as `hail-server-ts:pre-delivery-20260928T123933Z`.
+  Both provider databases applied migrations 8–11 and both public readiness
+  URLs returned `200`; all eight containers were running, with both providers
+  healthy and zero restarts.
+- Bob created new Grant `01a0e809-cf1c-7fa5-99f3-c783aa1bfd28` for Alice's
+  `updates` category; its active revision 1 converged through one HTTP `201`
+  publication attempt. Alice published a deterministic 120-byte SPT body at
+  digest `gOa1zi1jmu_F_TJKHG-29WqYx2mq-Wc4ZnOMsrK3gd8`.
+- Alice signed and persisted envelope
+  `01a0e80a-6718-741b-a7ba-c2eae2481ba7`, with payload digest
+  `4p3KSdxky9VLIDhMjPPS1w4haTKu5Pwj8EHTY5Cj4T0`. Bob returned a
+  cryptographically verified `accepted` revision-1 status, fetched and
+  verified the body over public HTTPS, and stored one delivered message. His
+  terminal revision-2 push received HTTP `204` in one attempt; Alice retained
+  `delivered` revision 2 with no audit gap. Retrying the identical envelope
+  returned the signed delivered snapshot, without a second delivery.
+- Public requests without a body token returned uniform `404` Problem Details;
+  unsupported envelope and status methods returned `405`. A COSE envelope with
+  a valid shape but an unauthorized signing key received only generic `202`
+  and reserved no extra delivery; Alice's own CLI rejected an out-of-scope
+  category before signing.
+- Alice prepared a second signed envelope, then Bob committed Grant revocation
+  revision 2. The tombstone converged at Alice; submission of the already
+  signed second envelope returned indeterminate `202` while Bob recorded
+  `unauthorized` with no delivery work. The first accepted message remained
+  `delivered`. The demonstrated new Grant is terminally revoked.
+- Production provider logs had no application errors. The detailed, measured
+  common response schedule and full multi-provider adversarial timing trials
+  remain deployment-hardening work beyond this successful POC exchange.
+
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
 from this method.
