@@ -1584,6 +1584,37 @@ or populated `.env` files. Commit only safe `.env.example` files.
   deployed. The floor remains provisional pending sustained-load calibration,
   and the fenced migration exercise remains outstanding.
 
+### 2026-09-28: Public Backend-Hardening Slice Verification
+
+- Committed and pushed provider source `021dced` and protocol guide `e3f5f54`.
+  Saved and validated both provider database custom-format dumps at
+  `/var/backups/hail-poc/pre-hardening-20260928T222933Z`, and tagged the old
+  image `hail-server-ts:pre-hardening-20260928T222933Z`. Deployed the shared
+  image `sha256:76e04125b365a2b59dac2a36d8dba81629005deb9f58335694a5625922b8cb0a`
+  to both providers. This slice introduced no schema change: both databases
+  stayed at migration 12. Both public readiness endpoints returned `200`.
+- On the deployed image, bounded private-PLC reads resolved Alice and Bob from
+  their fully validated one-operation logs, returned their expected Hail
+  services, retrieved one audit entry each, and mapped an unknown canonical
+  DID to onboarding-compatible `404` without a public PLC listener.
+- Eight simultaneous Hono requests for each of eight protected paths returned
+  the expected generic `202`, signed `200`, or valid status `204`. Across those
+  paths the observed response 95th-percentile samples were 750–757 ms; the
+  maximum observed 95th-percentile direct validation sample was 168 ms. An
+  exact public terminal-status retry returned bodyless `204`. From an external
+  development client, eight HTTPS samples each for malformed envelope and
+  unknown status had median 782 ms and observed 95th-percentile samples of
+  857 and 859 ms, respectively, including network variation. These short
+  samples do not establish a sustained-load production calibration.
+- Restarted `hail-dev` and then `hail-app` deliberately. Both recovered
+  readiness; byte-identical retries of Alice's original envelope and Bob's
+  accepted reply each returned the persisted signed `delivered` revision 2.
+  The recipient databases retained exactly one delivered row and one
+  body-retrieval attempt for each. All eight containers were running, both
+  providers were healthy with zero unexpected restarts, and logs contained
+  no application errors. The complete PLC write-ambiguity restart fixture
+  and fenced provider-state migration test remain outstanding.
+
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
 from this method.
