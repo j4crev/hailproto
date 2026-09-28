@@ -730,6 +730,82 @@ public reply scenario requires a **new** active Grant and a fresh signed
 original envelope: the prior end-to-end demonstration Grant is terminally
 revoked and its envelope did not permit replies.
 
+## Phase 12: Backend Hardening
+
+The public POC proves one delivery and one invited reply. This phase closes
+the remaining operational and conformance gaps before expanding the body
+format or treating the POC as production-ready. The rules in
+[`../spec/http-binding.md`](../spec/http-binding.md#bounded-response-schedule),
+[`../spec/did-profile.md`](../spec/did-profile.md#key-rotation),
+[`../spec/envelopes.md`](../spec/envelopes.md#validation-order), and
+[`../spec/delivery-state.md`](../spec/delivery-state.md#terminal-transition-atomicity)
+remain authoritative.
+
+1. **Protected-response schedule and bounded work.** Measure complete
+   validation paths on a representative supported host: malformed CBOR/COSE,
+   unavailable local account, missing/revoked Grant, absent or competing reply
+   claim, unknown key, invalid signature, authenticated duplicate and accepted
+   envelope, and unknown/valid delivery-status correlation. Record sample size,
+   latency distribution, concurrent load, clock source, machine profile and
+   response shape without logging tokens or signed envelope bytes. Choose a
+   minimum bound above observed normal validation time; use one monotonic
+   schedule for generic responses, a bounded processing deadline for
+   network-dependent PLC resolution, and a relationship-independent provider
+   work limit. Randomized delays do not hide repeatable differences. Signed
+   detailed responses may complete before the bound but must not be returned
+   before the schedule. A processing timeout returns the same generic `202`
+   as an unauthenticated miss; it is not an acceptance promise. Measure timing
+   repeatedly through the real Hono routes before and after rollout.
+2. **PLC key rotation and service moves.** Build fixture PLC operation logs
+   with authorized key rotation and a new `HailMessaging` service base. Test
+   current-role signature verification, forced refresh after an unknown or
+   failed cached key, removal of old keys, DNS-pinned endpoint refresh after
+   `404`/`421`, refusal to follow redirects, status re-signing under the new
+   authorized messaging key without incrementing a semantic revision, and
+   preservation of grant/reply/replay state through fenced ownership transfer.
+   Do not simulate a real provider move by blindly changing PLC service state:
+   the serialization fence and durable import in the delivery-state spec are
+   required before continuity can be claimed.
+3. **Negative and restart coverage.** Complete the verification matrix below
+   with deliberately malformed signed objects, expired/mismatched bearer
+   authorizations, decompression and SPT limit failures, concurrent replay
+   submissions, restart after acceptance and during an ambiguous PLC request,
+   and byte-identical retries after an ambiguous transport response. Verify
+   protected `202`/uniform `404` shape and that no unauthenticated request
+   creates replay, reply-claim, delivery, or message state. Use disposable
+   PostgreSQL 14.4 fixtures and tests against the real application routing;
+   retain exactly the signed and PLC evidence required for audit.
+4. **POC-to-production boundary.** Resolve the PLC 72-hour recovery policy,
+   portable custody and independent operation monitoring, calibrated
+   source-network abuse limits, and migration/backups before any claim of
+   independent production federation. Record tested commits, commands,
+   observed timings, limitations, and restoration procedure before deploying
+   a hardening change to both providers.
+
+Start locally in `/home/j4crev/Dev/hail-server-ts` with the existing Bun
+toolchain. For the first schedule slice, run `bun run typecheck`, `bun run
+build`, and `bun run test test/envelope-routes.test.ts` followed by the entire
+ordinary suite. Run the relevant opt-in PostgreSQL integration cases with a
+disposable `DATABASE_URL` **sequentially**: concurrent initial migration
+bootstraps can race on the migration catalog. Use a bounded observation
+command on a representative host only after fixture preparation; compare
+generic response status, headers and bytes as well as latencies, and keep
+synthetic request counts below the provider-wide 120-per-minute limit.
+The current 750 ms envelope/status minimum is a provisional implementation
+value, not a measured production calibration. Body retrieval and Grant
+protected responses have their own provisional schedules and will be measured
+and aligned as this phase proceeds.
+
+This phase adds no mandatory environment variable for the first local slice.
+If a calibration or work limit becomes configurable, validate safe bounds at
+startup and document both production values and fixture values. Check process
+restarts and stable generic responses before a staged public rollout; keep a
+logical backup of both provider databases and the previous image. Timing
+measurements and fixture payloads must not appear in production logs or
+contain bearer tokens, private keys, or populated `.env` values. Explicit
+transport errors (`405`, `413`, `415`), public PLC-derived `421`, and
+relationship-independent `429` remain outside the protected schedule.
+
 ## Required Verification Cases
 
 Automated tests must cover at least:
@@ -1409,6 +1485,104 @@ or populated `.env` files. Commit only safe `.env.example` files.
   of the winning reply returned `delivered` revision 2 without a duplicate
   message. A further reply from Alice was refused because Bob's reply had
   `reply.allowed: false`. The Grant for this reply test remains active.
+
+### 2026-09-28: Backend Hardening, First Local Slice
+
+- Added the Phase 12 checklist above before starting implementation. From the
+  development client to the public dev provider, eight sequential samples of
+  each generic protected outcome (`malformed` CBOR, missing Grant, and invalid
+  signature for a candidate Grant) returned the same `202` receipt. Their
+  observed medians were 782, 781, and 782 ms respectively, with observed
+  95th-percentile samples of 881, 783, and 785 ms; network jitter is included.
+  These 24 samples are a baseline, **not** calibration of the provisional
+  750 ms server-side floor: authenticated, concurrent, and status paths still
+  require complete-path measurements on the supported host.
+- Replaced separate envelope/status scheduling logic with one shared,
+  monotonic provider-wide work gate: a provisional 750 ms response floor,
+  10-second protected processing deadline, and 32 concurrent validations.
+  Saturation yields a relationship-independent `429`; requests missing the
+  response window receive the exact generic `202`, never a misleading
+  acceptance receipt. After the deadline, verification checkpoints prevent a
+  delayed PLC response from creating new replay or delivery state. When the
+  official PLC client's HTTP request cannot be cancelled, its still-pending
+  work retains a gate slot rather than allowing unlimited new requests.
+- Added repeated Hono response observations, shared gate and timeout checks,
+  and a delayed PLC fixture proving that an aborted validation never reserves
+  an envelope. The provisional values are not exposed as unvalidated startup
+  environment variables. Grant and body schedules have not yet been aligned.
+- Built a two-operation fixture with the pinned PLC library: signed genesis
+  followed by signed messaging-key rotation and HTTPS service migration.
+  The resolver validates the complete operation log and rendered document;
+  an old-key envelope succeeds before rotation and is rejected afterwards,
+  while a newly authorized key succeeds. A body `404` at the old authenticated
+  endpoint triggers fresh PLC resolution and retrieval at the new endpoint,
+  without following an HTTP redirect. This tests resolution and endpoint
+  selection, **not** continuity-preserving provider migration: the fenced
+  state export/import ceremony is still required by the specification.
+- Ran TypeScript, build, ordinary protocol tests, and sequential PostgreSQL
+  integration tests for the envelope/status and reply paths. This slice is
+  local only; the public providers continue to run the prior migration-12
+  image. The next hardening work is transport-level PLC request cancellation,
+  complete-path timing calibration on the VPS, remaining negative/restart
+  cases, and the fenced state-transfer test.
+
+### 2026-09-28: Backend Hardening, Bounded PLC Read Slice
+
+- Replaced unbounded PLC *reads* with an adapter that obtains data from the
+  configured private directory using a single cancellable five-second
+  request/stream deadline, a 1 MiB decoded-byte ceiling, no redirects, and
+  duplicate-member-rejecting JSON parsing. Canonical DID validation occurs
+  before constructing directory paths. `404` still raises the official
+  `PlcClientError` shape needed for ambiguous genesis reconciliation.
+- Left `sendOperation` delegated to the pinned official PLC client. A write
+  whose result is ambiguous is still reconciled against the persisted signed
+  genesis CID and bytes before any retry. Write cancellation and full
+  ambiguous-write restart coverage remain separate hardening work.
+- Added fixtures for stalled response headers, a stalled streamed body,
+  declared and streamed size excess, malformed/duplicate JSON and bodyless
+  `404`. The request-level gate continues to bound outstanding protected work
+  even if the remote side does not honor abort.
+- Verified the adapter read-only against the existing private PLC directory
+  through a temporary authenticated SSH tunnel. Alice's and Bob's public Hail
+  DIDs each resolved with one validated operation and their expected
+  `https://hailproto.app/hail` and `https://hailproto.dev/hail` services. Alice's
+  audit log returned one entry and an unknown syntactically valid DID returned
+  an onboarding-compatible `404`. The tunnel was then closed. No PLC operation
+  or provider schema was modified.
+- On the representative two-provider VPS, ran a one-off read-only Hono
+  measurement harness inside the existing dev provider container using its
+  real PostgreSQL and private PLC dependencies. For each of eight conditions
+  (malformed CBOR, absent Grant, absent reply, invalid signature, previously
+  rejected envelope, authenticated exact duplicate, unknown status, and valid
+  duplicate status), recorded eight sequential and eight concurrent samples.
+  The maximum observed 95th-percentile *unmasked validation* sample was
+  81 ms sequentially and 312 ms with eight simultaneous requests. Under that
+  same eight-way load, Hono response 95th-percentile samples ranged from
+  751 to 757 ms. Generic paths returned `202`; authenticated exact duplicates
+  returned signed `200`, and valid duplicate statuses returned `204`. All
+  generic responses were the same JSON representation. The harness printed
+  only case labels, counts, HTTP statuses, and aggregate milliseconds, never
+  signed bytes or bearer credentials. It created no new message or Grant.
+  These modest samples support the provisional 750 ms floor for this POC
+  hardware, but do not establish a production bound under sustained load or
+  cover unavailable local accounts, unknown current keys, or every status
+  validation variant.
+- Extended the PostgreSQL status integration with a fixture that replaces the
+  currently authorized messaging key after terminal delivery. Bob rewraps the
+  **same deterministic terminal payload bytes** using the new key without
+  incrementing revision 2; both old and new signing wrappers remain retained.
+  Alice acknowledges the new current-key wrapper as an exact semantic
+  duplicate and rejects the old-key wrapper under the rotated current state.
+  The separate signed PLC operation-log fixture verifies the role change;
+  a complete fenced provider-state transfer remains a later exercise.
+- Run `bun run typecheck`, `bun run build`, and `bun run test` locally, plus
+  sequential PostgreSQL integration cases on a disposable database. The first
+  hardening tranche passed 104 ordinary tests, 12 envelope/status and 6 reply
+  PostgreSQL integration cases, a production-image build, and Compose
+  validation. Provider source commit: `021dced` (`feat: bound protected
+  processing and PLC reads`). At local validation time these changes were not
+  deployed. The floor remains provisional pending sustained-load calibration,
+  and the fenced migration exercise remains outstanding.
 
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
