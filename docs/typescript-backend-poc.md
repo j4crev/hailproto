@@ -1373,9 +1373,42 @@ or populated `.env` files. Commit only safe `.env.example` files.
   one-case body, and one-case Grant integrations also passed after migration 12.
   Built the production image and validated the Compose interpolation. Provider
   source commit: `63d3188` (`feat: add single-use reply capabilities`).
-- This is local validation only. Migrations 12 and the reply endpoints are not
-  deployed to the public VPS. Public reply verification needs a fresh active
+- This was local validation only. Migrations 12 and the reply endpoints were
+  not yet deployed at the time of this test. Public reply verification needs a fresh active
   Grant and a fresh original envelope that explicitly permits replies.
+
+### 2026-09-28: Public Single-Use Reply Verification
+
+- Committed and pushed provider source `63d3188` and protocol guide
+  `1d3253d`. Backed up and validated both provider PostgreSQL databases at
+  `/var/backups/hail-poc/pre-reply-20260928T171842Z` before rebuilding and
+  replacing the two providers. Retained the old image under the matching
+  `hail-server-ts:pre-reply-20260928T171842Z` tag. The new provider image is
+  `sha256:18a415d5ce77f97308643a427b8c2cf31f7af89012ea699a58d550ae594b7db3`.
+  Both databases applied migration 12, and both public readiness endpoints
+  passed. All eight containers were running; both providers were healthy with
+  zero restarts and no application errors in their logs.
+- Bob created a new active Grant `01a0e908-a1ae-77ab-802d-052ef09727f5`
+  for Alice's `updates` category; revision 1 converged with HTTP `201`. The
+  previously demonstrated Grant remained terminally revoked.
+- Alice signed and submitted fresh original message
+  `01a0e909-54d0-70df-959c-fc5b4201ac09` with an explicit reply deadline
+  of Unix second `1793208073` for Bob's DID. Bob returned signed `accepted`,
+  retrieved and verified the body, stored the delivered message, and pushed a
+  signed terminal status; Alice retained `delivered` revision 2.
+- Bob published an independent body and signed two distinct replies referencing
+  Alice's original message, without an Alice-to-Bob Grant. They were submitted
+  concurrently. Alice accepted and delivered only reply
+  `01a0e90a-a0d8-7a21-bfe1-3a4487024d47`. Reply
+  `01a0e90a-79c8-75e0-83a1-83b63b487dca` received generic `202` but was
+  durably recorded as `unauthorized`, with no delivery work. The invitation
+  row identified Bob as its sole permitted recipient and ended in `consumed`
+  with the accepted reply's message ID.
+- Alice's terminal `delivered` revision 2 reached Bob in one status-publication
+  attempt with HTTP `204`. Bob retained the signed status and an exact retry
+  of the winning reply returned `delivered` revision 2 without a duplicate
+  message. A further reply from Alice was refused because Bob's reply had
+  `reply.allowed: false`. The Grant for this reply test remains active.
 
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
