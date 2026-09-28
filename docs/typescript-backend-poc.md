@@ -521,6 +521,54 @@ Hono handlers remain thin. Protocol validation, PLC resolution, safe network
 fetching, transactions, and state transitions live in focused modules that can
 be tested without an HTTP listener.
 
+The Grant POC uses these explicit implementation policies:
+
+- The transport and persisted representation ceiling is 262144 bytes, matching
+  the codec's current tagged COSE input ceiling.
+- Grant and revocation revisions, predecessor digests, consent evidence, and
+  signature-verification PLC evidence are retained indefinitely for this POC.
+- Incoming revisions verify only against the grantor's currently authorized
+  `#hail-identity` key. Historical-key recovery remains deferred with the PLC
+  recovery-window policy described under POC limitations.
+- Revision 1 uses one issuance instant for `issued_at` and `updated_at`.
+  Successors preserve `issued_at`, strictly increase `updated_at`, and reject
+  signed timestamps more than 300 seconds in the future.
+- At most one active Grant exists for a grantor/grantee DID pair. Re-subscribing
+  after terminal revocation creates a new UUIDv7 lineage.
+- The in-process publisher is only an executor over a PostgreSQL outbox. Signed
+  state and retry responsibility commit before network I/O and survive process
+  restarts. Claims use leases, preserve revision order, refresh the grantee's
+  current PLC service on every attempt, and use bounded exponential backoff with
+  jitter.
+- The current slice authors initial active revisions and terminal revocations.
+  General active revisions for scope changes, renewal, consent refresh, and key
+  rotation remain future Grant work and are not represented as implemented.
+- The public receiver uses a conservative process-local provider-wide limit of
+  120 Grant requests per 60 seconds before PLC work and a 500 ms minimum for
+  generic protected `400` responses. A distributed source-network limiter and a
+  production-calibrated common response schedule remain deployment-hardening
+  work; this POC control bounds aggregate work but is not the final abuse model.
+
+Migration 7 stores immutable authoritative and received revisions, current
+lineage pointers, terminal tombstones, exact consent evidence, signing PLC
+evidence, and publication attempts. Grant creation and revocation write the
+signed revision and outbox entry in one transaction. The receiving provider
+validates current PLC state and the signature before disclosing local-account or
+precondition detail, then atomically applies ordered revisions.
+
+The public endpoint implements conditional exact-byte convergence:
+
+```http
+PUT /hail/grants/{canonical-lowercase-uuidv7}
+Content-Type: application/cose; cose-type="cose-sign1"
+If-None-Match: *
+```
+
+Revision 1 returns `201` with `Location` and a strong representation ETag. An
+exact creation retry returns `412` with that same ETag. Later revisions require
+`If-Match` for the predecessor digest and return `204`; an exact update retry
+also returns `204`. All successful persistence occurs before the response.
+
 ### Phase 8-10 Implementation Checklist
 
 The following six milestones decompose Phases 8 through 10 and the thin slice
@@ -531,7 +579,8 @@ in `BUILD_ORDER.md`; they do not add protocol scope:
    durably retain its exact representation, digest, revision, and PLC evidence
    for rollback checks and later grant consent evidence.
 2. **Grant:** have Bob create and sign a grant for Alice; persist immutable
-   revisions and publish them through `PUT /hail/grants/{grant_id}`.
+   revisions and publish them through `PUT /hail/grants/{grant_id}`. Implemented
+   locally; public deployment verification remains part of Phase 10.
 3. **Detached Body:** publish one plain-text Safe Portable Text body from
    Alice's provider and enforce recipient authorization, digest, media type,
    size, and availability during retrieval.
@@ -943,6 +992,31 @@ or populated `.env` files. Commit only safe `.env.example` files.
   stack applied migration 6, created and idempotently reused Alice's profile,
   served its exact COSE bytes, and had Bob's provider verify and retain it twice
   with the second request using conditional `304` behavior.
+
+### 2026-09-27: Signed Grant Slice
+
+- Added canonical UUIDv7 generation and migration 7 for immutable Grant
+  revisions, current lineage pointers, consent and PLC verification evidence,
+  terminal tombstones, and a leased publication outbox.
+- Added Bob-side `#hail-identity` signing with current PLC authorization,
+  verified Alice Address Binding and Sender Profile consent hashes, one-active-
+  pair enforcement, idempotent creation, and terminal signed revocation.
+- Added Alice-side conditional `PUT /hail/grants/{grant_id}` with a 256 KiB
+  streamed request ceiling, exact media and path handling, current PLC signature
+  verification, protected uniform failures, strong ETags, ordered revision
+  checks, and exact retry convergence.
+- Extended the DNS-pinned HTTPS transport with a header-restricted `PUT` mode
+  and added an in-process durable publisher with endpoint refresh, leased claims,
+  revision ordering, bounded exponential backoff, jitter, and `Retry-After`
+  handling.
+- Added `grant:create`, `grant:revoke`, and `grant:publish` CLIs plus the closed
+  `examples/bob-to-alice-grant.json` authoring document.
+- Passed strict TypeScript checking and 77 ordinary tests. An opt-in PostgreSQL
+  14.4 integration test applied migration 7 and exercised authoritative and
+  received creation, exact retry, revocation, conflict rollback, publication
+  ordering, acknowledgement, and cleanup against a clean database.
+- Public deployment and Bob-to-Alice federation verification remain pending;
+  no public Grant state is claimed by this entry.
 
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
