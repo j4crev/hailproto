@@ -734,7 +734,10 @@ revoked and its envelope did not permit replies.
 
 The public POC proves one delivery and one invited reply. This phase closes
 the remaining operational and conformance gaps before expanding the body
-format or treating the POC as production-ready. The rules in
+format or treating the POC as production-ready. The separate
+[`production-portable-custody.md`](production-portable-custody.md) records the
+user-held-key ceremony and the currently inactive transfer boundary. The
+rules in
 [`../spec/http-binding.md`](../spec/http-binding.md#bounded-response-schedule),
 [`../spec/did-profile.md`](../spec/did-profile.md#key-rotation),
 [`../spec/envelopes.md`](../spec/envelopes.md#validation-order), and
@@ -805,6 +808,95 @@ measurements and fixture payloads must not appear in production logs or
 contain bearer tokens, private keys, or populated `.env` values. Explicit
 transport errors (`405`, `413`, `415`), public PLC-derived `421`, and
 relationship-independent `429` remain outside the protected schedule.
+
+### Fenced Provider-State Transfer Inventory (Local Prototype)
+
+The continuity procedure in
+[`../spec/delivery-state.md`](../spec/delivery-state.md#status-signature-profile)
+requires an exclusive fence before exporting or importing an active DID.
+The local migrations 13–21 gate writers on the account-row serialization
+point, including Grant creation/revocation/publication, envelope acceptance and
+reply claims, body authorization and sent-envelope creation, the delivery
+worker, status revision signing and terminal-status publication, and account
+activation or messaging-key changes. An unfenced PostgreSQL snapshot is not a
+portable state transfer.
+
+For one local DID, the transfer inventory includes:
+
+- `provider_accounts`, public provider-key metadata, user-controlled public
+  recovery/identity keys and monitor evidence in `portable_custody_evidence`,
+  PLC operation evidence and read-back
+  snapshots, hosted and selected `address_bindings`, and local
+  `sender_profiles` with their signing/activation evidence;
+- authoritative `grant_lineages`, immutable `grant_revisions`, consent
+  evidence, terminal tombstones and leased `grant_publications`;
+- `detached_bodies`, hashed `body_authorizations`, `sent_envelopes`,
+  `received_envelopes`, and the complete `reply_capabilities` claim state;
+- `delivery_work`, `verified_body_provenance`, `delivered_messages`,
+  `delivery_status_payloads`, all retained `delivery_status_wrappers`,
+  `terminal_status_publications`, and `sent_delivery_status` including audit
+  gaps and signing PLC evidence.
+
+Foreign-party records in one provider database must be exported only when
+they belong to the migrating DID's serialization domain. The import must
+validate all signed representations, FK relationships, replay identities,
+lease ownership, current status revisions, and authorization references before
+it becomes active. The new provider stays unable to process Hail operations
+ until the old provider has stopped committing under the exclusive fence, the
+validated snapshot is acknowledged, and the PLC messaging-key/service update
+meets the recovery-window policy. An aborted cutover may release the old fence
+only after invalidating the inactive import. Test concurrent acceptance,
+ delivery completion, revocation, and status publication on both sides of the
+ fence with disposable databases before a live cutover. The local fixture does
+ this, but the live POC DIDs are custodial and registered only in a private PLC
+ directory: they cannot be activated under the production portable profile.
+
+### Phase 13: Portable-Custody Cutover Rehearsal (Local)
+
+The proposed production ceremony, the selected user-controlled address-domain
+policy and conservative 72-hour recovery quarantine are recorded in
+[`production-portable-custody.md`](production-portable-custody.md). They require
+user-held identity and top recovery keys, destination-owned operational keys,
+and independent PLC monitoring. The existing custodial public POC accounts do
+not meet those prerequisites; **do not invoke migration-fence or staging CLIs
+against those accounts**.
+
+The local provider prototype generates destination rotation/messaging keys
+encrypted only under the destination provider's key, fences all source writers,
+exports a signed snapshot without user or provider private-key ciphertext,
+checks user-controlled identity consent over the exact snapshot and signed PLC
+operation, and verifies the user's fresh Address Binding. The target stages
+the snapshot inactive. Two agreeing PLC log/audit witnesses plus an independent
+signed monitor attestation must remain stable for 72 hours of locally observed
+time before the materialization method can run. In the disposable fixture it
+imports the state transactionally, rewraps *only destination-owned* keys under
+the imported account ID, re-signs the current Sender Profile, normalizes
+inherited leases, fails expired pending work, and creates a signed activation
+receipt. The old provider verifies it against current PLC state and remains
+permanently fenced in `retired` state.
+
+Use two disposable PostgreSQL 14.4 databases, one for each provider domain:
+
+```bash
+DATABASE_URL=postgresql://hail:password@127.0.0.1:5432/hail_source \
+TRANSFER_TARGET_DATABASE_URL=postgresql://hail:password@127.0.0.1:5432/hail_target \
+  bun --bun vitest run test/migration-fence.integration.test.ts
+```
+
+The fixture tests a writer that commits before the fence, rejected admissions
+and worker/publication writes after it, an in-flight status attempt that
+cannot commit after fencing, immutable export and target import verification,
+user/private-key custody separation, invalid user signatures and incorrect
+PLC operation signers, an inactive target before recovery finality, mirror and
+monitor failures, an address-verification mismatch, transaction rollback on
+account conflict, terminal status re-signing, and permanent source retirement.
+The two-database fixture uses simulated independent read paths, monitor
+operation, and user-controlled address publication. There is **no public
+production activation or PLC submission CLI**. Full production deployment
+still needs a real user-controlled vault and recovery test, independent
+monitor and mirror operators, historical audit policy, external domain
+publication, and a canonical `plc.directory` DID rather than the private
+custodial demonstration DIDs.
 
 ## Required Verification Cases
 
@@ -1614,6 +1706,139 @@ or populated `.env` files. Commit only safe `.env.example` files.
   providers were healthy with zero unexpected restarts, and logs contained
   no application errors. The complete PLC write-ambiguity restart fixture
   and fenced provider-state migration test remain outstanding.
+
+### 2026-09-28: Ambiguous PLC Write Restart Fixture (Local)
+
+- Added an opt-in PostgreSQL 14.4 integration test for custodial onboarding
+  after a lost PLC write response. In one fixture the private directory
+  persisted the signed genesis but the response and immediate read-back were
+  unavailable; the account remained `submission-unknown`. A newly constructed
+  service and repository reconciled that exact persisted genesis after restart
+  without a second submission or new keys. In another fixture the first
+  operation was not stored; after restart the provider retransmitted the
+  persisted signed operation with the identical DAG-CBOR bytes, CID, DID and
+  encrypted keys, then completed the read-back and binding staging.
+- A conflicting genesis fixture occupied the persisted DID with different
+  operation bytes. The provider rejected it before making a PLC submission
+  and kept the prepared account; it did not treat the collision as an
+  ancestor. The test uses the pinned PLC library's normal genesis encoding and
+  signed-operation verifier and makes no public PLC write.
+- Reproduce with a **disposable** `DATABASE_URL` from
+  `/home/j4crev/Dev/hail-server-ts`:
+  `bun --bun vitest run test/onboarding-restart.integration.test.ts`.
+  Test cleanup deletes only its isolated generated accounts and keys. The
+  remaining fenced-transfer record inventory and required writer fence are
+  documented above; no provider migration or new schema has been deployed.
+
+### 2026-09-29: Portable-Custody Cutover Rehearsal (Local)
+
+- Replaced the proposed custodial rewrap path with the user-held-key ceremony
+  in `docs/production-portable-custody.md`. The user selected an independently
+  controlled address domain and a conservative 72-hour PLC quarantine. The
+  user identity and top recovery private keys are generated and retained in
+  the test client, never inserted into provider `account_keys` or exported.
+  Destination-owned provider rotation and messaging keys are independently
+  generated and encrypted only at the destination.
+- Added forward-only migrations 13–21 for the source DID fence, signed
+  snapshots and staged imports, custody/monitor evidence, user-authorized
+  exact PLC cutover operation, target key preparation, destination Address
+  Binding, finality observations, transactional import and target activation
+  receipts. No migration in this set has been applied to the public providers.
+- The source signs a digest of an immutable snapshot using its **provider
+  messaging key**; it exports public operational metadata, protocol state,
+  bodies and necessary bearer-bearing signed envelopes, but no source private
+  key bytes or provider-wrapped ciphertext. Staging requires a separate
+  user-identity signature over snapshot digest and destination state, a
+  top-recovery-key-signed exact PLC operation with the current predecessor and
+  preserved aliases, and a matching user-signed destination binding.
+- The destination remains inert until two independently validated PLC
+  operation/audit witnesses and a separately signed monitor coverage record
+  agree on the new service, keys and CID for 72 hours from first local
+  observation. A final external-style address verification and a fresh
+  assessment precede transactional materialization. The fixture imports the
+  complete record domain, re-encrypts **only destination-owned keys** under
+  the imported account ID, renews the Sender Profile under the new messaging
+  key, resets stale work/outbox leases, fails work whose signed deadline
+  expired during quarantine, and gives the source a signed receipt; the old
+  fence remains permanent in `retired` state.
+- A disposable two-database PostgreSQL 14.4 fixture covered six cutover cases:
+  a pre-fence writer committing first; blocked admission, Grant changes,
+  reply claims, delivery completion and in-flight status publication after
+  fencing; immutable export and import integrity; provider-held identity-key
+  rejection; invalid or lower-priority signatures; mirror/monitor disagreement;
+  72-hour gating; user-controlled address mismatch; atomic rollback on a target
+  account conflict; expired work failure; current-key status signing; and
+  receipt-authorized old-provider retirement. Existing onboarding, Grant,
+  body, envelope and reply integration cases also passed after migration 21.
+- This remains an isolated rehearsal. The independent mirror and monitor
+  witnesses and address verifier are injected fixtures, not independently
+  operated production services. The live POC DIDs are custodial and exist only
+  in a private PLC registry; they cannot be promoted into production portable
+  custody by applying these migrations. Public-registry submission,
+  user-controlled client/vault onboarding and Grant/Binding signing, monitor
+  provisioning, historical PLC evidence policy and a real user-domain cutover
+  remain required before a production-ready release.
+
+### 2026-09-29: Independent PLC Monitor Prototype (Local)
+
+- Created `/home/j4crev/Dev/hail-plc-monitor-ts` as a separate Bun and
+  PostgreSQL project with its own migration, signing key and operational
+  database. The user chose a desktop/Bun **reference client**, without
+  restricting future mobile custody implementations, and a separately
+  operated user host for production independent monitoring. A provider-hosted
+  bootstrap copy is explicitly marked as non-independent.
+- The monitor retains a global PLC `/export?after=<seq>` cursor and checks
+  contiguous sequence progression. For enrolled DIDs it validates the full
+  signed log, rendered data and non-nullified audit CID, records unexpected
+  operations without silently updating expected state, and durably records
+  export gaps and coverage loss after 24 hours. Its signed out-of-band alert
+  outbox retries through a DNS-pinned HTTPS webhook. A local user-operator
+  reviews an exact CID and complete PLC state before changing expectations.
+- The independently held Ed25519 monitor key signs the same deterministic
+  coverage attestation consumed by the provider's cutover gate. A successful
+  attestation requires an approved current operation, acknowledged
+  unexpected-operation alert, recent healthy polling and no coverage-gap
+  alerts. The PostgreSQL integration test covers durable cursor restart,
+  changed state, downtime, gap detection, alert retry and attestation
+  interoperability with the provider verifier.
+- The project has not been deployed to an independent user-owned host and
+  cannot yet bootstrap a large canonical PLC export from an authenticated
+  checkpoint. Its separate mirror operators and a full second-device recovery
+  ceremony also remain to be selected and tested. The private-registry POC DIDs
+  cannot be treated as monitored public-registry identities.
+
+### 2026-09-29: Local Portable-Custody Release Checkpoint
+
+- Provider portable-transfer implementation `74c6e7b` was committed and
+  pushed. Its migrations 13–21 remain **unapplied** on the public provider
+  databases, which still run the verified migration-12 hardening image. A
+  production-image build, 105 ordinary tests and 29 sequential PostgreSQL
+  integration cases passed in local/disposable environments. The two-database
+  cutover fixture remains a rehearsal with simulated mirrors, monitor and
+  user-domain address verification.
+- Created and published the independent monitor prototype at
+  <https://github.com/j4crev/hail-plc-monitor-ts> (`b0ed06d`) and the
+  platform-specific user-key reference client at
+  <https://github.com/j4crev/hail-user-client-ts> (`a271519`). The reference
+  vault generates user recovery and identity keys locally, encrypts them with
+  a random 256-bit recovery secret, and signs the exact PLC, Grant, binding
+  and migration-consent objects without giving their private bytes to a
+  provider. Mobile clients may satisfy the same protocol outcomes using
+  their own platform-backed storage and recovery UX.
+- The monitor's bounded client read-only test retrieved PLC export sequences
+  1 and 2 and validated Alice's and Bob's one-operation private-registry logs;
+  the authenticated temporary tunnel was closed afterwards. Eight monitor
+  ordinary/integration tests and two client tests passed. These isolated POC
+  DIDs are not public PLC identities, so this is a compatibility check rather
+  than independent public coverage. No monitor service or user vault was
+  deployed to a public/user-owned host.
+- The user has not yet provisioned a separate user-controlled monitor host or
+  an independently verified public PLC export checkpoint/mirror. The current
+  public POC remains on the previously verified runtime. Do not deploy the
+  local portable migrations to the existing custodial accounts or describe a
+  provider-hosted bootstrap monitor as provider-independent. The remaining
+  production requirements and address/cutover policy are tracked in
+  `docs/production-portable-custody.md`.
 
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
