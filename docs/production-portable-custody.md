@@ -46,11 +46,11 @@ sequenceDiagram
     participant Old as Old provider
     participant New as New provider
     participant PLC as Public PLC registry
-    participant Witnesses as User monitor + independent PLC reads
+    participant Witnesses as User monitor and independent PLC reads
 
     New-->>User: New provider public keys and service URL
     User-->>Old: Choose destination and transfer ID
-    Old->>Old: Fence this DID; stop its writers and workers
+    Old->>Old: Fence this DID, stop its writers and workers
     Old-->>New: Provider-signed state snapshot (no private keys)
     User-->>New: Identity-signed consent, fresh binding, recovery-signed PLC update
     New->>New: Validate and stage import INACTIVE
@@ -60,10 +60,10 @@ sequenceDiagram
     rect rgb(242, 246, 250)
         Note over Old,New: Proposed quarantine: at least 72h from matching independent observations
         Note over Old,New: Neither provider accepts new envelopes or signs new status for this DID
-        Witnesses-->>New: Matching validated logs + signed monitor coverage
+        Witnesses-->>New: Matching validated logs and signed monitor coverage
     end
 
-    New->>New: Verify user-domain WebFinger + binding; import and activate atomically
+    New->>New: Verify user-domain WebFinger and binding, import and activate atomically
     New-->>Old: Signed activation receipt
     Old->>Old: Permanently retired and fenced
 ```
