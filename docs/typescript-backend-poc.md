@@ -854,8 +854,9 @@ only after invalidating the inactive import. Test concurrent acceptance,
 ### Phase 13: Portable-Custody Cutover Rehearsal (Local)
 
 The proposed production ceremony, the selected user-controlled address-domain
-policy and conservative 72-hour recovery quarantine are recorded in
-[`production-portable-custody.md`](production-portable-custody.md). They require
+policy and conservative 72-hour recovery quarantine are recorded with a
+[sequence diagram and state table](production-portable-custody.md#at-a-glance).
+They require
 user-held identity and top recovery keys, destination-owned operational keys,
 and independent PLC monitoring. The existing custodial public POC accounts do
 not meet those prerequisites; **do not invoke migration-fence or staging CLIs

@@ -34,6 +34,59 @@ Bindings and satisfy the provider-independent backup/recovery outcomes.
 
 ## Portable Transfer Ceremony
 
+### At A Glance
+
+This diagram depicts the **proposed conservative production profile**, not an
+already-mandated Hail v0 downtime rule. "Frozen" applies to this one DID, not
+to every account hosted by either provider.
+
+```mermaid
+sequenceDiagram
+    actor User as User-controlled client
+    participant Old as Old provider
+    participant New as New provider
+    participant PLC as Public PLC registry
+    participant Witnesses as User monitor + independent PLC reads
+
+    New-->>User: New provider public keys and service URL
+    User-->>Old: Choose destination and transfer ID
+    Old->>Old: Fence this DID; stop its writers and workers
+    Old-->>New: Provider-signed state snapshot (no private keys)
+    User-->>New: Identity-signed consent, fresh binding, recovery-signed PLC update
+    New->>New: Validate and stage import INACTIVE
+    New->>PLC: Submit exact user-signed PLC update
+    PLC-->>Witnesses: New service and messaging key appear
+
+    rect rgb(242, 246, 250)
+        Note over Old,New: Proposed quarantine: at least 72h from matching independent observations
+        Note over Old,New: Neither provider accepts new envelopes or signs new status for this DID
+        Witnesses-->>New: Matching validated logs + signed monitor coverage
+    end
+
+    New->>New: Verify user-domain WebFinger + binding; import and activate atomically
+    New-->>Old: Signed activation receipt
+    Old->>Old: Permanently retired and fenced
+```
+
+| Stage for this DID | Old provider | New provider | New messages for this DID |
+| --- | --- | --- | --- |
+| Preparation | Active | Preparing keys, inactive | Normal sending and receiving continue. |
+| Fence and snapshot | Frozen | Verified import staged, inactive | New sends and envelope acceptance pause. Existing accepted work and deadlines remain durable. |
+| PLC update and proposed quarantine | Frozen | Inactive while independent witnesses observe | No new acceptance or signing. Peers may retry an indeterminate submission; `202` is not acceptance. |
+| Verified activation | Permanently fenced/retired | Sole active provider | New operations resume at the DID's authenticated new service. Accepted work that expired meanwhile follows terminal failure rules. |
+
+**Does the spec require 72 hours of downtime? No.** PLC gives a higher-priority
+key a 72-hour window to recover from a lower-priority operation, but
+`spec/did-profile.md#before-production` explicitly leaves Hail's production
+authority/finality behavior unresolved. The quarantine above is the policy we
+selected to investigate: it pauses the migrating DID from the fence until
+**at least** 72 hours after matching independent observations of the PLC
+update. The pause can be longer if the update is delayed, witnesses disagree,
+the monitor loses coverage, or external address verification fails. It is not
+safe to describe it as an unavoidable Hail protocol rule or an exactly
+72-hour outage. A lower-downtime policy would need its own explicit authority,
+recovery-window and non-overlapping-ownership analysis and specification.
+
 1. The destination generates and durably encrypts its own provider PLC
    rotation and messaging keys under its own encryption key. It gives the
    public `did:key` values, transfer ID, and final HTTPS Hail service base to
