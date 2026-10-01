@@ -225,9 +225,40 @@ for a non-overlapping ownership claim. It must be reviewed against the recovery
 window, caching, body deadlines and mirror governance requirements in
 `spec/did-profile.md#before-production` before it becomes normative.
 
+## Private-PLC POC Rehearsal Profile
+
+The two existing public-HTTPS POC providers may rehearse a **new** portable
+DID entirely within their existing `http://plc:2582` registry. The new user
+vault holds the first PLC rotation key and `#hail-identity` private key; the
+source holds only its own lower-priority PLC rotation and messaging private
+keys. The initial user-signed genesis and Address Binding are registered on
+the private PLC and externally verified at the POC provider's HTTPS address.
+The old custodial demonstration DIDs are not converted.
+
+This profile is restricted to the named POC provider origins and the pinned
+internal PLC origin. After a user-signed transfer, one fully validated
+private PLC operation log and its canonical audit confirm the exact current
+non-nullified cutover. The resulting observation is explicitly labeled
+`assessment_profile=private-poc`, while the source custody record says
+`monitor_verification_mode=poc-local`. It is **not** two independent mirrors,
+an independent monitor, public PLC finality, or public Hail federation.
+The normal public cutover path still requires `https://plc.directory`,
+independently operated readers and a signed independent-monitor attestation;
+it rejects `poc-local` custody.
+
+The destination stages the exact signed user PLC operation, submits it only
+to the private registry after the source fence, and reconciles the CID on
+ambiguous responses. After the private PLC resolves to the destination, the
+target temporarily publishes the selected Address Binding under the reserved
+address so external WebFinger verification works **before** target account
+activation. Activation atomically replaces that provisional publication
+with the imported active account's same signed binding. The source retires
+only on the target's signed activation receipt. No separate monitoring VPS or
+public PLC mirror is required for this deliberately non-independent POC test.
+
 ## Current Implementation Boundary
 
-Migrations 13–28 are **local, unapplied production work**. They fence source
+Migrations 13–30 are **local, unapplied production work**. They fence source
 writes and leased work, retain a signed immutable snapshot and permit an
 authenticated, user-consented **inactive** target import. Portable snapshots
 strip provider operational ciphertext and require a user-controlled identity

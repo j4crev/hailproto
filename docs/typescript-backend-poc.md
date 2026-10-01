@@ -1988,6 +1988,64 @@ or populated `.env` files. Commit only safe `.env.example` files.
   are still outside this local rehearsal. Independent PLC monitor/checkpoint
   provisioning is intentionally deferred by the user for now.
 
+### 2026-10-01: POC-Only User-Key Onboarding And Private-PLC Cutover
+
+- The user chose to keep all migration testing inside the existing private
+  POC PLC network. Public `plc.directory` mirrors cannot observe those DIDs.
+  Migrations 29–30 record a distinct `private-poc` cutover assessment and
+  `poc-local` custody label and retain provider-owned prepared keys for
+  **new** user-key-controlled POC DIDs. No user private key or user vault is
+  stored by a provider. Existing custodial demonstration DIDs remain ineligible.
+- The POC-only gate validates the full private PLC log, current CID, rendered
+  state and non-nullified canonical audit from one internal reader, without
+  pretending to have two independent witnesses. The public gate continues
+  to require independently witnessed public-PLC state and rejects POC-local
+  custody. POC-only registry and service-base allowlists fail closed.
+- The reference client signs the fresh DID genesis and initial Address
+  Binding, and later signs the complete user-approved private PLC cutover,
+  transfer consent and destination binding. Provider operator CLIs prepare
+  lower-priority keys, reconcile ambiguous genesis/cutover writes, stage the
+  inactive target, publish the provisional destination binding after the PLC
+  update, activate and retire through an exact signed receipt. In a disposable
+  two-database test, a new user-held DID completed the entire flow on an
+  in-memory private PLC and one clearly non-independent observer; this does
+  not exercise public PLC or real cross-host monitor independence.
+- Local provider build/typecheck, 105 ordinary tests, 43 sequential
+  PostgreSQL integration cases, three reference client tests and a
+  production-image build passed. A read-only VPS check confirmed both live
+  provider containers healthy on migration 12. No live migrations were
+  applied. Backups, schema rehearsals against **copies** of the live provider
+  databases, and a real POC-provider network exchange still precede a live
+  runtime update. Separate monitor-VPS provisioning remains deferred.
+
+### 2026-10-01: Live POC Database-Copy Rehearsal (No Runtime Change)
+
+- Verified on the VPS that both old provider containers were healthy, with
+  the live application and development databases still at migration 12.
+  Captured fresh mode-`0600` custom-format provider dumps under
+  `/var/backups/hail-poc/pre-private-poc-20261001T215237Z`; `pg_restore -l`
+  succeeded for both. The first host-side `pg_restore` verification attempt
+  found no host binary, so verification used the PostgreSQL image's tool.
+- Restored both dumps into separate `hail_private_stage` databases inside
+  their respective existing PostgreSQL containers. A separate image named
+  `hail-server-ts:private-poc-staging` applied forward-only migrations 13–30
+  to those copies. Both staging databases reported version 30; the original
+  databases still reported version 12. No staging DB ports or new POC
+  routes were published.
+- Started two isolated `POC_SCHEMA_REHEARSAL=true` provider containers on
+  the private Docker network. That mode is restricted to the exact private
+  PLC URL and clone database name, disables every mutating background worker
+  and registers read-only readiness/discovery routes. Both staging providers
+  returned `200` readiness; Alice's and Bob's cloned WebFinger records
+  returned `200`. The live containers remained healthy and untouched.
+- These checks prove that the new schema migrates a copy of the existing
+  custodial POC data and that the new runtime can read its original public
+  address bindings. They do **not** prove a live network transfer or allow
+  reclassifying either old custodial DID as portable. A future live rollout
+  requires a fresh verified backup, image rollback tag, rolling provider
+  checks and new user-key-controlled POC DIDs. The separate independent
+  monitor VPS is still deferred.
+
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
 from this method.
