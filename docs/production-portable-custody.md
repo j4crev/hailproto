@@ -227,7 +227,7 @@ window, caching, body deadlines and mirror governance requirements in
 
 ## Current Implementation Boundary
 
-Migrations 13–25 are **local, unapplied production work**. They fence source
+Migrations 13–28 are **local, unapplied production work**. They fence source
 writes and leased work, retain a signed immutable snapshot and permit an
 authenticated, user-consented **inactive** target import. Portable snapshots
 strip provider operational ciphertext and require a user-controlled identity
@@ -247,21 +247,34 @@ PLC read paths and an independent signed monitor attestation permit immediate
 assessment of the exact top-user-key-signed current PLC update; the previous
 fixed 72-hour gate is removed. The prototype exposes fixed well-known
 invitation and address-selection endpoints at the new provider and a fixed
-final-request endpoint at the old provider. Source invitation delivery is
-operator-invoked and uses the user-signed domain, TLS-verified and DNS-pinned
-HTTPS with no redirects. The returned signed Offer binds the challenge and
+final-request endpoint at the old provider. The source accepts the exact
+user-signed grant over a bounded endpoint, returns an Offer when delivery
+succeeds or `202` while it is pending, and a leased database worker retries
+the stored invitation. Source delivery uses the user-signed domain,
+TLS-verified and DNS-pinned HTTPS with no redirects. The returned signed
+Offer binds the challenge and
 is durably retained as origin proof. The reference client signs and submits
 the chosen address directly to the target; its pending local account
 reservation uses the same unique address index as ordinary onboarding.
 The target pushes the final request, and the old provider returns `204` only
 after the DID fence commits. An arbitrary signed request file alone cannot
 authorize the source. Exact retries reuse signed evidence and prepared keys.
-This is not yet an unattended public transfer product: the user grant and
-origin-verified Offer are still delivered to the reference client as private
-files, source invitation delivery and final-request retry are operator-invoked
-rather than scheduled from a durable outbox, and distributed rate limiting,
-expiry/cancellation cleanup and real-world independent-origin deployment
-need completion.
+The target holds the final request for leased background retries. Database-
+backed global and authenticated per-DID rate buckets work across provider
+processes. A user-key-signed pre-fence cancellation wins or loses against the
+source's account-row fence; only a current source-signed no-fence receipt
+allows the target to release even an ambiguously submitted reservation.
+Expired sessions with **no final push** can be cleaned up automatically;
+submitted sessions stay held without that receipt or coordinated rollback.
+An expired grant with an origin-verified Offer is not overwritten by a new
+grant until the user obtains a source-signed cancellation receipt: the target
+may already have a submitted request with an ambiguous outcome and still
+needs that receipt to free its reservation safely.
+This is not yet an unattended public transfer product: the reference CLI
+still needs an authenticated user-to-provider UI for reviewing the exact
+Offer, issued/selected address and final PLC operation. Distributed retry
+calibration, coordinated post-fence rollback and real-world independent-
+origin deployment remain to be validated.
 The isolated integration test injects those observations and an externally
 verified address, then transactionally materializes the imported state and
 returns a signed receipt that permanently retires the source. It verifies
@@ -289,9 +302,12 @@ the provider-independent monitor requirement.
 
 Before a production-ready rollout, implement and test:
 
-- a user-facing signed-grant submission ceremony, durable scheduled invitation
-  delivery retries, distributed request-rate limits, expiry/cancellation
-  cleanup and a verified external two-provider handshake deployment;
+- a reviewed user-facing grant/Offer/cancellation UX, restart/fault testing
+  of the durable leased retry workers under realistic load, and an externally
+  hosted two-provider handshake deployment;
+- explicit authenticated **post-fence** rollback and recovery, including
+  release of submitted reservations only after both providers establish
+  that the target import cannot activate; clock expiry alone is insufficient;
 - production witnesses/checkpoints and independently confirmed current PLC
   operation, including fail-closed handling of lower-priority changes, forks
   and read-path disagreement;

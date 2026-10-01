@@ -1954,6 +1954,40 @@ or populated `.env` files. Commit only safe `.env.example` files.
   throttling, full expiry/cancellation handshake, independent deployed
   mirror/monitor/checkpoint or public-registry cutover rehearsal.
 
+### 2026-10-01: Local Grant Submission, Retry, and Cancellation
+
+- The preceding transfer rehearsal was committed and pushed as provider
+  `b2fc286`, protocol `6cd6fbb` and user client `6211139` before this slice.
+  Local-only migrations 26–28 add leased invitation/final-request delivery
+  jobs, PostgreSQL-shared rate buckets, and durable source-cancelled/target-
+  tombstoned transfer evidence. The public VPS remains on migration 12.
+- A client can submit the exact `#hail-identity`-signed grant at the current
+  source's fixed transfer endpoint. The source validates current DID custody,
+  issues its invitation once, and returns the HTTPS-origin-verified Offer as
+  `200` or a pending `202`. Retrying the *same signed grant* reuses the
+  invitation and retrieves the Offer; a different live grant cannot replace
+  it. Background workers claim due rows with PostgreSQL leases and bounded
+  retry schedules, so a source or target process restart does not lose an
+  invitation or an unacknowledged final request.
+- Rate limits use database-backed global pre-authentication buckets and
+  authenticated per-DID limits across provider processes. Before a fence,
+  a user-signed cancellation is serialized against the same account row as
+  final acceptance. The source's signed no-fence receipt irrevocably rejects
+  later requests for that grant; only that authenticated receipt permits the
+  target to release even an ambiguously submitted address reservation and
+  provider keys. A target tombstone blocks replay. Time-based cleanup is
+  limited to sessions with **no final submission**; submitted sessions never
+  release solely on expiry.
+- Disposable integration tests covered authenticated submission, 202
+  pending/retry behavior, worker leases and backoff, process-shared throttling,
+  exact cancellation through both HTTP endpoints, replay refusal, expiry
+  cleanup and retention of ambiguous submitted reservations. Provider
+  typecheck/build, 105 ordinary tests, 40 sequential PostgreSQL integration
+  cases and two reference client tests passed. Real cross-provider hosting,
+  an audited user-interface flow, post-fence rollback, and public PLC cutover
+  are still outside this local rehearsal. Independent PLC monitor/checkpoint
+  provisioning is intentionally deferred by the user for now.
+
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
 from this method.

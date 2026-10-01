@@ -151,10 +151,50 @@ implementations apply per-transfer rate limits and generic failures before
 authentication.
 
 This is a proposed production profile: final interoperable wire encoding,
-distributed throttling, grant submission UX, expired-reservation cleanup and
-automatic durable retry scheduling still require review. The current
-provider prototype has operator-driven invitation delivery and final-request
-retry commands; it is not an unattended public migration service.
+multi-host throttling policy, user-interface review, submitted-transfer
+recovery, and a real cross-provider deployment still need validation. The
+local prototype includes signed-grant submission, database-leased retries,
+and conservative pre-fence cancellation, but is not a production migration
+service.
+
+#### User submission, retries, and pre-fence cancellation
+
+The user client submits its exact identity-signed grant to the *current*
+source at `POST {source_service_base}/transfers/grants`. The source verifies
+current PLC identity authority and portable custody, stores one active grant,
+and begins invitation delivery. A `200 application/hail-transfer+json` returns
+the source-origin-verified signed Offer. If delivery is pending, `202` has no
+Offer body; the client retries the **same signed grant bytes** to retrieve it.
+The source retains the signed invitation and uses a durable leased outbox to
+retry the exact invitation after timeouts. The destination keeps its prepared
+keys/Offer stable across retries. The target likewise retains the final
+signed request and retries until the source commits the fence and returns
+`204` to the exact request. Neither a `202` nor a transport timeout means the
+old account has been frozen.
+
+The client can sign an exact Transfer Cancellation while the old provider is
+still active and submit it to `POST {source_service_base}/transfers/cancellations`.
+The source serializes this request with fencing; on success it irrevocably
+rejects later final requests for that grant and returns a signed cancellation
+receipt. The client forwards that receipt and its signed cancellation to
+`POST https://{destination_domain}/.well-known/hail/transfers/cancellations`.
+The destination verifies *both* signatures against current PLC, their exact
+grant/nonce/invitation correlation, and that no import became active. It may
+then release its own pending address and keys and retain a cancellation
+tombstone. Exact cancellation retries are idempotent. A source that has
+already fenced rejects this path; the destination must not release a
+submitted reservation merely because a local deadline passed or an HTTP
+response was lost.
+
+Providers use database-backed global and post-authentication per-DID rate
+buckets shared across server processes. Before authentication, malformed
+reservation submissions get generic failures; an authenticated address
+selection may learn whether its requested username is unavailable. Pending
+sessions whose grant expired **before any final request was submitted** may
+be cleaned up without split-brain risk. A submitted-but-unacknowledged
+session requires the signed source no-fence receipt or coordinated rollback.
+Production still needs user-interface review, cross-provider deployment
+testing, and automatic handling of longer-lived submitted failures.
 
 The category manifest is embedded in the signed Sender Profile and is not a separate retrieval operation.
 

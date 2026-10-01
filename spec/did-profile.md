@@ -338,6 +338,18 @@ requirement even if it renders the same destination. Final interoperable
 wire objects, cross-process retry scheduling and administrative cancellation
 still need specification.
 
+Before a fence, the user can cancel the exact grant with a current
+`#hail-identity` signature. The source serializes that cancellation against
+the account fence and signs an irrevocable no-fence receipt. The new provider
+may release prepared keys and an address reservation, including one whose
+final push had an ambiguous result, **only after** validating both the user
+cancellation and the current source's receipt; it retains a replay tombstone
+for the cancelled grant. Once a fence has committed, a unilateral cancellation
+or elapsed reservation expiry cannot prove that the old provider is active:
+release requires authenticated target-import invalidation and coordinated
+rollback. A submitted but unacknowledged transfer must fail closed rather
+than silently freeing the address.
+
 For this top-priority-user-signed cutover, Hail need not wait out PLC's
 72-hour recovery period: it may activate after independently validating that
 the exact operation is the current, non-nullified PLC state, the destination

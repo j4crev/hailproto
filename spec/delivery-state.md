@@ -410,6 +410,13 @@ defined in [did-profile.md](did-profile.md#provider-migration):
 
 Requests during the fenced interval may receive temporary generic failure and retry through normal discovery-refresh behavior. If cutover is abandoned before the PLC update, the old provider may resume only after invalidating the unactivated import so one serialization owner still exists.
 
+Before the fence, a user-signed cancellation wins or loses at the same source
+account-row serialization point as the final request. Only a source-signed
+no-fence receipt can authorize a new provider to release a reservation after
+an ambiguous final-request push. A reservation's own expiry is not proof
+that no fence committed. See the [HTTPS transfer
+binding](http-binding.md#user-submission-retries-and-pre-fence-cancellation).
+
 An emergency rotation after compromise or provider loss may make untransferred status unavailable. Hail does not accept signatures from a removed key merely to mask that availability failure. Recovery of missing provider state requires backup or a future authenticated migration-recovery mechanism.
 
 ## Status Ordering And Idempotency
