@@ -853,10 +853,14 @@ only after invalidating the inactive import. Test concurrent acceptance,
 
 ### Phase 13: Portable-Custody Cutover Rehearsal (Local)
 
-The proposed production ceremony, the selected user-controlled address-domain
-policy and conservative 72-hour recovery quarantine are recorded with a
-[sequence diagram and state table](production-portable-custody.md#at-a-glance).
-They require
+The proposed production ceremony and same-provider/address-domain policy
+are recorded with a [sequence diagram and state
+table](production-portable-custody.md#at-a-glance). The diagram now describes
+user-signed pre-fence authorization, a source-signed invitation, a destination
+Offer, direct signed address reservation and a final pushed request, followed
+by independently verified, top-user-key cutover **without
+a blanket 72-hour wait**. The local fixture was subsequently updated to
+exercise those signed building blocks. They require
 user-held identity and top recovery keys, destination-owned operational keys,
 and independent PLC monitoring. The existing custodial public POC accounts do
 not meet those prerequisites; **do not invoke migration-fence or staging CLIs
@@ -867,9 +871,12 @@ encrypted only under the destination provider's key, fences all source writers,
 exports a signed snapshot without user or provider private-key ciphertext,
 checks user-controlled identity consent over the exact snapshot and signed PLC
 operation, and verifies the user's fresh Address Binding. The target stages
-the snapshot inactive. Two agreeing PLC log/audit witnesses plus an independent
-signed monitor attestation must remain stable for 72 hours of locally observed
-time before the materialization method can run. In the disposable fixture it
+the snapshot inactive. The updated source fence verifies a user-signed
+Transfer Grant, a source-signed invitation, an HTTPS-origin-bound Offer,
+user-signed address choice and destination-signed reservation/final request
+before it freezes the DID; two agreeing PLC log/audit witnesses and an
+independent signed monitor attestation can authorize immediate materialization
+of the exact user-top-key-signed operation. In the disposable fixture it
 imports the state transactionally, rewraps *only destination-owned* keys under
 the imported account ID, re-signs the current Sender Profile, normalizes
 inherited leases, fails expired pending work, and creates a signed activation
@@ -1840,6 +1847,112 @@ or populated `.env` files. Commit only safe `.env.example` files.
   provider-hosted bootstrap monitor as provider-independent. The remaining
   production requirements and address/cutover policy are tracked in
   `docs/production-portable-custody.md`.
+
+### 2026-09-30: User-Initiated Transfer Policy Revision (Design Only)
+
+- Supersedes the earlier proposed blanket 72-hour quarantine for a normal
+  provider migration. The user-controlled client must sign a one-time,
+  destination-scoped transfer authorization first; the prepared destination
+  then sends an authenticated request to the old provider. Only after the old
+  provider validates both may it fence and export. The user separately
+  reviews the snapshot/target and signs final consent and the exact PLC update
+  with the current top recovery key.
+- For that top-user-key-signed update, independent validated PLC observers
+  must confirm the exact current non-nullified operation, but there is no
+  unconditional 72-hour wait before activation. A lower-priority provider
+  key cannot authorize a normal Hail migration, though PLC still permits it
+  to attempt unilateral changes requiring out-of-band monitoring/recovery.
+- The prototype provider code still accepts operator-initiated source fences
+  and unconditionally waits 72 hours at the gate. No new transfer-request
+  API, user-authorized fence check or fast-path test has been implemented.
+  The previously recorded disposable test results describe only that older
+  prototype; the revised production policy is not deployed or verified.
+
+### 2026-09-30: Local Signed Transfer Handshake Rehearsal
+
+- Added local schema migration 22 to store one current user-signed Transfer
+  Grant, a source-signed Transfer Invitation, and their one-time correlation.
+  The destination validates both signatures before preparing its own keys,
+  and signs the Transfer Request with its own messaging key. The source verifies
+  the full grant/invitation/request chain and consumes the grant in the same
+  account-row transaction that fences the DID. The fence CLI now accepts only
+  a signed request file; operator-supplied destination fields cannot bypass
+  the authorization check.
+- The user-vault reference client can sign and export a private Transfer Grant.
+  Source and target CLIs write/read signed invitation and request files over
+  an operator-supplied authenticated channel. They do **not** implement the
+  required source-to-target network delivery, transport authentication,
+  endpoint/SSRF policy, or a public transfer UI. The final snapshot consent
+  and exact top-recovery-key-signed PLC update remain separate user approvals.
+- The local cutover gate no longer waits 72 hours after the matching PLC
+  observations: staging already verifies the exact current top-user-key-
+  signed operation and the gate requires two matching validated log/audit
+  witnesses and independent monitor coverage. Disposable two-database tests
+  rejected a forged request, a provider-signed user grant, a destination
+  mismatch and an expired grant without fencing, and exercised immediate
+  eligibility and the existing replay/worker/rollback boundaries. The local
+  provider build, 105 ordinary tests, 32 sequential PostgreSQL integration
+  cases, user-client typecheck and two vault tests, and production Docker
+  image build passed. This changes no public provider runtime or schema; the
+  currently deployed POC accounts are still custodial and at migration 12.
+
+### 2026-09-30: Local Authenticated Transfer Invitation Delivery
+
+- Migration 23 adds durable source evidence of the exact signed destination
+  response observed over the user-approved HTTPS origin, and a destination
+  record binding exact grant/invitation digests, nonce, prepared key ID and
+  signed request for idempotent retries. A signed request file without matching
+  origin evidence can no longer satisfy the source fence.
+- The source's `migration:invite` command signs and stores the user grant and
+  source invitation, then POSTS only to the user-approved target's fixed
+  `/hail/transfers/invitations` operation. Its safe HTTPS transport validates
+  certificate hostname, resolves and pins public IP addresses, and never
+  follows redirects. Both bodies are bounded, delivery has a deadline, and
+  the returned target-key-signed Transfer Request binds the invitation's fresh
+  challenge. The new provider validates both incoming signatures before
+  preparing keys; an identical retry reuses its signed request and key pair.
+  Ambiguous delivery can be resumed by the source's separate delivery command.
+- The transport is a prototype, **not** a production rollout: user-grant input
+  is still an operator-carried private file, delivery retry is operator-run,
+  and independent host/mirror/checkpoint, verified user-domain publication,
+  historical evidence and public-registry cutover remain unprovisioned. The
+  disposable fixture verified rejection of unproven signed requests,
+  redirects and oversized responses, and exact replay after an ambiguous
+  target response without creating another prepared key. The provider build,
+  105 ordinary tests, 34 sequential PostgreSQL integration cases and the
+  production Docker-image build passed locally. The public POC runtime and
+  databases have not changed.
+
+### 2026-10-01: Local Direct Address Selection And Final Request
+
+- The user-signed Transfer Grant names only the new provider's canonical
+  domain. The source derives `https://{domain}/.well-known/hail/transfers/invitations`
+  and the service base; its authenticated HTTPS response is now an inactive
+  signed **Offer**, not a final request. The old provider stays active.
+- Added local migrations 24–25 to retain original signed grant/invitation
+  evidence at the target, an origin-proven Offer at the source, one signed
+  Address Selection and receipt per transfer, and the separately pushed final
+  request. The client signs `username@provider-domain` with its current
+  identity key and submits it directly to the new server. That server
+  revalidates the original grant against current PLC state, reserves the
+  address in the same unique namespace as ordinary onboarding, and signs
+  a receipt. A self-hosted Hail provider on a user domain follows that same
+  process. No WebFinger binding is published at reservation time.
+- The new server pushes the final request to the old service, binding its
+  origin-proven key, the exact user selection and its own reservation receipt.
+  The source fences the DID only after validating the chain and returns `204`
+  after its fence commits. Exact retries get `204` with no second mutation.
+  The reference client can retain and replay its exact signed selection;
+  ambiguous target pushes can be retried from target-held bytes.
+- Disposable tests exercised invalid user signatures, cross-domain address
+  claims, occupied usernames, competing signed selections, an unavailable
+  target-to-source push, idempotent acceptance, immutable export, and
+  transactional import/rollback. Provider typecheck/build, 105 ordinary tests,
+  36 sequential PostgreSQL integration cases and two reference vault tests
+  passed. The public custodial POC still runs migration 12: there is no
+  production user-grant submission API, automated retry/outbox, distributed
+  throttling, full expiry/cancellation handshake, independent deployed
+  mirror/monitor/checkpoint or public-registry cutover rehearsal.
 
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations

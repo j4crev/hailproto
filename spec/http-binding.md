@@ -97,6 +97,65 @@ This inventory consolidates operations already defined across the Hail specifica
 
 `SubmitReply` is not a separate transport operation. A reply is an ordinary `SubmitEnvelope` request with reply authorization and the role reversal defined in [envelopes.md](envelopes.md#reply-authorization).
 
+### Provider Transfer Invitation Transport
+
+The proposed portable-custody profile requires the selected provider's
+canonical DNS domain, without any user-supplied scheme, port or path. A
+conforming provider serves Hail from `https://{domain}/hail`; its Hail address
+domain is the same `{domain}`. Its pre-cutover invitation endpoint is the
+fixed `POST https://{domain}/.well-known/hail/transfers/invitations`. The old
+provider posts the exact user-signed Transfer Grant and its own signed
+Transfer Invitation in bounded `application/hail-transfer+json` (base64url
+payload/signature pairs). The target verifies current PLC identity/service
+authority, prepares its own keys **inactive**, and returns `200` with a signed
+Transfer Offer binding the grant/invitation digests, fresh 32-byte source
+challenge, transfer ID, target keys and proposed service base. An exact retry
+returns the same Offer while it is fresh. The source persists the Offer and
+evidence that it arrived from the TLS-verified destination origin.
+
+The user client selects a username and signs an Address Selection containing
+the complete `username@{domain}`, DID, grant and Offer digests, transfer ID,
+nonce and short expiry. It sends that signed object **directly** to
+`POST https://{domain}/.well-known/hail/transfers/reservations`. The target
+authenticates the user signature against current PLC, requires that the grant,
+Offer, transfer and address domain match its live stored invitation, and
+atomically reserves the name in the same uniqueness domain as ordinary
+account registration. An exact retry yields the same signed reservation
+receipt; a different address or competing reservation is not silently
+substituted. The receipt binds the exact selection and Offer digests and
+expires; the address remains unpublished until cutover. A custom-domain Hail
+server follows these same rules when its server domain is the address domain.
+
+The target then signs a **final** Transfer Request with the same prepared
+messaging key authenticated in the origin-proven Offer, binding the exact
+selection, reservation, keys, transfer ID, and source challenge. It pushes
+the signed selection, receipt and request to the current source's fixed
+`POST {source_service_base}/transfers/requests` endpoint. The old provider
+revalidates all signatures, the address domain, current PLC authority,
+expiry, and offer-key continuity before fencing; it returns `204` only after
+the fence transaction commits. An exact byte-identical retry converges to
+`204` without another freeze, including after an ambiguous response. Target
+submission is retained for retry; a failure before acknowledgement never
+implies that the old provider has fenced.
+
+Both server-to-server requests derive their fixed paths from the verified
+grant/PLC state, never from response headers. They require HTTPS hostname and
+certificate validation, pinned public DNS connection addresses, no redirects,
+cookies or credentials, request/response bodies bounded to 16 KiB, and total
+deadlines. Non-`200` invitation responses, unexpected content coding, or
+missing/invalid Offer signatures cannot supply destination-origin proof.
+An arbitrary self-signed request file or caller IP cannot replace the Offer's
+verified origin and matching target key. Username availability is accessible
+only to a caller whose signed selection authenticates the invited DID;
+implementations apply per-transfer rate limits and generic failures before
+authentication.
+
+This is a proposed production profile: final interoperable wire encoding,
+distributed throttling, grant submission UX, expired-reservation cleanup and
+automatic durable retry scheduling still require review. The current
+provider prototype has operator-driven invitation delivery and final-request
+retry commands; it is not an unattended public migration service.
+
 The category manifest is embedded in the signed Sender Profile and is not a separate retrieval operation.
 
 Status acknowledgement is the `204 No Content` response to `PushDeliveryStatus`. There is no separate acknowledgement request object, method, path, or signature.

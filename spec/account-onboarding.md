@@ -215,6 +215,18 @@ PLC registration precedes public address publication. Once the expected Hail DID
 
 For a provider-issued address, the provider controls reservation, binding hosting, and WebFinger publication. For a custom-domain address, the user or domain operator performs or delegates the publication steps. Hosting the Hail service does not authorize the provider to publish under a domain it does not control.
 
+In the v0 **portable transfer** profile, the new provider domain and chosen
+destination Hail address domain are the same. A self-hosted Hail server on a
+user-owned domain implements the same direct signed Address Selection and
+local reservation endpoint as a third-party Hail provider. The initial
+Transfer Grant names only the provider domain; it does not pre-authorize a
+username or require the old provider to query availability. The new provider
+offers a pending session and validates the user's address choice before it
+pushes a final Transfer Request. This profile does not prohibit custom-domain
+address delegation in ordinary onboarding, but supporting a destination
+address domain *different* from the new transfer provider's domain requires
+a future migration profile with explicit two-authority coordination.
+
 A sender additionally publishes a valid Sender Profile before presenting itself for sender discovery. A receiver-only account need not publish a Sender Profile, but it still requires both Hail keys and the Hail service because grants and routine receiving operations use separate roles.
 
 ## Onboarding State And Failure Handling

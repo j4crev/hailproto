@@ -218,6 +218,17 @@ Authenticated WebFinger plus the signed, expiring Address Binding supplies the c
 
 An address reservation is provider-private state and supplies no Hail authority. Before publishing an Address Binding, the publisher requires the named DID to have valid, non-tombstoned PLC state resolvable with the exact `#hail-identity`, `#hail-messaging`, and `#hail` entries expected for the account.
 
+During a user-initiated provider transfer, the user selects the destination
+address **directly at the new Hail server**, after its inactive Transfer Offer
+and before the source freezes the account. That server's provider domain is
+the selected address domain, whether self-hosted or third-party. It verifies
+the signed Address Selection against the original user grant and Offer and
+reserves the address locally, but does **not** publish a binding or WebFinger
+selection while the current PLC service still names the old provider. After
+the exact user-signed PLC cutover is validated, publication and external
+verification follow the normal sequence below. A reservation receipt by
+itself does not establish a publicly verified Hail address.
+
 The publisher makes the immutable signed binding representation retrievable at its final HTTPS URL before publishing the WebFinger response that selects it. It then performs this document's complete verification algorithm from the public address through the binding to the DID. A provider activates the account for Hail federation only after that verification and separate confirmation of its own exact Hail service endpoint and messaging key succeed.
 
 If activation fails after WebFinger begins selecting the binding, the address authority removes that selection or repairs it before retrying. Before assigning the address to another account, it waits until the earlier of 300 seconds after the prior binding's `expires_at` and 3600 seconds after WebFinger withdrawal, so no conforming cached discovery result can verify the prior binding. New-account sequencing and partial-failure behavior are defined in [account-onboarding.md](account-onboarding.md).

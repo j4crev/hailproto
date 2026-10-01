@@ -36,9 +36,9 @@ Bindings and satisfy the provider-independent backup/recovery outcomes.
 
 ### At A Glance
 
-This diagram depicts the **proposed conservative production profile**, not an
-already-mandated Hail v0 downtime rule. "Frozen" applies to this one DID, not
-to every account hosted by either provider.
+This diagram depicts the **proposed user-initiated production profile**. The
+user authorizes one destination before either provider can fence this DID.
+"Frozen" applies to this one DID, not every account at either provider.
 
 ```mermaid
 sequenceDiagram
@@ -48,20 +48,24 @@ sequenceDiagram
     participant PLC as Public PLC registry
     participant Witnesses as User monitor and independent PLC reads
 
-    New-->>User: New provider public keys and service URL
-    User-->>Old: Choose destination and transfer ID
+    User-->>Old: Sign one-time Transfer Grant for destination domain
+    Old->>Old: Validate and store user-signed grant
+    Old->>New: POST grant + invitation to domain's fixed well-known HTTPS endpoint
+    New->>New: Independently validate both signatures
+    New-->>Old: Signed inactive Transfer Offer in HTTPS response
+    Old->>Old: Persist destination-origin proof of offered key
+    User->>New: Direct user-key-signed Address Selection for username@domain
+    New->>New: Match grant + Offer; atomically reserve address
+    New-->>User: Signed reservation receipt (not yet public)
+    New->>Old: Push final signed Transfer Request + user selection + receipt
     Old->>Old: Fence this DID, stop its writers and workers
+    Old-->>New: 204 only after exact validation and committed fence
     Old-->>New: Provider-signed state snapshot (no private keys)
-    User-->>New: Identity-signed consent, fresh binding, recovery-signed PLC update
+    User-->>New: Review snapshot + keys; sign final consent, binding and exact PLC update
     New->>New: Validate and stage import INACTIVE
     New->>PLC: Submit exact user-signed PLC update
     PLC-->>Witnesses: New service and messaging key appear
-
-    rect rgb(242, 246, 250)
-        Note over Old,New: Proposed quarantine: at least 72h from matching independent observations
-        Note over Old,New: Neither provider accepts new envelopes or signs new status for this DID
-        Witnesses-->>New: Matching validated logs and signed monitor coverage
-    end
+    Witnesses-->>New: Confirm exact top-user-signed operation is current and non-nullified
 
     New->>New: Verify user-domain WebFinger and binding, import and activate atomically
     New-->>Old: Signed activation receipt
@@ -70,44 +74,90 @@ sequenceDiagram
 
 | Stage for this DID | Old provider | New provider | New messages for this DID |
 | --- | --- | --- | --- |
-| Preparation | Active | Preparing keys, inactive | Normal sending and receiving continue. |
-| Fence and snapshot | Frozen | Verified import staged, inactive | New sends and envelope acceptance pause. Existing accepted work and deadlines remain durable. |
-| PLC update and proposed quarantine | Frozen | Inactive while independent witnesses observe | No new acceptance or signing. Peers may retry an indeterminate submission; `202` is not acceptance. |
+| User grant, Offer, direct address selection | Active | Keys prepared and address reserved, inactive | Normal sending and receiving continue. |
+| Final signed push, fence and snapshot | Frozen **only after** request and reservation validation | Verified import staged, inactive | New sends and envelope acceptance pause. Existing accepted work and deadlines remain durable. |
+| PLC update and independent verification | Frozen | Inactive until the exact current operation is verified | No new acceptance or signing. Peers may retry an indeterminate submission; `202` is not acceptance. No blanket 72-hour wait for the user's top-key signature. |
 | Verified activation | Permanently fenced/retired | Sole active provider | New operations resume at the DID's authenticated new service. Accepted work that expired meanwhile follows terminal failure rules. |
 
-**Does the spec require 72 hours of downtime? No.** PLC gives a higher-priority
-key a 72-hour window to recover from a lower-priority operation, but
-`spec/did-profile.md#before-production` explicitly leaves Hail's production
-authority/finality behavior unresolved. The quarantine above is the policy we
-selected to investigate: it pauses the migrating DID from the fence until
-**at least** 72 hours after matching independent observations of the PLC
-update. The pause can be longer if the update is delayed, witnesses disagree,
-the monitor loses coverage, or external address verification fails. It is not
-safe to describe it as an unavoidable Hail protocol rule or an exactly
-72-hour outage. A lower-downtime policy would need its own explicit authority,
-recovery-window and non-overlapping-ownership analysis and specification.
+**Does the spec require 72 hours of downtime? No.** The PLC recovery window
+protects a higher-priority key from a *lower-priority* key's operation. Here
+the user signs the exact cutover with the current **highest-priority** recovery
+key. After independent observation of that exact current non-nullified
+operation and checks that the snapshot has only one owner, the target can
+activate without waiting 72 hours. The DID-specific pause begins when the old
+provider fences it and ends on verified activation; delays or conflicting PLC
+observations can extend it, but 72 hours is not the target. A lower-priority
+provider-signed operation cannot initiate this migration or use this fast
+path. This does not prevent a provider key from making an unauthorized PLC
+change: the independent monitor still detects such changes so the user can
+recover during PLC's 72-hour window.
 
-1. The destination generates and durably encrypts its own provider PLC
+The initial **Transfer Grant** is a dedicated user-signed transfer
+authorization naming only a provider **domain**, not a normal Hail
+message-delivery Grant, manually entered URL, or preselected username. The
+old provider validates and stores it, then sends a signed invitation with
+no account state to the domain's fixed HTTPS endpoint. The new provider
+returns an inactive **Transfer Offer**; the old provider records that this
+exact offered key was observed at the authenticated destination origin. The
+client then talks directly to the new provider, signs an **Address Selection**
+for one full address beneath that domain, and receives a signed receipt for
+its local reservation. This is the same process whether the domain's Hail
+server is self-hosted or operated by a third party. The new provider pushes
+the **final Transfer Request** signed by the *same* offered key, binding the
+user selection and reservation receipt. Only then does the old provider
+consume the user grant and fence. The user later reviews the actual snapshot
+and keys and signs final consent and the exact PLC update.
+The fixed-path transport and bounded representation are drafted in
+`spec/http-binding.md#provider-transfer-invitation-transport`; final
+interoperable wire encodings and retry scheduling remain open.
+
+1. The user chooses the new provider's canonical DNS domain in their
+   client, which derives its service base and signs a short-lived Transfer Grant with their
+   `#hail-identity` key, and registers it with the current provider. The
+   current provider remains active and may not start a transfer on its own.
+2. The source verifies and stores the user grant and signs a Transfer
+   Invitation to the destination, containing or referencing that exact grant,
+   with no snapshot or other account data. It delivers the invitation and
+   grant by fixed-path well-known HTTPS POST to the named new provider, with DNS pinning,
+   certificate validation and no redirects. The target independently validates
+   both signatures before proceeding.
+3. The destination generates and durably encrypts its own provider PLC
    rotation and messaging keys under its own encryption key. It gives the
    public `did:key` values, transfer ID, and final HTTPS Hail service base to
-   the user-controlled client and source. The target proves possession of
-   both private operational keys before staging; its import slot cannot serve
-   the DID yet.
-2. The source checks the validated current PLC log: the user recovery key is
+   the user-controlled client. The target proves possession of both private
+   operational keys; its import slot cannot serve the DID yet. It returns a
+   signed inactive **Offer** in the authenticated HTTPS response, carrying its
+   prepared keys, service base, transfer ID and invitation challenge. The
+   source persists that Offer's destination-origin proof, but remains active.
+4. The client connects directly to the new provider server, signs its exact
+   chosen `username@provider-domain` with its current `#hail-identity` key,
+   and binds the grant, Offer and transfer ID. The new server checks current
+   PLC identity authority and reserves the address in the same local account
+   namespace as ordinary onboarding, returning a signed, expiring reservation
+   receipt. Unavailable names are not replaced without a fresh user signature;
+   an exact retry returns the same receipt. WebFinger is **not** published yet.
+5. The destination signs and pushes a final Transfer Request to the old
+   provider, binding that same Offer, user selection and reservation receipt.
+   The old provider verifies same-key continuity, source challenge, exact
+   address domain, current user identity signature, expiry and one-time use.
+   Only after the exclusive fence commits does it acknowledge the request;
+   exact retries are idempotent, including after an ambiguous response.
+6. The source checks the validated current PLC log: the user recovery key is
    first in the ordered rotation keys, the provider key has lower priority,
    the identity key is the user's public key, and the source service and
-   messaging key are current. It commits an exclusive DID fence. Every local
+   messaging key are current. It atomically consumes the verified user
+   authorization and commits an exclusive DID fence. Every local
    writer shares the account-row serialization point, including Grants,
    replay, reply claims, deliveries, and status publication. Workers skip
    fenced work rather than taking new leases.
-3. The source exports a complete, immutable snapshot of the DID's state. It
+7. The source exports a complete, immutable snapshot of the DID's state. It
    signs a domain-separated digest using its **current provider messaging
    key**, recording validated PLC evidence. The export contains public key
    metadata and the exact signed protocol records, body bytes and
    authorizations needed for continuation. It contains **no private user or
    provider key bytes or provider KEK-wrapped ciphertext**. Transfer occurs
    over an authenticated, private administrative channel.
-4. The user-controlled client validates the snapshot digest and destination
+8. The user-controlled client validates the snapshot digest and destination
    keys/service, then signs domain-separated migration consent with its
    `#hail-identity` key. That consent binds the DID, transfer ID, exact
    snapshot digest, source and destination service bases, user recovery and
@@ -124,7 +174,7 @@ recovery-window and non-overlapping-ownership analysis and specification.
    signing. The full update preserves all unrelated keys, services, and
    non-Hail aliases in their original order; it changes only the reviewed
    Hail service, messaging key, and provider rotation key.
-5. The destination verifies the source's PLC-authorized operational signature,
+9. The destination verifies the source's PLC-authorized operational signature,
    the user's current identity signature, the exact manifest digest, complete
    references and signed bytes, and the reviewed PLC operation. It requires
    the operation's predecessor to equal the current valid CID, verifies its
@@ -135,11 +185,11 @@ recovery-window and non-overlapping-ownership analysis and specification.
    the exact user-signed destination Address Binding, but does not infer
    control of a domain solely from a signed DID assertion. The old provider
    remains fenced; it never receives the destination private messaging key.
-6. Submit the exact signed PLC update to the canonical public write registry
+10. Submit the exact signed PLC update to the canonical public write registry
    and reconcile an ambiguous result by CID and operation bytes. Do not activate
    the destination just because the directory immediately renders a new
    service. Validate the chain and nullification state through independent
-   read paths and apply the finality policy below. Only then materialize the
+   read paths and apply the top-user-signed cutover policy below. Only then materialize the
    imported state in a single transaction, normalize stale leases, re-check
    body/deadline and status responsibilities, publish a current Sender Profile
    signed by the destination messaging key, verify the user-controlled
@@ -149,35 +199,35 @@ recovery-window and non-overlapping-ownership analysis and specification.
    mark its permanent fence `retired`. It never resumes signing or accepting
    envelopes for the DID.
 
-## Conservative Recovery-Window Policy To Validate
+## Top-User-Signed Cutover Policy To Validate
 
-The published PLC operation is recoverable for 72 hours. A conservative Hail
-policy is to quarantine *new* signing and envelope acceptance at both
-providers until at least 72 hours after the destination first records matching,
-fully validated observations from two independently operated PLC read paths.
-Before takeover it rechecks both paths, the canonical audit/nullification
-record and uninterrupted independent-monitor coverage. A later observation,
-new fork, invalid signature, mirror disagreement, missing monitor evidence or
-unavailable read path fails closed rather than falling back to a stale key.
-Directory timestamps alone do not prove the passage of time; the local
-observation time and monitor attestation are explicitly trusted inputs.
+The destination verifies that the exact signed PLC operation was authorized
+by the **current index-zero user recovery key** and is the current,
+non-nullified operation through two independent validated PLC read paths,
+audit data and a healthy user-operated monitor. It confirms the operation
+binds the reviewed target and no unexpected intervening operation has
+appeared. It can then activate without a fixed 72-hour delay, but any
+disagreement, missing evidence or read-path outage fails closed. This is not
+a bypass for a lower-priority-signed operation, which requires a separate
+recovery procedure rather than normal migration. Continuous monitoring after
+activation detects a later unauthorized provider-signed PLC change.
 
-During the quarantine, accepted envelopes remain durable obligations. Delivery
-deadline and body-availability commitments still apply; a message that can no
+During the fenced interval, accepted envelopes remain durable obligations.
+Delivery deadline and body-availability commitments still apply; a message that can no
 longer be completed must eventually fail under the existing signed-status
 rules. A generic HTTP receipt cannot pretend it was delivered. If the PLC
 update is nullified, abort the inactive import. The source may resume only
 after validating the restored PLC state and receiving authenticated evidence
 that the destination import has been invalidated; otherwise it stays fenced.
 
-This policy trades up to 72 hours of DID-specific availability for a
-non-overlapping ownership claim. It must be reviewed against the recovery
+This policy trades the DID-specific fence and independent-verification time
+for a non-overlapping ownership claim. It must be reviewed against the recovery
 window, caching, body deadlines and mirror governance requirements in
 `spec/did-profile.md#before-production` before it becomes normative.
 
 ## Current Implementation Boundary
 
-Migrations 13–21 are **local, unapplied production work**. They fence source
+Migrations 13–25 are **local, unapplied production work**. They fence source
 writes and leased work, retain a signed immutable snapshot and permit an
 authenticated, user-consented **inactive** target import. Portable snapshots
 strip provider operational ciphertext and require a user-controlled identity
@@ -185,14 +235,39 @@ signature, a fresh user-signed destination Address Binding, and a separate
 top-recovery-key-signed exact PLC cutover operation;
 accounts that still have a provider-held `#hail-identity` key fail the
 portable-custody precondition. The destination stores the exact signed
-operation bytes without submitting them or activating the account. A cutover
-assessment requires two agreeing validated PLC read paths, an independent
-signed monitor attestation, and 72 hours from first agreeing observation.
+operation bytes without submitting them or activating the account. The local
+building blocks now include a user-key-signed Transfer Grant naming only a
+canonical provider domain, source-signed Transfer Invitation, an origin-
+verified inactive destination Offer, user-signed Address Selection, target-
+signed reservation receipt and a separately pushed final Transfer Request.
+The source validates their exact digests, authority, expiry and matching
+destination/address, then consumes the user grant atomically with the fence.
+Two agreeing validated
+PLC read paths and an independent signed monitor attestation permit immediate
+assessment of the exact top-user-key-signed current PLC update; the previous
+fixed 72-hour gate is removed. The prototype exposes fixed well-known
+invitation and address-selection endpoints at the new provider and a fixed
+final-request endpoint at the old provider. Source invitation delivery is
+operator-invoked and uses the user-signed domain, TLS-verified and DNS-pinned
+HTTPS with no redirects. The returned signed Offer binds the challenge and
+is durably retained as origin proof. The reference client signs and submits
+the chosen address directly to the target; its pending local account
+reservation uses the same unique address index as ordinary onboarding.
+The target pushes the final request, and the old provider returns `204` only
+after the DID fence commits. An arbitrary signed request file alone cannot
+authorize the source. Exact retries reuse signed evidence and prepared keys.
+This is not yet an unattended public transfer product: the user grant and
+origin-verified Offer are still delivered to the reference client as private
+files, source invitation delivery and final-request retry are operator-invoked
+rather than scheduled from a durable outbox, and distributed rate limiting,
+expiry/cancellation cleanup and real-world independent-origin deployment
+need completion.
 The isolated integration test injects those observations and an externally
 verified address, then transactionally materializes the imported state and
 returns a signed receipt that permanently retires the source. It verifies
 rollback on a target conflict, re-signing under the new messaging key, and
-deadline failure for accepted work that expired during quarantine. There is
+deadline failure for accepted work whose deadline elapsed during a delayed
+cutover. There is
 **no public activation or PLC submission CLI** and no real independent
 monitor/mirror provisioning yet; this test is not a production-ready migrated
 account.
@@ -214,6 +289,12 @@ the provider-independent monitor requirement.
 
 Before a production-ready rollout, implement and test:
 
+- a user-facing signed-grant submission ceremony, durable scheduled invitation
+  delivery retries, distributed request-rate limits, expiry/cancellation
+  cleanup and a verified external two-provider handshake deployment;
+- production witnesses/checkpoints and independently confirmed current PLC
+  operation, including fail-closed handling of lower-priority changes, forks
+  and read-path disagreement;
 - a user-controlled vault/signing client, provider-independent recovery
   verification, and independent monitor with authenticated coverage evidence;
 - new-DID and existing-DID onboarding using the user-signed exact PLC operation,
@@ -224,10 +305,10 @@ Before a production-ready rollout, implement and test:
 - two independently operated read paths, finality observation and outage
   handling, historical accepted-object PLC evidence, and a fenced,
   transactional materialization/rollback test with competing workers;
-- address-domain control at the destination: provider-issued addresses on an
-  old provider's domain do not automatically move with the DID. The user must
-  retain that domain's cooperation or publish a new signed Address Binding
-  under a domain it controls.
+- destination address control: the selected provider server reserves an address
+  on its **own** domain; a prior address on the departing provider's domain
+  does not automatically move with the DID. The client must choose a new
+  username unless the user self-hosts the new Hail provider on the old domain.
 
 The [desktop/Bun reference client](https://github.com/j4crev/hail-user-client-ts)
 (`a271519`) generates and encrypts the user-held keys and signs exact PLC and
@@ -243,12 +324,15 @@ specified, reviewed and verified end to end.
 
 ## Decisions Still Required Before Calling This Production-Ready
 
-1. **Recovery-window policy.** Adopt, amend, or reject the proposed 72-hour
-   no-acceptance quarantine in the authoritative DID/delivery specifications.
-   Define the exact independent witness set, trusted elapsed-time source,
-   recovery/fork response, and how accepted work expiring during quarantine
-   obtains a signed terminal result.
-2. **User-controlled client and recovery.** Build the reference desktop/Bun
+1. **Transfer authorization and recovery-window policy.** Specify the
+   user-signed Transfer Grant, old-provider-signed invitation, origin-bound
+   Offer, signed Address Selection and reservation, final request wire and
+   delivery profile, replay
+   handling, independent witness set, production cache/timeout rules,
+   and recovery/fork response. The user-top-key normal transfer has no fixed
+   72-hour delay; a lower-key operation cannot qualify as a normal transfer.
+   Define how accepted work expiring during any pause gets a signed result.
+2. **User-controlled client and recovery.** Complete the reference desktop/Bun
    client and verify its backup recovery on a second device. The
    provider-local signature verifier is implemented; a user-owned signing and
    recovery product is not. The current Grant and onboarding authoring CLIs
@@ -260,11 +344,12 @@ specified, reviewed and verified end to end.
    disagreements and missed coverage, and retain CIDs, chain snapshots and
    nullification evidence for historical signed-object audits. Distinct URLs
    in a test fixture do not establish different administrative control.
-4. **Account and address activation.** Wire the tested materialization to a
-   real user-controlled address authority and verified public WebFinger and
-   Address Binding resources. The user chose a user-controlled domain for
-   portable activation. A provider-issued address on the departing provider's
-   domain cannot move without its domain operator's cooperation. Verify the
+4. **Account and address activation.** Wire the tested materialization to
+   real address publication under the selected provider's domain and verify
+   public WebFinger and Address Binding resources. Self-hosted and third-party
+   servers use the same direct signed reservation flow; delegated address
+   domains require a future profile. An address on the departing provider's
+   domain cannot move without that domain operator's cooperation. Verify the
    imported status/outbox and body responsibilities across actual provider
    processes and independent infrastructure, not only two test databases.
 5. **Public PLC identity provenance.** The live demonstration DIDs exist only

@@ -290,9 +290,70 @@ A provider migration updates two pieces of DID state together:
 - `#hail-messaging` to the new provider's operational key
 - `#hail` to the new provider's base endpoint
 
+A continuity-preserving Hail provider transfer is **user-initiated**. A
+provider's messaging or lower-priority PLC rotation key cannot authorize the
+Hail transfer ceremony. The user-controlled client first signs a dedicated,
+short-lived Transfer Grant with the current `#hail-identity` key for one DID,
+its current source and the **new provider's canonical DNS domain**. The client
+derives `https://{domain}/hail` locally; the user need not supply a scheme,
+path or port. In this profile the provider domain is also the domain of every
+destination Hail address. Self-hosted and third-party providers follow the
+same procedure; a different/delegated address domain requires a future
+profile. The old provider validates and stores the user grant, signs a
+fresh-challenge-bearing Transfer Invitation, and POSTS both to the fixed
+HTTPS well-known invitation endpoint at that exact user-named domain.
+
+The new provider verifies the grant and invitation against the current PLC
+identity/service keys and returns a signed **inactive Transfer Offer** with
+prepared operational keys and a transfer ID. The old provider retains the
+exact Offer and evidence that it arrived from the TLS-verified, DNS-pinned
+destination origin. The client then connects **directly** to that new Hail
+server, signs an Address Selection with its current `#hail-identity` key,
+and requests one full address beneath the selected provider domain. The
+selection binds the grant, exact Offer, transfer ID, address and expiry.
+The new provider verifies all those values against its stored invitation,
+atomically reserves the address (without publishing it), and signs a
+reservation receipt. An already reserved name is not silently substituted;
+the user signs a new selection after choosing another name. An identical
+selection retry returns the same receipt. A provider-issued address and an
+address on a user's self-hosted Hail server use the same endpoint and rules.
+
+Only after reservation does the new provider sign and **push** the final
+Transfer Request to the current source's fixed Hail endpoint. Its signature
+uses the *same prepared messaging key* previously observed at the approved
+HTTPS origin; the request binds the original grant/invitation challenge,
+Offer, exact user-signed Address Selection, and provider-signed reservation.
+The old provider revalidates the user identity signature against current PLC,
+request and receipt against the origin-proven Offer, address domain, expiry
+and one-time transfer ID, then atomically fences the account. An exact retry
+gets a durable acknowledgement without a second fence. An arbitrary signed
+request file, unauthenticated caller IP or self-asserted target `did:key`
+alone cannot start a Hail transfer. The bounded endpoint profile is in
+[http-binding.md](http-binding.md#provider-transfer-invitation-transport).
+User consent to the exact snapshot
+and a **separate signature from the current highest-priority user PLC recovery
+key over the exact full-state cutover operation** are required before
+activation. A provider-signed PLC operation cannot satisfy that final
+requirement even if it renders the same destination. Final interoperable
+wire objects, cross-process retry scheduling and administrative cancellation
+still need specification.
+
+For this top-priority-user-signed cutover, Hail need not wait out PLC's
+72-hour recovery period: it may activate after independently validating that
+the exact operation is the current, non-nullified PLC state, the destination
+has imported the fenced snapshot, and no competing owner can resume. A
+lower-priority-signed change, an unexpected intervening operation or observer
+disagreement is **not** an alternate fast-path migration; fail closed and
+invoke a separately specified recovery procedure. Continuous monitoring still
+matters because a provider's lower-priority key can publish a *subsequent*
+unwanted PLC operation. This rule is a proposed production authority policy;
+the remaining cache, mirror and historical-evidence requirements under
+[Before Production](#before-production) still apply.
+
 The `#hail-identity` key should remain unchanged unless the DID controller is separately rotating it. The full-state migration operation preserves all other entries under the PLC state rules above, including every non-Hail `alsoKnownAs` value and its order unless the DID controller explicitly authorizes a separate alias change.
 
-After the PLC update satisfies Hail's recovery-window acceptance policy:
+After the exact user-signed PLC update satisfies Hail's authority and
+independent-observation policy:
 
 - the old provider endpoint is no longer authoritative
 - the old messaging key can no longer sign newly accepted Hail objects
