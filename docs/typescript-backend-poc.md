@@ -2046,6 +2046,52 @@ or populated `.env` files. Commit only safe `.env.example` files.
   checks and new user-key-controlled POC DIDs. The separate independent
   monitor VPS is still deferred.
 
+### 2026-10-05: Live Private-PLC Portable DID Rehearsal
+
+- Provider private-POC source `3495ff5` and user-client ceremony `43f65e4`
+  were pushed before the rollout. A fresh, verified pair of live provider
+  backups at `/var/backups/hail-poc/pre-private-poc-roll-20261001T220212Z`
+  and rollback image tag `hail-server-ts:pre-private-poc-20261001T220026Z`
+  preceded the one-by-one app/dev update. The shared provider image was
+  `sha256:3989adda60af3901c6e69959e56663733cacff28c576f218826bb74e3e6ab7b3`.
+  Both databases advanced from migration 12 to 30, and both providers stayed
+  healthy. Alice's and Bob's original custodial address discovery returned
+  `200` without being reclassified as portable.
+- Before testing a new private DID, verified mode-`0600` app/dev/private-PLC
+  dumps at `/var/backups/hail-poc/pre-portable-did-20261005T203828Z`.
+  Disposable user-held keys and an encrypted vault were generated on the
+  user's local machine, outside provider checkouts; a separate local vault
+  copy was decrypted to verify the random recovery secret and both public
+  keys. This is *local POC backup evidence*, not independent-device recovery.
+- The private PLC registered user-top-signed
+  `did:plc:eafyy6xd2mv4aj5kvtkhecnf` under app at
+  `poc-move-20261005@hailproto.app`. The source held only provider
+  operational keys. External WebFinger/Binding verification activated the
+  account, and app published a Sender Profile revision 1. A user-signed
+  transfer grant named `hailproto.dev`; dev returned an origin-bound Offer,
+  reserved `poc-move-20261005@hailproto.dev`, and sent the signed request.
+  App fenced the DID and exported an immutable signed snapshot.
+- The local client signed final consent, the exact top-key PLC operation,
+  and the destination Address Binding. Dev staged the import inactive,
+  submitted that operation **only to the private PLC**, verified the
+  two-operation log and non-nullified audit with a `private-poc` single-reader
+  assessment, published the destination binding, and activated the account.
+  App verified dev's activation receipt and marked its fence permanently
+  `retired`. Dev serves signed Sender Profile revision 2 under its own new
+  messaging key; both public readiness URLs and the new dev address/profile
+  returned `200`. No public PLC mirror, independent monitor or external
+  monitor VPS was used.
+- The old app-domain demo address initially still resolved after retirement.
+  Provider fix `9448310` excludes retired DID bindings from WebFinger without
+  deleting their immutable historical representations. It was rolled to
+  both providers as image
+  `sha256:e87d954d9af5a65dc149eeb551a68854d54ba0288c4bd9107dfd18210eef3ef9`;
+  `hail-server-ts:pre-retired-webfinger-20261005` tags the preceding
+  migration-30 image. Afterwards the old demo address returned `404`, the
+  new dev address and profile and both existing custodial addresses returned
+  `200`, and both containers were healthy with zero unexpected restarts.
+  Databases remained at migration 30 and the POC PLC service was unchanged.
+
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
 from this method.

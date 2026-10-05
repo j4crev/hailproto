@@ -258,7 +258,9 @@ public PLC mirror is required for this deliberately non-independent POC test.
 
 ## Current Implementation Boundary
 
-Migrations 13–30 are **local, unapplied production work**. They fence source
+Migrations 13–30 now run on the two public-HTTPS **private-PLC POC** providers;
+they are not deployed as a `plc.directory` production portable service.
+They fence source
 writes and leased work, retain a signed immutable snapshot and permit an
 authenticated, user-consented **inactive** target import. Portable snapshots
 strip provider operational ciphertext and require a user-controlled identity
@@ -273,10 +275,11 @@ verified inactive destination Offer, user-signed Address Selection, target-
 signed reservation receipt and a separately pushed final Transfer Request.
 The source validates their exact digests, authority, expiry and matching
 destination/address, then consumes the user grant atomically with the fence.
-Two agreeing validated
-PLC read paths and an independent signed monitor attestation permit immediate
-assessment of the exact top-user-key-signed current PLC update; the previous
-fixed 72-hour gate is removed. The prototype exposes fixed well-known
+The production-profile gate still requires two independently operated
+validated PLC read paths and an independent signed monitor attestation; it
+has not been exercised as production. The POC-only gate uses its one canonical
+private log, marked non-independent, without a fixed 72-hour wait. The
+prototype exposes fixed well-known
 invitation and address-selection endpoints at the new provider and a fixed
 final-request endpoint at the old provider. The source accepts the exact
 user-signed grant over a bounded endpoint, returns an Offer when delivery
@@ -301,23 +304,23 @@ An expired grant with an origin-verified Offer is not overwritten by a new
 grant until the user obtains a source-signed cancellation receipt: the target
 may already have a submitted request with an ambiguous outcome and still
 needs that receipt to free its reservation safely.
-This is not yet an unattended public transfer product: the reference CLI
+This is not yet an unattended **public PLC** transfer product: the reference CLI
 still needs an authenticated user-to-provider UI for reviewing the exact
 Offer, issued/selected address and final PLC operation. Distributed retry
 calibration, coordinated post-fence rollback and real-world independent-
 origin deployment remain to be validated.
-The isolated integration test injects those observations and an externally
-verified address, then transactionally materializes the imported state and
-returns a signed receipt that permanently retires the source. It verifies
+An isolated integration test and the first real private-PLC provider-to-provider
+rehearsal both staged a user-signed cutover, externally verified a new
+destination address, transactionally imported state and retired the source
+on a signed receipt. The integration fixture additionally verifies
 rollback on a target conflict, re-signing under the new messaging key, and
 deadline failure for accepted work whose deadline elapsed during a delayed
-cutover. There is
-**no public activation or PLC submission CLI** and no real independent
-monitor/mirror provisioning yet; this test is not a production-ready migrated
-account.
-The previously deployed POC DIDs are registered only in a private PLC
-directory and were created custodially. They cannot be treated as production
-portable identities by applying the new migration to their existing rows.
+cutover. POC-only private-PLC submission and activation CLIs exist, but no
+corresponding public-registry rollout ceremony or independently provisioned
+monitor/mirrors exists. The private DID is not a production-ready migrated
+account. Alice's and Bob's older POC DIDs were created custodially and cannot
+become portable by merely applying a database migration. The new user-held
+POC DID is separately recorded in `docs/typescript-backend-poc.md`.
 
 The separate sibling [PLC monitor](https://github.com/j4crev/hail-plc-monitor-ts)
 checkout is the first
