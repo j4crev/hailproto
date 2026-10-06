@@ -8,7 +8,11 @@ The project aims to support beautiful messages, independent providers, portable 
 
 ## Status
 
-Hail is currently in the protocol design and prototype phase. A public two-provider TypeScript server POC implements custodial PLC onboarding, address discovery, public activation, and signed Sender Profile publication and verification; it does not yet implement complete message delivery or a client. The repository also includes TypeScript and Go reference codecs, shared conformance vectors, executable schema checks, diagnostic tooling, and benchmarks. The sole intended v0 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
+Hail is in the protocol design and prototype phase. Two HTTPS-exposed TypeScript providers on one VPS use a private PLC directory. The POC implements onboarding, address discovery and activation, signed Sender Profiles, Grant publication/revocation, detached-body delivery, signed terminal status and single-use replies. Fresh user-key-held identities have completed provider transfers, including delivery of a pending message exactly once after cutover. A user-key reference CLI and a same-VPS PLC monitor also run through tested onboarding/transfer and signed-alert workflows.
+
+This is an isolated POC, not public Hail federation or a production client. The original Alice/Bob accounts remain custodial; newer identities use user-held recovery/identity keys. The same-VPS monitor proves functionality, not independence. Public `plc.directory` rollout, independent monitoring/mirrors and second-device recovery remain outstanding. See the [current POC status](docs/typescript-backend-poc.md#current-poc-status-october-6-2026) and [portable-custody boundary](docs/production-portable-custody.md).
+
+The repository includes TypeScript and Go reference codecs, shared conformance vectors, executable schema checks, diagnostic tooling and benchmarks. The intended v0 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
 
 ## Core Principles
 
@@ -25,6 +29,10 @@ Hail is currently in the protocol design and prototype phase. A public two-provi
 - [`DESIGN.md`](DESIGN.md): High-level product and protocol design.
 - [`BUILD_ORDER.md`](BUILD_ORDER.md): Recommended specification and implementation sequence.
 - [`docs/typescript-backend-poc.md`](docs/typescript-backend-poc.md): Reproducible Bun/Hono two-provider POC implementation and deployment guide.
+- [`docs/production-portable-custody.md`](docs/production-portable-custody.md): Key custody, transfer ceremony, recovery checkpoints and POC/production boundaries.
+- [Provider deployment runbook](https://github.com/j4crev/hail-server-ts/blob/main/deploy/poc/README.md): VPS, DNS/TLS, provider setup, delivery and verified rollout records.
+- [User-key reference client](https://github.com/j4crev/hail-user-client-ts#readme): User-device vault, onboarding, Grant signing and exact-byte cutover commands.
+- [Same-VPS monitor deployment](https://github.com/j4crev/hail-plc-monitor-ts/blob/main/deploy/poc/README.md): Private PLC ingestion, signed HTTPS alerts and restart verification; explicitly non-independent.
 - [`CBOR_MIGRATION.md`](CBOR_MIGRATION.md): Active migration plan from the earlier JSON/JWS draft to deterministic CBOR and COSE.
 - [`BODY_FORMAT.md`](BODY_FORMAT.md): Safe Portable Text body-format design.
 - [`spec/encoding.md`](spec/encoding.md): Normative Hail data model, deterministic CBOR, COSE, and diagnostic JSON profile.

@@ -10,6 +10,35 @@ security limitations are recorded as the implementation proceeds.
 The protocol specifications in [`../spec`](../spec) remain authoritative. This
 guide describes one implementation and does not override those specifications.
 
+## Current POC Status (October 6, 2026)
+
+| Area | Verified implementation |
+| --- | --- |
+| Transport | Two public-HTTPS providers and one private PLC directory on the same VPS; no public PLC registration. |
+| Delivery | Signed Grants, revocation, detached-body verification/storage, terminal-status acknowledgement and single-use replies. |
+| Identity | Original custodial Alice/Bob accounts plus fresh user-key-held private-PLC identities; existing custodial DIDs are not converted. |
+| Transfer | User-authorized fencing, exact-byte snapshots/cutover, destination activation and source retirement; one pending message delivered once after transfer. |
+| Monitor | Own database/key, live sequenced export ingestion and signed HTTPS alerts; explicitly non-independent same-VPS deployment. |
+| Recovery | Completion retries and same-host logical database restoration tested; coordinated post-export rollback, former-provider return and host-loss recovery are not established. |
+
+Provider databases are at migration **31**. Deployment sources are provider
+runtime `61133b5`, monitor routing `84ab6fd` and monitor `4096b0f`; exact images,
+backup locations and verification results appear in the dated implementation
+log. The reference client is a CLI/test driver, not a finished user application.
+Independent monitoring/public PLC and second-device recovery remain deferred.
+
+### Which guide to use
+
+- [Provider VPS setup and message/reply walkthrough](https://github.com/j4crev/hail-server-ts/blob/main/deploy/poc/README.md).
+- [User-device vault and signing commands](https://github.com/j4crev/hail-user-client-ts#readme).
+- [Transfer and restart checkpoints](production-portable-custody.md#resuming-a-private-plc-poc-ceremony).
+- [Same-VPS monitor setup and verification](https://github.com/j4crev/hail-plc-monitor-ts/blob/main/deploy/poc/README.md).
+
+The phases below explain the build sequence; dated entries record what was
+true at that time. Earlier migration/image numbers are historical, not a
+request to downgrade the current deployment. Use fresh disposable identities
+for reproduction instead of replaying the live demo's recorded identifiers.
+
 ## Goal
 
 Run two independently configured Hail providers that exchange one
@@ -28,14 +57,17 @@ participate in public Hail federation and cannot be resolved through
 
 ## POC Limitations
 
-The first implementation is explicitly an isolated, custodial POC:
+The deployment remains an isolated private-PLC POC:
 
-- The providers may hold PLC rotation, `#hail-identity`, and
-  `#hail-messaging` private keys.
+- The original custodial Alice/Bob accounts have provider-held PLC rotation,
+  `#hail-identity` and `#hail-messaging` keys. New portable POC DIDs keep the
+  top recovery and identity keys on the user device; providers hold only their
+  own lower-priority rotation and messaging keys.
 - The test DIDs are registered only in a configured private PLC directory.
 - The PLC directory is trusted for current ordering and availability rather
   than independently validating its complete export stream.
-- Independent PLC monitoring and the production portable-custody ceremony are
+- The same-VPS monitor has proven ingestion, approval and signed alerts;
+  independent PLC monitoring and the production portable-custody rollout are
   deferred.
 - The production policy for PLC's 72-hour recovery window and historical DID
   verification evidence remains unresolved by the protocol specification.
@@ -49,18 +81,25 @@ activation checks.
 
 ## Repository Layout
 
-The implementation uses sibling repositories:
+The implementation uses sibling repositories. Deploy the provider, protocol
+codec and PLC checkouts on the VPS; add the monitor checkout for monitoring.
+The user client and its vault/recovery material stay on the user device:
 
 ```text
 /home/j4crev/Dev/
 |-- hailproto/          protocol, codecs, conformance vectors, and this guide
 |-- hail-server-ts/     reusable Bun and Hono provider implementation
-`-- did-method-plc/     pinned clone of the official PLC implementation
+|-- did-method-plc/     pinned clone of the official PLC implementation
+|-- hail-user-client-ts/ user-device reference client; not a provider service
+`-- hail-plc-monitor-ts/ same-VPS POC or independently hosted monitor
 ```
 
 Canonical upstream repositories:
 
 - Hail Protocol: <https://github.com/j4crev/hailproto>
+- Provider: <https://github.com/j4crev/hail-server-ts>
+- User-key client: <https://github.com/j4crev/hail-user-client-ts>
+- PLC monitor: <https://github.com/j4crev/hail-plc-monitor-ts>
 - PLC directory: <https://github.com/did-method-plc/did-method-plc>
 
 Record the exact tested commits in the [Implementation Log](#implementation-log).
@@ -94,6 +133,7 @@ Internet
    | HTTPS :443
    v
 Caddy
+   |-- Host: hailproto.app /poc/monitor-alerts -> poc-alert-receiver:3000
    |-- Host: hailproto.app -> hail-app:3000
    `-- Host: hailproto.dev -> hail-dev:3000
 
@@ -102,6 +142,11 @@ Private container network
    |-- hail-dev -> dev PostgreSQL database
    |-- plc:2582 -> PLC PostgreSQL database
    `-- no public PostgreSQL or PLC listener
+
+Separate monitor storage network (same VPS)
+   |-- plc-monitor -> monitor PostgreSQL database
+   |-- plc-monitor -> private PLC API; signed alerts -> public HTTPS Caddy
+   `-- poc-alert-receiver -> durable SQLite receipts; public monitor key only
 ```
 
 The two Hail services use the private PLC URL:
@@ -110,8 +155,11 @@ The two Hail services use the private PLC URL:
 PLC_DIRECTORY_URL=http://plc:2582
 ```
 
-All test clients and command-line tools that resolve a test DID must use the
-same URL. A `did:plc` identifier contains no registry or network identifier, so
+Provider and monitor containers resolve test DIDs through that private API.
+`plc` is an internal Docker DNS name, not a user-device URL: user-device signing
+CLIs consume reviewed artifacts, while commands requiring PLC reads must run
+with access to the configured private directory. A `did:plc` identifier contains
+no registry or network identifier, so
 software using the production directory will not find these test identities.
 
 ## Public DNS And TLS
@@ -847,9 +895,10 @@ validated snapshot is acknowledged, and the PLC messaging-key/service update
 meets the recovery-window policy. An aborted cutover may release the old fence
 only after invalidating the inactive import. Test concurrent acceptance,
  delivery completion, revocation, and status publication on both sides of the
- fence with disposable databases before a live cutover. The local fixture does
- this, but the live POC DIDs are custodial and registered only in a private PLC
- directory: they cannot be activated under the production portable profile.
+  fence with disposable databases before a live cutover. The local fixture does
+  this. Original Alice/Bob DIDs remain custodial; new user-key-held POC DIDs
+  have completed private-directory transfers. Neither is evidence of a public
+  PLC production rollout.
 
 ### Phase 13: Portable-Custody Cutover Rehearsal (Local)
 
@@ -936,16 +985,21 @@ After local integration tests pass:
 2. Permit inbound TCP 22, 80, and 443; restrict SSH to trusted sources when
    practical.
 3. Install Docker Engine and its Compose plugin.
-4. Clone the three pinned repositories.
+4. Clone the provider, protocol/codec and pinned PLC repositories with their
+   sibling layout. Keep the user-key client on the user device; add the
+   monitor checkout on the VPS for the same-host monitoring step.
 5. Generate independent database credentials and provider secrets.
 6. Start private PLC and provider databases without publishing their ports.
 7. Start both provider instances on the private Compose network.
 8. Configure host-based Caddy routing for both domains.
-9. Create the public DNS records only after the services are ready to answer.
-10. Confirm Caddy obtained valid certificates for both domains.
+9. Create and verify DNS-only public `A` records before starting Caddy.
+10. Start Caddy and confirm valid certificates for both domains.
 11. Verify WebFinger, Address Binding, health, and federation endpoints from a
     machine outside the VPS network.
 12. Run the complete end-to-end and negative test suites against public URLs.
+13. Follow the separate monitor runbook to start its database, monitor and
+    receipt receiver on the existing networks. Validate the alert route,
+    enroll reviewed current DIDs and exercise a disposable operation change.
 
 ### Selected Hosting Profile
 
@@ -953,8 +1007,8 @@ The selected POC target is one Hostinger Ubuntu 24.04-or-newer VPS with at least
 4 GB RAM, 40 GB storage, and a static public IPv4 address. Cloudflare remains
 the authoritative DNS provider in DNS-only mode for initial validation.
 
-Cloudflare Workers and Vercel are not selected because this POC requires three
-durable PostgreSQL databases, a private long-running PLC directory, two
+Cloudflare Workers and Vercel are not selected because the provider stack
+requires three durable PostgreSQL databases, a private long-running PLC directory, two
 long-running Bun services, private service networking, and durable background
 work. Their serverless execution models would split or replace the architecture
 being tested rather than host it directly.
@@ -966,11 +1020,21 @@ hail-server-ts/deploy/poc/compose.yaml
 hail-server-ts/deploy/poc/Caddyfile
 hail-server-ts/deploy/poc/.env.example
 hail-server-ts/deploy/poc/README.md
+
+# Separate same-VPS monitor stack; start after provider networks exist.
+hail-plc-monitor-ts/deploy/poc/compose.yaml
+hail-plc-monitor-ts/deploy/poc/.env.example
+hail-plc-monitor-ts/deploy/poc/README.md
 ```
 
 It exposes only Caddy on TCP 80/443 and optional UDP 443. Provider, PLC API,
 PLC sequencer, and PostgreSQL ports remain on private Compose networks. Caddy compression is
 disabled so signed COSE retrieval never acquires an HTTP content coding.
+The monitor adds a fourth PostgreSQL database and a SQLite receipt volume,
+without opening new host ports. Its signing key/environment are separate from
+provider secrets; the receipt service receives only the public key. The alert
+route becomes usable after that separate stack starts. This deployment does
+not satisfy the independent-monitor production gate.
 
 ### Cloudflare Records
 
