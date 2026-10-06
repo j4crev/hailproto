@@ -389,6 +389,16 @@ hosted deployment, and second-device recovery testing. A copy run by Hail on
 its own infrastructure is useful for bootstrapping but **does not satisfy**
 the provider-independent monitor requirement.
 
+The October 6 same-VPS POC deployment now demonstrates live private PLC
+ingestion, reviewed operation approval, signed public-HTTPS webhook delivery
+and cursor/receipt durability across restart. The monitor has its own database
+and signing key, and its receipt sink holds only the public key. It is labeled
+`private-poc`, has no independent attestation origin configured and is never
+used to satisfy the production independent-monitor gate. A disposable PLC-only
+DID supplied the changes; existing provider identities were only enrolled for
+observation. See the monitor repository's `deploy/poc/README.md` for proof IDs
+and operational commands. Independent hosting and public PLC remain deferred.
+
 Before a production-ready rollout, implement and test:
 
 - a reviewed user-facing grant/Offer/cancellation UX, restart/fault testing

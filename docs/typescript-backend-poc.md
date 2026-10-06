@@ -2148,6 +2148,46 @@ or populated `.env` files. Commit only safe `.env.example` files.
   and returning a DID to a former provider retaining its retired account
   remain separate work. The monitor VPS and public PLC remain deferred.
 
+### October 6, 2026: same-VPS monitor functionality proof
+
+- Tested deployment sources: monitor `4096b0f`, provider routing `84ab6fd`.
+- Deployed the sibling monitor on the existing POC VPS with its own
+  PostgreSQL database and signing key. A separate POC receipt service verifies
+  domain-separated alert signatures and stores immutable receipts in its
+  SQLite volume. Caddy exposes only `https://hailproto.app/poc/monitor-alerts`
+  for this receiver; both provider readiness endpoints stayed healthy.
+- The monitor is explicitly `private-poc` / non-independent. Its
+  `MONITOR_ORIGIN` is unset, and its public key is not enrolled as a
+  user-controlled independent monitor at a provider. No provider database
+  credentials or user vault/recovery material were mounted into it.
+- Consumed the real private PLC export from sequence zero through six
+  existing entries and enrolled all four existing POC DIDs at their reviewed
+  current CIDs. User-device-generated disposable DID
+  `did:plc:bckxabzar6s35y3csrx46rav` added genesis, a planned endpoint/key
+  change and an unexpected alias change. Only signed public operations were
+  sent to the VPS; ephemeral test private keys were not exported.
+- Observed all three disposable operations; the cursor reached 9. The first
+  change alerted until explicit local approval retained CID
+  `bafyreigkxqpfcueggy3ngvixkcc7jnijyimhwuh7z3htz3n2dw7g4gvnfi`.
+  Subsequent unexpected CID
+  `bafyreifz45iagkqksufpjgdxrxepuztycrkzpjoh7fumyzl7runodmtdpi` generated
+  a second alert without overwriting approved state. Two actual signed
+  public-HTTPS deliveries were verified and acknowledged by the receipt sink.
+- Restarted monitor and receiver: cursor 9, two acknowledged alerts and two
+  stored receipts persisted; repeated polls did not duplicate alerts.
+  Unsigned public requests returned `401`. Local typecheck/build and all nine
+  monitor tests passed, including real PostgreSQL integration tests on a
+  disposable local database. Operational details are in the monitor's
+  `deploy/poc/README.md`; the image is
+  `sha256:b6f2c14cbbf2a9814fcfe576ff406921a9073494d78345bca91eeceff10d10cb`.
+- This proves working ingestion, detection, notification, approval and
+  same-host restart persistence. It does not prove independently operated
+  monitoring, public PLC coverage or host-loss recovery.
+- Retained same-host post-proof backups at
+  `/var/backups/hail-poc/post-monitor-proof-20261006`: verified custom-format
+  monitor/PLC dumps, a consistent receipt snapshot and protected monitor
+  environment/key copies. No independent-device backup is claimed.
+
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
 from this method.
