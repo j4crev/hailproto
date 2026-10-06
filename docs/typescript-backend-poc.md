@@ -2092,6 +2092,62 @@ or populated `.env` files. Commit only safe `.env.example` files.
   `200`, and both containers were healthy with zero unexpected restarts.
   Databases remained at migration 30 and the POC PLC service was unchanged.
 
+### October 6, 2026: message continuity, restart recovery and logical restore
+
+- Created a fresh user-held private-PLC DID
+  `did:plc:wmw2k7etmemhq3kw5tcjkj7n` on dev and imported its user-signed Grant
+  `01a10f3a-c34c-79b4-b56b-96554579f160` for Alice. Provider `66acf0c` and
+  client `eeacfc1` supplied user-key Grant tooling and exact-byte resumable
+  cutover signing. The vault/recovery material stayed on the user device.
+- Accepted Alice's message `01a10f3b-f108-766a-b99f-647cc384fd1a` at dev,
+  temporarily deferred its delivery, removed the hold trigger and initiated
+  dev → app transfer `b52605c3-a472-4a7a-94c1-8fa967b887f2`. The private PLC
+  accepted user-signed CID
+  `bafyreidqqgegdxnfjejb7elmejm7f7hjakcfuqc56i5j3dn7okakzqcuuu`.
+- Activation initially rolled back on `grant_lineages_pkey`: app already
+  hosted Alice's grantee copy of the same Grant. Added migration 31 to retain
+  a second local receiver reference while keeping one exact immutable chain
+  and authoritative grantor ownership. Imported chains must match their
+  retained metadata/bytes; collisions are not resolved by discarding a role.
+- Backed up all three databases under
+  `/var/backups/hail-poc/pre-collocated-grant-fix-20261006T033731Z`, restored
+  isolated copies, applied migration 31 and rehearsed the actual failed
+  staged import. Fixed an incomplete VPS build checkout before rollout.
+  Replaced providers one at a time and retried the exact live activation,
+  without another user signature or PLC write.
+- App delivered the pending message once: delivery revision 2, one attempt,
+  one stored delivered message and one acknowledged terminal publication.
+  Dev retired on the signed destination receipt; its accepted history stayed
+  at revision 1 with zero attempts. Old address discovery returned `404`,
+  new discovery `200`, and both readiness endpoints `200`. This DID had no
+  Sender Profile to migrate.
+- Made completion restart-safe: activation recovers its committed result
+  after current authority checks, retirement authenticates an exact receipt
+  retry, and private artifact writes accept identical bytes while refusing
+  conflicts/insecure permissions. Tested lost PLC responses, exact-operation
+  retries, unavailable destination HTTPS, blocked post-export fence release
+  and completion retries. Repeated the live completion commands after
+  restart; recovered receipt bytes matched the archived original.
+- Restored post-delivery backups at
+  `/var/backups/hail-poc/post-continuity-20261006T034900Z` into three separate
+  databases with no servers/workers or exposed ports. Selected provider
+  table counts and sorted row fingerprints matched live data; PLC's four
+  DIDs and six operations matched too. Migration checksums passed, and all
+  seven operational keys in each restored provider decrypted successfully
+  without printing their material. Removed disposable databases after the
+  drill. This verifies same-host logical restoration, not host-loss recovery
+  or independent-device backup.
+- Final verification: typecheck/build, 107 ordinary tests and 45 sequential
+  PostgreSQL integrations passed. Final image
+  `hail-server-ts:poc-continuity-20261006` is
+  `sha256:35e2da4770f5b514829efd0554386790090289c10f17220fe3744852b5a8552d`,
+  built from tested runtime changes committed as provider `61133b5`.
+  Both databases are at migration 31. Added a checkpoint-based
+  recovery guide to [`production-portable-custody.md`](production-portable-custody.md).
+  Post-export recovery here means forward completion; coordinated rollback
+  and returning a DID to a former provider retaining its retired account
+  remain separate work. The monitor VPS and public PLC remain deferred.
+
 Later implementation sessions should append dated entries containing tested
 commit IDs, executed setup commands, verification results, and any deviations
 from this method.
