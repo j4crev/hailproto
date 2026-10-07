@@ -40,6 +40,16 @@ Hail should standardize:
 
 Hail should not initially require a standard API between an end-user client and its own provider. Providers may expose REST, GraphQL, local APIs, email-client bridges, or other interfaces.
 
+The reference provider's selected architecture is **API-first**: ordinary
+applications and agents use an authenticated account-management API, and
+provider-native CLIs or the Hail-provided `hailp` executable are clients of
+that API. Normal account use must not require provider SSH/database access.
+This implementation decision
+does not standardize client API paths across independent providers; the
+interoperable boundary below remains server-to-server federation. The approved
+custody choices and next implementation slices are in
+[the account API plan](docs/production-portable-custody.md#api-first-provider-and-cli-clients).
+
 The required interoperable API is the server-to-server federation API.
 
 ## 2. Define Invariants And Threat Model

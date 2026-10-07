@@ -8,11 +8,11 @@ corresponding specification is updated and reviewed.
 
 ## Authority And Key Custody
 
-The user-controlled client generates and retains the top PLC recovery key and
-the `#hail-identity` signing key. The provider never receives their private
-bytes, even encrypted under a provider-controlled key. The user's independent
-encrypted backup and recovery-material check must succeed before public
-activation. The source and destination providers each generate their **own**
+For the owner-controlled portable profile, the client generates and retains
+the top PLC recovery key and `#hail-identity` signing key. The provider never
+receives their private bytes, even encrypted under a provider-controlled key.
+The user's independent encrypted backup and recovery-material check must
+succeed before public activation. The source and destination providers each generate their **own**
 lower-priority PLC rotation and `#hail-messaging` keys; neither provider
 receives the other's private operational keys. The source's operational keys
 are historical evidence, not usable destination signing keys.
@@ -26,11 +26,395 @@ check. The client-to-provider API and encrypted vault representation remain
 local implementation details, but these outcomes are mandatory under
 `spec/account-onboarding.md`.
 
-The initial TypeScript desktop/Bun client is a **reference implementation and
-test driver**, not a platform requirement. Mobile and other clients may use
-their own OS-backed keys and recovery user experience so long as they produce
-the same exact signed PLC operation, migration consent, Grants and Address
-Bindings and satisfy the provider-independent backup/recovery outcomes.
+The current owner-controlled TypeScript desktop/Bun client is a **reference
+implementation and test driver**, not a platform requirement. Mobile and other
+clients may use their own OS-backed keys and recovery user experience while
+producing the same signed objects under the selected custody profile's
+authority and satisfying its provider-independent backup/recovery outcomes.
+The approved managed-profile direction below intentionally assigns identity
+signing to the provider while keeping top recovery authority with the owner;
+it must not be described as the same consent-custody guarantee.
+
+## Key Custody In Plain Language
+
+Custody means **who can produce a signature**, not merely where a key file is
+stored. With user-held keys, a user-controlled signer authorizes an exact
+object and the provider verifies, stores, enforces and publishes it. With
+provider custody, the provider holds signing authority and signs on the user's
+behalf after authenticating an account request. AT Protocol's custody choices
+do not require Hail to adopt provider custody for its consent-signing role.
+
+| Key | Purpose | Owner-controlled portable profile | Preferred managed profile | Fully custodial POC |
+| --- | --- | --- | --- | --- |
+| `#hail-identity` | Grants, revocations and Address Bindings | Owner controls signing | Provider controls signing | Provider controls signing |
+| Top PLC recovery key | DID recovery and reviewed sensitive identity changes | Owner controls signing | Owner controls signing | Provider controls signing |
+| `#hail-messaging` | Envelopes, Sender Profiles and delivery statuses | Provider controls signing | Provider controls signing | Provider controls signing |
+| Lower-priority PLC rotation key | Provider operational DID updates | Provider controls signing | Provider controls signing | Provider controls signing |
+
+The portable model is therefore **split custody**, not a requirement for the
+user device to perform every server operation. Original Alice/Bob POC accounts
+are custodial; newer user-key-held POC identities exercise the split model.
+
+| Consideration | User-held identity key | Provider-held identity key |
+| --- | --- | --- |
+| Convenience | A user-controlled signer must be available for fresh consent/identity signatures | Provider can sign while user devices are offline |
+| Recovery | Requires usable independent backup and recovery | Provider can offer account-recovery processes, subject to its own security and availability |
+| Provider compromise | Does not directly expose the user's identity key | May expose the key or let an attacker invoke its signer |
+| Consent evidence | A signature requires the user-controlled signing authority | A valid signature could have been produced by the provider without the user's request |
+| Portability | User retains signing/recovery authority outside the provider | Depends more heavily on provider cooperation |
+
+Encryption at rest alone does not establish user custody:
+
+- Provider-held ciphertext plus a provider-controlled decryption key is still
+  provider custody.
+- A provider-hosted encrypted backup can preserve user custody if only the
+  user can decrypt it and an independently retained recoverable copy exists.
+- A non-exportable key in a provider-operated hardware security module is
+  still provider-controlled signing authority if the provider can invoke it.
+
+Keeping `#hail-identity` out of the provider protects consent and identity
+control; it does **not** provide message-content confidentiality. The POC is
+not end-to-end encrypted, and providers see stored bodies and Grant
+relationships. They can also refuse service. The provider's lower-priority
+PLC key can make harmful DID updates, including key replacement, so independent
+monitoring and timely recovery remain necessary for production protection
+against provider impersonation. User-held identity keys alone do not remove
+that PLC authority.
+
+## Managed Profiles And People Or Agents
+
+**Approved product direction:** offer both owner-controlled and opt-in managed
+identity custody to **people and agents**. The preferred managed compromise
+keeps the top PLC recovery key outside the Hail provider's control, while the
+provider generates and protects the account's `#hail-identity`, messaging and
+lower-priority rotation keys. Agent use does not force provider custody, and
+human use does not prohibit it. No global default custody choice is established
+by choosing an API-first server architecture.
+
+An agent's owner/controller may be a person or organization. Owner-controlled
+signing can be performed by that controller's continuously available service,
+not necessarily by a human approving every signature. Each account still needs
+an accountable control/recovery arrangement; an ephemeral model process is not
+the only durable copy of its identity. Custody describes who controls the
+signer, not whether the caller is a person using software or an automated agent.
+
+Managed identity enables provider-side Grant authoring, signed revocation and
+Address Binding renewal while the owner's signer is unavailable, subject to
+authenticated requests or an explicitly approved account automation policy.
+It does not by itself authorize scope expansion or arbitrary new account
+actions. The owner must understand that the provider can produce valid consent
+signatures without a fresh owner-held identity signature. Owner-held recovery
+does not remove that power or provide message confidentiality.
+
+The provider never requests/imports the owner's top recovery private key. The
+owner signs reviewed full PLC onboarding and recovery/custody-change operations
+with that authority, retains independent recovery material, and monitors PLC
+outside the provider's administrative control before production activation.
+An accepted lower-priority provider change can still become current and must
+be detected/recovered within PLC's recovery window. Managed custody is not
+threshold control, nor proof that every provider update needs owner approval.
+
+Record/disclose identity and recovery custody separately in the account's
+onboarding record and client presentation. A mode label is a declaration, not
+cryptographic proof of physical key custody; providers must not relabel managed
+identity as owner-controlled merely because the owner holds a recovery key.
+Fully provider-held recovery remains the existing custodial POC profile, not
+the preferred managed compromise selected here.
+
+Both profiles use the same identity-signed Grant and Address Binding formats.
+Managed revocation authenticates an account action and produces the terminal
+identity-signed revision at the provider; owner-controlled revocation imports
+the owner's signed revision. Neither is the rejected unsigned local-blocking
+convenience. Revocation remains a signed terminal state transition in both.
+
+Custody changes and managed-account moves require a separate reviewed transition
+design. An old provider retaining a managed identity key must lose its current
+signing authority through rotation; predecessor Grants, bindings and historical
+key verification must remain consistent. The current portable snapshot path
+rejects provider-held identity keys and cannot be bypassed by changing a custody
+flag. Owner recovery is useful authority, not a completed migration guarantee.
+
+The managed production profile is an approved **design direction**, not an
+implemented or deployed feature. The current
+[onboarding draft](../spec/account-onboarding.md#production-portable-custody-profile)
+requires portable support and explicitly describes all-key custody only in its
+POC profile. A managed-profile specification/conformance update is required
+before claiming its production guarantees.
+
+## API-First Provider And CLI Clients
+
+**Approved architecture:** the reference provider is API-driven by default.
+Human applications, agent runtimes, provider-native CLIs and Hail-provided CLIs
+interact directly with its authenticated account-management API. A normal
+account operation must not require SSH access, a provider-local administrator
+CLI, database credentials or direct database writes.
+
+**CLI name:** use `hailp` for the Hail-provided executable (`p` for Protocol),
+avoiding the existing unrelated `hail` agent calling/text/email tool. Hail
+Protocol is the project name; `hailp` is its reference account CLI. The unified
+executable is planned, not yet implemented by the current reference scripts.
+
+```text
+human app / agent / native CLI / hailp
+    -> authenticated account API
+    -> account-bound authorization and custody-specific signing
+    -> shared provider services, transactions and durable jobs
+    -> existing Hail federation API
+```
+
+The account API authenticates the caller, binds actions to the correct account
+and authorizes their permitted operations. Owner-controlled operations still
+require the relevant signed user object; an API token does not replace an
+identity signature. Managed operations may invoke only that account's
+provider-held signer after authorization. Account authentication must not
+silently change custody, replace top recovery authority or give one account
+access to another account's signer/data. Neither profile exposes raw private
+keys through ordinary management APIs.
+
+Agents should request structured, policy-checked actions through their tools,
+not receive raw private keys in model context. An owner-controlled agent's
+trusted signer can validate its configured permissions before signing; a
+managed agent's provider checks its account API permissions before signing.
+Human and agent callers exercise the same account ownership and authorization
+rules. A provider-native CLI and `hailp` are alternative API clients, not
+distinct signing authorities or bypasses around server validation.
+
+The intended account surface covers signup/preparation and signed onboarding,
+account/public-key/custody status, credentials, Grants, sending and inbox/reply
+operations, delivery status, binding renewal and the transfer ceremony.
+Credential/session details and endpoint paths must be designed before exposing
+these operations. Start with one complete authenticated slice and reuse
+existing domain services; do not duplicate business logic in HTTP handlers or
+CLI commands. Keep narrow administrative/migration tools for operator work,
+but distinguish them from normal client tools.
+
+This architecture does not force every Hail provider to implement identical
+client API paths. Federation remains the interoperable protocol boundary;
+the reference provider should expose a coherent documented client API, with
+its CLIs as first-party examples. Cross-provider management-API standardization
+is a separate decision, not implied by API-first operation.
+
+### Implementation sequence and acceptance
+
+1. **Authenticated owner-controlled account slice:** account-scoped
+   credentials/session handling, current account/custody status and signed
+   Grant submission/revocation through HTTP, exercised by a remote CLI. Require
+   valid user signatures, exact retries, existing fences and ownership checks.
+2. **Managed onboarding:** explicit profile selection, provider-generated
+   identity/operational keys and owner-generated top recovery authority.
+   Verify owner-signed exact genesis, custody disclosures and independent
+   recovery/monitor prerequisites before production activation. Test that the
+   provider never obtains the owner's recovery private key.
+3. **Managed Grant lifecycle:** authorize management requests, reuse the
+   identity signer, revision chain and outbox, and enforce account isolation.
+   Test creation/revocation by human and agent clients, denied permissions,
+   concurrency/restart recovery and absence of owner-controlled fallback.
+4. **Normal app/agent operation:** expose sending, inbox/replies, status and
+   signed binding renewal through the same authenticated surface. Test the
+   appropriate offline/expiry behaviors for each custody profile.
+5. **Custody change and managed migration:** design/test the explicit authority
+   rotation, historical evidence and fenced state transition before enabling it.
+   Existing owner-controlled transfer proof is not managed-transfer proof.
+
+The current server already exposes federation and transfer HTTP routes, but
+does not have this comprehensive authenticated account API. Current onboarding,
+Grant authoring/import, body/envelope authoring and several ceremony steps are
+operator CLI/service building blocks. Current Hail client tools are reference
+signing/test drivers, not a completed remote account-management CLI. Existing
+fully custodial Alice/Bob accounts likewise do not implement the preferred
+owner-recovery managed profile. This section records the next implementation
+milestones; it does not change the live deployment or custody of those accounts.
+
+## Signed Revocation And Custody
+
+```text
+Custodial:
+user request -> provider authenticates account -> provider signs revocation
+             -> provider commits enforcement and queues sender notification
+
+User-held:
+user device signs exact revocation -> provider verifies user signature
+             -> provider commits enforcement and queues sender notification
+```
+
+For owner-controlled accounts, the current implementation is **user-device-signed
+revocation**, using the existing Grant representation and revision chain. The
+old custodial authoring command is not a requirement to give a portable
+account's identity key to a provider.
+The client verifies the prior signed Grant and the reviewed relationship,
+increments its revision, binds the exact predecessor digest, preserves its
+parties/scope/expiration/consent and signs `status: revoked`. The current
+provider verifies current identity authority and commits the terminal revision
+with its publication job atomically. New acceptance stops at that commit;
+previously accepted messages retain their delivery responsibility.
+
+Revocation requires neither sender cooperation nor live sender address/profile
+discovery. It can revoke an expired Grant. Provider availability and current
+grantor-authority verification are still required to commit it. Signed retries
+reuse exact bytes; stale or conflicting predecessors cannot overwrite the
+chain. See [Grant revision and revocation rules](../spec/grants.md#revisions).
+
+Other approaches discussed, but not selected for this implementation:
+
+- A user-chosen external signer can remain available while personal devices
+  are offline. It avoids Hail-provider custody but introduces another signing
+  service's custody/trust and availability assumptions; it is not automatically
+  equivalent to on-device self-custody.
+- Pre-signed revocation revisions bind to one predecessor and can become
+  unusable after a Grant update or identity-key rotation. They are not the
+  default renewal/revocation mechanism.
+- Revocation-only delegation could restrict a delegate to stopping permission,
+  without creating or expanding it, but would require new protocol and
+  verification rules. Current v0 requires the identity signature.
+
+**No optional account-login-only blocking feature is included in this plan.**
+The selected user-facing revocation workflow remains signature-based in both
+custody profiles; managed signing is not unsigned local blocking.
+
+## Offline Operation And Signing Requirements
+
+This table describes **owner-controlled identity custody**. For the preferred
+managed profile, the provider can supply identity signatures for authorized
+Grant changes and binding renewal while the owner's signer is unavailable;
+owner-recovery operations still need owner authority. That convenience comes
+with provider-controlled consent signing, not the portable profile's guarantee.
+
+User-held keys do not require a person or browser to remain online for routine
+messaging. Providers execute already authorized work with their own operational
+keys and retain durable retry responsibility. Fresh consent or identity
+decisions require a user-controlled signer. The table assumes **all** such
+signers are unavailable; an online independent signer is a separate trust
+choice, not permission to fall back to provider custody.
+
+| Operation | Can continue without a user-controlled signer? | Authority / condition |
+| --- | --- | --- |
+| Receive messages under an existing Grant | Yes | Existing permission remains valid, unexpired and unrevoked |
+| Deliver accepted or queued work and report status | Yes | Provider operational keys; existing authorization and signed deadlines still apply |
+| Send authorized messages or invited replies | Yes | Provider `#hail-messaging`; account/application authorization and the peer's Grant or reply capability are still required |
+| Publish/update a Sender Profile | Yes, cryptographically | Provider messaging signature; new offered categories do not expand anyone's Grants |
+| Retry publication of signed Grants/revocations | Yes | Retained exact signed bytes; no fresh consent is manufactured |
+| Monitor PLC changes and deliver/queue alerts | Yes | Monitor's own signing key and durable state; alert delivery depends on its receiver/network, and recovery still needs user recovery authority |
+| Enforce Grant expiration | Yes | Existing signed constraint; the provider cannot extend it silently |
+| Create a Grant, expand scope or renew expiration | No | Fresh user identity-signed revision; general active-update tooling remains future work |
+| Create a signed revocation | No | User identity signature; enforcement and notification continue without the signer after commit |
+| Renew an Address Binding | No | Fresh identity signature; renewal workflow remains a product requirement |
+| Initiate/approve transfer or identity recovery | No | Reviewed user signatures; backend execution/retries may continue after all required exact artifacts are durably submitted |
+
+This classifies required signing authority, not a claim that every scheduling,
+profile-editing or key-management user interface is implemented. Offline
+operation never authorizes new arbitrary account actions. Transfer availability
+must also be considered before fencing: an initial Transfer Grant does not
+replace the later review/signature of the exact snapshot and PLC cutover.
+
+### Convenient signing without provider custody
+
+The day-to-day identity key can be protected by a user-device keystore, with
+device unlock or biometric approval rather than repeated raw-key handling.
+The PLC recovery key is separate offline authority. A passkey may authenticate
+the user or unlock vault material, but a WebAuthn credential must not be assumed
+to produce Hail's arbitrary raw Ed25519 signatures. The current reference vault
+unlocks both user keys together; its [identity-only unlock follow-up](#reference-vault-follow-up-identity-only-unlocking)
+is required before production.
+
+### Grant lifetime and offline subscriptions
+
+The POC `poc:grant-propose` command currently selects **seven days**. That is
+a test-driver default, not a protocol requirement. Ongoing subscriptions may
+use `expires_at: null`, subject to recipient policy, and continue without
+periodic signatures until revoked. Transactional permissions can deliberately
+expire. An expiring Grant cannot be renewed silently by a user-held-key
+provider; a higher signed revision is needed. Product lifetime defaults and
+renewal UX must be chosen explicitly. See [Grant expiration](../spec/grants.md#expiration).
+
+## Address Binding Expiration And Renewal
+
+An Address Binding combines two assertions:
+
+1. The address domain selects the address-to-DID mapping through current
+   WebFinger publication.
+2. The DID owner authorizes that association with an identity signature.
+
+Live domain publication can change, but a signature does not become invalid
+merely because the user left a provider. Expiration limits reuse of the
+existing signed consent. For example, after moving from
+`alice@old-provider.example` to another provider while retaining the same DID
+and identity key, an uncooperative old domain could keep publishing the
+original signed binding. Its expiration bounds that claim; the old provider
+cannot extend the signed date without fresh signing authority. Expiration
+does not give the user ownership of the old provider's namespace.
+
+Live WebFinger verification and caching solve a different problem. The
+current rules check domain publication and current DID identity authority and
+cache successful discovery for at most one hour, further bounded by signature
+expiration and HTTP freshness. That handles honest withdrawal/reassignment.
+Signature expiration additionally bounds a domain that keeps publishing old,
+otherwise-valid signed evidence. It is not a complete defense against an
+actively compromised domain or identity key: possession of the private
+identity key can permit new signatures until that authority is removed.
+
+**The 90-day maximum is a Hail policy limit, not a cryptographic necessity.**
+The POC signs bindings for that maximum lifetime. It balances stale-consent
+exposure against renewal friction; the current specification still requires
+bounded expiration. This planning discussion does not change that rule.
+
+| Policy considered | Tradeoff | Current decision |
+| --- | --- | --- |
+| Bounded expiration | Simple verification; periodic user-controlled signing required | Retain the current rule and document renewal as a product requirement |
+| Longer lifetime | Less renewal friction; longer reuse of old signed associations | Possible future policy review, not implemented/spec-changed here |
+| Explicit revocation/current-consent state instead of expiration | Could avoid periodic renewal, but needs trustworthy discovery even when the old domain is uncooperative | New mechanism is not specified; do not treat live WebFinger alone as its replacement |
+
+A usable production account therefore needs user-signed binding renewal,
+advance expiry reminders and safe publication/retry handling. The provider
+cannot edit an existing signature's expiration. A user-controlled signer could
+perform narrowly approved same-association renewal, but any background signing
+policy needs explicit design and must not silently delegate identity custody
+to the Hail provider. This is a follow-up, not an existing automatic feature.
+
+An expired binding makes the **address association unverified**. It does not
+expire the DID, revoke existing Grants, delete messages or transfer relationships
+to a new address holder. Established delivery is DID-based and does not
+re-resolve a human-readable address for every message. Address discovery and
+new consent still need valid address evidence. See the
+[binding lifetime](../spec/address-binding.md#binding-payload),
+[cache](../spec/address-binding.md#caching) and
+[delivery](../spec/address-binding.md#grant-and-delivery-behavior) rules.
+
+## Verification And Follow-Up Plan
+
+Before claiming that split custody works as a complete product:
+
+1. **Prove offline routine operation.** After initial user authorization, make
+   the user signer unavailable and ensure the provider has no user private-key
+   material. Exercise delivery, queued sending, status reporting and signed
+   publication retries, then restart the providers and repeat. Valid permission,
+   peer availability and signed deadlines remain prerequisites.
+2. **Prove signing-role boundaries.** Reject messaging-key signatures for Grants
+   and Address Bindings, unauthorized identities, altered consent and stale/forked
+   predecessors. Missing user signatures must never trigger a custodial fallback.
+3. **Separate identity unlocking from PLC recovery.** Add the identity-only
+   signing path and verify that ordinary Grant creation/revocation never decrypts
+   or loads the PLC recovery key. Retain explicit reviewed recovery/transfer
+   unlocking and convenient user-device identity-key protection.
+4. **Exercise expiration and renewal.** Test unavailable signers, expired
+   Grants/bindings, valid identity-signed renewal, stale/conflicting revisions,
+   publication failure and exact retries across restart. Implement/document
+   binding renewal/reminders and choose subscription lifetime defaults; general
+   active Grant renewal and historical-key reconciliation remain separate work.
+5. **Retain revocation guarantees.** Commit local enforcement and the outbox
+   atomically; test offline senders, expired Grants, exact/concurrent retries,
+   acceptance-versus-revocation ordering, migration fences and collocated roles.
+   Already accepted work remains durable, and a sender notification failure
+   cannot reactivate permission or delay enforcement.
+6. **Prove independent recovery before production.** Verify second-device
+   restoration, independently controlled monitor alerts/coverage and recovery
+   from an unwanted lower-priority PLC operation within its recovery window.
+   Same-VPS monitor and same-device vault tests do not establish those guarantees.
+
+The local user-signed revocation changes have passed provider/client checks,
+including exact CLI retries and PostgreSQL custody/fence/collocation tests.
+Existing message-continuity and monitor demonstrations supply additional POC
+evidence. They do not close the identity-only unlock, renewal or independent
+recovery follow-ups, or imply that newly added tooling is already deployed.
 
 ## Portable Transfer Ceremony
 
@@ -432,6 +816,18 @@ managed backup or a reviewed onboarding UX. These remain requirements for
 production portable custody, not requirements that every future mobile client
 use the reference vault-file representation.
 
+### Reference vault follow-up: identity-only unlocking
+
+The current reference client's `unlockUserVault()` decrypts and loads **both**
+user keys together. Routine Grant creation and revocation sign only with
+`#hail-identity`, but also load the top PLC recovery key into memory. This is
+a reference-vault limitation, not the intended production custody behavior.
+Before production, separate convenient identity-only signing/unlocking from
+explicit PLC recovery/transfer unlocking, as required by
+`spec/account-onboarding.md#user-key-storage-and-recovery`. Neither path may
+disclose user private keys to a provider. Track second-device recovery and
+provider-independent backup verification separately.
+
 The public POC's private-directory DIDs, custodial identity keys and shared
 host cannot by themselves demonstrate these production guarantees. Keep the
 production mode fail-closed until its prerequisites and recovery policy are
@@ -450,9 +846,12 @@ specified, reviewed and verified end to end.
 2. **User-controlled client and recovery.** Complete the reference desktop/Bun
    client and verify its backup recovery on a second device. The
    provider-local signature verifier is implemented; a user-owned signing and
-   recovery product is not. The current Grant and onboarding authoring CLIs
-   still rely on provider-held identity/recovery keys, so they must be
-   replaced or supplemented before a portable account can use all operations.
+   recovery product is not. Private-PLC user-device onboarding, initial Grant
+   signing and terminal revocation tooling supplement the original custodial
+   CLIs without giving providers user private keys. General active Grant
+   updates, historical-key reconciliation and production onboarding remain
+   separate work; identity-only unlocking and second-device recovery still
+   need production proof.
 3. **Monitor independence and mirrors.** The user chose a separate user-run
    host for independent monitoring. Select actual independent mirror
    operators, authenticate their read/attestation endpoints, handle
