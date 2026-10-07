@@ -152,7 +152,8 @@ CLI, database credentials or direct database writes.
 **CLI name:** use `hailp` for the Hail-provided executable (`p` for Protocol),
 avoiding the existing unrelated `hail` agent calling/text/email tool. Hail
 Protocol is the project name; `hailp` is its reference account CLI. The unified
-executable is planned, not yet implemented by the current reference scripts.
+executable now implements the first account/Grant API slice in the reference
+client. The wider account surface and managed profile remain later milestones.
 
 ```text
 human app / agent / native CLI / hailp
@@ -200,6 +201,10 @@ is a separate decision, not implied by API-first operation.
    credentials/session handling, current account/custody status and signed
    Grant submission/revocation through HTTP, exercised by a remote CLI. Require
    valid user signatures, exact retries, existing fences and ownership checks.
+   The first slice is locally implemented: `hailp account show`, `grant show`,
+   `grant submit` and `grant revoke` use `/api/v1/account` over HTTPS. Scoped
+   credentials are bootstrapped/revoked by provider operators for existing
+   active accounts; self-service login and signup are not completed by this slice.
 2. **Managed onboarding:** explicit profile selection, provider-generated
    identity/operational keys and owner-generated top recovery authority.
    Verify owner-signed exact genesis, custody disclosures and independent
@@ -216,11 +221,17 @@ is a separate decision, not implied by API-first operation.
    rotation, historical evidence and fenced state transition before enabling it.
    Existing owner-controlled transfer proof is not managed-transfer proof.
 
-The current server already exposes federation and transfer HTTP routes, but
-does not have this comprehensive authenticated account API. Current onboarding,
-Grant authoring/import, body/envelope authoring and several ceremony steps are
-operator CLI/service building blocks. Current Hail client tools are reference
-signing/test drivers, not a completed remote account-management CLI. Existing
+The current server exposes federation/transfer routes and the authenticated
+account/signed-Grant slice. It does not yet have the comprehensive account API.
+Onboarding, initial Grant proposals, body/envelope authoring and several
+ceremony steps still use operator CLI/service building blocks. `hailp` is a
+working remote client for the first slice, alongside reference signing tools,
+not the complete signup/messaging/renewal CLI. See the
+[provider account API guide](https://github.com/j4crev/hail-server-ts#hailp-account-api)
+and [CLI usage](https://github.com/j4crev/hail-user-client-ts#hailp-account-cli).
+Migration 32 and token records are provider-local; raw credentials never enter
+portable snapshots. The new slice requires a separate rollout before use on
+the live POC. Existing
 fully custodial Alice/Bob accounts likewise do not implement the preferred
 owner-recovery managed profile. This section records the next implementation
 milestones; it does not change the live deployment or custody of those accounts.
@@ -410,8 +421,11 @@ Before claiming that split custody works as a complete product:
    from an unwanted lower-priority PLC operation within its recovery window.
    Same-VPS monitor and same-device vault tests do not establish those guarantees.
 
-The local user-signed revocation changes have passed provider/client checks,
+The local user-signed revocation and first authenticated `hailp` slice have passed provider/client checks,
 including exact CLI retries and PostgreSQL custody/fence/collocation tests.
+The account API proof additionally exercises real HTTPS CLI processes,
+credential hashing/scopes/expiry/revocation, account isolation and lost-response
+recovery without handing user keys to the provider.
 Existing message-continuity and monitor demonstrations supply additional POC
 evidence. They do not close the identity-only unlock, renewal or independent
 recovery follow-ups, or imply that newly added tooling is already deployed.
