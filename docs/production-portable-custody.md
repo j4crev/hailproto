@@ -134,8 +134,10 @@ key verification must remain consistent. The current portable snapshot path
 rejects provider-held identity keys and cannot be bypassed by changing a custody
 flag. Owner recovery is useful authority, not a completed migration guarantee.
 
-The managed production profile is an approved **design direction**, not an
-implemented or deployed feature. The current
+The managed production profile is an approved **design direction**. A local
+private-PLC prototype now implements explicit managed identity with owner-held
+recovery, self-service signup and signed Grant operations. It is not a
+deployed production profile. The current
 [onboarding draft](../spec/account-onboarding.md#production-portable-custody-profile)
 requires portable support and explicitly describes all-key custody only in its
 POC profile. A managed-profile specification/conformance update is required
@@ -153,7 +155,9 @@ CLI, database credentials or direct database writes.
 avoiding the existing unrelated `hail` agent calling/text/email tool. Hail
 Protocol is the project name; `hailp` is its reference account CLI. The unified
 executable now implements the first account/Grant API slice in the reference
-client. The wider account surface and managed profile remain later milestones.
+client. The local CLI now also supports private-PLC signup for both custody
+choices, credential management, Grant creation/listing, sending, inbox and
+invited replies. Public provenance and managed migration remain later milestones.
 
 ```text
 human app / agent / native CLI / hailp
@@ -201,10 +205,11 @@ is a separate decision, not implied by API-first operation.
    credentials/session handling, current account/custody status and signed
    Grant submission/revocation through HTTP, exercised by a remote CLI. Require
    valid user signatures, exact retries, existing fences and ownership checks.
-   The first slice is locally implemented: `hailp account show`, `grant show`,
-   `grant submit` and `grant revoke` use `/api/v1/account` over HTTPS. Scoped
-   credentials are bootstrapped/revoked by provider operators for existing
-   active accounts; self-service login and signup are not completed by this slice.
+   The local CLI includes account/Grant reads, owner signing, managed Grant
+   operations, scoped credential creation/revocation and messaging/inbox/replies.
+   Migration 33 adds explicitly enabled private-PLC self-service signup for both
+   custody profiles. Credential rotation uses existing authenticated access;
+   expired-token recovery/login and public-PLC onboarding are not implemented.
 2. **Managed onboarding:** explicit profile selection, provider-generated
    identity/operational keys and owner-generated top recovery authority.
    Verify owner-signed exact genesis, custody disclosures and independent
@@ -222,19 +227,23 @@ is a separate decision, not implied by API-first operation.
    Existing owner-controlled transfer proof is not managed-transfer proof.
 
 The current server exposes federation/transfer routes and the authenticated
-account/signed-Grant slice. It does not yet have the comprehensive account API.
-Onboarding, initial Grant proposals, body/envelope authoring and several
-ceremony steps still use operator CLI/service building blocks. `hailp` is a
-working remote client for the first slice, alongside reference signing tools,
-not the complete signup/messaging/renewal CLI. See the
+account, Grant and messaging surface. `hailp` now offers API-driven Grant
+creation/listing, credential management, sending, inbox reads, invited replies
+and opt-in private-PLC signup with owner-controlled or explicit managed identity.
+The top recovery key stays owner-controlled in both new signup modes.
+Renewal, public signup, expired-credential recovery and managed migration are
+not completed by this local POC. See the
 [provider account API guide](https://github.com/j4crev/hail-server-ts#hailp-account-api)
 and [CLI usage](https://github.com/j4crev/hail-user-client-ts#hailp-account-cli).
-Migration 32 and token records are provider-local; raw credentials never enter
+API credentials remain provider-local; raw credentials never enter
 portable snapshots. The new slice requires a separate rollout before use on
 the live POC. Existing
 fully custodial Alice/Bob accounts likewise do not implement the preferred
 owner-recovery managed profile. This section records the next implementation
 milestones; it does not change the live deployment or custody of those accounts.
+The [CLI workflow guide](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/cli-workflows.md)
+records signup state, stable message-ID retries, per-sender inbox selection,
+explicit managed signing, credential scope inheritance and current limits.
 
 ## Signed Revocation And Custody
 
