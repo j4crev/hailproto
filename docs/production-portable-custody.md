@@ -134,6 +134,15 @@ key verification must remain consistent. The current portable snapshot path
 rejects provider-held identity keys and cannot be bypassed by changing a custody
 flag. Owner recovery is useful authority, not a completed migration guarantee.
 
+The reference client's [milestone-5 transition design](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/custody-transitions.md)
+now specifies owner-controlled ↔ managed custody changes, managed moves with
+fresh destination identity authority, immutable historical evidence and proposed
+serving-generation separation for return transfers. It also distinguishes
+never-active abandonment with protective owner-signed PLC state from an active
+destination's latest-state reverse transfer. These are implementation-design
+decisions, not enabled execution or a managed-profile specification amendment;
+historical-key reconciliation and positive return/recovery proofs remain gates.
+
 The managed production profile is an approved **design direction**. A local
 private-PLC prototype now implements explicit managed identity with owner-held
 recovery, self-service signup and signed Grant operations. It is not a
