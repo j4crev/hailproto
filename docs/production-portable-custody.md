@@ -152,6 +152,11 @@ requires portable support and explicitly describes all-key custody only in its
 POC profile. A managed-profile specification/conformance update is required
 before claiming its production guarantees.
 
+Milestone 7 now has a [managed-profile v1 draft](../spec/managed-custody.md) with
+explicit key/owner authority, onboarding/retry rules and MC-01–MC-14 conformance
+cases. It is a candidate specification, not completed independent production
+evidence; public activation and identity-changing execution remain gated.
+
 ## API-First Provider And CLI Clients
 
 **Approved architecture:** the reference provider is API-driven by default.

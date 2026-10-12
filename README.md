@@ -43,6 +43,8 @@ The repository includes TypeScript and Go reference codecs, shared conformance v
 - [`packages/hail-codec-go`](packages/hail-codec-go): Independent Go reference codec and cross-language conformance implementation.
 - [`spec/core-delivery.md`](spec/core-delivery.md): Core grant-authorized delivery flow.
 - [`spec/account-onboarding.md`](spec/account-onboarding.md): New and existing DID registration, portable key custody, address activation, and onboarding failure handling.
+- [`spec/managed-custody.md`](spec/managed-custody.md): Draft managed-identity v1 custody, owner authority and production conformance gates.
+- [`spec/plc-read-evidence.md`](spec/plc-read-evidence.md): Candidate current-read agreement, reviewed monitor bootstrap and v2 coverage evidence.
 - [`spec/address-binding.md`](spec/address-binding.md): Human-readable address-to-DID binding.
 - [`spec/did-profile.md`](spec/did-profile.md): PLC identity, Hail key roles, resolution, recovery, and service entry.
 - [`spec/sender-profile.md`](spec/sender-profile.md): Signed sender metadata and category manifest.

@@ -97,6 +97,11 @@ It does not sign routine Hail Envelopes or delivery receipts.
 
 The identity key represents the DID controller's consent. The production portable custody profile requires it to be controlled by the user or organization and unavailable in plaintext to the provider. An isolated POC may use disclosed provider custody under [account-onboarding.md](account-onboarding.md), but that is a weaker trust model and does not conform to production portable custody.
 
+The draft [Managed Identity Custody Profile v1](managed-custody.md) separately
+specifies explicit provider identity custody with owner-held top recovery and
+its conformance gates. It preserves these Hail key roles/formats and does not
+claim portable identity custody or resolve the production policies below.
+
 ## Hail Messaging Key
 
 The verification method with fragment `#hail-messaging` authorizes routine Hail protocol operations.
@@ -423,6 +428,12 @@ Implementations must validate the signer DID, full `key_id`, controller, expecte
 PLC resolution contacts only configured directory or mirror origins. Hail clients still need DNS rebinding, private-network, redirect, timeout, and response-size protections when contacting the resolved Hail service endpoint.
 
 ## Before Production
+
+The candidate [PLC Read Evidence Policy v1](plc-read-evidence.md) implements a
+strict current-read/cutover subset and reviewed monitor bootstrap. It leaves
+routine production enforcement, complete retained historical evidence and
+independent cross-host proof open; the four requirements below are not marked
+complete by the reference fixture checks.
 
 The POC may use the simplified trust and cache behavior defined above. Production onboarding custody, backup, monitoring, and public write-registry selection are defined in [account-onboarding.md](account-onboarding.md). A production Hail profile must still resolve all four requirements below:
 

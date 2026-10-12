@@ -76,6 +76,11 @@ An isolated development or test network may use a configured local PLC directory
 
 A production-conforming provider must support the portable custody profile.
 
+The optional [Managed Identity Custody Profile v1](managed-custody.md) is a draft
+milestone-7 candidate with separate owner-recovery/provider-identity custody and
+conformance cases. It does not replace portable support or establish reviewed
+production activation, finality or managed-migration guarantees.
+
 The initial authority order is:
 
 ```text
