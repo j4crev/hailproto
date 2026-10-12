@@ -116,8 +116,12 @@ for implementation sequence and proof requirements. A final transition must:
   no bearer credentials or provider/client private keys to the destination.
 
 The current stable-owner portable transfer proof is not a managed migration
-proof. Identity-changing execution remains disabled while historical authority,
-reconciliation and positive managed-transition proof are unresolved.
+proof. The reference provider implements both same-provider custody directions
+for acknowledged authoritative Grant predecessors, with fresh intended-party
+identity, exact owner approvals and atomic custody/generation cutover. An owner
+return never exports the provider key or promotes the unused managed-vault key.
+Unacknowledged/nullified history and cross-provider managed execution remain
+disabled pending equivalent proof.
 
 ## Conformance cases and acceptance evidence
 

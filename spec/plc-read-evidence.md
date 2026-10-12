@@ -73,11 +73,26 @@ bytes. Stale/mixed/mismatched proof rolls back the received row, reply claim and
 delivery-work enqueue. Duplicate accepted representations keep their original
 bindings; newly read evidence does not rewrite accepted history.
 
-This is the first action-bound routine consumer. Other services receive strict
-fresh resolutions and retain their read bundles, but their action-specific
-bindings still need implementation. Provider-local immutable authority history is
-not yet included in the existing signed v2 portable snapshot; a separately reviewed
-history/export profile is required before claiming cross-host proof preservation.
+Grant revisions, Address Bindings, Sender Profiles and Delivery Status wrappers
+also retain action-specific links to their exact strict-public decisions. Portable
+migration snapshot v3 carries the account-scoped envelope, Grant and signing links
+plus exactly the resolution bundles they reference. The destination validates that
+every link belongs to the transferred account and exact signed representation, that
+every bundle digest and subject agrees, and that no resolution bundle is dangling.
+The history stays source-attributed inside the signed snapshot; it is not refreshed
+or inserted as destination authority for a new action. Retained v2 snapshots remain
+valid for exact retries but contain no authority-history domain and therefore are
+not new cross-host preservation evidence.
+
+Snapshot v3 uses `hail-migration-snapshot-v3\0 || SHA-256(manifest_bytes)` as
+its source-messaging-key signature input. Its closed table domain extends v2
+with `public_plc_resolution_evidence`, `public_envelope_authority_evidence`,
+`public_grant_authority_evidence` and `public_signing_authority_evidence`.
+Resolution rows are included if and only if an exported action link references
+their digest. The outer transfer container and manifest carry the same version;
+a mismatch is invalid. Version 2 continues to use its original v2 signature
+domain and closed table set.
+
 Archived reads never become authorization for a later action simply by refreshing
 their timestamps. Migration 41 fabricates no old proof and refuses rollback after
 any new resolution/action evidence exists.
