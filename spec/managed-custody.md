@@ -1,9 +1,14 @@
 # Hail Managed Identity Custody Profile v1
 
-Status: Draft candidate — milestone 7 specification/conformance work. This is not
-a reviewed production release or permission to enable public registration. The
+Status: Frozen reference profile v1 — private-fixture review completed October 13,
+2026. This is not permission to enable public registration; deployment and
+public-environment gates remain. The
 identifier `hail-managed-custody-v1` names this custody profile, not a new Hail
 wire object, COSE algorithm, account API or PLC operation format.
+
+The v1 requirements and conformance IDs are frozen. A semantic change requires a
+new profile identifier; editorial clarifications may not weaken an existing case.
+The reviewed evidence map is [managed-custody-conformance-v1.md](managed-custody-conformance-v1.md).
 
 The [onboarding profile](account-onboarding.md) remains the baseline. A production
 provider must continue to support portable owner-controlled custody. Managed v1

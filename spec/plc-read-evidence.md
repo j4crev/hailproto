@@ -1,12 +1,16 @@
 # PLC Read Evidence Policy v1
 
-Status: Draft candidate, milestone 7. This defines the next reference verification
-slice, not completed production federation or reviewed historical-object authority.
+Status: Frozen reference policy v1 — private-fixture review completed October 13,
+2026. This defines the reference verification slice, not completed production
+federation or reviewed historical-object authority.
 It preserves PLC/Hail object formats and the canonical `https://plc.directory`
 write registry. Independent deployment, operator trust and recovery evidence
 remain required; local tests cannot establish administrative independence.
 Reference monitor coverage has a separately versioned v2 representation below;
 this does not change existing Hail COSE objects or portable snapshot formats.
+The policy identifier is `hail.plc-read-evidence-v1`; semantic changes require a
+new identifier. Retained records name this policy separately from their own record
+version, registry authority profile and custody profile.
 
 ## Read agreement and authority
 
