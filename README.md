@@ -8,9 +8,9 @@ The project aims to support beautiful messages, independent providers, portable 
 
 ## Status
 
-Hail is in the protocol design and prototype phase. Two HTTPS-exposed TypeScript providers on one VPS use a private PLC directory. The POC implements onboarding, address discovery and activation, signed Sender Profiles, Grant publication/revocation, detached-body delivery, signed terminal status and single-use replies. Fresh user-key-held identities have completed provider transfers, including delivery of a pending message exactly once after cutover. A user-key reference CLI and a same-VPS PLC monitor also run through tested onboarding/transfer and signed-alert workflows.
+Hail is a working private-network POC approaching its first release. Two HTTPS TypeScript providers use a private PLC directory. The reference server, `hailp` client and monitor cover owner-controlled and managed custody, onboarding, Grants, messaging, recovery and exact-retry `A → B → A` provider migration while preserving accepted state and fencing stale workers and credentials.
 
-This is an isolated POC, not public Hail federation or a production client. The original Alice/Bob accounts remain custodial; newer identities use user-held recovery/identity keys. The same-VPS monitor proves functionality, not independence. Public `plc.directory` rollout, independent monitoring/mirrors and second-device recovery remain outstanding. See the [current POC status](docs/typescript-backend-poc.md#current-poc-status-october-6-2026) and [portable-custody boundary](docs/production-portable-custody.md).
+This is not yet public Hail federation. The strict-public runtime exists but remains disabled, and no production identity has been written to `plc.directory`. Remaining gates cover deployed reader/monitor proof, operational key and backup controls, cross-host restoration, blocked-history recovery, abandonment and load limits before one permanent public canary. See the [production gate checklist](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/custody-transitions.md#production-enablement-required-versus-deferrable) and [portable-custody boundary](docs/production-portable-custody.md).
 
 The repository includes TypeScript and Go reference codecs, shared conformance vectors, executable schema checks, diagnostic tooling and benchmarks. The intended v0 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
 
@@ -43,8 +43,8 @@ The repository includes TypeScript and Go reference codecs, shared conformance v
 - [`packages/hail-codec-go`](packages/hail-codec-go): Independent Go reference codec and cross-language conformance implementation.
 - [`spec/core-delivery.md`](spec/core-delivery.md): Core grant-authorized delivery flow.
 - [`spec/account-onboarding.md`](spec/account-onboarding.md): New and existing DID registration, portable key custody, address activation, and onboarding failure handling.
-- [`spec/managed-custody.md`](spec/managed-custody.md): Draft managed-identity v1 custody, owner authority and production conformance gates.
-- [`spec/plc-read-evidence.md`](spec/plc-read-evidence.md): Candidate current-read agreement, reviewed monitor bootstrap and v2 coverage evidence.
+- [`spec/managed-custody.md`](spec/managed-custody.md): Frozen managed-identity v1 custody, owner authority and production conformance gates.
+- [`spec/plc-read-evidence.md`](spec/plc-read-evidence.md): Frozen v1 read agreement, reviewed monitor bootstrap and v2 coverage evidence.
 - [`spec/address-binding.md`](spec/address-binding.md): Human-readable address-to-DID binding.
 - [`spec/did-profile.md`](spec/did-profile.md): PLC identity, Hail key roles, resolution, recovery, and service entry.
 - [`spec/sender-profile.md`](spec/sender-profile.md): Signed sender metadata and category manifest.
@@ -53,6 +53,12 @@ The repository includes TypeScript and Go reference codecs, shared conformance v
 - [`spec/envelopes.md`](spec/envelopes.md): Hail Envelope schema, authorization, signatures, and replay behavior.
 - [`spec/delivery-state.md`](spec/delivery-state.md): Acceptance, delivery, retries, failures, and signed status updates.
 - [`spec/http-binding.md`](spec/http-binding.md): HTTPS submission outcomes, privacy, timing, retries, and remaining wire bindings.
+
+## Related Repositories
+
+- [`hail-server-ts`](https://github.com/j4crev/hail-server-ts): TypeScript provider server, account APIs, delivery workers and custody-transfer runtime.
+- [`hail-user-client-ts`](https://github.com/j4crev/hail-user-client-ts): `hailp` reference CLI, encrypted user vault and owner-authorized onboarding, recovery and transfer workflows.
+- [`hail-plc-monitor-ts`](https://github.com/j4crev/hail-plc-monitor-ts): PLC history monitor, durable coverage and alerting, and signed onboarding/transfer attestations.
 
 ## License
 
