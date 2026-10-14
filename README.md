@@ -1,6 +1,6 @@
 # Hail Protocol
 
-Hail is a federated messaging protocol where recipients decide who can reach their inbox.
+Hail is a federated messaging protocol where recipients decide who can reach their inbox. For approved senders, that permission provides a clear, reliable path to delivery.
 
 Unlike email, knowing someone's address is not enough. A sender needs permission from the recipient — a Hail Grant — and providers can reject unauthorized traffic before accepting the message content.
 
