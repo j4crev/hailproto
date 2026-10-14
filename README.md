@@ -24,6 +24,12 @@ The repository includes TypeScript and Go reference codecs, shared conformance v
 - Federation uses open web standards where practical.
 - The protocol should remain approachable to hobbyists and independent implementers.
 
+## Related Repositories
+
+- [`hail-server-ts`](https://github.com/j4crev/hail-server-ts): TypeScript provider server, account APIs, delivery workers and custody-transfer runtime.
+- [`hail-user-client-ts`](https://github.com/j4crev/hail-user-client-ts): `hailp` reference CLI, encrypted user vault and owner-authorized onboarding, recovery and transfer workflows.
+- [`hail-plc-monitor-ts`](https://github.com/j4crev/hail-plc-monitor-ts): PLC history monitor, durable coverage and alerting, and signed onboarding/transfer attestations.
+
 ## Documentation
 
 - [`DESIGN.md`](DESIGN.md): High-level product and protocol design.
@@ -53,12 +59,6 @@ The repository includes TypeScript and Go reference codecs, shared conformance v
 - [`spec/envelopes.md`](spec/envelopes.md): Hail Envelope schema, authorization, signatures, and replay behavior.
 - [`spec/delivery-state.md`](spec/delivery-state.md): Acceptance, delivery, retries, failures, and signed status updates.
 - [`spec/http-binding.md`](spec/http-binding.md): HTTPS submission outcomes, privacy, timing, retries, and remaining wire bindings.
-
-## Related Repositories
-
-- [`hail-server-ts`](https://github.com/j4crev/hail-server-ts): TypeScript provider server, account APIs, delivery workers and custody-transfer runtime.
-- [`hail-user-client-ts`](https://github.com/j4crev/hail-user-client-ts): `hailp` reference CLI, encrypted user vault and owner-authorized onboarding, recovery and transfer workflows.
-- [`hail-plc-monitor-ts`](https://github.com/j4crev/hail-plc-monitor-ts): PLC history monitor, durable coverage and alerting, and signed onboarding/transfer attestations.
 
 ## License
 
