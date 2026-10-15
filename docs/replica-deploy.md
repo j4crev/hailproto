@@ -1,6 +1,6 @@
 # PLC Replica Deployment Plan
 
-Hail should use the official [`go-didplc` read replica](https://github.com/did-method-plc/go-didplc/tree/main/cmd/plc-replica) rather than implement a second replication engine in TypeScript. The canonical write destination remains `https://plc.directory`; replicas are read-only independent witnesses.
+Hail should use the official [`go-didplc` read replica](https://github.com/did-method-plc/go-didplc/tree/main/cmd/plc-replica) rather than implement a second replication engine in TypeScript. The canonical write destination remains `https://plc.directory`; replicas are read-only validated sources and availability fallbacks, not consensus participants.
 
 ## Phase 1 — Prove Hail Compatibility Using Existing Mirrors
 
@@ -10,11 +10,11 @@ Modify `hail-server-ts`, not the replica:
 2. Normalize relative versus absolute verification-method and service IDs.
 3. Continue deriving authority from validated `data`, `log`, and `audit`, not the rendered document.
 4. Add reader health and freshness checks using `/_health`.
-5. Fail closed on stale health, malformed timestamps, outage, or disagreement.
+5. Fail closed when no configured reader returns fresh, fully validated evidence.
 6. Add focused tests using the official replica's document shape.
 7. Add an opt-in live smoke test against `plc.wtf` and `plc.eurosky.network`.
 
-Acceptance: a Hail DID represented identically in both replicas resolves successfully; stale, conflicting, or unavailable replicas cannot authorize anything.
+Acceptance: a Hail DID resolves through either replica; stale, malformed or unavailable readers are skipped and cannot authorize anything.
 
 ## Phase 2 — Package the Official Replica for Independent Operators
 
@@ -41,9 +41,9 @@ The official replica currently has no tagged release, so pinning an audited comm
 5. Restart it and prove cursor durability and stream resumption.
 6. Record operator, origin, software commit, database mode, and backup policy.
 
-## Phase 4 — Connect Two Genuinely Independent Readers
+## Phase 4 — Configure Ordered Reader Fallback
 
-Configure `PLC_PUBLIC_READERS` with two reviewed operators:
+Configure one to three reviewed `PLC_PUBLIC_READERS` in preference order:
 
 ```dotenv
 PLC_AUTHORITY_PROFILE=strict-public-v1
@@ -52,7 +52,7 @@ PLC_PUBLIC_READERS=[{"origin":"https://reader-one.example","operator":"operator-
 PLC_PROVIDER_OPERATORS=["hail-provider-operator"]
 ```
 
-A Hail-provider-operated replica cannot count as independent from that provider. Two hostnames or regions owned by one operator also do not count as two witnesses.
+Operator declarations reject obvious same-provider or duplicate-reader mistakes but do not prove administrative independence. A Hail-provider-operated replica is still useful as a primary or fallback, but must not be described as independently operated.
 
 Existing public replicas can be used initially if their operators and operating commitments are reviewed.
 
@@ -60,7 +60,7 @@ Existing public replicas can be used initially if their operators and operating 
 
 Before public Hail activation:
 
-- Run disagreement and reader-outage exercises.
+- Run invalid-primary and reader-outage fallback exercises.
 - Stop ingestion and prove stale reads are refused.
 - Restore a snapshot and prove catch-up.
 - Confirm writes still go exclusively to `plc.directory`.

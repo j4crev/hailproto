@@ -1,61 +1,70 @@
 # PLC Read Evidence Policy v1
 
-Status: Frozen reference policy v1 — private-fixture review completed October 13,
-2026. This defines the reference verification slice, not completed production
+Status: Pre-alpha reference policy v1 — reader-authority refactor in progress.
+This defines the reference verification slice, not completed production
 federation or reviewed historical-object authority.
 It preserves PLC/Hail object formats and the canonical `https://plc.directory`
 write registry. Independent deployment, operator trust and recovery evidence
 remain required; local tests cannot establish administrative independence.
 Reference monitor coverage has a separately versioned v2 representation below;
 this does not change existing Hail COSE objects or portable snapshot formats.
-The policy identifier is `hail.plc-read-evidence-v1`; semantic changes require a
-new identifier. Retained records name this policy separately from their own record
-version, registry authority profile and custody profile.
+The pre-alpha policy identifier remains `hail.plc-read-evidence-v1`; it must be
+frozen or replaced before production. Retained records name this policy separately
+from their own record version, registry authority profile and custody profile.
 
-## Read agreement and authority
+## Read validation and authority
 
-For new public cutover authorization, query two configured, independently operated
-canonical HTTPS DNS origins. Record their reviewed operator identifiers and the
-source/destination provider operators. Reader operators must differ from each
-other and from both providers. Origins on a provider's hostname or two ports of
-the same reader hostname are not independent witnesses. These are explicit
-configuration declarations, not cryptographic proof of administrative control.
+Configure one to three ordered canonical HTTPS DNS reader origins. The first is
+the primary; later entries are availability fallbacks. Record their operator
+identifiers and the source/destination provider operators to reject obvious
+same-host or same-operator mistakes. These declarations are operational metadata,
+not cryptographic proof of administrative independence or reader participation.
 Construct readers through `createIndependentPlcObserver(origin, operator)` so
 their bounded, redirect-rejecting, credential-free transport actually uses the
 declared origin. Source registration evidence must name the canonical public
 registry; private registration and private-POC assessments cannot be relabeled.
 
-Both reads must validate the complete canonical operation log and resulting full
-state. Retrieve the complete audit, correlate every operation's DAG-CBOR CID,
+The selected read must validate the complete canonical operation log and resulting
+full state. Retrieve the complete audit, correlate every operation's DAG-CBOR CID,
 DID and directory annotation, replay acceptance and recovery using the pinned
 PLC priority/window validator, and require the computed nullifications and
 non-nullified chain to match the audit and canonical log. A head-only audit,
 changed operation under the same claimed CID, hidden canonical predecessor,
 invalid fork or conflicting state is a refusal, not a partial success.
 
-Witnesses must agree on the full canonical state/log and audit evidence, including
-nullified-operation representations and directory annotations, not only the head
-CID. Audit timestamps are directory claims used to check the PLC window; they
-are not self-authenticating creation-time or historical-acceptance proof. A
-monitor checkpoint/trusted observation cannot be replaced by timestamp matching.
+Readers do not vote on PLC state and responses from different readers are never
+combined. A failed, stale, malformed or internally inconsistent reader is skipped.
+Once a valid reader is selected, its complete bundle is retained. Later reads may
+advance retained history but cannot omit a previously observed audit operation,
+change its bytes or annotation, or reverse nullification. Audit timestamps are
+directory claims used to check the PLC window; they are not self-authenticating
+creation-time or historical-acceptance proof.
 
-No stale read cache substitutes for a missing/disagreeing witness on this path.
+No stale read cache substitutes for a valid reader on this path.
 The caller bounds transport time and response size. The reference audit validator
 caps complete histories at 1,000 entries; larger histories require a separate
 bounded pagination implementation rather than truncation. The cutover assessment
-must still be no more than 30 seconds old at activation commit. Routine production
-authorization/cache rollout is separate and must consume equivalent evidence;
-this policy does not silently replace the POC resolver for every request.
+must still be no more than 30 seconds old at activation commit. Sensitive public
+cutover additionally reads the current canonical log directly from
+`https://plc.directory` and requires its tip and resulting state to match the exact
+user-authorized operation and selected validated reader.
 
 ### Routine `strict-public-v1` authority
 
-The reference runtime now has an explicitly selected `strict-public-v1` resolver
-for ordinary HTTP/worker/operator resolution. Each call independently reads both
-configured witnesses, validates complete canonical/audit evidence, requires full
-agreement and valid distinct Ed25519 Hail roles/service, and durably retains a
-bounded verification bundle before returning keys. There is **no cross-call
-resolution cache**, outage fallback or single-reader fallback. The whole call is
-bounded at 15 seconds by default (maximum configurable constructor bound 30 seconds).
+The reference runtime has an explicitly selected `strict-public-v1` resolver for
+ordinary HTTP/worker/operator resolution. Each call tries configured readers in
+order until one returns fresh complete canonical/audit evidence with valid distinct
+Ed25519 Hail roles/service, then durably retains that bounded verification bundle
+before returning keys. There is **no cross-call resolution cache** or stale-state
+fallback. The whole call is bounded at 15 seconds by default (maximum configurable
+constructor bound 30 seconds).
+
+Reader comparison is diagnostic, not request authority. The server checks every
+configured reader's health on startup and every five minutes and emits structured
+logs on the initial result and health-state changes. When
+`PLC_READER_DIAGNOSTIC_DID` names a reviewed public Hail-profile canary, the same
+job validates each reader's complete DID evidence and reports disagreement without
+blocking routine resolution or combining responses.
 
 Current keys/endpoints are those in the agreed currently selected valid PLC state,
 including immediately current provider-signed operations that remain recoverable.
@@ -101,7 +110,7 @@ Archived reads never become authorization for a later action simply by refreshin
 their timestamps. Migration 41 fabricates no old proof and refuses rollback after
 any new resolution/action evidence exists.
 
-`PLC_AUTHORITY_PROFILE=strict-public-v1`, explicit `PLC_PUBLIC_READERS` JSON and
+`PLC_AUTHORITY_PROFILE=strict-public-v1`, one to three ordered entries in explicit `PLC_PUBLIC_READERS` JSON and
 `PLC_PROVIDER_OPERATORS` JSON select this candidate policy only with canonical
 `PLC_DIRECTORY_URL=https://plc.directory`. The existing POC profile remains the
 default. Normal server/worker/operator paths and address discovery share the
@@ -160,7 +169,7 @@ bootstrap_state_digest: unpadded base64url SHA-256 of deterministic CBOR
 export_sequence: positive safe integer, last contiguous processed sequence
 ```
 
-The provider verifies the original checkpoint is in both canonical histories
+The provider verifies the original checkpoint is in the selected validated history
 **before** the current cutover, derives its complete state from that prefix and
 requires the signed state digest to match. Missing/nullified/current-head-only
 bootstrap checkpoints require recovery classification, not implicit re-enrollment.
@@ -206,13 +215,15 @@ supervision; deployment evidence must establish those separately.
 
 The public cutover path still requires the exact staged full-state operation
 authorized by the current index-zero owner recovery key, destination key possession,
-published binding, source fence and monitor/read agreement. It may become eligible
+published binding, source fence, monitor attestation, validated reader evidence and
+direct canonical readback. It may become eligible
 without a blanket 72-hour wait. Eligibility alone does not activate an import,
-retire a source or release a fence. Any outage, disagreement or changed operation
-requires classification/recovery; there is no automatic rebasing or new signature.
+retire a source or release a fence. Exhausted readers, canonical-readback failure or
+a changed operation requires classification/recovery; there is no automatic rebasing
+or new signature.
 
 An unexpected provider-signed operation may become current immediately under PLC;
-it is not fresh owner intent merely because two directories report it. Preserve
+it is not fresh owner intent merely because a directory reports it. Preserve
 the expected checkpoint, report the change and use the validated higher-priority
 recovery procedure within 72 hours. Detection must occur within 24 hours; five-minute
 attestation freshness does not alter the PLC recovery window.
