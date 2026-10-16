@@ -1,5 +1,9 @@
 # PLC Replica Deployment Plan
 
+> Status: optional/deferred. Hail no longer requires an operated replica. The
+> strict public profile defaults to one validated canonical `/log/audit` read;
+> this plan remains available if traffic or availability later justifies a mirror.
+
 Hail should use the official [`go-didplc` read replica](https://github.com/did-method-plc/go-didplc/tree/main/cmd/plc-replica) rather than implement a second replication engine in TypeScript. The canonical write destination remains `https://plc.directory`; replicas are read-only validated sources and availability fallbacks, not consensus participants.
 
 ## Phase 1 — Prove Hail Compatibility Using Existing Mirrors
@@ -41,9 +45,10 @@ The official replica currently has no tagged release, so pinning an audited comm
 5. Restart it and prove cursor durability and stream resumption.
 6. Record operator, origin, software commit, database mode, and backup policy.
 
-## Phase 4 — Configure Ordered Reader Fallback
+## Phase 4 — Optionally Configure Ordered Reader Fallback
 
-Configure one to three reviewed `PLC_PUBLIC_READERS` in preference order:
+Without this variable, Hail reads `plc.directory` directly. To add mirrors,
+configure one to three reviewed `PLC_PUBLIC_READERS` in preference order:
 
 ```dotenv
 PLC_AUTHORITY_PROFILE=strict-public-v1
@@ -74,4 +79,5 @@ Before public Hail activation:
 - A web dashboard.
 - New checkpoint or consensus protocols.
 - Merging the monitor and replica.
-- `/export` support on the mirror. The official replica does not expose it, so `hail-plc-monitor-ts` continues consuming `plc.directory` directly.
+- `/export` support on the mirror. The monitor polls enrolled DIDs directly and
+  does not consume the global export.

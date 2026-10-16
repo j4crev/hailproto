@@ -6,7 +6,7 @@ federation or reviewed historical-object authority.
 It preserves PLC/Hail object formats and the canonical `https://plc.directory`
 write registry. Independent deployment, operator trust and recovery evidence
 remain required; local tests cannot establish administrative independence.
-Reference monitor coverage has a separately versioned v2 representation below;
+Reference monitor coverage has separately versioned v3 and onboarding-v2 representations below;
 this does not change existing Hail COSE objects or portable snapshot formats.
 The pre-alpha policy identifier remains `hail.plc-read-evidence-v1`; it must be
 frozen or replaced before production. Retained records name this policy separately
@@ -14,8 +14,9 @@ from their own record version, registry authority profile and custody profile.
 
 ## Read validation and authority
 
-Configure one to three ordered canonical HTTPS DNS reader origins. The first is
-the primary; later entries are availability fallbacks. Record their operator
+The default reader is canonical `https://plc.directory`. An operator may instead
+configure one to three ordered canonical HTTPS DNS reader origins; the first is
+the primary and later entries are availability fallbacks. Record their operator
 identifiers and the source/destination provider operators to reject obvious
 same-host or same-operator mistakes. These declarations are operational metadata,
 not cryptographic proof of administrative independence or reader participation.
@@ -24,8 +25,8 @@ their bounded, redirect-rejecting, credential-free transport actually uses the
 declared origin. Source registration evidence must name the canonical public
 registry; private registration and private-POC assessments cannot be relabeled.
 
-The selected read must validate the complete canonical operation log and resulting
-full state. Retrieve the complete audit, correlate every operation's DAG-CBOR CID,
+The selected read retrieves one complete audit, derives the canonical operation log
+and resulting full state locally, and correlates every operation's DAG-CBOR CID,
 DID and directory annotation, replay acceptance and recovery using the pinned
 PLC priority/window validator, and require the computed nullifications and
 non-nullified chain to match the audit and canonical log. A head-only audit,
@@ -33,7 +34,9 @@ changed operation under the same claimed CID, hidden canonical predecessor,
 invalid fork or conflicting state is a refusal, not a partial success.
 
 Readers do not vote on PLC state and responses from different readers are never
-combined. A failed, stale, malformed or internally inconsistent reader is skipped.
+combined. A failed, malformed or internally inconsistent reader is skipped.
+Noncanonical replicas must also expose a fresh `lastCommittedOpTime`; canonical
+directory health does not claim replica freshness.
 Once a valid reader is selected, its complete bundle is retained. Later reads may
 advance retained history but cannot omit a previously observed audit operation,
 change its bytes or annotation, or reverse nullification. Audit timestamps are
@@ -52,8 +55,9 @@ user-authorized operation and selected validated reader.
 ### Routine `strict-public-v1` authority
 
 The reference runtime has an explicitly selected `strict-public-v1` resolver for
-ordinary HTTP/worker/operator resolution. Each call tries configured readers in
-order until one returns fresh complete canonical/audit evidence with valid distinct
+ordinary HTTP/worker/operator resolution. With no `PLC_PUBLIC_READERS`, each call
+uses one bounded canonical `/log/audit` request. Otherwise it tries configured
+readers in order until one returns complete audit evidence with valid distinct
 Ed25519 Hail roles/service, then durably retains that bounded verification bundle
 before returning keys. There is **no cross-call resolution cache** or stale-state
 fallback. The whole call is bounded at 15 seconds by default (maximum configurable
@@ -110,10 +114,11 @@ Archived reads never become authorization for a later action simply by refreshin
 their timestamps. Migration 41 fabricates no old proof and refuses rollback after
 any new resolution/action evidence exists.
 
-`PLC_AUTHORITY_PROFILE=strict-public-v1`, one to three ordered entries in explicit `PLC_PUBLIC_READERS` JSON and
-`PLC_PROVIDER_OPERATORS` JSON select this candidate policy only with canonical
+`PLC_AUTHORITY_PROFILE=strict-public-v1` and `PLC_PROVIDER_OPERATORS` JSON select
+this candidate policy only with canonical
 `PLC_DIRECTORY_URL=https://plc.directory`. The existing POC profile remains the
-default. Normal server/worker/operator paths and address discovery share the
+default. Optional `PLC_PUBLIC_READERS` JSON replaces the canonical default with
+one to three ordered read sources. Normal server/worker/operator paths and address discovery share the
 factory; explicitly private-POC tools remain pinned to their private registry.
 Prototype custodial onboarding and local/public activation tools refuse the
 strict profile rather than substituting for the missing owner/monitor ceremony.
@@ -128,83 +133,78 @@ The legacy private-POC enrollment convenience is not production bootstrap proof.
 Persist the original reviewed checkpoint separately from mutable expected state.
 Approving a later operation never overwrites the bootstrap CID/state/time.
 
-A monitor using the current export protocol starts from sequence zero and completes
-contiguous backfill. An arbitrary high cursor is not a trusted checkpoint. Since
-the export has no cryptographic global checkpoint proof, no late-sequence import
-command is introduced. Future bootstrap from a high sequence must specify a
-separately trusted, independently verified export checkpoint and preservation
-proof before it can replace complete backfill.
+The monitor polls each enrolled DID's complete canonical audit instead of consuming
+the global export. Enrollment retains the first validated audit and reviewed state.
+Every later poll replays the complete audit and rejects missing or changed entries,
+reversed nullification, invalid CIDs/signatures, or a resulting state that differs
+from the approved expectation. This makes coverage DID-specific and makes no claim
+about unseen operations elsewhere in the global directory.
 
-A full export page can indicate remaining backlog. It advances the durable cursor
-but leaves `caught_up=false`; only a short/empty contiguous page establishes
-current catch-up. Enrollment never manufactures a healthy poll. Failed reads,
-gaps, invalid logs and new full pages clear readiness. A restarted monitor retains
-both cursor and readiness, and must prove fresh health before attesting. A poll
+Enrollment never manufactures a healthy poll. Failed reads and invalid or regressed
+audits clear readiness. A restarted monitor retains its per-DID audit and readiness,
+and must prove fresh health before attesting. A poll
 after more than 24 hours without healthy coverage still records the durable gap
-alert, including enrollment that never completed its initial backfill; catching
-up or delivering the alert does not erase that gap. A stopped process still needs
+alert, including enrollment that never completed its initial healthy poll; a later
+successful poll or delivered alert does not erase that gap. A stopped process still needs
 independently operated external health supervision to report loss while offline.
 
 Attestation requires approved expected state, delivered out-of-band notification,
-no recorded coverage/export/log gaps, completed backfill and a healthy poll within
+no recorded coverage/log gaps and a healthy per-DID poll within
 five minutes. Public cutover consumes a signature from the enrolled monitor key
 with an observation no older than five minutes, allowing at most 300 seconds
 future clock skew. Coverage must begin no later than the first retained cutover
 observation. This is not proof that the monitor host is independently operated;
 its key and implementation must be enrolled through the reviewed owner channel.
 
-### Reference monitor attestation v2
+### Reference monitor attestation v3
 
 Use the existing deterministic CBOR/signature record with domain separation
-`hail.independent-plc-monitor.v2\0` and Ed25519. The closed payload contains:
+`hail.independent-plc-monitor.v3\0` and Ed25519. The closed payload contains:
 
 ```text
 type: hail.plc-monitor-attestation
-version: 2
+version: 3
 did, transfer_id, operation_cid, monitor_origin
 coverage_since, observed_at: nonnegative Unix seconds
 bootstrap_cid: original reviewed operation CID
 bootstrap_state_digest: unpadded base64url SHA-256 of deterministic CBOR
                         encoding of the complete reviewed PLC DocumentData
-export_sequence: positive safe integer, last contiguous processed sequence
 ```
 
 The provider verifies the original checkpoint is in the selected validated history
 **before** the current cutover, derives its complete state from that prefix and
 requires the signed state digest to match. Missing/nullified/current-head-only
 bootstrap checkpoints require recovery classification, not implicit re-enrollment.
-The export sequence is a trusted monitor assertion, not a cryptographic directory
-checkpoint or independently verified global height. Freshness and full-backfill
-checks remain required even for valid v2 signatures.
+Fresh per-DID polling and retained-history checks remain required even for valid v3
+signatures.
 
-V1 retains its original `hail.independent-plc-monitor.v1\0` context and closed
+V1 and v2 retain their original contexts and closed
 eight-field payload for legacy/POC verification. The public gate rejects v1;
-existing enrollments are not automatically stamped as reviewed or upgraded to v2.
-The monitor emits v2 only when a retained reviewed bootstrap exists. New reviewed
+existing enrollments are not automatically stamped as reviewed or upgraded to v3.
+The monitor emits v3 only when a retained reviewed bootstrap exists. New reviewed
 enrollment needs its own retained lifecycle; deleting old history to relabel an
 existing enrollment is not an upgrade workflow.
 
-### Reference onboarding monitor attestation v1
+### Reference onboarding monitor attestation v2
 
 Genesis onboarding cannot use the transfer attestation: there is no earlier
-checkpoint or transfer ID. After owner-reviewed enrollment and complete contiguous
-backfill, the monitor may sign this closed deterministic-CBOR payload with Ed25519
-and domain separation `hail.independent-plc-onboarding-monitor.v1\0`:
+checkpoint or transfer ID. After owner-reviewed enrollment and a fresh per-DID poll,
+the monitor may sign this closed deterministic-CBOR payload with Ed25519 and domain
+separation `hail.independent-plc-onboarding-monitor.v2\0`:
 
 ```text
 type: hail.plc-onboarding-monitor-attestation
-version: 1
+version: 2
 did, operation_cid, monitor_origin
 coverage_since, observed_at: nonnegative Unix seconds
 bootstrap_state_digest: unpadded base64url SHA-256 of deterministic CBOR
                         encoding of the complete reviewed genesis DocumentData
-export_sequence: positive safe integer, last contiguous processed sequence
 ```
 
 The attested operation must be both the current operation and the immutable reviewed
 bootstrap checkpoint. Expected state, current validated state and bootstrap state
-must match exactly. The monitor requires completed backfill, delivered enrollment
-notification, no recorded coverage, export or invalid-log gap, and a post-enrollment
+must match exactly. The monitor requires fresh audit coverage, delivered enrollment
+notification, no recorded coverage or invalid-log gap, and a post-enrollment
 healthy poll within five minutes. The provider
 requires an observation no older than five minutes and binds the exact attestation,
 genesis, strict read evidence and Address Binding in the activation transaction.
@@ -284,10 +284,10 @@ of independent reader/monitor administration.
 - Duplicate/noncanonical reader origins, missing/reused operator declarations,
   provider-operated readers, private registry/profile promotion and witness outage
   fail before new eligibility is stored.
-- Monitor state/checkpoint mismatch fails before enrollment; full-page backfill,
-  failed polling, stale health, future-clock anomalies and durable gaps prevent
+- Monitor state/checkpoint mismatch fails before enrollment; failed or regressed
+  polling, stale health, future-clock anomalies and durable gaps prevent
   coverage attestation, including after restart.
-- Lost responses preserve the same operation, enrollment and contiguous cursor;
+- Lost responses preserve the same operation, enrollment and retained DID audit;
   retries cannot replace expected state or clear gaps by asserting a new label.
 
 These checks implement parts of MC-07/MC-13 in [managed-custody.md](managed-custody.md).
