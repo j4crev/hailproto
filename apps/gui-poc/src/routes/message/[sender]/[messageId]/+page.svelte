@@ -1,6 +1,6 @@
 <script lang="ts">
   import RichText from "$lib/RichText.svelte";
-  let { data } = $props();
+  let { data,form } = $props();
   let delivered = $derived(new Intl.DateTimeFormat(undefined, { dateStyle: "long", timeStyle: "short" }).format(new Date(data.message.deliveredAt)));
 </script>
 
@@ -26,6 +26,16 @@
     <span>{data.message.messageId}</span>
   </footer>
 </article>
+{#if data.canReply}
+  <form class="card reply" method="POST" action="?/reply">
+    <label>Reply<textarea name="text" rows="5" maxlength="65536" required></textarea></label>
+    <label class="check"><input name="allowReply" type="checkbox" value="yes" /> Allow one reply for 7 days</label>
+    <button>Send reply</button>
+    {#if form?.error}<p role="alert">{form.error}</p>{/if}
+  </form>
+{:else if data.message.replyUntil}
+  <p class="expired">This reply invitation has expired or was already used.</p>
+{/if}
 
 <style>
   .back { display: inline-block; margin-bottom: 18px; color: #286446; font-size: 14px; font-weight: 700; text-decoration: none; }
@@ -40,5 +50,6 @@
   .body { min-height: 220px; padding: 28px 24px; font-family: ui-serif, Georgia, serif; font-size: 18px; line-height: 1.7; }
   footer { border-top: 1px solid #e7ebe8; color: #778179; font-family: ui-monospace, monospace; font-size: 11px; }
   footer span { overflow: hidden; text-overflow: ellipsis; }
+  .reply{display:grid;gap:14px;margin-top:18px;padding:22px}.reply label{display:grid;gap:7px;color:#3d4c43;font-size:13px;font-weight:750}.reply textarea{width:100%;padding:11px 12px;border:1px solid #ccd5cf;border-radius:10px;font:inherit;resize:vertical}.reply .check{display:flex;align-items:center;gap:8px}.reply .check input{width:auto}.reply button{justify-self:start;padding:10px 15px;border:0;border-radius:10px;background:#17633f;color:white;font-weight:750;cursor:pointer}.reply p,.expired{color:#852f28;font-size:13px}.expired{margin-top:16px}
   @media (max-width: 560px) { article header, footer, .body { padding-left: 18px; padding-right: 18px; } footer span { display: none; } }
 </style>

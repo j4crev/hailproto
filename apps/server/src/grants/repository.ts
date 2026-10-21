@@ -426,13 +426,7 @@ export class GrantRepository implements GrantStore {
       `;
       const lineage = lineages[0];
       if (lineage) {
-        const collocated = lineage.local_role === "grantor" ? await transaction<{
-          grantee_account_id: string }[]>`
-            SELECT grantee_account_id FROM collocated_grant_receivers
-            WHERE grant_id = ${input.payload.grant_id} FOR UPDATE` : [];
         if (
-          !(lineage.local_role === "grantee" && lineage.local_account_id === input.localAccountId ||
-            lineage.local_role === "grantor" && collocated[0]?.grantee_account_id === input.localAccountId) ||
           lineage.grantor_did !== input.payload.grantor ||
           lineage.grantee_did !== input.payload.grantee
         ) {
@@ -445,6 +439,25 @@ export class GrantRepository implements GrantStore {
           WHERE lineage.grant_id = ${input.payload.grant_id}
             AND revision.revision = ${input.payload.revision}
         `;
+        if (lineage.local_role === "grantor") {
+          if (!existing[0] || !bytesEqual(existing[0].cose, input.representation)) {
+            throw new Error("Collocated Grant must match the authoritative revision");
+          }
+          await transaction`
+            INSERT INTO collocated_grant_receivers (grant_id, grantee_account_id)
+            VALUES (${input.payload.grant_id}, ${input.localAccountId})
+            ON CONFLICT (grant_id) DO NOTHING`;
+          const collocated = await transaction<{ grantee_account_id: string }[]>`
+            SELECT grantee_account_id FROM collocated_grant_receivers
+            WHERE grant_id=${input.payload.grant_id} FOR UPDATE`;
+          if (collocated[0]?.grantee_account_id !== input.localAccountId) {
+            throw new Error("Grant parties or local ownership cannot change");
+          }
+          return { ...grantFromRow(existing[0]), localRole: "grantee", localAccountId: input.localAccountId };
+        }
+        if (lineage.local_account_id !== input.localAccountId) {
+          throw new Error("Grant parties or local ownership cannot change");
+        }
         if (existing[0]) {
           if (!bytesEqual(existing[0].cose, input.representation)) {
             throw new Error("Grant revision conflicts with previously received exact bytes");

@@ -142,8 +142,11 @@ integration("user-held authoritative Grant", () => {
       onboarding_state, activated_at, activation_binding_digest, activation_verification_mode)
       VALUES (${senderAccountId}, ${randomUUID()}, ${senderAddress}, ${senderDid},
         'active', now(), ${randomBytes(32)}, 'public')`;
-    await database.sql`INSERT INTO collocated_grant_receivers (grant_id, grantee_account_id)
-      VALUES (${proposed.grant_id}, ${senderAccountId})`;
+    const received=await grants.acceptReceivedRevision({localAccountId:senderAccountId,payload:stored.payload,
+      representation:stored.representation,digest:stored.digest,signingPublicKey:stored.signingPublicKey,
+      signingPlcEvidence:stored.signingPlcEvidence,recipientEvidence:evidence,recipientServiceBase:"https://source.example.com/hail"});
+    expect(received).toMatchObject({localRole:"grantee",localAccountId:senderAccountId});
+    expect((await grants.findReceivedForSender(proposed.grant_id,senderDid))?.localAccountId).toBe(senderAccountId);
 
     const ceremony = await mkdtemp(join(tmpdir(), "hail-user-revoke-"));
     const vaultPath = join(ceremony, "vault.json");

@@ -3,17 +3,10 @@ import { fail,isRedirect,redirect } from "@sveltejs/kit";
 import { encodeBase64Url } from "@hailproto/codec";
 import { composeBlocks } from "$lib/compose.js";
 import { canaryAccount,isConfigured } from "$lib/server/canary.js";
+import { messageId } from "$lib/server/message-id.js";
 
 const UUID7=/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const CATEGORY=/^[a-z][a-z0-9-]{0,63}$/;
-
-function uuid7() {
-  const bytes=crypto.getRandomValues(new Uint8Array(16)),now=Date.now();
-  for(let index=5,value=now;index>=0;index--){bytes[index]=value&255;value=Math.floor(value/256);}
-  bytes[6]=(bytes[6]!&15)|112;bytes[8]=(bytes[8]!&63)|128;
-  const hex=Buffer.from(bytes).toString("hex");
-  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
-}
 
 async function targets() {
   const {account,client}=await canaryAccount(),page=await client.request("/grants"),rows=Array.isArray(page.grants)?page.grants:[];
@@ -49,7 +42,7 @@ export const actions={default:async({request})=>{
   if(!isConfigured())return fail(503,{error:"Connect the canary before composing."});
   try {
     const {client,options}=await targets(),form=await request.formData(),field=(name:string)=>{const value=form.get(name);return typeof value==="string"?value:"";};
-    const target=field("target"),mode=field("mode"),title=field("title"),text=field("text"),alt=field("alt"),caption=field("caption"),header=form.get("header");
+    const target=field("target"),mode=field("mode"),title=field("title"),text=field("text"),alt=field("alt"),caption=field("caption"),header=form.get("header"),allowReply=field("allowReply")==="yes";
     if(!options.some(option=>option.value===target)||!['plain','rich'].includes(mode)||!text.trim()||Buffer.byteLength(text)>65536||Buffer.byteLength(title)>128||
       Buffer.byteLength(alt)>1024||Buffer.byteLength(caption)>1024)
       return fail(400,{error:"Check the recipient, mode, title, and message text."});
@@ -70,10 +63,10 @@ export const actions={default:async({request})=>{
           blocks:[{_type:"spt.image",asset:"header",alt:alt.trim(),...(caption.trim()?{caption:caption.trim()}: {})},...blocks]};
       } else body={version:1,profile:"spt-2",blocks};
     }
-    const messageId=uuid7(),result=await client.request("/messages",{messageId,grantId,category,
-      ...(body?{body}:{text:text.trim()})});
-    if(result.messageId!==messageId)throw new Error("Provider acknowledged another message");
-    redirect(303,`/compose?message=${messageId}`);
+    const id=messageId(),result=await client.request("/messages",{messageId:id,grantId,category,
+      ...(body?{body}:{text:text.trim()}),...(allowReply?{replyUntil:Math.floor(Date.now()/1000)+7*86400}:{})});
+    if(result.messageId!==id)throw new Error("Provider acknowledged another message");
+    redirect(303,`/compose?message=${id}`);
   } catch(error){
     if(isRedirect(error))throw error;
     return fail(502,{error:"The message could not be submitted. Verify the Grant and content, then retry."});

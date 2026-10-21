@@ -6,12 +6,13 @@ describe("message projections", () => {
     expect(parseInbox({ messages: [{ messageId: "m", sender: "did:plc:sender", deliveredAt: "now" }] })[0]?.sender)
       .toBe("did:plc:sender");
     const message = parseMessage({
-      messageId: "m", sender: "did:plc:sender", recipient: "did:plc:recipient", deliveredAt: "now", category: "updates",
+      messageId: "m", sender: "did:plc:sender", recipient: "did:plc:recipient", deliveredAt: "now", category: "updates",reply:{allowed:true,until:123},
       body: { version: 1, profile: "spt-1", blocks: [{ _type: "block", style: "normal", children: [
         { _type: "span", text: "Hello ", marks: [] }, { _type: "span", text: "Hail", marks: [] },
       ], markDefs: [] }] },
     });
     expect(message.paragraphs).toEqual(["Hello Hail"]);
+    expect(message.replyUntil).toBe(123);
     expect(messagePreview(message)).toBe("Hello Hail");
     expect(Array.from(messagePreview({ ...message, paragraphs: ["🙂".repeat(121)] }))).toHaveLength(120);
   });
@@ -36,6 +37,8 @@ describe("message projections", () => {
 
   it("rejects a body the POC cannot render safely", () => {
     expect(() => parseMessage({ body: { version: 1, profile: "spt-4", blocks: [] } })).toThrow("Unsupported message body");
+    expect(()=>parseMessage({messageId:"m",sender:"s",recipient:"r",deliveredAt:"now",category:null,reply:{allowed:true},
+      body:{version:1,profile:"spt-1",blocks:[]}})).toThrow("Unsupported reply invitation");
   });
 
   it("projects rich text without permitting active links", () => {

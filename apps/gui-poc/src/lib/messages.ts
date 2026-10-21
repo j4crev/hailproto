@@ -61,6 +61,7 @@ export interface MessageView extends InboxItem {
   blocks: MessageBlock[];
   header: MessageImage | null;
   paragraphs: string[];
+  replyUntil:number|null;
 }
 
 export interface MessageLink { href: string; title: string | null; hostname: string }
@@ -94,6 +95,10 @@ export function messagePreview(message: MessageView, maximum = 120): string {
 export function parseMessage(value: unknown): MessageView {
   const message = object(value, "message");
   const body = object(message.body, "message body");
+  let replyUntil:number|null=null;
+  if(message.reply!==undefined){const reply=object(message.reply,"reply invitation");
+    if(reply.allowed===true&&Number.isSafeInteger(reply.until)&&Number(reply.until)>0)replyUntil=Number(reply.until);
+    else if(reply.allowed!==false||reply.until!==undefined)throw new Error("Unsupported reply invitation");}
   if (body.version !== 1 || !["spt-1","spt-2","spt-3"].includes(body.profile as string) || !Array.isArray(body.blocks)) {
     throw new Error("Unsupported message body");
   }
@@ -155,6 +160,7 @@ export function parseMessage(value: unknown): MessageView {
     blocks,
     header,
     paragraphs: blocks.map((block) => block.spans.map((span) => span.text).join("")),
+    replyUntil,
   };
 }
 
