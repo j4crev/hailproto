@@ -1,0 +1,84 @@
+name: hail-poc-monitor
+
+x-runtime: &runtime
+  image: hail-plc-monitor-ts:poc
+  restart: unless-stopped
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+services:
+  monitor-db:
+    image: postgres:14.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: monitor
+      POSTGRES_PASSWORD: ${MONITOR_DB_PASSWORD:?set MONITOR_DB_PASSWORD}
+      POSTGRES_DB: monitor
+    volumes:
+      - monitor_db:/var/lib/postgresql/data
+    networks: [storage]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U monitor -d monitor]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  plc-monitor:
+    <<: *runtime
+    build:
+      context: ../../..
+      dockerfile: hail-plc-monitor-ts/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://monitor:${MONITOR_DB_PASSWORD:?set MONITOR_DB_PASSWORD}@monitor-db:5432/monitor
+      PLC_DIRECTORY_URL: http://plc:2582
+      MONITOR_PRIVATE_KEY_FILE: /run/monitor/monitor.pkcs8
+      MONITOR_DEPLOYMENT_PROFILE: private-poc
+    volumes:
+      - ./secrets:/run/monitor:ro
+    networks: [storage, plc, edge]
+    depends_on:
+      monitor-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "import {SQL} from 'bun'; const sql=new SQL(process.env.DATABASE_URL); const r=await sql`SELECT last_healthy_at FROM monitor_cursor WHERE singleton=true`; await sql.close(); process.exit(r[0]?.last_healthy_at && Date.now()-new Date(r[0].last_healthy_at).getTime()<300000?0:1)"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  poc-alert-receiver:
+    <<: *runtime
+    command: [bun, src/cli/poc-alert-receiver.ts]
+    environment:
+      MONITOR_PUBLIC_DID_KEY: ${MONITOR_PUBLIC_DID_KEY:?set MONITOR_PUBLIC_DID_KEY}
+      POC_RECEIPT_DATABASE: /data/receipts.sqlite
+    volumes:
+      - alert_receipts:/data
+    networks: [edge]
+    healthcheck:
+      test: [CMD, bun, -e, "const r=await fetch('http://127.0.0.1:3000/health/ready'); process.exit(r.ok?0:1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+networks:
+  storage:
+    internal: true
+  plc:
+    external: true
+    name: hail-poc_private
+  edge:
+    external: true
+    name: hail-poc_edge
+
+volumes:
+  monitor_db:
+  alert_receipts:
