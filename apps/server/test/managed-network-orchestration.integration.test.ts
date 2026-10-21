@@ -533,7 +533,7 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
       (decodeDeterministic(returnOfferSigned.payloadBytes) as Record<string,string>).destination_messaging_key!);
     const returnSelectionValue:ManagedTransferAddressSelection={type:"hail.managed-transfer-address-selection",version:1,did,
       nonce:returnGrantValue.nonce,transfer_id:returnOffer.transfer_id,grant_digest:managedHandshakeDigest(returnGrant.payloadBytes),
-      offer_digest:managedHandshakeDigest(returnOfferSigned.payloadBytes),address:"alice-return@a.example.com",selection_nonce:randomUUID(),
+      offer_digest:managedHandshakeDigest(returnOfferSigned.payloadBytes),address:"alice@a.example.com",selection_nonce:randomUUID(),
       issued_at:returnNow,expires_at:returnNow+1800};
     const returnSelectionBytes=encodeManagedHandshake(returnSelectionValue),returnSelection={payloadBytes:returnSelectionBytes,
       signature:await owner.sign(managedHandshakeSignatureInput(returnSelectionValue.type,returnSelectionBytes))};
@@ -605,7 +605,7 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
     expect(await withFreshServingGenerations(source.sql,()=>returnActivation.activate(returnTransfer))).toEqual({did,accountId,generation:3});
     expect(Number((await source.sql<{generation:string|number}[]>`SELECT generation FROM account_serving_generations WHERE account_id=${accountId}`)[0]?.generation)).toBe(3);
     expect((await source.sql<{canonical_address:string}[]>`SELECT canonical_address FROM provider_accounts WHERE id=${accountId}`)[0]?.canonical_address)
-      .toBe("alice-return@a.example.com");
+      .toBe("alice@a.example.com");
     expect(await source.sql`SELECT 1 FROM account_keys WHERE account_id=${accountId} AND public_key IN
       (${returnKeys.rotationPublicKey},${returnKeys.identityPublicKey!},${returnKeys.messagingPublicKey})`).toHaveLength(3);
     const returnedGrant=(await source.sql<{current_revision:number;signing_public_key:string;previous_digest:Uint8Array}[]>`

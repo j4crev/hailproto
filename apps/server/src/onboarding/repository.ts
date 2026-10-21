@@ -639,8 +639,10 @@ export class OnboardingRepository
         ORDER BY selected_at DESC, id DESC LIMIT 1
       ) AS current_binding
       WHERE expires_at > now()
-        AND EXISTS (SELECT 1 FROM provider_accounts account WHERE account.id=current_binding.account_id
-          AND account.canonical_address=current_binding.canonical_address)
+        AND EXISTS (SELECT 1 FROM provider_accounts account WHERE account.id=current_binding.account_id AND
+          (account.canonical_address=current_binding.canonical_address OR account.onboarding_state='reserved' AND EXISTS (
+            SELECT 1 FROM transfer_address_reservations reservation WHERE reservation.reserved_account_id=account.id
+              AND reservation.canonical_address=current_binding.canonical_address AND reservation.state='submitted')))
         AND NOT EXISTS (SELECT 1 FROM provider_migration_fences fence
           WHERE fence.account_id = current_binding.account_id AND fence.state = 'retired')
     `;
