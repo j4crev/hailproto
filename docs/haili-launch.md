@@ -121,6 +121,16 @@ retaining their v1 evidence. The disposable GUI rendered the exact bundled
 avatars in inbox and detail views with initials fallback and no remote image
 request.
 
+## Thin-client composer proof
+
+The disposable GUI gained a server-side composer for active categorized Grants,
+plain and structured heading/body text, optional bundled PNG headers, local
+preview, and refreshable delivery status. Live form submissions from
+`canary@haili.app` reached terminal `delivered`: plain message
+`01a15f6f-d097-7381-b831-83d80f2d4c36` at `hailproto.dev`, and bundled-header
+`spt-3` message `01a15f6f-9e2e-7260-ba02-83c723aff995` at `hailproto.app`.
+Recipient reads matched the authored text and exact bundled image bytes.
+
 ## Documentation disposition
 
 Completed October 21, 2026. Active guidance now points to the strict-public
