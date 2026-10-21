@@ -78,6 +78,7 @@ const onboardingRepository = new OnboardingRepository(database.sql);
 const resolver = createHailDidResolver(config,database.sql);
 const grantRepository = new GrantRepository(database.sql);
 const transport = new SafeHttpsTransport();
+const profileVerifier = new SenderProfileVerifier(resolver, transport.fetch, transport.validateTarget, undefined, onboardingRepository);
 const encryptor=new KeyEncryptor(config.keyEncryptionKey);
 const grantPublisher = new GrantPublisher(
   grantRepository,
@@ -271,9 +272,10 @@ const app = createApp(config, schemaRehearsal ? {
       (sender,id)=>submitEnvelope(sender,id,new EnvelopeRepository(database.sql),resolver,
         new DeliveryStatusReceiver(database.sql,onboardingRepository,resolver,config.hailServiceBase),transport)),
     profiles:new SenderProfileService(onboardingRepository,new KeyEncryptor(config.keyEncryptionKey),resolver,config.hailServiceBase),
+    profileVerifier,
     service: new GrantService(onboardingRepository, grantRepository, new KeyEncryptor(config.keyEncryptionKey),
        resolver, new AddressVerifier(plc, transport.fetch, transport.validateTarget,undefined,resolver),
-      new SenderProfileVerifier(resolver, transport.fetch, transport.validateTarget, undefined, onboardingRepository),
+      profileVerifier,
       config.hailServiceBase) },
   discoveryStore: onboardingRepository,
   senderProfileStore: onboardingRepository,

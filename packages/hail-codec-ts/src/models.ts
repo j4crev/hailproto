@@ -36,9 +36,8 @@ export interface HailSenderCategory {
   description?: string;
 }
 
-export interface HailSenderProfile {
+interface HailSenderProfileBase {
   type: "hail.sender-profile";
-  version: 1;
   did: string;
   revision: number;
   display_name: string;
@@ -48,6 +47,17 @@ export interface HailSenderProfile {
   updated_at: number;
   key_id: string;
 }
+
+export interface HailSenderProfileV1 extends HailSenderProfileBase {
+  version: 1;
+}
+
+export interface HailSenderProfileV2 extends HailSenderProfileBase {
+  version: 2;
+  assets?: HailAssetManifest;
+}
+
+export type HailSenderProfile = HailSenderProfileV1 | HailSenderProfileV2;
 
 export type HailGrantScope =
   | { type: "categories"; values: string[] }

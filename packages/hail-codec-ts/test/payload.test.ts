@@ -20,6 +20,7 @@ import {
   imageBody,
   richBody,
   senderProfile,
+  senderProfileV2,
 } from "./fixtures.js";
 
 describe("payload validation", () => {
@@ -40,6 +41,8 @@ describe("payload validation", () => {
         encodePayload("hail.sender-profile", senderProfile),
       ),
     ).toEqual(senderProfile);
+    expect(decodePayload("hail.sender-profile", encodePayload("hail.sender-profile", senderProfileV2))).toEqual(senderProfileV2);
+    expect(fromDiagnosticJson("hail.sender-profile", toDiagnosticJson("hail.sender-profile", senderProfileV2))).toEqual(senderProfileV2);
     expect(
       decodePayload("hail.grant", encodePayload("hail.grant", grant)),
     ).toEqual(grant);
@@ -89,6 +92,14 @@ describe("payload validation", () => {
   it("rejects unsupported body versions", () => {
     const invalid = { ...body, version: 2 } as unknown as typeof body;
     expect(() => encodePayload("hail.body.spt-1", invalid)).toThrow(HailCodecError);
+  });
+
+  it("keeps avatars exclusive to Sender Profile v2", () => {
+    expect(() => encodePayload("hail.sender-profile", { ...senderProfileV2, version: 1 } as unknown as typeof senderProfileV2)).toThrow(HailCodecError);
+    const invalid = structuredClone(senderProfileV2);
+    if(invalid.version!==2)throw new Error("Expected Sender Profile v2 fixture");
+    invalid.assets!.assets[0].role = "header";
+    expect(() => encodePayload("hail.sender-profile", invalid)).toThrow(HailCodecError);
   });
 
   it("rejects unsafe or unresolved rich-text links", () => {

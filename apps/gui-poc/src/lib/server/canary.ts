@@ -39,3 +39,23 @@ export async function senderAddresses(client: AccountApiClient, senderDids: Set<
   }));
   return addresses;
 }
+
+export interface SenderPresentation {
+  address: string | null;
+  avatar: { src: string; width: number; height: number } | null;
+}
+
+export async function senderPresentations(client: AccountApiClient, senderDids: Set<string>): Promise<Map<string, SenderPresentation>> {
+  const addresses=await senderAddresses(client,senderDids),presentations=new Map<string,SenderPresentation>();
+  await Promise.all([...senderDids].map(async did=>{
+    let avatar:SenderPresentation["avatar"]=null;
+    try {
+      const {payload}=await client.senderProfile(did);
+      const asset=payload.version===2?payload.assets?.assets[0]:undefined;
+      if(asset?.role==="avatar")avatar={src:`data:image/png;base64,${Buffer.from(asset.data).toString("base64")}`,
+        width:asset.width,height:asset.height};
+    } catch { /* A missing current profile must not hide a message. */ }
+    presentations.set(did,{address:addresses.get(did)??null,avatar});
+  }));
+  return presentations;
+}

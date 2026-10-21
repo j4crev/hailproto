@@ -2,7 +2,7 @@ import {createHash,randomUUID} from "node:crypto";
 import * as dagCbor from "@ipld/dag-cbor";
 import {cidForCbor} from "@atproto/common";
 import {def} from "@did-plc/lib";
-import {createWebCryptoSigner,createWebCryptoVerifier,inspectSignedPayload,signPayload,verifySignedPayload,
+import {createWebCryptoSigner,createWebCryptoVerifier,inspectSignedPayload,signPayload,toDiagnosticJson,verifySignedPayload,
   type HailGrant,type HailSenderProfile} from "@hailproto/codec";
 import type {SQL} from "bun";
 import {materializedServingGeneration} from "../db/serving.js";
@@ -337,7 +337,7 @@ export class ManagedMigrationActivation {
       key_id:`${manifest.did}#hail-messaging`};
     const cose=await signPayload("hail.sender-profile",payload,createWebCryptoSigner(payload.key_id,messagingKey));
     await tx`INSERT INTO sender_profiles(id,account_id,did,revision,profile_payload,cose,representation_digest,signing_public_key,profile_updated_at)
-      VALUES(${randomUUID()},${manifest.accountId},${manifest.did},${payload.revision},${payload}::jsonb,${cose},${sha(cose)},${manifest.destinationMessagingPublicKey},${payload.updated_at})`;
+      VALUES(${randomUUID()},${manifest.accountId},${manifest.did},${payload.revision},${toDiagnosticJson("hail.sender-profile",payload)}::jsonb,${cose},${sha(cose)},${manifest.destinationMessagingPublicKey},${payload.updated_at})`;
     await retainPublicSigningAuthority(tx,{actionType:"sender-profile",localAccountId:manifest.accountId,did:manifest.did,
       role:"hail-messaging",key:manifest.destinationMessagingPublicKey,serviceBase:this.serviceBase,representation:cose,evidence});
   }

@@ -43,7 +43,9 @@ hail-address-binding = {
   "key_id": did-url
 }
 
-hail-sender-profile = {
+hail-sender-profile = hail-sender-profile-v1 / hail-sender-profile-v2
+
+hail-sender-profile-v1 = {
   "type": "hail.sender-profile",
   "version": 1,
   "did": did,
@@ -52,6 +54,20 @@ hail-sender-profile = {
   ? "description": tstr,
   "offers_uncategorized": bool,
   "categories": [0*100 sender-category],
+  "updated_at": timestamp,
+  "key_id": did-url
+}
+
+hail-sender-profile-v2 = {
+  "type": "hail.sender-profile",
+  "version": 2,
+  "did": did,
+  "revision": hail-positive,
+  "display_name": tstr,
+  ? "description": tstr,
+  "offers_uncategorized": bool,
+  "categories": [0*100 sender-category],
+  ? "assets": asset-manifest-v1,
   "updated_at": timestamp,
   "key_id": did-url
 }

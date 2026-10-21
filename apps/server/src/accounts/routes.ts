@@ -12,6 +12,7 @@ import {withServingGeneration} from "../db/serving.js";
 import type { SameProviderCustodyTransition } from "./custody-transition.js";
 import type { ManagedAccountTransfer } from "./managed-transfer.js";
 import { parseSenderProfileDefinition, SenderProfileConflictError, type SenderProfileService } from "../profiles/service.js";
+import type { SenderProfileVerifier } from "../profiles/verifier.js";
 
 const GRANT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_BYTES = 262_144;
@@ -42,7 +43,7 @@ export async function accountRequestBytes(request: Request,limit=MAX_BYTES): Pro
 export function registerAccountApiRoutes(app: Hono, accounts: AccountApiRepository,
   grants: GrantRepository, service: GrantService, provider: string, messaging?:AccountMessaging, binding?:AccountBinding,
   transfer?:AccountTransfer,custodyTransition?:SameProviderCustodyTransition,managedTransfer?:ManagedAccountTransfer,
-  profiles?:SenderProfileService): void {
+  profiles?:SenderProfileService,profileVerifier?:Pick<SenderProfileVerifier,"verify">): void {
   let window = Date.now();
   let requests = 0;
   const handle = async (context: Context, grantId: string | null, action?: string):Promise<Response> => {
@@ -64,6 +65,15 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
       const query = new URL(context.req.url).searchParams;
       if (query.size && action !== "list" && action !== "inbox" && action !== "credential") return problem(400);
       const method = context.req.method;
+      if(action==="sender-profile"){
+        if(!session.scopes.includes("messages:read"))return problem(403);
+        if(method!=="GET")return problem(405);
+        if(!profileVerifier)return problem(503);
+        const did=grantId!;if(!/^did:plc:[a-z2-7]{24}$/.test(did))return problem(400);
+        const verified=await profileVerifier.verify(did);
+        return context.json({type:"hailp.verified-sender-profile",version:1,did,revision:verified.profile.revision,digest:encodeBase64Url(verified.digest),
+          cose:encodeBase64Url(verified.representation),profile:toDiagnosticJson("hail.sender-profile",verified.profile)});
+      }
       if(action==="custody-review-owner"||action==="custody-prepare-owner"||action==="custody-prepare"||action==="custody-commit") {
         if(!session.scopes.includes("account:write"))return problem(403);
         if(!custodyTransition)return problem(503);
@@ -184,7 +194,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         }
         if(method!=="POST")return problem(405);if(session.migration_state)return problem(409);
         if(context.req.header("Content-Type")!=="application/json"||context.req.header("Content-Encoding")!==undefined)return problem(415);
-        const bytes=await accountRequestBytes(context.req.raw,16384);if(!bytes)return problem(413);
+        const bytes=await accountRequestBytes(context.req.raw,65536);if(!bytes)return problem(413);
         let input:Record<string,unknown>,definition;
         try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as Record<string,unknown>;
           if(!input||typeof input!=="object"||Array.isArray(input)||Object.keys(input).length!==2||
@@ -347,6 +357,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/custody/managed/commit",context=>handle(context,null,"custody-commit"));
   app.all("/api/v1/account/binding",context=>handle(context,null,"binding"));
   app.all("/api/v1/account/profile",context=>handle(context,null,"profile"));
+  app.all("/api/v1/account/senders/:sender/profile",context=>handle(context,context.req.param("sender"),"sender-profile"));
   app.all("/api/v1/account/messages",context=>handle(context,null,"send"));
   app.all("/api/v1/account/inbox",context=>handle(context,null,"inbox"));
   app.all("/api/v1/account/inbox/:sender/:messageId",context=>handle(context,context.req.param("messageId"),"read"));

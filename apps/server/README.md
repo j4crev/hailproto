@@ -157,6 +157,7 @@ federation operations:
 | `GET /api/v1/account` | `account:read` | Own account/DID/address, custody classification, public identity/recovery metadata, migration state and scopes |
 | `GET /api/v1/account/profile` | `account:read` | Current signed Sender Profile revision, digest and exact COSE bytes |
 | `POST /api/v1/account/profile` | `account:write` | Idempotently create or optimistic-revision update an explicit Sender Profile definition |
+| `GET /api/v1/account/senders/{did}/profile` | `messages:read` | Freshly verified current sender profile, digest and exact COSE bytes for inbox presentation |
 | `GET /api/v1/account/grants/{grant_id}` | `grants:read` | Own authoritative or received Grant, local role, exact base64url COSE bytes, digest and ETag; the CLI renders diagnostic JSON locally |
 | `PUT /api/v1/account/grants/{grant_id}` | `grants:write` | Verify/store an initial or terminal user-signed Grant; JSON acknowledgement of revision/status/digest and durable publication responsibility |
 

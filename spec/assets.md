@@ -3,7 +3,7 @@
 Status: Draft
 
 This document defines the first bounded asset primitive shared by message bodies
-and future Sender Profiles. Version 1 supports bundled PNG images only. It does
+and Sender Profile v2. Version 1 supports bundled PNG images only. It does
 not fetch arbitrary URLs, expose user opens to senders, or define attachments.
 
 ## Manifest

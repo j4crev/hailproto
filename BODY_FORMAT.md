@@ -635,7 +635,6 @@ This keeps the prototype simple while preserving the path to a richer block docu
 ## Open Gaps
 
 - Finalize the Safe Portable Text-specific block vocabulary beyond the implemented text styles, lists, decorators, and HTTPS links.
-- Integrate the asset manifest into a versioned Sender Profile for avatars.
 - Define allowed URL behavior and client warning rules.
 - Define design tokens.
 - Define fallback rules for unsupported blocks.

@@ -172,7 +172,16 @@ Hail address
 
 The profile is retrieved from `GET {hail-service-base}/profiles/{sender_did}`. It is DID-scoped so one signed profile works with multiple independently verified addresses for that DID. The client displays the separately verified address alongside the profile rather than allowing profile metadata to claim an address.
 
-The v0 profile contains a display name, optional description, whether uncategorized subscription is offered, stable category IDs with labels and descriptions, revision, update time, and signer key. It excludes avatars, remote assets, subscriber data, and recipient-specific state. Profiles form a monotonic DID-scoped revision sequence; category IDs must not be repurposed, and profile changes do not alter existing grants. New consent requires a profile verified against sufficiently fresh current PLC state. The complete profile is signed by `#hail-messaging`, and its representation digest is retained in every grant's required consent context.
+Sender Profile v1 contains a display name, optional description, whether
+uncategorized subscription is offered, stable category IDs with labels and
+descriptions, revision, update time, and signer key. V2 may add one bounded,
+digest-bound bundled PNG avatar; remote assets, subscriber data, and
+recipient-specific state remain excluded. Profiles form a monotonic DID-scoped
+revision sequence; category IDs must not be repurposed, and profile changes do
+not alter existing grants. New consent requires a profile verified against
+sufficiently fresh current PLC state. The complete profile is signed by
+`#hail-messaging`, and its representation digest is retained in every grant's
+required consent context.
 
 Search and QR encoding remain application-specific. A forged or stale search result cannot authorize a sender because the client independently verifies the Address Binding, PLC state, profile DID, and profile signature before consent.
 

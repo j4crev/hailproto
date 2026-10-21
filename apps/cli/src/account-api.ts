@@ -172,13 +172,23 @@ export class AccountApiClient {
     return this.profileResponse(await this.request("/profile"));
   }
 
+  async senderProfile(did:string):Promise<{representation:Uint8Array;payload:HailSenderProfile;digest:string}>{
+    if(!/^did:plc:[a-z2-7]{24}$/.test(did))throw new Error("Sender DID must be canonical");
+    const result=await this.request(`/senders/${encodeURIComponent(did)}/profile`);
+    if(result.type!=="hailp.verified-sender-profile"||result.version!==1||result.did!==did)
+      throw new ClientError("RESPONSE_ERROR","Invalid verified Sender Profile response");
+    const profile=this.profileResponse(result,"hailp.verified-sender-profile");
+    if(profile.payload.did!==did)throw new ClientError("RESPONSE_ERROR","Verified Sender Profile names another DID");
+    return profile;
+  }
+
   async saveProfile(definition:JsonObject,expectedRevision:number){
     if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)throw new Error("Expected Sender Profile revision must be non-negative");
     return this.profileResponse(await this.request("/profile",{definition,expectedRevision}));
   }
 
-  private profileResponse(result:JsonObject){
-    if(result.type!=="hailp.sender-profile"||result.version!==1||typeof result.cose!=="string"||
+  private profileResponse(result:JsonObject,responseType="hailp.sender-profile"){
+    if(result.type!==responseType||result.version!==1||typeof result.cose!=="string"||
       result.cose.length>349_528||typeof result.digest!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(result.digest)||
       !Number.isSafeInteger(result.revision))throw new ClientError("RESPONSE_ERROR","Invalid provider Sender Profile response");
     const representation=decodeBase64Url(result.cose),payload=inspectSignedPayload("hail.sender-profile",representation).payload;

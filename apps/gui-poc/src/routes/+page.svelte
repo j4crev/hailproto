@@ -38,7 +38,8 @@
       {#each data.messages as message}
         <a class="card message" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}`}>
           <span class="meta">
-            <span class="avatar" aria-hidden="true">{(message.senderAddress ?? message.sender).slice(0, 2).toUpperCase()}</span>
+            {#if message.avatar}<img class="avatar" src={message.avatar.src} alt="" width={message.avatar.width} height={message.avatar.height} />
+            {:else}<span class="avatar fallback" aria-hidden="true">{(message.senderAddress ?? message.sender).slice(0, 2).toUpperCase()}</span>{/if}
             <span class="sender"><strong>{message.senderAddress ?? message.sender}</strong><time datetime={message.deliveredAt}>{date(message.deliveredAt)}</time></span>
           </span>
           {#if showHeaders && message.header}
@@ -65,7 +66,8 @@
   .message { display: flex; overflow: hidden; flex-direction: column; text-decoration: none; transition: transform .15s ease, box-shadow .15s ease; }
   .message:hover { transform: translateY(-1px); box-shadow: 0 14px 36px rgba(21, 50, 35, .09); }
   .meta { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
-  .avatar { display: grid; flex: 0 0 42px; height: 42px; place-items: center; border-radius: 13px; background: #dcece2; color: #17633f; font-size: 12px; font-weight: 800; }
+  .avatar { display: grid; width: 42px; flex: 0 0 42px; height: 42px; place-items: center; border-radius: 13px; object-fit: cover; }
+  .fallback { background: #dcece2; color: #17633f; font-size: 12px; font-weight: 800; }
   .sender { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.sender strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
   time { color: #758078; font-size: 11px; }
   .header-image { display: block; width: 100%; height: auto; max-height: 320px; border-block: 1px solid #e4e9e5; object-fit: cover; }

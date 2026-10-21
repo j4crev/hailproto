@@ -26,6 +26,7 @@ import {
   imageBody,
   richBody,
   senderProfile,
+  senderProfileV2,
 } from "../test/fixtures.js";
 
 const outputUrl = new URL("../vectors/v0.json", import.meta.url);
@@ -169,6 +170,7 @@ const senderProfileVector = await addPositive(
   "hail.sender-profile",
   senderProfile,
 );
+await addPositive("sender-profile-v2-avatar","hail.sender-profile",senderProfileV2);
 const bodyVector = await addPositive(
   "body-spt-1-basic",
   "hail.body.spt-1",

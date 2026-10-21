@@ -14,6 +14,7 @@ import type { StoredSenderProfile } from "../src/profiles/store.js";
 
 const encryptionKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 const did = "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa";
+const avatar = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64").toString("base64url");
 
 async function fixture() {
   const account: AccountRecord = {
@@ -121,6 +122,21 @@ describe("SenderProfileService", () => {
     expect(parseSenderProfileDefinition({display_name:"Alice",offers_uncategorized:false,
       categories:[{id:"updates",label:"Updates"}]}).categories).toHaveLength(1);
     expect(()=>parseSenderProfileDefinition({display_name:"Alice",offers_uncategorized:false,categories:[],extra:true})).toThrow("invalid shape");
+    const v2=parseSenderProfileDefinition({version:2,display_name:"Alice",offers_uncategorized:false,categories:[],avatar});
+    expect(v2.avatar?.role).toBe("avatar");
+    expect(v2.avatar?.width).toBe(1);
+    expect(()=>parseSenderProfileDefinition({version:1,display_name:"Alice",offers_uncategorized:false,categories:[],avatar})).toThrow("v1");
+  });
+
+  it("creates and reuses a v2 profile with one bundled avatar",async()=>{
+    const {account,encryptor,repository,resolver}=await fixture();
+    const service=new SenderProfileService(repository,encryptor,resolver,"https://hailproto.app/hail");
+    const definition=parseSenderProfileDefinition({version:2,display_name:"Alice",offers_uncategorized:false,categories:[],avatar});
+    const created=await service.createOrReuse(account.canonicalAddress,definition);
+    expect(created.payload.version).toBe(2);
+    if(created.payload.version!==2)throw new Error("Expected Sender Profile v2");
+    expect(created.payload.assets?.assets).toHaveLength(1);
+    expect(await service.createOrReuse(account.canonicalAddress,definition)).toBe(created);
   });
 
   it("refuses to sign when current PLC state names another messaging key", async () => {

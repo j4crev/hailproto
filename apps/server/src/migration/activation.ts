@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { signPayload, inspectSignedPayload, type HailSenderProfile } from "@hailproto/codec";
+import { signPayload, inspectSignedPayload, toDiagnosticJson, type HailSenderProfile } from "@hailproto/codec";
 import { createWebCryptoSigner } from "@hailproto/codec";
 import type { SQL } from "bun";
 import type { VerifiedAddress } from "../discovery/verifier.js";
@@ -436,7 +436,7 @@ export class PortableMigrationActivation {
       INSERT INTO sender_profiles (id, account_id, did, revision, profile_payload,
         cose, representation_digest, signing_public_key, profile_updated_at)
       VALUES (${randomUUID()}, ${manifest.accountId}, ${manifest.did}, ${payload.revision},
-        ${payload}::jsonb, ${cose}, ${new Uint8Array(createHash("sha256").update(cose).digest())},
+        ${toDiagnosticJson("hail.sender-profile",payload)}::jsonb, ${cose}, ${new Uint8Array(createHash("sha256").update(cose).digest())},
         ${publicKey}, ${updatedAt})
     `;
   }

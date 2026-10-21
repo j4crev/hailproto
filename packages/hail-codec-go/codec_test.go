@@ -93,7 +93,7 @@ func fromHex(t testing.TB, s string) []byte {
 
 func TestPositiveVectors(t *testing.T) {
 	m := vectors(t)
-	if m.Format != "hail-conformance-vectors-1" || len(m.Positive) != 9 {
+	if m.Format != "hail-conformance-vectors-1" || len(m.Positive) != 10 {
 		t.Fatalf("unexpected manifest %q (%d positives)", m.Format, len(m.Positive))
 	}
 	keys := map[string]testKeyVector{}
@@ -403,7 +403,7 @@ func TestTypedCollectionPreflight(t *testing.T) {
 		t.Fatal("accepted unsafe rich link")
 	}
 
-	grantPayload, err := DecodePayload(GrantType, fromHex(t, m.Positive[3].PayloadHex))
+	grantPayload, err := DecodePayload(GrantType, fromHex(t, m.Positive[4].PayloadHex))
 	if err != nil {
 		t.Fatal(err)
 	}

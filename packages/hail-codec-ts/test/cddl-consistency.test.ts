@@ -59,9 +59,8 @@ type ExpectedAddressBinding = {
   key_id: string;
 };
 type ExpectedSenderCategory = { id: string; label: string; description?: string };
-type ExpectedSenderProfile = {
+type ExpectedSenderProfileBase = {
   type: "hail.sender-profile";
-  version: 1;
   did: string;
   revision: number;
   display_name: string;
@@ -193,6 +192,7 @@ type ExpectedSpt2Body = { version: 1; profile: "spt-2"; blocks: ExpectedSpt2Bloc
 type ExpectedAsset = { id:string;role:"avatar"|"header";media_type:"image/png";loading:"bundled";size:number;
   digest:ExpectedDigest;width:number;height:number;data:Uint8Array };
 type ExpectedAssetManifest = { version:1;assets:[ExpectedAsset,...ExpectedAsset[]] };
+type ExpectedSenderProfile = ExpectedSenderProfileBase & ({version:1}|{version:2;assets?:ExpectedAssetManifest});
 type ExpectedImageBlock = {_type:"spt.image";asset:string;alt:string;caption?:string};
 type ExpectedSpt3Body = {version:1;profile:"spt-3";assets:ExpectedAssetManifest;
   blocks:[ExpectedImageBlock,...ExpectedSpt2Block[]]};

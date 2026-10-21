@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Operation } from "@did-plc/lib";
-import { encodeBase64Url, validatePayload, type HailSenderProfile } from "@hailproto/codec";
+import { encodeBase64Url, fromDiagnosticJson, toDiagnosticJson, type DiagnosticJson } from "@hailproto/codec";
 import type { SQL } from "bun";
 import type { StoredAccountKey } from "../identity/keys.js";
 import type { DiscoveryStore, PublishedAddressBinding } from "../discovery/store.js";
@@ -174,8 +174,7 @@ function bindingFromRow(row: BindingRow): PublishedAddressBinding {
 }
 
 function senderProfileFromRow(row: SenderProfileRow): StoredSenderProfile {
-  const payload = decodedJson(row.profile_payload);
-  validatePayload("hail.sender-profile", payload);
+  const payload = fromDiagnosticJson("hail.sender-profile", decodedJson(row.profile_payload) as DiagnosticJson);
   const updatedAt = Number(row.profile_updated_at);
   if (!Number.isSafeInteger(updatedAt)) throw new Error("Sender Profile timestamp is unsafe");
   const digest = new Uint8Array(row.representation_digest);
@@ -193,7 +192,7 @@ function senderProfileFromRow(row: SenderProfileRow): StoredSenderProfile {
     accountId: row.account_id,
     did: row.did,
     revision: row.revision,
-    payload: payload as HailSenderProfile,
+    payload,
     cose: new Uint8Array(row.cose),
     digest,
     signingPublicKey: row.signing_public_key,
@@ -203,8 +202,7 @@ function senderProfileFromRow(row: SenderProfileRow): StoredSenderProfile {
 }
 
 function verifiedSenderProfileFromRow(row: VerifiedSenderProfileRow): VerifiedSenderProfile {
-  const payload = decodedJson(row.profile_payload);
-  validatePayload("hail.sender-profile", payload);
+  const payload = fromDiagnosticJson("hail.sender-profile", decodedJson(row.profile_payload) as DiagnosticJson);
   const updatedAt = Number(row.profile_updated_at);
   if (!Number.isSafeInteger(updatedAt)) throw new Error("Sender Profile timestamp is unsafe");
   const digest = new Uint8Array(row.representation_digest);
@@ -221,7 +219,7 @@ function verifiedSenderProfileFromRow(row: VerifiedSenderProfileRow): VerifiedSe
     did: row.did,
     serviceBase: row.service_base,
     messagingDidKey: row.messaging_public_key,
-    profile: payload as HailSenderProfile,
+    profile: payload,
     representation: new Uint8Array(row.cose),
     digest,
     etag: encodeBase64Url(digest),
@@ -451,7 +449,7 @@ export class OnboardingRepository
         )
         VALUES (
           ${profile.id}, ${profile.accountId}, ${profile.did}, ${profile.revision},
-          ${profile.payload}::jsonb, ${profile.cose}, ${profile.digest},
+          ${toDiagnosticJson("hail.sender-profile",profile.payload)}::jsonb, ${profile.cose}, ${profile.digest},
           ${profile.signingPublicKey}, ${profile.updatedAt}
         )
       `;
@@ -528,7 +526,7 @@ export class OnboardingRepository
         )
         VALUES (
           ${crypto.randomUUID()}, ${profile.did}, ${profile.profile.revision},
-          ${profile.profile.updated_at}, ${profile.profile}::jsonb,
+          ${profile.profile.updated_at}, ${toDiagnosticJson("hail.sender-profile",profile.profile)}::jsonb,
           ${profile.representation}, ${profile.digest}, ${profile.serviceBase},
           ${profile.messagingDidKey}, ${profile.plcEvidence.document}::jsonb,
           ${profile.plcEvidence.data}::jsonb,

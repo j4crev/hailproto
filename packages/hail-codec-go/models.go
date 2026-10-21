@@ -64,6 +64,7 @@ type SenderProfile struct {
 	Description         string           `cbor:"description,omitempty"`
 	OffersUncategorized bool             `cbor:"offers_uncategorized"`
 	Categories          []SenderCategory `cbor:"categories"`
+	Assets              *AssetManifest   `cbor:"assets,omitempty"`
 	UpdatedAt           int64            `cbor:"updated_at"`
 	KeyID               string           `cbor:"key_id"`
 }
@@ -237,6 +238,15 @@ func clonePayload(payload Payload) Payload {
 	case *SenderProfile:
 		cloned := *value
 		cloned.Categories = append([]SenderCategory(nil), value.Categories...)
+		if value.Assets != nil {
+			assets := *value.Assets
+			assets.Assets = append([]BundledImageAsset(nil), value.Assets.Assets...)
+			for i := range assets.Assets {
+				assets.Assets[i].Digest.Value = bytes.Clone(assets.Assets[i].Digest.Value)
+				assets.Assets[i].Data = bytes.Clone(assets.Assets[i].Data)
+			}
+			cloned.Assets = &assets
+		}
 		return &cloned
 	case *Grant:
 		cloned := *value

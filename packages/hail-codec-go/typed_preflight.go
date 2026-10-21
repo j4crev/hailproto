@@ -123,7 +123,7 @@ func preflightAddressBinding(v *AddressBinding) error {
 }
 
 func preflightSenderProfile(v *SenderProfile) error {
-	if v.Type != SenderProfileType || v.Version != 1 || v.Revision < 1 {
+	if v.Type != SenderProfileType || v.Version != 1 && v.Version != 2 || v.Revision < 1 {
 		return errors.New("invalid sender-profile type, version, or revision")
 	}
 	if _, err := did(v.DID, "$.did"); err != nil {
@@ -139,6 +139,17 @@ func preflightSenderProfile(v *SenderProfile) error {
 	}
 	if len(v.Categories) > 100 {
 		return errors.New("too many sender categories")
+	}
+	if v.Version == 1 && v.Assets != nil {
+		return errors.New("Sender Profile v1 cannot contain assets")
+	}
+	if v.Assets != nil {
+		if err := ValidateAssetManifest(v.Assets); err != nil {
+			return err
+		}
+		if len(v.Assets.Assets) != 1 || v.Assets.Assets[0].Role != "avatar" {
+			return errors.New("Sender Profile assets must contain exactly one avatar")
+		}
 	}
 	previous := ""
 	for i, item := range v.Categories {

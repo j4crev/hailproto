@@ -171,6 +171,9 @@ func senderProfileValue(value *SenderProfile) map[any]any {
 	if value.Description != "" {
 		result["description"] = value.Description
 	}
+	if value.Assets != nil {
+		result["assets"] = assetManifestValue(*value.Assets)
+	}
 	return result
 }
 
@@ -524,7 +527,10 @@ func validatePayloadMap(kind string, m map[any]any) error {
 		return e
 	}
 	v, e := intValue(m["version"], "$.version", 0)
-	if e != nil || v != 1 {
+	if e != nil || v != 1 && !(kind == SenderProfileType && v == 2) {
+		if kind == SenderProfileType {
+			return errors.New("$.version must equal 1 or 2")
+		}
 		return errors.New("$.version must equal 1")
 	}
 	switch kind {
@@ -568,7 +574,15 @@ func validateAddressBinding(m map[any]any) error {
 }
 func validateSenderProfile(m map[any]any) error {
 	req := []string{"type", "version", "did", "revision", "display_name", "offers_uncategorized", "categories", "updated_at", "key_id"}
-	if e := exact(m, req, []string{"description"}, "$"); e != nil {
+	version, e := intValue(m["version"], "$.version", 1)
+	if e != nil || version != 1 && version != 2 {
+		return errors.New("$.version must equal 1 or 2")
+	}
+	optional := []string{"description"}
+	if version == 2 {
+		optional = append(optional, "assets")
+	}
+	if e := exact(m, req, optional, "$"); e != nil {
 		return e
 	}
 	signer, e := did(m["did"], "$.did")
@@ -618,6 +632,15 @@ func validateSenderProfile(m map[any]any) error {
 			if e = profileText(c["description"], 1, 1024, p+".description"); e != nil {
 				return e
 			}
+		}
+	}
+	if has(m, "assets") {
+		manifest, assetErr := assetManifestFromMap(m["assets"])
+		if assetErr != nil {
+			return assetErr
+		}
+		if len(manifest.Assets) != 1 || manifest.Assets[0].Role != "avatar" {
+			return errors.New("$.assets must contain exactly one avatar asset")
 		}
 	}
 	if _, e = intValue(m["updated_at"], "$.updated_at", 0); e != nil {

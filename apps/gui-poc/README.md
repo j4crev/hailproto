@@ -17,7 +17,9 @@ directory or in `.env` files committed to Git.
 
 The reader supports headings, blockquotes, captions, lists, basic decorators,
 declared HTTPS links, and one bundled PNG header. This slice still excludes
-sending UI, onboarding, vault operations, managed custody, avatars, and attachments.
+sending UI, onboarding, vault operations, managed custody, and attachments.
+Verified Sender Profile v2 avatars appear in the inbox and message reader with
+initials as the fallback; avatar bytes are bundled and never loaded remotely.
 The inbox presents messages as feed cards and shows bundled headers by default;
 the local “Show headers” preference can hide them without contacting senders.
 Delete `apps/gui-poc` and reinstall dependencies

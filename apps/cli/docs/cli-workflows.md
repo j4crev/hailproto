@@ -135,6 +135,9 @@ hailp profile update --file /secure/account/profile.json
 
 Create is idempotent for the same definition and refuses to replace an existing
 profile. Update reads the current revision first and rejects concurrent changes.
+For an avatar-capable profile, set `"version": 2` and `"avatar"` to the
+unpadded base64url bytes of one PNG within the 32 KiB, 512×512 and 262,144-pixel
+limits. Set `"avatar": null` in a v2 update to remove it. V1 files remain valid.
 
 ## Work with Grants
 

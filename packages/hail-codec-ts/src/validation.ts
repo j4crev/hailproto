@@ -245,6 +245,8 @@ function validateAddressBinding(payload: HailRecord): void {
 }
 
 function validateSenderProfile(payload: HailRecord): void {
+  const version = integer(payload.version, "$.version", 1);
+  if (version !== 1 && version !== 2) fail("must equal integer 1 or 2", "$.version");
   exactKeys(
     payload,
     [
@@ -258,7 +260,7 @@ function validateSenderProfile(payload: HailRecord): void {
       "updated_at",
       "key_id",
     ],
-    ["description"],
+    version === 1 ? ["description"] : ["description", "assets"],
     "$",
   );
   const signer = did(payload.did, "$.did");
@@ -283,6 +285,13 @@ function validateSenderProfile(payload: HailRecord): void {
       profileText(item.description, 1, 1_024, `${path}.description`);
     }
   });
+  if (version === 2 && payload.assets !== undefined) {
+    validateAssetManifest(payload.assets);
+    const assets = record(payload.assets, "$.assets").assets as HailRecord[];
+    if (assets.length !== 1 || assets[0]?.role !== "avatar") {
+      fail("must contain exactly one avatar asset", "$.assets");
+    }
+  }
   integer(payload.updated_at, "$.updated_at");
   keyId(payload.key_id, signer, "hail-messaging", "$.key_id");
 }
@@ -633,7 +642,7 @@ export function validatePayload<T extends HailPayloadType>(
     return;
   }
   if (payload.type !== expectedType) fail(`must equal ${expectedType}`, "$.type");
-  if (payload.version !== 1) fail("must equal integer 1", "$.version");
+  if (expectedType !== "hail.sender-profile" && payload.version !== 1) fail("must equal integer 1", "$.version");
 
   switch (expectedType) {
     case "hail.address-binding":

@@ -3,8 +3,11 @@ import { isDeepStrictEqual } from "node:util";
 import {
   createWebCryptoSigner,
   createWebCryptoVerifier,
+  decodeBase64Url,
   signPayload,
+  validateAssetManifest,
   verifySignedPayload,
+  type HailBundledImageAsset,
   type HailSenderCategory,
   type HailSenderProfile,
 } from "@hailproto/codec";
@@ -17,10 +20,12 @@ import type { HailDidResolver, PlcResolutionEvidence } from "../plc/resolver.js"
 import type { StoredSenderProfile } from "./store.js";
 
 export interface SenderProfileDefinition {
+  version?: 1 | 2;
   display_name: string;
   description?: string;
   offers_uncategorized: boolean;
   categories: HailSenderCategory[];
+  avatar?: HailBundledImageAsset | null;
 }
 
 export interface SenderProfileRepository {
@@ -36,12 +41,25 @@ export interface SenderProfileRepository {
 
 export class SenderProfileConflictError extends Error {}
 
+function avatarAsset(data: Uint8Array): HailBundledImageAsset {
+  if (data.length < 24) throw new Error("Sender Profile avatar must be a PNG image");
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const asset: HailBundledImageAsset = { id:"avatar",role:"avatar",media_type:"image/png",loading:"bundled",
+    size:data.length,digest:{algorithm:"sha-256",value:new Uint8Array(createHash("sha256").update(data).digest())},
+    width:view.getUint32(16),height:view.getUint32(20),data };
+  validateAssetManifest({version:1,assets:[asset]});
+  return asset;
+}
+
 export function parseSenderProfileDefinition(value: unknown): SenderProfileDefinition {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Sender Profile definition must be an object");
-  const record = value as Record<string, unknown>,allowed=["display_name","description","offers_uncategorized","categories"];
+  const record = value as Record<string, unknown>,allowed=["version","display_name","description","offers_uncategorized","categories","avatar"];
   if(Object.keys(record).some(key=>!allowed.includes(key))||typeof record.display_name!=="string"||
     record.description!==undefined&&typeof record.description!=="string"||typeof record.offers_uncategorized!=="boolean"||
-    !Array.isArray(record.categories))throw new Error("Sender Profile definition has an invalid shape");
+    !Array.isArray(record.categories)||record.version!==undefined&&record.version!==1&&record.version!==2||
+    record.avatar!==undefined&&record.avatar!==null&&typeof record.avatar!=="string")throw new Error("Sender Profile definition has an invalid shape");
+  const version:1|2=record.version===2?2:1;
+  if(version===1&&record.avatar!==undefined)throw new Error("Sender Profile v1 cannot contain an avatar");
   const categories=record.categories.map(value=>{
     if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("Sender Profile category must be an object");
     const category=value as Record<string,unknown>;
@@ -51,8 +69,9 @@ export function parseSenderProfileDefinition(value: unknown): SenderProfileDefin
     return category.description===undefined?{id:category.id,label:category.label}:
       {id:category.id,label:category.label,description:category.description};
   });
-  return record.description===undefined?{display_name:record.display_name,offers_uncategorized:record.offers_uncategorized,categories}:
-    {display_name:record.display_name,description:record.description,offers_uncategorized:record.offers_uncategorized,categories};
+  const base={version,display_name:record.display_name,offers_uncategorized:record.offers_uncategorized,categories,
+    ...(record.avatar===undefined?{}:{avatar:record.avatar===null?null:avatarAsset(decodeBase64Url(record.avatar))})};
+  return record.description===undefined?base:{...base,description:record.description};
 }
 
 function normalizedDefinition(definition: SenderProfileDefinition): SenderProfileDefinition {
@@ -63,17 +82,19 @@ function normalizedDefinition(definition: SenderProfileDefinition): SenderProfil
         : { id: category.id, label: category.label, description: category.description },
     )
     .sort((left, right) => Buffer.from(left.id).compare(Buffer.from(right.id)));
+  const version=definition.version??1;
+  if(version===1&&definition.avatar)throw new Error("Sender Profile v1 cannot contain an avatar");
+  const base={version,offers_uncategorized:definition.offers_uncategorized,categories,
+    ...(definition.avatar?{avatar:definition.avatar}:{})};
   return definition.description === undefined
     ? {
+        ...base,
         display_name: definition.display_name,
-        offers_uncategorized: definition.offers_uncategorized,
-        categories,
       }
     : {
+        ...base,
         display_name: definition.display_name,
         description: definition.description,
-        offers_uncategorized: definition.offers_uncategorized,
-        categories,
       };
 }
 
@@ -83,12 +104,14 @@ function matchesDefinition(
   signingPublicKey: string,
 ): boolean {
   const payloadDefinition: SenderProfileDefinition = {
+    version: profile.payload.version,
     display_name: profile.payload.display_name,
     ...(profile.payload.description === undefined
       ? {}
       : { description: profile.payload.description }),
     offers_uncategorized: profile.payload.offers_uncategorized,
     categories: profile.payload.categories,
+    ...(profile.payload.version===2&&profile.payload.assets?{avatar:profile.payload.assets.assets[0]}:{}),
   };
   return (
     profile.signingPublicKey === signingPublicKey &&
@@ -137,9 +160,8 @@ export class SenderProfileService {
     if (updatedAt > current + 300) throw new Error("Sender Profile timestamp is too far ahead");
     const revision = (latest?.revision ?? 0) + 1;
     const keyId = `${account.did}#hail-messaging`;
-    const payload: HailSenderProfile = {
-      type: "hail.sender-profile",
-      version: 1,
+    const common = {
+      type: "hail.sender-profile" as const,
       did: account.did,
       revision,
       display_name: definition.display_name,
@@ -149,6 +171,8 @@ export class SenderProfileService {
       updated_at: updatedAt,
       key_id: keyId,
     };
+    const payload: HailSenderProfile = definition.version===2?{...common,version:2,
+      ...(definition.avatar?{assets:{version:1,assets:[definition.avatar]}}:{})}:{...common,version:1};
 
     const privateBytes = await this.encryptor.decrypt(
       account.id,

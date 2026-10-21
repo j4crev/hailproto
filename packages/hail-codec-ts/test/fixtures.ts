@@ -9,6 +9,11 @@ import type {
   HailSptBody,
 } from "../src/index.js";
 
+const avatarPng = new Uint8Array(Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64",
+));
+
 export const identityDid = "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa";
 export const messagingDid = "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb";
 
@@ -70,6 +75,18 @@ export const senderProfile: HailSenderProfile = {
   ],
   updated_at: 1_787_851_200,
   key_id: `${messagingDid}#hail-messaging`,
+};
+
+export const senderProfileV2: HailSenderProfile = {
+  ...senderProfile,
+  version: 2,
+  revision: 2,
+  assets: { version: 1, assets: [{
+    id: "avatar", role: "avatar", media_type: "image/png", loading: "bundled",
+    size: avatarPng.length,
+    digest: { algorithm: "sha-256", value: new Uint8Array(createHash("sha256").update(avatarPng).digest()) },
+    width: 1, height: 1, data: avatarPng,
+  }] },
 };
 
 export const grant: HailGrant = {

@@ -2,7 +2,7 @@
 
 Status: Draft
 
-This document defines the public signed metadata a prospective recipient reviews before granting a sender permission. The v0 Sender Profile includes the sender's category manifest; there is no separate Category Manifest object.
+This document defines the public signed metadata a prospective recipient reviews before granting a sender permission. Sender Profile v1 includes the sender's category manifest; v2 adds an optional bundled avatar. There is no separate Category Manifest object.
 
 ## Discovery Boundary
 
@@ -20,7 +20,7 @@ The client displays the separately verified Hail address with the profile. The p
 
 ## Payload
 
-Diagnostic JSON for the conceptual v0 payload:
+Diagnostic JSON for a v1 payload:
 
 ```json
 {
@@ -48,13 +48,14 @@ Diagnostic JSON for the conceptual v0 payload:
 }
 ```
 
-The payload is a closed Hail map under [encoding.md](encoding.md). Unknown fields are rejected in v0.
+The payload is a closed Hail map under [encoding.md](encoding.md). Unknown fields are rejected.
 
 ## Fields
 
 ### `type` And `version`
 
-`type` is the exact string `hail.sender-profile`. `version` is the integer `1`.
+`type` is the exact string `hail.sender-profile`. `version` is integer `1` for
+the original profile or integer `2` for the avatar-capable profile.
 
 ### `did`
 
@@ -92,6 +93,15 @@ Labels and descriptions contain no Unicode `Cc` or `Cf` characters, including bi
 
 A sender must never repurpose a category ID for a materially different purpose. A new purpose requires a new ID. Renaming or removing a category from a later profile does not expand, narrow, or revoke an existing grant. Adding a category does not authorize it for any existing grant. A recipient changes authorization only by issuing a new signed grant revision.
 
+### `assets`
+
+Version 1 prohibits this field. Version 2 may omit it or include asset manifest
+v1 from [assets.md](assets.md) containing exactly one bundled PNG with role
+`avatar`. Omitting the field removes any prior avatar. The avatar is descriptive
+metadata only: it does not identify an address, affect grants, or authorize
+delivery. Clients render the verified bundled bytes locally and use the
+separately verified address as the accessible identity label.
+
 ### `updated_at`
 
 Required non-negative Unix timestamp in seconds. It changes with every revision and must be no earlier than the prior retained revision's value. At verification it must not be more than 300 seconds in the future.
@@ -102,13 +112,13 @@ The exact absolute DID URL formed from `did` and `#hail-messaging`. Its UTF-8 by
 
 ## Signature And Representation
 
-Hail Sender Profile v0 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md). Its protected content type is:
+Both Sender Profile versions use the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md). Their protected content type is:
 
 ```text
 application/hail-sender-profile+cbor
 ```
 
-v0 applies no HTTP content coding to the signed representation.
+Sender Profiles apply no HTTP content coding to the signed representation.
 
 ## Representation Digest
 
@@ -146,7 +156,11 @@ Sender Profiles are public and may be copied or indexed. They contain no recipie
 
 Search indexes can omit, reorder, or forge profile metadata. Clients treat search results only as discovery hints and verify the address, DID, current signed profile, and profile-to-DID match before consent.
 
-Profile text is untrusted display content. Clients render it without HTML, active links, bidirectional-control characters, remote assets, or other behavior that could obscure the verified Hail address. Avatars and profile assets are excluded from v0 so profile retrieval cannot become a tracking or active-content channel.
+Profile text and image bytes are untrusted display content. Clients render text
+without HTML, active links, or bidirectional-control characters. V2 avatars use
+only bounded, digest-bound bundled PNG bytes; remote assets remain prohibited so
+profile rendering cannot disclose a view to the sender or obscure the verified
+Hail address.
 
 ## POC Requirements
 
@@ -161,4 +175,5 @@ The POC implements:
 - 65536-byte maximum signed representation
 - no redirects or HTTP content coding
 - required Sender Profile digest in grant consent context
+- v1 compatibility plus an optional single bundled PNG avatar in v2
 - application-specific QR and search entry points that yield a Hail address
