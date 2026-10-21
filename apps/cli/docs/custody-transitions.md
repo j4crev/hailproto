@@ -285,13 +285,15 @@ already enabled separately.
 - [x] Deploy a separately hosted public monitor with reviewed bootstrap, complete
   per-DID audit retention, bounded freshness and externally hosted signed email
   alerts; enroll both public alpha canaries.
-- [ ] Add external monitor dead-man supervision and exercise live disagreement/gap
-  refusal and recovery-window outages. Same-host or same-provider failures are not
-  independent evidence.
+- [x] Add external monitor dead-man supervision for the permanent Haili provider.
+- [ ] Exercise live disagreement/gap refusal and recovery-window outages. Same-host
+  or same-provider failures are not independent evidence.
 - [x] Establish durable off-VPS owner-recovery backups and automated weekly VPS
   backups for the public alpha.
 - [ ] Establish production provider-key protection, least-privilege operator access,
-  rate/size limits, audit retention and incident ownership.
+  rate/size limits, audit retention and incident ownership for every provider
+  participating in public managed transfer. The disabled Haili baseline now has
+  these controls; the disposable providers do not.
 - [ ] Exercise cross-host backup/restore from the latest accepted private state,
   including stale credential, challenge, worker, lease and generation rejection.
 - [x] Handle unsupported historical states safely using private/synthetic histories:
@@ -305,7 +307,8 @@ already enabled separately.
   or silently losing accepted state is forbidden.
 - [ ] Calibrate and enforce a documented supported load envelope on private clones,
   then prove alerts and recovery at that boundary. Do not load-test the public PLC;
-  unbounded scale testing is not required.
+  unbounded scale testing is not required. Haili public-readiness calibration does
+  not replace this managed-transfer failure-boundary proof.
 
 The first item completed October 13, 2026. The frozen identifiers are
 `hail-managed-custody-v1` and `hail.plc-read-evidence-v1`; their

@@ -11,6 +11,11 @@ Both role addresses route through Cloudflare Email Routing to the verified
 operator mailbox. The catch-all is disabled. Until a second operator is named,
 there is no 24×7 human coverage; automated checks provide detection only.
 
+Follow-up, not a launch blocker:
+
+- [ ] Name a backup incident/abuse operator, grant only the access needed for the
+  role, and complete one alert acknowledgement and recovery handoff drill.
+
 For a provider outage, inspect `sudo hail-provider-ops status` and `logs`, then
 use `restart`. If a release caused the outage, use `rollback`. If the host is
 lost, provision Ubuntu with Docker, copy the repository and root-only `.env`,

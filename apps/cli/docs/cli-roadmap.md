@@ -55,22 +55,24 @@ protocol boundary.
   hosted public monitor; messages between `haili.app` and each disposable provider
   reached terminal `delivered` state in both directions.
 
-This public-alpha proof does not establish production readiness: the two disposable
-providers share one VPS, public managed migration remains disabled, and
-restoration/load and monitor-outage exercises remain open.
+The permanent Haili provider has closed its operational launch gates. The two
+disposable providers still share one VPS, public managed migration remains
+disabled, and managed-transfer restoration/load and monitor-disagreement
+exercises remain open.
 
 ## Remaining production gates
 
-1. Add external dead-man supervision for the monitor and exercise disagreement,
-   gaps, outages and recovery inside the PLC recovery window.
-2. Prove cross-host provider/monitor restoration from latest accepted state and
-   independently stored keys/backups.
+1. Exercise monitor disagreement, gaps, outages and recovery inside the PLC
+   recovery window; dead-man supervision is live for Haili.
+2. Prove cross-host monitor and managed-transfer restoration from latest accepted
+   state. Haili provider/account backup restoration is complete.
 3. Keep the completed private-PLC managed-migration path behind its explicit POC
    gate; production remains subject to the required controls in
    [custody transitions](custody-transitions.md#production-enablement-required-versus-deferrable).
 4. Historical-state blocking and never-active abandonment recovery are proved on
-   private/synthetic fixtures. Complete abuse controls and documented load limits
-   on private clones.
+   private/synthetic fixtures. Extend Haili's abuse controls and documented limits
+   to every managed-transfer participant and test the failure boundary on private
+   clones.
 5. Integrate device-keystore or hardware protection and verify cross-platform
    binary distribution.
 

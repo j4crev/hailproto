@@ -24,11 +24,12 @@ authenticated delivery status without inventing read receipts. Inbox and Sent
 use bounded batch pages, evidence-backed address labels, and explicit guidance
 for held, failed, cancelled, or receipt-indeterminate messages.
 
-This is real public federation evidence, not a production release. The two
-disposable providers still share one VPS; off-host restoration, external
-monitor dead-man supervision, public managed transfer, historical recovery,
-abandonment, calibrated abuse/load controls and broader security operations
-remain gated. Track the [`haili.app` permanent-provider launch](docs/haili-launch.md),
+This is real public federation evidence. The permanent `haili.app` provider has
+closed its operational launch gates, but the two disposable providers still
+share one VPS and are not production services. Public managed transfer,
+historical recovery, abandonment, and equivalent recovery/load/security controls
+for every participating provider remain gated. Track the [`haili.app`
+permanent-provider launch](docs/haili-launch.md),
 the detailed [production gate checklist](apps/cli/docs/custody-transitions.md#production-enablement-required-versus-deferrable)
 and the [portable-custody boundary](docs/production-portable-custody.md).
 

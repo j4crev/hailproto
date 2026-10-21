@@ -145,12 +145,14 @@ Migration 5 adds retained per-DID audits and poll timestamps without deleting th
 legacy cursor. New observations no longer need a global sequence. Its rollback
 refuses after any per-DID evidence has been recorded.
 
-## Production Work Still Required
+## Production deployment status
 
-External dead-man supervision is still needed to alert while the monitor process
-itself is offline. The public alpha is deployed on a separate VPS and its email
-receiver is external, but same-hosting-provider failure and restore exercises
-remain open; this is not complete production independence.
+The Haili deployment has external dead-man supervision for the monitor process,
+public provider readiness and verified provider backups. Its monitor runs on a
+separate VPS and its email receiver runs on Cloudflare, but the provider and
+monitor remain with the same hosting provider. Correlated hosting-provider
+failure and a cross-host monitor-database restore exercise remain open; this is
+not complete infrastructure-provider independence.
 Review and operation approval are local commands rather than a
 cross-device user interface. A service hosted by the Hail provider may help
 users bootstrap but cannot satisfy the portable-custody rule that the monitor
