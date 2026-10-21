@@ -409,7 +409,7 @@ function validateEnvelope(payload: HailRecord): void {
   if (text(body.media_type, "$.body.media_type") !== "application/hail-body+cbor") {
     fail("unsupported body media type", "$.body.media_type");
   }
-  if (text(body.profile, "$.body.profile") !== "spt-1") fail("unsupported body profile", "$.body.profile");
+  if (!["spt-1", "spt-2"].includes(text(body.profile, "$.body.profile"))) fail("unsupported body profile", "$.body.profile");
   const availableUntil = integer(body.available_until, "$.body.available_until");
   if (availableUntil < createdAt + 2_592_000 || availableUntil < expiresAt + 300) {
     fail("does not satisfy the required availability window", "$.body.available_until");
@@ -469,17 +469,54 @@ function validateDeliveryStatus(payload: HailRecord): void {
   }
 }
 
-function validateBody(payload: HailRecord): void {
+function validateSpt1Body(payload: HailRecord): void {
   exactKeys(payload, ["version", "profile", "blocks"], [], "$");
   if (payload.version !== 1) fail("must equal integer 1", "$.version");
   if (payload.profile !== "spt-1") fail("must equal spt-1", "$.profile");
+  array(payload.blocks, "$.blocks").forEach((entry, blockIndex) => {
+    const path = `$.blocks[${blockIndex}]`, block = record(entry, path);
+    exactKeys(block, ["_type", "style", "children", "markDefs"], [], path);
+    if (block._type !== "block" || block.style !== "normal") fail("unsupported text block", path);
+    if (array(block.markDefs, `${path}.markDefs`).length !== 0) fail("must be empty in spt-1", `${path}.markDefs`);
+    const children = array(block.children, `${path}.children`);
+    if (children.length === 0) fail("must contain at least one span", `${path}.children`);
+    children.forEach((child, childIndex) => {
+      const childPath = `${path}.children[${childIndex}]`, span = record(child, childPath);
+      exactKeys(span, ["_type", "text", "marks"], [], childPath);
+      if (span._type !== "span") fail("must equal span", `${childPath}._type`);
+      text(span.text, `${childPath}.text`);
+      if (array(span.marks, `${childPath}.marks`).length !== 0) fail("must be empty in spt-1", `${childPath}.marks`);
+    });
+  });
+}
+
+function validateSpt2Body(payload: HailRecord): void {
+  exactKeys(payload, ["version", "profile", "blocks"], [], "$");
+  if (payload.version !== 1) fail("must equal integer 1", "$.version");
+  if (payload.profile !== "spt-2") fail("must equal spt-2", "$.profile");
   const blocks = array(payload.blocks, "$.blocks");
   blocks.forEach((entry, blockIndex) => {
     const path = `$.blocks[${blockIndex}]`;
     const block = record(entry, path);
-    exactKeys(block, ["_type", "style", "children", "markDefs"], [], path);
-    if (block._type !== "block" || block.style !== "normal") fail("unsupported text block", path);
-    if (array(block.markDefs, `${path}.markDefs`).length !== 0) fail("must be empty in spt-1 POC", `${path}.markDefs`);
+    exactKeys(block, ["_type", "style", "children", "markDefs"], ["listItem", "level"], path);
+    if (block._type !== "block" || !["normal", "h1", "h2", "h3", "blockquote", "caption"].includes(block.style as string)) fail("unsupported text block", path);
+    if (block.listItem !== undefined && !["bullet", "number"].includes(block.listItem as string)) fail("unsupported list type", `${path}.listItem`);
+    if (block.level !== undefined && (block.listItem === undefined || ![1, 2, 3].includes(integer(block.level, `${path}.level`, 1)))) fail("invalid list level", `${path}.level`);
+    const definitionKeys = new Set<string>();
+    array(block.markDefs, `${path}.markDefs`).forEach((entry, definitionIndex) => {
+      const definitionPath = `${path}.markDefs[${definitionIndex}]`;
+      const definition = record(entry, definitionPath);
+      exactKeys(definition, ["_key", "_type", "href"], ["title"], definitionPath);
+      const key = text(definition._key, `${definitionPath}._key`);
+      if (!/^[A-Za-z0-9_-]{1,64}$/.test(key) || ["strong", "em", "code"].includes(key) || definitionKeys.has(key)) fail("invalid or duplicate mark key", `${definitionPath}._key`);
+      definitionKeys.add(key);
+      if (definition._type !== "spt.link") fail("unsupported mark definition", `${definitionPath}._type`);
+      const href = text(definition.href, `${definitionPath}.href`);
+      let url: URL;
+      try { url = new URL(href); } catch { fail("must be an absolute HTTPS URL", `${definitionPath}.href`); }
+      if (url.protocol !== "https:" || url.username || url.password) fail("must be an HTTPS URL without credentials", `${definitionPath}.href`);
+      if (definition.title !== undefined) text(definition.title, `${definitionPath}.title`);
+    });
     const children = array(block.children, `${path}.children`);
     if (children.length === 0) fail("must contain at least one span", `${path}.children`);
     children.forEach((child, childIndex) => {
@@ -488,7 +525,9 @@ function validateBody(payload: HailRecord): void {
       exactKeys(span, ["_type", "text", "marks"], [], childPath);
       if (span._type !== "span") fail("must equal span", `${childPath}._type`);
       text(span.text, `${childPath}.text`);
-      if (array(span.marks, `${childPath}.marks`).length !== 0) fail("must be empty in spt-1 POC", `${childPath}.marks`);
+      const marks = array(span.marks, `${childPath}.marks`).map((mark, markIndex) => text(mark, `${childPath}.marks[${markIndex}]`));
+      if (new Set(marks).size !== marks.length || marks.some(mark => !["strong", "em", "code"].includes(mark) && !definitionKeys.has(mark)) ||
+        marks.filter(mark => definitionKeys.has(mark)).length > 1) fail("invalid, duplicate, or conflicting span mark", `${childPath}.marks`);
     });
   });
 }
@@ -500,7 +539,11 @@ export function validatePayload<T extends HailPayloadType>(
   assertHailValue(value);
   const payload = record(value, "$");
   if (expectedType === "hail.body.spt-1") {
-    validateBody(payload);
+    validateSpt1Body(payload);
+    return;
+  }
+  if (expectedType === "hail.body.spt-2") {
+    validateSpt2Body(payload);
     return;
   }
   if (payload.type !== expectedType) fail(`must equal ${expectedType}`, "$.type");

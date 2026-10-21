@@ -15,6 +15,7 @@ import {
   deliveryStatus,
   envelope,
   grant,
+  richBody,
   senderProfile,
 } from "./fixtures.js";
 
@@ -48,6 +49,7 @@ describe("payload validation", () => {
     expect(
       decodePayload("hail.body.spt-1", encodePayload("hail.body.spt-1", body)),
     ).toEqual(body);
+    expect(decodePayload("hail.body.spt-2",encodePayload("hail.body.spt-2",richBody))).toEqual(richBody);
   });
 
   it("rejects unknown fields", () => {
@@ -82,6 +84,15 @@ describe("payload validation", () => {
   it("rejects unsupported body versions", () => {
     const invalid = { ...body, version: 2 } as unknown as typeof body;
     expect(() => encodePayload("hail.body.spt-1", invalid)).toThrow(HailCodecError);
+  });
+
+  it("rejects unsafe or unresolved rich-text links", () => {
+    const unsafe = structuredClone(richBody);
+    unsafe.blocks[1]!.markDefs[0]!.href = "javascript:alert(1)";
+    expect(() => encodePayload("hail.body.spt-2", unsafe)).toThrow(HailCodecError);
+    const unresolved = structuredClone(richBody);
+    unresolved.blocks[1]!.children[0]!.marks = ["missing-link"];
+    expect(() => encodePayload("hail.body.spt-2", unresolved)).toThrow(HailCodecError);
   });
 
   it("rejects explicit undefined optional values during direct validation", () => {

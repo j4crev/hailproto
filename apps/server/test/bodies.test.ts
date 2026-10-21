@@ -3,7 +3,7 @@ import { decodePayload, encodeBase64Url } from "@hailproto/codec";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 import { registerBodyRoutes } from "../src/bodies/routes.js";
-import { bodyDigest, bodyFromText, checkAuthorization, type BodyStore } from "../src/bodies/service.js";
+import { bodyDigest, bodyFromDocument, bodyFromText, checkAuthorization, type BodyStore } from "../src/bodies/service.js";
 
 const did = `did:plc:${"a".repeat(24)}`;
 const recipient = `did:plc:${"b".repeat(24)}`;
@@ -25,6 +25,16 @@ describe("detached body", () => {
   it("encodes a validated deterministic spt-1 body and enforces the 256 KiB ceiling", () => {
     expect(decodePayload("hail.body.spt-1", bytes).blocks[0]?.children[0]?.text).toBe("Hello from Hail.");
     expect(() => bodyFromText("a".repeat(262_145))).toThrow();
+  });
+
+  it("encodes the first safe rich-text elements", () => {
+    const bytes=bodyFromDocument({version:1,profile:"spt-2",blocks:[
+      {_type:"block",style:"h1",children:[{_type:"span",text:"Rich Hail",marks:["strong"]}],markDefs:[]},
+      {_type:"block",style:"normal",children:[{_type:"span",text:"Open update",marks:["link"]}],
+        markDefs:[{_key:"link",_type:"spt.link",href:"https://haili.app/update"}]},
+      {_type:"block",style:"normal",listItem:"bullet",level:1,children:[{_type:"span",text:"Safe lists",marks:["em"]}],markDefs:[]},
+    ]});
+    expect(decodePayload("hail.body.spt-2",bytes).blocks).toHaveLength(3);
   });
 
   it("requires a recipient, UUIDv7, 256-bit token and 30-day availability", () => {

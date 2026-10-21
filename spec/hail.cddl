@@ -13,7 +13,8 @@ start =
   hail-grant /
   hail-envelope /
   hail-delivery-status /
-  hail-body-spt-1
+  hail-body-spt-1 /
+  hail-body-spt-2
 
 hail-int = -9007199254740991..9007199254740991
 hail-uint = 0..9007199254740991
@@ -138,7 +139,7 @@ body-descriptor = {
   "digest": digest,
   "size": 1..262144,
   "media_type": "application/hail-body+cbor",
-  "profile": "spt-1",
+  "profile": "spt-1" / "spt-2",
   "available_until": timestamp,
   "access": bearer-access
 }
@@ -232,22 +233,51 @@ cancellation-reason =
 
 delivery-state = "accepted" / "on-hold" / "delivered" / "failed" / "cancelled"
 
-; The initial spt-1 POC supports plain text in Portable Text-shaped blocks.
+; spt-1 remains the initial plain-text Portable Text-shaped profile.
 hail-body-spt-1 = {
   "version": 1,
   "profile": "spt-1",
-  "blocks": [* spt-text-block]
+  "blocks": [* spt-1-text-block]
 }
 
-spt-text-block = {
+spt-1-text-block = {
   "_type": "block",
   "style": "normal",
-  "children": [1* spt-span],
+  "children": [1* spt-1-span],
   "markDefs": []
 }
 
-spt-span = {
+spt-1-span = {
   "_type": "span",
   "text": tstr,
   "marks": []
+}
+
+; spt-2 adds a closed set of styles, lists, decorators and HTTPS links.
+hail-body-spt-2 = {
+  "version": 1,
+  "profile": "spt-2",
+  "blocks": [* spt-2-text-block]
+}
+
+spt-2-text-block = {
+  "_type": "block",
+  "style": "normal" / "h1" / "h2" / "h3" / "blockquote" / "caption",
+  "children": [1* spt-2-span],
+  "markDefs": [* spt-link],
+  ? "listItem": "bullet" / "number",
+  ? "level": 1..3
+}
+
+spt-2-span = {
+  "_type": "span",
+  "text": tstr,
+  "marks": [* tstr]
+}
+
+spt-link = {
+  "_key": tstr,
+  "_type": "spt.link",
+  "href": tstr,
+  ? "title": tstr
 }

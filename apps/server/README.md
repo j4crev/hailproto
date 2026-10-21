@@ -528,16 +528,17 @@ Additional account endpoints:
 | `/grants/managed` | POST, `grants:write` | Explicit managed evidence; sign/create at provider |
 | `/grants/{id}/revoke` | POST, `grants:write` | Managed account's signed terminal revision |
 | `/credentials` | POST, `credentials:write` | Issue caller-generated token with inherited scopes or revoke own credential ID |
-| `/messages` | POST, `messages:write` | Text/Grant or invited reply with client-stable UUIDv7 |
+| `/messages` | POST, `messages:write` | Text (`spt-1`) or validated rich `spt-2` body, Grant or invited reply, with client-stable UUIDv7 |
 | `/messages/{id}/submit` | POST, `messages:write` | Resubmit exact own envelope |
 | `/messages/{id}` | GET, `messages:read` | Retained authenticated status, otherwise indeterminate |
 | `/inbox` | GET, `messages:read` | Delivered recipient list, 50 items, opaque `after` cursor |
 | `/inbox/{sender_did}/{id}` | GET, `messages:read` | Own delivered body/safe metadata, no bearer token |
 
 Paths are relative to `/api/v1/account`. JSON writes require uncoded
-`application/json`. Message inputs contain `messageId`, `text`, either
+`application/json`. Message inputs contain `messageId`, exactly one of `text`
+or a diagnostic-JSON `body`, either
 `grantId`/`category` or `replyTo`, and optional `replyUntil`; text is bounded
-at 64 KiB. Stored envelopes bind retries to the same body, authorization and
+at 64 KiB and bodies retain the 256 KiB encoded limit. Stored envelopes bind retries to the same body, authorization and
 reply permission. Federation submission shares the operator CLI's submission
 service, preserving signed status versus generic receipt verification.
 

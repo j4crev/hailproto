@@ -135,7 +135,7 @@ export class BodyRetriever {
       !Buffer.from(createHash("sha256").update(bytes).digest()).equals(Buffer.from(envelope.body.digest.value))) {
       return { kind: "fail", reason: "body-integrity-failed" };
     }
-    try { validateBodyBytes(bytes); }
+    try { validateBodyBytes(bytes,envelope.body.profile); }
     catch { return { kind: "fail", reason: "body-invalid" }; }
     return { kind: "success", bytes };
   }

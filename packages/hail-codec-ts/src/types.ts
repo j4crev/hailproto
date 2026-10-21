@@ -16,9 +16,10 @@ export type HailPayloadType =
   | "hail.grant"
   | "hail.envelope"
   | "hail.delivery-status"
-  | "hail.body.spt-1";
+  | "hail.body.spt-1"
+  | "hail.body.spt-2";
 
-export type HailSignedPayloadType = Exclude<HailPayloadType, "hail.body.spt-1">;
+export type HailSignedPayloadType = Exclude<HailPayloadType, "hail.body.spt-1" | "hail.body.spt-2">;
 
 export interface HailSigner {
   readonly keyId: string;

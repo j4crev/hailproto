@@ -261,7 +261,7 @@ v0 rules:
 - `digest.value` is exactly 32 digest bytes. Diagnostic JSON and the retrieval path use its unpadded base64url rendering.
 - `size` is the exact uncompressed deterministic body size in octets, from 1 through 262144 inclusive.
 - `media_type` is the exact provisional string `application/hail-body+cbor`.
-- `profile` is the exact string `spt-1`.
+- `profile` is `spt-1` for the plain profile or `spt-2` for the first rich-text profile.
 - `available_until` is a UTC Unix timestamp at least 2592000 seconds after `created_at` and at least 300 seconds after `expires_at`.
 - `access` is a closed object containing only `type`, `token`, and `expires_at`.
 - `access.type` is the exact string `bearer`.

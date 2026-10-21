@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { decodePayload,encodeBase64Url,inspectSignedPayload,toDiagnosticJson } from "@hailproto/codec";
+import { decodePayload,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,toDiagnosticJson,type DiagnosticJson } from "@hailproto/codec";
 import type { SQL } from "bun";
-import { bodyFromText } from "../bodies/service.js";
+import { bodyFromDocument,bodyFromText,validateBodyBytes } from "../bodies/service.js";
 import type { BodyRepository } from "../bodies/repository.js";
 import type { EnvelopeRepository } from "../envelopes/repository.js";
 import type { EnvelopeService } from "../envelopes/service.js";
@@ -15,13 +15,15 @@ export class AccountMessaging {
     private readonly service:EnvelopeService,readonly submit:(sender:string,id:string)=>Promise<object>){}
 
   async send(session:AccountApiSession,input:Record<string,unknown>) {
-    if(Object.keys(input).some(k=>!["messageId","text","grantId","category","replyTo","replyUntil"].includes(k))||
-      typeof input.messageId!=="string"||!ID.test(input.messageId)||typeof input.text!=="string"||
-      Buffer.byteLength(input.text)>65536||((typeof input.grantId==="string") === (typeof input.replyTo==="string"))||
+    const hasText=typeof input.text==="string",hasBody=Boolean(input.body)&&typeof input.body==="object"&&!Array.isArray(input.body);
+    if(Object.keys(input).some(k=>!["messageId","text","body","grantId","category","replyTo","replyUntil"].includes(k))||
+      typeof input.messageId!=="string"||!ID.test(input.messageId)||hasText===hasBody||
+      (hasText&&Buffer.byteLength(input.text as string)>65536)||((typeof input.grantId==="string") === (typeof input.replyTo==="string"))||
       (input.grantId!==undefined&&(!ID.test(input.grantId as string)||typeof input.category!=="string"))||
       (input.replyTo!==undefined&&(!ID.test(input.replyTo as string)||input.category!==undefined))||
       (input.replyUntil!==undefined&&input.replyUntil!==null&&!Number.isSafeInteger(input.replyUntil)))throw new UserGrantError(400,"Invalid send request");
-    const body=bodyFromText(input.text);
+    const body=hasText?bodyFromText(input.text as string):
+      bodyFromDocument(fromDiagnosticJson("hail.body.spt-2",input.body as DiagnosticJson));
     const digest=new Uint8Array(createHash("sha256").update(body).digest());
     let stored=await this.envelopes.sent(session.did,input.messageId);
     if(!stored){
@@ -61,8 +63,11 @@ export class AccountMessaging {
       WHERE message.recipient_did=${session.did} AND message.sender_did=${sender} AND message.message_id=${id}`;
     if(!rows[0])return null;
     const envelope=inspectSignedPayload("hail.envelope",rows[0].envelope_cose).payload;
+    const profile=validateBodyBytes(rows[0].body_bytes);
+    const body=profile==="spt-1"?toDiagnosticJson("hail.body.spt-1",decodePayload("hail.body.spt-1",rows[0].body_bytes)):
+      toDiagnosticJson("hail.body.spt-2",decodePayload("hail.body.spt-2",rows[0].body_bytes));
     return {messageId:id,sender,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
-      deliveredAt:rows[0].delivered_at.toISOString(),body:toDiagnosticJson("hail.body.spt-1",decodePayload("hail.body.spt-1",rows[0].body_bytes))};
+      deliveredAt:rows[0].delivered_at.toISOString(),body};
   }
 
   async status(session:AccountApiSession,id:string) {

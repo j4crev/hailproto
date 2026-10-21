@@ -93,7 +93,7 @@ func fromHex(t testing.TB, s string) []byte {
 
 func TestPositiveVectors(t *testing.T) {
 	m := vectors(t)
-	if m.Format != "hail-conformance-vectors-1" || len(m.Positive) != 7 {
+	if m.Format != "hail-conformance-vectors-1" || len(m.Positive) != 8 {
 		t.Fatalf("unexpected manifest %q (%d positives)", m.Format, len(m.Positive))
 	}
 	keys := map[string]testKeyVector{}
@@ -118,7 +118,7 @@ func TestPositiveVectors(t *testing.T) {
 			if hex.EncodeToString(sum[:]) != v.PayloadSHA256Hex || EncodeBase64URL(sum[:]) != v.PayloadSHA256Base64URL {
 				t.Fatal("payload digest differs")
 			}
-			if v.Type == BodySPT1Type {
+			if v.Type == BodySPT1Type || v.Type == BodySPT2Type {
 				if v.COSEHex != "" {
 					t.Fatal("body unexpectedly signed")
 				}
@@ -391,6 +391,16 @@ func TestTypedCollectionPreflight(t *testing.T) {
 	})
 	if allocations >= 1000 {
 		t.Fatalf("typed preflight allocated as if projecting the collection: %.0f allocations", allocations)
+	}
+	rich := &SPT2Body{Version: 1, Profile: "spt-2", Blocks: []SPT2TextBlock{{Type: "block", Style: "h2",
+		Children: []SPT2Span{{Type: "span", Text: "Safe link", Marks: []string{"link"}}},
+		MarkDefs: []SPT2Link{{Key: "link", Type: "spt.link", Href: "https://haili.app/update"}}}}}
+	if _, err := EncodePayload(rich); err != nil {
+		t.Fatalf("rejected safe rich body: %v", err)
+	}
+	rich.Blocks[0].MarkDefs[0].Href = "javascript:alert(1)"
+	if _, err := EncodePayload(rich); err == nil {
+		t.Fatal("accepted unsafe rich link")
 	}
 
 	grantPayload, err := DecodePayload(GrantType, fromHex(t, m.Positive[3].PayloadHex))

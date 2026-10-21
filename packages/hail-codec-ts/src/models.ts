@@ -80,7 +80,7 @@ export interface HailBodyDescriptor {
   digest: HailDigest;
   size: number;
   media_type: "application/hail-body+cbor";
-  profile: "spt-1";
+  profile: "spt-1" | "spt-2";
   available_until: number;
   access: {
     type: "bearer";
@@ -177,6 +177,34 @@ export interface HailSptBody {
   blocks: HailSptTextBlock[];
 }
 
+export interface HailSpt2Span {
+  _type: "span";
+  text: string;
+  marks: string[];
+}
+
+export interface HailSptLink {
+  _key: string;
+  _type: "spt.link";
+  href: string;
+  title?: string;
+}
+
+export interface HailSpt2TextBlock {
+  _type: "block";
+  style: "normal" | "h1" | "h2" | "h3" | "blockquote" | "caption";
+  children: [HailSpt2Span, ...HailSpt2Span[]];
+  markDefs: HailSptLink[];
+  listItem?: "bullet" | "number";
+  level?: 1 | 2 | 3;
+}
+
+export interface HailSpt2Body {
+  version: 1;
+  profile: "spt-2";
+  blocks: HailSpt2TextBlock[];
+}
+
 export interface HailPayloadByType {
   "hail.address-binding": HailAddressBinding;
   "hail.sender-profile": HailSenderProfile;
@@ -184,4 +212,5 @@ export interface HailPayloadByType {
   "hail.envelope": HailEnvelope;
   "hail.delivery-status": HailDeliveryStatus;
   "hail.body.spt-1": HailSptBody;
+  "hail.body.spt-2": HailSpt2Body;
 }

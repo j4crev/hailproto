@@ -1,0 +1,34 @@
+import { describe, expect, it } from "vitest";
+import { groupMessageBlocks, messagePreview, parseInbox, parseMessage } from "./messages.js";
+
+describe("message projections", () => {
+  it("accepts the account API inbox and current spt-1 body", () => {
+    expect(parseInbox({ messages: [{ messageId: "m", sender: "did:plc:sender", deliveredAt: "now" }] })[0]?.sender)
+      .toBe("did:plc:sender");
+    const message = parseMessage({
+      messageId: "m", sender: "did:plc:sender", recipient: "did:plc:recipient", deliveredAt: "now", category: "updates",
+      body: { version: 1, profile: "spt-1", blocks: [{ _type: "block", style: "normal", children: [
+        { _type: "span", text: "Hello ", marks: [] }, { _type: "span", text: "Hail", marks: [] },
+      ], markDefs: [] }] },
+    });
+    expect(message.paragraphs).toEqual(["Hello Hail"]);
+    expect(messagePreview(message)).toBe("Hello Hail");
+    expect(Array.from(messagePreview({ ...message, paragraphs: ["🙂".repeat(121)] }))).toHaveLength(120);
+  });
+
+  it("rejects a body the POC cannot render safely", () => {
+    expect(() => parseMessage({ body: { version: 1, profile: "spt-3", blocks: [] } })).toThrow("Unsupported message body");
+  });
+
+  it("projects rich text without permitting active links", () => {
+    const base={messageId:"m",sender:"did:plc:sender",recipient:"did:plc:recipient",deliveredAt:"now",category:null};
+    const message=parseMessage({...base,body:{version:1,profile:"spt-2",blocks:[{_type:"block",style:"h2",
+      children:[{_type:"span",text:"Safe link",marks:["strong","link"]}],
+      markDefs:[{_key:"link",_type:"spt.link",href:"https://haili.app/news"}]}]}});
+    expect(message.blocks[0]).toMatchObject({style:"h2",spans:[{strong:true,link:{hostname:"haili.app"}}]});
+    expect(()=>parseMessage({...base,body:{version:1,profile:"spt-2",blocks:[{_type:"block",style:"normal",
+      children:[{_type:"span",text:"unsafe",marks:["link"]}],markDefs:[{_key:"link",_type:"spt.link",href:"javascript:alert(1)"}]}]}})).toThrow("Unsupported link");
+    const item={...message.blocks[0]!,listItem:"number" as const,level:1};
+    expect(groupMessageBlocks([item,item,{...item,listItem:"bullet"}]).map(group=>group.blocks.length)).toEqual([2,1]);
+  });
+});

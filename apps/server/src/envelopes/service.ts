@@ -90,7 +90,7 @@ export class EnvelopeService {
       created_at: now, expires_at: now + 7 * 86400,
       body: {
         digest: { algorithm: "sha-256", value: new Uint8Array(digest) }, size: body.size,
-        media_type: "application/hail-body+cbor", profile: "spt-1", available_until: availableUntil,
+        media_type: "application/hail-body+cbor", profile: body.profile, available_until: availableUntil,
         access: { type: "bearer", token: newBodyToken(), expires_at: availableUntil },
       },
       reply: replyUntil === null ? { allowed: false } : { allowed: true, until: replyUntil },

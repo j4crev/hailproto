@@ -39,6 +39,10 @@ export type {
   HailSenderCategory,
   HailSenderProfile,
   HailSptBody,
+  HailSpt2Body,
+  HailSpt2Span,
+  HailSpt2TextBlock,
+  HailSptLink,
   HailSptSpan,
   HailSptTextBlock,
 } from "./models.js";

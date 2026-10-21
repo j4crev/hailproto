@@ -18,6 +18,7 @@ const PAYLOAD_TYPES = new Set<HailPayloadType>([
   "hail.envelope",
   "hail.delivery-status",
   "hail.body.spt-1",
+  "hail.body.spt-2",
 ]);
 
 function isPayloadType(value: unknown): value is HailPayloadType {

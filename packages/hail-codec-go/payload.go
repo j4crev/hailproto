@@ -3,6 +3,7 @@ package hailcodec
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"unicode"
@@ -19,6 +20,7 @@ var (
 	categoryPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 	localPattern    = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$`)
 	domainLabel     = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`)
+	sptMarkKey      = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 )
 
 func EncodePayload(payload Payload) ([]byte, error) {
@@ -69,6 +71,8 @@ func DecodePayload(payloadType string, data []byte) (Payload, error) {
 		out = &DeliveryStatus{}
 	case BodySPT1Type:
 		out = &SPTBody{}
+	case BodySPT2Type:
+		out = &SPT2Body{}
 	default:
 		return nil, errors.New("unknown Hail payload type")
 	}
@@ -125,6 +129,13 @@ func payloadValue(payload Payload) (map[any]any, string, error) {
 			return nil, "", errors.New("nil body payload")
 		}
 		return bodyValue(value), BodySPT1Type, nil
+	case SPT2Body:
+		return body2Value(&value), BodySPT2Type, nil
+	case *SPT2Body:
+		if value == nil {
+			return nil, "", errors.New("nil spt-2 body payload")
+		}
+		return body2Value(value), BodySPT2Type, nil
 	default:
 		return nil, "", fmt.Errorf("unsupported payload model %T", payload)
 	}
@@ -234,9 +245,38 @@ func bodyValue(value *SPTBody) map[any]any {
 			}
 			children[j] = map[any]any{"_type": span.Type, "text": span.Text, "marks": marks}
 		}
+		blocks[i] = map[any]any{"_type": block.Type, "style": block.Style, "children": children, "markDefs": []any{}}
+	}
+	return map[any]any{"version": value.Version, "profile": value.Profile, "blocks": blocks}
+}
+
+func body2Value(value *SPT2Body) map[any]any {
+	blocks := make([]any, len(value.Blocks))
+	for i, block := range value.Blocks {
+		children := make([]any, len(block.Children))
+		for j, span := range block.Children {
+			marks := make([]any, len(span.Marks))
+			for k, mark := range span.Marks {
+				marks[k] = mark
+			}
+			children[j] = map[any]any{"_type": span.Type, "text": span.Text, "marks": marks}
+		}
 		markDefs := make([]any, len(block.MarkDefs))
-		copy(markDefs, block.MarkDefs)
-		blocks[i] = map[any]any{"_type": block.Type, "style": block.Style, "children": children, "markDefs": markDefs}
+		for j, definition := range block.MarkDefs {
+			item := map[any]any{"_key": definition.Key, "_type": definition.Type, "href": definition.Href}
+			if definition.Title != "" {
+				item["title"] = definition.Title
+			}
+			markDefs[j] = item
+		}
+		item := map[any]any{"_type": block.Type, "style": block.Style, "children": children, "markDefs": markDefs}
+		if block.ListItem != "" {
+			item["listItem"] = block.ListItem
+		}
+		if block.Level != 0 {
+			item["level"] = block.Level
+		}
+		blocks[i] = item
 	}
 	return map[any]any{"version": value.Version, "profile": value.Profile, "blocks": blocks}
 }
@@ -414,7 +454,10 @@ func hailAddress(v any, path string) error {
 
 func validatePayloadMap(kind string, m map[any]any) error {
 	if kind == BodySPT1Type {
-		return validateBody(m)
+		return validateSpt1Body(m)
+	}
+	if kind == BodySPT2Type {
+		return validateSpt2Body(m)
 	}
 	if e := expectText(m, "type", kind, "$.type"); e != nil {
 		return e
@@ -699,8 +742,9 @@ func validateEnvelope(m map[any]any) error {
 	if e = expectText(b, "media_type", "application/hail-body+cbor", "$.body.media_type"); e != nil {
 		return e
 	}
-	if e = expectText(b, "profile", "spt-1", "$.body.profile"); e != nil {
-		return e
+	profile, e := textValue(b["profile"], "$.body.profile")
+	if e != nil || profile != "spt-1" && profile != "spt-2" {
+		return errors.New("unsupported body profile")
 	}
 	available, e := intValue(b["available_until"], "$.body.available_until", 0)
 	if e != nil || available < created+2592000 || available < expires+300 {
@@ -817,7 +861,7 @@ func validateDelivery(m map[any]any) error {
 	return nil
 }
 
-func validateBody(m map[any]any) error {
+func validateSpt1Body(m map[any]any) error {
 	if e := exact(m, []string{"version", "profile", "blocks"}, nil, "$"); e != nil {
 		return e
 	}
@@ -832,24 +876,128 @@ func validateBody(m map[any]any) error {
 	if e != nil {
 		return e
 	}
+	for i, value := range blocks {
+		p := fmt.Sprintf("$.blocks[%d]", i)
+		block, e := mapValue(value, p)
+		if e != nil {
+			return e
+		}
+		if e = exact(block, []string{"_type", "style", "children", "markDefs"}, nil, p); e != nil {
+			return e
+		}
+		if e = expectText(block, "_type", "block", p+"._type"); e != nil {
+			return e
+		}
+		if e = expectText(block, "style", "normal", p+".style"); e != nil {
+			return e
+		}
+		defs, e := arrayValue(block["markDefs"], p+".markDefs")
+		if e != nil || len(defs) != 0 {
+			return errors.New("spt-1 markDefs must be empty")
+		}
+		children, e := arrayValue(block["children"], p+".children")
+		if e != nil || len(children) == 0 {
+			return errors.New("block children must not be empty")
+		}
+		for j, child := range children {
+			cp := fmt.Sprintf("%s.children[%d]", p, j)
+			span, e := mapValue(child, cp)
+			if e != nil {
+				return e
+			}
+			if e = exact(span, []string{"_type", "text", "marks"}, nil, cp); e != nil {
+				return e
+			}
+			if e = expectText(span, "_type", "span", cp+"._type"); e != nil {
+				return e
+			}
+			if _, e = textValue(span["text"], cp+".text"); e != nil {
+				return e
+			}
+			marks, e := arrayValue(span["marks"], cp+".marks")
+			if e != nil || len(marks) != 0 {
+				return errors.New("spt-1 marks must be empty")
+			}
+		}
+	}
+	return nil
+}
+
+func validateSpt2Body(m map[any]any) error {
+	if e := exact(m, []string{"version", "profile", "blocks"}, nil, "$"); e != nil {
+		return e
+	}
+	v, e := intValue(m["version"], "$.version", 0)
+	if e != nil || v != 1 {
+		return errors.New("$.version must equal 1")
+	}
+	if e = expectText(m, "profile", "spt-2", "$.profile"); e != nil {
+		return e
+	}
+	blocks, e := arrayValue(m["blocks"], "$.blocks")
+	if e != nil {
+		return e
+	}
 	for i, v := range blocks {
 		p := fmt.Sprintf("$.blocks[%d]", i)
 		b, e := mapValue(v, p)
 		if e != nil {
 			return e
 		}
-		if e = exact(b, []string{"_type", "style", "children", "markDefs"}, nil, p); e != nil {
+		if e = exact(b, []string{"_type", "style", "children", "markDefs"}, []string{"listItem", "level"}, p); e != nil {
 			return e
 		}
 		if e = expectText(b, "_type", "block", p+"._type"); e != nil {
 			return e
 		}
-		if e = expectText(b, "style", "normal", p+".style"); e != nil {
-			return e
+		style, e := textValue(b["style"], p+".style")
+		if e != nil || style != "normal" && style != "h1" && style != "h2" && style != "h3" && style != "blockquote" && style != "caption" {
+			return errors.New("unsupported text block style")
 		}
 		defs, e := arrayValue(b["markDefs"], p+".markDefs")
-		if e != nil || len(defs) != 0 {
-			return errors.New("markDefs must be empty")
+		if e != nil {
+			return e
+		}
+		definitionKeys := map[string]bool{}
+		for j, value := range defs {
+			dp := fmt.Sprintf("%s.markDefs[%d]", p, j)
+			definition, e := mapValue(value, dp)
+			if e != nil {
+				return e
+			}
+			if e = exact(definition, []string{"_key", "_type", "href"}, []string{"title"}, dp); e != nil {
+				return e
+			}
+			key, e := textValue(definition["_key"], dp+"._key")
+			if e != nil || !sptMarkKey.MatchString(key) || key == "strong" || key == "em" || key == "code" || definitionKeys[key] {
+				return errors.New("invalid or duplicate mark key")
+			}
+			definitionKeys[key] = true
+			if e = expectText(definition, "_type", "spt.link", dp+"._type"); e != nil {
+				return e
+			}
+			href, e := textValue(definition["href"], dp+".href")
+			parsed, parseErr := url.Parse(href)
+			if e != nil || parseErr != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
+				return errors.New("link must be an absolute HTTPS URL without credentials")
+			}
+			if has(definition, "title") {
+				if _, e = textValue(definition["title"], dp+".title"); e != nil {
+					return e
+				}
+			}
+		}
+		if has(b, "listItem") {
+			list, e := textValue(b["listItem"], p+".listItem")
+			if e != nil || list != "bullet" && list != "number" {
+				return errors.New("unsupported list type")
+			}
+		}
+		if has(b, "level") {
+			level, e := intValue(b["level"], p+".level", 1)
+			if e != nil || !has(b, "listItem") || level > 3 {
+				return errors.New("invalid list level")
+			}
 		}
 		children, e := arrayValue(b["children"], p+".children")
 		if e != nil || len(children) == 0 {
@@ -871,8 +1019,22 @@ func validateBody(m map[any]any) error {
 				return e
 			}
 			marks, e := arrayValue(s["marks"], cp+".marks")
-			if e != nil || len(marks) != 0 {
-				return errors.New("marks must be empty")
+			if e != nil {
+				return e
+			}
+			seen, annotations := map[string]bool{}, 0
+			for k, value := range marks {
+				mark, e := textValue(value, fmt.Sprintf("%s.marks[%d]", cp, k))
+				if e != nil || seen[mark] || mark != "strong" && mark != "em" && mark != "code" && !definitionKeys[mark] {
+					return errors.New("invalid or duplicate span mark")
+				}
+				seen[mark] = true
+				if definitionKeys[mark] {
+					annotations++
+				}
+			}
+			if annotations > 1 {
+				return errors.New("span has conflicting annotations")
 			}
 		}
 	}

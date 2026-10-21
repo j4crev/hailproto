@@ -296,7 +296,7 @@ Grant revocation is defined in [`spec/grants.md`](spec/grants.md). Revocation wi
 
 V0 does not depend on arbitrary HTML as the rich message format.
 
-The POC uses the fixed `spt-1` schema: a closed deterministic-CBOR body containing Portable Text-shaped plain-text blocks and spans. This makes unsafe behavior inexpressible instead of relying on sanitization after parsing untrusted markup.
+The POC retains the fixed plain `spt-1` schema and adds `spt-2`: a closed deterministic-CBOR rich-text body with headings, lists, basic decorators and declared HTTPS links. This makes unsafe behavior inexpressible instead of relying on sanitization after parsing untrusted markup.
 
 The following diagnostic JSON illustrates possible future body models and is not part of v0:
 

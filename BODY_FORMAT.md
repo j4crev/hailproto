@@ -97,7 +97,7 @@ Diagnostic JSON for the starter document shape:
 ```json
 {
   "version": 1,
-  "profile": "spt-1",
+  "profile": "spt-2",
   "theme": {
     "accent": "#146ef5",
     "font": "sans",
@@ -632,9 +632,7 @@ This keeps the prototype simple while preserving the path to a richer block docu
 
 ## Open Gaps
 
-- Decide whether Hail Body should use Portable Text directly, Safe Portable Text, or a custom format inspired by Portable Text.
-- Define the exact v0 block vocabulary.
-- Define the inline text model.
+- Finalize the Safe Portable Text-specific block vocabulary beyond the implemented text styles, lists, decorators, and HTTPS links.
 - Define the asset manifest schema.
 - Define allowed URL behavior and client warning rules.
 - Define design tokens.

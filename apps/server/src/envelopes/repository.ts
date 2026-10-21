@@ -3,8 +3,9 @@ import { encodePayload, inspectSignedPayload, type HailEnvelope } from "@hailpro
 import type { SQL } from "bun";
 import type { PlcResolutionEvidence } from "../plc/resolver.js";
 import { retainPublicEnvelopeAuthority } from "../plc/envelope-authority.js";
+import { validateBodyBytes, type BodyProfile } from "../bodies/service.js";
 
-export interface PublishedBodyInfo { size: number; senderAccountId: string; }
+export interface PublishedBodyInfo { size: number; senderAccountId: string; profile: BodyProfile; }
 export interface EnvelopeDecision {
   payload: HailEnvelope;
   representation: Uint8Array;
@@ -41,13 +42,14 @@ export class EnvelopeRepository {
   }
 
   async publishedBody(senderDid: string, digest: Uint8Array): Promise<PublishedBodyInfo | null> {
-    const rows = await this.sql<{ size: number; sender_account_id: string }[]>`
-      SELECT octet_length(body.body_bytes) AS size, body.sender_account_id
+    const rows = await this.sql<{ size: number; sender_account_id: string; body_bytes: Uint8Array }[]>`
+      SELECT octet_length(body.body_bytes) AS size, body.sender_account_id, body.body_bytes
       FROM detached_bodies body JOIN provider_accounts account ON account.id = body.sender_account_id
       WHERE body.digest = ${digest} AND account.did = ${senderDid}
         AND account.onboarding_state = 'active' AND account.activation_verification_mode = 'public'
     `;
-    return rows[0] ? { size: rows[0].size, senderAccountId: rows[0].sender_account_id } : null;
+    return rows[0] ? { size: rows[0].size, senderAccountId: rows[0].sender_account_id,
+      profile:validateBodyBytes(rows[0].body_bytes) } : null;
   }
 
   async createSent(payload: HailEnvelope, representation: Uint8Array, accountId: string): Promise<void> {

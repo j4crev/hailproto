@@ -382,7 +382,8 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
       const encrypted=await messageEncryptor.encrypt(id,"hail-messaging","ed25519",publicKey,raw);raw.fill(0);
       await db.sql`INSERT INTO account_keys (account_id,role,algorithm,public_key,encrypted_private_key,encryption_nonce,encryption_version,kek_id)
         VALUES (${id},'hail-messaging','ed25519',${publicKey},${encrypted.ciphertext},${encrypted.nonce},1,'poc-v1')`;}
-    await json("message-sender.credential.json",credentialRecord(await accounts.issue(senderAddress,false,undefined,[...ALL_ACCOUNT_SCOPES])));
+    const senderCredential=await accounts.issue(senderAddress,false,undefined,[...ALL_ACCOUNT_SCOPES]);
+    await json("message-sender.credential.json",credentialRecord(senderCredential));
     await json("message-owner.credential.json",credentialRecord(await accounts.issue(address,false,undefined,[...ALL_ACCOUNT_SCOPES])));
     const rotatedPath=join(directory,"self-service.credential.json");
     const rotated=await cli(["credential","create","--output",rotatedPath],"message-owner.credential.json");if(rotated.exit)throw new Error(rotated.stderr);
@@ -405,6 +406,16 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     const read=await cli(["inbox","show",senderDid,id],"message-owner.credential.json");if(read.exit)throw new Error(read.stderr);
     expect(JSON.parse(read.stdout).body.blocks[0].children[0].text).toBe("CLI message");
     expect(JSON.parse(read.stdout).reply.allowed).toBe(true);
+    const richId="01a15eb5-0000-7000-8000-000000000001";
+    const rich=await app.request(`${origin}/api/v1/account/messages`,{method:"POST",headers:{Authorization:`Bearer ${senderCredential.token}`,"Content-Type":"application/json"},body:JSON.stringify({
+      messageId:richId,grantId,category:"updates",body:{version:1,profile:"spt-2",blocks:[
+        {_type:"block",style:"h1",children:[{_type:"span",text:"Rich message",marks:["strong"]}],markDefs:[]},
+        {_type:"block",style:"normal",children:[{_type:"span",text:"Open update",marks:["link","em"]}],markDefs:[{_key:"link",_type:"spt.link",href:"https://sender.example.com/update"}]},
+      ]}})});
+    expect(rich.status).toBe(200);
+    const richRead=await cli(["inbox","show",senderDid,richId],"message-owner.credential.json");
+    expect(richRead.exit,richRead.stderr).toBe(0);
+    expect(JSON.parse(richRead.stdout).body.blocks[1].markDefs[0].href).toBe("https://sender.example.com/update");
     expect((await cli(["inbox","show",senderDid,id],"message-sender.credential.json")).exit).toBe(1);
     const reply=await cli(["reply",id,"--file",join(directory,"text.txt"),"--state",join(directory,"reply-state.json")],"message-owner.credential.json");if(reply.exit)throw new Error(reply.stderr);
     expect((await cli(["inbox","list"],"message-sender.credential.json")).exit).toBe(0);

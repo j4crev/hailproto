@@ -23,6 +23,7 @@ import {
   deliveryStatus,
   envelope,
   grant,
+  richBody,
   senderProfile,
 } from "../test/fixtures.js";
 
@@ -97,7 +98,8 @@ async function addPositive<T extends HailPayloadType>(
   let representationDigest: Uint8Array | undefined;
   let signatureStructure: Uint8Array | undefined;
 
-  if (type !== "hail.body.spt-1") {
+  if (!type.startsWith("hail.body.")) {
+    const signedType=type as HailSignedPayloadType;
     const signedValue = value as HailPayloadByType[HailSignedPayloadType];
     const keyId =
       "key_id" in signedValue
@@ -106,14 +108,14 @@ async function addPositive<T extends HailPayloadType>(
     const seed = seedsByKeyId.get(keyId);
     if (seed === undefined) throw new Error(`missing test seed for ${keyId}`);
     const key = privateKey(seed);
-    signedBytes = await signPayload(type, signedValue as never, {
+    signedBytes = await signPayload(signedType, signedValue as never, {
       keyId,
       async sign(data) {
         return nodeSign(null, data, key);
       },
     });
     representationDigest = sha256(signedBytes);
-    signedByType.set(type, signedBytes);
+    signedByType.set(signedType, signedBytes);
     const tagged = decode(signedBytes, {
       tags: Tagged.preserve(18),
       useMaps: true,
@@ -212,6 +214,7 @@ await addPositive(
   "hail.delivery-status",
   linkedDeliveryStatus,
 );
+await addPositive("body-spt-2-rich","hail.body.spt-2",richBody);
 
 const addressSigned = signedByType.get("hail.address-binding");
 if (addressSigned === undefined) throw new Error("address-binding vector missing");

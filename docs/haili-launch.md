@@ -64,6 +64,23 @@ both moves. Public managed transfer was disabled again on both providers after
 the proof; general enablement remains a later milestone behind the tabled
 operational gates.
 
+## `spt-2` rollout record
+
+Migration 52 and the additive `spt-2` rich-text profile were deployed to
+`haili.app`, `hailproto.app`, and `hailproto.dev` on October 21, 2026. The
+release archive SHA-256 is
+`ff6031cdb912da44d238c696a9ffe43da86cde8c7fd4879f747e8c7937d0fd15`.
+Verified pre-rollout logical backups are retained at
+`/var/backups/hail-public/pre-spt2-20261021T151547Z` and
+`/var/backups/hail-poc/pre-spt2-20261021T151547Z` on their respective hosts;
+compatible pre-`spt-2` provider images remain tagged for rollback.
+
+Fresh rich messages `01a15f0c-3aee-737b-8ba5-920777f6011d` from
+`canary@hailproto.app` and `01a15f0c-404b-7dfd-91ab-f12bbe2398cd` from
+`canary@hailproto.dev` reached terminal `delivered` state at
+`canary@haili.app`. Account reads returned `spt-2`, and the disposable GUI
+rendered the heading, grouped list, blockquote, decorators, and HTTPS link.
+
 ## Documentation disposition
 
 Completed October 21, 2026. Active guidance now points to the strict-public

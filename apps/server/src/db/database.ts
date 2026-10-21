@@ -193,6 +193,7 @@ const migrations: readonly Migration[] = [
   { version: 49, name: "managed-migration-materialization", url: new URL("../../migrations/0049_managed_migration_materialization.sql", import.meta.url) },
   { version: 50, name: "managed-profile-version", url: new URL("../../migrations/0050_managed_profile_version.sql", import.meta.url) },
   { version: 51, name: "did-monitor-coverage", url: new URL("../../migrations/0051_did_monitor_coverage.sql", import.meta.url) },
+  { version: 52, name: "spt2-profile", url: new URL("../../migrations/0052_spt2_profile.sql", import.meta.url) },
 ];
 
 export class ProviderDatabase {

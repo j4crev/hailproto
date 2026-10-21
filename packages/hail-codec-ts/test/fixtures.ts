@@ -3,6 +3,7 @@ import type {
   HailDeliveryStatus,
   HailGrant,
   HailSenderProfile,
+  HailSpt2Body,
   HailSptBody,
 } from "../src/index.js";
 
@@ -121,5 +122,15 @@ export const body: HailSptBody = {
       children: [{ _type: "span", text: "Hello from Hail.", marks: [] }],
       markDefs: [],
     },
+  ],
+};
+
+export const richBody: HailSpt2Body = {
+  version: 1,
+  profile: "spt-2",
+  blocks: [
+    {_type:"block",style:"h1",children:[{_type:"span",text:"Hello from Hail",marks:["strong"]}],markDefs:[]},
+    {_type:"block",style:"normal",children:[{_type:"span",text:"Read the update",marks:["update-link","em"]}],
+      markDefs:[{_key:"update-link",_type:"spt.link",href:"https://haili.app/update",title:"Hail update"}]},
   ],
 };

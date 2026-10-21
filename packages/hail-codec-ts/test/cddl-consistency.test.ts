@@ -29,6 +29,9 @@ import {
   type HailSenderCategory,
   type HailSenderProfile,
   type HailSptBody,
+  type HailSpt2Body,
+  type HailSpt2Span,
+  type HailSpt2TextBlock,
   type HailSptSpan,
   type HailSptTextBlock,
   type HailValue,
@@ -107,7 +110,7 @@ type ExpectedBodyDescriptor = {
   digest: ExpectedDigest;
   size: number;
   media_type: "application/hail-body+cbor";
-  profile: "spt-1";
+  profile: "spt-1" | "spt-2";
   available_until: number;
   access: { type: "bearer"; token: Uint8Array; expires_at: number };
 };
@@ -170,13 +173,19 @@ type ExpectedDeliveryStatus = ExpectedDeliveryStatusBase &
     | { revision: number; state: "cancelled"; reason: ExpectedCancellationReason; retry_at?: never }
   );
 type ExpectedSpan = { _type: "span"; text: string; marks: [] };
-type ExpectedBlock = {
+type ExpectedBlock = {_type:"block";style:"normal";children:[ExpectedSpan,...ExpectedSpan[]];markDefs:[]};
+type ExpectedLink = { _key: string; _type: "spt.link"; href: string; title?: string };
+type ExpectedSpt2Span = { _type: "span"; text: string; marks: string[] };
+type ExpectedSpt2Block = {
   _type: "block";
-  style: "normal";
-  children: [ExpectedSpan, ...ExpectedSpan[]];
-  markDefs: [];
+  style: "normal" | "h1" | "h2" | "h3" | "blockquote" | "caption";
+  children: [ExpectedSpt2Span, ...ExpectedSpt2Span[]];
+  markDefs: ExpectedLink[];
+  listItem?: "bullet" | "number";
+  level?: 1 | 2 | 3;
 };
 type ExpectedBody = { version: 1; profile: "spt-1"; blocks: ExpectedBlock[] };
+type ExpectedSpt2Body = { version: 1; profile: "spt-2"; blocks: ExpectedSpt2Block[] };
 
 type ModelAssertions = [
   Assert<Equivalent<HailDigest, ExpectedDigest>>,
@@ -200,6 +209,9 @@ type ModelAssertions = [
   Assert<Equivalent<HailSptSpan, ExpectedSpan>>,
   Assert<Equivalent<HailSptTextBlock, ExpectedBlock>>,
   Assert<Equivalent<HailSptBody, ExpectedBody>>,
+  Assert<Equivalent<HailSpt2Span, ExpectedSpt2Span>>,
+  Assert<Equivalent<HailSpt2TextBlock, ExpectedSpt2Block>>,
+  Assert<Equivalent<HailSpt2Body, ExpectedSpt2Body>>,
 ];
 
 const NESTED_MAPS: ReadonlyArray<{
@@ -242,6 +254,8 @@ const NESTED_MAPS: ReadonlyArray<{
     path: ["blocks", 0],
     required: ["_type", "style", "children", "markDefs"],
   },
+  { type: "hail.body.spt-2", path: ["blocks",0], required: ["_type","style","children","markDefs"] },
+  { type: "hail.body.spt-2", path: ["blocks",0,"children",0], required: ["_type","text","marks"] },
   {
     type: "hail.body.spt-1",
     path: ["blocks", 0, "children", 0],
@@ -274,6 +288,7 @@ const CDDL_RULES = {
   "hail.envelope": "hail-envelope",
   "hail.delivery-status": "hail-delivery-status",
   "hail.body.spt-1": "hail-body-spt-1",
+  "hail.body.spt-2": "hail-body-spt-2",
 } as const satisfies Readonly<Record<HailPayloadType, string>>;
 
 const REQUIRED_KEYS = {
@@ -337,6 +352,7 @@ const REQUIRED_KEYS = {
     "occurred_at",
   ],
   "hail.body.spt-1": ["version", "profile", "blocks"],
+  "hail.body.spt-2": ["version", "profile", "blocks"],
 } as const satisfies Readonly<Record<HailPayloadType, readonly string[]>>;
 
 const schemaText = readFileSync(
@@ -434,7 +450,7 @@ describe("CDDL and TypeScript structural consistency", () => {
     );
     expect(Object.keys(SIGNED_PROFILES).sort()).toEqual(
       Object.keys(CDDL_RULES)
-        .filter((type) => type !== "hail.body.spt-1")
+        .filter((type) => !type.startsWith("hail.body."))
         .sort(),
     );
   });
@@ -706,7 +722,7 @@ describe("CDDL and TypeScript structural consistency", () => {
     const block = record((hailBody.blocks as HailValue[])[0] as HailValue);
     block.children = [];
     expectStructuralRejection("hail.body.spt-1", hailBody);
-    block.children = [{ _type: "span", text: "text", marks: ["strong"] }];
+    block.children = [{ _type: "span", text: "text", marks: [42] }];
     expectStructuralRejection("hail.body.spt-1", hailBody);
     block.children = [{ _type: "span", text: "text", marks: [] }];
     block.markDefs = [{ _key: "mark" }];

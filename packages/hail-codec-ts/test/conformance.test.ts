@@ -156,7 +156,7 @@ function valueAtPath(value: DiagnosticJson, path: string): DiagnosticJson {
 describe("v0 conformance vectors", () => {
   it("uses the recognized manifest format", () => {
     expect(manifest.format).toBe("hail-conformance-vectors-1");
-    expect(manifest.positive).toHaveLength(7);
+    expect(manifest.positive).toHaveLength(8);
   });
 
   for (const vector of manifest.positive) {
@@ -173,22 +173,23 @@ describe("v0 conformance vectors", () => {
         vector.payload_sha256_base64url,
       );
 
-      if (vector.type === "hail.body.spt-1") {
+      if (vector.type.startsWith("hail.body.")) {
         expect(vector.cose_sign1_hex).toBeUndefined();
         return;
       }
 
       expect(vector.cose_sign1_hex).toBeDefined();
       expect(vector.sig_structure_hex).toBeDefined();
+      const signedType=vector.type as HailSignedPayloadType;
       const representation = bytes(vector.cose_sign1_hex as string);
-      const inspected = inspectSignedPayload(vector.type, representation);
+      const inspected = inspectSignedPayload(signedType, representation);
       const keyVector = manifest.test_keys.find(
         (entry) => entry.key_id === inspected.keyId,
       );
       expect(keyVector).toBeDefined();
       if (keyVector === undefined) return;
 
-      const generated = await signPayload(vector.type, payload as never, {
+      const generated = await signPayload(signedType, payload as never, {
         keyId: keyVector.key_id,
         async sign(data) {
           return nodeSign(null, data, privateKey(keyVector));
@@ -213,7 +214,7 @@ describe("v0 conformance vectors", () => {
       ).toBe(true);
 
       const verified = await verifySignedPayload(
-        vector.type,
+        signedType,
         representation,
         {
           async verify(data, signature) {

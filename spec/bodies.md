@@ -40,7 +40,7 @@ An envelope must never refer to a body that the sender intends to generate later
 
 ## Deterministic Body Bytes
 
-For the POC, a Hail Body is a Safe Portable Text `spt-1` map in the Hail Data Model defined by [encoding.md](encoding.md).
+For the POC, a plain Hail Body is a Safe Portable Text `spt-1` map in the Hail Data Model defined by [encoding.md](encoding.md). The additive `spt-2` profile permits headings, blockquotes, captions, lists, the `strong`/`em`/`code` decorators, and declared HTTPS link annotations. Receivers continue to accept `spt-1`.
 
 The sender encodes the document using deterministic Hail CBOR. Those bytes are the deterministic body bytes.
 
@@ -66,6 +66,22 @@ Diagnostic JSON for an example source document:
   ]
 }
 ```
+
+An `spt-2` text block has `_type: "block"`, one of the styles `normal`, `h1`,
+`h2`, `h3`, `blockquote`, or `caption`, at least one span, and an array of link
+definitions. A list block additionally has `listItem: "bullet"` or `"number"`
+and may have `level` from 1 through 3. A level is prohibited without
+`listItem`.
+
+A span's marks are unique and may contain `strong`, `em`, `code`, and at most
+one key from that block's `markDefs`. A mark definition is a closed
+`spt.link` map with a unique 1–64 character ASCII key, an absolute HTTPS URL
+without embedded credentials, and optional plain-text title. Unknown styles,
+marks, definitions, fields, and URL schemes are rejected.
+
+Senders use `spt-1` unless they know the target accepts `spt-2`; profile
+capability discovery remains to be defined. A receiver that does not support
+the descriptor's profile fails the body as `body-unsupported`.
 
 The exact deterministic bytes are stored and served. A receiver hashes the bytes it receives after removing HTTP content coding; it does not use a reserialized document to reproduce that digest. After the raw-byte digest succeeds, it performs bounded CBOR decoding, re-encodes under the deterministic Hail profile, and requires the result to equal the received bytes.
 
@@ -132,7 +148,7 @@ The POC value is `application/hail-body+cbor`. This media type is provisional un
 
 ### `profile`
 
-The POC value is `spt-1`.
+The plain POC value is `spt-1`; the first rich-text value is `spt-2`.
 
 ### `available_until`
 
@@ -381,7 +397,7 @@ The same digest indicates byte-identical content. DIDs and envelopes are not glo
 The proof of concept implements:
 
 - body creation before envelope submission
-- immutable deterministic-CBOR `spt-1` bytes
+- immutable deterministic-CBOR `spt-1` or `spt-2` bytes
 - SHA-256 digest over uncompressed bytes
 - 32-byte digest values with unpadded base64url HTTP rendering
 - exact uncompressed size declaration

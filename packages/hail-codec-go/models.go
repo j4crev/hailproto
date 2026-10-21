@@ -9,6 +9,7 @@ const (
 	EnvelopeType       = "hail.envelope"
 	DeliveryStatusType = "hail.delivery-status"
 	BodySPT1Type       = "hail.body.spt-1"
+	BodySPT2Type       = "hail.body.spt-2"
 )
 
 type Payload interface{ PayloadType() string }
@@ -146,6 +147,13 @@ type SPTSpan struct {
 	Marks []string `cbor:"marks"`
 }
 
+type SPT2Link struct {
+	Key   string `cbor:"_key"`
+	Type  string `cbor:"_type"`
+	Href  string `cbor:"href"`
+	Title string `cbor:"title,omitempty"`
+}
+
 type SPTTextBlock struct {
 	Type     string    `cbor:"_type"`
 	Style    string    `cbor:"style"`
@@ -160,6 +168,27 @@ type SPTBody struct {
 }
 
 func (SPTBody) PayloadType() string { return BodySPT1Type }
+
+type SPT2Span struct {
+	Type  string   `cbor:"_type"`
+	Text  string   `cbor:"text"`
+	Marks []string `cbor:"marks"`
+}
+type SPT2TextBlock struct {
+	Type     string     `cbor:"_type"`
+	Style    string     `cbor:"style"`
+	Children []SPT2Span `cbor:"children"`
+	MarkDefs []SPT2Link `cbor:"markDefs"`
+	ListItem string     `cbor:"listItem,omitempty"`
+	Level    int64      `cbor:"level,omitempty"`
+}
+type SPT2Body struct {
+	Version int64           `cbor:"version"`
+	Profile string          `cbor:"profile"`
+	Blocks  []SPT2TextBlock `cbor:"blocks"`
+}
+
+func (SPT2Body) PayloadType() string { return BodySPT2Type }
 
 func clonePayload(payload Payload) Payload {
 	switch value := payload.(type) {
@@ -213,6 +242,18 @@ func clonePayload(payload Payload) Payload {
 				cloned.Blocks[i].Children[j].Marks = append([]string(nil), span.Marks...)
 			}
 			cloned.Blocks[i].MarkDefs = append([]any(nil), block.MarkDefs...)
+		}
+		return &cloned
+	case *SPT2Body:
+		cloned := *value
+		cloned.Blocks = make([]SPT2TextBlock, len(value.Blocks))
+		for i, block := range value.Blocks {
+			cloned.Blocks[i] = block
+			cloned.Blocks[i].MarkDefs = append([]SPT2Link(nil), block.MarkDefs...)
+			cloned.Blocks[i].Children = append([]SPT2Span(nil), block.Children...)
+			for j := range cloned.Blocks[i].Children {
+				cloned.Blocks[i].Children[j].Marks = append([]string(nil), block.Children[j].Marks...)
+			}
 		}
 		return &cloned
 	default:

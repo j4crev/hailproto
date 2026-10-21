@@ -63,7 +63,7 @@ export class DeliveryRepository {
       !Buffer.from(bodyDigest(bytes)).equals(Buffer.from(envelope.body.digest.value))) {
       throw new Error("Body does not match the accepted envelope");
     }
-    validateBodyBytes(bytes);
+    validateBodyBytes(bytes,envelope.body.profile);
     return this.sql.begin(async (tx) => {
       const current = await this.lockClaim(tx, claim);
       if (!current) return "lost-lease" as const;
