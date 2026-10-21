@@ -22,7 +22,8 @@ Verified Sender Profile v2 avatars appear in the inbox and message reader with
 initials as the fallback; avatar bytes are bundled and never loaded remotely.
 The compose route sends plain or structured heading/body messages through an
 active categorized Grant, optionally with one bundled PNG header, and displays
-refreshable delivery status. It requires `grants:read` and `messages:write`.
+refreshable delivery status. Rich mode provides selection-based bold, italic,
+code, and HTTPS-link controls. It requires `grants:read` and `messages:write`.
 The inbox presents messages as feed cards and shows bundled headers by default;
 the local “Show headers” preference can hide them without contacting senders.
 Delete `apps/gui-poc` and reinstall dependencies

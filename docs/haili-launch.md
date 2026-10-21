@@ -130,6 +130,10 @@ preview, and refreshable delivery status. Live form submissions from
 `01a15f6f-d097-7381-b831-83d80f2d4c36` at `hailproto.dev`, and bundled-header
 `spt-3` message `01a15f6f-9e2e-7260-ba02-83c723aff995` at `hailproto.app`.
 Recipient reads matched the authored text and exact bundled image bytes.
+Selection-based bold, italic, code, and HTTPS-link controls were then exercised
+in live `spt-2` message `01a15f77-1d85-7417-96db-90e9f36612ff`; the recipient
+read retained the expected native marks and link definition and reached
+terminal `delivered`.
 
 ## Documentation disposition
 
