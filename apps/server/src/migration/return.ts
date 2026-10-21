@@ -1,5 +1,6 @@
 import {isDeepStrictEqual} from "node:util";
 import type {SQL} from "bun";
+import {parseJsonWithoutDuplicateKeys} from "../discovery/strict-json.js";
 import {validateTransferManifest,type TransferManifest} from "./transfer.js";
 import {validateManagedTransferManifest,type ManagedTransferManifest} from "./managed-snapshot.js";
 
@@ -41,7 +42,14 @@ function validateRetainedHistory(previous:HistoryTables,currentTables:HistoryTab
       const expected={...row},actual=current?{...current}:null;
       // Receiver-local arrival time is not part of the signed Grant checkpoint.
       // The old observation remains immutable in the archived export.
-      if(name==="grant_revisions"){delete expected.received_at;if(actual)delete actual.received_at;}
+      if(name==="grant_revisions"){
+        delete expected.received_at;if(actual)delete actual.received_at;
+        for(const field of ["scope_payload","signing_plc_document","signing_plc_data","signing_plc_operation_log"])
+          if(actual&&(typeof expected[field]==="string"||typeof actual[field]==="string")) {
+            if(typeof expected[field]==="string")expected[field]=parseJsonWithoutDuplicateKeys(expected[field]);
+            if(typeof actual[field]==="string")actual[field]=parseJsonWithoutDuplicateKeys(actual[field]);
+          }
+      }
       if(!actual||!isDeepStrictEqual(actual,expected))throw new Error(`Returning snapshot loses or conflicts with retained ${table} history`);
     }
   }

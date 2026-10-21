@@ -489,6 +489,9 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
     expect(await target.sql`SELECT 1 FROM detached_bodies WHERE sender_account_id=${accountId} AND digest=${bodyHash}`).toHaveLength(1);
     expect((await target.sql<{state:string}[]>`SELECT state FROM delivery_work WHERE sender_did=${grantee} AND message_id=${incomingId}`)[0]?.state).toBe("accepted");
     expect(await target.sql`SELECT 1 FROM account_api_credentials WHERE account_id=${accountId}`).toHaveLength(0);
+    await withFreshServingGenerations(target.sql,()=>target.sql`UPDATE grant_revisions SET scope_payload=to_jsonb(scope_payload::text),
+      signing_plc_document=to_jsonb(signing_plc_document::text),signing_plc_data=to_jsonb(signing_plc_data::text),
+      signing_plc_operation_log=to_jsonb(signing_plc_operation_log::text) WHERE grant_id=${grantId} AND revision=2`);
     phase="source retirement";
     const receipt=await activation.issueReceipt(offer.transfer_id);
     expect(await activation.issueReceipt(offer.transfer_id)).toEqual(receipt);
