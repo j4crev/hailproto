@@ -1,0 +1,90 @@
+name: hail-public-provider
+
+services:
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    depends_on:
+      provider:
+        condition: service_healthy
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+      PROVIDER_DOMAIN: ${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge]
+
+  provider:
+    image: hail-server-ts:public
+    build:
+      context: ../../../..
+      dockerfile: apps/server/Dockerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      PROVIDER_ID: ${PROVIDER_ID:?set PROVIDER_ID}
+      PUBLIC_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
+      HAIL_SERVICE_BASE: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}/hail
+      PLC_DIRECTORY_URL: https://plc.directory
+      PLC_AUTHORITY_PROFILE: strict-public-v1
+      PLC_PROVIDER_OPERATORS: ${PLC_PROVIDER_OPERATORS:?set PLC_PROVIDER_OPERATORS}
+      PLC_READER_DIAGNOSTIC_DID: ${PLC_READER_DIAGNOSTIC_DID:-}
+      DATABASE_URL: postgresql://hail:${DB_PASSWORD:?set DB_PASSWORD}@db:5432/hail
+      KEY_ENCRYPTION_KEY: ${KEY_ENCRYPTION_KEY:?set KEY_ENCRYPTION_KEY}
+      PUBLIC_SELF_SERVICE_ONBOARDING: ${PUBLIC_SELF_SERVICE_ONBOARDING:-false}
+      PUBLIC_CUSTODY_TRANSITIONS: "false"
+      PUBLIC_MANAGED_TRANSFER: "false"
+      POC_ACCOUNT_ACCESS: "false"
+      POC_SELF_SERVICE_ONBOARDING: "false"
+      POC_SELF_SERVICE_TRANSFER: "false"
+      POC_SELF_SERVICE_RETURN: "false"
+      POC_MANAGED_TRANSFER: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, bun, -e, "const r=await fetch('http://127.0.0.1:3000/health/ready'); process.exit(r.ok?0:1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks: [edge, storage]
+
+  db:
+    image: postgres:14.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hail
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+      POSTGRES_DB: hail
+    volumes:
+      - provider_db:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U hail -d hail]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [storage]
+
+networks:
+  edge:
+  storage:
+    internal: true
+
+volumes:
+  provider_db:
+  caddy_data:
+  caddy_config:

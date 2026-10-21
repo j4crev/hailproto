@@ -19,6 +19,7 @@ the deployment proves protocol interoperability rather than infrastructure
 independence.
 
 - [Provider deployment and delivery runbook](deploy/poc/README.md).
+- [Single public-provider deployment profile](deploy/public/README.md).
 - [User-device vault/signing client](https://github.com/j4crev/hailproto/tree/main/apps/cli#readme).
 - [Transfer/recovery checkpoints](https://github.com/j4crev/hailproto/blob/main/docs/production-portable-custody.md#resuming-a-private-plc-poc-ceremony).
 - [Public monitor deployment](https://github.com/j4crev/hailproto/blob/main/apps/plc-monitor/deploy/public/README.md).

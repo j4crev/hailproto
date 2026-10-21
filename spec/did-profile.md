@@ -407,7 +407,11 @@ If a provider holds both Hail private keys or controls PLC rotation authority, t
 
 ### Stale Resolution
 
-Cached PLC state can leave a removed provider key temporarily trusted. The POC bounds cache lifetime and defines forced refresh conditions; production still requires finality behavior for PLC's recovery window.
+Cached PLC state can leave a removed provider key temporarily trusted. The POC
+bounds cache lifetime and defines forced refresh conditions. The production
+strict path authorizes only freshly validated current state and uses independent
+monitoring and owner recovery, rather than treating a cache lifetime as PLC
+finality.
 
 ### Public PLC History
 
@@ -415,7 +419,14 @@ Every PLC operation, including nullified operations and tombstones, remains perm
 
 ### PLC Directory Trust
 
-PLC's self-authenticating log lets mirrors detect invalid operations, but the directory can deny service or select the wrong valid fork during the recovery window. Production deployments should consume independently operated mirrors or maintain a locally validated export stream. Resolution failure must fail closed and must not fall back to stale state beyond the allowed cache policy.
+PLC's self-authenticating log permits local validation of complete audit history,
+but the directory can deny service or select the wrong valid fork during the
+recovery window. The reference policy reads the canonical directory by default
+and may use explicitly configured ordered replicas as availability fallbacks;
+replicas do not vote on authority. Every selected audit is replayed and retained
+locally. Resolution failure must fail closed and must not fall back to stale
+state. Independent per-DID monitoring and recovery remain required because
+validated directory evidence alone does not prove owner intent or finality.
 
 The Hail PLC profile is based on version 0.3.0 (December 2025) of the published [`did:plc` method specification](https://web.plc.directory/spec/v0.1/did-plc). Changes to directory implementation behavior do not silently change Hail validation rules; adopting an incompatible PLC specification change requires an explicit Hail profile update.
 
@@ -425,19 +436,32 @@ Implementations must validate the signer DID, full `key_id`, controller, expecte
 
 ### Service Endpoint Fetching
 
-PLC resolution contacts only configured directory or mirror origins. Hail clients still need DNS rebinding, private-network, redirect, timeout, and response-size protections when contacting the resolved Hail service endpoint.
+PLC resolution contacts only configured directory or fallback reader origins. Hail clients still need DNS rebinding, private-network, redirect, timeout, and response-size protections when contacting the resolved Hail service endpoint.
 
 ## Before Production
 
-The candidate [PLC Read Evidence Policy v1](plc-read-evidence.md) implements a
-strict current-read/cutover subset and reviewed monitor bootstrap. It leaves
-routine production enforcement, complete retained historical evidence and
-independent cross-host proof open; the four requirements below are not marked
-complete by the reference fixture checks.
+The [PLC Read Evidence Policy v1](plc-read-evidence.md) now defines routine
+strict reads, local audit validation, retained action evidence, reviewed monitor
+bootstrap and owner-authorized cutover evidence. Production readiness still
+requires operational and recovery proof; passing fixtures or running a public
+alpha does not close these gates.
 
-The POC may use the simplified trust and cache behavior defined above. Production onboarding custody, backup, monitoring, and public write-registry selection are defined in [account-onboarding.md](account-onboarding.md). A production Hail profile must still resolve all four requirements below:
+The remaining production requirements are:
 
-1. Define when PLC state becomes authoritative during the 72-hour recovery window, including the production cache lifetime and treatment of newly added or removed Hail keys and endpoints.
-2. Define required PLC mirrors or checkpoints, local operation-log validation, directory disagreement handling, and the maximum outage period during which cached state may be used.
-3. Define the exact PLC operation, CID, chain, timestamp, and resolver evidence retained with accepted Hail objects for historical signature verification and audit.
-4. Define provider migration while its PLC update remains recoverable, including old- and new-provider authority during the pending window, authenticated state export, fencing acknowledgement, rollback, and abandoned-cutover behavior.
+1. Preserve fail-closed fresh reads and exercise detection and owner recovery
+   from an unexpected lower-priority change inside PLC's 72-hour recovery
+   window. Routine authority accepts the currently validated state immediately;
+   it does not claim owner intent or recovery-window finality.
+2. Exercise canonical-reader outage, optional fallback disagreement and monitor
+   coverage loss. No mirror quorum or global export is required, and stale
+   cached PLC state does not authorize new work.
+3. Preserve the retained operation, CID, audit chain, resulting state and exact
+   action links across transfer and cross-host restoration. Unsupported,
+   conflicting or nullified historical states must reconcile under a reviewed
+   procedure or remain explicitly blocked.
+4. Prove provider migration and abandonment recovery through ambiguous PLC and
+   activation outcomes without two active writers, stale credentials or lost
+   accepted state.
+
+Production onboarding custody, backup, monitoring and public write-registry
+selection remain governed by [account-onboarding.md](account-onboarding.md).

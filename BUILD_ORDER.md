@@ -137,7 +137,7 @@ Hail addresses use a lowercase canonical email-shaped form with ASCII LDH-style 
 
 Account onboarding treats local account creation, PLC registration, and address publication as separate durable steps. Production portable custody gives the user the top PLC recovery key and `#hail-identity`, gives the provider a lower-priority PLC key and `#hail-messaging`, and requires independent PLC change detection within 24 hours. New DIDs and existing DIDs are both supported. The binding resource is staged before WebFinger publication, and the account activates only after complete address-to-DID-to-service verification. See `spec/account-onboarding.md`.
 
-The four remaining PLC requirements that must be resolved before production are tracked in `spec/did-profile.md#before-production`.
+The remaining PLC operational and recovery gates are tracked in `spec/did-profile.md#before-production`.
 
 ## 4. Define Abstract Operations
 

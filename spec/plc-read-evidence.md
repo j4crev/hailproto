@@ -1,6 +1,6 @@
 # PLC Read Evidence Policy v1
 
-Status: Pre-alpha reference policy v1 — canonical audit authority deployed in the public alpha.
+Status: Frozen reference policy v1 — canonical audit authority deployed in the public alpha.
 This defines the reference verification slice, not completed production
 federation or reviewed historical-object authority.
 It preserves PLC/Hail object formats and the canonical `https://plc.directory`
@@ -8,9 +8,10 @@ write registry. Independent deployment, operator trust and recovery evidence
 remain required; local tests cannot establish administrative independence.
 Reference monitor coverage has separately versioned v3 and onboarding-v2 representations below;
 this does not change existing Hail COSE objects or portable snapshot formats.
-The pre-alpha policy identifier remains `hail.plc-read-evidence-v1`; it must be
-frozen or replaced before production. Retained records name this policy separately
-from their own record version, registry authority profile and custody profile.
+The frozen policy identifier is `hail.plc-read-evidence-v1`; an incompatible
+replacement requires a new identifier. Retained records name this policy
+separately from their own record version, registry authority profile and custody
+profile.
 
 ## Read validation and authority
 
@@ -291,6 +292,6 @@ of independent reader/monitor administration.
   retries cannot replace expected state or clear gaps by asserting a new label.
 
 These checks implement parts of MC-07/MC-13 in [managed-custody.md](managed-custody.md).
-They leave the broader four [production DID policy](did-profile.md#before-production)
-requirements open until routine enforcement, complete retained evidence, reviewed
-monitor/bootstrap trust and independent cross-host recovery have been proved.
+The remaining [production DID gates](did-profile.md#before-production) require
+live outage/recovery exercises, preservation across independent cross-host
+restoration, historical-state handling and safe migration abandonment.

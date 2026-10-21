@@ -1,0 +1,8 @@
+{
+	email {$ACME_EMAIL}
+	admin off
+}
+
+{$PROVIDER_DOMAIN} {
+	reverse_proxy provider:3000
+}

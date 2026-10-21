@@ -8,9 +8,20 @@ Hail is designed for independent providers, portable `did:plc` identities, rich 
 
 ## Status
 
-Hail is a working **public alpha**. Two HTTPS TypeScript providers resolve portable identities directly from `plc.directory`; `canary@hailproto.app` and `canary@hailproto.dev` are owner-controlled public canaries with independently signed monitor onboarding evidence. Their Sender Profiles and reciprocal Grants are live, and grant-authorized messages have reached terminal `delivered` state in both directions.
+Hail is a working **public alpha**. Three HTTPS TypeScript providers resolve
+portable identities directly from `plc.directory`. The independently hosted
+`haili.app` permanent canary and the disposable `hailproto.app` and
+`hailproto.dev` canaries have signed monitor onboarding evidence, live Sender
+Profiles and reciprocal Grants; test messages reached terminal `delivered`
+state in both directions between `haili.app` and each alpha provider.
 
-This is real public federation evidence, not a production release. Both providers currently share one VPS, the monitor has no external dead-man supervision, and cross-host restoration, public managed transfer, historical recovery, abandonment, abuse/load limits and broader security operations remain gated. The canaries are disposable alpha identities, not production users. See the [production gate checklist](apps/cli/docs/custody-transitions.md#production-enablement-required-versus-deferrable) and [portable-custody boundary](docs/production-portable-custody.md).
+This is real public federation evidence, not a production release. The two
+disposable providers still share one VPS; off-host restoration, external
+monitor dead-man supervision, public managed transfer, historical recovery,
+abandonment, calibrated abuse/load controls and broader security operations
+remain gated. Track the [`haili.app` permanent-provider launch](docs/haili-launch.md),
+the detailed [production gate checklist](apps/cli/docs/custody-transitions.md#production-enablement-required-versus-deferrable)
+and the [portable-custody boundary](docs/production-portable-custody.md).
 
 The repository includes TypeScript and Go reference codecs, shared conformance vectors, executable schema checks, diagnostic tooling and benchmarks. The intended v0 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
 
