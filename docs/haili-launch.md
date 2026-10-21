@@ -29,7 +29,7 @@ alpha providers into production services.
 
 - Hetzner host `5.161.254.78` / `2a01:4ff:f0:a15f::1`, with direct Cloudflare
   DNS-only `A` and `AAAA` records.
-- Application source `e3c8aaeb9dd34005eef0bbcfe24cd0f701b95ff3`, pinned PLC
+- Application source `346cc66349cb7601b7113574dbb929a65e624539`, pinned PLC
   submodule `996e23b5ced9c15b32bcc612dd304880342ca4ab`, provider schema
   migration 51.
 - Ubuntu 26.04, Docker Compose, host firewall limited to SSH and HTTP/HTTPS,
@@ -55,9 +55,14 @@ alpha providers into production services.
 Provider-key backup, cross-host restoration, dead-man supervision, calibrated
 load controls and named incident ownership remain tabled for this alpha.
 
-Public managed transfer remains a later milestone. Before enabling it, complete
-historical-state and abandonment recovery, then run a reviewed permanent managed
-provider A -> provider B -> provider A canary ceremony.
+The reviewed public managed canary ceremony completed October 21, 2026. The
+`canary@hailproto.app` DID moved to `canary-app@haili.app` and returned to its
+original address/provider, advancing from serving generation 2 to 4 under two
+fresh transfer IDs and independently reviewed monitor attestations. Its four PLC
+operations are canonical with no nullified entries, and its Grant history survived
+both moves. Public managed transfer was disabled again on both providers after
+the proof; general enablement remains a later milestone behind the tabled
+operational gates.
 
 ## Documentation disposition
 

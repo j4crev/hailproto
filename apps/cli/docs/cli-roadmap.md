@@ -46,17 +46,18 @@ protocol boundary.
   destination materialization. It validates exact snapshot-v4 history, installs
   only fresh B-held keys, preserves accepted work, advances the generation and
   creates Grant successors, then retires A using B's exact signed activation
-  receipt. Disposable PostgreSQL proof now completes A → B → A with fresh roles,
-  monotonic generations and immutable history. Public CLI completion remains
-  disabled.
-- Strict-public owner-controlled onboarding is deployed at `hailproto.app` and
-  `hailproto.dev`. Two backed-up public canaries have published Sender Profiles,
-  reciprocal Grants and terminally delivered messages in both directions while
-  enrolled in the separately hosted public monitor.
+  receipt. Disposable PostgreSQL proof and a reviewed public permanent-canary
+  ceremony now complete A → B → A with fresh roles, monotonic generations and
+  immutable history. Public provider runtimes remain disabled after the ceremony.
+- Strict-public owner-controlled onboarding is deployed at `haili.app`,
+  `hailproto.app` and `hailproto.dev`. Their three backed-up public canaries have
+  published Sender Profiles and reciprocal Grants while enrolled in the separately
+  hosted public monitor; messages between `haili.app` and each disposable provider
+  reached terminal `delivered` state in both directions.
 
-This public-alpha proof does not establish production readiness: both providers
-share one VPS, public managed migration remains disabled, and restoration/load
-and monitor-outage exercises remain open.
+This public-alpha proof does not establish production readiness: the two disposable
+providers share one VPS, public managed migration remains disabled, and
+restoration/load and monitor-outage exercises remain open.
 
 ## Remaining production gates
 
@@ -64,14 +65,13 @@ and monitor-outage exercises remain open.
    gaps, outages and recovery inside the PLC recovery window.
 2. Prove cross-host provider/monitor restoration from latest accepted state and
    independently stored keys/backups.
-3. Use a dedicated public canary for the managed provider A → B → A ceremony
-   only after its remaining operational controls pass.
-4. Keep the completed private-PLC managed-migration path behind its explicit POC
+3. Keep the completed private-PLC managed-migration path behind its explicit POC
    gate; production remains subject to the required controls in
    [custody transitions](custody-transitions.md#production-enablement-required-versus-deferrable).
-5. Complete historical-state handling, abandonment recovery, abuse controls and
-   documented load limits on private clones.
-6. Integrate device-keystore or hardware protection and verify cross-platform
+4. Historical-state blocking and never-active abandonment recovery are proved on
+   private/synthetic fixtures. Complete abuse controls and documented load limits
+   on private clones.
+5. Integrate device-keystore or hardware protection and verify cross-platform
    binary distribution.
 
 ## Current constraints

@@ -294,12 +294,12 @@ already enabled separately.
   rate/size limits, audit retention and incident ownership.
 - [ ] Exercise cross-host backup/restore from the latest accepted private state,
   including stale credential, challenge, worker, lease and generation rejection.
-- [ ] Handle unsupported historical states safely using private/synthetic histories:
+- [x] Handle unsupported historical states safely using private/synthetic histories:
   acknowledged predecessors may migrate; unacknowledged, conflicting, nullified or
   disputed history must reconcile under a reviewed algorithm or remain blocked with
   an operator-visible recovery path. Supporting every historical edge case is not a
   launch requirement.
-- [ ] Define and exercise pre-activation abandonment and ambiguous-activation
+- [x] Define and exercise pre-activation abandonment and ambiguous-activation
   recovery against the private PLC, including delayed replay of signed operations.
   Automated rollback is optional, but reopening a stale source, relying on expiry,
   or silently losing accepted state is forbidden.
@@ -336,6 +336,18 @@ stale/gapped/wrong-bootstrap reports, reader outages/disagreement and profile
 mismatch. No public PLC request or deployment change accompanied that fixture gate;
 the later owner-controlled alpha deployment did not enable public managed transfer.
 
+The historical-state and abandonment items were reconfirmed October 21, 2026.
+Managed fixtures migrate exact acknowledged active Grant predecessors and terminal
+history while refusing unacknowledged publication, changed checkpoints, missing
+authority links, regressed audits, invalid nullification annotations and reader
+outages. Public cutover additionally requires exact selected-reader/canonical
+readback agreement. Unsupported states stay fenced with explicit recovery errors.
+Private-PLC abandonment proves both protective-operation-first and delayed
+cutover-first races, target invalidation, stale completion refusal, exact release
+receipts, protective source authority, credential/lease revocation, one serving
+generation and byte-identical restart retries. This is synthetic/private evidence,
+not authorization to enable public managed transfer.
+
 #### Final evidence that requires the public environment
 
 - [x] Bootstrap the monitor against the actual public PLC and prove complete current
@@ -346,8 +358,20 @@ the later owner-controlled alpha deployment did not enable public managed transf
   bidirectional message-delivery smoke checks without malformed or high-volume traffic.
 - [ ] Add external health supervision and prove public outage recovery and supported
   service limits without load-testing `plc.directory`.
-- [ ] Use a reviewed permanent canary for the managed `provider A → provider B →
+- [x] Use a reviewed permanent canary for the managed `provider A → provider B →
   provider A` round trip before enabling public managed transfer.
+
+The public canary ceremony completed October 21, 2026, using
+`did:plc:pwuipbmf4kbj2ri2s4c4o6jn`: `canary@hailproto.app` moved to
+`canary-app@haili.app` and returned to `canary@hailproto.app`. Both legs used new
+provider keys, owner-approved public PLC operations, canonical readback, reviewed
+v3 monitor attestations, fresh transfer IDs and exact activation receipts. The
+serving generation advanced from 2 to 4; four PLC operations remain canonical
+with no nullified entries. Grants and account history survived both legs. The
+ceremony exposed and fixed v3 retained-attestation acceptance, collocated Grant
+merging, same-address return reservation and equivalent JSONB Grant-evidence
+reconciliation. Both providers returned to `PUBLIC_MANAGED_TRANSFER=false`, and
+`hailproto.app` also returned to custody transitions disabled.
 
 Hardware-backed/device-keystore integration, cross-platform binaries, automatic
 provider discovery and a polished consumer review UI are valuable follow-up work,
@@ -396,8 +420,11 @@ shared DID-profile specification work; this local design does not define them.
 The [migration 36–38 foundation](generation-bound-return.md) captures immutable
 retired history and proves generation-bound stable-owner private-POC returns.
 Migration 49 adds the managed A → B → A materialization proof with fresh provider
-roles. The managed runtime remains disabled on the VPS, and neither local proof
-establishes public historical authority or post-export abandonment safety.
+roles. The October 21 public ceremony additionally proves a monitored permanent
+round trip between `hailproto.app` and `haili.app`; both runtimes were disabled
+again afterward. Migration 39 and the private-PLC race rehearsal establish
+coordinated never-active post-export abandonment for the private profile. Public
+abandonment operations remain outside this ceremony's evidence.
 
 Treat A → B → A as two new transfers, not an undo of A → B. A generates fresh
 operational keys and a fresh import/Offer/transfer ID; a retired identity key
