@@ -208,7 +208,7 @@ export class ManagedMigrationActivation {
       await retainPublicSigningAuthority(tx,{actionType:"address-binding",localAccountId:manifest.accountId,did:manifest.did,
         role:"hail-identity",key:manifest.destinationIdentityPublicKey,serviceBase:this.serviceBase,
         representation:pending.destination_binding_cose,evidence:resolved.evidence});
-      await this.importGrants(tx,manifest,identityKey,resolved.evidence,activatedAt);
+      await this.importGrants(tx,manifest,identityKey,resolved.evidence,activatedAt,returning);
       for(const table of ["detached_bodies","body_authorizations"] as const)for(const row of manifest.tables[table])await insert(tx,table,row);
       await this.importEnvelopes(tx,manifest);
       for(const table of ["reply_capabilities","delivery_work","verified_body_provenance","delivered_messages",
@@ -253,11 +253,51 @@ export class ManagedMigrationActivation {
     });
   }
 
-  private async importGrants(tx:SQL,manifest:ManagedTransferManifest,identityKey:CryptoKey,evidence:PlcResolutionEvidence,now:Date) {
-    for(const row of manifest.tables.grant_lineages)await insert(tx,"grant_lineages",row);
-    for(const row of manifest.tables.grant_revisions)await insert(tx,"grant_revisions",row);
-    for(const row of manifest.tables.grant_consent_evidence)await insert(tx,"grant_consent_evidence",row);
-    for(const row of manifest.tables.grant_publications)await insert(tx,"grant_publications",row);
+  private async importGrants(tx:SQL,manifest:ManagedTransferManifest,identityKey:CryptoKey,evidence:PlcResolutionEvidence,now:Date,returning:boolean) {
+    for(const row of manifest.tables.grant_lineages) {
+      const existing=(await tx<{local_role:string;local_account_id:string;grantor_did:string;grantee_did:string;
+        current_revision:number;current_status:string;current_digest:Uint8Array}[]>`SELECT local_role,local_account_id,grantor_did,
+        grantee_did,current_revision,current_status,current_digest FROM grant_lineages WHERE grant_id=${row.grant_id} FOR UPDATE`)[0];
+      if(!existing){await insert(tx,"grant_lineages",row);continue;}
+      if(returning&&existing.local_account_id===manifest.accountId&&existing.local_role===row.local_role&&
+        existing.grantor_did===row.grantor_did&&existing.grantee_did===row.grantee_did&&Number(row.current_revision)>=existing.current_revision){
+        await tx`UPDATE grant_lineages SET current_revision=${row.current_revision},current_status=${row.current_status},
+          current_digest=${bytes(row.current_digest)} WHERE grant_id=${row.grant_id}`;continue;
+      }
+      const counterpart=(await tx<{did:string|null;onboarding_state:string}[]>`SELECT did,onboarding_state FROM provider_accounts
+        WHERE id=${existing.local_account_id} FOR UPDATE`)[0];
+      if(existing.grantor_did!==row.grantor_did||existing.grantee_did!==row.grantee_did||
+        existing.current_revision!==row.current_revision||existing.current_status!==row.current_status||
+        !same(existing.current_digest,bytes(row.current_digest))||counterpart?.onboarding_state!=="active"||row.local_account_id!==manifest.accountId)
+        throw new Error("Collocated Grant differs from the signed managed snapshot");
+      if(row.local_role==="grantor"&&existing.local_role==="grantee"&&counterpart.did===existing.grantee_did&&row.grantor_did===manifest.did){
+        await tx`INSERT INTO collocated_grant_receivers(grant_id,grantee_account_id) VALUES(${row.grant_id},${existing.local_account_id})`;
+        await tx`UPDATE grant_lineages SET local_account_id=${manifest.accountId},local_role='grantor' WHERE grant_id=${row.grant_id}`;
+      } else if(row.local_role==="grantee"&&existing.local_role==="grantor"&&counterpart.did===existing.grantor_did&&row.grantee_did===manifest.did)
+        await tx`INSERT INTO collocated_grant_receivers(grant_id,grantee_account_id) VALUES(${row.grant_id},${manifest.accountId})`;
+      else throw new Error("Grant cannot have two owners of the same local role");
+    }
+    for(const row of manifest.tables.grant_revisions) {
+      const existing=(await tx<{cose:Uint8Array;representation_digest:Uint8Array}[]>`SELECT cose,representation_digest FROM grant_revisions
+        WHERE grant_id=${row.grant_id} AND revision=${row.revision}`)[0];
+      if(existing){if(!same(existing.cose,bytes(row.cose))||!same(existing.representation_digest,bytes(row.representation_digest)))
+        throw new Error("Collocated Grant revision conflicts with retained exact bytes");}
+      else await insert(tx,"grant_revisions",row);
+    }
+    for(const row of manifest.tables.grant_consent_evidence) {
+      const existing=(await tx<{binding_cose:Uint8Array;profile_cose:Uint8Array}[]>`SELECT binding_cose,profile_cose FROM grant_consent_evidence
+        WHERE grant_id=${row.grant_id} AND revision=${row.revision}`)[0];
+      if(existing){if(!same(existing.binding_cose,bytes(row.binding_cose))||!same(existing.profile_cose,bytes(row.profile_cose)))
+        throw new Error("Collocated Grant consent evidence differs from source");}
+      else await insert(tx,"grant_consent_evidence",row);
+    }
+    for(const row of manifest.tables.grant_publications) {
+      const existing=(await tx<{destination_service_base:string}[]>`SELECT destination_service_base FROM grant_publications
+        WHERE grant_id=${row.grant_id} AND revision=${row.revision}`)[0];
+      if(existing){if(existing.destination_service_base!==row.destination_service_base)
+        throw new Error("Collocated Grant publication has another destination");}
+      else await insert(tx,"grant_publications",["pending","retry"].includes(String(row.state))?{...row,lease_token:null,lease_expires_at:null}:row);
+    }
     for(const lineage of manifest.tables.grant_lineages) {
       if(lineage.local_role!=="grantor"||lineage.current_status!=="active")continue;
       const priorRow=manifest.tables.grant_revisions.find(row=>row.grant_id===lineage.grant_id&&row.revision===lineage.current_revision)!;

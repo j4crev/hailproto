@@ -258,6 +258,18 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
     expect(manifest.tables.managed_custody_evidence[0]?.managed_profile_version).toBe("hail-managed-custody-v1");
     expect(manifest.tables.grant_publications).toEqual([expect.objectContaining({grant_id:grantId,revision:1,
       state:"acknowledged",acknowledged_etag:'"grant-v1"'})]);
+    const collocatedGranteeAccountId=randomUUID();
+    await target.sql`INSERT INTO provider_accounts(id,tenant_id,canonical_address,did,onboarding_state,activated_at,
+      activation_binding_digest,activation_verification_mode) VALUES(${collocatedGranteeAccountId},${randomUUID()},
+      ${`peer-${collocatedGranteeAccountId}@b.example.com`},${grantee},'active',now(),${randomBytes(32)},'public')`;
+    await target.sql`INSERT INTO grant_lineages(grant_id,local_account_id,local_role,grantor_did,grantee_did,
+      current_revision,current_digest,current_status) VALUES(${grantId},${collocatedGranteeAccountId},'grantee',${did},${grantee},1,${grantDigest},'active')`;
+    await target.sql`INSERT INTO grant_revisions(grant_id,revision,status,issued_at,updated_at,expires_at,previous_digest,
+      scope_payload,consent_address_binding_sha256,consent_sender_profile_sha256,cose,representation_digest,
+      signing_public_key,signing_plc_document,signing_plc_data,signing_plc_operation_log)
+      VALUES(${grantId},1,'active',${grantNow},${grantNow},NULL,NULL,${JSON.stringify(grant.scope)}::jsonb,
+        ${grant.consent_context.address_binding_hash.value},${grant.consent_context.sender_profile_hash.value},
+        ${grantCose},${grantDigest},${keys.identityDidKey},'{}','{}','[]')`;
     const serialized=new TextDecoder().decode(exported.bytes);
     expect(serialized).not.toMatch(/encrypted_private_key|encryption_nonce|kek_id|lease_token|lease_expires_at|"(?:token|secret|credential)"\s*:/);
     expect(manifest.tables.body_authorizations[0]?.token_hash).toBe(`\\x${Buffer.from(bodyTokenHash).toString("hex")}`);
@@ -469,6 +481,8 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
       FROM grant_lineages lineage JOIN grant_revisions revision ON revision.grant_id=lineage.grant_id AND revision.revision=lineage.current_revision
       WHERE lineage.grant_id=${grantId}`)[0]!;
     expect(migratedGrant.current_revision).toBe(2);expect(migratedGrant.signing_public_key).toBe(offer.destination_identity_key);
+    expect(await target.sql`SELECT 1 FROM collocated_grant_receivers WHERE grant_id=${grantId}
+      AND grantee_account_id=${collocatedGranteeAccountId}`).toHaveLength(1);
     expect(Buffer.from(migratedGrant.previous_digest)).toEqual(Buffer.from(grantDigest));
     expect((await verifySignedPayload("hail.grant",migratedGrant.cose,
       createWebCryptoVerifier(()=>ed25519PublicKeyFromDidKey(offer.destination_identity_key)))).payload).toMatchObject({revision:2,key_id:`${did}#hail-identity`});
