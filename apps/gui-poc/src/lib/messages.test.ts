@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupMessageBlocks, messagePreview, parseInbox, parseMessage } from "./messages.js";
+import { groupMessageBlocks, messagePreview, parseInbox, parseMessage, parseSent, parseSentMessage } from "./messages.js";
 
 describe("message projections", () => {
   it("accepts the account API inbox and current spt-1 body", () => {
@@ -14,6 +14,15 @@ describe("message projections", () => {
     expect(message.paragraphs).toEqual(["Hello Hail"]);
     expect(messagePreview(message)).toBe("Hello Hail");
     expect(Array.from(messagePreview({ ...message, paragraphs: ["🙂".repeat(121)] }))).toHaveLength(120);
+  });
+
+  it("projects sent summaries and bodies with delivery status",()=>{
+    const item={messageId:"m",recipient:"did:plc:recipient",createdAt:"now",state:"delivered",revision:2};
+    expect(parseSent({messages:[item]})).toEqual([item]);
+    expect(parseSentMessage({...item,sender:"did:plc:sender",category:"updates",body:{version:1,profile:"spt-1",blocks:[
+      {_type:"block",style:"normal",children:[{_type:"span",text:"Sent text",marks:[]}],markDefs:[]},
+    ]}})).toMatchObject({state:"delivered",createdAt:"now",paragraphs:["Sent text"]});
+    expect(()=>parseSent({messages:[{...item,state:"opened"}]})).toThrow("Invalid sent status");
   });
 
   it("rejects a body the POC cannot render safely", () => {

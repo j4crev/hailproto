@@ -24,6 +24,9 @@ The compose route sends plain or structured heading/body messages through an
 active categorized Grant, optionally with one bundled PNG header, and displays
 refreshable delivery status. Rich mode provides selection-based bold, italic,
 code, and HTTPS-link controls. It requires `grants:read` and `messages:write`.
+The Sent view reads retained outbound messages and authenticated delivery status
+with `messages:read`; authenticated accepted and delivered states are shown
+without implying a read receipt, while missing receipts remain indeterminate.
 The inbox presents messages as feed cards and shows bundled headers by default;
 the local “Show headers” preference can hide them without contacting senders.
 Delete `apps/gui-poc` and reinstall dependencies

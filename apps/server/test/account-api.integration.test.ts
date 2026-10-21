@@ -384,7 +384,8 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
         VALUES (${id},'hail-messaging','ed25519',${publicKey},${encrypted.ciphertext},${encrypted.nonce},1,'poc-v1')`;}
     const senderCredential=await accounts.issue(senderAddress,false,undefined,[...ALL_ACCOUNT_SCOPES]);
     await json("message-sender.credential.json",credentialRecord(senderCredential));
-    await json("message-owner.credential.json",credentialRecord(await accounts.issue(address,false,undefined,[...ALL_ACCOUNT_SCOPES])));
+    const ownerMessageCredential=await accounts.issue(address,false,undefined,[...ALL_ACCOUNT_SCOPES]);
+    await json("message-owner.credential.json",credentialRecord(ownerMessageCredential));
     const rotatedPath=join(directory,"self-service.credential.json");
     const rotated=await cli(["credential","create","--output",rotatedPath],"message-owner.credential.json");if(rotated.exit)throw new Error(rotated.stderr);
     const rotatedId=JSON.parse(rotated.stdout).credentialId;
@@ -424,6 +425,17 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     expect(image.status).toBe(200);
     const imageRead=await cli(["inbox","show",senderDid,imageId],"message-owner.credential.json");expect(imageRead.exit,imageRead.stderr).toBe(0);
     expect(JSON.parse(imageRead.stdout).body.assets.assets[0].data).toBe(imageData.toString("base64url"));
+    const sentResponse=await app.request(`${origin}/api/v1/account/sent`,{headers:{Authorization:`Bearer ${senderCredential.token}`}});
+    expect(sentResponse.status).toBe(200);
+    const sentPage=await sentResponse.json();expect(sentPage.messages.map((message:{messageId:string})=>message.messageId)).toEqual([id,imageId,richId]);
+    expect(sentPage.messages[0]).toMatchObject({recipient:did,state:"indeterminate",revision:null});
+    const sentDetail=await app.request(`${origin}/api/v1/account/sent/${richId}`,{headers:{Authorization:`Bearer ${senderCredential.token}`}});
+    expect(sentDetail.status).toBe(200);
+    const sentBody=await sentDetail.json();
+    expect(sentBody).toMatchObject({messageId:richId,sender:senderDid,recipient:did,state:"indeterminate",
+      category:"updates",body:{profile:"spt-2"}});expect(sentBody.body.blocks[0].style).toBe("h1");
+    expect((await app.request(`${origin}/api/v1/account/sent/${richId}`,{headers:{Authorization:`Bearer ${ownerMessageCredential.token}`}})).status).toBe(404);
+    expect((await app.request(`${origin}/api/v1/account/sent?after=bad`,{headers:{Authorization:`Bearer ${senderCredential.token}`}})).status).toBe(400);
     expect((await cli(["inbox","show",senderDid,id],"message-sender.credential.json")).exit).toBe(1);
     const reply=await cli(["reply",id,"--file",join(directory,"text.txt"),"--state",join(directory,"reply-state.json")],"message-owner.credential.json");if(reply.exit)throw new Error(reply.stderr);
     expect((await cli(["inbox","list"],"message-sender.credential.json")).exit).toBe(0);

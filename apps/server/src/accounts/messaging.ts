@@ -56,6 +56,39 @@ export class AccountMessaging {
       next:rows.length>50?Buffer.from(JSON.stringify({id:rows[49]!.message_id,sender:rows[49]!.sender_did})).toString("base64url"):null};
   }
 
+  async sent(session:AccountApiSession,after:string|null) {
+    if(after!==null&&!ID.test(after))throw new UserGrantError(400,"Invalid cursor");
+    const rows=await this.sql<{message_id:string;recipient_did:string;created_at:Date;current_state:string|null;current_revision:number|null}[]>`
+      SELECT envelope.message_id,envelope.recipient_did,envelope.created_at,status.current_state,status.current_revision
+      FROM sent_envelopes envelope LEFT JOIN sent_delivery_status status
+        ON status.sender_did=envelope.sender_did AND status.message_id=envelope.message_id
+      WHERE envelope.sender_did=${session.did} AND (${after}::uuid IS NULL OR envelope.message_id<${after}::uuid)
+      ORDER BY envelope.message_id DESC LIMIT 51`;
+    return {messages:rows.slice(0,50).map(row=>({messageId:row.message_id,recipient:row.recipient_did,
+      createdAt:row.created_at.toISOString(),state:row.current_state??"indeterminate",revision:row.current_revision})),
+      next:rows.length>50?rows[49]!.message_id:null};
+  }
+
+  async sentMessage(session:AccountApiSession,id:string) {
+    if(!ID.test(id))throw new UserGrantError(400,"Invalid message ID");
+    const rows=await this.sql<{recipient_did:string;created_at:Date;envelope_cose:Uint8Array;body_bytes:Uint8Array;
+      current_state:string|null;current_revision:number|null}[]>`
+      SELECT envelope.recipient_did,envelope.created_at,envelope.envelope_cose,body.body_bytes,
+        status.current_state,status.current_revision
+      FROM sent_envelopes envelope JOIN detached_bodies body
+        ON body.sender_account_id=envelope.sender_account_id AND body.digest=envelope.body_digest
+      LEFT JOIN sent_delivery_status status ON status.sender_did=envelope.sender_did AND status.message_id=envelope.message_id
+      WHERE envelope.sender_did=${session.did} AND envelope.message_id=${id}`;
+    if(!rows[0])return null;
+    const row=rows[0],envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
+    const profile=validateBodyBytes(row.body_bytes);
+    const body=profile==="spt-1"?toDiagnosticJson("hail.body.spt-1",decodePayload("hail.body.spt-1",row.body_bytes)):
+      profile==="spt-2"?toDiagnosticJson("hail.body.spt-2",decodePayload("hail.body.spt-2",row.body_bytes)):
+      toDiagnosticJson("hail.body.spt-3",decodePayload("hail.body.spt-3",row.body_bytes));
+    return {messageId:id,sender:session.did,recipient:row.recipient_did,createdAt:row.created_at.toISOString(),
+      category:envelope.category??null,state:row.current_state??"indeterminate",revision:row.current_revision,body};
+  }
+
   async read(session:AccountApiSession,sender:string,id:string) {
     if(!DID.test(sender)||!ID.test(id))throw new UserGrantError(400,"Invalid message identity");
     const rows=await this.sql<{envelope_cose:Uint8Array;body_bytes:Uint8Array;delivered_at:Date}[]>`

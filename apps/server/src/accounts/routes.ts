@@ -63,7 +63,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
       if (!session) { context.header("WWW-Authenticate", 'Bearer realm="hailp-account"'); return problem(401); }
       return await withServingGeneration<Response>(session.account_id,session.serving_generation??1,async():Promise<Response>=>{
       const query = new URL(context.req.url).searchParams;
-      if (query.size && action !== "list" && action !== "inbox" && action !== "credential") return problem(400);
+      if (query.size && action !== "list" && action !== "inbox" && action !== "sent" && action !== "credential") return problem(400);
       const method = context.req.method;
       if(action==="sender-profile"){
         if(!session.scopes.includes("messages:read"))return problem(403);
@@ -206,10 +206,10 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           digest:encodeBase64Url(saved.digest),cose:encodeBase64Url(saved.cose),
           profile:toDiagnosticJson("hail.sender-profile",saved.payload)});
       }
-      const scope = action === "send" || action === "resubmit" ? "messages:write" : ["inbox","read","status"].includes(action ?? "") ? "messages:read" : action === "credential" ? "credentials:write" : action === "proposal" || action === "managed-create" || action === "managed-revoke" ? "grants:write" : action === "list" ? "grants:read" :
+      const scope = action === "send" || action === "resubmit" ? "messages:write" : ["inbox","read","status","sent","sent-read"].includes(action ?? "") ? "messages:read" : action === "credential" ? "credentials:write" : action === "proposal" || action === "managed-create" || action === "managed-revoke" ? "grants:write" : action === "list" ? "grants:read" :
         grantId === null ? "account:read" : method === "PUT" ? "grants:write" : "grants:read";
       if (!session.scopes.includes(scope)) return problem(403);
-      if(["send","resubmit","inbox","read","status"].includes(action ?? "")) {
+      if(["send","resubmit","inbox","read","status","sent","sent-read"].includes(action ?? "")) {
         if(!messaging)return problem(503);
         if(action==="send"||action==="resubmit") {
           if(method!=="POST")return problem(405);if(session.migration_state)return problem(409);
@@ -224,6 +224,13 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           return context.json(await messaging.send(session,input));
         }
         if(method!=="GET")return problem(405);
+        if(action==="sent") {
+          if([...query.keys()].some(k=>k!=="after")||query.getAll("after").length>1)return problem(400);
+          return context.json(await messaging.sent(session,query.get("after")));
+        }
+        if(action==="sent-read") {
+          const found=await messaging.sentMessage(session,grantId!);return found?context.json(found):problem(404);
+        }
         if(action==="inbox") {
           if([...query.keys()].some(k=>k!=="after"))return problem(400);
           return context.json(await messaging.inbox(session,query.get("after")));
@@ -363,6 +370,8 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/inbox/:sender/:messageId",context=>handle(context,context.req.param("messageId"),"read"));
   app.all("/api/v1/account/messages/:messageId/submit",context=>handle(context,context.req.param("messageId"),"resubmit"));
   app.all("/api/v1/account/messages/:messageId",context=>handle(context,context.req.param("messageId"),"status"));
+  app.all("/api/v1/account/sent",context=>handle(context,null,"sent"));
+  app.all("/api/v1/account/sent/:messageId",context=>handle(context,context.req.param("messageId"),"sent-read"));
   app.all("/api/v1/account/credentials", context => handle(context,null,"credential"));
   app.all("/api/v1/account/grants/managed", context => handle(context,null,"managed-create"));
   app.all("/api/v1/account/grants/:grantId/revoke", context => handle(context,context.req.param("grantId"),"managed-revoke"));

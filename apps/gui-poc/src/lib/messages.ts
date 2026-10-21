@@ -29,6 +29,26 @@ export function parseInbox(value: unknown): InboxItem[] {
   });
 }
 
+export interface SentItem {
+  messageId: string;
+  recipient: string;
+  createdAt: string;
+  state: "indeterminate" | "accepted" | "on-hold" | "delivered" | "failed" | "cancelled";
+  revision: number | null;
+}
+
+export function parseSent(value: unknown): SentItem[] {
+  const result=object(value,"sent messages");
+  if(!Array.isArray(result.messages))throw new Error("Invalid sent messages");
+  return result.messages.map(entry=>{
+    const item=object(entry,"sent item"),state=text(item.state,"delivery state");
+    if(!["indeterminate","accepted","on-hold","delivered","failed","cancelled"].includes(state)||
+      item.revision!==null&&(!Number.isSafeInteger(item.revision)||Number(item.revision)<1))throw new Error("Invalid sent status");
+    return {messageId:text(item.messageId,"message ID"),recipient:text(item.recipient,"recipient"),
+      createdAt:text(item.createdAt,"creation time"),state:state as SentItem["state"],revision:item.revision as number|null};
+  });
+}
+
 export interface MessageView extends InboxItem {
   recipient: string;
   category: string | null;
@@ -129,4 +149,18 @@ export function parseMessage(value: unknown): MessageView {
     header,
     paragraphs: blocks.map((block) => block.spans.map((span) => span.text).join("")),
   };
+}
+
+export interface SentMessageView extends Omit<MessageView,"deliveredAt"> {
+  createdAt:string;
+  state:SentItem["state"];
+  revision:number|null;
+}
+
+export function parseSentMessage(value:unknown):SentMessageView {
+  const sent=object(value,"sent message"),createdAt=text(sent.createdAt,"creation time"),state=text(sent.state,"delivery state");
+  const [status]=parseSent({messages:[sent]});
+  const message=parseMessage({...sent,deliveredAt:createdAt});
+  const {deliveredAt:_,...view}=message;
+  return {...view,createdAt,state:state as SentItem["state"],revision:status!.revision};
 }
