@@ -49,6 +49,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
   let origin: string;
   let credential: Awaited<ReturnType<AccountApiRepository["issue"]>>;
   let readonlyCredential: Awaited<ReturnType<AccountApiRepository["issue"]>>;
+  let senderCredential: Awaited<ReturnType<AccountApiRepository["issue"]>>;
   let vault: Awaited<ReturnType<typeof createUserVault>>;
   let signedGrant: Uint8Array;
   let grantId: string;
@@ -382,7 +383,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
       const encrypted=await messageEncryptor.encrypt(id,"hail-messaging","ed25519",publicKey,raw);raw.fill(0);
       await db.sql`INSERT INTO account_keys (account_id,role,algorithm,public_key,encrypted_private_key,encryption_nonce,encryption_version,kek_id)
         VALUES (${id},'hail-messaging','ed25519',${publicKey},${encrypted.ciphertext},${encrypted.nonce},1,'poc-v1')`;}
-    const senderCredential=await accounts.issue(senderAddress,false,undefined,[...ALL_ACCOUNT_SCOPES]);
+    senderCredential=await accounts.issue(senderAddress,false,undefined,[...ALL_ACCOUNT_SCOPES]);
     await json("message-sender.credential.json",credentialRecord(senderCredential));
     const ownerMessageCredential=await accounts.issue(address,false,undefined,[...ALL_ACCOUNT_SCOPES]);
     await json("message-owner.credential.json",credentialRecord(ownerMessageCredential));
@@ -484,6 +485,10 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     expect(await db.sql`SELECT revision FROM grant_revisions WHERE grant_id=${grantId}`).toHaveLength(2);
     expect(await db.sql`SELECT revision FROM grant_publications WHERE grant_id=${grantId}`).toHaveLength(2);
     expect((await grants.findReceivedForSender(grantId, senderDid))?.payload.status).toBe("revoked");
+    const rejectedId="01afffff-0000-7000-8000-000000000099";
+    expect((await app.request(`${origin}/api/v1/account/messages`,{method:"POST",headers:{Authorization:`Bearer ${senderCredential.token}`,"Content-Type":"application/json"},
+      body:JSON.stringify({messageId:rejectedId,grantId,category:"updates",text:"revoked"})})).status).toBe(409);
+    expect(await db.sql`SELECT 1 FROM sent_envelopes WHERE sender_did=${senderDid} AND message_id=${rejectedId}`).toHaveLength(0);
     expect(await db.sql`SELECT role FROM account_keys WHERE account_id=${ownerId} AND role='hail-identity'`).toHaveLength(0);
   });
 

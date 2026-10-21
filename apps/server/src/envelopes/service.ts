@@ -25,6 +25,8 @@ export interface CreatedEnvelope {
   destination: string;
 }
 
+export class EnvelopeAuthorizationError extends Error {}
+
 export class EnvelopeService {
   constructor(
     private readonly accounts: SenderAccounts,
@@ -43,11 +45,11 @@ export class EnvelopeService {
     const now = this.now();
     if (!grant || grant.localRole !== "grantee" || grant.payload.status !== "active" ||
       grant.payload.grantee !== senderDid || (grant.payload.expires_at !== null && grant.payload.expires_at < now)) {
-      throw new Error("No active received Grant for this sender");
+      throw new EnvelopeAuthorizationError("No active received Grant for this sender");
     }
     const scope = grant.payload.scope[0];
     if (!scope || (scope.type === "categories" && !scope.values.includes(category)) ||
-      (scope.type === "uncategorized" && category !== "")) throw new Error("Category is outside Grant scope");
+      (scope.type === "uncategorized" && category !== "")) throw new EnvelopeAuthorizationError("Category is outside Grant scope");
     return this.createSigned(senderDid, grant.payload.grantor, { type: "grant", grant_id: grantId },
       digestText, category || undefined, replyUntil,messageId);
   }
@@ -56,7 +58,7 @@ export class EnvelopeService {
     replyUntil: number | null = null, messageId?: string): Promise<CreatedEnvelope> {
     const original = await this.envelopes.receivedReplyOpportunity(senderDid, replyTo);
     if (!original || !original.reply.allowed || original.reply.until + 300 < this.now() ||
-      original.from === senderDid) throw new Error("No unexpired received reply invitation for this sender");
+      original.from === senderDid) throw new EnvelopeAuthorizationError("No unexpired received reply invitation for this sender");
     return this.createSigned(senderDid, original.from, { type: "reply", reply_to: replyTo },
       digestText, undefined, replyUntil,messageId);
   }

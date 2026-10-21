@@ -4,7 +4,7 @@ import type { SQL } from "bun";
 import { bodyFromDocument,bodyFromText,validateBodyBytes } from "../bodies/service.js";
 import type { BodyRepository } from "../bodies/repository.js";
 import type { EnvelopeRepository } from "../envelopes/repository.js";
-import type { EnvelopeService } from "../envelopes/service.js";
+import { EnvelopeAuthorizationError,type EnvelopeService } from "../envelopes/service.js";
 import { UserGrantError } from "../grants/service.js";
 import type { AccountApiSession } from "./repository.js";
 
@@ -48,7 +48,8 @@ export class AccountMessaging {
       await this.bodies.publish(session.did,body);
       try{await (input.replyTo ? this.service.createReply(session.did,input.replyTo as string,encodeBase64Url(digest),input.replyUntil as number|null|undefined,input.messageId):
         this.service.create(session.did,input.grantId as string,encodeBase64Url(digest),input.category as string,input.replyUntil as number|null|undefined,input.messageId));}
-      catch(error){stored=await this.envelopes.sent(session.did,input.messageId);if(!stored)throw error;}
+      catch(error){stored=await this.envelopes.sent(session.did,input.messageId);if(!stored){
+        if(error instanceof EnvelopeAuthorizationError)throw new UserGrantError(409,error.message);throw error;}}
       stored=await this.envelopes.sent(session.did,input.messageId);
     }
     const payload=inspectSignedPayload("hail.envelope",stored!).payload;
