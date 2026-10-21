@@ -11,9 +11,9 @@ export async function load() {
   const messages = await Promise.all(inbox.map(async (message) => {
     try {
       const detail = parseMessage(await client.request(`/inbox/${encodeURIComponent(message.sender)}/${encodeURIComponent(message.messageId)}`));
-      return { ...message, senderAddress: addresses.get(message.sender) ?? null, preview: messagePreview(detail) };
+       return { ...message, senderAddress: addresses.get(message.sender) ?? null, preview: messagePreview(detail), header: detail.header };
     } catch {
-      return { ...message, senderAddress: addresses.get(message.sender) ?? null, preview: "Preview unavailable" };
+      return { ...message, senderAddress: addresses.get(message.sender) ?? null, preview: "Preview unavailable", header: null };
     }
   }));
   return { configured: true as const, account, messages };
