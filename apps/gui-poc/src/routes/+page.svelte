@@ -40,7 +40,7 @@
           <span class="meta">
             {#if message.avatar}<img class="avatar" src={message.avatar.src} alt="" width={message.avatar.width} height={message.avatar.height} />
             {:else}<span class="avatar fallback" aria-hidden="true">{(message.senderAddress ?? message.sender).slice(0, 2).toUpperCase()}</span>{/if}
-            <span class="sender"><strong>{message.senderAddress ?? message.sender}</strong><time datetime={message.deliveredAt}>{date(message.deliveredAt)}</time></span>
+            <span class="sender"><strong>{message.senderAddress ?? message.sender}</strong>{#if message.senderAddress}<small>{message.sender}</small>{/if}<time datetime={message.deliveredAt}>{date(message.deliveredAt)}</time></span>
           </span>
           {#if showHeaders && message.header}
             <img class="header-image" src={message.header.src} alt={message.header.alt} width={message.header.width} height={message.header.height} />
@@ -68,7 +68,7 @@
   .meta { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
   .avatar { display: grid; width: 42px; flex: 0 0 42px; height: 42px; place-items: center; border-radius: 13px; object-fit: cover; }
   .fallback { background: #dcece2; color: #17633f; font-size: 12px; font-weight: 800; }
-  .sender { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.sender strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+  .sender { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.sender strong,.sender small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.sender strong { font-size: 14px; }.sender small { color:#778179;font-family:ui-monospace,monospace;font-size:11px; }
   time { color: #758078; font-size: 11px; }
   .header-image { display: block; width: 100%; height: auto; max-height: 320px; border-block: 1px solid #e4e9e5; object-fit: cover; }
   .summary { padding: 16px 18px 18px; color: #4f5d55; font-family: ui-serif, Georgia, serif; font-size: 16px; line-height: 1.5; }

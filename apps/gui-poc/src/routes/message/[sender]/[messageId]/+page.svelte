@@ -13,6 +13,7 @@
       <div>
       <span>From</span>
       <strong>{data.senderAddress ?? data.message.sender}</strong>
+      {#if data.senderAddress}<small>{data.message.sender}</small>{/if}
       </div>
     </div>
     {#if data.message.category}<mark>{data.message.category}</mark>{/if}
@@ -34,7 +35,7 @@
   .sender { display: flex; min-width: 0; align-items: center; gap: 12px; }.sender div { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
   .avatar { display: grid; width: 42px; flex: 0 0 42px; height: 42px; place-items: center; border-radius: 13px; object-fit: cover; }
   .fallback { background: #dcece2; color: #17633f; font-size: 12px; font-weight: 800; }
-  article header span { color: #778179; font-size: 12px; } article header strong { overflow: hidden; text-overflow: ellipsis; }
+  article header span { color: #778179; font-size: 12px; } article header strong,article header small { overflow: hidden; text-overflow: ellipsis; } article header small { color:#778179;font-family:ui-monospace,monospace;font-size:11px; }
   mark { padding: 6px 10px; border-radius: 999px; background: #e5f2e9; color: #286446; font-size: 12px; font-weight: 700; }
   .body { min-height: 220px; padding: 28px 24px; font-family: ui-serif, Georgia, serif; font-size: 18px; line-height: 1.7; }
   footer { border-top: 1px solid #e7ebe8; color: #778179; font-family: ui-monospace, monospace; font-size: 11px; }
