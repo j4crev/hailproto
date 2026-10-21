@@ -101,6 +101,26 @@ rendered both headers with their alt text and captions without a remote image
 request. The GUI subsequently exposed those headers in its inbox feed with a
 browser-local show/hide preference.
 
+## Sender Profile v2 avatar rollout record
+
+Commit `25f6e3c118cc960aaeafd7c04cdd7482ed207190` was deployed to all
+three providers on October 21, 2026 without a schema migration. The release
+archive SHA-256 is
+`7c91294cd4618ecc45762449f13f1d01717758459fea2758d3f891c0cbdd387d`.
+Verified pre-rollout backups are retained at
+`/var/backups/hail-public/pre-profile-v2-20261021T165526Z` and
+`/var/backups/hail-poc/pre-profile-v2-20261021T165526Z`; compatible prior
+images remain tagged for rollback.
+
+`canary@hailproto.app` published profile revision 4 with a 1,777-byte 256×256
+avatar (`8943d595e7b835d12461a61ff3cff782662a7408fedea950d4df9b508064486d`),
+and `canary@hailproto.dev` published revision 2 with a 2,113-byte 256×256
+avatar (`244fa6bf84b6215b45027a1340b63b6e64881cda735ca474b87b0471567b5133`).
+`haili.app` independently retrieved and verified both signed v2 profiles while
+retaining their v1 evidence. The disposable GUI rendered the exact bundled
+avatars in inbox and detail views with initials fallback and no remote image
+request.
+
 ## Documentation disposition
 
 Completed October 21, 2026. Active guidance now points to the strict-public

@@ -23,6 +23,10 @@ The corresponding pre-rollout app/dev dumps are retained under
 `/var/backups/hail-poc/pre-spt3-20261021T160350Z`; this does not change the
 archived private-PLC deployment record below.
 
+The public canaries subsequently added Sender Profile v2 bundled avatars
+without a schema migration. The pre-rollout app/dev dumps are retained at
+`/var/backups/hail-poc/pre-profile-v2-20261021T165526Z`.
+
 The managed private-PLC rollout uses provider source `5d4d219`, image
 `hail-server-ts:poc-managed-operationalization-20261013-fix1` (ID
 `sha256:d2d30974a2ab557fcafad31ea2c20768e3ec62f9907fcbae332ec92bec8fa9be`)
