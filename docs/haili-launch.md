@@ -144,6 +144,21 @@ The live account returned all eight retained outbound messages; list and detail
 views rendered the newest exact `spt-2` body at authenticated `delivered`
 revision 2. The provider remained healthy with zero unexpected restarts.
 
+Commit `3bf002b741fa5f215bfb26ac090fb15e5b194437` replaced per-row message reads with five-message body pages for
+Inbox and Sent, added forward/back pagination, projected address labels directly
+from account-owned retained Grant consent evidence, and exposed authenticated
+delivery reasons and retry timing. Only receipt-indeterminate messages offer an
+idempotent resubmission; terminal failures require a new message. Hail's privacy
+rule against reverse DID-to-address lookup remains intact, so a DID is still the
+fallback when the account has no retained address evidence.
+
+The change required no schema migration and was deployed to `haili.app` from
+release archive SHA-256
+`7ae471cc7e4b76cc29f3f109ce53c659d63018b365811fedaf66bba9453ac1c0`.
+The live account rendered Sent as five plus three records, paginated Inbox, both
+verified peer addresses, exact bodies, and terminal delivery guidance. The
+provider remained healthy with zero unexpected restarts.
+
 ## Documentation disposition
 
 Completed October 21, 2026. Active guidance now points to the strict-public
