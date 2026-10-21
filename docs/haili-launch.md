@@ -175,10 +175,27 @@ provider-signed rich sends and inbound delivery. Three GUI submissions and one
 inbound message reached authenticated `delivered` revision 2; Inbox, Sent, both
 detail views, retained address labels, and status guidance rendered correctly.
 
-Two exploratory same-provider Grants were revoked after publication returned
-HTTP 409. The current Grant store permits one local role per lineage, so
-same-provider peer Grants remain a known limitation; federated Grants are the
-tested path.
+Two exploratory same-provider Grants initially returned HTTP 409 because normal
+Grant reception did not attach the existing migration-31 collocated receiver
+reference. Commits `54412ec` and `ac9ee91` fixed that path without duplicating
+the immutable Grant chain or adding a migration. A local receiver is now attached
+only when the received bytes exactly match the authoritative revision.
+
+Fresh reciprocal same-provider Grants
+`01a15fdb-2bd0-7433-8afa-bd0355e0608c` and
+`01a15fdb-2d9a-7b89-a84b-f85a4e64f0b3` were acknowledged with HTTP 201 and
+appear under the correct role for both Haili accounts. GUI message
+`01a15fdb-b699-7637-ad65-7450615855aa` delivered locally with a signed one-shot
+reply invitation; managed-account GUI reply
+`01a15fdb-fb6d-7b3e-8f4d-009252386928` reached authenticated `delivered`
+revision 2. Retained evidence records authorization type `reply` and the original
+capability as consumed by that exact reply. The consumed invitation disappeared
+from its Inbox detail while the explicitly solicited continuation remained
+available.
+
+The final release archive SHA-256 is
+`7b297c9fb923e6bdee397c022583fd74b03aeec22f94dc8c374263f7991e9075`.
+The provider remained healthy with zero unexpected restarts.
 
 ## Documentation disposition
 
