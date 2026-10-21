@@ -2,7 +2,6 @@ import { env } from "$env/dynamic/private";
 import { error } from "@sveltejs/kit";
 import { AccountApiClient } from "../../../../cli/src/account-api.js";
 
-const ADDRESS = "canary@haili.app";
 const PROVIDER = "https://haili.app";
 
 export function isConfigured(): boolean {
@@ -15,7 +14,6 @@ export async function canaryAccount() {
 
   const client = await AccountApiClient.fromCredentialFile(credentialFile, { provider: PROVIDER });
   const account = await client.account();
-  if (account.address !== ADDRESS) error(403, `The selected credential is not for ${ADDRESS}`);
   return { account, client };
 }
 

@@ -159,6 +159,27 @@ The live account rendered Sent as five plus three records, paginated Inbox, both
 verified peer addresses, exact bodies, and terminal delivery guidance. The
 provider remained healthy with zero unexpected restarts.
 
+## Managed thin-client canary
+
+`canary-prov@haili.app` was publicly onboarded October 21, 2026 as managed
+custody v1, DID `did:plc:stvgwkko467nuc2hautufvpg`, with independently reviewed
+genesis CID `bafyreieu5jvsstxhx3nawryfe5bnlzrphw7ryenqg6hbnlsdqusp4xugvu`.
+The owner retains the top recovery key; Haili controls distinct PLC rotation,
+Hail identity, and Hail messaging keys. The local vault identity is absent from
+the DID document.
+
+The thin client accepted this account after removing its obsolete hard-coded
+`canary@haili.app` address check while retaining the fixed Haili provider-origin
+assertion. Reciprocal `updates` Grants with `canary@hailproto.app` supported
+provider-signed rich sends and inbound delivery. Three GUI submissions and one
+inbound message reached authenticated `delivered` revision 2; Inbox, Sent, both
+detail views, retained address labels, and status guidance rendered correctly.
+
+Two exploratory same-provider Grants were revoked after publication returned
+HTTP 409. The current Grant store permits one local role per lineage, so
+same-provider peer Grants remain a known limitation; federated Grants are the
+tested path.
+
 ## Documentation disposition
 
 Completed October 21, 2026. Active guidance now points to the strict-public
