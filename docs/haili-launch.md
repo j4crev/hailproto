@@ -61,18 +61,21 @@ provider A -> provider B -> provider A canary ceremony.
 
 ## Documentation disposition
 
+Completed October 21, 2026. Active guidance now points to the strict-public
+deployment and current gate documents; dated POC and milestone records are
+explicitly archived in place so existing evidence links remain valid.
+
 | Document | Disposition |
 | --- | --- |
 | `apps/cli/docs/cli-roadmap.md` | Keep as the concise capability and gate summary. |
 | `apps/cli/docs/custody-transitions.md` | Keep as the detailed production-gate authority; archive completed checklist sections when distilled. |
-| `docs/no-mirror-refactor.md` | Delete after its final policy is fully reflected in the specifications and operator documentation. |
-| `apps/server/docs/reader-refactor.md` | Delete with the no-mirror plan after consolidation. |
-| `apps/cli/docs/milestone7-production-gate.md` | Preserve as an archived evidence record, not an active roadmap. |
-| `docs/typescript-backend-poc.md` | Archive or shrink to reproducible POC instructions; remove stale status claims from the active documentation path. |
-| `docs/production-portable-custody.md` | Keep as design history, but update or archive stale implementation-status sections. |
+| Completed reader-refactor plans | Deleted after consolidation into `spec/plc-read-evidence.md`, `spec/did-profile.md` and operator guidance. |
+| `apps/cli/docs/milestone7-production-gate.md` | Archived evidence record; no longer linked as the active gate list. |
+| `docs/typescript-backend-poc.md` | Archived private-PLC implementation and deployment record. |
+| `docs/production-portable-custody.md` | Preserved as design history and private-POC recovery guidance. |
 | `CBOR_MIGRATION.md` | Keep for remaining limits, measurements, API documentation and media-type work; it does not block this launch. |
 | `BUILD_ORDER.md` | Keep as architectural background, not an execution checklist. |
-| `docs/poc-cleanup.md` | Execute applicable cleanup, then delete the audit. |
+| `docs/poc-cleanup.md` | Keep until private rehearsals and legacy-account disposition permit the remaining compatibility cleanup. |
 
 Do not delete private-PLC fixtures, applied migrations or compatibility readers
 while they remain required for recovery and regression evidence.

@@ -1,10 +1,11 @@
 # Milestone 7 — managed-profile foundation and production gates
 
-Status: managed/read-evidence v1 profiles frozen October 13, 2026. Package version stays **0.1.0**. Milestone 6
-is committed locally as client `d7a9830` and provider `0ac5461`; neither was pushed.
-The milestone-7 work now includes the managed draft/genesis slice and the next
-read-evidence/monitor-bootstrap and durable cutover-evidence slices. These are local reference checks, not
-completion of the production federation gate.
+Status: Archived milestone evidence. Managed/read-evidence v1 profiles were
+frozen October 13, 2026. This page preserves dated implementation and test
+results; it is not the active roadmap or production checklist. Use
+[`custody-transitions.md`](custody-transitions.md) for remaining gates and
+[`../../../docs/haili-launch.md`](../../../docs/haili-launch.md) for the live
+provider milestone.
 
 ## First slice
 

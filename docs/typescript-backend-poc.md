@@ -1,16 +1,19 @@
 # TypeScript Backend POC
 
-Status: In progress
+Status: Archived implementation and deployment record, completed October 6,
+2026. Do not use this page as current provider status or production guidance;
+use [`../apps/server/deploy/public/README.md`](../apps/server/deploy/public/README.md)
+for a new public provider.
 
-This guide records the implementation and deployment method for the first Hail
-Protocol end-to-end proof of concept. It is intended to become a reproducible
-how-to for other developers, so commands, expected results, deviations, and
-security limitations are recorded as the implementation proceeds.
+This guide preserves the implementation and deployment method for the first
+Hail Protocol end-to-end proof of concept. Commands, expected results,
+deviations and security limitations are retained to reproduce or audit that
+historical private-PLC environment.
 
 The protocol specifications in [`../spec`](../spec) remain authoritative. This
 guide describes one implementation and does not override those specifications.
 
-## Current POC Status (October 6, 2026)
+## Archived POC Status (October 6, 2026)
 
 | Area | Verified implementation |
 | --- | --- |

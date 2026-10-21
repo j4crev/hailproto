@@ -1,8 +1,9 @@
 # Production Portable Custody And Provider Cutover
 
-Status: Design and implementation work in progress. This document records the
-production-facing decisions and the prerequisites that the isolated custodial
-POC cannot satisfy. The protocol specifications in `../spec` remain
+Status: Design history and private-POC recovery guide. Dated implementation
+status below is preserved as historical context, not as the active roadmap.
+Use [`../apps/cli/docs/custody-transitions.md`](../apps/cli/docs/custody-transitions.md)
+for current production gates. The protocol specifications in `../spec` remain
 authoritative; a rule proposed here is not a federation requirement until its
 corresponding specification is updated and reviewed.
 
@@ -732,7 +733,7 @@ status. Dev retained its accepted historical row with zero attempts behind a
 retired fence. This demonstrates continuity for that test, not independent
 monitoring, public PLC finality or recovery from every post-fence failure.
 
-## Current Implementation Boundary
+## October 6, 2026 Implementation Boundary
 
 Migrations 13–31 now run on the two public-HTTPS **private-PLC POC** providers;
 they are not deployed as a `plc.directory` production portable service.

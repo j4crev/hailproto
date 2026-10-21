@@ -2,24 +2,24 @@
 
 Reusable Bun and Hono provider implementation for Hail Protocol.
 
-This repository is under active development. The implementation method,
-security limitations, and deployment procedure are documented in the sibling
-Hail Protocol checkout at
-[`../../docs/typescript-backend-poc.md`](../../docs/typescript-backend-poc.md).
+This repository is under active development. Use the
+[single public-provider deployment profile](deploy/public/README.md) for a new
+strict-public provider. The older
+[two-provider private-PLC POC](../../docs/typescript-backend-poc.md) is retained
+only as historical rehearsal evidence.
 
 ## Current alpha and guides
 
-The deployed public alpha runs two strict-public providers against canonical
-`plc.directory`. Backed-up owner-controlled canaries at `hailproto.app` and
-`hailproto.dev` have completed monitored onboarding, Sender Profile publication,
-reciprocal Grants and terminally delivered messages in both directions. The
-private-PLC POC remains available for destructive transfer/recovery rehearsals;
-public managed transfer remains disabled. Both alpha providers share one VPS, so
-the deployment proves protocol interoperability rather than infrastructure
-independence.
+The public alpha runs three strict-public providers against canonical
+`plc.directory`. Independently hosted `haili.app` has a permanent
+owner-controlled canary; the disposable `hailproto.app` and `hailproto.dev`
+providers share another VPS. All three completed monitored onboarding, Sender
+Profile publication and reciprocal Grant delivery. The private-PLC POC remains
+available for destructive transfer/recovery rehearsals. Public managed transfer
+remains disabled.
 
-- [Provider deployment and delivery runbook](deploy/poc/README.md).
 - [Single public-provider deployment profile](deploy/public/README.md).
+- [Historical private-PLC POC runbook](deploy/poc/README.md).
 - [User-device vault/signing client](https://github.com/j4crev/hailproto/tree/main/apps/cli#readme).
 - [Transfer/recovery checkpoints](https://github.com/j4crev/hailproto/blob/main/docs/production-portable-custody.md#resuming-a-private-plc-poc-ceremony).
 - [Public monitor deployment](https://github.com/j4crev/hailproto/blob/main/apps/plc-monitor/deploy/public/README.md).
@@ -59,7 +59,7 @@ destination after transfer.
 
 ### HTTP contract
 
-Milestone 7's candidate [PLC read-evidence policy](https://github.com/j4crev/hailproto/blob/main/spec/plc-read-evidence.md)
+The frozen [PLC read-evidence policy](https://github.com/j4crev/hailproto/blob/main/spec/plc-read-evidence.md)
 strengthens the public cutover library with complete canonical/audit agreement,
 explicit reader/operator configuration, reviewed monitor bootstrap
 evidence and five-minute freshness. Use `createIndependentPlcObserver(origin,
@@ -67,8 +67,8 @@ operator)` and pass the reviewed source/destination operator IDs as the fourth
 `PortableCutoverGate` constructor argument. Legacy v1 monitor reports, private
 registration evidence and private-Poc observation promotion cannot authorize
 public cutover. The private POC path retains its separate gate. Migration 44 adds
-an opt-in public signup route, now exercised by the two live alpha canaries. See
-[verification and remaining gates](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/milestone7-production-gate.md#read-evidence-and-monitor-bootstrap-slice).
+an opt-in public signup route, now exercised by all three live alpha canaries. See
+the [archived verification evidence](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/milestone7-production-gate.md#read-evidence-and-monitor-bootstrap-slice).
 
 Migration **40** adds full immutable public cutover evidence and a separate
 selection sealed by the activation transaction. Both reader histories/documents,
@@ -139,7 +139,7 @@ new evidence is retained and without later migrations. Histories reference stabl
 IDs rather than volatile working rows, but their transport in a future signed
 snapshot remains a separate profile change. Current reported PLC authority is
 not recovery-window finality or proof of owner intent. See the
-[routine authority candidate and boundaries](https://github.com/j4crev/hailproto/blob/main/spec/plc-read-evidence.md#routine-strict-public-v1-authority).
+[routine authority policy and boundaries](https://github.com/j4crev/hailproto/blob/main/spec/plc-read-evidence.md#routine-strict-public-v1-authority).
 
 The consolidated [reference account API v1 / hailp CLI contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-contract.md)
 defines compatibility, output/error semantics and bounded read convenience.

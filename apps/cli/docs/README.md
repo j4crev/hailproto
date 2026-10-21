@@ -49,5 +49,4 @@ They are historical evidence, not setup instructions:
 - [Milestone 4 release](milestone4-release.md)
 - [Milestone 5 release](milestone5-release.md)
 - [Milestone 6 verification](milestone6-verification.md)
-- [Milestone 7 production gates](milestone7-production-gate.md)
-
+- [Milestone 7 verification evidence](milestone7-production-gate.md)

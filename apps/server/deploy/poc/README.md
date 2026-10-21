@@ -1,10 +1,15 @@
 # Public POC Deployment
 
+Status: Archived private-PLC deployment and rehearsal record. Use
+[`../public/README.md`](../public/README.md) for a new strict-public provider.
+The commands below remain available only for reproducing or recovering the
+private POC.
+
 This deployment runs both Hail providers, a private PLC directory, three
 PostgreSQL databases, and Caddy on one VPS. Only Caddy ports 80 and 443 are
 published.
 
-## Start here: current deployment
+## Archived deployment state
 
 As of October 13, 2026 (UTC), both provider databases are at migration **49**. The
 POC supports message/reply delivery and fresh user-key-held private-PLC DID

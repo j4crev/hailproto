@@ -1,7 +1,9 @@
 # POC cleanup audit
 
-There is meaningful POC cleanup available, but most should wait until the
-remaining private rehearsals finish.
+Status: Deferred compatibility cleanup. The active documentation has been
+separated from historical POC records, but the remaining code and deployment
+cuts must wait for the prerequisites below. Keep this audit until those cuts
+finish, then delete it.
 
 1. **Delete:** Archive the historical POC rollout journals from release-facing
    documentation; Git history plus one concise archive index is enough.
