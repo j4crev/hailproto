@@ -232,6 +232,13 @@ external state changed to `down` and fresh attestation was refused. An independe
 eight-minute systemd timer restored the monitor; state returned to `ok`, polling
 was current and fresh attestation succeeded. Temporary elevated access was removed.
 
+The monitor database, signing key and minimal configuration were then encrypted
+off-host and restored into PostgreSQL 14. Artifact SHA-256
+`32821ca4c9e109878ef3fd3199ef3c9c074cb69bcaf9963675f7de12807b6acc`
+restored 5 monitored DIDs, 5 bootstrap checkpoints, 8 alerts, 3 approvals and
+3 observations. The restored key matched the pinned monitor key; canonical polling
+and fresh attestation succeeded before the plaintext clone was removed.
+
 Readiness load calibration reached 339.0 requests/s at 16 connections with no
 HTTP or transport errors, p50 45.7 ms, p99 125.1 ms and maximum 281.6 ms on the
 2-vCPU host. Production mutation limits remain 120 requests/minute per surface,

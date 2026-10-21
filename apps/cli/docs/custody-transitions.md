@@ -295,8 +295,10 @@ already enabled separately.
   rate/size limits, audit retention and incident ownership for every provider
   participating in public managed transfer. The disabled Haili baseline now has
   these controls; the disposable providers do not.
-- [ ] Exercise cross-host backup/restore from the latest accepted private state,
-  including stale credential, challenge, worker, lease and generation rejection.
+- [x] Restore the public monitor database and signing key cross-host from encrypted
+  latest state; verify retained rows, canonical polling and fresh attestation.
+- [x] Restore managed-transfer provider state cross-host, including stale
+  credential, challenge, worker, lease and generation rejection.
 - [x] Handle unsupported historical states safely using private/synthetic histories:
   acknowledged predecessors may migrate; unacknowledged, conflicting, nullified or
   disputed history must reconcile under a reviewed algorithm or remain blocked with
@@ -306,10 +308,11 @@ already enabled separately.
   recovery against the private PLC, including delayed replay of signed operations.
   Automated rollback is optional, but reopening a stale source, relying on expiry,
   or silently losing accepted state is forbidden.
-- [ ] Calibrate and enforce a documented supported load envelope on private clones,
-  then prove alerts and recovery at that boundary. Do not load-test the public PLC;
-  unbounded scale testing is not required. Haili public-readiness calibration does
-  not replace this managed-transfer failure-boundary proof.
+- [x] Calibrate and enforce the supported managed-transfer load envelope on private
+  clones, including throttling, size rejection and window recovery. Do not
+  load-test the public PLC; unbounded scale testing is not required.
+- [ ] Prove external overload alerts for every future public transfer provider.
+  Haili supervision is complete; disposable POC providers are not monitored.
 
 The first item completed October 13, 2026. The frozen identifiers are
 `hail-managed-custody-v1` and `hail.plc-read-evidence-v1`; their
@@ -361,7 +364,7 @@ not authorization to enable public managed transfer.
 - [x] Perform low-rate public TLS, strict-public evidence, Sender Profile, Grant and
   bidirectional message-delivery smoke checks without malformed or high-volume traffic.
 - [x] Add external health supervision and prove public monitor outage recovery.
-- [ ] Prove supported managed-transfer service limits without load-testing
+- [x] Prove supported managed-transfer service limits without load-testing
   `plc.directory`.
 - [x] Use a reviewed permanent canary for the managed `provider A → provider B →
   provider A` round trip before enabling public managed transfer.
@@ -389,6 +392,34 @@ their distinct current CIDs as disagreement. The reader next omitted a middle
 audit operation. A disposable monitor clone recorded `invalid-log`, refused to
 sign, and remained blocked after the healthy view returned, requiring reviewed
 recovery as designed. The Worker, key and database were deleted after the drill.
+
+Cross-host monitor restoration then encrypted the live PostgreSQL dump, signing
+key and minimal runtime configuration before transfer. SHA-256
+`32821ca4c9e109878ef3fd3199ef3c9c074cb69bcaf9963675f7de12807b6acc`
+restored under PostgreSQL 14 with 5 monitored DIDs, 5 bootstrap checkpoints,
+8 alerts, 3 approvals and 3 observations. The restored key matched the pinned
+monitor key; canonical polling and fresh attestation succeeded. Plaintext restore
+material was removed afterward.
+
+A one-time encrypted `hailproto.app` snapshot then restored schema 53 and nine
+accounts cross-host, including the returned permanent canary at serving generation
+4. All 23 provider-held operational keys decrypted. Retained older-generation
+credential and challenge rows remained ineligible, a known-token substitution
+could not authenticate the stale credential, and the database admitted generation
+4 while rejecting generation 3 work. The accepted snapshot contained no worker
+lease; the focused managed-orchestration rerun separately re-proved that an active
+lease blocks fencing. Artifact SHA-256 was
+`1c1cbbc7ad2eea3ec6d7d42340f4b4e0d604116c11fc1ccf3ce01631d52ff80d`.
+The plaintext clone, temporary encrypted artifacts and temporary R2 bucket were
+deleted after verification; no recurring backup was added to the disposable provider.
+
+Private-clone load calibration admitted exactly 120 global transfer requests and
+12 authenticated reservation requests per DID per minute. At concurrency 4, the
+120-request boundary measured p50 8.6 ms, p99 63.7 ms and maximum 83.2 ms; request
+121 returned `429`. A 256-request burst admitted 120 and throttled 136 without
+errors. The next request after an aged window succeeded. Account routes returned
+`413` above 16 KiB and `429` with `Retry-After: 60`. External overload alerting
+remains required for any disposable provider promoted to public transfer service.
 
 Hardware-backed/device-keystore integration, cross-platform binaries, automatic
 provider discovery and a polished consumer review UI are valuable follow-up work,
