@@ -14,7 +14,8 @@ start =
   hail-envelope /
   hail-delivery-status /
   hail-body-spt-1 /
-  hail-body-spt-2
+  hail-body-spt-2 /
+  hail-body-spt-3
 
 hail-int = -9007199254740991..9007199254740991
 hail-uint = 0..9007199254740991
@@ -139,7 +140,7 @@ body-descriptor = {
   "digest": digest,
   "size": 1..262144,
   "media_type": "application/hail-body+cbor",
-  "profile": "spt-1" / "spt-2",
+  "profile": "spt-1" / "spt-2" / "spt-3",
   "available_until": timestamp,
   "access": bearer-access
 }
@@ -280,6 +281,21 @@ spt-link = {
   "_type": "spt.link",
   "href": tstr,
   ? "title": tstr
+}
+
+; spt-3 adds one bundled, digest-bound header image before rich text.
+hail-body-spt-3 = {
+  "version": 1,
+  "profile": "spt-3",
+  "assets": asset-manifest-v1,
+  "blocks": [spt-image-block, * spt-2-text-block]
+}
+
+spt-image-block = {
+  "_type": "spt.image",
+  "asset": tstr,
+  "alt": tstr,
+  ? "caption": tstr
 }
 
 ; Reusable bundled-image manifest for future body and profile versions.

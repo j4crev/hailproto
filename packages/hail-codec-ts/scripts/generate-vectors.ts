@@ -23,6 +23,7 @@ import {
   deliveryStatus,
   envelope,
   grant,
+  imageBody,
   richBody,
   senderProfile,
 } from "../test/fixtures.js";
@@ -215,6 +216,7 @@ await addPositive(
   linkedDeliveryStatus,
 );
 await addPositive("body-spt-2-rich","hail.body.spt-2",richBody);
+await addPositive("body-spt-3-header","hail.body.spt-3",imageBody);
 
 const addressSigned = signedByType.get("hail.address-binding");
 if (addressSigned === undefined) throw new Error("address-binding vector missing");

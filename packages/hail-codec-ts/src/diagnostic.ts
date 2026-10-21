@@ -68,6 +68,7 @@ function fromJson(value: DiagnosticJson, parent?: Record<string, DiagnosticJson>
   if (typeof value === "string") {
     if (key === "token") return decodeBase64Url(value, 32);
     if (key === "previous") return decodeBase64Url(value, 32);
+    if (key === "data") return decodeBase64Url(value);
     if (key === "value" && parent?.algorithm === "sha-256") {
       return decodeBase64Url(value, 32);
     }

@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import type { HailAddressBinding, HailEnvelope } from "../src/index.js";
 import type {
   HailDeliveryStatus,
   HailGrant,
   HailSenderProfile,
   HailSpt2Body,
+  HailSpt3Body,
   HailSptBody,
 } from "../src/index.js";
 
@@ -132,5 +134,21 @@ export const richBody: HailSpt2Body = {
     {_type:"block",style:"h1",children:[{_type:"span",text:"Hello from Hail",marks:["strong"]}],markDefs:[]},
     {_type:"block",style:"normal",children:[{_type:"span",text:"Read the update",marks:["update-link","em"]}],
       markDefs:[{_key:"update-link",_type:"spt.link",href:"https://haili.app/update",title:"Hail update"}]},
+  ],
+};
+
+const headerPng = new Uint8Array(Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64",
+));
+export const imageBody: HailSpt3Body = {
+  version: 1,
+  profile: "spt-3",
+  assets: { version: 1, assets: [{ id: "hero-image", role: "header", media_type: "image/png", loading: "bundled",
+    size: headerPng.length, digest: { algorithm: "sha-256", value: new Uint8Array(createHash("sha256").update(headerPng).digest()) },
+    width: 1, height: 1, data: headerPng }] },
+  blocks: [
+    { _type: "spt.image", asset: "hero-image", alt: "Green Hail mark", caption: "Verified bundled image" },
+    { _type: "block", style: "h1", children: [{ _type: "span", text: "Image from Hail", marks: ["strong"] }], markDefs: [] },
   ],
 };

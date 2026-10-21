@@ -14,7 +14,7 @@
     {#if data.message.category}<mark>{data.message.category}</mark>{/if}
   </header>
   <div class="body">
-    <RichText blocks={data.message.blocks} />
+    <RichText blocks={data.message.blocks} header={data.message.header} />
   </div>
   <footer>
     <time datetime={data.message.deliveredAt}>{delivered}</time>

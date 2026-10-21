@@ -17,7 +17,7 @@ describe("message projections", () => {
   });
 
   it("rejects a body the POC cannot render safely", () => {
-    expect(() => parseMessage({ body: { version: 1, profile: "spt-3", blocks: [] } })).toThrow("Unsupported message body");
+    expect(() => parseMessage({ body: { version: 1, profile: "spt-4", blocks: [] } })).toThrow("Unsupported message body");
   });
 
   it("projects rich text without permitting active links", () => {
@@ -30,5 +30,16 @@ describe("message projections", () => {
       children:[{_type:"span",text:"unsafe",marks:["link"]}],markDefs:[{_key:"link",_type:"spt.link",href:"javascript:alert(1)"}]}]}})).toThrow("Unsupported link");
     const item={...message.blocks[0]!,listItem:"number" as const,level:1};
     expect(groupMessageBlocks([item,item,{...item,listItem:"bullet"}]).map(group=>group.blocks.length)).toEqual([2,1]);
+  });
+
+  it("projects a bundled header without a remote request", () => {
+    const data=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
+    const message=parseMessage({messageId:"m",sender:"did:plc:sender",recipient:"did:plc:recipient",deliveredAt:"now",category:null,
+      body:{version:1,profile:"spt-3",assets:{version:1,assets:[{id:"hero",role:"header",media_type:"image/png",loading:"bundled",
+        size:data.length,width:1,height:1,data:data.toString("base64url"),digest:{algorithm:"sha-256",value:"ignored-by-view"}}]},
+        blocks:[{_type:"spt.image",asset:"hero",alt:"Hail mark"},{_type:"block",style:"normal",children:[{_type:"span",text:"Hello",marks:[]}],markDefs:[]}]}});
+    expect(message.header).toMatchObject({alt:"Hail mark",width:1,height:1});
+    expect(message.header?.src).toMatch(/^data:image\/png;base64,/);
+    expect(messagePreview(message)).toBe("Hello");
   });
 });

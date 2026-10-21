@@ -44,6 +44,8 @@ export type {
   HailSpt2Body,
   HailSpt2Span,
   HailSpt2TextBlock,
+  HailSpt3Body,
+  HailSptImageBlock,
   HailSptLink,
   HailSptSpan,
   HailSptTextBlock,

@@ -22,8 +22,11 @@ export class AccountMessaging {
       (input.grantId!==undefined&&(!ID.test(input.grantId as string)||typeof input.category!=="string"))||
       (input.replyTo!==undefined&&(!ID.test(input.replyTo as string)||input.category!==undefined))||
       (input.replyUntil!==undefined&&input.replyUntil!==null&&!Number.isSafeInteger(input.replyUntil)))throw new UserGrantError(400,"Invalid send request");
-    const body=hasText?bodyFromText(input.text as string):
-      bodyFromDocument(fromDiagnosticJson("hail.body.spt-2",input.body as DiagnosticJson));
+    const profile=(input.body as Record<string,unknown> | undefined)?.profile;
+    if(hasBody&&profile!=="spt-2"&&profile!=="spt-3")throw new UserGrantError(400,"Invalid body profile");
+    const body=hasText?bodyFromText(input.text as string):profile==="spt-2"?
+      bodyFromDocument(fromDiagnosticJson("hail.body.spt-2",input.body as DiagnosticJson)):
+      bodyFromDocument(fromDiagnosticJson("hail.body.spt-3",input.body as DiagnosticJson));
     const digest=new Uint8Array(createHash("sha256").update(body).digest());
     let stored=await this.envelopes.sent(session.did,input.messageId);
     if(!stored){
@@ -65,7 +68,8 @@ export class AccountMessaging {
     const envelope=inspectSignedPayload("hail.envelope",rows[0].envelope_cose).payload;
     const profile=validateBodyBytes(rows[0].body_bytes);
     const body=profile==="spt-1"?toDiagnosticJson("hail.body.spt-1",decodePayload("hail.body.spt-1",rows[0].body_bytes)):
-      toDiagnosticJson("hail.body.spt-2",decodePayload("hail.body.spt-2",rows[0].body_bytes));
+      profile==="spt-2"?toDiagnosticJson("hail.body.spt-2",decodePayload("hail.body.spt-2",rows[0].body_bytes)):
+      toDiagnosticJson("hail.body.spt-3",decodePayload("hail.body.spt-3",rows[0].body_bytes));
     return {messageId:id,sender,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
       deliveredAt:rows[0].delivered_at.toISOString(),body};
   }

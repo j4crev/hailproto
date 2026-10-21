@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   decodePayload,
   encodePayload,
+  fromDiagnosticJson,
   type HailAddressBinding,
   HailCodecError,
   type HailEnvelope,
   type HailValue,
   validatePayload,
+  toDiagnosticJson,
 } from "../src/index.js";
 import {
   addressBinding,
@@ -15,6 +17,7 @@ import {
   deliveryStatus,
   envelope,
   grant,
+  imageBody,
   richBody,
   senderProfile,
 } from "./fixtures.js";
@@ -50,6 +53,8 @@ describe("payload validation", () => {
       decodePayload("hail.body.spt-1", encodePayload("hail.body.spt-1", body)),
     ).toEqual(body);
     expect(decodePayload("hail.body.spt-2",encodePayload("hail.body.spt-2",richBody))).toEqual(richBody);
+    expect(decodePayload("hail.body.spt-3",encodePayload("hail.body.spt-3",imageBody))).toEqual(imageBody);
+    expect(fromDiagnosticJson("hail.body.spt-3",toDiagnosticJson("hail.body.spt-3",imageBody))).toEqual(imageBody);
   });
 
   it("rejects unknown fields", () => {

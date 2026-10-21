@@ -416,6 +416,14 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     const richRead=await cli(["inbox","show",senderDid,richId],"message-owner.credential.json");
     expect(richRead.exit,richRead.stderr).toBe(0);
     expect(JSON.parse(richRead.stdout).body.blocks[1].markDefs[0].href).toBe("https://sender.example.com/update");
+    const imageId="01a15eb5-0000-7000-8000-000000000002",imageData=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
+    const image=await app.request(`${origin}/api/v1/account/messages`,{method:"POST",headers:{Authorization:`Bearer ${senderCredential.token}`,"Content-Type":"application/json"},body:JSON.stringify({
+      messageId:imageId,grantId,category:"updates",body:{version:1,profile:"spt-3",assets:{version:1,assets:[{id:"hero",role:"header",media_type:"image/png",loading:"bundled",
+        size:imageData.length,digest:{algorithm:"sha-256",value:createHash("sha256").update(imageData).digest("base64url")},width:1,height:1,data:imageData.toString("base64url")}]},
+        blocks:[{_type:"spt.image",asset:"hero",alt:"Hail mark"},{_type:"block",style:"normal",children:[{_type:"span",text:"Image message",marks:[]}],markDefs:[]}]}})});
+    expect(image.status).toBe(200);
+    const imageRead=await cli(["inbox","show",senderDid,imageId],"message-owner.credential.json");expect(imageRead.exit,imageRead.stderr).toBe(0);
+    expect(JSON.parse(imageRead.stdout).body.assets.assets[0].data).toBe(imageData.toString("base64url"));
     expect((await cli(["inbox","show",senderDid,id],"message-sender.credential.json")).exit).toBe(1);
     const reply=await cli(["reply",id,"--file",join(directory,"text.txt"),"--state",join(directory,"reply-state.json")],"message-owner.credential.json");if(reply.exit)throw new Error(reply.stderr);
     expect((await cli(["inbox","list"],"message-sender.credential.json")).exit).toBe(0);

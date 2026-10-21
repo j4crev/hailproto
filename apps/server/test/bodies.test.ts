@@ -37,6 +37,14 @@ describe("detached body", () => {
     expect(decodePayload("hail.body.spt-2",bytes).blocks).toHaveLength(3);
   });
 
+  it("encodes a digest-bound bundled header image", () => {
+    const data=new Uint8Array(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64"));
+    const image=bodyFromDocument({version:1,profile:"spt-3",assets:{version:1,assets:[{id:"hero-image",role:"header",
+      media_type:"image/png",loading:"bundled",size:data.length,digest:{algorithm:"sha-256",value:createHash("sha256").update(data).digest()},
+      width:1,height:1,data}]},blocks:[{_type:"spt.image",asset:"hero-image",alt:"Hail mark"}]});
+    expect(decodePayload("hail.body.spt-3",image).assets.assets[0]?.data).toEqual(data);
+  });
+
   it("requires a recipient, UUIDv7, 256-bit token and 30-day availability", () => {
     const input = { senderDid: did, recipientDid: recipient, messageId, digest, token,
       availableUntil: Math.floor(Date.now() / 1000) + 31 * 86400,

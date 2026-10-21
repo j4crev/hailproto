@@ -93,7 +93,7 @@ func fromHex(t testing.TB, s string) []byte {
 
 func TestPositiveVectors(t *testing.T) {
 	m := vectors(t)
-	if m.Format != "hail-conformance-vectors-1" || len(m.Positive) != 8 {
+	if m.Format != "hail-conformance-vectors-1" || len(m.Positive) != 9 {
 		t.Fatalf("unexpected manifest %q (%d positives)", m.Format, len(m.Positive))
 	}
 	keys := map[string]testKeyVector{}
@@ -118,7 +118,7 @@ func TestPositiveVectors(t *testing.T) {
 			if hex.EncodeToString(sum[:]) != v.PayloadSHA256Hex || EncodeBase64URL(sum[:]) != v.PayloadSHA256Base64URL {
 				t.Fatal("payload digest differs")
 			}
-			if v.Type == BodySPT1Type || v.Type == BodySPT2Type {
+			if v.Type == BodySPT1Type || v.Type == BodySPT2Type || v.Type == BodySPT3Type {
 				if v.COSEHex != "" {
 					t.Fatal("body unexpectedly signed")
 				}

@@ -79,6 +79,15 @@ func validateTypedPayload(payload Payload) (string, error) {
 		}
 		kind, value = BodySPT2Type, reflect.ValueOf(*typed)
 		validate = func() error { return preflightBody2(typed) }
+	case SPT3Body:
+		kind, value = BodySPT3Type, reflect.ValueOf(typed)
+		validate = func() error { return preflightBody3(&typed) }
+	case *SPT3Body:
+		if typed == nil {
+			return "", errors.New("nil spt-3 body payload")
+		}
+		kind, value = BodySPT3Type, reflect.ValueOf(*typed)
+		validate = func() error { return preflightBody3(typed) }
 	default:
 		return "", fmt.Errorf("unsupported payload model %T", payload)
 	}
@@ -244,7 +253,7 @@ func preflightEnvelope(v *Envelope) error {
 	if err := preflightDigest(v.Body.Digest); err != nil {
 		return err
 	}
-	if v.Body.Size < 1 || v.Body.Size > 262144 || v.Body.MediaType != "application/hail-body+cbor" || v.Body.Profile != "spt-1" && v.Body.Profile != "spt-2" {
+	if v.Body.Size < 1 || v.Body.Size > 262144 || v.Body.MediaType != "application/hail-body+cbor" || v.Body.Profile != "spt-1" && v.Body.Profile != "spt-2" && v.Body.Profile != "spt-3" {
 		return errors.New("invalid body descriptor")
 	}
 	if v.Body.AvailableUntil < v.CreatedAt+2592000 || v.Body.AvailableUntil < v.ExpiresAt+300 || v.Body.Access.Type != "bearer" || len(v.Body.Access.Token) != 32 || v.Body.Access.ExpiresAt < v.Body.AvailableUntil {
@@ -326,6 +335,14 @@ func preflightBody2(v *SPT2Body) error {
 		}
 	}
 	return validateSpt2Body(body2Value(v))
+}
+
+func preflightBody3(v *SPT3Body) error {
+	limits := DefaultResourceLimits()
+	if v.Version != 1 || v.Profile != "spt-3" || len(v.Blocks) == 0 || len(v.Blocks) > limits.MaximumArrayLength {
+		return errors.New("invalid spt-3 body header or block count")
+	}
+	return validateSpt3Body(body3Value(v))
 }
 
 func preflightDigest(v Digest) error {

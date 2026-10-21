@@ -73,6 +73,8 @@ func DecodePayload(payloadType string, data []byte) (Payload, error) {
 		out = &SPTBody{}
 	case BodySPT2Type:
 		out = &SPT2Body{}
+	case BodySPT3Type:
+		out = &SPT3Body{}
 	default:
 		return nil, errors.New("unknown Hail payload type")
 	}
@@ -136,6 +138,13 @@ func payloadValue(payload Payload) (map[any]any, string, error) {
 			return nil, "", errors.New("nil spt-2 body payload")
 		}
 		return body2Value(value), BodySPT2Type, nil
+	case SPT3Body:
+		return body3Value(&value), BodySPT3Type, nil
+	case *SPT3Body:
+		if value == nil {
+			return nil, "", errors.New("nil spt-3 body payload")
+		}
+		return body3Value(value), BodySPT3Type, nil
 	default:
 		return nil, "", fmt.Errorf("unsupported payload model %T", payload)
 	}
@@ -279,6 +288,55 @@ func body2Value(value *SPT2Body) map[any]any {
 		blocks[i] = item
 	}
 	return map[any]any{"version": value.Version, "profile": value.Profile, "blocks": blocks}
+}
+
+func assetManifestValue(value AssetManifest) map[any]any {
+	assets := make([]any, len(value.Assets))
+	for i, asset := range value.Assets {
+		assets[i] = map[any]any{"id": asset.ID, "role": asset.Role, "media_type": asset.MediaType,
+			"loading": asset.Loading, "size": asset.Size, "digest": digestValue(asset.Digest),
+			"width": asset.Width, "height": asset.Height, "data": asset.Data}
+	}
+	return map[any]any{"version": value.Version, "assets": assets}
+}
+
+func body3Value(value *SPT3Body) map[any]any {
+	blocks := make([]any, len(value.Blocks))
+	for i, block := range value.Blocks {
+		if block.Type == "spt.image" {
+			item := map[any]any{"_type": block.Type, "asset": block.Asset, "alt": block.Alt}
+			if block.Caption != "" {
+				item["caption"] = block.Caption
+			}
+			blocks[i] = item
+			continue
+		}
+		children := make([]any, len(block.Children))
+		for j, span := range block.Children {
+			marks := make([]any, len(span.Marks))
+			for k, mark := range span.Marks {
+				marks[k] = mark
+			}
+			children[j] = map[any]any{"_type": span.Type, "text": span.Text, "marks": marks}
+		}
+		defs := make([]any, len(block.MarkDefs))
+		for j, definition := range block.MarkDefs {
+			item := map[any]any{"_key": definition.Key, "_type": definition.Type, "href": definition.Href}
+			if definition.Title != "" {
+				item["title"] = definition.Title
+			}
+			defs[j] = item
+		}
+		item := map[any]any{"_type": block.Type, "style": block.Style, "children": children, "markDefs": defs}
+		if block.ListItem != "" {
+			item["listItem"] = block.ListItem
+		}
+		if block.Level != 0 {
+			item["level"] = block.Level
+		}
+		blocks[i] = item
+	}
+	return map[any]any{"version": value.Version, "profile": value.Profile, "assets": assetManifestValue(value.Assets), "blocks": blocks}
 }
 
 func mapValue(v any, path string) (map[any]any, error) {
@@ -458,6 +516,9 @@ func validatePayloadMap(kind string, m map[any]any) error {
 	}
 	if kind == BodySPT2Type {
 		return validateSpt2Body(m)
+	}
+	if kind == BodySPT3Type {
+		return validateSpt3Body(m)
 	}
 	if e := expectText(m, "type", kind, "$.type"); e != nil {
 		return e
@@ -743,7 +804,7 @@ func validateEnvelope(m map[any]any) error {
 		return e
 	}
 	profile, e := textValue(b["profile"], "$.body.profile")
-	if e != nil || profile != "spt-1" && profile != "spt-2" {
+	if e != nil || profile != "spt-1" && profile != "spt-2" && profile != "spt-3" {
 		return errors.New("unsupported body profile")
 	}
 	available, e := intValue(b["available_until"], "$.body.available_until", 0)
@@ -1039,4 +1100,123 @@ func validateSpt2Body(m map[any]any) error {
 		}
 	}
 	return nil
+}
+
+func assetManifestFromMap(value any) (*AssetManifest, error) {
+	m, err := mapValue(value, "$.assets")
+	if err != nil {
+		return nil, err
+	}
+	if err = exact(m, []string{"version", "assets"}, nil, "$.assets"); err != nil {
+		return nil, err
+	}
+	version, err := intValue(m["version"], "$.assets.version", 0)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := arrayValue(m["assets"], "$.assets.assets")
+	if err != nil {
+		return nil, err
+	}
+	manifest := &AssetManifest{Version: version, Assets: make([]BundledImageAsset, len(entries))}
+	for i, value := range entries {
+		path := fmt.Sprintf("$.assets.assets[%d]", i)
+		item, e := mapValue(value, path)
+		if e != nil {
+			return nil, e
+		}
+		if e = exact(item, []string{"id", "role", "media_type", "loading", "size", "digest", "width", "height", "data"}, nil, path); e != nil {
+			return nil, e
+		}
+		asset := &manifest.Assets[i]
+		if asset.ID, e = textValue(item["id"], path+".id"); e != nil {
+			return nil, e
+		}
+		if asset.Role, e = textValue(item["role"], path+".role"); e != nil {
+			return nil, e
+		}
+		if asset.MediaType, e = textValue(item["media_type"], path+".media_type"); e != nil {
+			return nil, e
+		}
+		if asset.Loading, e = textValue(item["loading"], path+".loading"); e != nil {
+			return nil, e
+		}
+		if asset.Size, e = intValue(item["size"], path+".size", 1); e != nil {
+			return nil, e
+		}
+		if asset.Width, e = intValue(item["width"], path+".width", 1); e != nil {
+			return nil, e
+		}
+		if asset.Height, e = intValue(item["height"], path+".height", 1); e != nil {
+			return nil, e
+		}
+		digestMap, e := mapValue(item["digest"], path+".digest")
+		if e != nil {
+			return nil, e
+		}
+		if e = exact(digestMap, []string{"algorithm", "value"}, nil, path+".digest"); e != nil {
+			return nil, e
+		}
+		if asset.Digest.Algorithm, e = textValue(digestMap["algorithm"], path+".digest.algorithm"); e != nil {
+			return nil, e
+		}
+		var ok bool
+		if asset.Digest.Value, ok = digestMap["value"].([]byte); !ok {
+			return nil, errors.New("asset digest must be bytes")
+		}
+		if asset.Data, ok = item["data"].([]byte); !ok {
+			return nil, errors.New("asset data must be bytes")
+		}
+	}
+	if err = ValidateAssetManifest(manifest); err != nil {
+		return nil, err
+	}
+	return manifest, nil
+}
+
+func validateSpt3Body(m map[any]any) error {
+	if err := exact(m, []string{"version", "profile", "assets", "blocks"}, nil, "$"); err != nil {
+		return err
+	}
+	version, err := intValue(m["version"], "$.version", 0)
+	if err != nil || version != 1 {
+		return errors.New("$.version must equal 1")
+	}
+	if err = expectText(m, "profile", "spt-3", "$.profile"); err != nil {
+		return err
+	}
+	manifest, err := assetManifestFromMap(m["assets"])
+	if err != nil {
+		return err
+	}
+	if len(manifest.Assets) != 1 || manifest.Assets[0].Role != "header" {
+		return errors.New("spt-3 must contain exactly one header asset")
+	}
+	blocks, err := arrayValue(m["blocks"], "$.blocks")
+	if err != nil || len(blocks) == 0 {
+		return errors.New("spt-3 must begin with an image block")
+	}
+	image, err := mapValue(blocks[0], "$.blocks[0]")
+	if err != nil {
+		return err
+	}
+	if err = exact(image, []string{"_type", "asset", "alt"}, []string{"caption"}, "$.blocks[0]"); err != nil {
+		return err
+	}
+	if err = expectText(image, "_type", "spt.image", "$.blocks[0]._type"); err != nil {
+		return err
+	}
+	asset, err := textValue(image["asset"], "$.blocks[0].asset")
+	if err != nil || asset != manifest.Assets[0].ID {
+		return errors.New("image block must reference header asset")
+	}
+	if err = profileText(image["alt"], 1, 1024, "$.blocks[0].alt"); err != nil {
+		return err
+	}
+	if has(image, "caption") {
+		if err = profileText(image["caption"], 1, 1024, "$.blocks[0].caption"); err != nil {
+			return err
+		}
+	}
+	return validateSpt2Body(map[any]any{"version": int64(1), "profile": "spt-2", "blocks": blocks[1:]})
 }

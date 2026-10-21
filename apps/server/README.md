@@ -528,7 +528,7 @@ Additional account endpoints:
 | `/grants/managed` | POST, `grants:write` | Explicit managed evidence; sign/create at provider |
 | `/grants/{id}/revoke` | POST, `grants:write` | Managed account's signed terminal revision |
 | `/credentials` | POST, `credentials:write` | Issue caller-generated token with inherited scopes or revoke own credential ID |
-| `/messages` | POST, `messages:write` | Text (`spt-1`) or validated rich `spt-2` body, Grant or invited reply, with client-stable UUIDv7 |
+| `/messages` | POST, `messages:write` | Text (`spt-1`), rich `spt-2`, or bundled-header `spt-3` body, Grant or invited reply, with client-stable UUIDv7 |
 | `/messages/{id}/submit` | POST, `messages:write` | Resubmit exact own envelope |
 | `/messages/{id}` | GET, `messages:read` | Retained authenticated status, otherwise indeterminate |
 | `/inbox` | GET, `messages:read` | Delivered recipient list, 50 items, opaque `after` cursor |

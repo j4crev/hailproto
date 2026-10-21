@@ -10,6 +10,7 @@ const (
 	DeliveryStatusType = "hail.delivery-status"
 	BodySPT1Type       = "hail.body.spt-1"
 	BodySPT2Type       = "hail.body.spt-2"
+	BodySPT3Type       = "hail.body.spt-3"
 )
 
 type Payload interface{ PayloadType() string }
@@ -207,6 +208,27 @@ type SPT2Body struct {
 
 func (SPT2Body) PayloadType() string { return BodySPT2Type }
 
+type SPT3Block struct {
+	Type     string     `cbor:"_type"`
+	Asset    string     `cbor:"asset,omitempty"`
+	Alt      string     `cbor:"alt,omitempty"`
+	Caption  string     `cbor:"caption,omitempty"`
+	Style    string     `cbor:"style,omitempty"`
+	Children []SPT2Span `cbor:"children,omitempty"`
+	MarkDefs []SPT2Link `cbor:"markDefs,omitempty"`
+	ListItem string     `cbor:"listItem,omitempty"`
+	Level    int64      `cbor:"level,omitempty"`
+}
+
+type SPT3Body struct {
+	Version int64         `cbor:"version"`
+	Profile string        `cbor:"profile"`
+	Assets  AssetManifest `cbor:"assets"`
+	Blocks  []SPT3Block   `cbor:"blocks"`
+}
+
+func (SPT3Body) PayloadType() string { return BodySPT3Type }
+
 func clonePayload(payload Payload) Payload {
 	switch value := payload.(type) {
 	case *AddressBinding:
@@ -270,6 +292,22 @@ func clonePayload(payload Payload) Payload {
 			cloned.Blocks[i].Children = append([]SPT2Span(nil), block.Children...)
 			for j := range cloned.Blocks[i].Children {
 				cloned.Blocks[i].Children[j].Marks = append([]string(nil), block.Children[j].Marks...)
+			}
+		}
+		return &cloned
+	case *SPT3Body:
+		cloned := *value
+		cloned.Assets.Assets = append([]BundledImageAsset(nil), value.Assets.Assets...)
+		for i := range cloned.Assets.Assets {
+			cloned.Assets.Assets[i].Digest.Value = bytes.Clone(value.Assets.Assets[i].Digest.Value)
+			cloned.Assets.Assets[i].Data = bytes.Clone(value.Assets.Assets[i].Data)
+		}
+		cloned.Blocks = append([]SPT3Block(nil), value.Blocks...)
+		for i := range cloned.Blocks {
+			cloned.Blocks[i].Children = append([]SPT2Span(nil), value.Blocks[i].Children...)
+			cloned.Blocks[i].MarkDefs = append([]SPT2Link(nil), value.Blocks[i].MarkDefs...)
+			for j := range cloned.Blocks[i].Children {
+				cloned.Blocks[i].Children[j].Marks = append([]string(nil), value.Blocks[i].Children[j].Marks...)
 			}
 		}
 		return &cloned

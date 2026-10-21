@@ -410,7 +410,7 @@ function validateEnvelope(payload: HailRecord): void {
   if (text(body.media_type, "$.body.media_type") !== "application/hail-body+cbor") {
     fail("unsupported body media type", "$.body.media_type");
   }
-  if (!["spt-1", "spt-2"].includes(text(body.profile, "$.body.profile"))) fail("unsupported body profile", "$.body.profile");
+  if (!["spt-1", "spt-2", "spt-3"].includes(text(body.profile, "$.body.profile"))) fail("unsupported body profile", "$.body.profile");
   const availableUntil = integer(body.available_until, "$.body.available_until");
   if (availableUntil < createdAt + 2_592_000 || availableUntil < expiresAt + 300) {
     fail("does not satisfy the required availability window", "$.body.available_until");
@@ -596,6 +596,24 @@ export function validateAssetManifest(value: unknown): asserts value is HailAsse
   });
 }
 
+function validateSpt3Body(payload: HailRecord): void {
+  exactKeys(payload, ["version", "profile", "assets", "blocks"], [], "$");
+  if (payload.version !== 1) fail("must equal integer 1", "$.version");
+  if (payload.profile !== "spt-3") fail("must equal spt-3", "$.profile");
+  validateAssetManifest(payload.assets);
+  const assets = (record(payload.assets, "$.assets").assets as HailRecord[]);
+  if (assets.length !== 1 || assets[0]?.role !== "header") fail("must contain exactly one header asset", "$.assets");
+  const blocks = array(payload.blocks, "$.blocks");
+  if (blocks.length === 0) fail("must begin with an image block", "$.blocks");
+  const image = record(blocks[0], "$.blocks[0]");
+  exactKeys(image, ["_type", "asset", "alt"], ["caption"], "$.blocks[0]");
+  if (image._type !== "spt.image") fail("must equal spt.image", "$.blocks[0]._type");
+  if (text(image.asset, "$.blocks[0].asset") !== assets[0]!.id) fail("must reference the header asset", "$.blocks[0].asset");
+  profileText(image.alt, 1, 1024, "$.blocks[0].alt");
+  if (image.caption !== undefined) profileText(image.caption, 1, 1024, "$.blocks[0].caption");
+  validateSpt2Body({ version: 1, profile: "spt-2", blocks: blocks.slice(1) });
+}
+
 export function validatePayload<T extends HailPayloadType>(
   expectedType: T,
   value: unknown,
@@ -608,6 +626,10 @@ export function validatePayload<T extends HailPayloadType>(
   }
   if (expectedType === "hail.body.spt-2") {
     validateSpt2Body(payload);
+    return;
+  }
+  if (expectedType === "hail.body.spt-3") {
+    validateSpt3Body(payload);
     return;
   }
   if (payload.type !== expectedType) fail(`must equal ${expectedType}`, "$.type");

@@ -1,9 +1,13 @@
 <script lang="ts">
-  import { groupMessageBlocks, type MessageBlock, type MessageSpan } from "$lib/messages.js";
-  let { blocks }: { blocks: MessageBlock[] } = $props();
+  import { groupMessageBlocks, type MessageBlock, type MessageImage, type MessageSpan } from "$lib/messages.js";
+  let { blocks, header = null }: { blocks: MessageBlock[]; header?: MessageImage | null } = $props();
   const tag = (style: MessageBlock["style"]) => style === "caption" ? "p" : style;
   let groups = $derived(groupMessageBlocks(blocks));
 </script>
+
+{#if header}
+  <figure><img src={header.src} alt={header.alt} width={header.width} height={header.height} />{#if header.caption}<figcaption>{header.caption}</figcaption>{/if}</figure>
+{/if}
 
 {#snippet spans(values: MessageSpan[])}
   {#each values as span}
@@ -28,7 +32,9 @@
 {/each}
 
 <style>
-  p, h1, h2, h3, blockquote, ul, ol { margin: 0 0 1em; }
+  p, h1, h2, h3, blockquote, ul, ol, figure { margin: 0 0 1em; }
+  figure img { display: block; width: 100%; height: auto; max-height: 28rem; border-radius: .6em; object-fit: cover; }
+  figcaption { margin-top: .45em; color: #68766e; font-size: .72em; }
   h1 { font-size: 1.8em; } h2 { font-size: 1.45em; } h3 { font-size: 1.2em; }
   blockquote { margin-left: 0; padding-left: 16px; border-left: 3px solid #91ad9d; color: #45584d; }
   ul, ol { padding-left: calc(1.5em + (var(--level) - 1) * 1.25em); }

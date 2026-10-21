@@ -246,7 +246,7 @@ export function validateManagedTransferManifest(bytes: Uint8Array): ManagedTrans
   for (const row of manifest.tables.verified_body_provenance) {
     const bytes = bytea(row.body_bytes, "verified body");
     const digest = bytea(row.digest, "verified body digest");
-    if(row.profile!=="spt-1"&&row.profile!=="spt-2")throw new Error("Managed transfer verified body has an unsupported profile");
+    if(row.profile!=="spt-1"&&row.profile!=="spt-2"&&row.profile!=="spt-3")throw new Error("Managed transfer verified body has an unsupported profile");
     validateBodyBytes(bytes,row.profile);
     if (row.recipient_did !== manifest.did || !same(bodyDigest(bytes), digest)) {
       throw new Error("Managed transfer verified body lacks valid recipient provenance");

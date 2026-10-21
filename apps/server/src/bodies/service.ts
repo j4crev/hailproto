@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { decodePayload, encodePayload, type HailSpt2Body, type HailSptBody } from "@hailproto/codec";
+import { decodePayload, encodePayload, type HailSpt2Body, type HailSpt3Body, type HailSptBody } from "@hailproto/codec";
 
 export const BODY_MEDIA_TYPE = "application/hail-body+cbor";
 export const BODY_MAX_BYTES = 262_144;
@@ -21,18 +21,21 @@ export function bodyFromText(text: string): Uint8Array {
   return bytes;
 }
 
-export function bodyFromDocument(document: HailSpt2Body): Uint8Array {
-  const bytes = encodePayload("hail.body.spt-2", document);
+export function bodyFromDocument(document: HailSpt2Body | HailSpt3Body): Uint8Array {
+  const bytes = document.profile === "spt-2" ? encodePayload("hail.body.spt-2", document) : encodePayload("hail.body.spt-3", document);
   validateBodyBytes(bytes);
   return bytes;
 }
 
-export type BodyProfile = "spt-1" | "spt-2";
+export type BodyProfile = "spt-1" | "spt-2" | "spt-3";
 export function validateBodyBytes(bytes: Uint8Array, expected?: BodyProfile): BodyProfile {
   if (bytes.length < 1 || bytes.length > BODY_MAX_BYTES) throw new Error("Body exceeds the 256 KiB limit");
   let profile:BodyProfile,encoded:Uint8Array;
   try { const document=decodePayload("hail.body.spt-1",bytes);profile="spt-1";encoded=encodePayload("hail.body.spt-1",document); }
-  catch { const document=decodePayload("hail.body.spt-2",bytes);profile="spt-2";encoded=encodePayload("hail.body.spt-2",document); }
+  catch {
+    try { const document=decodePayload("hail.body.spt-2",bytes);profile="spt-2";encoded=encodePayload("hail.body.spt-2",document); }
+    catch { const document=decodePayload("hail.body.spt-3",bytes);profile="spt-3";encoded=encodePayload("hail.body.spt-3",document); }
+  }
   if(expected&&profile!==expected)throw new Error("Body profile does not match its envelope");
   if (!Buffer.from(encoded).equals(Buffer.from(bytes))) {
     throw new Error("Body bytes are not deterministic CBOR");

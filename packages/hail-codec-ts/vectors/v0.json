@@ -304,6 +304,58 @@
       "payload_hex": "a366626c6f636b7382a4655f7479706565626c6f636b657374796c65626831686368696c6472656e81a364746578746f48656c6c6f2066726f6d204861696c655f74797065647370616e656d61726b7381667374726f6e67686d61726b4465667380a4655f7479706565626c6f636b657374796c65666e6f726d616c686368696c6472656e81a364746578746f526561642074686520757064617465655f74797065647370616e656d61726b73826b7570646174652d6c696e6b62656d686d61726b4465667381a4645f6b65796b7570646174652d6c696e6b6468726566781868747470733a2f2f6861696c692e6170702f757064617465655f74797065687370742e6c696e6b657469746c656b4861696c207570646174656770726f66696c65657370742d326776657273696f6e01",
       "payload_sha256_hex": "39c26684e00d16265b3c7e89d1de0b82be5c24444cf8a1b532ffcf4637a8238a",
       "payload_sha256_base64url": "OcJmhOANFiZbPH6J0d4Lgr5cJERM-KG1Mv_PRjeoI4o"
+    },
+    {
+      "id": "body-spt-3-header",
+      "type": "hail.body.spt-3",
+      "diagnostic": {
+        "version": 1,
+        "profile": "spt-3",
+        "assets": {
+          "version": 1,
+          "assets": [
+            {
+              "id": "hero-image",
+              "role": "header",
+              "media_type": "image/png",
+              "loading": "bundled",
+              "size": 68,
+              "digest": {
+                "algorithm": "sha-256",
+                "value": "QxztaRaiohoVbjhwGv5Vu9f4iWn7v8Vtf-CZ1H8mVGA"
+              },
+              "width": 1,
+              "height": 1,
+              "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk-A8AAQUBAScY42YAAAAASUVORK5CYII"
+            }
+          ]
+        },
+        "blocks": [
+          {
+            "_type": "spt.image",
+            "asset": "hero-image",
+            "alt": "Green Hail mark",
+            "caption": "Verified bundled image"
+          },
+          {
+            "_type": "block",
+            "style": "h1",
+            "children": [
+              {
+                "_type": "span",
+                "text": "Image from Hail",
+                "marks": [
+                  "strong"
+                ]
+              }
+            ],
+            "markDefs": []
+          }
+        ]
+      },
+      "payload_hex": "a466617373657473a26661737365747381a96269646a6865726f2d696d6167656464617461584489504e470d0a1a0a0000000d4948445200000001000000010804000000b51c0c020000000b4944415478da6364f80f00010501012718e3660000000049454e44ae42608264726f6c65666865616465726473697a6518446577696474680166646967657374a26576616c75655820431ced6916a2a21a156e38701afe55bbd7f88969fbbfc56d7fe099d47f26546069616c676f726974686d677368612d3235366668656967687401676c6f6164696e676762756e646c65646a6d656469615f7479706569696d6167652f706e676776657273696f6e0166626c6f636b7382a463616c746f477265656e204861696c206d61726b655f74797065697370742e696d6167656561737365746a6865726f2d696d6167656763617074696f6e7656657269666965642062756e646c656420696d616765a4655f7479706565626c6f636b657374796c65626831686368696c6472656e81a364746578746f496d6167652066726f6d204861696c655f74797065647370616e656d61726b7381667374726f6e67686d61726b44656673806770726f66696c65657370742d336776657273696f6e01",
+      "payload_sha256_hex": "25e9ba5e7f0013c6bea555e90f7538939dedb56c4a8683fa0a43755f3cda938f",
+      "payload_sha256_base64url": "Jem6Xn8AE8a-pVXpD3U4k53ttWxKhoP6CkN1Xzzak48"
     }
   ],
   "digest_domains": [

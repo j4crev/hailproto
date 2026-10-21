@@ -10,7 +10,9 @@ import {
   SIGNED_PROFILES,
   type DiagnosticJson,
   type HailAddressBinding,
+  type HailAssetManifest,
   type HailBodyDescriptor,
+  type HailBundledImageAsset,
   type HailConsentContext,
   type HailDeliveryReason,
   type HailDeliveryState,
@@ -32,6 +34,8 @@ import {
   type HailSpt2Body,
   type HailSpt2Span,
   type HailSpt2TextBlock,
+  type HailSpt3Body,
+  type HailSptImageBlock,
   type HailSptSpan,
   type HailSptTextBlock,
   type HailValue,
@@ -110,7 +114,7 @@ type ExpectedBodyDescriptor = {
   digest: ExpectedDigest;
   size: number;
   media_type: "application/hail-body+cbor";
-  profile: "spt-1" | "spt-2";
+  profile: "spt-1" | "spt-2" | "spt-3";
   available_until: number;
   access: { type: "bearer"; token: Uint8Array; expires_at: number };
 };
@@ -186,6 +190,12 @@ type ExpectedSpt2Block = {
 };
 type ExpectedBody = { version: 1; profile: "spt-1"; blocks: ExpectedBlock[] };
 type ExpectedSpt2Body = { version: 1; profile: "spt-2"; blocks: ExpectedSpt2Block[] };
+type ExpectedAsset = { id:string;role:"avatar"|"header";media_type:"image/png";loading:"bundled";size:number;
+  digest:ExpectedDigest;width:number;height:number;data:Uint8Array };
+type ExpectedAssetManifest = { version:1;assets:[ExpectedAsset,...ExpectedAsset[]] };
+type ExpectedImageBlock = {_type:"spt.image";asset:string;alt:string;caption?:string};
+type ExpectedSpt3Body = {version:1;profile:"spt-3";assets:ExpectedAssetManifest;
+  blocks:[ExpectedImageBlock,...ExpectedSpt2Block[]]};
 
 type ModelAssertions = [
   Assert<Equivalent<HailDigest, ExpectedDigest>>,
@@ -212,6 +222,10 @@ type ModelAssertions = [
   Assert<Equivalent<HailSpt2Span, ExpectedSpt2Span>>,
   Assert<Equivalent<HailSpt2TextBlock, ExpectedSpt2Block>>,
   Assert<Equivalent<HailSpt2Body, ExpectedSpt2Body>>,
+  Assert<Equivalent<HailBundledImageAsset, ExpectedAsset>>,
+  Assert<Equivalent<HailAssetManifest, ExpectedAssetManifest>>,
+  Assert<Equivalent<HailSptImageBlock, ExpectedImageBlock>>,
+  Assert<Equivalent<HailSpt3Body, ExpectedSpt3Body>>,
 ];
 
 const NESTED_MAPS: ReadonlyArray<{
@@ -289,6 +303,7 @@ const CDDL_RULES = {
   "hail.delivery-status": "hail-delivery-status",
   "hail.body.spt-1": "hail-body-spt-1",
   "hail.body.spt-2": "hail-body-spt-2",
+  "hail.body.spt-3": "hail-body-spt-3",
 } as const satisfies Readonly<Record<HailPayloadType, string>>;
 
 const REQUIRED_KEYS = {
@@ -353,6 +368,7 @@ const REQUIRED_KEYS = {
   ],
   "hail.body.spt-1": ["version", "profile", "blocks"],
   "hail.body.spt-2": ["version", "profile", "blocks"],
+  "hail.body.spt-3": ["version", "profile", "assets", "blocks"],
 } as const satisfies Readonly<Record<HailPayloadType, readonly string[]>>;
 
 const schemaText = readFileSync(

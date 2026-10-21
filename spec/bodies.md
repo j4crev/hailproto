@@ -42,6 +42,13 @@ An envelope must never refer to a body that the sender intends to generate later
 
 For the POC, a plain Hail Body is a Safe Portable Text `spt-1` map in the Hail Data Model defined by [encoding.md](encoding.md). The additive `spt-2` profile permits headings, blockquotes, captions, lists, the `strong`/`em`/`code` decorators, and declared HTTPS link annotations. Receivers continue to accept `spt-1`.
 
+The additive `spt-3` profile retains `spt-2` text and adds exactly one bundled
+PNG `header` asset and a leading `spt.image` block that references it. The asset
+manifest, digest verification, image limits, and no-remote-loading rule are
+defined in [assets.md](assets.md). The image block requires NFC plain-text `alt`
+text and permits an optional NFC plain-text caption, each at most 1024 UTF-8
+bytes. Other image positions, formats, roles, and loading modes are rejected.
+
 The sender encodes the document using deterministic Hail CBOR. Those bytes are the deterministic body bytes.
 
 Diagnostic JSON for an example source document:
@@ -79,7 +86,7 @@ one key from that block's `markDefs`. A mark definition is a closed
 without embedded credentials, and optional plain-text title. Unknown styles,
 marks, definitions, fields, and URL schemes are rejected.
 
-Senders use `spt-1` unless they know the target accepts `spt-2`; profile
+Senders use `spt-1` unless they know the target accepts the selected later profile; profile
 capability discovery remains to be defined. A receiver that does not support
 the descriptor's profile fails the body as `body-unsupported`.
 
@@ -148,7 +155,8 @@ The POC value is `application/hail-body+cbor`. This media type is provisional un
 
 ### `profile`
 
-The plain POC value is `spt-1`; the first rich-text value is `spt-2`.
+The plain POC value is `spt-1`, rich text is `spt-2`, and rich text with a
+bundled header is `spt-3`.
 
 ### `available_until`
 
@@ -315,7 +323,9 @@ Recipients must stream decompression with a hard output limit. They must stop be
 
 ## POC Resource Limits
 
-The POC supports no body assets or attachments and uses a maximum uncompressed body size of 256 KiB.
+The POC supports only the bundled `spt-3` header asset, no attachments, and a
+maximum uncompressed body size of 256 KiB. The header itself is limited to 192
+KiB, 2400 by 1200 pixels, and 2,000,000 pixels total.
 
 The receiver enforces:
 
@@ -364,7 +374,9 @@ Body retrieval occurs between servers shortly after envelope authorization. It r
 
 Recipient caching, proxying, and storage deduplication are explicitly allowed within the provenance rules above. Body fetches and token redemption are server delivery operations and do not indicate user engagement.
 
-Remote resources inside SPT content remain prohibited unless a future Safe Portable Text asset profile explicitly defines them. Body retrieval authorization must not become a covert tracking channel.
+Remote resources inside SPT content remain prohibited. `spt-3` bundles verified
+image bytes in the body so rendering causes no sender-visible request. Body
+retrieval authorization must not become a covert tracking channel.
 
 ## Security Considerations
 
@@ -397,7 +409,7 @@ The same digest indicates byte-identical content. DIDs and envelopes are not glo
 The proof of concept implements:
 
 - body creation before envelope submission
-- immutable deterministic-CBOR `spt-1` or `spt-2` bytes
+- immutable deterministic-CBOR `spt-1`, `spt-2`, or `spt-3` bytes
 - SHA-256 digest over uncompressed bytes
 - 32-byte digest values with unpadded base64url HTTP rendering
 - exact uncompressed size declaration
@@ -417,7 +429,7 @@ Deferred:
 
 - RFC 9421 recipient proof of possession
 - end-to-end encryption
-- bundled and deferred assets
+- assets beyond the single bundled PNG header
 - attachments
 - remote asset profiles
 - content negotiation beyond the POC profile

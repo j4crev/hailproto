@@ -278,7 +278,7 @@ export function validateTransferManifest(bytes: Uint8Array): TransferManifest {
       !Buffer.from(bodyDigest(bytes)).equals(Buffer.from(bodyHash))) {
       throw new Error("Transfer verified body lacks valid recipient provenance");
     }
-    if(row.profile!=="spt-1"&&row.profile!=="spt-2")throw new Error("Transfer verified body has an unsupported profile");
+    if(row.profile!=="spt-1"&&row.profile!=="spt-2"&&row.profile!=="spt-3")throw new Error("Transfer verified body has an unsupported profile");
     validateBodyBytes(bytes,row.profile);
     provenance.add(`${row.sender_did}\0${Buffer.from(bodyHash).toString("hex")}`);
   }

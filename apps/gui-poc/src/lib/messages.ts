@@ -33,10 +33,12 @@ export interface MessageView extends InboxItem {
   recipient: string;
   category: string | null;
   blocks: MessageBlock[];
+  header: MessageImage | null;
   paragraphs: string[];
 }
 
 export interface MessageLink { href: string; title: string | null; hostname: string }
+export interface MessageImage { src: string; alt: string; caption: string | null; width: number; height: number }
 export interface MessageSpan { text: string; strong: boolean; emphasis: boolean; code: boolean; link: MessageLink | null }
 export interface MessageBlock {
   style: "normal" | "h1" | "h2" | "h3" | "blockquote" | "caption";
@@ -66,10 +68,24 @@ export function messagePreview(message: MessageView, maximum = 120): string {
 export function parseMessage(value: unknown): MessageView {
   const message = object(value, "message");
   const body = object(message.body, "message body");
-  if (body.version !== 1 || !["spt-1","spt-2"].includes(body.profile as string) || !Array.isArray(body.blocks)) {
+  if (body.version !== 1 || !["spt-1","spt-2","spt-3"].includes(body.profile as string) || !Array.isArray(body.blocks)) {
     throw new Error("Unsupported message body");
   }
-  const blocks: MessageBlock[] = body.blocks.map((entry) => {
+  let header:MessageImage|null=null,entries=body.blocks;
+  if(body.profile==="spt-3"){
+    const manifest=object(body.assets,"asset manifest"),image=object(entries[0],"image block");
+    if(manifest.version!==1||!Array.isArray(manifest.assets)||manifest.assets.length!==1||image._type!=="spt.image")throw new Error("Unsupported image body");
+    const asset=object(manifest.assets[0],"header asset"),data=text(asset.data,"asset data"),id=text(asset.id,"asset ID");
+    if(asset.role!=="header"||asset.media_type!=="image/png"||asset.loading!=="bundled"||image.asset!==id||
+      !/^[A-Za-z0-9_-]+$/.test(data)||typeof asset.size!=="number"||asset.size<1||asset.size>196608||Math.floor(data.length*6/8)!==asset.size||
+      typeof asset.width!=="number"||!Number.isInteger(asset.width)||asset.width<1||asset.width>2400||typeof asset.height!=="number"||!Number.isInteger(asset.height)||asset.height<1||asset.height>1200||asset.width*asset.height>2000000){
+      throw new Error("Unsupported header asset");
+    }
+    const base64=data.replaceAll("-","+").replaceAll("_","/").padEnd(Math.ceil(data.length/4)*4,"=");
+    header={src:`data:image/png;base64,${base64}`,alt:text(image.alt,"image alt"),caption:image.caption===undefined?null:text(image.caption,"image caption"),width:asset.width,height:asset.height};
+    entries=entries.slice(1);
+  }
+  const blocks: MessageBlock[] = entries.map((entry) => {
     const block = object(entry, "body block");
     if (block._type !== "block" || !["normal", "h1", "h2", "h3", "blockquote", "caption"].includes(block.style as string) ||
       !Array.isArray(block.children) || !Array.isArray(block.markDefs)) {
@@ -110,6 +126,7 @@ export function parseMessage(value: unknown): MessageView {
     deliveredAt: text(message.deliveredAt, "delivery time"),
     category: message.category === null ? null : text(message.category, "category"),
     blocks,
+    header,
     paragraphs: blocks.map((block) => block.spans.map((span) => span.text).join("")),
   };
 }
