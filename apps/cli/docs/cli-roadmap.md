@@ -57,23 +57,22 @@ protocol boundary.
 
 The permanent Haili provider has closed its operational launch gates. The two
 disposable providers still share one VPS, public managed migration remains
-disabled, and managed-transfer restoration/load and monitor-disagreement
-exercises remain open.
+disabled, and managed-transfer restoration/load exercises remain open. Guarded
+live drills now prove reader disagreement, audit-gap refusal, dead-man alerting,
+stale-attestation refusal and outage recovery.
 
 ## Remaining production gates
 
-1. Exercise monitor disagreement, gaps, outages and recovery inside the PLC
-   recovery window; dead-man supervision is live for Haili.
-2. Prove cross-host monitor and managed-transfer restoration from latest accepted
+1. Prove cross-host monitor and managed-transfer restoration from latest accepted
    state. Haili provider/account backup restoration is complete.
-3. Keep the completed private-PLC managed-migration path behind its explicit POC
+2. Keep the completed private-PLC managed-migration path behind its explicit POC
    gate; production remains subject to the required controls in
    [custody transitions](custody-transitions.md#production-enablement-required-versus-deferrable).
-4. Historical-state blocking and never-active abandonment recovery are proved on
+3. Historical-state blocking and never-active abandonment recovery are proved on
    private/synthetic fixtures. Extend Haili's abuse controls and documented limits
    to every managed-transfer participant and test the failure boundary on private
    clones.
-5. Integrate device-keystore or hardware protection and verify cross-platform
+4. Integrate device-keystore or hardware protection and verify cross-platform
    binary distribution.
 
 ## Current constraints

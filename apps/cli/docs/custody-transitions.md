@@ -286,8 +286,9 @@ already enabled separately.
   per-DID audit retention, bounded freshness and externally hosted signed email
   alerts; enroll both public alpha canaries.
 - [x] Add external monitor dead-man supervision for the permanent Haili provider.
-- [ ] Exercise live disagreement/gap refusal and recovery-window outages. Same-host
-  or same-provider failures are not independent evidence.
+- [x] Exercise live monitor outage refusal and recovery inside the freshness window.
+- [x] Exercise live reader disagreement and audit-gap refusal across separately
+  hosted HTTPS paths.
 - [x] Establish durable off-VPS owner-recovery backups and automated weekly VPS
   backups for the public alpha.
 - [ ] Establish production provider-key protection, least-privilege operator access,
@@ -359,8 +360,9 @@ not authorization to enable public managed transfer.
   their exact genesis/write/readback and onboarding-monitor evidence.
 - [x] Perform low-rate public TLS, strict-public evidence, Sender Profile, Grant and
   bidirectional message-delivery smoke checks without malformed or high-volume traffic.
-- [ ] Add external health supervision and prove public outage recovery and supported
-  service limits without load-testing `plc.directory`.
+- [x] Add external health supervision and prove public monitor outage recovery.
+- [ ] Prove supported managed-transfer service limits without load-testing
+  `plc.directory`.
 - [x] Use a reviewed permanent canary for the managed `provider A → provider B →
   provider A` round trip before enabling public managed transfer.
 
@@ -375,6 +377,18 @@ ceremony exposed and fixed v3 retained-attestation acceptance, collocated Grant
 merging, same-address return reservation and equivalent JSONB Grant-evidence
 reconciliation. Both providers returned to `PUBLIC_MANAGED_TRANSFER=false`, and
 `hailproto.app` also returned to custody transitions disabled.
+
+The same day, a guarded live monitor outage exceeded the five-minute freshness
+limit. External supervision changed to `down`, fresh attestation failed closed,
+and an independent eight-minute recovery timer restarted the monitor. Supervision
+returned to `ok`; a current poll and fresh attestation then succeeded. Disposable
+PostgreSQL reruns also passed outage, corrupt-audit, disagreement and attestation-
+race refusal. A temporary Cloudflare HTTPS reader then served a valid older prefix
+beside canonical `plc.directory`; both reads validated but diagnostics reported
+their distinct current CIDs as disagreement. The reader next omitted a middle
+audit operation. A disposable monitor clone recorded `invalid-log`, refused to
+sign, and remained blocked after the healthy view returned, requiring reviewed
+recovery as designed. The Worker, key and database were deleted after the drill.
 
 Hardware-backed/device-keystore integration, cross-platform binaries, automatic
 provider discovery and a polished consumer review UI are valuable follow-up work,

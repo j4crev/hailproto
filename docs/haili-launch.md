@@ -227,6 +227,11 @@ the monitor and provider remained healthy with zero restarts. Email Routing forw
 only `ops@haili.app` and `abuse@haili.app` to the verified operator mailbox;
 catch-all delivery remains disabled.
 
+A later guarded monitor outage exceeded the five-minute heartbeat threshold:
+external state changed to `down` and fresh attestation was refused. An independent
+eight-minute systemd timer restored the monitor; state returned to `ok`, polling
+was current and fresh attestation succeeded. Temporary elevated access was removed.
+
 Readiness load calibration reached 339.0 requests/s at 16 connections with no
 HTTP or transport errors, p50 45.7 ms, p99 125.1 ms and maximum 281.6 ms on the
 2-vCPU host. Production mutation limits remain 120 requests/minute per surface,
