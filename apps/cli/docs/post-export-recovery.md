@@ -2,7 +2,7 @@
 
 Status: local domain implementation and positive race proof. The coordinator is
 not registered as public routes or a `hailp` command. Its migration/code is included
-in the [private-POC migration-39 release](milestone5-release.md); the recovery race
+in the private-POC migration-39 implementation; the recovery race
 proof remains a local integration result, not a live recovery ceremony.
 This covers a durably staged destination that never became active. An active or
 uncertain destination requires a new reverse transfer of its latest state.

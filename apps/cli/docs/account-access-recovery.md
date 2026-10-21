@@ -2,9 +2,9 @@
 
 The milestone 3 design is now implemented as a **private-PLC API-plus-CLI
 slice**, requiring provider migration 34 and explicit `POC_ACCOUNT_ACCESS=true`.
-It is deployed and verified on both POC providers; see [release evidence](lifecycle-release.md).
-Expired/revoked bearer credentials still
-cannot authenticate; independent owner-key proof issues a new credential.
+It is deployed and verified on both POC providers. Expired/revoked bearer
+credentials still cannot authenticate; independent owner-key proof issues a new
+credential.
 
 ## Authority and custody
 
@@ -126,7 +126,6 @@ fresh-process/handler retries, terminal credential rejection, current-key/servic
 changes, unavailable PLC verification and all source-fence states have local
 regression proof. Migration 33→34 preserved all 37 pre-existing tables in a
 populated disposable database and retained old/new credential-reader compatibility.
-See [local verification](account-access-verification.md) and the subsequent
-[lifecycle release](lifecycle-release.md), which records restored deployment-copy
-rehearsal, individual VPS rollout and real endpoint recovery. Private-POC proof
+Restored deployment-copy rehearsal, individual VPS rollout and real endpoint
+recovery passed. Private-POC proof
 does not establish public PLC or independent production recovery guarantees.

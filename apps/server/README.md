@@ -4,9 +4,7 @@ Reusable Bun and Hono provider implementation for Hail Protocol.
 
 This repository is under active development. Use the
 [single public-provider deployment profile](deploy/public/README.md) for a new
-strict-public provider. The older
-[two-provider private-PLC POC](../../docs/typescript-backend-poc.md) is retained
-only as historical rehearsal evidence.
+strict-public provider.
 
 ## Current alpha and guides
 
@@ -19,7 +17,6 @@ available for destructive transfer/recovery rehearsals. Public managed transfer
 remains disabled.
 
 - [Single public-provider deployment profile](deploy/public/README.md).
-- [Historical private-PLC POC runbook](deploy/poc/README.md).
 - [User-device vault/signing client](https://github.com/j4crev/hailproto/tree/main/apps/cli#readme).
 - [Transfer/recovery checkpoints](https://github.com/j4crev/hailproto/blob/main/docs/production-portable-custody.md#resuming-a-private-plc-poc-ceremony).
 - [Public monitor deployment](https://github.com/j4crev/hailproto/blob/main/apps/plc-monitor/deploy/public/README.md).
@@ -34,7 +31,7 @@ Migration 32 adds the first authenticated account-management slice used by
 existing active accounts, account details, current signed Grant retrieval and
 user-signed Grant creation/revocation import. It reuses the existing Grant
 service and transactional publication outbox. The October 9 rollout deployed
-the extended migration-33 slice; see the [release evidence](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-release-rollout.md).
+the extended migration-33 slice.
 
 ### Bootstrap credentials (provider operator)
 
@@ -67,8 +64,7 @@ operator)` and pass the reviewed source/destination operator IDs as the fourth
 `PortableCutoverGate` constructor argument. Legacy v1 monitor reports, private
 registration evidence and private-Poc observation promotion cannot authorize
 public cutover. The private POC path retains its separate gate. Migration 44 adds
-an opt-in public signup route, now exercised by all three live alpha canaries. See
-the [archived verification evidence](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/milestone7-production-gate.md#read-evidence-and-monitor-bootstrap-slice).
+an opt-in public signup route, now exercised by all three live alpha canaries.
 
 Migration **40** adds full immutable public cutover evidence and a separate
 selection sealed by the activation transaction. Both reader histories/documents,
@@ -79,7 +75,7 @@ correlation, and older digest-only public writers cannot activate on the expande
 schema. Existing private-POC paths and signed row shapes are preserved. The guarded
 `migrations/rollback/0040_public_cutover_evidence.sql` refuses rollback after any
 new proof is retained; older public activations are not retroactively supplied
-with fabricated evidence. See [retention proof](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/milestone7-production-gate.md#durable-provider-cutover-evidence-slice-migration-40).
+with fabricated evidence.
 
 Migration **41** adds an opt-in routine `strict-public-v1` resolver and immutable
 resolution/envelope-authority history. It defaults to one canonical
@@ -200,8 +196,7 @@ the provider; no user identity private key is stored there.
 ### Owner-controlled transfer Offer/status/cancellation (local milestone 5)
 
 `POC_SELF_SERVICE_TRANSFER=true` enables a reference account-API slice only on
-the pinned private PLC profile. It is deployed to both migration-39 POC hosts;
-see [milestone-5 release evidence](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/milestone5-release.md).
+the pinned private PLC profile. It is deployed to both migration-39 POC hosts.
 It reuses the existing signed invitation, destination-origin Offer
 delivery and no-fence cancellation services:
 
@@ -435,7 +430,7 @@ reminder metadata; renewal needs deliberate `account:write` authority, current
 identity/service ownership and an active/public account. Migration 35 expands
 the scope constraint without upgrading existing credentials. Both custody
 profiles passed real HTTPS renewal/retry/history proof on both POC origins;
-see the [release evidence](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/milestone4-release.md).
+the proof covered both custody profiles.
 
 Provider-domain renewals retain the 90-day maximum and immutable signed history.
 Hosting commits before compare-and-select publication; exact retries repair
@@ -455,9 +450,8 @@ Scope escalation is 403; changed-scope, cross-account and revoked/expired token
 retries are 409. Existing `{token}` inherited issuance remains supported.
 See the [credential lifecycle contract/proof](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/credential-lifecycle.md)
 and [post-expiry access design](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/account-access-recovery.md).
-The [lifecycle release](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/lifecycle-release.md)
-is deployed to both POC providers, including the migration-34 login/recovery
-slice described below.
+The migration-34 login/recovery slice described below is deployed to both POC
+providers.
 
 The account response also includes current credential ID/expiry metadata.
 `hailp credential rotate --output <new-private-file>` uses existing issuance,
@@ -489,7 +483,7 @@ and issues the credential under the account-row lock in one transaction; an exac
 still-valid retry returns the same ID/expiry. Persistent preparation/completion
 rate buckets, bounded retention and protected generic completion responses reuse
 existing provider primitives. See the [recovery contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/account-access-recovery.md)
-and [local verification](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/account-access-verification.md).
+for the current behavior.
 
 ### Extended CLI slice (migration 33)
 
@@ -615,8 +609,8 @@ It records `activationVerificationMode: "local"` and is not evidence of public
 DNS, TLS, reachability, certificate, redirect, or DNS-rebinding behavior. Public
 activation requires the later deployment verifier and records mode `public`.
 
-The public VPS deployment and activation procedure is in
-[`deploy/poc/README.md`](deploy/poc/README.md). After DNS and TLS are live, run:
+The public deployment profile is in [`deploy/public/README.md`](deploy/public/README.md).
+After DNS and TLS are live, run:
 
 ```bash
 bun run activate:public -- alice@hailproto.app
@@ -701,9 +695,7 @@ does not include a category and defaults to `reply.allowed: false`. Add
 explicitly invite one further reply. The original sender serializes the
 single-use claim before accepting a reply, consumes it on delivery, and
 releases it after terminal failure or cancellation. The full phase and its
-limitations are in the sibling POC guide. The already-demonstrated public
-Grant is revoked and its signed envelope did not invite replies; the current
-public reply demonstration and new Grant are recorded in `deploy/poc/README.md`.
+limitations are covered by the integration test below.
 
 To test the local PostgreSQL reply lifecycle against a disposable database:
 
@@ -727,8 +719,7 @@ The integration test skips when `DATABASE_URL` is absent.
 The first hardening slice shares one response schedule and bounded validation
 budget between envelope submission and delivery-status push. The provisional
 750 ms response minimum, 10-second processing deadline, and 32-work provider
-gate are not production-calibrated. The complete checklist and measurement
-criteria are in the sibling TypeScript backend POC guide, Phase 12.
+gate are separate from the current public-provider calibration.
 PLC directory reads now use a 5-second cancellable HTTP deadline, 1 MiB
 decoded response ceiling, strict duplicate-member-rejecting JSON parsing,
 and no redirects; the directory base is configured rather than derived from
@@ -757,8 +748,8 @@ The PLC fixture validates a signed operation-log update and current endpoint
 selection. It does not simulate the fenced provider-state transfer required
 for a real service migration. The first bounded-processing and PLC-read slice
 is deployed to both public POC providers; tested runtime and backup details
-are in `deploy/poc/README.md`. Further sustained-load calibration and
-broader migration failure/recovery coverage remain outstanding. One live
+are no longer retained as release documentation. Further sustained-load
+calibration and broader migration failure/recovery coverage remain outstanding. One live
 private-PLC transfer has delivered a previously accepted message exactly once.
 
 ## Portable Provider Cutover (Disposable Rehearsal)

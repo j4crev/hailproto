@@ -1,6 +1,6 @@
 # Generation-bound operation and owner-controlled return
 
-Status: deployed private-POC implementation with [real HTTPS proof](milestone5-release.md).
+Status: deployed private-POC implementation with real HTTPS proof.
 This builds on [migration 36's history foundation](lifecycle-history-migration.md).
 Live hosts run migration 39. Managed/custody changes and public post-export recovery are
 still separate gated work.

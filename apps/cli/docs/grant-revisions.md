@@ -2,8 +2,8 @@
 
 This slice is deployed to both private-POC providers with migration-35
 [binding renewal](binding-renewal.md); Grant revisions themselves need no new
-schema migration. [Release evidence](milestone4-release.md) records real HTTPS
-checks for both custody profiles and cross-provider acknowledgements.
+schema migration. Both custody profiles and cross-provider acknowledgements were
+checked over real HTTPS.
 
 ## Explicit selection and signed revisions
 

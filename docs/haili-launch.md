@@ -254,16 +254,14 @@ the provider remained healthy with zero unexpected restarts.
 ## Documentation disposition
 
 Completed October 21, 2026. Active guidance now points to the strict-public
-deployment and current gate documents; dated POC and milestone records are
-explicitly archived in place so existing evidence links remain valid.
+deployment and current gate documents; dated POC and milestone records were
+removed after their useful guidance was consolidated.
 
 | Document | Disposition |
 | --- | --- |
 | `apps/cli/docs/cli-roadmap.md` | Keep as the concise capability and gate summary. |
 | `apps/cli/docs/custody-transitions.md` | Keep as the detailed production-gate authority; archive completed checklist sections when distilled. |
 | Completed reader-refactor plans | Deleted after consolidation into `spec/plc-read-evidence.md`, `spec/did-profile.md` and operator guidance. |
-| `apps/cli/docs/milestone7-production-gate.md` | Archived evidence record; no longer linked as the active gate list. |
-| `docs/typescript-backend-poc.md` | Archived private-PLC implementation and deployment record. |
 | `docs/production-portable-custody.md` | Preserved as design history and private-POC recovery guidance. |
 | `CBOR_MIGRATION.md` | Keep for remaining limits, measurements, API documentation and media-type work; it does not block this launch. |
 | `BUILD_ORDER.md` | Keep as architectural background, not an execution checklist. |

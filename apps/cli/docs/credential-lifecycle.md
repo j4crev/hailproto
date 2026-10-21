@@ -1,7 +1,7 @@
 # Credential inventory, narrower issuance and rotation
 
-This API-plus-CLI slice is deployed to both POC providers as part of the
-[migration-34 lifecycle release](lifecycle-release.md). Inventory, scoped issuance
+This API-plus-CLI slice is deployed to both POC providers as part of migration 34.
+Inventory, scoped issuance
 and rotation use the existing credential schema; the separate
 [post-expiry login/recovery slice](account-access-recovery.md) adds migration 34
 and an opt-in private-PLC gate. Both are verified on each real HTTPS endpoint.

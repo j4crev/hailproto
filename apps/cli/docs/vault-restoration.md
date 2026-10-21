@@ -43,9 +43,8 @@ bun install --frozen-lockfile
 bun run typecheck
 ```
 
-The two disposable app accounts from the [HTTPS release proof](cli-release-rollout.md)
-were backed up with `hailp vault backup`. Their vault encryption-secret files
-were separately copied into private local test storage. The new installation
+Two disposable app accounts were backed up with `hailp vault backup`. Their vault
+encryption-secret files were separately copied into private local test storage. The new installation
 received only those backup vaults/secrets, not API credentials, signup state,
 keystore entries or provider/database material.
 

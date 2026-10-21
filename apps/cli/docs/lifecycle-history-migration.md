@@ -1,6 +1,6 @@
 # Lifecycle history foundation — local migration 36
 
-Status: deployed as part of the [migration-39 release](milestone5-release.md). This is the expand stage
+Status: deployed as part of migration 39. This is the expand stage
 of the [custody/return design](custody-transitions.md), not a return-transfer or
 post-export rollback implementation. Live POC providers run migration 39.
 

@@ -20,7 +20,7 @@ The deployed public profile is documented in
 This project is intentionally a sibling of `hailproto`, `hail-server-ts`, and
 the pinned official `did-method-plc` checkout. Historical POC DIDs remain only
 in their private directory; the private URL is used in isolated tests and the
-explicitly non-independent [same-VPS POC deployment](deploy/poc/README.md).
+explicitly non-independent POC profile.
 
 ## Implemented Boundary
 

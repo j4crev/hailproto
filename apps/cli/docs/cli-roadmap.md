@@ -91,8 +91,6 @@ exercises remain open.
 ## Supporting records
 
 - [`haili.app` launch milestone](../../../docs/haili-launch.md)
-- [Archived Milestone 7 evidence](milestone7-production-gate.md)
 - [Custody-transition design](custody-transitions.md)
 - [Device-keystore decision](device-keystore.md)
-- [Milestone 6 CLI verification](milestone6-verification.md)
 - [Documentation index](README.md)

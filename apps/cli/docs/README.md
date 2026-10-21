@@ -36,17 +36,3 @@ These pages explain security or lifecycle decisions. They are not tutorials.
 Normative protocol rules live in the sibling `hailproto` repository. When a
 design note and a protocol specification differ, the specification is the
 authority.
-
-## Verification and release records
-
-The following dated pages preserve what was tested or deployed at a milestone.
-They are historical evidence, not setup instructions:
-
-- [Initial CLI rehearsal](cli-release-rehearsal.md)
-- [Initial provider rollout](cli-release-rollout.md)
-- [Account-access verification](account-access-verification.md)
-- [Credential/account lifecycle release](lifecycle-release.md)
-- [Milestone 4 release](milestone4-release.md)
-- [Milestone 5 release](milestone5-release.md)
-- [Milestone 6 verification](milestone6-verification.md)
-- [Milestone 7 verification evidence](milestone7-production-gate.md)

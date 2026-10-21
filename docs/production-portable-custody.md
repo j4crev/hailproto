@@ -796,8 +796,7 @@ cutover. POC-only private-PLC submission and activation CLIs exist, but no
 corresponding public-registry rollout ceremony or independently provisioned
 monitor/mirrors exists. The private DID is not a production-ready migrated
 account. Alice's and Bob's older POC DIDs were created custodially and cannot
-become portable by merely applying a database migration. The new user-held
-POC DID is separately recorded in `docs/typescript-backend-poc.md`.
+become portable by merely applying a database migration.
 
 The separate sibling [PLC monitor](https://github.com/j4crev/hailproto/tree/main/apps/plc-monitor)
 checkout is the first
@@ -818,8 +817,7 @@ and signing key, and its receipt sink holds only the public key. It is labeled
 `private-poc`, has no independent attestation origin configured and is never
 used to satisfy the production independent-monitor gate. A disposable PLC-only
 DID supplied the changes; existing provider identities were only enrolled for
-observation. See the monitor repository's `deploy/poc/README.md` for proof IDs
-and operational commands. Independent hosting and public PLC remain deferred.
+observation. Independent hosting and public PLC remain deferred.
 
 Before a production-ready rollout, implement and test:
 

@@ -1,7 +1,7 @@
 # Address Binding renewal — migration-35 slice
 
 This implements milestone 4's first item and is deployed to both private-POC
-providers at migration 35; see [release evidence](milestone4-release.md).
+providers at migration 35.
 The [Grant revision/consent slice](grant-revisions.md) and
 [historical-key decision](grant-key-reconciliation.md) are also complete locally;
 historical-key reconciliation execution remains disabled.
@@ -99,5 +99,5 @@ builds and diff checks passed. Migration 34→35 on a populated disposable datab
 preserved existing credential bytes/scopes/expiry, repeated cleanly and allowed
 the old migration runner; `account:write` required new deliberate issuance.
 Local migration check: `/tmp/opencode/binding-upgrade-20261009/check.ts`.
-Those gates were local. The subsequent [milestone-4 release](milestone4-release.md)
-records restored deployment-copy rehearsal and real HTTPS publication proof.
+Restored deployment-copy rehearsal and real HTTPS publication proof subsequently
+passed.

@@ -13,7 +13,7 @@ are implementation and test choices—not requirements of the Hail protocol.
 - [Install or build `hailp`](docs/cli-installation.md)
 - [Follow task-based CLI workflows](docs/cli-workflows.md)
 - [Look up automation and output rules](docs/cli-contract.md)
-- [Browse design notes and release evidence](docs/README.md)
+- [Browse design notes and the roadmap](docs/README.md)
 
 The CLI also has authoritative, command-specific help:
 

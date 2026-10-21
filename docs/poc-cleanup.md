@@ -5,11 +5,8 @@ separated from historical POC records, but the remaining code and deployment
 cuts must wait for the prerequisites below. Keep this audit until those cuts
 finish, then delete it.
 
-1. **Delete:** Archive the historical POC rollout journals from release-facing
-   documentation; Git history plus one concise archive index is enough.
-   [`hailproto/docs/typescript-backend-poc.md:1`,
-   `apps/server/deploy/poc/README.md:1`,
-   `apps/cli/docs/*release*.md`]
+1. **Done:** Historical POC rollout journals and milestone evidence were removed
+   from release-facing documentation; Git history remains sufficient.
 2. **Delete:** Remove the original custodial prototype onboarding path after the
    remaining legacy accounts are migrated or retired; strict-public mode already
    refuses it. Replacement: public/private owner-key onboarding APIs.
@@ -50,7 +47,7 @@ cannot be rewritten safely.
 ## Recommendation
 
 - Do item 3 now.
-- Do items 1, 4, 5, and 6 immediately after the private gates finish.
+- Do items 4, 5, and 6 immediately after the private gates finish.
 - Do item 2 only after legacy-account disposition.
 - Do item 7 when independent monitoring lands.
 
