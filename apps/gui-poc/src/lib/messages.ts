@@ -62,6 +62,7 @@ export interface MessageView extends InboxItem {
   header: MessageImage | null;
   paragraphs: string[];
   replyUntil:number|null;
+  replyAvailable:boolean;
 }
 
 export interface MessageLink { href: string; title: string | null; hostname: string }
@@ -161,6 +162,7 @@ export function parseMessage(value: unknown): MessageView {
     header,
     paragraphs: blocks.map((block) => block.spans.map((span) => span.text).join("")),
     replyUntil,
+    replyAvailable:message.replyAvailable===true,
   };
 }
 

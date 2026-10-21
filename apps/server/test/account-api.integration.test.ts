@@ -416,7 +416,8 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     expect(rich.status).toBe(200);
     const richRead=await cli(["inbox","show",senderDid,richId],"message-owner.credential.json");
     expect(richRead.exit,richRead.stderr).toBe(0);
-    expect(JSON.parse(richRead.stdout)).toMatchObject({senderAddress,body:{blocks:[{}, {markDefs:[{href:"https://sender.example.com/update"}]}]}});
+    expect(JSON.parse(richRead.stdout)).toMatchObject({senderAddress,replyAvailable:false,
+      body:{blocks:[{}, {markDefs:[{href:"https://sender.example.com/update"}]}]}});
     const imageId="01a15eb5-0000-7000-8000-000000000002",imageData=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
     const image=await app.request(`${origin}/api/v1/account/messages`,{method:"POST",headers:{Authorization:`Bearer ${senderCredential.token}`,"Content-Type":"application/json"},body:JSON.stringify({
       messageId:imageId,grantId,category:"updates",body:{version:1,profile:"spt-3",assets:{version:1,assets:[{id:"hero",role:"header",media_type:"image/png",loading:"bundled",

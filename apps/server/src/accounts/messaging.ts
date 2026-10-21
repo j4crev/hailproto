@@ -155,8 +155,13 @@ export class AccountMessaging {
 
   async read(session:AccountApiSession,sender:string,id:string) {
     if(!DID.test(sender)||!ID.test(id))throw new UserGrantError(400,"Invalid message identity");
-    const rows=await this.sql<{envelope_cose:Uint8Array;body_bytes:Uint8Array;delivered_at:Date;sender_address:string|null}[]>`
-      SELECT envelope.envelope_cose,body.body_bytes,message.delivered_at,presentation.grantee_address AS sender_address FROM delivered_messages message
+    const rows=await this.sql<{envelope_cose:Uint8Array;body_bytes:Uint8Array;delivered_at:Date;sender_address:string|null;reply_unused:boolean}[]>`
+      SELECT envelope.envelope_cose,body.body_bytes,message.delivered_at,presentation.grantee_address AS sender_address,
+        NOT EXISTS (SELECT 1 FROM sent_envelopes reply LEFT JOIN sent_delivery_status status
+          ON status.sender_did=reply.sender_did AND status.message_id=reply.message_id
+          WHERE reply.sender_did=${session.did} AND reply.authorization_type='reply' AND reply.reply_to_message_id=${id}
+            AND COALESCE(status.current_state,'indeterminate') NOT IN ('failed','cancelled')) AS reply_unused
+      FROM delivered_messages message
       JOIN received_envelopes envelope USING(sender_did,message_id)
       JOIN verified_body_provenance body ON body.recipient_did=message.recipient_did AND body.sender_did=message.sender_did
         AND body.digest=message.body_digest AND body.media_type=message.media_type AND body.profile=message.profile
@@ -169,6 +174,7 @@ export class AccountMessaging {
     if(!rows[0])return null;
     const envelope=inspectSignedPayload("hail.envelope",rows[0].envelope_cose).payload;
     return {messageId:id,sender,senderAddress:rows[0].sender_address,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
+      replyAvailable:envelope.reply.allowed&&envelope.reply.until+300>=Math.floor(Date.now()/1000)&&rows[0].reply_unused,
       deliveredAt:rows[0].delivered_at.toISOString(),body:bodyDocument(rows[0].body_bytes)};
   }
 
