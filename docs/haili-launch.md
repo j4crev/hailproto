@@ -98,7 +98,8 @@ Fresh messages `01a15f36-a189-7b61-86a4-d770a4067617` from
 `42fa1887bf6b4ab2c7fef10c18d3c0cc2a50808454702ed8c9179bc87146faaf`.
 Recipient account reads matched the exact bundled bytes, and the disposable GUI
 rendered both headers with their alt text and captions without a remote image
-request.
+request. The GUI subsequently exposed those headers in its inbox feed with a
+browser-local show/hide preference.
 
 ## Documentation disposition
 

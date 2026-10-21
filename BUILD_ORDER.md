@@ -326,14 +326,14 @@ Rich body nodes should be added after transport and authorization work end to en
 
 Recommended expansion order:
 
-1. Text blocks, headings, lists, decorators, and safe links.
-2. Declared images.
-3. Buttons.
-4. Dividers and callouts.
-5. Key-value summaries.
-6. Theme tokens.
-7. Semantic receipt, booking, and itinerary nodes.
-8. More complex layout after renderer and phishing analysis.
+1. [x] Text blocks, headings, lists, decorators, and safe links (`spt-2`).
+2. [x] One declared, bundled PNG header with no remote request (`spt-3`).
+3. [ ] Buttons.
+4. [ ] Dividers and callouts.
+5. [ ] Key-value summaries.
+6. [ ] Theme tokens.
+7. [ ] Semantic receipt, booking, and itinerary nodes.
+8. [ ] More complex layout after renderer and phishing analysis.
 
 This lets Safe Portable Text evolve from real message requirements rather than attempting to design a complete visual language before the protocol works.
 

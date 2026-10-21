@@ -13,7 +13,9 @@ portable identities directly from `plc.directory`. The independently hosted
 `haili.app` permanent canary and the disposable `hailproto.app` and
 `hailproto.dev` canaries have signed monitor onboarding evidence, live Sender
 Profiles and reciprocal Grants; test messages reached terminal `delivered`
-state in both directions between `haili.app` and each alpha provider.
+state in both directions between `haili.app` and each alpha provider. The
+canaries also delivered and rendered safe rich text and digest-bound bundled
+PNG headers; the disposable GUI can show those headers in its inbox feed.
 
 This is real public federation evidence, not a production release. The two
 disposable providers still share one VPS; off-host restoration, external

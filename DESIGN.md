@@ -296,7 +296,11 @@ Grant revocation is defined in [`spec/grants.md`](spec/grants.md). Revocation wi
 
 V0 does not depend on arbitrary HTML as the rich message format.
 
-The POC retains the fixed plain `spt-1` schema and adds `spt-2`: a closed deterministic-CBOR rich-text body with headings, lists, basic decorators and declared HTTPS links. This makes unsafe behavior inexpressible instead of relying on sanitization after parsing untrusted markup.
+The POC retains the fixed plain `spt-1` schema, adds `spt-2` rich text with
+headings, lists, basic decorators and declared HTTPS links, and adds `spt-3`
+with one digest-bound bundled PNG header. These closed deterministic-CBOR
+profiles make unsafe behavior inexpressible instead of relying on sanitization
+after parsing untrusted markup.
 
 The following diagnostic JSON illustrates possible future body models and is not part of v0:
 
@@ -344,13 +348,18 @@ Useful prior art to research:
 - MJML
 - AMP for Email
 
-## Future Rich Content And Assets
+## Rich Content And Assets
 
-None of the asset manifest, loading mode, or `spt-asset:` concepts below is part of v0. The POC supports no assets or attachments and prohibits remote resources. A future asset profile would need to define manifest syntax, authorization, integrity, loading policy, resource limits, and privacy behavior.
+The v1 asset manifest defines bounded, non-animated bundled PNG bytes with
+SHA-256 integrity, dimensions, size, role and loading mode. `spt-3` uses one
+`header` asset and prohibits remote resources, so rendering cannot disclose a
+user open to the sender. The reusable manifest also reserves an `avatar` role,
+but Sender Profile integration is not implemented. Attachments, remote assets,
+and other image formats remain deferred.
 
-Future messages may package structured metadata plus a detached body and declared assets.
+Later profiles may package additional declared assets or structured metadata.
 
-Every external or bundled resource in such a future profile would need a manifest entry with:
+Every bundled or future external resource needs a manifest entry with:
 
 - asset id
 - content type
