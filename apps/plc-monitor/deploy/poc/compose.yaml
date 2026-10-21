@@ -30,8 +30,8 @@ services:
   plc-monitor:
     <<: *runtime
     build:
-      context: ../../..
-      dockerfile: hail-plc-monitor-ts/Dockerfile
+      context: ../../../..
+      dockerfile: apps/plc-monitor/Dockerfile
     environment:
       DATABASE_URL: postgresql://monitor:${MONITOR_DB_PASSWORD:?set MONITOR_DB_PASSWORD}@monitor-db:5432/monitor
       PLC_DIRECTORY_URL: http://plc:2582

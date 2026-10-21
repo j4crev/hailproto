@@ -41,7 +41,7 @@
     "migration:export": "bun src/cli/export-migration.ts",
     "migration:stage": "bun src/cli/stage-migration.ts",
     "server": "bun src/index.ts",
-    "test": "vitest run",
+    "test": "bun --bun vitest run",
     "test:plc-live": "bun --bun vitest run test/public-plc-live.test.ts",
     "test:integration": "bun --bun vitest run test/grant-repository.integration.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -49,8 +49,8 @@
   "dependencies": {
     "@atproto/common": "0.8.1",
     "@atproto/crypto": "0.5.4",
-    "@did-plc/lib": "file:../did-method-plc/packages/lib",
-    "@hailproto/codec": "file:../hailproto/packages/hail-codec-ts",
+    "@did-plc/lib": "file:../../vendor/did-method-plc/packages/lib",
+    "@hailproto/codec": "workspace:*",
     "@ipld/dag-cbor": "9.2.7",
     "hono": "4.13.9",
     "ipaddr.js": "2.2.0",

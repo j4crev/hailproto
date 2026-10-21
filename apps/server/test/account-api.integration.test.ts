@@ -6,8 +6,8 @@ import { createWebCryptoSigner, encodeBase64Url, signPayload, type HailAddressBi
   type HailSenderProfile } from "@hailproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createUserVault, unlockUserVault } from "../../hail-user-client-ts/src/vault.js";
-import { signGrantRevocation } from "../../hail-user-client-ts/src/grant-revocation.js";
+import { createUserVault, unlockUserVault } from "../../cli/src/vault.js";
+import { signGrantRevocation } from "../../cli/src/grant-revocation.js";
 import { AccountApiRepository } from "../src/accounts/repository.js";
 import { createApp } from "../src/app.js";
 import type { AppConfig } from "../src/config.js";
@@ -78,7 +78,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
 
   async function cli(args: string[], filename = "owner.credential.json", secret = false) {
     const child = Bun.spawn(["bun", "src/cli/hailp.ts", ...args, "--credentials", join(directory, filename)], {
-      cwd: new URL("../../hail-user-client-ts/", import.meta.url).pathname,
+      cwd: new URL("../../cli/", import.meta.url).pathname,
       env: { ...Bun.env, NODE_EXTRA_CA_CERTS: join(directory, "cert.pem") },
       stdin: "pipe", stdout: "pipe", stderr: "pipe",
     });

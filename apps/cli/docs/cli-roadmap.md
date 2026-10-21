@@ -12,7 +12,7 @@ managed identity custody without silently changing custody when a signer is
 unavailable.
 
 The reference account API is currently an implementation interface. Hail
-federation and the specifications in `../hailproto` remain the interoperable
+federation and the specifications in the repository root remain the interoperable
 protocol boundary.
 
 ## Implemented

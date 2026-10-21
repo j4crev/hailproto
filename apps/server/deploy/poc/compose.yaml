@@ -47,8 +47,8 @@ services:
   hail-app:
     <<: *provider
     build:
-      context: ../../..
-      dockerfile: hail-server-ts/Dockerfile
+      context: ../../../..
+      dockerfile: apps/server/Dockerfile
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -96,7 +96,7 @@ services:
   plc:
     image: hail-plc:poc
     build:
-      context: ../../../did-method-plc
+      context: ../../../../vendor/did-method-plc
       dockerfile: packages/server/Dockerfile
     restart: unless-stopped
     init: true

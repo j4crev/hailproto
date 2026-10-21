@@ -7,9 +7,9 @@ import { describe, expect, it } from "vitest";
 import { createUserVault, replaceUserIdentity, unlockUserVault, type UserMigrationConsent, type UserTransferGrant,
   type UserTransferAddressSelection, type UserTransferCancellation, type UserVaultFile,
   type ManagedTransferGrant,type ManagedTransferAddressSelection,type ManagedTransferApproval } from "../src/vault.js";
-import { verifyPortableMigrationConsent } from "../../hail-server-ts/src/migration/consent.js";
-import { verifyHandshake } from "../../hail-server-ts/src/migration/handshake.js";
-import {verifyManagedOwnerHandshake} from "../../hail-server-ts/src/migration/managed-handshake.js";
+import { verifyPortableMigrationConsent } from "../../server/src/migration/consent.js";
+import { verifyHandshake } from "../../server/src/migration/handshake.js";
+import {verifyManagedOwnerHandshake} from "../../server/src/migration/managed-handshake.js";
 
 async function edDidKey() {
   const pair = (await crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"])) as CryptoKeyPair;

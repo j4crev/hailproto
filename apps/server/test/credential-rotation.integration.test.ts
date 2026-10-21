@@ -22,7 +22,7 @@ integration("resumable credential rotation over real HTTPS", () => {
   const save = (name: string, value: unknown) => writeFile(join(directory, name), JSON.stringify(value), { mode: 0o600 });
   const rotate = async (source: string, output: string) => {
     const child = Bun.spawn(["bun", "src/cli/hailp.ts", "credential", "rotate", "--credentials", join(directory, source), "--output", join(directory, output)], {
-      cwd: new URL("../../hail-user-client-ts/", import.meta.url).pathname,
+      cwd: new URL("../../cli/", import.meta.url).pathname,
       env: { ...Bun.env, NODE_EXTRA_CA_CERTS: join(directory, "cert.pem") }, stdout: "pipe", stderr: "pipe",
     });
     const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);

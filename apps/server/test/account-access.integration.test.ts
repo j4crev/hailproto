@@ -8,8 +8,8 @@ import { encodeBase64Url } from "@hailproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createUserVault, unlockUserIdentity, unlockUserVault } from "../../hail-user-client-ts/src/vault.js";
-import { accountAccessInput, type AccountAccessChallenge } from "../../hail-user-client-ts/src/account-access-proof.js";
+import { createUserVault, unlockUserIdentity, unlockUserVault } from "../../cli/src/vault.js";
+import { accountAccessInput, type AccountAccessChallenge } from "../../cli/src/account-access-proof.js";
 import { AccountAccess } from "../src/accounts/access.js";
 import { registerAccountAccess } from "../src/accounts/access-routes.js";
 import { AccountApiRepository, ALL_ACCOUNT_SCOPES } from "../src/accounts/repository.js";
@@ -55,7 +55,7 @@ integration("post-expiry owner account access", () => {
     const child = Bun.spawn(["bun","src/cli/hailp.ts","account","login","--provider",origin,"--did",fixture.vault.vault.did!,
       "--signer",signer,"--vault",vaultFile ?? join(directory,`${fixture.mode}.vault.json`),"--state",join(directory,`${name}.state.json`),
       "--credentials",join(directory,`${name}.credential.json`),...scopes.flatMap(scope=>["--scope",scope])], {
-      cwd:new URL("../../hail-user-client-ts/",import.meta.url).pathname,env:{...Bun.env,NODE_EXTRA_CA_CERTS:join(directory,"cert.pem")},
+      cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,NODE_EXTRA_CA_CERTS:join(directory,"cert.pem")},
       stdin:"pipe",stdout:"pipe",stderr:"pipe"});
     child.stdin.write(`${encodeBase64Url(fixture.vault.recoverySecret)}\n`); child.stdin.end();
     const [code,stdout,stderr]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);

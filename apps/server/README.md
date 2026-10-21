@@ -5,7 +5,7 @@ Reusable Bun and Hono provider implementation for Hail Protocol.
 This repository is under active development. The implementation method,
 security limitations, and deployment procedure are documented in the sibling
 Hail Protocol checkout at
-[`../hailproto/docs/typescript-backend-poc.md`](../hailproto/docs/typescript-backend-poc.md).
+[`../../docs/typescript-backend-poc.md`](../../docs/typescript-backend-poc.md).
 
 ## Current alpha and guides
 
@@ -19,9 +19,9 @@ the deployment proves protocol interoperability rather than infrastructure
 independence.
 
 - [Provider deployment and delivery runbook](deploy/poc/README.md).
-- [User-device vault/signing client](https://github.com/j4crev/hail-user-client-ts#readme).
+- [User-device vault/signing client](https://github.com/j4crev/hailproto/tree/main/apps/cli#readme).
 - [Transfer/recovery checkpoints](https://github.com/j4crev/hailproto/blob/main/docs/production-portable-custody.md#resuming-a-private-plc-poc-ceremony).
-- [Public monitor deployment](https://github.com/j4crev/hail-plc-monitor-ts/blob/main/deploy/public/README.md).
+- [Public monitor deployment](https://github.com/j4crev/hailproto/blob/main/apps/plc-monitor/deploy/public/README.md).
 
 Original private Alice/Bob identities remain historical POC fixtures. The public
 canaries are real `plc.directory` identities and must not be reused as production users.
@@ -29,11 +29,11 @@ canaries are real `plc.directory` identities and must not be reused as productio
 ## hailp Account API
 
 Migration 32 adds the first authenticated account-management slice used by
-`hailp` in `hail-user-client-ts`. It is separate from federation and supports
+`hailp` in [`../cli`](../cli). It is separate from federation and supports
 existing active accounts, account details, current signed Grant retrieval and
 user-signed Grant creation/revocation import. It reuses the existing Grant
 service and transactional publication outbox. The October 9 rollout deployed
-the extended migration-33 slice; see the [release evidence](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/cli-release-rollout.md).
+the extended migration-33 slice; see the [release evidence](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-release-rollout.md).
 
 ### Bootstrap credentials (provider operator)
 
@@ -67,7 +67,7 @@ operator)` and pass the reviewed source/destination operator IDs as the fourth
 registration evidence and private-Poc observation promotion cannot authorize
 public cutover. The private POC path retains its separate gate. Migration 44 adds
 an opt-in public signup route, now exercised by the two live alpha canaries. See
-[verification and remaining gates](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/milestone7-production-gate.md#read-evidence-and-monitor-bootstrap-slice).
+[verification and remaining gates](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/milestone7-production-gate.md#read-evidence-and-monitor-bootstrap-slice).
 
 Migration **40** adds full immutable public cutover evidence and a separate
 selection sealed by the activation transaction. Both reader histories/documents,
@@ -78,7 +78,7 @@ correlation, and older digest-only public writers cannot activate on the expande
 schema. Existing private-POC paths and signed row shapes are preserved. The guarded
 `migrations/rollback/0040_public_cutover_evidence.sql` refuses rollback after any
 new proof is retained; older public activations are not retroactively supplied
-with fabricated evidence. See [retention proof](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/milestone7-production-gate.md#durable-provider-cutover-evidence-slice-migration-40).
+with fabricated evidence. See [retention proof](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/milestone7-production-gate.md#durable-provider-cutover-evidence-slice-migration-40).
 
 Migration **41** adds an opt-in routine `strict-public-v1` resolver and immutable
 resolution/envelope-authority history. It defaults to one canonical
@@ -140,12 +140,12 @@ snapshot remains a separate profile change. Current reported PLC authority is
 not recovery-window finality or proof of owner intent. See the
 [routine authority candidate and boundaries](https://github.com/j4crev/hailproto/blob/main/spec/plc-read-evidence.md#routine-strict-public-v1-authority).
 
-The consolidated [reference account API v1 / hailp CLI contract](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/cli-contract.md)
+The consolidated [reference account API v1 / hailp CLI contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-contract.md)
 defines compatibility, output/error semantics and bounded read convenience.
 The client version is 0.1.0 and its JSON adds `cliContractVersion: 1`; provider
 response shapes and API paths remain unchanged. Command-specific help, deliberate
 origin/account assertions and a compiled executable are documented in the
-[developer workflows](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/cli-workflows.md#developer-and-agent-operation-contract-v1).
+[developer workflows](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md#developer-and-agent-operation-contract-v1).
 
 Use `Authorization: Bearer <token>` over the configured provider HTTPS origin.
 These paths are the reference provider's client API, not standardized Hail
@@ -199,7 +199,7 @@ the provider; no user identity private key is stored there.
 
 `POC_SELF_SERVICE_TRANSFER=true` enables a reference account-API slice only on
 the pinned private PLC profile. It is deployed to both migration-39 POC hosts;
-see [milestone-5 release evidence](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/milestone5-release.md).
+see [milestone-5 release evidence](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/milestone5-release.md).
 It reuses the existing signed invitation, destination-origin Offer
 delivery and no-fence cancellation services:
 
@@ -261,7 +261,7 @@ signed activation receipt. Source retirement verifies that receipt against curre
 destination PLC authority and the exported snapshot, retaining it durably. A failed
 step never releases the source fence or reservation. No user private key or bearer
 credential is accepted as replacement for these signatures.
-See the [client workflow](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/cli-workflows.md#owner-controlled-transfer-offer-review-and-source-cancellation).
+See the [client workflow](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md#owner-controlled-transfer-offer-review-and-source-cancellation).
 
 `test/transfer-cancellation.integration.test.ts` covers authenticated route
 scope/account isolation, exact Offer retries, unresolved expiry, source fences,
@@ -278,7 +278,7 @@ fence/transfer tests retain message/status/outbox continuity proof.
 These new transfer tests use in-process
 HTTP route transport; the account-API TLS tests cover HTTPS CLI transport.
 
-The [milestone-5 custody/return design](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/custody-transitions.md)
+The [milestone-5 custody/return design](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/custody-transitions.md)
 defines owner-controlled ↔ managed transitions, removal of outgoing managed
 identity authority, historical evidence and lifecycle generations. These paths
 remain disabled. Current DID-keyed fences/account uniqueness and insert-only
@@ -310,7 +310,7 @@ before dropping only the additive schema. It refuses to discard the sole archive
 copy. Upgrade/repeat/rollback/re-upgrade preservation and legacy import/auth checks
 pass alongside actual signed retirement archival and adjacent transfer/access
 regressions: 32 focused tests on disposable databases. See the
-[migration evidence and next stage](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/lifecycle-history-migration.md).
+[migration evidence and next stage](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/lifecycle-history-migration.md).
 
 ### Generation-bound return (local migrations 37/38)
 
@@ -346,7 +346,7 @@ concurrent job; per-DID capture is the throughput upgrade path.
 advancement and while incoming archive records retain exact legacy copies. It
 refuses rollback after generation 2 or detachment; application downgrade after
 advancement is not supported. See
-[return proof and boundaries](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/generation-bound-return.md).
+[return proof and boundaries](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/generation-bound-return.md).
 
 `POC_MANAGED_TRANSFER=true` additionally enables the managed-custody invitation,
 fence, export, configured-private-PLC completion, activation and retirement path.
@@ -405,7 +405,7 @@ proof leave the source fenced. Exact receipts support restart/lost responses.
 The guarded rollback refuses accepted abandonment or sole-copy observation loss.
 Its code/schema is included in the migration-39 rollout, but no public recovery
 route/command is enabled. See the
-[private recovery proof](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/post-export-recovery.md).
+[private recovery proof](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/post-export-recovery.md).
 
 ## API-first account management direction
 
@@ -422,8 +422,8 @@ New endpoints are `POST /api/v1/account/grants/{id}/proposals` and `/update` for
 managed signatures; both require `grants:write` and reject fenced accounts.
 There is no new Grant schema migration or unsigned blocking. New signer epochs
 are held pending reviewed historical-key reconciliation. See the
-[revision contract](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/grant-revisions.md)
-and [key decision](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/grant-key-reconciliation.md).
+[revision contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/grant-revisions.md)
+and [key decision](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/grant-key-reconciliation.md).
 
 ### Address Binding renewal (migration 35)
 
@@ -433,7 +433,7 @@ reminder metadata; renewal needs deliberate `account:write` authority, current
 identity/service ownership and an active/public account. Migration 35 expands
 the scope constraint without upgrading existing credentials. Both custody
 profiles passed real HTTPS renewal/retry/history proof on both POC origins;
-see the [release evidence](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/milestone4-release.md).
+see the [release evidence](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/milestone4-release.md).
 
 Provider-domain renewals retain the 90-day maximum and immutable signed history.
 Hosting commits before compare-and-select publication; exact retries repair
@@ -441,7 +441,7 @@ verification failures and never reselect a superseded binding. Owner-controlled
 signing stays identity-only; managed signing requires explicit managed custody.
 Expired/unauthorized credentials, changed keys and source fences cannot renew.
 Existing Grants and completed signup evidence are retained. See the
-[renewal contract/proof](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/binding-renewal.md).
+[renewal contract/proof](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/binding-renewal.md).
 
 ### Credential lifecycle extension
 
@@ -451,9 +451,9 @@ deliberate subsets. Both require `credentials:write`; inventory omits tokens/
 hashes and returns at most 50 entries with an `after`/`next` UUID cursor.
 Scope escalation is 403; changed-scope, cross-account and revoked/expired token
 retries are 409. Existing `{token}` inherited issuance remains supported.
-See the [credential lifecycle contract/proof](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/credential-lifecycle.md)
-and [post-expiry access design](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/account-access-recovery.md).
-The [lifecycle release](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/lifecycle-release.md)
+See the [credential lifecycle contract/proof](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/credential-lifecycle.md)
+and [post-expiry access design](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/account-access-recovery.md).
+The [lifecycle release](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/lifecycle-release.md)
 is deployed to both POC providers, including the migration-34 login/recovery
 slice described below.
 
@@ -486,8 +486,8 @@ five minutes, and persist across process restart. Completion consumes the nonce
 and issues the credential under the account-row lock in one transaction; an exact
 still-valid retry returns the same ID/expiry. Persistent preparation/completion
 rate buckets, bounded retention and protected generic completion responses reuse
-existing provider primitives. See the [recovery contract](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/account-access-recovery.md)
-and [local verification](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/account-access-verification.md).
+existing provider primitives. See the [recovery contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/account-access-recovery.md)
+and [local verification](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/account-access-verification.md).
 
 ### Extended CLI slice (migration 33)
 
@@ -496,7 +496,7 @@ or managed identity with owner recovery, scoped credential creation/revocation,
 Grant proposals/listing, sending, inbox/status and invited replies. Both POC
 providers were rolled out on October 9; both custody profiles passed HTTPS
 signup/account/credential smoke checks on each host. Follow the
-[CLI workflows](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/cli-workflows.md).
+[CLI workflows](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md).
 
 `POC_SELF_SERVICE_ONBOARDING=true` enables `POST /api/v1/onboarding` and
 `POST /api/v1/onboarding/{account_id}` only on the pinned private PLC service
@@ -571,8 +571,8 @@ Build the sibling codec first, install dependencies, and create local
 configuration:
 
 ```bash
-bun run --cwd ../hailproto/packages/hail-codec-ts build
-pnpm --dir ../did-method-plc build
+pnpm --dir ../../vendor/did-method-plc --filter @did-plc/lib build
+bun run --cwd ../../packages/hail-codec-ts build
 bun install
 cp .env.example .env
 ```
@@ -672,7 +672,7 @@ cannot become active again.
 ## Single-Use Replies (Private-PLC POC)
 
 Reply authorization follows
-[`../hailproto/spec/envelopes.md`](../hailproto/spec/envelopes.md#reply-authorization):
+[`../../spec/envelopes.md`](../../spec/envelopes.md#reply-authorization):
 it is an invitation signed in a prior envelope, not a reverse-direction Grant.
 After migration 12, the original sender can opt in when signing its
 Grant-authorized envelope:
@@ -798,7 +798,7 @@ and only that receipt allows the target to release an ambiguous submitted
 reservation. Expiry cleanup releases only transfers with no final push.
 
 These commands are operator building blocks, **not a public migration
-procedure**: `transfer:grant` in `../hail-user-client-ts` produces a private
+procedure**: `transfer:grant` in `../cli` produces a private
 signed domain grant; `migration:invite -- <grant-file> <invitation-file> <offer-file>`
 on the source validates/stores it, sends the invitation to the derived fixed
 well-known HTTPS endpoint, and saves the inactive origin-verified Offer.
@@ -825,13 +825,13 @@ transfer service.
 The original Alice/Bob POC accounts were created with custodial keys in a private
 directory and **must not be used as portable migration sources**. New user-held
 private-PLC DIDs have completed the separate POC ceremony below. Separate
-reference projects now exist at `../hail-user-client-ts` for user-controlled
+reference projects now exist at `../cli` for user-controlled
 key generation, encrypted vault recovery and offline signing, and
-`../hail-plc-monitor-ts` for user-run independent PLC monitoring and signed
+`../plc-monitor` for user-run independent PLC monitoring and signed
 coverage attestations. They are reference implementations, not production
 infrastructure. Mobile clients can implement the same signing profile with
 platform-specific secure storage. See the sibling
-`../hailproto/docs/production-portable-custody.md` for the complete trust model.
+`../../docs/production-portable-custody.md` for the complete trust model.
 
 Test the safe cutover boundaries using two disposable PostgreSQL databases:
 
@@ -852,7 +852,7 @@ The normal public activation profile still requires `https://plc.directory`,
 two independent read paths and the signed external monitor attestation.
 
 For a **fresh** POC DID, generate and independently back up a user vault using
-`../hail-user-client-ts`. After verifying its recovery secret, the source
+`../cli`. After verifying its recovery secret, the source
 provider and client run:
 
 ```text

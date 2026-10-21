@@ -20,8 +20,8 @@ services:
   monitor:
     image: hail-plc-monitor-ts:public
     build:
-      context: ../../..
-      dockerfile: hail-plc-monitor-ts/Dockerfile
+      context: ../../../..
+      dockerfile: apps/plc-monitor/Dockerfile
     restart: unless-stopped
     init: true
     read_only: true

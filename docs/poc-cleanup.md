@@ -6,37 +6,37 @@ remaining private rehearsals finish.
 1. **Delete:** Archive the historical POC rollout journals from release-facing
    documentation; Git history plus one concise archive index is enough.
    [`hailproto/docs/typescript-backend-poc.md:1`,
-   `hail-server-ts/deploy/poc/README.md:1`,
-   `hail-user-client-ts/docs/*release*.md`]
+   `apps/server/deploy/poc/README.md:1`,
+   `apps/cli/docs/*release*.md`]
 2. **Delete:** Remove the original custodial prototype onboarding path after the
    remaining legacy accounts are migrated or retired; strict-public mode already
    refuses it. Replacement: public/private owner-key onboarding APIs.
-   [`hail-server-ts/src/onboarding/service.ts:57`,
-   `hail-server-ts/src/cli/onboard.ts:1`,
-   `hail-server-ts/src/cli/activate-local.ts:1`,
-   `hail-server-ts/src/cli/activate-public.ts:1`]
+   [`apps/server/src/onboarding/service.ts:57`,
+   `apps/server/src/cli/onboard.ts:1`,
+   `apps/server/src/cli/activate-local.ts:1`,
+   `apps/server/src/cli/activate-public.ts:1`]
 3. **Shrink:** Stop copying server operator CLIs and sample Alice/Bob files into
    the production image. They add roughly 1,164 source lines to the artifact but
-   are not imported by `src/index.ts`. [`hail-server-ts/Dockerfile:34-37`]
+   are not imported by `src/index.ts`. [`apps/server/Dockerfile:34-37`]
 4. **Delete:** Remove the eight standalone provider `poc:*` CLI wrappers once the
    remaining private gates use API/runtime orchestration exclusively; only
-   `package.json` references them. [`hail-server-ts/package.json:16-23`,
-   `hail-server-ts/src/cli/*private-poc*.ts`]
+   `package.json` references them. [`apps/server/package.json:16-23`,
+   `apps/server/src/cli/*private-poc*.ts`]
 5. **Delete:** Replace six legacy client `poc:*` wrappers and wrapper-specific
    subprocess tests with `hailp` coverage. Keep the underlying signing/vault
    functions still used by private fixtures.
-   [`hail-user-client-ts/package.json:22-27`,
-   `hail-user-client-ts/src/cli/*private-poc*.ts`]
+   [`apps/cli/package.json:22-27`,
+   `apps/cli/src/cli/*private-poc*.ts`]
 6. **Shrink:** Move `PrivatePocTransferAbandonment` from production `src/` into
    test support; it is referenced only by the private migration integration test
    and is deliberately not routed.
-   [`hail-server-ts/src/migration/abandonment.ts:27`,
-   `hail-server-ts/test/private-poc-migration.integration.test.ts:33`]
+   [`apps/server/src/migration/abandonment.ts:27`,
+   `apps/server/test/private-poc-migration.integration.test.ts:33`]
 7. **Delete:** Remove the same-VPS SQLite POC alert receiver and Compose service
    after the independent alert destination replaces it. It cannot provide
    production independence.
-   [`hail-plc-monitor-ts/src/cli/poc-alert-receiver.ts:1`,
-   `hail-plc-monitor-ts/deploy/poc/compose.yaml:57`]
+   [`apps/plc-monitor/src/cli/poc-alert-receiver.ts:1`,
+   `apps/plc-monitor/deploy/poc/compose.yaml:57`]
 
 ## Do not cut yet
 

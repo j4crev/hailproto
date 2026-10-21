@@ -19,7 +19,7 @@ A new source/dependency installation was created at:
 
 ```text
 /tmp/opencode/vault-restore-20261009/second-install/
-  hail-user-client-ts/
+  hailproto/apps/cli/
   hailproto/
   did-method-plc/
 ```
@@ -71,7 +71,7 @@ against each original owner recovery public key.
 
 Executed scripts and public result summary are retained locally at
 `/tmp/opencode/vault-restore-20261009/restore.sh`,
-`second-install/hail-user-client-ts/restore-proof.ts` and `public-results.json`.
+`second-install/hailproto/apps/cli/restore-proof.ts` and `public-results.json`.
 Private test vaults/secrets live beneath the mode-`0700` `backups/` and `restored/`
 directories. These are temporary disposable evidence artifacts, not the user's
 durable/offline backup storage.

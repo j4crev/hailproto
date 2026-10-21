@@ -12,7 +12,7 @@ minutes. Signed alerts go to a Cloudflare Worker that pins the monitor key and
 sends external email; the Worker returned `204` and delivered live enrollment
 alerts. Hosting the monitor on infrastructure controlled by a Hail provider is
 still a **bootstrap convenience**, not independent coverage under
-`../hailproto/spec/account-onboarding.md`.
+[`../../spec/account-onboarding.md`](../../spec/account-onboarding.md).
 
 The deployed public profile is documented in
 [`deploy/public`](deploy/public/README.md).
@@ -51,8 +51,8 @@ operator can suppress coverage or alerts.
 Build the pinned sibling library and codec, then install dependencies:
 
 ```bash
-bun run --cwd ../hailproto/packages/hail-codec-ts build
-pnpm --dir ../did-method-plc build
+pnpm --dir ../../vendor/did-method-plc --filter @did-plc/lib build
+bun run --cwd ../../packages/hail-codec-ts build
 bun install
 ```
 
@@ -157,7 +157,7 @@ users bootstrap but cannot satisfy the portable-custody rule that the monitor
 be outside the provider's administrative control.
 
 The remaining portable migration prerequisites are recorded in
-`../hailproto/docs/production-portable-custody.md`. Test the monitor against a
+[`../../docs/production-portable-custody.md`](../../docs/production-portable-custody.md). Test the monitor against a
 fresh disposable PostgreSQL 14.4 database with:
 
 ```bash

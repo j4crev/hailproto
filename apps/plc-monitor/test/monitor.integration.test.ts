@@ -10,7 +10,7 @@ import { PlcMonitor } from "../src/monitor.js";
 import { MonitorNotifier, type AlertTransport } from "../src/notifier.js";
 import type { MonitorPlcClient } from "../src/plc.js";
 import { MonitorSigner } from "../src/signing.js";
-import { verifyMonitorAttestation, verifyOnboardingMonitorAttestation } from "../../hail-server-ts/src/migration/monitor-attestation.js";
+import { verifyMonitorAttestation, verifyOnboardingMonitorAttestation } from "../../server/src/migration/monitor-attestation.js";
 
 const integration = process.env.DATABASE_URL ? describe : describe.skip;
 

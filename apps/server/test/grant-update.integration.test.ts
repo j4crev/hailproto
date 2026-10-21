@@ -6,7 +6,7 @@ import {createWebCryptoSigner,encodeBase64Url,inspectSignedPayload,signPayload,t
 import {base58btc} from "multiformats/bases/base58";
 import {Hono} from "hono";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
-import {createUserVault,unlockUserIdentity} from "../../hail-user-client-ts/src/vault.js";
+import {createUserVault,unlockUserIdentity} from "../../cli/src/vault.js";
 import {ProviderDatabase} from "../src/db/database.js";
 import {AccountApiRepository} from "../src/accounts/repository.js";
 import {registerAccountApiRoutes} from "../src/accounts/routes.js";
@@ -35,7 +35,7 @@ integration("active Grant updates and consent refresh through HTTPS hailp",()=>{
     profile={...profile,profile:payload,representation:bytes,digest:hash(bytes),verifiedAt:new Date()};};
   const cli=async(fixture:typeof fixtures[number],args:string[])=>{
     const child=Bun.spawn(["bun","src/cli/hailp.ts",...args,"--credentials",join(directory,`${fixture.id}.credential.json`)],{
-      cwd:new URL("../../hail-user-client-ts/",import.meta.url).pathname,env:{...Bun.env,NODE_EXTRA_CA_CERTS:join(directory,"cert.pem")},stdin:"pipe",stdout:"pipe",stderr:"pipe"});
+      cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,NODE_EXTRA_CA_CERTS:join(directory,"cert.pem")},stdin:"pipe",stdout:"pipe",stderr:"pipe"});
     child.stdin.write(`${encodeBase64Url(fixture.vault.recoverySecret)}\n`);child.stdin.end();
     const [code,stdout,stderr]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
     expect(stdout+stderr).not.toContain(fixture.token);expect(stdout+stderr).not.toContain(encodeBase64Url(fixture.vault.recoverySecret));return {code,stdout,stderr};};

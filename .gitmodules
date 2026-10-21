@@ -1,0 +1,3 @@
+[submodule "vendor/did-method-plc"]
+	path = vendor/did-method-plc
+	url = https://github.com/did-method-plc/did-method-plc.git

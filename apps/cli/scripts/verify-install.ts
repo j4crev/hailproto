@@ -6,11 +6,9 @@ import { fileURLToPath } from "node:url";
 
 const source = fileURLToPath(new URL("../", import.meta.url));
 const root = await mkdtemp(join(tmpdir(), "hailp-install-"));
-const client = join(root, "hail-user-client-ts");
-const pins = [
-  ["hailproto", "fb9697b4074086fb86f6dc61f26805ec0450d315"],
-  ["did-method-plc", "996e23b5ced9c15b32bcc612dd304880342ca4ab"],
-] as const;
+const repository = join(source, "../..");
+const candidate = join(root, "hailproto");
+const client = join(candidate, "apps/cli");
 
 async function run(command: string[], cwd: string, quiet = false): Promise<string> {
   const child = Bun.spawn(command, { cwd, stdout: "pipe", stderr: "pipe" });
@@ -23,27 +21,24 @@ async function run(command: string[], cwd: string, quiet = false): Promise<strin
 try {
   assert.equal(Bun.version, "1.4.0", "Use the pinned Bun 1.4.0 toolchain");
   assert.equal(await run(["node", "--version"], source, true), "v26.7.0", "Use the verified Node 26.7.0 build toolchain");
-  await mkdir(client);
+  await mkdir(candidate);
   // Copy candidate source only: no installed dependencies or existing build output.
-  const tracked = await run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], source, true);
+  const tracked = await run(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], repository, true);
   for (const path of tracked.split("\0").filter(Boolean)) {
-    const target = join(client, path);
+    if (path === "vendor/did-method-plc") continue;
+    const target = join(candidate, path);
     await mkdir(dirname(target), { recursive: true });
-    await writeFile(target, await readFile(join(source, path)));
+    await writeFile(target, await readFile(join(repository, path)));
   }
-  for (const [name, revision] of pins) {
-    const checkout = join(root, name), archive = join(root, `${name}.tar`);
-    await mkdir(checkout);
-    await run(["git", "archive", "--format=tar", `--output=${archive}`, revision], join(source, "..", name));
-    await run(["tar", "-xf", archive, "-C", checkout], root);
-  }
-  const protocol = join(root, "hailproto"), plc = join(root, "did-method-plc");
+  const plc = join(candidate, "vendor/did-method-plc"), archive = join(root, "did-method-plc.tar");
+  await mkdir(plc, { recursive: true });
+  await run(["git", "archive", "--format=tar", `--output=${archive}`, "HEAD"], join(repository, "vendor/did-method-plc"));
+  await run(["tar", "-xf", archive, "-C", plc], root);
   assert.equal(await run(["pnpm", "--version"], plc, true), "11.11.0", "Use pinned pnpm 11.11.0");
-  await run(["bun", "install", "--frozen-lockfile"], protocol);
-  await run(["bun", "run", "--cwd", "packages/hail-codec-ts", "build"], protocol);
   await run(["pnpm", "install", "--frozen-lockfile"], plc);
   await run(["pnpm", "--filter", "@did-plc/lib", "build"], plc);
-  await run(["bun", "install", "--frozen-lockfile"], client);
+  await run(["bun", "install", "--frozen-lockfile"], candidate);
+  await run(["bun", "run", "--cwd", "packages/hail-codec-ts", "build"], candidate);
   await run(["bun", "run", "build"], client);
   await run(["bun", "run", "smoke"], client);
   await run(["bun", "run", "smoke", "--", "dist/hailp"], client);

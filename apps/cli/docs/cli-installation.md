@@ -15,7 +15,7 @@ does not require Node, pnpm, Bun or sibling repositories at runtime.
 | --- | --- |
 | `hailproto` | `fb9697b4074086fb86f6dc61f26805ec0450d315` |
 | `did-method-plc` | `996e23b5ced9c15b32bcc612dd304880342ca4ab` |
-| `hail-user-client-ts` | Select the reviewed milestone-6 client commit; retain its SHA with the binary |
+| `hailproto` | Select the reviewed CLI release commit; retain its SHA with the binary |
 
 Keep these checkouts beside each other. The client has local `file:` dependencies,
 so `bun link` alone is not a reproducible distribution. All three repositories
@@ -27,10 +27,10 @@ registry publication is implied by version `0.1.0`.
 From the client checkout, after selecting the pinned sibling revisions:
 
 ```bash
-bun install --cwd ../hailproto --frozen-lockfile
-bun run --cwd ../hailproto/packages/hail-codec-ts build
-pnpm --dir ../did-method-plc install --frozen-lockfile
-pnpm --dir ../did-method-plc --filter @did-plc/lib build
+bun install --cwd ../.. --frozen-lockfile
+pnpm --dir ../../vendor/did-method-plc install --frozen-lockfile
+pnpm --dir ../../vendor/did-method-plc --filter @did-plc/lib build
+bun run --cwd ../../packages/hail-codec-ts build
 bun install --frozen-lockfile
 bun run build
 bun run smoke

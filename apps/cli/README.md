@@ -29,8 +29,8 @@ The sibling `hailproto` and `did-method-plc` repositories must be beside this
 checkout because they are local dependencies.
 
 ```bash
-bun run --cwd ../hailproto/packages/hail-codec-ts build
-pnpm --dir ../did-method-plc --filter @did-plc/lib build
+pnpm --dir ../../vendor/did-method-plc --filter @did-plc/lib build
+bun run --cwd ../../packages/hail-codec-ts build
 bun install --frozen-lockfile
 bun run typecheck
 bun run test
@@ -130,5 +130,5 @@ The CLI now exercises two public-alpha providers with owner-controlled
 bidirectional delivered messages. It does not by itself establish production
 monitor independence, recovery, hardware-backed key storage, or a standardized
 cross-provider client API. See the [roadmap](docs/cli-roadmap.md) for
-the remaining production gates and `../hailproto` for normative protocol
+the remaining production gates and the repository root for normative protocol
 specifications.

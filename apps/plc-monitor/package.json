@@ -19,8 +19,8 @@
     "monitor:keygen": "bun src/cli/generate-key.ts"
   },
   "dependencies": {
-    "@did-plc/lib": "file:../did-method-plc/packages/lib",
-    "@hailproto/codec": "file:../hailproto/packages/hail-codec-ts",
+    "@did-plc/lib": "file:../../vendor/did-method-plc/packages/lib",
+    "@hailproto/codec": "workspace:*",
     "@atproto/common": "0.8.1",
     "@atproto/crypto": "0.5.4",
     "multiformats": "13.4.2",

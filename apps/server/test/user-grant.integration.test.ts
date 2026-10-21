@@ -14,7 +14,7 @@ import type { KeyEncryptor } from "../src/identity/key-encryption.js";
 import { OnboardingRepository } from "../src/onboarding/repository.js";
 import type { HailDidResolver } from "../src/plc/resolver.js";
 import type { VerifiedSenderProfile } from "../src/profiles/store.js";
-import { createUserVault, unlockUserVault } from "../../hail-user-client-ts/src/vault.js";
+import { createUserVault, unlockUserVault } from "../../cli/src/vault.js";
 
 const integration = process.env.DATABASE_URL ? describe : describe.skip;
 function didKey(key: CryptoKey): Promise<string> {
@@ -155,7 +155,7 @@ integration("user-held authoritative Grant", () => {
       const runClient = async (grantId = proposed.grant_id) => {
         const child = Bun.spawn(["bun", "src/cli/revoke-private-poc-grant.ts",
           vaultPath, currentPath, grantId, senderAddress, revokedPath], {
-          cwd: new URL("../../hail-user-client-ts/", import.meta.url).pathname,
+          cwd: new URL("../../cli/", import.meta.url).pathname,
           stdin: "pipe", stdout: "pipe", stderr: "pipe",
         });
         child.stdin.write(`${encodeBase64Url(vault.recoverySecret)}\n`);

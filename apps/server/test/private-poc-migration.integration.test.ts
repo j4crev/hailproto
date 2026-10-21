@@ -8,10 +8,10 @@ import { decodeBase64Url, decodeDeterministic, encodeBase64Url, inspectSignedPay
    createWebCryptoSigner,signPayload,type HailGrant,type HailEnvelope,type HailAddressBinding,type HailSenderProfile } from "@hailproto/codec";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createUserVault, unlockUserVault,unlockUserIdentity } from "../../hail-user-client-ts/src/vault.js";
-import { AccountApiClient } from "../../hail-user-client-ts/src/account-api.js";
-import { transferOffer,selectTransferAddress,exportTransferSnapshot,completeAccountTransfer,signAccountTransferCutover } from "../../hail-user-client-ts/src/account-transfer.js";
-import { loginAccount } from "../../hail-user-client-ts/src/account-login.js";
+import { createUserVault, unlockUserVault,unlockUserIdentity } from "../../cli/src/vault.js";
+import { AccountApiClient } from "../../cli/src/account-api.js";
+import { transferOffer,selectTransferAddress,exportTransferSnapshot,completeAccountTransfer,signAccountTransferCutover } from "../../cli/src/account-transfer.js";
+import { loginAccount } from "../../cli/src/account-login.js";
 import { AccountAccess } from "../src/accounts/access.js";
 import { PrivatePocTransferCompletion } from "../src/migration/poc-completion.js";
 import {withFreshServingGenerations,withServingGeneration} from "../src/db/serving.js";
@@ -293,7 +293,7 @@ integration("private PLC transfer between disposable POC providers", () => {
         const child = Bun.spawn(["bun", "src/cli/hailp.ts","account","transfer","sign-cutover",
           "--vault",paths.vault,"--state",paths.state,"--snapshot",paths.snapshot,
           "--consent",paths.consent,"--operation",operation,"--binding",paths.binding],
-        { cwd: new URL("../../hail-user-client-ts/", import.meta.url).pathname,
+        { cwd: new URL("../../cli/", import.meta.url).pathname,
           stdin: "pipe", stdout: "pipe", stderr: "pipe" });
         child.stdin.write(`${encodeBase64Url(vault.recoverySecret)}\n`);
         child.stdin.end();
@@ -318,7 +318,7 @@ integration("private PLC transfer between disposable POC providers", () => {
       expect(await readFile(paths.consent)).toEqual(firstConsent);
       expect(await readFile(paths.binding)).toEqual(firstBinding);
       const legacy=Bun.spawn(["bun","src/cli/sign-private-poc-cutover.ts",paths.vault,paths.snapshot,paths.offer,paths.reservation,
-        paths.consent,paths.operation,paths.binding],{cwd:new URL("../../hail-user-client-ts/",import.meta.url).pathname,stdin:"pipe",stdout:"pipe",stderr:"pipe"});
+        paths.consent,paths.operation,paths.binding],{cwd:new URL("../../cli/",import.meta.url).pathname,stdin:"pipe",stdout:"pipe",stderr:"pipe"});
       legacy.stdin.write(`${encodeBase64Url(vault.recoverySecret)}\n`);legacy.stdin.end();
       expect(await legacy.exited,await new Response(legacy.stderr).text()).toBe(0);
       expect(await readFile(paths.operation)).toEqual(firstOperation);expect(await readFile(paths.consent)).toEqual(firstConsent);

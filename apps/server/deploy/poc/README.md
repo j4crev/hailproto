@@ -34,24 +34,24 @@ is required for `/api/v1/account`.
 On October 9, both live provider database backups were restored into disposable
 containers and passed migrations 31→33, repeat migration, old/new image
 schema-readiness startup, pre-existing table-data preservation and provider-local
-credential checks. See the [CLI rehearsal evidence](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/cli-release-rehearsal.md)
-for retained backup/image paths and proof boundaries. The subsequent [CLI rollout evidence](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/cli-release-rollout.md)
+credential checks. See the [CLI rehearsal evidence](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-release-rehearsal.md)
+for retained backup/image paths and proof boundaries. The subsequent [CLI rollout evidence](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-release-rollout.md)
 records fresh backups and individual provider rollout to 33. Worker-disabled
 startup is not proof of rollback after account API writes.
 
-The subsequent [lifecycle release](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/lifecycle-release.md)
+The subsequent [lifecycle release](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/lifecycle-release.md)
 rehearsed migration 33→34 against restored copies of both live databases, preserved
 all pre-existing table data and rolled providers individually. Both custody
 profiles on both HTTPS origins passed expired-credential recovery, exact retries,
 rotation, inventory and narrower issuance. Original PLC genesis logs were unchanged.
 
-The [milestone-4 release](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/milestone4-release.md)
+The [milestone-4 release](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/milestone4-release.md)
 rehearsed 34→35 on restored deployment copies and rolled providers individually.
 Both custody profiles on both HTTPS origins passed binding renewal, scope and
 Grant revision/consent checks; all five cross-provider revisions were acknowledged.
 PLC genesis logs were unchanged. Historical-key execution remains disabled.
 
-The [milestone-5 release](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/milestone5-release.md)
+The [milestone-5 release](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/milestone5-release.md)
 rehearsed 35→39, guarded rollback to 35 and re-upgrade to 39 on restored copies,
 preserving every pre-existing table. Both generation-aware runtimes were rolled
 before transfer/return gates were enabled. Real HTTPS app→dev→app verification
@@ -88,7 +88,7 @@ onboarding commands. Then use the message/reply walkthroughs below. The dated
 rollout records describe earlier releases and existing demo identifiers;
 they are not instructions to downgrade or replay the live demonstration.
 
-The [user client README](https://github.com/j4crev/hail-user-client-ts#readme)
+The [user client README](https://github.com/j4crev/hailproto/tree/main/apps/cli#readme)
 and the provider README's [private-PLC ceremony](../../README.md#private-plc-poc-ceremony-new-dids-only)
 cover fresh user-key-held onboarding and transfer. Run user signing commands
 on the user device; never copy its vault/recovery secret into a provider.
@@ -96,7 +96,7 @@ For interrupted transfers, use the [recovery checkpoints](https://github.com/j4c
 
 The monitor is a **separate Compose stack**. Start the provider stack first
 to create its private/edge networks, then follow the
-[same-VPS monitor runbook](https://github.com/j4crev/hail-plc-monitor-ts/blob/main/deploy/poc/README.md).
+[same-VPS monitor runbook](https://github.com/j4crev/hailproto/blob/main/apps/plc-monitor/deploy/poc/README.md).
 It adds its own PostgreSQL database/key and signed-alert receipt storage.
 `/poc/monitor-alerts` becomes usable once its receiver is running; starting
 the provider stack alone does not start that service. It is non-independent
@@ -724,8 +724,8 @@ evidence. It does not use `plc.directory` or establish independent mirrors,
 monitoring, or production portable-custody guarantees.
 
 The new separate public reference projects are
-<https://github.com/j4crev/hail-user-client-ts> (local user keys and encrypted
-backup) and <https://github.com/j4crev/hail-plc-monitor-ts> (user-run PLC
+<https://github.com/j4crev/hailproto/tree/main/apps/cli> (local user keys and encrypted
+backup) and <https://github.com/j4crev/hailproto/tree/main/apps/plc-monitor> (user-run PLC
 monitor). No independently hosted monitor, verified public PLC export
 checkpoint, or public `plc.directory` portable DID has been deployed. The
 new provider-to-provider transfer below remains private-PLC POC evidence;
