@@ -1,0 +1,17 @@
+{
+	email {$ACME_EMAIL}
+	admin off
+}
+
+hailproto.app {
+	handle /poc/monitor-alerts {
+		reverse_proxy poc-alert-receiver:3000
+	}
+	handle {
+		reverse_proxy hail-app:3000
+	}
+}
+
+hailproto.dev {
+	reverse_proxy hail-dev:3000
+}

@@ -1,0 +1,195 @@
+name: hail-poc
+
+x-provider: &provider
+  image: hail-server-ts:poc
+  restart: unless-stopped
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  networks:
+    - edge
+    - private
+
+x-postgres: &postgres
+  image: postgres:14.4-alpine
+  restart: unless-stopped
+  shm_size: 128mb
+  networks:
+    - private
+
+services:
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    depends_on:
+      hail-app:
+        condition: service_healthy
+      hail-dev:
+        condition: service_healthy
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+
+  hail-app:
+    <<: *provider
+    build:
+      context: ../../..
+      dockerfile: hail-server-ts/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      PROVIDER_ID: app
+      PUBLIC_ORIGIN: https://hailproto.app
+      HAIL_SERVICE_BASE: https://hailproto.app/hail
+      PLC_DIRECTORY_URL: http://plc:2582
+      DATABASE_URL: postgresql://hail:${APP_DB_PASSWORD:?set APP_DB_PASSWORD}@app-db:5432/hail
+      KEY_ENCRYPTION_KEY: ${APP_KEY_ENCRYPTION_KEY:?set APP_KEY_ENCRYPTION_KEY}
+    depends_on:
+      app-db:
+        condition: service_healthy
+      plc:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bun", "-e", "const r=await fetch('http://127.0.0.1:3000/health/ready'); process.exit(r.ok?0:1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  hail-dev:
+    <<: *provider
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      PROVIDER_ID: dev
+      PUBLIC_ORIGIN: https://hailproto.dev
+      HAIL_SERVICE_BASE: https://hailproto.dev/hail
+      PLC_DIRECTORY_URL: http://plc:2582
+      DATABASE_URL: postgresql://hail:${DEV_DB_PASSWORD:?set DEV_DB_PASSWORD}@dev-db:5432/hail
+      KEY_ENCRYPTION_KEY: ${DEV_KEY_ENCRYPTION_KEY:?set DEV_KEY_ENCRYPTION_KEY}
+    depends_on:
+      dev-db:
+        condition: service_healthy
+      plc:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bun", "-e", "const r=await fetch('http://127.0.0.1:3000/health/ready'); process.exit(r.ok?0:1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  plc:
+    image: hail-plc:poc
+    build:
+      context: ../../../did-method-plc
+      dockerfile: packages/server/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 2582
+      PLC_VERSION: 996e23b5ced9c15b32bcc612dd304880342ca4ab
+      DB_CREDS_JSON: '{"username":"plc","password":"${PLC_DB_PASSWORD:?set PLC_DB_PASSWORD}","host":"plc-db","port":"5432","database":"plc"}'
+      DB_MIGRATE_CREDS_JSON: '{"username":"plc","password":"${PLC_DB_PASSWORD:?set PLC_DB_PASSWORD}","host":"plc-db","port":"5432","database":"plc"}'
+      ENABLE_MIGRATIONS: "true"
+      ADMIN_SECRET: ${PLC_ADMIN_SECRET:?set PLC_ADMIN_SECRET}
+      LOG_ENABLED: "true"
+      LOG_LEVEL: info
+      LOG_DESTINATION: "1"
+    depends_on:
+      plc-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:2582/_health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - private
+
+  plc-sequencer:
+    image: hail-plc:poc
+    restart: unless-stopped
+    init: true
+    command: ["node", "--enable-source-maps", "--import=./tracer.js", "sequencer.js"]
+    environment:
+      NODE_ENV: production
+      DB_CREDS_JSON: '{"username":"plc","password":"${PLC_DB_PASSWORD:?set PLC_DB_PASSWORD}","host":"plc-db","port":"5432","database":"plc"}'
+      LOG_ENABLED: "true"
+      LOG_LEVEL: info
+      LOG_DESTINATION: "1"
+    depends_on:
+      plc:
+        condition: service_healthy
+    networks:
+      - private
+
+  app-db:
+    <<: *postgres
+    environment:
+      POSTGRES_USER: hail
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD}
+      POSTGRES_DB: hail
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hail -d hail"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - app_db:/var/lib/postgresql/data
+
+  dev-db:
+    <<: *postgres
+    environment:
+      POSTGRES_USER: hail
+      POSTGRES_PASSWORD: ${DEV_DB_PASSWORD:?set DEV_DB_PASSWORD}
+      POSTGRES_DB: hail
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hail -d hail"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - dev_db:/var/lib/postgresql/data
+
+  plc-db:
+    <<: *postgres
+    environment:
+      POSTGRES_USER: plc
+      POSTGRES_PASSWORD: ${PLC_DB_PASSWORD:?set PLC_DB_PASSWORD}
+      POSTGRES_DB: plc
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plc -d plc"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - plc_db:/var/lib/postgresql/data
+
+networks:
+  edge:
+  private:
+    internal: true
+
+volumes:
+  app_db:
+  dev_db:
+  plc_db:
+  caddy_data:
+  caddy_config:
