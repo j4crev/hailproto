@@ -197,6 +197,23 @@ The final release archive SHA-256 is
 `7b297c9fb923e6bdee397c022583fd74b03aeec22f94dc8c374263f7991e9075`.
 The provider remained healthy with zero unexpected restarts.
 
+The same-provider Grant lifecycle was subsequently completed against Grant
+`01a15fdb-2bd0-7433-8afa-bd0355e0608c`. A restrictive expiry update propagated
+as active revision 2 with identical digest on both local roles and publication
+HTTP 204. Message `01a15fe5-dd7a-753b-a1b2-c7df83d4b200` then reached
+authenticated `delivered` revision 2. Revocation propagated as revision 3 with
+the same digest on both roles and publication HTTP 204.
+
+The first post-revocation send correctly created no envelope but exposed a
+classification defect: known authorization failure was returned as retryable
+HTTP 503. Commit `c88cfb7` introduced a narrow authorization error boundary, so
+invalid Grant scope/state and unavailable reply invitations now return
+non-retryable HTTP 409 while infrastructure failures remain 503. Exact retry of
+message `01a15fe6-51be-7b30-929b-22de352d7752` returned 409, remained absent
+from Sent and retained no envelope. The release archive SHA-256 is
+`69688be4c660265b1fb5589e47642d87f31162d13c78be2416ceede5177cf9fc`;
+the provider remained healthy with zero unexpected restarts.
+
 ## Documentation disposition
 
 Completed October 21, 2026. Active guidance now points to the strict-public
