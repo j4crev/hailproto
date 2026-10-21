@@ -1,6 +1,6 @@
 # `haili.app` launch milestone
 
-Status: in progress. The strict-public provider and permanent owner-controlled
+Status: operational gates completed. The strict-public provider and permanent owner-controlled
 canary were deployed October 21, 2026. This checklist does not enable public
 managed transfer or turn the disposable `hailproto.app` and `hailproto.dev`
 alpha providers into production services.
@@ -15,14 +15,14 @@ alpha providers into production services.
 - [x] Deploy owner-controlled public onboarding with canonical
   `https://plc.directory` reads, `strict-public-v1`, independent monitoring and
   `PUBLIC_MANAGED_TRANSFER=false`.
-- [ ] Close the operational gates: production provider-key protection and
+- [x] Close the operational gates: production provider-key protection and
   least-privilege access; off-host backups and cross-host restoration; external
   monitor dead-man supervision and outage recovery; documented rate, size and
   load limits with alerts; and named incident/abuse ownership.
 - [x] Onboard a permanent owner-controlled canary and prove Sender Profile,
   reciprocal Grants, bidirectional delivery and provider restart against both
   existing public-alpha providers.
-- [ ] Complete the tabled off-host backup and restoration drills for the
+- [x] Complete the tabled off-host backup and restoration drills for the
   provider and permanent canary.
 
 ## Base deployment record
@@ -53,7 +53,8 @@ alpha providers into production services.
   IPv4/IPv6 readiness remained healthy after a controlled provider restart.
 
 Provider-key backup, cross-host restoration, dead-man supervision, calibrated
-load controls and named incident ownership remain tabled for this alpha.
+load controls and named incident ownership were completed later that day as
+recorded below.
 
 The reviewed public managed canary ceremony completed October 21, 2026. The
 `canary@hailproto.app` DID moved to `canary-app@haili.app` and returned to its
@@ -196,6 +197,42 @@ available.
 The final release archive SHA-256 is
 `7b297c9fb923e6bdee397c022583fd74b03aeec22f94dc8c374263f7991e9075`.
 The provider remained healthy with zero unexpected restarts.
+
+## Production operations gate record
+
+The five operational gates closed October 21, 2026. Direct root, password,
+keyboard-interactive and X11 SSH access were disabled on the provider and
+independent monitor hosts. Named, key-only `hailops` access was verified first,
+then restricted to root-owned fixed-command operations wrappers. Both runtime
+containers remain unprivileged, read-only and capability-free. VPS-console
+access is the root recovery path.
+
+The private `haili-production-backups` Cloudflare R2 bucket now receives nightly
+provider backups using bucket-scoped credentials. The host encrypts to an
+off-host OpenPGP recipient and has no recovery private key. Automated object
+`provider/haili-20261021T200312Z.tar.gpg` round-tripped with SHA-256
+`b4093df7f41007d698a0275266f694f2d03318995101f627053f1c4e7c62de60`
+and restored schema 53, 3 accounts, 12 Grant lineages, 17 sent and 15 received
+envelopes in disposable PostgreSQL 14. The preceding independent drill also
+decrypted all 8 retained operational keys. Owner-controlled and managed-canary
+recovery material was separately encrypted and round-tripped as
+`accounts/haili-account-recovery-20261021T195007Z.tar.gpg`, SHA-256
+`290773eb445347a250d4ab6226f330a4c27d6fa69ba57f96bce446ddf133a7d3`.
+
+The existing signed-alert Cloudflare Worker now checks public readiness each
+minute and supervises authenticated monitor and verified-backup heartbeats at
+five-minute and 26-hour thresholds. All three states were observed `ok`; the
+controlled provider recovery transition produced a received operator email, and
+the monitor and provider remained healthy with zero restarts. Email Routing forwards
+only `ops@haili.app` and `abuse@haili.app` to the verified operator mailbox;
+catch-all delivery remains disabled.
+
+Readiness load calibration reached 339.0 requests/s at 16 connections with no
+HTTP or transport errors, p50 45.7 ms, p99 125.1 ms and maximum 281.6 ms on the
+2-vCPU host. Production mutation limits remain 120 requests/minute per surface,
+with the documented 16-KiB and 256-KiB transport bounds. Named response targets,
+outage/key/abuse procedures, exact limits and quarterly drill instructions are
+in [`docs/haili-operations.md`](haili-operations.md).
 
 The same-provider Grant lifecycle was subsequently completed against Grant
 `01a15fdb-2bd0-7433-8afa-bd0355e0608c`. A restrictive expiry update propagated

@@ -6,6 +6,13 @@
   "routes": [
     { "pattern": "alerts.plcmonitor.us", "custom_domain": true }
   ],
+  "triggers": { "crons": ["* * * * *"] },
+  "kv_namespaces": [
+    {
+      "binding": "HAIL_PRODUCTION_MONITOR",
+      "id": "a8af17cce137468e872de646746697ba"
+    }
+  ],
   "send_email": [
     {
       "name": "ALERT_EMAIL",
@@ -14,6 +21,7 @@
   ],
   "vars": {
     "ALERT_RECIPIENT": "the@j4w8n.com",
-    "ALERT_SENDER": "alerts@plcmonitor.us"
+    "ALERT_SENDER": "alerts@plcmonitor.us",
+    "PROVIDER_HEALTH_URL": "https://haili.app/health/ready"
   }
 }

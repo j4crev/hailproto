@@ -1,0 +1,8 @@
+[Unit]
+Description=Encrypt and upload the Haili provider backup
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/hail-provider-backup

@@ -7,7 +7,24 @@ interface Env {
   ALERT_EMAIL: { send(message: { to:string;from:string;subject:string;text:string }):Promise<unknown> };
   ALERT_RECIPIENT:string;
   ALERT_SENDER:string;
+  BACKUP_TOKEN:string;
+  HEARTBEAT_TOKEN:string;
+  HAIL_PRODUCTION_MONITOR:{get(key:string):Promise<string|null>;put(key:string,value:string):Promise<void>};
   MONITOR_PUBLIC_KEY:string;
+  PROVIDER_HEALTH_URL:string;
+}
+
+const heartbeatKey="monitor-heartbeat",backupKey="backup-heartbeat",staleAfterMs=5*60_000,backupStaleAfterMs=26*60*60_000;
+
+async function email(env:Env,subject:string,text:string):Promise<void>{
+  await env.ALERT_EMAIL.send({to:env.ALERT_RECIPIENT,from:env.ALERT_SENDER,subject,text});
+}
+
+async function recordHealth(env:Env,name:string,ok:boolean,detail:string):Promise<void>{
+  const key=`health:${name}`,next=ok?"ok":"down",previous=await env.HAIL_PRODUCTION_MONITOR.get(key);
+  if(previous!==next&&(next==="down"||previous==="down"))
+    await email(env,`[Hail ops] ${name} ${next}`,`${name} is ${next}.\n\n${detail}`);
+  await env.HAIL_PRODUCTION_MONITOR.put(key,next);
 }
 
 function signature(value:string|null):Uint8Array<ArrayBuffer>|null {
@@ -40,6 +57,16 @@ async function body(request:Request):Promise<Uint8Array|null>{
 export default {
   async fetch(request:Request,env:Env):Promise<Response>{
     const url=new URL(request.url);
+    if(request.method==="POST"&&url.pathname==="/heartbeat"){
+      if(request.headers.get("authorization")!==`Bearer ${env.HEARTBEAT_TOKEN}`)return new Response(null,{status:401});
+      await env.HAIL_PRODUCTION_MONITOR.put(heartbeatKey,String(Date.now()));
+      return new Response(null,{status:204});
+    }
+    if(request.method==="POST"&&url.pathname==="/backup-heartbeat"){
+      if(request.headers.get("authorization")!==`Bearer ${env.BACKUP_TOKEN}`)return new Response(null,{status:401});
+      await env.HAIL_PRODUCTION_MONITOR.put(backupKey,String(Date.now()));
+      return new Response(null,{status:204});
+    }
     if(request.method!=="POST"||url.pathname!=="/hail")return new Response(null,{status:404});
     if(request.headers.get("content-type")!=="application/json")return new Response(null,{status:415});
     const bytes=await body(request);if(!bytes)return new Response(null,{status:413});
@@ -52,9 +79,21 @@ export default {
       typeof alert.did!=="string"||!/^did:plc:[a-z2-7]{24}$/.test(alert.did)||typeof alert.category!=="string"||!categories.has(alert.category)||
       typeof alert.occurred_at!=="string"||!Number.isFinite(Date.parse(alert.occurred_at))||!alert.detail||typeof alert.detail!=="object"||Array.isArray(alert.detail))
       return new Response(null,{status:400});
-    await env.ALERT_EMAIL.send({to:env.ALERT_RECIPIENT,from:env.ALERT_SENDER,
-      subject:`[Hail PLC] ${alert.category}: ${alert.did}`,
-      text:`A signed Hail PLC monitor alert was received.\n\n${JSON.stringify(alert,null,2)}`});
+    await email(env,`[Hail PLC] ${alert.category}: ${alert.did}`,
+      `A signed Hail PLC monitor alert was received.\n\n${JSON.stringify(alert,null,2)}`);
     return new Response(null,{status:204});
+  },
+  async scheduled(_controller:unknown,env:Env):Promise<void>{
+    let providerOk=false,providerDetail="health request failed";
+    try{const response=await fetch(env.PROVIDER_HEALTH_URL,{signal:AbortSignal.timeout(10_000)});
+      providerDetail=`${env.PROVIDER_HEALTH_URL} returned HTTP ${response.status}`;providerOk=response.ok;}
+    catch(error){providerDetail=`${env.PROVIDER_HEALTH_URL} failed: ${error instanceof Error?error.message:"unknown error"}`;}
+    await recordHealth(env,"haili provider",providerOk,providerDetail);
+    const heartbeat=Number(await env.HAIL_PRODUCTION_MONITOR.get(heartbeatKey)),age=Date.now()-heartbeat;
+    await recordHealth(env,"PLC monitor",Number.isFinite(heartbeat)&&heartbeat>0&&age<=staleAfterMs,
+      heartbeat>0?`Last authenticated heartbeat was ${Math.floor(age/1000)} seconds ago.`:"No authenticated heartbeat has been received.");
+    const backup=Number(await env.HAIL_PRODUCTION_MONITOR.get(backupKey)),backupAge=Date.now()-backup;
+    await recordHealth(env,"provider backup",Number.isFinite(backup)&&backup>0&&backupAge<=backupStaleAfterMs,
+      backup>0?`Last verified encrypted backup was ${Math.floor(backupAge/3_600_000)} hours ago.`:"No verified backup heartbeat has been received.");
   },
 };

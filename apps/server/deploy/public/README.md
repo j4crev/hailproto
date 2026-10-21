@@ -4,11 +4,8 @@ This profile prepares one strict-public provider, PostgreSQL database and Caddy
 edge. It defaults to `haili.app`, canonical `plc.directory` audit reads and no
 public onboarding, custody transitions or managed transfer.
 
-It does not close the operational gates in
-[`docs/haili-launch.md`](../../../../docs/haili-launch.md): protect and back up
-the provider key, prove cross-host restoration, add external monitor dead-man
-supervision, calibrate supported limits and assign incident ownership before
-calling the provider permanent.
+Production operation, backup, monitoring, limits and incident response are in
+[`docs/haili-operations.md`](../../../../docs/haili-operations.md).
 
 ## Prepare
 
