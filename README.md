@@ -19,7 +19,8 @@ PNG headers. Both sender canaries publish verified bundled PNG avatars through
 Sender Profile v2, and the disposable GUI shows avatars and headers in its
 inbox feed without remote image requests. Its minimal composer has also sent
 plain and bundled-header messages over live reciprocal Grants and displayed
-their terminal delivery status.
+their terminal delivery status. A Sent view reads retained outbound bodies and
+authenticated accepted/delivered status without inventing read receipts.
 
 This is real public federation evidence, not a production release. The two
 disposable providers still share one VPS; off-host restoration, external

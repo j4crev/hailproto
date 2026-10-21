@@ -135,6 +135,15 @@ in live `spt-2` message `01a15f77-1d85-7417-96db-90e9f36612ff`; the recipient
 read retained the expected native marks and link definition and reached
 terminal `delivered`.
 
+Commit `0730b26396679d5d8e507f07aecdb42195b5c1eb` added authenticated, account-scoped Sent list/detail APIs and
+a disposable GUI Sent view with accessible status text, green accepted checks,
+closed envelopes for delivered messages, and explicit refresh. No schema
+migration was required. The API was deployed to `haili.app` from release archive
+SHA-256 `48162ec8e48bcd73ce97ee135ff8b1d48773e9e7716b9fb469cff02f10b2a8d1`.
+The live account returned all eight retained outbound messages; list and detail
+views rendered the newest exact `spt-2` body at authenticated `delivered`
+revision 2. The provider remained healthy with zero unexpected restarts.
+
 ## Documentation disposition
 
 Completed October 21, 2026. Active guidance now points to the strict-public
