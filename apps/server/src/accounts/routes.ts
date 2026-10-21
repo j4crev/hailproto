@@ -225,15 +225,17 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         }
         if(method!=="GET")return problem(405);
         if(action==="sent") {
-          if([...query.keys()].some(k=>k!=="after")||query.getAll("after").length>1)return problem(400);
-          return context.json(await messaging.sent(session,query.get("after")));
+          if([...query.keys()].some(k=>!["after","include"].includes(k))||query.getAll("after").length>1||query.getAll("include").length>1||
+            ![null,"body"].includes(query.get("include")))return problem(400);
+          return context.json(query.get("include")==="body"?await messaging.sentFeed(session,query.get("after")):await messaging.sent(session,query.get("after")));
         }
         if(action==="sent-read") {
           const found=await messaging.sentMessage(session,grantId!);return found?context.json(found):problem(404);
         }
         if(action==="inbox") {
-          if([...query.keys()].some(k=>k!=="after"))return problem(400);
-          return context.json(await messaging.inbox(session,query.get("after")));
+          if([...query.keys()].some(k=>!["after","include"].includes(k))||query.getAll("after").length>1||query.getAll("include").length>1||
+            ![null,"body"].includes(query.get("include")))return problem(400);
+          return context.json(query.get("include")==="body"?await messaging.inboxFeed(session,query.get("after")):await messaging.inbox(session,query.get("after")));
         }
         const found=action==="read"?await messaging.read(session,context.req.param("sender")!,grantId!):await messaging.status(session,grantId!);
         return found?context.json(found):problem(404);

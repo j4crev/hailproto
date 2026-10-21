@@ -416,7 +416,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     expect(rich.status).toBe(200);
     const richRead=await cli(["inbox","show",senderDid,richId],"message-owner.credential.json");
     expect(richRead.exit,richRead.stderr).toBe(0);
-    expect(JSON.parse(richRead.stdout).body.blocks[1].markDefs[0].href).toBe("https://sender.example.com/update");
+    expect(JSON.parse(richRead.stdout)).toMatchObject({senderAddress,body:{blocks:[{}, {markDefs:[{href:"https://sender.example.com/update"}]}]}});
     const imageId="01a15eb5-0000-7000-8000-000000000002",imageData=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
     const image=await app.request(`${origin}/api/v1/account/messages`,{method:"POST",headers:{Authorization:`Bearer ${senderCredential.token}`,"Content-Type":"application/json"},body:JSON.stringify({
       messageId:imageId,grantId,category:"updates",body:{version:1,profile:"spt-3",assets:{version:1,assets:[{id:"hero",role:"header",media_type:"image/png",loading:"bundled",
@@ -432,10 +432,24 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     const sentDetail=await app.request(`${origin}/api/v1/account/sent/${richId}`,{headers:{Authorization:`Bearer ${senderCredential.token}`}});
     expect(sentDetail.status).toBe(200);
     const sentBody=await sentDetail.json();
-    expect(sentBody).toMatchObject({messageId:richId,sender:senderDid,recipient:did,state:"indeterminate",
+    expect(sentBody).toMatchObject({messageId:richId,sender:senderDid,recipient:did,recipientAddress:null,state:"indeterminate",reason:null,retryAt:null,
       category:"updates",body:{profile:"spt-2"}});expect(sentBody.body.blocks[0].style).toBe("h1");
     expect((await app.request(`${origin}/api/v1/account/sent/${richId}`,{headers:{Authorization:`Bearer ${ownerMessageCredential.token}`}})).status).toBe(404);
     expect((await app.request(`${origin}/api/v1/account/sent?after=bad`,{headers:{Authorization:`Bearer ${senderCredential.token}`}})).status).toBe(400);
+    expect((await app.request(`${origin}/api/v1/account/sent?include=other`,{headers:{Authorization:`Bearer ${senderCredential.token}`}})).status).toBe(400);
+    for(const extraId of ["01afffff-0000-7000-8000-000000000003","01afffff-0000-7000-8000-000000000004","01afffff-0000-7000-8000-000000000005"]){
+      const response=await app.request(`${origin}/api/v1/account/messages`,{method:"POST",headers:{Authorization:`Bearer ${senderCredential.token}`,"Content-Type":"application/json"},
+        body:JSON.stringify({messageId:extraId,grantId,category:"updates",text:`Page ${extraId.at(-1)}`})});expect(response.status).toBe(200);
+    }
+    const sentFeed=await (await app.request(`${origin}/api/v1/account/sent?include=body`,{headers:{Authorization:`Bearer ${senderCredential.token}`}})).json();
+    expect(sentFeed.messages).toHaveLength(5);expect(sentFeed.next).toBe(imageId);expect(sentFeed.messages[0]).toMatchObject({recipient:did,
+      recipientAddress:null,state:"indeterminate",reason:null,retryAt:null,body:{profile:"spt-1"}});
+    const sentOlder=await (await app.request(`${origin}/api/v1/account/sent?include=body&after=${sentFeed.next}`,{headers:{Authorization:`Bearer ${senderCredential.token}`}})).json();
+    expect(sentOlder.messages.map((message:{messageId:string})=>message.messageId)).toEqual([richId]);expect(sentOlder.next).toBeNull();
+    const inboxFeed=await (await app.request(`${origin}/api/v1/account/inbox?include=body`,{headers:{Authorization:`Bearer ${ownerMessageCredential.token}`}})).json();
+    expect(inboxFeed.messages).toHaveLength(5);expect(inboxFeed.messages[0]).toMatchObject({sender:senderDid,senderAddress,body:{profile:"spt-1"}});
+    const inboxOlder=await (await app.request(`${origin}/api/v1/account/inbox?include=body&after=${encodeURIComponent(inboxFeed.next)}`,{headers:{Authorization:`Bearer ${ownerMessageCredential.token}`}})).json();
+    expect(inboxOlder.messages).toHaveLength(1);expect(inboxOlder.next).toBeNull();
     expect((await cli(["inbox","show",senderDid,id],"message-sender.credential.json")).exit).toBe(1);
     const reply=await cli(["reply",id,"--file",join(directory,"text.txt"),"--state",join(directory,"reply-state.json")],"message-owner.credential.json");if(reply.exit)throw new Error(reply.stderr);
     expect((await cli(["inbox","list"],"message-sender.credential.json")).exit).toBe(0);

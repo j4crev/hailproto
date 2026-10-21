@@ -35,6 +35,8 @@ export interface SentItem {
   createdAt: string;
   state: "indeterminate" | "accepted" | "on-hold" | "delivered" | "failed" | "cancelled";
   revision: number | null;
+  reason: string | null;
+  retryAt: number | null;
 }
 
 export function parseSent(value: unknown): SentItem[] {
@@ -43,13 +45,17 @@ export function parseSent(value: unknown): SentItem[] {
   return result.messages.map(entry=>{
     const item=object(entry,"sent item"),state=text(item.state,"delivery state");
     if(!["indeterminate","accepted","on-hold","delivered","failed","cancelled"].includes(state)||
-      item.revision!==null&&(!Number.isSafeInteger(item.revision)||Number(item.revision)<1))throw new Error("Invalid sent status");
+      item.revision!==null&&(!Number.isSafeInteger(item.revision)||Number(item.revision)<1)||
+      item.reason!==null&&item.reason!==undefined&&typeof item.reason!=="string"||
+      item.retryAt!==null&&item.retryAt!==undefined&&(!Number.isSafeInteger(item.retryAt)||Number(item.retryAt)<0))throw new Error("Invalid sent status");
     return {messageId:text(item.messageId,"message ID"),recipient:text(item.recipient,"recipient"),
-      createdAt:text(item.createdAt,"creation time"),state:state as SentItem["state"],revision:item.revision as number|null};
+      createdAt:text(item.createdAt,"creation time"),state:state as SentItem["state"],revision:item.revision as number|null,
+      reason:typeof item.reason==="string"?item.reason:null,retryAt:typeof item.retryAt==="number"?item.retryAt:null};
   });
 }
 
 export interface MessageView extends InboxItem {
+  senderAddress:string|null;
   recipient: string;
   category: string | null;
   blocks: MessageBlock[];
@@ -142,6 +148,7 @@ export function parseMessage(value: unknown): MessageView {
   return {
     messageId: text(message.messageId, "message ID"),
     sender: text(message.sender, "sender"),
+    senderAddress:message.senderAddress===null||message.senderAddress===undefined?null:text(message.senderAddress,"sender address"),
     recipient: text(message.recipient, "recipient"),
     deliveredAt: text(message.deliveredAt, "delivery time"),
     category: message.category === null ? null : text(message.category, "category"),
@@ -153,8 +160,11 @@ export function parseMessage(value: unknown): MessageView {
 
 export interface SentMessageView extends Omit<MessageView,"deliveredAt"> {
   createdAt:string;
+  recipientAddress:string|null;
   state:SentItem["state"];
   revision:number|null;
+  reason:string|null;
+  retryAt:number|null;
 }
 
 export function parseSentMessage(value:unknown):SentMessageView {
@@ -162,5 +172,23 @@ export function parseSentMessage(value:unknown):SentMessageView {
   const [status]=parseSent({messages:[sent]});
   const message=parseMessage({...sent,deliveredAt:createdAt});
   const {deliveredAt:_,...view}=message;
-  return {...view,createdAt,state:state as SentItem["state"],revision:status!.revision};
+  return {...view,createdAt,recipientAddress:sent.recipientAddress===null||sent.recipientAddress===undefined?null:text(sent.recipientAddress,"recipient address"),
+    state:state as SentItem["state"],revision:status!.revision,reason:status!.reason,retryAt:status!.retryAt};
+}
+
+function nextCursor(value:unknown):string|null {
+  if(value===null)return null;
+  return text(value,"next cursor");
+}
+
+export function parseInboxFeed(value:unknown) {
+  const page=object(value,"inbox feed");
+  if(!Array.isArray(page.messages))throw new Error("Invalid inbox feed");
+  return {messages:page.messages.map(parseMessage),next:nextCursor(page.next)};
+}
+
+export function parseSentFeed(value:unknown) {
+  const page=object(value,"sent feed");
+  if(!Array.isArray(page.messages))throw new Error("Invalid sent feed");
+  return {messages:page.messages.map(parseSentMessage),next:nextCursor(page.next)};
 }

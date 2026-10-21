@@ -50,6 +50,7 @@
       {/each}
     {/if}
   </section>
+  {#if data.paged||data.next}<nav class="pages">{#if data.paged}<a href="/">← Newest messages</a>{/if}{#if data.next}<a href={`/?after=${encodeURIComponent(data.next)}`}>Older messages →</a>{/if}</nav>{/if}
 {/if}
 
 <style>
@@ -73,6 +74,7 @@
   .header-image { display: block; width: 100%; height: auto; max-height: 320px; border-block: 1px solid #e4e9e5; object-fit: cover; }
   .summary { padding: 16px 18px 18px; color: #4f5d55; font-family: ui-serif, Georgia, serif; font-size: 16px; line-height: 1.5; }
   .empty, .setup { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 42px; }
+  .pages { display:flex;justify-content:center;gap:22px;margin-top:18px; }.pages a { color:#286446;font-size:13px;font-weight:750;text-decoration:none; }
   .empty span, .setup > p:last-child { color: #657168; }
   .setup { max-width: 620px; }.setup h1 { margin-bottom: 8px; }.setup p { line-height: 1.65; }
   code { padding: 2px 6px; border-radius: 6px; background: #edf0ed; font-size: 13px; }

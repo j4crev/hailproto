@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupMessageBlocks, messagePreview, parseInbox, parseMessage, parseSent, parseSentMessage } from "./messages.js";
+import { groupMessageBlocks, messagePreview, parseInbox, parseInboxFeed, parseMessage, parseSent, parseSentFeed, parseSentMessage } from "./messages.js";
 
 describe("message projections", () => {
   it("accepts the account API inbox and current spt-1 body", () => {
@@ -17,12 +17,21 @@ describe("message projections", () => {
   });
 
   it("projects sent summaries and bodies with delivery status",()=>{
-    const item={messageId:"m",recipient:"did:plc:recipient",createdAt:"now",state:"delivered",revision:2};
+    const item={messageId:"m",recipient:"did:plc:recipient",createdAt:"now",state:"delivered",revision:2,reason:null,retryAt:null};
     expect(parseSent({messages:[item]})).toEqual([item]);
     expect(parseSentMessage({...item,sender:"did:plc:sender",category:"updates",body:{version:1,profile:"spt-1",blocks:[
       {_type:"block",style:"normal",children:[{_type:"span",text:"Sent text",marks:[]}],markDefs:[]},
     ]}})).toMatchObject({state:"delivered",createdAt:"now",paragraphs:["Sent text"]});
     expect(()=>parseSent({messages:[{...item,state:"opened"}]})).toThrow("Invalid sent status");
+  });
+
+  it("projects bounded feed pages",()=>{
+    const body={version:1,profile:"spt-1",blocks:[{_type:"block",style:"normal",children:[{_type:"span",text:"Page",marks:[]}],markDefs:[]}]};
+    expect(parseInboxFeed({messages:[{messageId:"m",sender:"did:plc:sender",senderAddress:"sender@example.com",
+      recipient:"did:plc:recipient",deliveredAt:"now",category:null,body}],next:"cursor"})).toMatchObject({next:"cursor",messages:[{senderAddress:"sender@example.com"}]});
+    expect(parseSentFeed({messages:[{messageId:"m",sender:"did:plc:sender",recipient:"did:plc:recipient",recipientAddress:null,
+      createdAt:"now",category:null,state:"on-hold",revision:2,reason:"sender-rate-limited",retryAt:10,body}],next:null}))
+      .toMatchObject({next:null,messages:[{state:"on-hold",reason:"sender-rate-limited",retryAt:10}]});
   });
 
   it("rejects a body the POC cannot render safely", () => {

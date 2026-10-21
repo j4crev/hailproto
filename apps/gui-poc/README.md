@@ -27,6 +27,10 @@ code, and HTTPS-link controls. It requires `grants:read` and `messages:write`.
 The Sent view reads retained outbound messages and authenticated delivery status
 with `messages:read`; authenticated accepted and delivered states are shown
 without implying a read receipt, while missing receipts remain indeterminate.
+Inbox and Sent use five-message batch pages instead of one body request per row.
+Address labels come only from retained signed Grant consent evidence. Sent detail
+explains hold and terminal failure reasons; only indeterminate submissions expose
+an idempotent retry control.
 The inbox presents messages as feed cards and shows bundled headers by default;
 the local “Show headers” preference can hide them without contacting senders.
 Delete `apps/gui-poc` and reinstall dependencies

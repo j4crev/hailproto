@@ -10,6 +10,21 @@ import type { AccountApiSession } from "./repository.js";
 
 const ID=/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const DID=/^did:plc:[a-z2-7]{24}$/;
+const PAGE_SIZE=5;
+
+function bodyDocument(bytes:Uint8Array) {
+  const profile=validateBodyBytes(bytes);
+  return profile==="spt-1"?toDiagnosticJson("hail.body.spt-1",decodePayload("hail.body.spt-1",bytes)):
+    profile==="spt-2"?toDiagnosticJson("hail.body.spt-2",decodePayload("hail.body.spt-2",bytes)):
+    toDiagnosticJson("hail.body.spt-3",decodePayload("hail.body.spt-3",bytes));
+}
+
+function statusDetails(bytes:Uint8Array|null) {
+  if(!bytes)return {state:"indeterminate",revision:null,reason:null,retryAt:null};
+  const status=decodePayload("hail.delivery-status",bytes);
+  return {state:status.state,revision:status.revision,reason:"reason" in status?status.reason:null,
+    retryAt:"retry_at" in status?status.retry_at:null};
+}
 export class AccountMessaging {
   constructor(private readonly sql:SQL,private readonly bodies:BodyRepository,private readonly envelopes:EnvelopeRepository,
     private readonly service:EnvelopeService,readonly submit:(sender:string,id:string)=>Promise<object>){}
@@ -56,6 +71,32 @@ export class AccountMessaging {
       next:rows.length>50?Buffer.from(JSON.stringify({id:rows[49]!.message_id,sender:rows[49]!.sender_did})).toString("base64url"):null};
   }
 
+  async inboxFeed(session:AccountApiSession,after:string|null) {
+    let cursor:{id:string;sender:string}|null=null;
+    if(after){try{cursor=JSON.parse(Buffer.from(after,"base64url").toString("utf8"));}catch{throw new UserGrantError(400,"Invalid cursor");}
+      if(!cursor||!ID.test(cursor.id)||!DID.test(cursor.sender))throw new UserGrantError(400,"Invalid cursor");}
+    const rows=await this.sql<{message_id:string;sender_did:string;delivered_at:Date;envelope_cose:Uint8Array;
+      body_bytes:Uint8Array;sender_address:string|null}[]>`
+      SELECT message.message_id,message.sender_did,message.delivered_at,envelope.envelope_cose,body.body_bytes,
+        presentation.grantee_address AS sender_address
+      FROM delivered_messages message JOIN received_envelopes envelope USING(sender_did,message_id)
+      JOIN verified_body_provenance body ON body.recipient_did=message.recipient_did AND body.sender_did=message.sender_did
+        AND body.digest=message.body_digest AND body.media_type=message.media_type AND body.profile=message.profile
+      LEFT JOIN LATERAL (
+        SELECT consent.grantee_address FROM grant_lineages lineage JOIN grant_consent_evidence consent USING(grant_id)
+        WHERE lineage.local_account_id=${session.account_id} AND lineage.local_role='grantor'
+          AND lineage.grantee_did=message.sender_did ORDER BY consent.revision DESC LIMIT 1
+      ) presentation ON true
+      WHERE message.recipient_did=${session.did}
+        AND (${after}::text IS NULL OR (message.message_id,message.sender_did)<(${cursor?.id??null}::uuid,${cursor?.sender??null}::text))
+      ORDER BY message.message_id DESC,message.sender_did DESC LIMIT ${PAGE_SIZE+1}`;
+    return {messages:rows.slice(0,PAGE_SIZE).map(row=>{const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
+      return {messageId:row.message_id,sender:row.sender_did,senderAddress:row.sender_address,recipient:session.did,
+        category:envelope.category??null,deliveredAt:row.delivered_at.toISOString(),body:bodyDocument(row.body_bytes)};}),
+      next:rows.length>PAGE_SIZE?Buffer.from(JSON.stringify({id:rows[PAGE_SIZE-1]!.message_id,
+        sender:rows[PAGE_SIZE-1]!.sender_did})).toString("base64url"):null};
+  }
+
   async sent(session:AccountApiSession,after:string|null) {
     if(after!==null&&!ID.test(after))throw new UserGrantError(400,"Invalid cursor");
     const rows=await this.sql<{message_id:string;recipient_did:string;created_at:Date;current_state:string|null;current_revision:number|null}[]>`
@@ -69,42 +110,66 @@ export class AccountMessaging {
       next:rows.length>50?rows[49]!.message_id:null};
   }
 
-  async sentMessage(session:AccountApiSession,id:string) {
-    if(!ID.test(id))throw new UserGrantError(400,"Invalid message ID");
-    const rows=await this.sql<{recipient_did:string;created_at:Date;envelope_cose:Uint8Array;body_bytes:Uint8Array;
-      current_state:string|null;current_revision:number|null}[]>`
-      SELECT envelope.recipient_did,envelope.created_at,envelope.envelope_cose,body.body_bytes,
-        status.current_state,status.current_revision
+  async sentFeed(session:AccountApiSession,after:string|null) {
+    if(after!==null&&!ID.test(after))throw new UserGrantError(400,"Invalid cursor");
+    const rows=await this.sql<{message_id:string;recipient_did:string;created_at:Date;envelope_cose:Uint8Array;
+      body_bytes:Uint8Array;payload_bytes:Uint8Array|null;recipient_address:string|null}[]>`
+      SELECT envelope.message_id,envelope.recipient_did,envelope.created_at,envelope.envelope_cose,body.body_bytes,
+        status.payload_bytes,presentation.grantee_address AS recipient_address
       FROM sent_envelopes envelope JOIN detached_bodies body
         ON body.sender_account_id=envelope.sender_account_id AND body.digest=envelope.body_digest
       LEFT JOIN sent_delivery_status status ON status.sender_did=envelope.sender_did AND status.message_id=envelope.message_id
+      LEFT JOIN LATERAL (
+        SELECT consent.grantee_address FROM grant_lineages lineage JOIN grant_consent_evidence consent USING(grant_id)
+        WHERE lineage.local_account_id=${session.account_id} AND lineage.local_role='grantor'
+          AND lineage.grantee_did=envelope.recipient_did ORDER BY consent.revision DESC LIMIT 1
+      ) presentation ON true
+      WHERE envelope.sender_did=${session.did} AND (${after}::uuid IS NULL OR envelope.message_id<${after}::uuid)
+      ORDER BY envelope.message_id DESC LIMIT ${PAGE_SIZE+1}`;
+    return {messages:rows.slice(0,PAGE_SIZE).map(row=>{const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
+      return {messageId:row.message_id,sender:session.did,recipient:row.recipient_did,recipientAddress:row.recipient_address,
+        createdAt:row.created_at.toISOString(),category:envelope.category??null,...statusDetails(row.payload_bytes),body:bodyDocument(row.body_bytes)};}),
+      next:rows.length>PAGE_SIZE?rows[PAGE_SIZE-1]!.message_id:null};
+  }
+
+  async sentMessage(session:AccountApiSession,id:string) {
+    if(!ID.test(id))throw new UserGrantError(400,"Invalid message ID");
+    const rows=await this.sql<{recipient_did:string;created_at:Date;envelope_cose:Uint8Array;body_bytes:Uint8Array;
+      payload_bytes:Uint8Array|null;recipient_address:string|null}[]>`
+      SELECT envelope.recipient_did,envelope.created_at,envelope.envelope_cose,body.body_bytes,
+        status.payload_bytes,presentation.grantee_address AS recipient_address
+      FROM sent_envelopes envelope JOIN detached_bodies body
+        ON body.sender_account_id=envelope.sender_account_id AND body.digest=envelope.body_digest
+      LEFT JOIN sent_delivery_status status ON status.sender_did=envelope.sender_did AND status.message_id=envelope.message_id
+      LEFT JOIN LATERAL (
+        SELECT consent.grantee_address FROM grant_lineages lineage JOIN grant_consent_evidence consent USING(grant_id)
+        WHERE lineage.local_account_id=${session.account_id} AND lineage.local_role='grantor'
+          AND lineage.grantee_did=envelope.recipient_did ORDER BY consent.revision DESC LIMIT 1
+      ) presentation ON true
       WHERE envelope.sender_did=${session.did} AND envelope.message_id=${id}`;
     if(!rows[0])return null;
     const row=rows[0],envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
-    const profile=validateBodyBytes(row.body_bytes);
-    const body=profile==="spt-1"?toDiagnosticJson("hail.body.spt-1",decodePayload("hail.body.spt-1",row.body_bytes)):
-      profile==="spt-2"?toDiagnosticJson("hail.body.spt-2",decodePayload("hail.body.spt-2",row.body_bytes)):
-      toDiagnosticJson("hail.body.spt-3",decodePayload("hail.body.spt-3",row.body_bytes));
-    return {messageId:id,sender:session.did,recipient:row.recipient_did,createdAt:row.created_at.toISOString(),
-      category:envelope.category??null,state:row.current_state??"indeterminate",revision:row.current_revision,body};
+    return {messageId:id,sender:session.did,recipient:row.recipient_did,recipientAddress:row.recipient_address,
+      createdAt:row.created_at.toISOString(),category:envelope.category??null,...statusDetails(row.payload_bytes),body:bodyDocument(row.body_bytes)};
   }
 
   async read(session:AccountApiSession,sender:string,id:string) {
     if(!DID.test(sender)||!ID.test(id))throw new UserGrantError(400,"Invalid message identity");
-    const rows=await this.sql<{envelope_cose:Uint8Array;body_bytes:Uint8Array;delivered_at:Date}[]>`
-      SELECT envelope.envelope_cose,body.body_bytes,message.delivered_at FROM delivered_messages message
+    const rows=await this.sql<{envelope_cose:Uint8Array;body_bytes:Uint8Array;delivered_at:Date;sender_address:string|null}[]>`
+      SELECT envelope.envelope_cose,body.body_bytes,message.delivered_at,presentation.grantee_address AS sender_address FROM delivered_messages message
       JOIN received_envelopes envelope USING(sender_did,message_id)
       JOIN verified_body_provenance body ON body.recipient_did=message.recipient_did AND body.sender_did=message.sender_did
         AND body.digest=message.body_digest AND body.media_type=message.media_type AND body.profile=message.profile
+      LEFT JOIN LATERAL (
+        SELECT consent.grantee_address FROM grant_lineages lineage JOIN grant_consent_evidence consent USING(grant_id)
+        WHERE lineage.local_account_id=${session.account_id} AND lineage.local_role='grantor'
+          AND lineage.grantee_did=message.sender_did ORDER BY consent.revision DESC LIMIT 1
+      ) presentation ON true
       WHERE message.recipient_did=${session.did} AND message.sender_did=${sender} AND message.message_id=${id}`;
     if(!rows[0])return null;
     const envelope=inspectSignedPayload("hail.envelope",rows[0].envelope_cose).payload;
-    const profile=validateBodyBytes(rows[0].body_bytes);
-    const body=profile==="spt-1"?toDiagnosticJson("hail.body.spt-1",decodePayload("hail.body.spt-1",rows[0].body_bytes)):
-      profile==="spt-2"?toDiagnosticJson("hail.body.spt-2",decodePayload("hail.body.spt-2",rows[0].body_bytes)):
-      toDiagnosticJson("hail.body.spt-3",decodePayload("hail.body.spt-3",rows[0].body_bytes));
-    return {messageId:id,sender,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
-      deliveredAt:rows[0].delivered_at.toISOString(),body};
+    return {messageId:id,sender,senderAddress:rows[0].sender_address,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
+      deliveredAt:rows[0].delivered_at.toISOString(),body:bodyDocument(rows[0].body_bytes)};
   }
 
   async status(session:AccountApiSession,id:string) {

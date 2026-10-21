@@ -9,11 +9,11 @@
   <header>
     <div class="sender">
       {#if data.avatar}<img class="avatar" src={data.avatar.src} alt="" width={data.avatar.width} height={data.avatar.height} />
-      {:else}<span class="avatar fallback" aria-hidden="true">{(data.senderAddress ?? data.message.sender).slice(0, 2).toUpperCase()}</span>{/if}
+      {:else}<span class="avatar fallback" aria-hidden="true">{(data.message.senderAddress ?? data.message.sender).slice(0, 2).toUpperCase()}</span>{/if}
       <div>
       <span>From</span>
-      <strong>{data.senderAddress ?? data.message.sender}</strong>
-      {#if data.senderAddress}<small>{data.message.sender}</small>{/if}
+      <strong>{data.message.senderAddress ?? data.message.sender}</strong>
+      {#if data.message.senderAddress}<small>{data.message.sender}</small>{/if}
       </div>
     </div>
     {#if data.message.category}<mark>{data.message.category}</mark>{/if}
