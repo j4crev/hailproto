@@ -10,15 +10,15 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "bun run --filter '*' build",
+    "build": "bun run --cwd packages/hail-codec-ts build && bun run --filter 'hail-*' build",
     "build:cli": "bun run --cwd apps/cli build",
     "bench:ts": "bun run --cwd packages/hail-codec-ts bench",
     "bench:go": "mise exec -- go -C packages/hail-codec-go test -run=^$ -bench=. -benchmem ./...",
     "bench:sizes": "bun run --cwd packages/hail-codec-ts bench:sizes",
     "test": "bun run test:ts && bun run test:go",
-    "test:ts": "bun run --filter '*' test",
+    "test:ts": "bun run --cwd packages/hail-codec-ts build && bun run --filter '*' test",
     "test:go": "mise exec -- go -C packages/hail-codec-go test ./...",
-    "typecheck": "bun run --filter '*' typecheck"
+    "typecheck": "bun run --cwd packages/hail-codec-ts build && bun run --filter '*' typecheck"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

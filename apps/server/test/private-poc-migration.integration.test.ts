@@ -1,5 +1,6 @@
 import { createHash,randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cidForCbor } from "@atproto/common";
 import { formatDidDoc, PlcClientError, validateOperationLog,assureValidNextOp,signOperation,didForCreateOp, type Operation } from "@did-plc/lib";
@@ -212,7 +213,7 @@ integration("private PLC transfer between disposable POC providers", () => {
       new TransferCancellationService(source.sql,resolver,oldBase,sourceRepo,sourceEncryptor),"https://source.example.com",
       {fence:sourceFence,snapshots:new MigrationTransferService(source.sql,sourceRepo,sourceEncryptor,resolver,oldBase)}));
     const reader=await accounts.issue(sourceAddress);
-    const preparationDir=await mkdtemp("/tmp/opencode/hail-transfer-client-");
+    const preparationDir=await mkdtemp(join(tmpdir(), "hail-transfer-client-"));
     const destinationUsername=`moved-${randomUUID()}`,destinationAddress=`${destinationUsername}@target.example.com`;
     let offered:SignedHandshake,reservation:SignedHandshake,retainedTransferState:string,exportedSnapshot:Record<string,unknown>;
     try {
@@ -267,7 +268,7 @@ integration("private PLC transfer between disposable POC providers", () => {
     const signedSnapshot = await sourceTransfer.exportFenced((await sourceFence.get(genesis.did))!);
     expect(exportedSnapshot.manifest).toBe(encodeBase64Url(signedSnapshot.bytes));
     expect(exportedSnapshot.signature).toBe(encodeBase64Url(signedSnapshot.signature));
-    const ceremony = await mkdtemp("/tmp/opencode/hail-cutover-client-");
+    const ceremony = await mkdtemp(join(tmpdir(), "hail-cutover-client-"));
     let operationCid: string;
     const completionStatePath=join(ceremony,"transfer-state.json"),completionSnapshotPath=join(ceremony,"snapshot.json");
     try {
