@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { P256Keypair } from "@atproto/crypto";
 import { assureValidSig, didForCreateOp, type Operation } from "@did-plc/lib";
@@ -9,7 +10,7 @@ import { createUserVault, type UserVaultFile } from "../src/vault.js";
 
 describe("POC user-owned genesis ceremony", () => {
   it("recovers the exact signed output after a restart without deriving a new DID", async () => {
-    const folder = await mkdtemp("/tmp/opencode/hail-poc-client-");
+    const folder = await mkdtemp(join(tmpdir(), "hail-poc-client-"));
     const vaultPath = join(folder, "user.vault.json");
     const preparationPath = join(folder, "provider-preparation.json");
     const outputPath = join(folder, "user-signed.json");
