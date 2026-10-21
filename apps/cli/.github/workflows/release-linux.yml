@@ -1,0 +1,70 @@
+name: release-linux
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: hail-user-client-ts
+      - uses: actions/checkout@v5
+        with:
+          repository: j4crev/hailproto
+          ref: fb9697b4074086fb86f6dc61f26805ec0450d315
+          path: hailproto
+      - uses: actions/checkout@v5
+        with:
+          repository: did-method-plc/did-method-plc
+          ref: 996e23b5ced9c15b32bcc612dd304880342ca4ab
+          path: did-method-plc
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26.7.0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.11.0
+      - name: Build pinned libraries
+        run: |
+          bun install --cwd hailproto --frozen-lockfile
+          bun run --cwd hailproto/packages/hail-codec-ts build
+          pnpm --dir did-method-plc install --frozen-lockfile
+          pnpm --dir did-method-plc --filter @did-plc/lib build
+      - name: Build and verify hailp
+        working-directory: hail-user-client-ts
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+          bun run smoke -- dist/hailp
+      - name: Package
+        working-directory: hail-user-client-ts
+        run: |
+          version=$(bun -e 'console.log(require("./package.json").version)')
+          if [ "${GITHUB_REF_TYPE:-}" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package version $version" >&2
+            exit 1
+          fi
+          tar -C dist -czf "hailp-$version-linux-x64.tar.gz" hailp
+          sha256sum "hailp-$version-linux-x64.tar.gz" > "hailp-$version-linux-x64.tar.gz.sha256"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: hailp-linux-x64
+          path: |
+            hail-user-client-ts/hailp-*-linux-x64.tar.gz
+            hail-user-client-ts/hailp-*-linux-x64.tar.gz.sha256
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        working-directory: hail-user-client-ts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" hailp-*-linux-x64.tar.gz hailp-*-linux-x64.tar.gz.sha256 --verify-tag --generate-notes
