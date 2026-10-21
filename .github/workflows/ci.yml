@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.11.0
+      - uses: jdx/mise-action@v3
+      - name: Install pinned dependencies
+        run: |
+          pnpm --dir vendor/did-method-plc install --frozen-lockfile
+          pnpm --dir vendor/did-method-plc --filter @did-plc/lib build
+          bun install --frozen-lockfile
+      - name: Verify workspace
+        run: |
+          bun run typecheck
+          bun run test
+          bun run build
+      - name: Verify images
+        run: |
+          docker build -f apps/server/Dockerfile .
+          docker build -f apps/plc-monitor/Dockerfile .
