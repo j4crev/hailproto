@@ -57,7 +57,7 @@ export async function requirePublicCutoverEvidence(sql: SQL, expected: {
     throw new Error("Retained canonical PLC readback disagrees with its witness");
   const report = await verifyMonitorAttestation({ payloadBytes: monitor.payload, signature: monitor.signature },
     monitor.public_key as string, Math.floor(row.verified_at.getTime() / 1000), 300);
-  if (report.version !== 2 || report.did !== expected.did || report.transfer_id !== expected.transferId ||
+  if (![2,3].includes(report.version) || report.did !== expected.did || report.transfer_id !== expected.transferId ||
     report.operation_cid !== row.operation_cid) throw new Error("Retained public monitor evidence belongs to another cutover");
   return row;
 }

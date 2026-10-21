@@ -153,9 +153,9 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
       KEY_ENCRYPTION_KEY:encodeBase64Url(randomBytes(32)),PLC_AUTHORITY_PROFILE:"strict-public-v1",
       PLC_PUBLIC_READERS:JSON.stringify(readers.map(({origin,operator})=>({origin,operator}))),PLC_PROVIDER_OPERATORS:'["provider-a","provider-b"]',
       PUBLIC_MANAGED_TRANSFER:"true",PLC_MANAGED_MONITOR_ORIGIN:monitor.monitorOrigin,PLC_MANAGED_MONITOR_PUBLIC_KEY:monitor.monitorPublicKey});
-    const attestation=async(transferId:string,cid:string)=>signMonitorAttestation({type:"hail.plc-monitor-attestation",version:2,did,
+    const attestation=async(transferId:string,cid:string)=>signMonitorAttestation({type:"hail.plc-monitor-attestation",version:3,did,
       transfer_id:transferId,operation_cid:cid,monitor_origin:monitor.monitorOrigin,coverage_since:Math.floor(Date.now()/1000)-120,
-      observed_at:Math.floor(Date.now()/1000),bootstrap_cid:genesisCid,bootstrap_state_digest:plcStateDigest(currentState),export_sequence:plcLog.length},monitorPair.privateKey);
+      observed_at:Math.floor(Date.now()/1000),bootstrap_cid:genesisCid,bootstrap_state_digest:plcStateDigest(currentState)},monitorPair.privateKey);
     const targetEncryptor=new KeyEncryptor(encodeBase64Url(randomBytes(32))),targetKeys=new PreparedMigrationTarget(target.sql,targetEncryptor,targetBase);
     const destination=new Hono(),receiver=new ManagedTransferInvitationReceiver(target.sql,targetResolver,targetKeys);
     const accounts=new AccountApiRepository(source.sql),credential=await accounts.issue("alice@a.example.com",false,undefined,["account:read","account:write"]);
