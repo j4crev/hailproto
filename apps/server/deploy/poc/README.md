@@ -16,10 +16,12 @@ POC supports message/reply delivery and fresh user-key-held private-PLC DID
 transfers, including pending-message continuity. Original Alice/Bob accounts
 remain custodial and cannot be used as portable migration sources.
 
-The later strict-public canary profile reached migration **52** on October 21,
-2026 for the compatibility-safe `spt-2` rollout. The pre-rollout app/dev dumps
-are retained at `/var/backups/hail-poc/pre-spt2-20261021T151547Z`; this does not
-change the archived private-PLC deployment record below.
+The later strict-public canary profile reached migration **53** on October 21,
+2026 after the compatibility-safe `spt-2` and bundled-header `spt-3` rollouts.
+The corresponding pre-rollout app/dev dumps are retained under
+`/var/backups/hail-poc/pre-spt2-20261021T151547Z` and
+`/var/backups/hail-poc/pre-spt3-20261021T160350Z`; this does not change the
+archived private-PLC deployment record below.
 
 The managed private-PLC rollout uses provider source `5d4d219`, image
 `hail-server-ts:poc-managed-operationalization-20261013-fix1` (ID

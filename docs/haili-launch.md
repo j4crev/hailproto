@@ -81,6 +81,25 @@ Fresh rich messages `01a15f0c-3aee-737b-8ba5-920777f6011d` from
 `canary@haili.app`. Account reads returned `spt-2`, and the disposable GUI
 rendered the heading, grouped list, blockquote, decorators, and HTTPS link.
 
+## `spt-3` rollout record
+
+Migration 53 and commit `4523b88f7fd65ce66c6855bbdbb6045a248f38dc`
+were deployed to all three providers on October 21, 2026. The release archive
+SHA-256 is
+`af39cb6d8a8201ddcf9d86cd0dbe0ed33af9afaab20ce207c306c7f4640dc166`.
+Verified pre-rollout backups are retained at
+`/var/backups/hail-public/pre-spt3-20261021T160350Z` and
+`/var/backups/hail-poc/pre-spt3-20261021T160350Z`; compatible pre-`spt-3`
+images remain tagged for rollback.
+
+Fresh messages `01a15f36-a189-7b61-86a4-d770a4067617` from
+`canary@hailproto.app` and `01a15f36-a698-78ef-a3c6-e71195612ca2` from
+`canary@hailproto.dev` delivered an 8,879-byte 1200 by 400 PNG with SHA-256
+`42fa1887bf6b4ab2c7fef10c18d3c0cc2a50808454702ed8c9179bc87146faaf`.
+Recipient account reads matched the exact bundled bytes, and the disposable GUI
+rendered both headers with their alt text and captions without a remote image
+request.
+
 ## Documentation disposition
 
 Completed October 21, 2026. Active guidance now points to the strict-public
