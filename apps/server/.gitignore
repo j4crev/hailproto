@@ -1,0 +1,16 @@
+node_modules/
+.opencode/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+*.pkcs8
+*.pem
+*.key
+*.credential.json
+*.migration-export.json
+*.migration-consent.json
+*.migration-plc-operation.json
+*.migration-binding.cose

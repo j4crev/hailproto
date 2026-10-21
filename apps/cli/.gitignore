@@ -1,0 +1,10 @@
+node_modules/
+.opencode/
+*.vault.json
+*.credential.json
+*.tsbuildinfo
+.env
+dist/
+*.pkcs8
+*.pem
+*.key

@@ -3,6 +3,7 @@
   "private": true,
   "packageManager": "bun@1.4.0",
   "workspaces": [
+    "apps/*",
     "packages/*"
   ],
   "engines": {
@@ -10,6 +11,7 @@
   },
   "scripts": {
     "build": "bun run --filter '*' build",
+    "build:cli": "bun run --cwd apps/cli build",
     "bench:ts": "bun run --cwd packages/hail-codec-ts bench",
     "bench:go": "mise exec -- go -C packages/hail-codec-go test -run=^$ -bench=. -benchmem ./...",
     "bench:sizes": "bun run --cwd packages/hail-codec-ts bench:sizes",

@@ -1,0 +1,42 @@
+{
+  "name": "hail-cli-ts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.0",
+  "bin": { "hailp": "src/cli/hailp.ts" },
+  "scripts": {
+    "hailp": "bun src/cli/hailp.ts",
+    "transfer:grant": "bun src/cli/create-transfer-grant.ts",
+    "transfer:submit-grant": "bun src/cli/submit-transfer-grant.ts",
+    "transfer:select": "bun src/cli/select-transfer-address.ts",
+    "transfer:cancel": "bun src/cli/cancel-transfer.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.cli.json && bun run build:binary",
+    "build:binary": "bun build --compile --target=bun-linux-x64-baseline src/cli/hailp.ts --outfile dist/hailp",
+    "smoke": "bun scripts/smoke.ts",
+    "verify:install": "bun scripts/verify-install.ts",
+    "test": "bun --bun vitest run",
+    "vault:create": "bun src/cli/create-vault.ts",
+    "vault:verify": "bun src/cli/verify-vault.ts",
+    "poc:sign-onboarding": "bun src/cli/sign-private-poc-onboarding.ts",
+    "poc:sign-cutover": "bun src/cli/sign-private-poc-cutover.ts",
+    "poc:create-disposable-vault": "bun src/cli/create-private-poc-vault.ts",
+    "poc:verify-vault-copy": "bun src/cli/verify-private-poc-backup.ts",
+    "poc:sign-grant": "bun src/cli/sign-private-poc-grant.ts",
+    "poc:revoke-grant": "bun src/cli/revoke-private-poc-grant.ts"
+  },
+  "dependencies": {
+    "@atproto/common": "0.8.1",
+    "@atproto/crypto": "0.5.4",
+    "@did-plc/lib": "file:../../vendor/did-method-plc/packages/lib",
+    "@hailproto/codec": "workspace:*",
+    "@ipld/dag-cbor": "9.2.7",
+    "multiformats": "13.4.2"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
+  }
+}

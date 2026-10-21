@@ -134,7 +134,7 @@ key verification must remain consistent. The current portable snapshot path
 rejects provider-held identity keys and cannot be bypassed by changing a custody
 flag. Owner recovery is useful authority, not a completed migration guarantee.
 
-The reference client's [milestone-5 transition design](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/custody-transitions.md)
+The reference client's [milestone-5 transition design](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/custody-transitions.md)
 now specifies owner-controlled ↔ managed custody changes, managed moves with
 fresh destination identity authority, immutable historical evidence and proposed
 serving-generation separation for return transfers. It also distinguishes
@@ -247,15 +247,15 @@ and opt-in private-PLC signup with owner-controlled or explicit managed identity
 The top recovery key stays owner-controlled in both new signup modes.
 Renewal, public signup, expired-credential recovery and managed migration are
 not completed by this local POC. See the
-[provider account API guide](https://github.com/j4crev/hail-server-ts#hailp-account-api)
-and [CLI usage](https://github.com/j4crev/hail-user-client-ts#hailp-account-cli).
+[provider account API guide](https://github.com/j4crev/hailproto/tree/main/apps/server#hailp-account-api)
+and [CLI usage](https://github.com/j4crev/hailproto/tree/main/apps/cli#hailp-account-cli).
 API credentials remain provider-local; raw credentials never enter
 portable snapshots. The new slice requires a separate rollout before use on
 the live POC. Existing
 fully custodial Alice/Bob accounts likewise do not implement the preferred
 owner-recovery managed profile. This section records the next implementation
 milestones; it does not change the live deployment or custody of those accounts.
-The [CLI workflow guide](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/cli-workflows.md)
+The [CLI workflow guide](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md)
 records signup state, stable message-ID retries, per-sender inbox selection,
 explicit managed signing, credential scope inheritance and current limits.
 
@@ -798,7 +798,7 @@ account. Alice's and Bob's older POC DIDs were created custodially and cannot
 become portable by merely applying a database migration. The new user-held
 POC DID is separately recorded in `docs/typescript-backend-poc.md`.
 
-The separate sibling [PLC monitor](https://github.com/j4crev/hail-plc-monitor-ts)
+The separate sibling [PLC monitor](https://github.com/j4crev/hailproto/tree/main/apps/plc-monitor)
 checkout is the first
 user-run-monitor prototype. It persists the PLC export cursor, validates full
 operation logs and complete resulting state, records unexpected operations or
@@ -846,7 +846,7 @@ Before a production-ready rollout, implement and test:
   does not automatically move with the DID. The client must choose a new
   username unless the user self-hosts the new Hail provider on the old domain.
 
-The [desktop/Bun reference client](https://github.com/j4crev/hail-user-client-ts)
+The [desktop/Bun reference client](https://github.com/j4crev/hailproto/tree/main/apps/cli)
 (`a271519`) generates and encrypts the user-held keys and signs exact PLC and
 Hail objects; it does not yet prove second-device recovery, independently
 managed backup or a reviewed onboarding UX. These remain requirements for

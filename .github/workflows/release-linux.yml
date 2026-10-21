@@ -1,0 +1,59 @@
+name: release-linux
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26.7.0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.11.0
+      - name: Build pinned libraries
+        run: |
+          pnpm --dir vendor/did-method-plc install --frozen-lockfile
+          pnpm --dir vendor/did-method-plc --filter @did-plc/lib build
+          bun install --frozen-lockfile
+          bun run --cwd packages/hail-codec-ts build
+      - name: Build and verify hailp
+        working-directory: apps/cli
+        run: |
+          bun run build
+          bun run smoke -- dist/hailp
+      - name: Package
+        working-directory: apps/cli
+        run: |
+          version=$(bun -e 'console.log(require("./package.json").version)')
+          if [ "${GITHUB_REF_TYPE:-}" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package version $version" >&2
+            exit 1
+          fi
+          tar -C dist -czf "hailp-$version-linux-x64.tar.gz" hailp
+          sha256sum "hailp-$version-linux-x64.tar.gz" > "hailp-$version-linux-x64.tar.gz.sha256"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: hailp-linux-x64
+          path: |
+            apps/cli/hailp-*-linux-x64.tar.gz
+            apps/cli/hailp-*-linux-x64.tar.gz.sha256
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        working-directory: apps/cli
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" hailp-*-linux-x64.tar.gz hailp-*-linux-x64.tar.gz.sha256 --verify-tag --generate-notes

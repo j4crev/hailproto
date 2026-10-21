@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hail-plc-monitor-alerts",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-20",
+  "routes": [
+    { "pattern": "alerts.plcmonitor.us", "custom_domain": true }
+  ],
+  "send_email": [
+    {
+      "name": "ALERT_EMAIL",
+      "destination_address": "the@j4w8n.com"
+    }
+  ],
+  "vars": {
+    "ALERT_RECIPIENT": "the@j4w8n.com",
+    "ALERT_SENDER": "alerts@plcmonitor.us"
+  }
+}

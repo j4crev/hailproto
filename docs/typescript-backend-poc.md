@@ -29,10 +29,10 @@ Independent monitoring/public PLC and second-device recovery remain deferred.
 
 ### Which guide to use
 
-- [Provider VPS setup and message/reply walkthrough](https://github.com/j4crev/hail-server-ts/blob/main/deploy/poc/README.md).
-- [User-device vault and signing commands](https://github.com/j4crev/hail-user-client-ts#readme).
+- [Provider VPS setup and message/reply walkthrough](https://github.com/j4crev/hailproto/blob/main/apps/server/deploy/poc/README.md).
+- [User-device vault and signing commands](https://github.com/j4crev/hailproto/tree/main/apps/cli#readme).
 - [Transfer and restart checkpoints](production-portable-custody.md#resuming-a-private-plc-poc-ceremony).
-- [Same-VPS monitor setup and verification](https://github.com/j4crev/hail-plc-monitor-ts/blob/main/deploy/poc/README.md).
+- [Same-VPS monitor setup and verification](https://github.com/j4crev/hailproto/blob/main/apps/plc-monitor/deploy/poc/README.md).
 
 The phases below explain the build sequence; dated entries record what was
 true at that time. Earlier migration/image numbers are historical, not a
@@ -90,16 +90,16 @@ The user client and its vault/recovery material stay on the user device:
 |-- hailproto/          protocol, codecs, conformance vectors, and this guide
 |-- hail-server-ts/     reusable Bun and Hono provider implementation
 |-- did-method-plc/     pinned clone of the official PLC implementation
-|-- hail-user-client-ts/ user-device reference client; not a provider service
+|-- apps/cli/            user-device CLI; not a provider service
 `-- hail-plc-monitor-ts/ same-VPS POC or independently hosted monitor
 ```
 
 Canonical upstream repositories:
 
 - Hail Protocol: <https://github.com/j4crev/hailproto>
-- Provider: <https://github.com/j4crev/hail-server-ts>
-- User-key client: <https://github.com/j4crev/hail-user-client-ts>
-- PLC monitor: <https://github.com/j4crev/hail-plc-monitor-ts>
+- Provider: <https://github.com/j4crev/hailproto/tree/main/apps/server>
+- User-key client: <https://github.com/j4crev/hailproto/tree/main/apps/cli>
+- PLC monitor: <https://github.com/j4crev/hailproto/tree/main/apps/plc-monitor>
 - PLC directory: <https://github.com/did-method-plc/did-method-plc>
 
 Record the exact tested commits in the [Implementation Log](#implementation-log).
@@ -303,7 +303,7 @@ During local POC development, consume the codec through the sibling checkout:
 ```json
 {
   "dependencies": {
-    "@hailproto/codec": "file:../hailproto/packages/hail-codec-ts"
+    "@hailproto/codec": "workspace:*"
   }
 }
 ```
@@ -314,7 +314,7 @@ checkout rather than an independently versioned npm release:
 ```json
 {
   "dependencies": {
-    "@did-plc/lib": "file:../did-method-plc/packages/lib"
+    "@did-plc/lib": "file:../../vendor/did-method-plc/packages/lib"
   }
 }
 ```
@@ -1889,9 +1889,9 @@ or populated `.env` files. Commit only safe `.env.example` files.
   cutover fixture remains a rehearsal with simulated mirrors, monitor and
   user-domain address verification.
 - Created and published the independent monitor prototype at
-  <https://github.com/j4crev/hail-plc-monitor-ts> (`b0ed06d`) and the
+  <https://github.com/j4crev/hailproto/tree/main/apps/plc-monitor> (`b0ed06d`) and the
   platform-specific user-key reference client at
-  <https://github.com/j4crev/hail-user-client-ts> (`a271519`). The reference
+  <https://github.com/j4crev/hailproto/tree/main/apps/cli> (`a271519`). The reference
   vault generates user recovery and identity keys locally, encrypts them with
   a random 256-bit recovery secret, and signs the exact PLC, Grant, binding
   and migration-consent objects without giving their private bytes to a

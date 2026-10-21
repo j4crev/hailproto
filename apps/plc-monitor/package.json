@@ -1,0 +1,35 @@
+{
+  "name": "hail-plc-monitor-ts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
+    "test": "bun --bun vitest run",
+    "monitor:migrate": "bun src/cli/migrate.ts",
+    "monitor:poll": "bun src/cli/poll.ts",
+    "monitor:notify": "bun src/cli/notify.ts",
+    "monitor:enroll": "bun src/cli/enroll.ts",
+    "monitor:approve": "bun src/cli/approve.ts",
+    "monitor:attest": "bun src/cli/attest.ts",
+    "monitor:attest-onboarding": "bun src/cli/attest-onboarding.ts",
+    "monitor:run": "bun src/cli/run.ts",
+    "monitor:keygen": "bun src/cli/generate-key.ts"
+  },
+  "dependencies": {
+    "@did-plc/lib": "file:../../vendor/did-method-plc/packages/lib",
+    "@hailproto/codec": "workspace:*",
+    "@atproto/common": "0.8.1",
+    "@atproto/crypto": "0.5.4",
+    "multiformats": "13.4.2",
+    "@ipld/dag-cbor": "9.2.7",
+    "ipaddr.js": "2.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
+  }
+}

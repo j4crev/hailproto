@@ -104,7 +104,7 @@ terminal and old generations never regain authority.
 
 These are separately versioned owner-approved transitions, not ordinary onboarding
 or a switch on the current portable manifest. Use the
-[reference transition design](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/custody-transitions.md)
+[reference transition design](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/custody-transitions.md)
 for implementation sequence and proof requirements. A final transition must:
 
 - Obtain independent top-owner authorization for complete PLC state and the exact
