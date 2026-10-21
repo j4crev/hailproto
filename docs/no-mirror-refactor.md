@@ -13,7 +13,9 @@ local validation and retained-history regression checks.
 - [x] Version monitor attestations so per-DID coverage makes no global-export claim.
 - [x] Add reversible schema expansion and refuse rollback after new evidence exists.
 - [x] Run focused provider and monitor PostgreSQL integration suites.
-- [ ] Deploy the monitor after its hostname, TLS and alert webhook are ready.
-- [ ] Create and enroll the disposable public Hail canary DID.
+- [x] Deploy the monitor with its public identity origin and externally hosted signed-alert email webhook.
+- [x] Create and enroll disposable public Hail canaries for both alpha providers.
 
-No deployed replica or global PLC export bootstrap is required.
+Completed October 21, 2026. The monitor retains fresh complete audits for both
+canaries and the providers use them as diagnostic DIDs. No deployed replica or
+global PLC export bootstrap is required.

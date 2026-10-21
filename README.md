@@ -8,9 +8,9 @@ Hail is designed for independent providers, portable `did:plc` identities, rich 
 
 ## Status
 
-Hail is a working private-network POC approaching its first release. Two HTTPS TypeScript providers use a private PLC directory. The reference server, `hailp` client and monitor cover owner-controlled and managed custody, onboarding, Grants, messaging, recovery and exact-retry `A → B → A` provider migration while preserving accepted state and fencing stale workers and credentials.
+Hail is a working **public alpha**. Two HTTPS TypeScript providers resolve portable identities directly from `plc.directory`; `canary@hailproto.app` and `canary@hailproto.dev` are owner-controlled public canaries with independently signed monitor onboarding evidence. Their Sender Profiles and reciprocal Grants are live, and grant-authorized messages have reached terminal `delivered` state in both directions.
 
-This is not yet public Hail federation. The strict-public runtime exists but remains disabled, and no production identity has been written to `plc.directory`. Remaining gates cover deployed reader/monitor proof, operational key and backup controls, cross-host restoration, blocked-history recovery, abandonment and load limits before one permanent public canary. See the [production gate checklist](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/custody-transitions.md#production-enablement-required-versus-deferrable) and [portable-custody boundary](docs/production-portable-custody.md).
+This is real public federation evidence, not a production release. Both providers currently share one VPS, the monitor has no external dead-man supervision, and cross-host restoration, public managed transfer, historical recovery, abandonment, abuse/load limits and broader security operations remain gated. The canaries are disposable alpha identities, not production users. See the [production gate checklist](https://github.com/j4crev/hail-user-client-ts/blob/main/docs/custody-transitions.md#production-enablement-required-versus-deferrable) and [portable-custody boundary](docs/production-portable-custody.md).
 
 The repository includes TypeScript and Go reference codecs, shared conformance vectors, executable schema checks, diagnostic tooling and benchmarks. The intended v0 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
 
@@ -40,7 +40,7 @@ The repository includes TypeScript and Go reference codecs, shared conformance v
 - [Managed profiles and API-first clients](docs/production-portable-custody.md#managed-profiles-and-people-or-agents): Approved human/agent custody choices, owner-controlled recovery, native/`hailp` CLI interaction and implementation milestones.
 - [Provider deployment runbook](https://github.com/j4crev/hail-server-ts/blob/main/deploy/poc/README.md): VPS, DNS/TLS, provider setup, delivery and verified rollout records.
 - [User-key reference client](https://github.com/j4crev/hail-user-client-ts#readme): User-device vault, onboarding, Grant signing and exact-byte cutover commands.
-- [Same-VPS monitor deployment](https://github.com/j4crev/hail-plc-monitor-ts/blob/main/deploy/poc/README.md): Private PLC ingestion, signed HTTPS alerts and restart verification; explicitly non-independent.
+- [Public monitor deployment](https://github.com/j4crev/hail-plc-monitor-ts/blob/main/deploy/public/README.md): Per-DID public PLC monitoring, reviewed bootstrap, signed attestations and external email alerts.
 - [`CBOR_MIGRATION.md`](CBOR_MIGRATION.md): Active migration plan from the earlier JSON/JWS draft to deterministic CBOR and COSE.
 - [`BODY_FORMAT.md`](BODY_FORMAT.md): Safe Portable Text body-format design.
 - [`spec/encoding.md`](spec/encoding.md): Normative Hail data model, deterministic CBOR, COSE, and diagnostic JSON profile.

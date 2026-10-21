@@ -486,7 +486,7 @@ The pitch to legitimate senders is better deliverability and more honest engagem
 
 The first prototype should validate the wire protocol between two toy servers.
 
-Current implementation status: independent TypeScript and Go reference codecs implement strict deterministic CBOR, tagged COSE_Sign1, typed payload validation, shared conformance vectors, executable schema checks, diagnostic tooling, and benchmarks. DID/WebFinger/PLC discovery, federation HTTP operations, durable grant/replay/reply/delivery state, body service behavior, and a working server or client remain unimplemented. The next milestone is the two-server end-to-end slice.
+Current implementation status: independent TypeScript and Go reference codecs implement strict deterministic CBOR, tagged COSE_Sign1, typed payload validation, shared conformance vectors, executable schema checks, diagnostic tooling, and benchmarks. The TypeScript reference provider and `hailp` client implement DID/WebFinger/PLC discovery, Sender Profiles, Grants, detached bodies, envelopes, replies, signed delivery status and durable replay/retry state. Two strict-public alpha providers have completed bidirectional grant-authorized delivery between owner-controlled `plc.directory` canaries. Production hardening, independent provider infrastructure, restoration/load proof and public managed migration remain open.
 
 Suggested build phases:
 

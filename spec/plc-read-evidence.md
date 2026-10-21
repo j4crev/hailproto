@@ -1,6 +1,6 @@
 # PLC Read Evidence Policy v1
 
-Status: Pre-alpha reference policy v1 — reader-authority refactor in progress.
+Status: Pre-alpha reference policy v1 — canonical audit authority deployed in the public alpha.
 This defines the reference verification slice, not completed production
 federation or reviewed historical-object authority.
 It preserves PLC/Hail object formats and the canonical `https://plc.directory`
