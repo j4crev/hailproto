@@ -20,7 +20,9 @@ export { toDiagnosticNotation } from "./diagnostic-notation.js";
 export { HailCodecError, type HailCodecErrorCode } from "./errors.js";
 export type {
   HailAddressBinding,
+  HailAssetManifest,
   HailBodyDescriptor,
+  HailBundledImageAsset,
   HailConsentContext,
   HailCancellationReason,
   HailDeliveryState,
@@ -63,7 +65,7 @@ export type {
   InspectedHailObject,
   VerifiedHailObject,
 } from "./types.js";
-export { expectedKeyId, validatePayload } from "./validation.js";
+export { expectedKeyId, validateAssetManifest, validatePayload } from "./validation.js";
 export {
   createWebCryptoSigner,
   createWebCryptoVerifier,

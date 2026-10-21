@@ -281,3 +281,21 @@ spt-link = {
   "href": tstr,
   ? "title": tstr
 }
+
+; Reusable bundled-image manifest for future body and profile versions.
+asset-manifest-v1 = {
+  "version": 1,
+  "assets": [1*2 bundled-image-asset-v1]
+}
+
+bundled-image-asset-v1 = {
+  "id": tstr,
+  "role": "avatar" / "header",
+  "media_type": "image/png",
+  "loading": "bundled",
+  "size": 1..196608,
+  "digest": digest,
+  "width": 1..2400,
+  "height": 1..1200,
+  "data": bstr
+}

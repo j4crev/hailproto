@@ -3,6 +3,23 @@ export interface HailDigest {
   value: Uint8Array;
 }
 
+export interface HailBundledImageAsset {
+  id: string;
+  role: "avatar" | "header";
+  media_type: "image/png";
+  loading: "bundled";
+  size: number;
+  digest: HailDigest;
+  width: number;
+  height: number;
+  data: Uint8Array;
+}
+
+export interface HailAssetManifest {
+  version: 1;
+  assets: [HailBundledImageAsset, ...HailBundledImageAsset[]];
+}
+
 export interface HailAddressBinding {
   version: 1;
   type: "hail.address-binding";

@@ -488,7 +488,9 @@ Receivers do not need hero images, columns, or marketing layouts for most replie
 
 ## Assets
 
-Assets should be declared outside the body in a manifest.
+Assets are declared outside content blocks in the bundled manifest defined by
+[`spec/assets.md`](spec/assets.md). Its first version deliberately supports only
+bounded PNG avatar and header roles; remote loading remains prohibited.
 
 Each asset should include:
 
@@ -633,7 +635,7 @@ This keeps the prototype simple while preserving the path to a richer block docu
 ## Open Gaps
 
 - Finalize the Safe Portable Text-specific block vocabulary beyond the implemented text styles, lists, decorators, and HTTPS links.
-- Define the asset manifest schema.
+- Integrate the asset manifest into a versioned body and Sender Profile.
 - Define allowed URL behavior and client warning rules.
 - Define design tokens.
 - Define fallback rules for unsupported blocks.

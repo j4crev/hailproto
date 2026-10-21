@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { HailCodecError } from "./errors.js";
 import { assertHailValue } from "./cbor.js";
 import { SIGNED_PROFILES, type HailKeyRole } from "./profiles.js";
@@ -5,7 +6,7 @@ import type {
   HailPayloadType,
   HailSignedPayloadType,
 } from "./types.js";
-import type { HailPayloadByType } from "./models.js";
+import type { HailAssetManifest, HailPayloadByType } from "./models.js";
 import { parse as parseDomain } from "tldts";
 import { toASCII, toUnicode } from "tr46";
 
@@ -529,6 +530,69 @@ function validateSpt2Body(payload: HailRecord): void {
       if (new Set(marks).size !== marks.length || marks.some(mark => !["strong", "em", "code"].includes(mark) && !definitionKeys.has(mark)) ||
         marks.filter(mark => definitionKeys.has(mark)).length > 1) fail("invalid, duplicate, or conflicting span mark", `${childPath}.marks`);
     });
+  });
+}
+
+function pngDimensions(data: Uint8Array, path: string): { width: number; height: number } {
+  const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+  if (data.length < 45 || signature.some((byte, index) => data[index] !== byte)) fail("must be a PNG image", path);
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  let offset = 8, width = 0, height = 0, sawHeader = false, sawData = false, sawEnd = false;
+  while (offset + 12 <= data.length) {
+    const length = view.getUint32(offset);
+    const end = offset + 12 + length;
+    if (end > data.length) fail("contains a truncated PNG chunk", path);
+    const type = String.fromCharCode(data[offset + 4]!, data[offset + 5]!, data[offset + 6]!, data[offset + 7]!);
+    if (!sawHeader && type !== "IHDR") fail("must begin with a PNG IHDR chunk", path);
+    if (type === "IHDR") {
+      if (sawHeader || length !== 13) fail("contains an invalid PNG IHDR chunk", path);
+      sawHeader = true;
+      width = view.getUint32(offset + 8);
+      height = view.getUint32(offset + 12);
+    } else if (type === "acTL") fail("animated PNG is unsupported", path);
+    else if (type === "IDAT") sawData = true;
+    else if (type === "IEND") {
+      if (length !== 0 || end !== data.length) fail("contains an invalid PNG IEND chunk", path);
+      sawEnd = true;
+      break;
+    }
+    offset = end;
+  }
+  if (!sawHeader || !sawData || !sawEnd || width === 0 || height === 0) fail("must be a complete PNG image", path);
+  return { width, height };
+}
+
+export function validateAssetManifest(value: unknown): asserts value is HailAssetManifest {
+  assertHailValue(value);
+  const manifest = record(value, "$");
+  exactKeys(manifest, ["version", "assets"], [], "$");
+  if (manifest.version !== 1) fail("must equal integer 1", "$.version");
+  const assets = array(manifest.assets, "$.assets");
+  if (assets.length < 1 || assets.length > 2) fail("must contain one or two assets", "$.assets");
+  const ids = new Set<string>(), roles = new Set<string>();
+  assets.forEach((entry, index) => {
+    const path = `$.assets[${index}]`, asset = record(entry, path);
+    exactKeys(asset, ["id", "role", "media_type", "loading", "size", "digest", "width", "height", "data"], [], path);
+    const id = text(asset.id, `${path}.id`), role = text(asset.role, `${path}.role`);
+    if (!/^[a-z][a-z0-9-]{0,63}$/.test(id) || ids.has(id)) fail("must be a unique canonical asset ID", `${path}.id`);
+    if (!["avatar", "header"].includes(role) || roles.has(role)) fail("must be a unique supported asset role", `${path}.role`);
+    ids.add(id); roles.add(role);
+    if (asset.media_type !== "image/png") fail("must equal image/png", `${path}.media_type`);
+    if (asset.loading !== "bundled") fail("must equal bundled", `${path}.loading`);
+    if (!(asset.data instanceof Uint8Array)) fail("must be a byte string", `${path}.data`);
+    const maximum = role === "avatar" ? { bytes: 32_768, width: 512, height: 512, pixels: 262_144 } :
+      { bytes: 196_608, width: 2_400, height: 1_200, pixels: 2_000_000 };
+    const size = integer(asset.size, `${path}.size`, 1);
+    if (size !== asset.data.length || size > maximum.bytes) fail("does not match the bounded asset bytes", `${path}.size`);
+    digest(asset.digest, `${path}.digest`);
+    const expected = bytes(record(asset.digest, `${path}.digest`).value, 32, `${path}.digest.value`);
+    const actual = createHash("sha256").update(asset.data).digest();
+    if (!actual.every((byte, byteIndex) => byte === expected[byteIndex])) fail("does not match the asset bytes", `${path}.digest.value`);
+    const dimensions = pngDimensions(asset.data, `${path}.data`);
+    const width = integer(asset.width, `${path}.width`, 1), height = integer(asset.height, `${path}.height`, 1);
+    if (width !== dimensions.width || height !== dimensions.height || width > maximum.width || height > maximum.height || width * height > maximum.pixels) {
+      fail("does not match bounded PNG dimensions", `${path}.width`);
+    }
   });
 }
 

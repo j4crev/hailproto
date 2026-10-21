@@ -19,6 +19,23 @@ type Digest struct {
 	Value     []byte `cbor:"value"`
 }
 
+type BundledImageAsset struct {
+	ID        string `cbor:"id"`
+	Role      string `cbor:"role"`
+	MediaType string `cbor:"media_type"`
+	Loading   string `cbor:"loading"`
+	Size      int64  `cbor:"size"`
+	Digest    Digest `cbor:"digest"`
+	Width     int64  `cbor:"width"`
+	Height    int64  `cbor:"height"`
+	Data      []byte `cbor:"data"`
+}
+
+type AssetManifest struct {
+	Version int64               `cbor:"version"`
+	Assets  []BundledImageAsset `cbor:"assets"`
+}
+
 type AddressBinding struct {
 	Version   int64  `cbor:"version"`
 	Type      string `cbor:"type"`
