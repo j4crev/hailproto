@@ -1,5 +1,38 @@
 # `haili.app` launch milestone
 
+## Consumer Signup Email Plumbing — October 22, 2026
+
+- Guarded provider release: `95f36b19a7f0706cad15ea9c789659be27394999`.
+  Provider image: `sha256:20bbe6c33aba4ab91c2a9f8c2f9a307b01aa69000c22741096a430bcad29650c`.
+- Alert Worker version: `92d42dfd-93b8-4bc6-9d9d-a4c077dee95e`, using
+  Cloudflare Email Sending on `notify.haili.app`. Existing monitor, heartbeat
+  and backup secrets were retained; the new service-authentication secret was
+  installed without exposing it to the browser or repository.
+- Before configuration changes, encrypted backup
+  `haili-20261022T205019Z.tar.gpg` was uploaded and downloaded for verification:
+  SHA-256 `8684ef8cfb13f2a026311a7c4605c32e0293588bcecdfeb5311133fced809455`.
+  The guarded deployment took another backup before checkout. Each upload
+  recovered from an initial R2 `501` through its existing retry path.
+- Schema advanced from 56 to 57. The four accounts, two active passkeys, three
+  active API credentials and account-key snapshot remained unchanged. Provider,
+  GUI, monitor and backup health checks passed. Existing onboarding/transfer
+  settings were preserved; the production recovery preview remains disabled.
+- A real verification email from `welcome@notify.haili.app` was accepted and
+  the operator confirmed inbox receipt. A live provider-proxy retry returned
+  the same pending verification/expiry, without another email. Unauthenticated
+  Worker requests were refused. This did not create an account, publish a DID
+  or bind a security-email destination to an existing identity. Correct-code
+  verification and per-user alert binding have local regression proof, not a
+  completed live consumer signup ceremony.
+- The existing SSH-agent key authenticated successfully once its socket was
+  supplied. With operator approval, temporary unrestricted passwordless sudo
+  was replaced by wrapper-only access. `visudo` validation, wrapper status and
+  rejection of unrestricted noninteractive sudo passed. No SSH keys or `sshd`
+  configuration were changed. Temporary local service-secret material was removed.
+
+The full browser wizard, automatic monitor enrollment, terminal signup authority
+cleanup and asynchronous email-delivery event handling remain separate work.
+
 Status: operational gates completed. The strict-public provider and permanent
 owner-controlled canary were deployed October 21, 2026. Public provider transfer
 was enabled on Haili October 22; this does not turn the disposable

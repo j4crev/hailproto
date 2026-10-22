@@ -32,13 +32,31 @@ delete evidence while responding to abuse.
 
 - SSH allows only the named `hailops` account with public-key authentication;
   root, passwords, keyboard-interactive authentication and X11 are disabled.
-- `hailops` may invoke only the root-owned provider/monitor operations wrapper.
+- Passwordless sudo for `hailops` is limited to the root-owned provider/monitor operations wrapper.
   Root recovery uses the VPS console, not remote root SSH.
 - Provider secrets and R2 credentials are root-owned mode `0600`. Database
   operational private keys remain encrypted by `KEY_ENCRYPTION_KEY`.
 - The backup host has only the OpenPGP public recipient. Keep the encrypted
   private recovery key, its passphrase and one current credential backup off the
   provider host and test them quarterly.
+
+### SSH agent versus sudo
+
+SSH key authentication and sudo authorization are separate. If an agent-run
+command fails with `Permission denied (publickey)`, first check whether its
+environment has the correct `SSH_AUTH_SOCK`. An existing agent may already hold
+the authorized, unlocked key even when direct use of the private-key file fails.
+Inspect existing agent socket addresses with `ss -xl` and verify the selected
+agent with `SSH_AUTH_SOCK=<socket> ssh-add -l`; use that same socket for SSH.
+Do not start a replacement agent, generate another key or disable host-key
+checking merely because an automated session did not inherit the socket.
+
+Granting `NOPASSWD:ALL` does not fix SSH authentication. Routine provider status,
+deploy, restart and rollback use `sudo hail-provider-ops ...` under the restricted
+rule. New privileged configuration changes need separately approved access.
+The October 22 email rollout restored wrapper-only passwordless sudo and
+verified that agent login and wrapper commands still work; unrestricted
+noninteractive sudo is refused. SSH keys and `sshd` configuration were unchanged.
 
 ## Backup and restore
 

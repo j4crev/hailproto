@@ -19,8 +19,8 @@ Status: product plan, not implementation approval or a change to protocol requir
   accounts. Tests cover strict/alpha isolation, old-writer mislabel refusal,
   unchanged freshness checks and guarded rollback.
 - [The alpha profile](../spec/alpha-onboarding.md) records its exact limits.
-  No public alpha account-creation route, automatic monitor enrollment or production rollout
-  is enabled yet. Browser signup is not end-to-end complete.
+  No public alpha account-creation route or automatic monitor enrollment is
+  enabled yet. Browser signup is not end-to-end complete.
 - Cloudflare Email Sending is selected, using `notify.haili.app`. The existing
   Worker now supports authenticated verification codes and immutable per-DID
   routing to verified consumer destinations, while retaining operator alerts for
@@ -30,9 +30,15 @@ Status: product plan, not implementation approval or a change to protocol requir
   Enable it with private `SIGNUP_EMAIL_ORIGIN` and `SIGNUP_EMAIL_TOKEN` settings.
   This does not yet connect the full browser wizard or automate monitor enrollment.
   See the [email Worker runbook](../apps/plc-monitor/deploy/cloudflare-alert-worker/README.md).
+- The email Worker and provider proxy were deployed October 22, 2026, from
+  release `95f36b1`. The operator confirmed receipt of the verification email;
+  the provider-to-Worker exact start retry returned the same expiry without a
+  second email. Schema 57, provider/GUI health and unchanged account keys/passkeys
+  were checked. No test DID or account was created or bound. The recovery preview
+  remains disabled in production.
 
-Next: live email configuration/delivery proof, authenticated automatic monitor
-enrollment, narrow signup capability lifecycle, then the resumable full browser
+Next: authenticated automatic monitor enrollment, narrow signup capability
+lifecycle, then the resumable full browser
 wizard. Do not treat a delivered operator email as verification of a signup
 user's external alert destination. Asynchronous email bounce/complaint handling
 and broader deliverability monitoring remain rollout gates.
