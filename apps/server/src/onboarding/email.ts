@@ -25,7 +25,10 @@ export async function signupIdentity(sql: SQL, accountId: string, token: string)
     JOIN plc_operation_evidence evidence ON evidence.account_id=account.id AND evidence.previous_cid IS NULL
     WHERE account.id=${accountId} AND account.did=evidence.did
       AND account.onboarding_state IN ('did-registered','address-staged','active')
-      AND preparation.custody_profile='managed' AND preparation.monitor_assurance='reduced-assurance-alpha-v1'`)[0];
+      AND preparation.custody_profile='managed' AND preparation.monitor_assurance='reduced-assurance-alpha-v1'
+      AND NOT EXISTS (SELECT 1 FROM account_signup_ceremonies c WHERE c.account_id=account.id
+        AND (c.completed_at IS NOT NULL OR c.expires_at<=clock_timestamp() OR c.account_generation IS DISTINCT FROM
+          (SELECT generation FROM account_serving_generations WHERE account_id=account.id)))`)[0];
   const expected = tokenHash(token);
   if (!row?.signup_token_hash || row.signup_token_hash.length !== expected.length ||
     !timingSafeEqual(Buffer.from(row.signup_token_hash), Buffer.from(expected))) return null;

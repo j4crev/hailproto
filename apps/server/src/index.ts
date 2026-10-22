@@ -40,6 +40,7 @@ import { PrivatePocOnboarding } from "./onboarding/private-poc.js";
 import { PublicOnboarding } from "./onboarding/public.js";
 import { SignupEmailClient } from "./onboarding/email.js";
 import { SignupMonitorClient, SignupMonitorService } from "./onboarding/monitor.js";
+import { SignupCoordinator } from "./onboarding/signup.js";
 import { ActivationService } from "./onboarding/activation.js";
 import { AccountMessaging } from "./accounts/messaging.js";
 import { EnvelopeService } from "./envelopes/service.js";
@@ -255,6 +256,13 @@ const app = createApp(config, schemaRehearsal ? {
   servingSql:database.sql,
   ...(config.signupEmail?{signupEmail:{sql:database.sql,client:new SignupEmailClient(config.signupEmail)}}:{}),
   ...(config.signupMonitor?{signupMonitor:new SignupMonitorService(database.sql,new SignupEmailClient(config.signupEmail!),new SignupMonitorClient(config.signupMonitor))}:{}),
+  ...(config.alphaSignup?(()=>{
+    const policy={profile:"reduced-assurance-alpha-v1" as const,monitorOrigin:config.alphaSignup.monitorOrigin,monitorPublicKey:config.signupMonitor!.publicKey};
+    const onboarding=new PublicOnboarding(database.sql,plc,resolver,new KeyEncryptor(config.keyEncryptionKey),config.plcDirectoryUrl,
+      config.hailServiceBase,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver),policy);
+    return {signup:new SignupCoordinator(database.sql,onboarding,new SignupMonitorService(database.sql,new SignupEmailClient(config.signupEmail!),
+      new SignupMonitorClient(config.signupMonitor!)),config.publicOrigin,policy,config.alphaSignup.invitationKey)};
+  })():{}),
   ...(config.passkeys?{passkeys:new PasskeyAuth(database.sql,config.passkeys.rpId,config.passkeys.origin)}:{}),
   ...(process.env.POC_ACCOUNT_ACCESS === "true" || publicManaged ?
     { accountAccess: { access: new AccountAccess(database.sql, resolver, config.publicOrigin), sql: database.sql } } : {}),

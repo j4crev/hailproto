@@ -30,6 +30,7 @@ import type { GrantService } from "./grants/service.js";
 import { registerSelfServiceOnboarding, type SelfServiceOnboarding } from "./accounts/onboarding-routes.js";
 import { registerSignupEmailRoutes, type SignupEmailClient } from "./onboarding/email.js";
 import { registerSignupMonitorRoutes, type SignupMonitorService } from "./onboarding/monitor.js";
+import { registerSignupRoutes, type SignupCoordinator } from "./onboarding/signup.js";
 import type { AccountMessaging } from "./accounts/messaging.js";
 import { registerAccountAccess } from "./accounts/access-routes.js";
 import type { AccountAccess } from "./accounts/access.js";
@@ -83,6 +84,7 @@ export interface AppDependencies {
   selfServiceOnboarding?: SelfServiceOnboarding;
   signupEmail?:{sql:SQL;client:SignupEmailClient};
   signupMonitor?:SignupMonitorService;
+  signup?:SignupCoordinator;
   accountAccess?: { access: AccountAccess; sql: SQL };
   servingSql?:SQL;
   passkeys?:PasskeyAuth;
@@ -104,6 +106,10 @@ export function createApp(
   if(dependencies.selfServiceOnboarding)registerSelfServiceOnboarding(app,dependencies.selfServiceOnboarding);
   if(dependencies.signupEmail)registerSignupEmailRoutes(app,dependencies.signupEmail.sql,dependencies.signupEmail.client,config.passkeys?.origin??config.publicOrigin);
   if(dependencies.signupMonitor)registerSignupMonitorRoutes(app,dependencies.signupMonitor,config.passkeys?.origin??config.publicOrigin);
+  if(dependencies.signup){
+    if(!dependencies.accountApi||!dependencies.passkeys)throw new Error("Consumer signup requires session authentication");
+    registerSignupRoutes(app,dependencies.signup,dependencies.accountApi.accounts,config.passkeys?.origin??config.publicOrigin);
+  }
   if (dependencies.accountAccess) registerAccountAccess(app, dependencies.accountAccess.access, dependencies.accountAccess.sql);
 
   if (dependencies.accountApi) {

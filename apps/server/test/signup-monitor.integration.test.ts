@@ -1,9 +1,9 @@
-import { createHash, generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
+import { createHash, generateKeyPairSync, randomBytes, randomUUID, sign } from "node:crypto";
 import { SQL } from "bun";
 import { cidForCbor } from "@atproto/common";
 import { formatDidDoc, PlcClientError, validateOperationLog, type Operation } from "@did-plc/lib";
 import { encodeBase64Url, decodeBase64Url, inspectSignedPayload } from "@hailproto/codec";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { Hono } from "hono";
 import { createUserVault, unlockUserVault } from "../../cli/src/vault.js";
 import { verifyUserVault } from "../../cli/src/vault-crypto.js";
@@ -21,6 +21,10 @@ import { OnboardingRepository } from "../src/onboarding/repository.js";
 import { PublicOnboarding } from "../src/onboarding/public.js";
 import { SignupEmailClient, registerSignupEmailRoutes } from "../src/onboarding/email.js";
 import { SignupMonitorClient, SignupMonitorService, registerSignupMonitorRoutes } from "../src/onboarding/monitor.js";
+import { SignupCoordinator, registerSignupRoutes } from "../src/onboarding/signup.js";
+import { createSignupInvitation } from "../src/onboarding/invitation.js";
+import { AccountApiRepository } from "../src/accounts/repository.js";
+import { PasskeyAuth } from "../src/accounts/passkeys.js";
 import type { PlcDirectoryClient } from "../src/plc/client.js";
 import { PlcHailDidResolver } from "../src/plc/resolver.js";
 import { VerifiedPublicPlcResolver } from "../src/plc/public-resolver.js";
@@ -109,7 +113,8 @@ it.skipIf(!process.env.DATABASE_URL)("automates verified-email monitored signup 
     }) as unknown as typeof fetch;
     const email = new SignupEmailClient({ origin: alertOrigin, token: emailToken }, receiverFetch as unknown as typeof fetch);
     const app = new Hono(); registerSignupEmailRoutes(app, db.sql, email, providerOrigin);
-    registerSignupMonitorRoutes(app, new SignupMonitorService(db.sql, email, new SignupMonitorClient({ apiOrigin: monitorOrigin, token: monitorToken, publicKey: signer.publicDidKey }, monitorFetch)), providerOrigin);
+    const monitoring=new SignupMonitorService(db.sql, email, new SignupMonitorClient({ apiOrigin: monitorOrigin, token: monitorToken, publicKey: signer.publicDidKey }, monitorFetch));
+    registerSignupMonitorRoutes(app, monitoring, providerOrigin);
     const post = (path: string, body: unknown, token = signupToken) => app.request(`${providerOrigin}/api/v1/${path}`, { method: "POST",
       headers: { "Content-Type": "application/json", Origin: providerOrigin, Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
     const enrollment = () => post("signup-monitor", { signupId, accountId: prepared.accountId });
@@ -161,6 +166,125 @@ it.skipIf(!process.env.DATABASE_URL)("automates verified-email monitored signup 
     await expect(monitor.enroll(genesis.did, registered.operationCid, `${alertOrigin}/hail`, await plc.getDocumentData(genesis.did))).rejects.toThrow("retry differs");
     await monitorDb.sql`UPDATE monitor_alerts SET category='coverage-lost' WHERE did=${genesis.did}`;
     expect((await enrollment()).status).toBe(409); expect(await fingerprint()).toBe(baseline);
+
+    const browserVault=await createUserVault();
+    try{
+      const inviteKey=encodeBase64Url(randomBytes(32)),invite=createSignupInvitation(providerOrigin,inviteKey);
+      const setupToken=`hailp_${encodeBase64Url(randomBytes(32))}`,enrollmentToken=`hailp_${encodeBase64Url(randomBytes(32))}`,id=randomUUID();
+      const policy={profile:"reduced-assurance-alpha-v1" as const,monitorOrigin,monitorPublicKey:signer.publicDidKey};
+      let coordinator=new SignupCoordinator(db.sql,onboarding,monitoring,providerOrigin,policy,inviteKey);
+      const accounts=new AccountApiRepository(db.sql),signupApp=new Hono();
+      // Forward through a stable route while replacing the controller to simulate restart.
+      registerSignupRoutes(signupApp,{prepare:(...args)=>coordinator.prepare(...args),status:(...args)=>coordinator.status(...args),
+        advance:(...args)=>coordinator.advance(...args),complete:(...args)=>coordinator.complete(...args)} as SignupCoordinator,accounts,providerOrigin);
+      registerSignupEmailRoutes(signupApp,db.sql,email,providerOrigin);
+      const call=(path:string,body?:unknown,cookie?:string)=>signupApp.request(`${providerOrigin}/api/v1/${path}`,{
+        method:body===undefined?"GET":"POST",headers:{Origin:providerOrigin,"Content-Type":"application/json",Authorization:`Bearer ${setupToken}`,
+          ...(cookie?{Cookie:`hail_session=${cookie}`}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})});
+      const request={signupId:id,address:`browser-${suffix}@provider.example.com`,recoveryKey:browserVault.vault.recovery.publicDidKey,
+        identityKey:browserVault.vault.identity.publicDidKey,enrollmentHash:encodeBase64Url(createHash("sha256").update(enrollmentToken).digest()),
+        invitation:invite,backupVerified:true,managedAccepted:true,alphaMonitoringAccepted:true};
+      const created=await call("signup",request);expect(created.status).toBe(200);
+      const setup=await created.json() as {accountId:string;state:string;expiresAt:string;preparation:typeof prepared};
+      expect((await signupApp.request(`${providerOrigin}/api/v1/signup/${id}`,{headers:{Authorization:`Bearer ${setupToken}`}})).status).toBe(200);
+      expect(setup.state).toBe("prepared");expect((await call("signup",request)).status).toBe(200);
+      expect((await call("signup",{...request,address:`other-${suffix}@provider.example.com`})).status).toBe(409);
+      expect((await call("signup",{...request,signupId:randomUUID()})).status).toBe(409); // Single-use invitation.
+      expect((await call(`signup/${id}/advance`,{operation:genesis.operation,enrollmentToken})).status).toBe(400);
+      expect((await db.sql<{operation_bytes:Uint8Array|null}[]>`SELECT operation_bytes FROM account_signup_ceremonies WHERE id=${id}`)[0]!.operation_bytes).toBeNull();
+      const browserOwner=await unlockUserVault(browserVault.vault,browserVault.recoverySecret),p=setup.preparation;
+      const signed=await browserOwner.signManagedGenesis({type:"plc_operation",prev:null,rotationKeys:[p.userRecoveryKey,p.providerRotationKey],
+        verificationMethods:{"hail-identity":p.userIdentityKey,"hail-messaging":p.providerMessagingKey},alsoKnownAs:[],
+        services:{hail:{type:"HailMessaging",endpoint:serviceBase}}});
+      const lock=await db.sql.reserve();try{
+        await lock`SELECT pg_advisory_lock(684245160)`;
+        await expect(coordinator.advance(id,setupToken,{operation:signed.operation,enrollmentToken})).rejects.toMatchObject({status:202});
+      }finally{await lock`SELECT pg_advisory_unlock(684245160)`;lock.release();}
+      expect((await call("signup-email/start",{signupId:id,email:"browser-owner@example.com"})).status).toBe(200);
+      const emailCode=emailMessages.at(-1)!.text.match(/code is: (\d{8})/)![1]!;
+      expect((await call("signup-email/verify",{signupId:id,code:emailCode})).status).toBe(200);
+      const originalRegister=onboarding.register.bind(onboarding);let loseRegistration=true;
+      onboarding.register=async(...args)=>{const result=await originalRegister(...args);if(loseRegistration){loseRegistration=false;throw new Error("Lost retained registration response");}return result;};
+      expect((await call(`signup/${id}/advance`,{operation:signed.operation,enrollmentToken})).status).toBe(503);
+      coordinator=new SignupCoordinator(db.sql,onboarding,monitoring,providerOrigin,policy,inviteKey);
+      expect((await call(`signup/${id}/advance`,{enrollmentToken})).status).toBe(202);
+      await monitor.poll();expect(await notifier.sendOne()).toBe("sent");
+      const originalActivate=onboarding.activate.bind(onboarding);let loseActivation=true,oldEpoch:string|undefined;
+      onboarding.activate=async(...args)=>{oldEpoch=args[2]?.epoch;await originalActivate(...args);if(loseActivation){loseActivation=false;throw new Error("Lost committed activation response");}};
+      expect((await call(`signup/${id}/advance`,{enrollmentToken})).status).toBe(503);
+      expect((await repository.getAccount(setup.accountId)).state).toBe("active");
+      const chosen=(await db.sql<{monitor_payload:Uint8Array;monitor_signature:Uint8Array}[]>`SELECT monitor_payload,monitor_signature FROM account_signup_ceremonies WHERE id=${id}`)[0]!;
+      const beforeRetry=monitorCalls;
+      coordinator=new SignupCoordinator(db.sql,onboarding,monitoring,providerOrigin,policy,inviteKey);
+      const enroll=await call(`signup/${id}/advance`,{enrollmentToken});expect(enroll.status).toBe(200);
+      const access=await enroll.json() as {state:string;enrollment:{url:string}};
+      expect(access.state).toBe("passkey-enrollment");expect(access.enrollment.url).toBe(`${providerOrigin}/auth/recover#token=${enrollmentToken}`);
+      expect(monitorCalls).toBe(beforeRetry); // No new attestation after ambiguous activation.
+      expect(await db.sql`SELECT id FROM account_api_credentials`).toHaveLength(0);
+      expect(await accounts.authenticate(`Bearer ${setupToken}`)).toBeNull();
+      await expect(originalActivate(setup.accountId,{payloadBytes:chosen.monitor_payload,signature:chosen.monitor_signature},{id,epoch:oldEpoch!}))
+        .rejects.toThrow("superseded");
+      expect((await call(`signup/${id}/advance`,{enrollmentToken})).status).toBe(200);
+      expect(await db.sql`SELECT id FROM account_passkey_enrollment_capabilities WHERE account_id=${setup.accountId}`).toHaveLength(1);
+      const clock=vi.spyOn(Date,"now").mockReturnValue(Date.now()+11*60_000);
+      try{expect((await coordinator.advance(id,setupToken,{enrollmentToken})).state).toBe("enrollment-expired");}
+      finally{clock.mockRestore();}
+      const expired=vi.spyOn(Date,"now").mockReturnValue(Date.now()+25*3600_000);
+      try{
+        await expect(coordinator.status(id,setupToken)).rejects.toMatchObject({status:410});
+        await expect(coordinator.prepare(request,setupToken)).rejects.toMatchObject({status:410});
+      }finally{expired.mockRestore();}
+      expect(await db.sql`SELECT id FROM account_passkey_enrollment_capabilities WHERE account_id=${setup.accountId}`).toHaveLength(1);
+      expect((await call(`signup/${id}/complete`,{})).status).toBe(401);
+
+      const passkeys=new PasskeyAuth(db.sql,"provider.example.com",providerOrigin),key=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
+      const jwk=key.publicKey.export({format:"jwk"}),cose=Buffer.concat([Buffer.from("a5010203262001215820","hex"),Buffer.from(jwk.x!,"base64url"),
+        Buffer.from("225820","hex"),Buffer.from(jwk.y!,"base64url")]),credential=encodeBase64Url(randomBytes(32));
+      const start=await passkeys.recoveryOptions(enrollmentToken),client=Buffer.from(JSON.stringify({type:"webauthn.create",challenge:start.options.challenge,origin:providerOrigin}));
+      const credentialBytes=Buffer.from(credential,"base64url"),auth=Buffer.alloc(55+credentialBytes.length+cose.length);
+      createHash("sha256").update("provider.example.com").digest().copy(auth);auth[32]=69;auth.writeUInt16BE(credentialBytes.length,53);
+      credentialBytes.copy(auth,55);cose.copy(auth,55+credentialBytes.length);
+      const text=(value:string)=>Buffer.concat([Buffer.from([0x60+value.length]),Buffer.from(value)]);
+      const attestation=Buffer.concat([Buffer.from([0xa3]),text("fmt"),text("none"),text("attStmt"),Buffer.from([0xa0]),text("authData"),Buffer.from([0x58,auth.length]),auth]);
+      await passkeys.recover(enrollmentToken,start.challengeId,{id:credential,rawId:credential,type:"public-key",clientExtensionResults:{},
+        response:{clientDataJSON:client.toString("base64url"),attestationObject:attestation.toString("base64url"),transports:["usb"]}},"Signup passkey");
+      const postEnrollment=await call(`signup/${id}/advance`,{enrollmentToken});expect(postEnrollment.status).toBe(200);
+      expect((await postEnrollment.json() as {state:string}).state).toBe("sign-in-required");
+      const signIn=async(counter:number)=>{
+        const login=await passkeys.authenticationOptions(),loginClient=Buffer.from(JSON.stringify({type:"webauthn.get",challenge:login.options.challenge,origin:providerOrigin}));
+        const loginAuth=Buffer.alloc(37);createHash("sha256").update("provider.example.com").digest().copy(loginAuth);loginAuth[32]=5;loginAuth.writeUInt32BE(counter,33);
+        const signature=sign("sha256",Buffer.concat([loginAuth,createHash("sha256").update(loginClient).digest()]),key.privateKey);
+        return passkeys.authenticate(login.challengeId,{id:credential,rawId:credential,type:"public-key",clientExtensionResults:{},response:{
+          clientDataJSON:loginClient.toString("base64url"),authenticatorData:loginAuth.toString("base64url"),signature:signature.toString("base64url"),
+          userHandle:Buffer.from(setup.accountId.replaceAll("-",""),"hex").toString("base64url")}});
+      };
+      const stale=await signIn(1);
+      await db.sql`UPDATE account_passkey_sessions SET created_at=now()-interval '6 minutes' WHERE token_hash=${new Uint8Array(createHash("sha256").update(stale.token).digest())}`;
+      expect((await call(`signup/${id}/complete`,{},stale.token)).status).toBe(403);
+      const session=await signIn(2);
+      expect((await call(`signup/${id}/complete`,{},session.token)).status).toBe(200);
+      expect((await call(`signup/${id}/complete`,{},session.token)).status).toBe(200);
+      expect((await call(`signup/${id}`)).status).toBe(403);
+      expect((await call(`signup/${id}/advance`,{enrollmentToken})).status).toBe(403);
+      expect((await call("signup",request)).status).toBe(403);
+      await expect(passkeys.recoveryOptions(enrollmentToken)).rejects.toMatchObject({status:401});
+      expect(await accounts.authenticate(undefined,session.token)).not.toBeNull();
+      expect(await db.sql`SELECT id FROM account_api_credentials`).toHaveLength(0);
+      expect((await db.sql<{signup_token_hash:Uint8Array|null}[]>`SELECT signup_token_hash FROM public_onboarding_preparations WHERE account_id=${setup.accountId}`)[0]!.signup_token_hash).toBeNull();
+      await expect(db.sql`UPDATE account_signup_ceremonies SET completed_at=NULL,completed_by=NULL WHERE id=${id}`).rejects.toThrow("cannot be replaced");
+      const rollback=await db.sql.reserve();try{
+        await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0058_signup_ceremonies.sql",import.meta.url)).text())).rejects.toThrow("prevent rollback");
+      }finally{await rollback.unsafe("ROLLBACK");rollback.release();}
+      const generationVault=await createUserVault();try{
+        const retiredToken=`hailp_${encodeBase64Url(randomBytes(32))}`,retiredId=randomUUID();
+        const retired=await coordinator.prepare({...request,signupId:retiredId,address:`retired-${suffix}@provider.example.com`,
+          recoveryKey:generationVault.vault.recovery.publicDidKey,identityKey:generationVault.vault.identity.publicDidKey,
+          enrollmentHash:encodeBase64Url(randomBytes(32)),invitation:createSignupInvitation(providerOrigin,inviteKey)},retiredToken);
+        await db.sql.begin(async tx=>{await tx`SELECT set_config('hail.returning_account',${retired.accountId},true)`;
+          await tx`UPDATE account_serving_generations SET generation=2 WHERE account_id=${retired.accountId}`;});
+        await expect(coordinator.status(retiredId,retiredToken)).rejects.toMatchObject({status:403});
+      }finally{generationVault.recoverySecret.fill(0);}
+    }finally{browserVault.recoverySecret.fill(0);}
   } finally {
     vault.recoverySecret.fill(0); await db.close(); await monitorDb.close();
     await admin.unsafe(`DROP SCHEMA "${providerSchema}" CASCADE`); await admin.unsafe(`DROP SCHEMA "${monitorSchema}" CASCADE`); await admin.close();

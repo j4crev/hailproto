@@ -95,6 +95,18 @@ describe("loadConfig", () => {
       expect(()=>loadConfig({...publicEnvironment,...settings,...change})).toThrow();
   });
 
+  it("keeps invited consumer signup gated behind production passkeys and monitored email",()=>{
+    expect(loadConfig(publicEnvironment).alphaSignup).toBeUndefined();
+    const settings={...publicEnvironment,NODE_ENV:"production",PASSKEY_AUTH:"true",SIGNUP_EMAIL_ORIGIN:"https://alerts.example.com",
+      SIGNUP_EMAIL_TOKEN:"A".repeat(43),SIGNUP_MONITOR_API_ORIGIN:"https://monitor-api.example.com",SIGNUP_MONITOR_TOKEN:"A".repeat(43),
+      SIGNUP_MONITOR_PUBLIC_KEY:`did:key:${base58btc.encode(new Uint8Array([0xed,1,...new Uint8Array(32)]))}`,
+      PUBLIC_ALPHA_SIGNUP:"true",ALPHA_SIGNUP_INVITE_KEY:"B".repeat(42)+"A",ALPHA_SIGNUP_MONITOR_ORIGIN:"https://monitor.example.com"};
+    expect(loadConfig(settings).alphaSignup?.monitorOrigin).toBe(settings.ALPHA_SIGNUP_MONITOR_ORIGIN);
+    for(const change of [{PUBLIC_ALPHA_SIGNUP:"yes"},{PUBLIC_ALPHA_SIGNUP:"false"},{NODE_ENV:"test"},{PASSKEY_AUTH:"false"},
+      {ALPHA_SIGNUP_INVITE_KEY:undefined},{ALPHA_SIGNUP_INVITE_KEY:settings.SIGNUP_EMAIL_TOKEN},{ALPHA_SIGNUP_MONITOR_ORIGIN:settings.PUBLIC_ORIGIN},{SIGNUP_MONITOR_TOKEN:undefined},
+      {POC_SELF_SERVICE_ONBOARDING:"true"}])expect(()=>loadConfig({...settings,...change})).toThrow();
+  });
+
   it("enables private managed transfer only with its existing private gates",()=>{
     const enabled={...validEnvironment,POC_MANAGED_TRANSFER:"true",POC_ACCOUNT_ACCESS:"true",
       POC_SELF_SERVICE_TRANSFER:"true",POC_SELF_SERVICE_RETURN:"true"};

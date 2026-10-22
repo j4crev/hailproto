@@ -235,10 +235,11 @@ export class PublicOnboarding {
     return { did, state: account.state, operationCid };
   }
 
-  async activate(accountId: string, signed: SignedMonitorAttestation): Promise<void> {
+  async activate(accountId: string, signed: SignedMonitorAttestation, signup?: {id:string;epoch:string}): Promise<void> {
     const prepared = (await this.sql<PreparationRow[]>`SELECT * FROM public_onboarding_preparations WHERE account_id=${accountId}`)[0];
     if (!prepared) throw new Error("Public onboarding preparation does not exist");
     this.checkAssurance(prepared);
+    if(signup)await this.signupFence(this.sql,signup,accountId,signed);
     const repository = new OnboardingRepository(this.sql), account = await repository.getAccount(accountId);
     if (!account.did) throw new Error("Public DID is not registered");
     const existing = (await this.sql<{ monitor_payload: Uint8Array; monitor_signature: Uint8Array }[]>`
@@ -267,6 +268,7 @@ export class PublicOnboarding {
         !Buffer.from(verified.representation).equals(Buffer.from(binding.cose)) ||
         !Buffer.from(verified.digest).equals(Buffer.from(binding.digest))) throw new Error("Published identity differs from staged public account");
       await this.sql.begin(async tx => {
+        if(signup)await this.signupFence(tx,signup,accountId,signed);
         const now = (await tx<{ instant: Date }[]>`SELECT clock_timestamp() AS instant`)[0]!.instant;
         const plcDigest = await requireFreshPublicAuthority(tx, verified.plcEvidence, {
           did: account.did!, role: "hail-messaging", key: prepared.provider_messaging_public_key, serviceBase: this.serviceBase }, now);
@@ -320,5 +322,13 @@ export class PublicOnboarding {
         row.monitor_public_key !== this.alphaMonitoring.monitorPublicKey)) {
       throw new Error("Onboarding monitor assurance does not match this activation profile");
     }
+  }
+
+  private async signupFence(sql:SQL,signup:{id:string;epoch:string},accountId:string,signed:SignedMonitorAttestation){
+    if(!this.alphaMonitoring||(await sql`SELECT id FROM account_signup_ceremonies WHERE id=${signup.id} AND account_id=${accountId}
+      AND activation_epoch=${signup.epoch} AND completed_at IS NULL AND expires_at>clock_timestamp()
+      AND EXISTS (SELECT 1 FROM account_serving_generations g WHERE g.account_id=account_signup_ceremonies.account_id AND g.generation=account_signup_ceremonies.account_generation)
+      AND monitor_payload=${signed.payloadBytes} AND monitor_signature=${signed.signature} FOR UPDATE`).length!==1)
+      throw new Error("Signup activation authority expired or was superseded");
   }
 }

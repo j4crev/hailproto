@@ -47,9 +47,21 @@ Status: product plan, not implementation approval or a change to protocol requir
   tampered signatures and restart. Optional API/configuration gates default off;
   no production listener, secrets or deployments were changed for this slice.
   See the [monitor enrollment runbook](../apps/plc-monitor/deploy/public/README.md#automatic-reduced-assurance-alpha-enrollment).
+- The invited, resumable signup backend now has local proof through real passkey
+  registration and scoped sign-in. It creates no full-access signup credential;
+  fixed-expiry setup/enrollment authority is retired only after tested passkey
+  access. Migration 58 retains immutable intent, exact genesis, activation proof
+  and terminal authority. Activation epochs fence superseded controllers.
+  Admission is provider-bound and single-use; the account-creation surface is
+  explicitly gated off. The browser wizard is still outstanding.
+  See the [backend runbook](../apps/server/deploy/public/README.md#invited-browser-signup-backend-local-implementation).
 
-Next: guarded monitor API/receiver rollout, narrow signup capability lifecycle,
-then the resumable full browser wizard. Do not treat a delivered operator email as verification of a signup
+The monitor rollout is pending a confirmed direct SSH target and reviewed
+private HTTPS ingress/configuration access; the provider currently permits only
+its operations wrapper. No broader SSH/sudo access has been enabled.
+
+Next: guarded monitor API/receiver rollout and the resumable full browser wizard.
+Do not treat a delivered operator email as verification of a signup
 user's external alert destination. Asynchronous email bounce/complaint handling
 and broader deliverability monitoring remain rollout gates.
 

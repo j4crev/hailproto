@@ -161,7 +161,10 @@ it.skipIf(!process.env.DATABASE_URL)("public owner/managed onboarding seals owne
         await expect(new ManagedTransferAuthorization(db.sql, resolver, base, repository, encryptor).authorize(transfer))
           .rejects.toThrow("strict managed account authority");
         const connection = await db.sql.reserve();
-        try { await expect(connection.unsafe(await Bun.file(new URL("../migrations/rollback/0057_alpha_monitoring.sql", import.meta.url)).text())).rejects.toThrow("prevent rollback"); }
+        try {
+          await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0058_signup_ceremonies.sql", import.meta.url)).text());
+          await expect(connection.unsafe(await Bun.file(new URL("../migrations/rollback/0057_alpha_monitoring.sql", import.meta.url)).text())).rejects.toThrow("prevent rollback");
+        }
         finally { await connection.unsafe("ROLLBACK"); connection.release(); }
       }
     }

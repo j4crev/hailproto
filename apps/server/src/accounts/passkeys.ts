@@ -98,7 +98,12 @@ export class PasskeyAuth {
         (credential_id,account_id,serving_generation,public_key,signature_counter,device_type,backed_up,transports,label)
         VALUES (${credential.id},${accountId},${generation},${credential.publicKey},${credential.counter},
           ${info.credentialDeviceType},${info.credentialBackedUp},(${JSON.stringify(credential.transports??response.response.transports??[])}::text)::jsonb,${label.trim()})`;
-      if(capabilityId)await tx`UPDATE account_passkey_enrollment_capabilities SET consumed_at=now(),credential_id=${credential.id} WHERE id=${capabilityId}`;
+      if(capabilityId){
+        await tx`UPDATE account_passkey_enrollment_capabilities SET consumed_at=now(),credential_id=${credential.id} WHERE id=${capabilityId}`;
+        await tx`UPDATE account_signup_ceremonies SET enrolled_at=COALESCE(enrolled_at,clock_timestamp()),
+          enrolled_credential_id=COALESCE(enrolled_credential_id,${credential.id}) WHERE enrollment_capability_id=${capabilityId}
+          AND account_id=${accountId} AND enrollment_generation=${generation}`;
+      }
       return {registered:true,credentialId:credential.id,label:label.trim()};
     });}
     catch(error){if(uniqueConflict(error))throw new PasskeyError(409);throw error;}
