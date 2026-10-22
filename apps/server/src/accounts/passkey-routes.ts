@@ -8,6 +8,15 @@ import {parseJsonWithoutDuplicateKeys} from "../discovery/strict-json.js";
 
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 const COOKIE="hail_session";
+const OPERATIONS:Record<string,string>={
+  "/api/v1/auth/passkeys/registration/options":"passkey.registration-options","/api/v1/auth/passkeys/registration":"passkey.registration",
+  "/api/v1/auth/passkeys":"passkey.list","/api/v1/auth/passkeys/manage":"passkey.manage",
+  "/api/v1/auth/passkeys/sessions/revoke":"session.revoke-all","/api/v1/auth/passkeys/recovery/options":"passkey.recovery-options",
+  "/api/v1/auth/passkeys/recovery":"passkey.recovery","/api/v1/auth/passkeys/authentication/options":"passkey.authentication-options",
+  "/api/v1/auth/passkeys/authentication":"passkey.authentication","/api/v1/auth/authorization/prepare":"authorization.prepare",
+  "/api/v1/auth/authorization/details":"authorization.details","/api/v1/auth/authorization/complete":"authorization.complete",
+  "/api/v1/auth/authorization/token":"authorization.token","/api/v1/auth/logout":"session.logout"};
+export interface PasskeyAuditEvent {type:"hail.auth";operation:string;outcome:"accepted"|"refused"|"failed";status:number}
 
 async function input(request:Request){
   if(request.headers.get("content-type")!=="application/json"||request.headers.has("content-encoding"))throw new PasskeyError(400);
@@ -17,22 +26,26 @@ async function input(request:Request){
   return value as Record<string,unknown>;
 }
 
-export function registerPasskeyRoutes(app:Hono,passkeys:PasskeyAuth,accounts:AccountApiRepository){
+export function registerPasskeyRoutes(app:Hono,passkeys:PasskeyAuth,accounts:AccountApiRepository,
+  audit:(event:PasskeyAuditEvent)=>void=event=>console.info(JSON.stringify(event))){
   let window=Date.now(),requests=0;
+  const record=(context:Context,status:number)=>audit({type:"hail.auth",operation:OPERATIONS[context.req.path]??"unknown",
+    outcome:status<400?"accepted":status<500?"refused":"failed",status});
   app.use("/api/v1/auth/*",async(context,next)=>{
     context.header("Cache-Control","no-store");
     const origin=context.req.header("Origin"),trustedServer=context.req.path.includes("/registration")||
       ["/api/v1/auth/authorization/prepare","/api/v1/auth/authorization/token"].includes(context.req.path);
-    if(origin!==passkeys.origin&&!(trustedServer&&origin===undefined))return context.json({type:"about:blank",title:"Forbidden",status:403},403);
+    if(origin!==passkeys.origin&&!(trustedServer&&origin===undefined)){record(context,403);return context.json({type:"about:blank",title:"Forbidden",status:403},403);}
     if(Date.now()-window>=60_000){window=Date.now();requests=0;}
-    if(++requests>120){context.header("Retry-After","60");return context.json({type:"about:blank",title:"Too Many Requests",status:429},429);}
+    if(++requests>120){context.header("Retry-After","60");record(context,429);return context.json({type:"about:blank",title:"Too Many Requests",status:429},429);}
     await next();
   });
   const run=async(context:Context,operation:()=>Promise<unknown>)=>{
-    try{return context.json(await operation());}
+    try{const result=await operation();record(context,200);return context.json(result);}
     catch(error){
       const status=error instanceof PasskeyError?error.status:503;
       if(status===503)context.header("Retry-After","30");
+      record(context,status);
       return context.json({type:"about:blank",title:status===400?"Bad Request":status===401?"Unauthorized":status===403?"Forbidden":
         status===404?"Not Found":status===409?"Conflict":status===429?"Too Many Requests":"Service Unavailable",status},status);
     }

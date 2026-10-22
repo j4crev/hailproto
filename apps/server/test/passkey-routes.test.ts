@@ -19,8 +19,8 @@ function fixture(){
     authorizationDetails:vi.fn(async()=>({clientId:"hailp-cli-v1",scopes:["account:read"]})),
     completeAuthorization:vi.fn(async()=>({redirectUri:"http://127.0.0.1:45678/callback"})),
     exchangeAuthorization:vi.fn(async()=>({type:"hailp.api-credential"})),logout:vi.fn(async()=>{})};
-  const app=new Hono();registerPasskeyRoutes(app,service as unknown as PasskeyAuth,{authenticate} as unknown as AccountApiRepository);
-  return {app,service,authenticate};
+  const app=new Hono(),audit=vi.fn();registerPasskeyRoutes(app,service as unknown as PasskeyAuth,{authenticate} as unknown as AccountApiRepository,audit);
+  return {app,service,authenticate,audit};
 }
 
 describe("passkey routes",()=>{
@@ -95,5 +95,13 @@ describe("passkey routes",()=>{
     for(let request=0;request<120;request++)expect((await limited.app.request("/api/v1/auth/passkeys/authentication/options",{method:"POST",headers:{Origin:origin}})).status).toBe(200);
     const blocked=await limited.app.request("/api/v1/auth/passkeys/authentication/options",{method:"POST",headers:{Origin:origin}});
     expect(blocked.status).toBe(429);expect(blocked.headers.get("Retry-After")).toBe("60");
+  });
+
+  it("audits outcomes without request or account identifiers",async()=>{
+    const {app,service,audit}=fixture();service.authenticate.mockRejectedValueOnce(new PasskeyError(401));
+    await app.request("/api/v1/auth/passkeys/authentication",{method:"POST",headers:{Origin:origin,"Content-Type":"application/json"},
+      body:JSON.stringify({challengeId:"00000000-0000-4000-8000-000000000003",response:{id:"sensitive-credential"}})});
+    expect(audit).toHaveBeenCalledWith({type:"hail.auth",operation:"passkey.authentication",outcome:"refused",status:401});
+    expect(JSON.stringify(audit.mock.calls)).not.toMatch(/sensitive|account|token|challenge|credential/i);
   });
 });

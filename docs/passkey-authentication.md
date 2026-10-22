@@ -370,6 +370,8 @@ the browser.
   creating an account-enumeration oracle.
 - Do not log challenges, session tokens, authorization codes, API credentials,
   complete credential IDs or Hail private artifacts.
+- Emit one bounded structured authentication event containing only the fixed
+  operation name, accepted/refused/failed outcome and HTTP status.
 - Treat signature-counter regression as a risk event requiring policy review,
   not an automatic lockout for every synced passkey.
 - Bind sessions and passkeys to active account and serving generations so stale
