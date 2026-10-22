@@ -21,9 +21,9 @@ bunx wrangler deploy
 
 Use `https://alerts.plcmonitor.us/hail` as the monitor enrollment webhook. The
 Worker sends no email and returns a non-2xx status unless the raw request has a
-valid `hail.plc-monitor-alert.v1` signature from the pinned key. Cloudflare may
-deliver duplicate email if sending succeeds but its HTTP response is lost; the
-alert UUID is included for recognition.
+valid, at-most-seven-day-old `hail.plc-monitor-alert.v1` signature from the pinned
+key. A Durable Object atomically claims each alert UUID and suppresses completed
+replays for 30 days. A failed email releases the claim for retry.
 
 The monitor host posts an empty authenticated `POST /heartbeat` every three
 minutes after checking that its monitor container is healthy. Keep the heartbeat

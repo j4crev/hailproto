@@ -1,31 +1,46 @@
 import {generateKeyPairSync} from "node:crypto";
 import {expect,it,vi} from "vitest";
 import {MonitorSigner} from "../src/signing.js";
-import worker from "../deploy/cloudflare-alert-worker/worker.js";
+import worker,{AlertDeduplicator} from "../deploy/cloudflare-alert-worker/worker.js";
 import {encodeBase64Url} from "@hailproto/codec";
+
+function deduplicator(env:Record<string,unknown>){
+  const values=new Map<string,unknown>(),storage={get:async(key:string)=>values.get(key),put:async(key:string,value:unknown)=>{values.set(key,value)},
+    delete:async(key:string)=>values.delete(key),list:async()=>new Map(values),
+    transaction:async<T>(callback:(value:unknown)=>Promise<T>)=>callback(storage)};
+  const object=new AlertDeduplicator({storage} as never,env as never);
+  return {idFromName:(name:string)=>name,get:()=>({fetch:(request:Request)=>object.fetch(request)})};
+}
 
 it("emails only a valid pinned signed monitor alert",async()=>{
   const signer=new MonitorSigner(generateKeyPairSync("ed25519").privateKey),
     send=vi.fn(async(_message:{to:string;from:string;subject:string;text:string})=>({messageId:"test"}));
-  const env={ALERT_EMAIL:{send},ALERT_RECIPIENT:"the@j4w8n.com",ALERT_SENDER:"alerts@plcmonitor.us",MONITOR_PUBLIC_KEY:signer.publicDidKey,
+  const env:any={ALERT_EMAIL:{send},ALERT_RECIPIENT:"the@j4w8n.com",ALERT_SENDER:"alerts@plcmonitor.us",MONITOR_PUBLIC_KEY:signer.publicDidKey,
     HEARTBEAT_TOKEN:"token",BACKUP_TOKEN:"backup",PROVIDER_HEALTH_URL:"https://haili.app/health/ready",HAIL_PRODUCTION_MONITOR:{get:vi.fn(),put:vi.fn()}};
+  env.ALERT_DEDUPLICATOR=deduplicator(env);
   const payload=JSON.stringify({type:"hail.plc-monitor-alert",version:1,id:"00000000-0000-0000-0000-000000000000",
     did:`did:plc:${"a".repeat(24)}`,category:"unexpected-operation",detail:{operationCid:"bafyrei"},occurred_at:new Date().toISOString()});
   const bytes=new TextEncoder().encode(payload),request=(signature:Uint8Array)=>new Request("https://alerts.plcmonitor.us/hail",{
     method:"POST",headers:{"Content-Type":"application/json","Content-Length":String(bytes.length),
       "X-Hail-Monitor-Key":signer.publicDidKey,"X-Hail-Monitor-Signature":encodeBase64Url(signature)},body:bytes});
   expect((await worker.fetch(request(signer.signAlert(bytes)),env)).status).toBe(204);
+  expect((await worker.fetch(request(signer.signAlert(bytes)),env)).status).toBe(204);
   expect(send).toHaveBeenCalledWith(expect.objectContaining({to:"the@j4w8n.com",from:"alerts@plcmonitor.us"}));
   expect(send.mock.calls[0]![0].text).not.toContain("Monitor key:");
   const bad=signer.signAlert(bytes);bad[0]=bad[0]!^1;
   expect((await worker.fetch(request(bad),env)).status).toBe(401);
+  const staleBytes=new TextEncoder().encode(JSON.stringify({...JSON.parse(payload),id:"00000000-0000-0000-0000-000000000001",
+    occurred_at:new Date(Date.now()-8*86400_000).toISOString()}));
+  expect((await worker.fetch(new Request("https://alerts.plcmonitor.us/hail",{method:"POST",headers:{"Content-Type":"application/json",
+    "X-Hail-Monitor-Key":signer.publicDidKey,"X-Hail-Monitor-Signature":encodeBase64Url(signer.signAlert(staleBytes))},body:staleBytes}),env)).status).toBe(400);
   expect(send).toHaveBeenCalledOnce();
 });
 
 it("accepts authenticated heartbeats and alerts only on health transitions",async()=>{
   const values=new Map<string,string>(),send=vi.fn(async(_message:{to:string;from:string;subject:string;text:string})=>({messageId:"test"})),put=vi.fn(async(key:string,value:string)=>{values.set(key,value)}),
-    env={ALERT_EMAIL:{send},ALERT_RECIPIENT:"the@j4w8n.com",ALERT_SENDER:"alerts@plcmonitor.us",MONITOR_PUBLIC_KEY:"unused",
+    env:any={ALERT_EMAIL:{send},ALERT_RECIPIENT:"the@j4w8n.com",ALERT_SENDER:"alerts@plcmonitor.us",MONITOR_PUBLIC_KEY:"unused",
       HEARTBEAT_TOKEN:"secret",BACKUP_TOKEN:"backup",PROVIDER_HEALTH_URL:"https://haili.app/health/ready",HAIL_PRODUCTION_MONITOR:{get:async(key:string)=>values.get(key)??null,put}};
+  env.ALERT_DEDUPLICATOR=deduplicator(env);
   expect((await worker.fetch(new Request("https://alerts.plcmonitor.us/heartbeat",{method:"POST",headers:{Authorization:"Bearer wrong"}}),env)).status).toBe(401);
   expect((await worker.fetch(new Request("https://alerts.plcmonitor.us/heartbeat",{method:"POST",headers:{Authorization:"Bearer secret"}}),env)).status).toBe(204);
   expect((await worker.fetch(new Request("https://alerts.plcmonitor.us/backup-heartbeat",{method:"POST",headers:{Authorization:"Bearer backup"}}),env)).status).toBe(204);

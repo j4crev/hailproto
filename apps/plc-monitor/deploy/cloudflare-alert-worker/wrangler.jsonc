@@ -7,6 +7,14 @@
     { "pattern": "alerts.plcmonitor.us", "custom_domain": true }
   ],
   "triggers": { "crons": ["* * * * *"] },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ALERT_DEDUPLICATOR", "class_name": "AlertDeduplicator" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["AlertDeduplicator"] }
+  ],
   "kv_namespaces": [
     {
       "binding": "HAIL_PRODUCTION_MONITOR",

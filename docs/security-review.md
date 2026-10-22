@@ -15,7 +15,7 @@ regression tests, not further exploit demonstrations.
 | S2: shared ingress quotas | Medium | Fixed: trusted per-client and authenticated-account budgets plus a separate overload ceiling. |
 | S3: mutable verified Buffer evidence | Medium | Fixed: copy input into an independent Uint8Array. |
 | S4: CLI response buffering | Low | Fixed: streaming byte limit and cancellation. |
-| S5: repeated signed alert delivery | Low | Open: needs atomic delivery deduplication. |
+| S5: repeated signed alert delivery | Low | Fixed: Durable Object claim, freshness bound and 30-day deduplication. |
 | S6: protected key-ID BOM normalization | Low | Fixed: preserve BOM and reject noncanonical identifiers. |
 
 Validation/interoperability concerns and dependency advisories below remain open.
@@ -146,8 +146,11 @@ each fixed finding has a separate applied-change note.
 - Fix: deduplicate verified alert IDs before sending; define bounded freshness
   and retention rules compatible with delayed retries. Use atomic deduplication
   if concurrent delivery matters; eventually consistent KV alone can race.
-- Deferred: reliable suppression must handle concurrent deliveries and retries;
-  no non-atomic KV-only claim was added as a misleading partial fix.
+- Applied: alerts older than seven days or more than five minutes in the future
+  are rejected. A Durable Object transaction claims each alert UUID before email,
+  serializes concurrent delivery and suppresses completed replays for 30 days.
+  Failed sends release the claim for retry; a stale in-progress claim can retry
+  after five minutes.
 
 ### S6 — Low: TypeScript normalizes a noncanonical protected signer identifier
 

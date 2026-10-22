@@ -12,12 +12,44 @@ interface Env {
   HAIL_PRODUCTION_MONITOR:{get(key:string):Promise<string|null>;put(key:string,value:string):Promise<void>};
   MONITOR_PUBLIC_KEY:string;
   PROVIDER_HEALTH_URL:string;
+  ALERT_DEDUPLICATOR:{idFromName(name:string):unknown;get(id:unknown):{fetch(request:Request):Promise<Response>}};
 }
+
+interface DurableStorage {
+  get<T>(key:string):Promise<T|undefined>;put(key:string,value:unknown):Promise<void>;delete(key:string):Promise<boolean>;
+  list<T>(options:{prefix:string}):Promise<Map<string,T>>;
+  transaction<T>(callback:(transaction:Pick<DurableStorage,"get"|"put"|"delete">)=>Promise<T>):Promise<T>;
+}
+interface DurableState {storage:DurableStorage}
 
 const heartbeatKey="monitor-heartbeat",backupKey="backup-heartbeat",staleAfterMs=6*60_000,backupStaleAfterMs=26*60*60_000;
 
 async function email(env:Env,subject:string,text:string):Promise<void>{
   await env.ALERT_EMAIL.send({to:env.ALERT_RECIPIENT,from:env.ALERT_SENDER,subject,text});
+}
+
+export class AlertDeduplicator {
+  constructor(private readonly state:DurableState,private readonly env:Env){}
+  async fetch(request:Request):Promise<Response>{
+    if(request.method!=="POST")return new Response(null,{status:405});
+    let alert:Record<string,unknown>;
+    try{alert=await request.json() as Record<string,unknown>;}catch{return new Response(null,{status:400});}
+    if(typeof alert.id!=="string"||typeof alert.did!=="string"||typeof alert.category!=="string")return new Response(null,{status:400});
+    const key=`alert:${alert.id}`,now=Date.now(),claimed=await this.state.storage.transaction(async storage=>{
+      const prior=await storage.get<{state:string;updatedAt:number}>(key);
+      if(prior&&(prior.state==="sent"||now-prior.updatedAt<5*60_000))return false;
+      await storage.put(key,{state:"sending",updatedAt:now,expiresAt:now+30*86400_000});return true;
+    });
+    if(!claimed)return new Response(null,{status:204});
+    try{
+      await email(this.env,`[Hail PLC] ${alert.category}: ${alert.did}`,
+        `A signed Hail PLC monitor alert was received.\n\n${JSON.stringify(alert,null,2)}`);
+      await this.state.storage.put(key,{state:"sent",updatedAt:Date.now(),expiresAt:Date.now()+30*86400_000});
+      for(const [stored,value] of await this.state.storage.list<{expiresAt:number}>({prefix:"alert:"}))
+        if(value.expiresAt<=now)await this.state.storage.delete(stored);
+      return new Response(null,{status:204});
+    }catch{await this.state.storage.delete(key);return new Response(null,{status:503});}
+  }
 }
 
 async function recordHealth(env:Env,name:string,ok:boolean,detail:string):Promise<void>{
@@ -75,14 +107,15 @@ export default {
     if(key!==env.MONITOR_PUBLIC_KEY||!encoded||!signature(encoded)||!await verify(bytes,encoded,key))return new Response(null,{status:401});
     let alert:Record<string,unknown>;
     try{alert=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}catch{return new Response(null,{status:400});}
+    const occurred=typeof alert.occurred_at==="string"?Date.parse(alert.occurred_at):NaN,now=Date.now();
     if(!alert||Array.isArray(alert)||Object.keys(alert).length!==7||alert.type!=="hail.plc-monitor-alert"||alert.version!==1||
       typeof alert.id!=="string"||!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(alert.id)||
       typeof alert.did!=="string"||!/^did:plc:[a-z2-7]{24}$/.test(alert.did)||typeof alert.category!=="string"||!categories.has(alert.category)||
-      typeof alert.occurred_at!=="string"||!Number.isFinite(Date.parse(alert.occurred_at))||!alert.detail||typeof alert.detail!=="object"||Array.isArray(alert.detail))
+      !Number.isFinite(occurred)||occurred>now+5*60_000||occurred<now-7*86400_000||!alert.detail||typeof alert.detail!=="object"||Array.isArray(alert.detail))
       return new Response(null,{status:400});
-    await email(env,`[Hail PLC] ${alert.category}: ${alert.did}`,
-      `A signed Hail PLC monitor alert was received.\n\n${JSON.stringify(alert,null,2)}`);
-    return new Response(null,{status:204});
+    const id=env.ALERT_DEDUPLICATOR.idFromName("hail-monitor-alerts");
+    return env.ALERT_DEDUPLICATOR.get(id).fetch(new Request("https://deduplicator.internal/alert",{method:"POST",
+      headers:{"Content-Type":"application/json"},body:Uint8Array.from(bytes).buffer}));
   },
   async scheduled(_controller:unknown,env:Env):Promise<void>{
     let providerOk=false,providerDetail="health request failed";
