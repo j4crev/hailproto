@@ -17,7 +17,16 @@ copy was deleted, and the enrollment mount and button were removed in commit
 Commit `473b24b` added recent-verification-gated passkey listing, labeling,
 enrollment and revocation. The canary then enrolled independent Samsung Pass
 and Google Password Manager credentials, signed out, and authenticated using
-the Google credential alone. Both credentials remain active.
+the Google credential alone.
+
+Commit `9f0d263` added migration 55, owner-proof replacement enrollment and
+account-wide session revocation. Its guarded production deployment completed on
+October 22, 2026. The canary signed in with Samsung Pass, revoked the old Google
+credential, used the retained owner identity proof to enroll a replacement
+Google credential, authenticated with it, revoked every account session, and
+authenticated with it again. Samsung and the replacement Google credential
+remain active. The recovery bearer files were deleted, no API credential was
+restored, and the public PLC data remained exactly equal to the reviewed data.
 
 The next release gate is **account safety**, not broader enrollment. Complete
 these in order:
@@ -26,8 +35,8 @@ these in order:
 2. ~~Enroll and test a second independent authenticator for the canary.~~
 3. ~~Prevent removal of the current or final passkey; replace it through the
    owner-proof recovery path first.~~
-4. Owner-proof replacement-passkey enrollment is implemented without a custody
-   change or PLC operation; exercise it on the canary before general enrollment.
+4. ~~Implement and exercise owner-proof replacement-passkey enrollment without
+   a custody change or PLC operation.~~
 5. ~~Add recent-verification-gated account-wide session revocation and tests.~~
 6. ~~Publish passkey-loss and recovery guidance before general enrollment.~~
 
@@ -441,7 +450,7 @@ the browser.
 - [x] Confirm external health and successful guarded backup/deployment checks.
 - [ ] Confirm bounded error rates and privacy-safe audit events.
 - [x] Remove and revoke the fixed GUI credential after canary login and logout.
-- [ ] Exercise the retained owner-proof recovery path before general enrollment.
+- [x] Exercise the retained owner-proof recovery path before general enrollment.
 - [x] Publish user guidance for passkey loss, provider transfer and account
       recovery before general enrollment.
 
