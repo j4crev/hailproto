@@ -42,6 +42,16 @@ resident, user-verified passkey and completed accountless login. The temporary
 virtual credential was revoked afterward; only the intended Samsung and Google
 passkeys remain.
 
+Commit `e04985b` added optional post-signup passkey enrollment using a distinct
+client-generated token, provider-side hash and private `0600` enrollment file.
+Commit `561b8ea` added bounded privacy-safe authentication events. A production
+refusal emitted only its fixed operation, outcome and status; the supplied
+origin and body were absent. The canary then obtained temporary
+`account:read`/`credentials:write` authority through owner proof, rotated it,
+verified exact retry and terminal source revocation, and revoked the replacement.
+All temporary rotation credentials and state were deleted; the least-privilege
+browser credential remains healthy.
+
 The next release gate is **account safety**, not broader enrollment. Complete
 these in order:
 
@@ -492,10 +502,10 @@ Current manual interoperability evidence:
 - [x] Exercise login, expiry, restart, revocation and recovery on the canary.
 - [x] Enable GUI sessions through the reversible canary rollout.
 - [x] Exercise `hailp` browser login on Linux.
-- [ ] Exercise credential rotation using separately authorized
+- [x] Exercise credential rotation using separately authorized
       `credentials:write` access.
 - [x] Confirm external health and successful guarded backup/deployment checks.
-- [ ] Confirm bounded error rates and privacy-safe audit events.
+- [x] Confirm bounded error rates and privacy-safe audit events.
 - [x] Remove and revoke the fixed GUI credential after canary login and logout.
 - [x] Exercise the retained owner-proof recovery path before general enrollment.
 - [x] Publish user guidance for passkey loss, provider transfer and account
