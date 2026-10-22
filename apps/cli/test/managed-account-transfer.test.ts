@@ -93,15 +93,17 @@ it.each(["poc-local","strict-public-v1"])("orchestrates exact-retry managed owne
     expect(await exportManagedTransferSnapshot(client,statePath,snapshotPath)).toMatchObject({state:"exported",snapshotFile:snapshotPath});
     const cutover=await signManagedTransferCutover(vaultPath,statePath,snapshotPath,operationPath,approvalPath,secret);
     expect(cutover).toMatchObject({operationFile:operationPath,approvalFile:approvalPath});
-    let completionAttempts=0,retirementAttempts=0;const completionBodies:string[]=[],retirementBodies:string[]=[];
+    let completionAttempts=0,retirementAttempts=0,signedReceipt:Awaited<ReturnType<typeof sign>>|undefined;
+    const completionBodies:string[]=[],retirementBodies:string[]=[];
     const finishTransport=(async(url:string,init:RequestInit)=>{
       if(url.endsWith("managed-completions")) {
         completionBodies.push(init.body as string);completionAttempts++;
         const activatedAt=Math.floor(Date.now()/1000),value={type:"hail.portable-migration-activated",version:1,did,
           transfer_id:manifest.transferId,snapshot_digest:snapshotDigest,destination_service_base:manifest.destinationServiceBase,
           destination_messaging_key:destinationMessaging.did,destination_address:"alice@target.example.com",
-          address_binding_digest:new Uint8Array(32).fill(8),activated_at:activatedAt},signedReceipt=await sign(value as unknown as Record<string,HailValue>,destinationMessaging.pair),
-          result={type:"hailp.managed-transfer-completion",version:1,did,accountId:account.accountId,transferId:manifest.transferId,
+          address_binding_digest:new Uint8Array(32).fill(8),activated_at:activatedAt};
+        signedReceipt??=await sign(value as unknown as Record<string,HailValue>,destinationMessaging.pair);
+        const result={type:"hailp.managed-transfer-completion",version:1,did,accountId:account.accountId,transferId:manifest.transferId,
             generation:2,operationCid:cutover.operationCid,phase:"active",receipt:signedReceipt};
         if(completionAttempts===1)throw new Error("lost completion response");
         return new Response(JSON.stringify(result),{status:200,headers:{"Content-Type":"application/hail-transfer+json"}});
