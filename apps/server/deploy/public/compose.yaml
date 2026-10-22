@@ -87,7 +87,7 @@ services:
       PORT: 3000
       ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
       HAIL_GUI_PROVIDER: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
-      HAIL_GUI_API_ORIGIN: http://provider:3000
+      HAIL_GUI_API_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
       HAIL_GUI_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
       HAIL_GUI_CREDENTIAL_FILE: /run/secrets/canary-api-credential.json
     volumes:
