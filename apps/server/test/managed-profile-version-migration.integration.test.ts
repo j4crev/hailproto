@@ -28,7 +28,7 @@ it.skipIf(!process.env.DATABASE_URL)("migration 50 backfills and enforces frozen
     await db.sql`INSERT INTO public_plc_resolution_evidence(evidence_digest,did,operation_cid,verified_at,bundle_bytes)
       VALUES(${randomBytes(32)},${`did:plc:${"a".repeat(24)}`},'bafyreifixture',now(),${new Uint8Array([1])})`;
     await db.migrate();
-    expect((await db.sql<{version:number}[]>`SELECT max(version)::integer AS version FROM schema_migrations`)[0]?.version).toBe(56);
+    expect((await db.sql<{version:number}[]>`SELECT max(version)::integer AS version FROM schema_migrations`)[0]?.version).toBe(57);
     expect(await db.sql`SELECT account_id FROM managed_custody_evidence
       WHERE managed_profile_version='hail-managed-custody-v1'`).toHaveLength(1);
     expect(await db.sql`SELECT evidence_digest FROM public_plc_resolution_evidence
@@ -36,6 +36,7 @@ it.skipIf(!process.env.DATABASE_URL)("migration 50 backfills and enforces frozen
     await expect(db.sql`UPDATE managed_custody_evidence SET managed_profile_version='future-profile'`).rejects.toThrow();
     await expect(db.sql`UPDATE public_plc_resolution_evidence SET read_evidence_policy_version='future-policy'`).rejects.toThrow();
     const connection=await db.sql.reserve();try {
+      await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0057_alpha_monitoring.sql",import.meta.url)).text());
       await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0056_browser_authorization.sql",import.meta.url)).text());
       await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0055_passkey_recovery.sql",import.meta.url)).text());
       await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0054_passkey_sessions.sql",import.meta.url)).text());

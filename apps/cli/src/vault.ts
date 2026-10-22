@@ -1,64 +1,22 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { cidForCbor } from "@atproto/common";
 import { P256Keypair, parseDidKey, P256_JWT_ALG, SECP256K1_JWT_ALG } from "@atproto/crypto";
 import { assureValidSig, def, didForCreateOp, signOperation, type DocumentData, type Operation, type UnsignedOperation } from "@did-plc/lib";
 import { isIP } from "node:net";
-import { createWebCryptoSigner, decodeBase64Url, encodeBase64Url, encodeDeterministic, signPayload,
+import { createWebCryptoSigner, encodeDeterministic, signPayload,
   type HailAddressBinding, type HailGrant, type HailValue } from "@hailproto/codec";
 import * as dagCbor from "@ipld/dag-cbor";
 import { base58btc } from "multiformats/bases/base58";
 import { accountAccessInput, type AccountAccessChallenge } from "./account-access-proof.js";
-
-type Role = "user-recovery" | "hail-identity";
-
-export interface EncryptedUserKey {
-  role: Role;
-  publicDidKey: string;
-  nonce: string;
-  ciphertext: string;
-}
-
-export interface UserVaultFile {
-  type: "hail.user-vault";
-  version: 1;
-  did: string | null;
-  createdAt: string;
-  recovery: EncryptedUserKey;
-  identity: EncryptedUserKey;
-}
-
-export interface VaultCreation { vault: UserVaultFile; recoverySecret: Uint8Array; }
+import { bytes, cipher, seal, unseal, validateVault, unlockIdentityKey, type UserVaultFile } from "./vault-crypto.js";
+import { reviewManagedGenesisRoles, signReviewedManagedGenesis } from "./managed-genesis.js";
+export { createUserVault, type UserVaultFile, type EncryptedUserKey, type VaultCreation } from "./vault-crypto.js";
 
 // Reference new-genesis subset of the candidate managed-custody v1 profile.
 // This checks public roles/state, not physical custody or production PLC trust.
 export function reviewManagedGenesis(input: UnsignedOperation, vault: UserVaultFile): UnsignedOperation {
-  const operation = def.unsignedOperation.parse(input);
-  const identity = operation.verificationMethods["hail-identity"], messaging = operation.verificationMethods["hail-messaging"];
-  if (operation.prev !== null || operation.rotationKeys.length !== 2 ||
-    operation.rotationKeys[0] !== vault.recovery.publicDidKey || operation.alsoKnownAs.length ||
-    Object.keys(operation.verificationMethods).length !== 2 || Object.keys(operation.services).length !== 1 ||
-    operation.services.hail?.type !== "HailMessaging" || !identity || !messaging ||
-    new Set([...operation.rotationKeys, identity, messaging]).size !== 4 ||
-    [...operation.rotationKeys, identity, messaging].includes(vault.identity.publicDidKey)) {
-    throw new Error("Managed genesis requires four distinct reviewed owner/provider roles and no unexpected state");
-  }
-  for (const key of [identity, messaging]) {
-    if (!key.startsWith("did:key:")) throw new Error("Managed Hail keys must be Ed25519 did:key values");
-    const raw = base58btc.decode(key.slice(8));
-    if (raw.length !== 34 || raw[0] !== 0xed || raw[1] !== 1) throw new Error("Managed Hail keys must be Ed25519 did:key values");
-  }
-  if (![P256_JWT_ALG, SECP256K1_JWT_ALG].includes(parseDidKey(operation.rotationKeys[1]!).jwtAlg)) {
-    throw new Error("Managed provider rotation must use a PLC-supported key");
-  }
-  const endpoint = operation.services.hail.endpoint, url = new URL(endpoint);
-  const path = url.pathname === "/" ? "" : url.pathname;
-  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || isIP(url.hostname) ||
-    url.hostname.split(".").some(label => !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)) || endpoint !== `${url.origin}${path}` ||
-    path && path.slice(1).split("/").some(segment => !/^[A-Za-z0-9._~-]+$/.test(segment) || segment === "." || segment === "..")) {
-    throw new Error("Managed genesis service must be a canonical HTTPS Hail service base");
-  }
-  return operation;
+  return reviewManagedGenesisRoles(def.unsignedOperation.parse(input), vault);
 }
 
 export interface UserMigrationConsent {
@@ -135,87 +93,6 @@ export interface ManagedCustodyTransitionApproval {
   provider_service_base:string;owner_recovery_key:string;old_identity_key:string;new_identity_key:string;
   previous_operation_cid:string;operation_cid:string;history_checkpoint_sha256:Uint8Array;binding_sha256:Uint8Array;
   generation_from:number;generation_to:number;nonce:string;issued_at:number;expires_at:number;
-}
-
-function bytes(value: Uint8Array): Uint8Array<ArrayBuffer> { return Uint8Array.from(value); }
-function aad(role: Role, didKey: string): Uint8Array<ArrayBuffer> {
-  return new TextEncoder().encode(`hail-user-vault-v1\0${role}\0${didKey}`);
-}
-async function cipher(secret: Uint8Array): Promise<CryptoKey> {
-  if (secret.length !== 32) throw new Error("Vault recovery secret must be exactly 256 bits");
-  return crypto.subtle.importKey("raw", bytes(secret), "AES-GCM", false, ["encrypt", "decrypt"]);
-}
-async function seal(key: CryptoKey, role: Role, publicDidKey: string, privateBytes: Uint8Array): Promise<EncryptedUserKey> {
-  const nonce = randomBytes(12);
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: bytes(nonce),
-    additionalData: aad(role, publicDidKey), tagLength: 128 }, key, bytes(privateBytes)));
-  return { role, publicDidKey, nonce: encodeBase64Url(nonce), ciphertext: encodeBase64Url(ciphertext) };
-}
-async function unseal(key: CryptoKey, value: EncryptedUserKey, role: Role): Promise<Uint8Array> {
-  if (value.role !== role || typeof value.publicDidKey !== "string") throw new Error("Vault role mismatch");
-  const nonce = decodeBase64Url(value.nonce);
-  const ciphertext = decodeBase64Url(value.ciphertext);
-  if (nonce.length !== 12 || ciphertext.length < 17) throw new Error("Vault ciphertext or nonce is invalid");
-  return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes(nonce),
-    additionalData: aad(role, value.publicDidKey), tagLength: 128 }, key, bytes(ciphertext)));
-}
-
-export async function createUserVault(): Promise<VaultCreation> {
-  const recovery = await P256Keypair.create({ exportable: true });
-  const identity = (await crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"])) as CryptoKeyPair;
-  const prefixed = new Uint8Array(34);
-  prefixed.set([0xed, 0x01]);
-  prefixed.set(new Uint8Array(await crypto.subtle.exportKey("raw", identity.publicKey)), 2);
-  const identityDidKey = `did:key:${base58btc.encode(prefixed)}`;
-  const recoverySecret = randomBytes(32);
-  const key = await cipher(recoverySecret);
-  const recoveryBytes = new Uint8Array(await recovery.export());
-  const identityBytes = new Uint8Array(await crypto.subtle.exportKey("pkcs8", identity.privateKey));
-  let sealedRecovery;
-  let sealedIdentity;
-  try {
-    [sealedRecovery, sealedIdentity] = await Promise.all([
-      seal(key, "user-recovery", recovery.did(), recoveryBytes),
-      seal(key, "hail-identity", identityDidKey, identityBytes),
-    ]);
-  } finally { recoveryBytes.fill(0); identityBytes.fill(0); }
-  return { vault: { type: "hail.user-vault", version: 1, did: null,
-    createdAt: new Date().toISOString(), recovery: sealedRecovery, identity: sealedIdentity },
-    recoverySecret: bytes(recoverySecret) };
-}
-
-function validateVault(vault: UserVaultFile): void {
-  if (!vault || typeof vault !== "object" || Array.isArray(vault) ||
-    Object.keys(vault).length !== 6 || Object.keys(vault).some(key =>
-      !["type", "version", "did", "createdAt", "recovery", "identity"].includes(key)) ||
-    vault.type !== "hail.user-vault" || vault.version !== 1 ||
-    (vault.did !== null && !/^did:plc:[a-z2-7]{24}$/.test(vault.did)) ||
-    typeof vault.createdAt !== "string" || !Number.isFinite(Date.parse(vault.createdAt))) throw new Error("Invalid user vault representation");
-  for (const [record, role] of [[vault.recovery, "user-recovery"], [vault.identity, "hail-identity"]] as const) {
-    if (!record || typeof record !== "object" || Array.isArray(record) || Object.keys(record).length !== 4 ||
-      Object.keys(record).some(key => !["role", "publicDidKey", "nonce", "ciphertext"].includes(key)) ||
-      record.role !== role || typeof record.publicDidKey !== "string" || record.publicDidKey.length > 256 ||
-      !/^did:key:z[1-9A-HJ-NP-Za-km-z]+$/.test(record.publicDidKey) ||
-      typeof record.nonce !== "string" || typeof record.ciphertext !== "string") throw new Error("Invalid vault key record");
-  }
-  if (vault.recovery.publicDidKey === vault.identity.publicDidKey) throw new Error("Invalid user vault representation");
-}
-
-async function unlockIdentityKey(vault: UserVaultFile, key: CryptoKey): Promise<CryptoKey> {
-  const identityBytes = await unseal(key, vault.identity, "hail-identity");
-  try {
-    const identity = await crypto.subtle.importKey("pkcs8", bytes(identityBytes), "Ed25519", false, ["sign"]);
-    const publicBytes = base58btc.decode(vault.identity.publicDidKey.slice("did:key:".length));
-    if (publicBytes.length !== 34 ||
-      publicBytes[0] !== 0xed || publicBytes[1] !== 0x01) throw new Error("Vault public keys do not match private keys");
-    const challenge = randomBytes(32);
-    const signature = await crypto.subtle.sign("Ed25519", identity, bytes(challenge));
-    const publicKey = await crypto.subtle.importKey("raw", bytes(publicBytes.slice(2)), "Ed25519", false, ["verify"]);
-    if (!await crypto.subtle.verify("Ed25519", publicKey, signature, bytes(challenge))) {
-      throw new Error("Vault identity private key does not match its public key");
-    }
-    return identity;
-  } finally { identityBytes.fill(0); }
 }
 
 function signUserGrant(vault: UserVaultFile, identity: CryptoKey, payload: HailGrant): Promise<Uint8Array> {
@@ -443,10 +320,8 @@ export class UnlockedUserVault {
   }
 
   async signManagedGenesis(unsigned: UnsignedOperation) {
-    if (this.vault.did !== null) throw new Error("Bound vault cannot authorize another managed genesis; retain the original signup state");
-    const operation = await signOperation(reviewManagedGenesis(unsigned, this.vault),this.recovery);
-    if (dagCbor.encode(operation).length > 7500) throw new Error("PLC operation exceeds the directory limit");
-    return {operation,did:await didForCreateOp(operation)};
+    const { operation, did } = await signReviewedManagedGenesis(reviewManagedGenesis(unsigned, this.vault), this.vault, this.recovery);
+    return { operation, did };
   }
 
   async bindDid(did: string, signedGenesis: Operation, managed = false): Promise<UserVaultFile> {

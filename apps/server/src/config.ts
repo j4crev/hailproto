@@ -20,6 +20,7 @@ export interface AppConfig {
   publicManagedTransfer?: { monitorOrigin: string; monitorPublicKey: string };
   passkeys?: { rpId: string; origin: string };
   thinGuiOrigin?:string;
+  signupEmail?:{origin:string;token:string};
 }
 
 type Environment = Record<string, string | undefined>;
@@ -174,6 +175,14 @@ export function loadConfig(environment: Environment = Bun.env): AppConfig {
     if(url.pathname!=="/")throw new Error("THIN_GUI_ORIGIN must not contain a path");
     thinGuiOrigin=withoutTrailingSlash(url);
   }
+  let signupEmail:AppConfig["signupEmail"];
+  if(environment.SIGNUP_EMAIL_ORIGIN||environment.SIGNUP_EMAIL_TOKEN){
+    const url=parseUrl(required(environment,"SIGNUP_EMAIL_ORIGIN"),"SIGNUP_EMAIL_ORIGIN",["https:"]);
+    if(url.pathname!=="/")throw new Error("SIGNUP_EMAIL_ORIGIN must not contain a path");
+    const token=required(environment,"SIGNUP_EMAIL_TOKEN");
+    try{decodeBase64Url(token,32);}catch{throw new Error("SIGNUP_EMAIL_TOKEN must be a canonical 32-byte base64url secret");}
+    signupEmail={origin:withoutTrailingSlash(url),token};
+  }
   return {
     nodeEnv,
     port,
@@ -189,6 +198,7 @@ export function loadConfig(environment: Environment = Bun.env): AppConfig {
     ...(plcReaderDiagnosticDid?{plcReaderDiagnosticDid}:{}),
     ...(passkeys?{passkeys}:{}),
     ...(thinGuiOrigin?{thinGuiOrigin}:{}),
+    ...(signupEmail?{signupEmail}:{}),
   };
 }
 import { decodeBase64Url } from "@hailproto/codec";

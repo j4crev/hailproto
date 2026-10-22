@@ -99,9 +99,9 @@ export class SameProviderCustodyTransition {
     const account=(await this.sql<{did:string;canonical_address:string;onboarding_state:string;activation_verification_mode:string}[]>`
       SELECT did,canonical_address,onboarding_state,activation_verification_mode FROM provider_accounts WHERE id=${accountId}`)[0];
     if(!account||account.onboarding_state!=="active"||account.activation_verification_mode!=="public")throw new Error("A public active account is required");
-    const managed=(await this.sql<{owner_recovery_public_key:string;provider_identity_public_key:string}[]>`
-      SELECT owner_recovery_public_key,provider_identity_public_key FROM managed_custody_evidence WHERE account_id=${accountId}`)[0];
-    if(!managed)throw new Error("Managed custody is required");
+    const managed=(await this.sql<{owner_recovery_public_key:string;provider_identity_public_key:string;verification_mode:string}[]>`
+      SELECT owner_recovery_public_key,provider_identity_public_key,verification_mode FROM managed_custody_evidence WHERE account_id=${accountId}`)[0];
+    if(!managed||managed.verification_mode!=="strict-public-v1")throw new Error("Independent-monitor managed custody is required for this transition");
     const current=await this.resolver.resolve(account.did);
     const currentState=def.documentData.parse(current.evidence.data);
     if(current.serviceBase!==this.serviceBase||!current.evidence.verification||current.identityDidKey!==managed.provider_identity_public_key||
@@ -264,6 +264,9 @@ export class SameProviderCustodyTransition {
     if(operationBytes.length<1||operationBytes.length>16_000||approvalBytes.length<1||approvalBytes.length>16_384||approvalSignature.length!==64)
       throw new Error("Custody transition evidence exceeds its limit");
     let row=await this.row(accountId,transitionId),operation=def.operation.parse(parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(operationBytes)));
+    if(row.direction==="managed-to-owner"&&row.state!=="complete"&&!(await this.sql`
+      SELECT account_id FROM managed_custody_evidence WHERE account_id=${accountId} AND verification_mode='strict-public-v1'`).length)
+      throw new Error("Independent-monitor managed custody is required for this transition");
     const expected=parsedState(row.expected_state),unsigned={type:operation.type,prev:operation.prev,rotationKeys:operation.rotationKeys,
       verificationMethods:operation.verificationMethods,alsoKnownAs:operation.alsoKnownAs,services:operation.services};
     if(!isDeepStrictEqual(unsigned,{type:"plc_operation",prev:row.previous_operation_cid,rotationKeys:expected.rotationKeys,
@@ -321,7 +324,7 @@ export class SameProviderCustodyTransition {
       const managed=(await tx<{value:Record<string,unknown>;provider_identity_public_key:string}[]>`
         SELECT to_jsonb(m) AS value,provider_identity_public_key FROM managed_custody_evidence m WHERE account_id=${row.account_id} FOR UPDATE`)[0];
       if(!account||account.did!==row.did||row.direction==="owner-to-managed"&&!portable||row.direction==="managed-to-owner"&&
-        (!managed||managed.provider_identity_public_key!==row.old_identity_public_key))throw new Error("Account custody changed before materialization");
+         (!managed||managed.provider_identity_public_key!==row.old_identity_public_key||managed.value.verification_mode!=="strict-public-v1"))throw new Error("Account custody changed before materialization");
       const generation=number((await tx<{generation:number|string|bigint}[]>`SELECT generation FROM account_serving_generations WHERE account_id=${row.account_id} FOR UPDATE`)[0]!.generation,"generation");
       if(generation!==number(row.generation_from,"generation"))throw new Error("Serving generation changed before custody materialization");
       await tx`SELECT set_config('hail.admitted_generations',${JSON.stringify({[row.account_id]:generation})},true)`;

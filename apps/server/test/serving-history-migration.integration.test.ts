@@ -111,6 +111,7 @@ integration("migration 36 serving metadata and immutable retirement history",()=
     await db.migrate();expect((await db.sql`SELECT transfer_id FROM provider_retired_transfer_history`).length).toBe(2);
     expect(await fingerprints()).toEqual(beforeRollback);
     const current=await new AccountApiRepository(db.sql).authenticate(`Bearer ${original.credential.token}`);expect(current?.serving_generation).toBe(1);
+    await rollback("0057_alpha_monitoring.sql");
     await rollback("0056_browser_authorization.sql");
     await rollback("0055_passkey_recovery.sql");
     await rollback("0054_passkey_sessions.sql");

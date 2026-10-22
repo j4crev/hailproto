@@ -1,8 +1,27 @@
 # Hail GUI proof of concept
 
 Disposable Svelte 5/SvelteKit 2 inbox and safe `spt-1`/`spt-2`/`spt-3` reader for
-accounts at `haili.app`. It uses provider passkey sessions and does not store API
-credentials or Hail keys in browser JavaScript.
+accounts at `haili.app`. Everyday use relies on provider passkey sessions and does
+not store API credentials or Hail keys in browser JavaScript. The opt-in local
+signup recovery preview below temporarily handles owner recovery material.
+
+## Local signup recovery preview
+
+After building, run `HAIL_GUI_SIGNUP_PREVIEW=true` with the normal GUI environment
+and open `/signup/recovery`. The preview generates the existing v1 encrypted
+backup locally, asks users to save its random secret separately, and verifies
+the actual saved file and secret. It creates no account, submits no PLC operation
+and performs no post-signup account recovery import. It is disabled by default.
+Clearing or closing the preview releases its references; JavaScript does not
+guarantee secure erasure of strings, buffers or browser history snapshots.
+
+`bun run test:browser` uses installed Chromium (`CHROMIUM` may override its path)
+to exercise browser crypto, encrypted export verification and managed genesis
+signing with network connections blocked by CSP. It is not a claim that Safari,
+Firefox or mobile-device checks have passed. See the
+[consumer signup plan](../../docs/public-authentication.md) for remaining gates.
+
+## Run the messaging GUI
 
 ```bash
 bun install

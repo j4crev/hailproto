@@ -35,6 +35,7 @@ interface PreparationRow {
   managed_profile_version: typeof MANAGED_CUSTODY_PROFILE_VERSION | null;
   backup_confirmed_at: Date;
   signup_token_hash: Uint8Array | null;
+  monitor_assurance: "independent" | "reduced-assurance-alpha-v1";
 }
 
 export interface PublicOnboardingPreparation {
@@ -49,12 +50,20 @@ export interface PublicOnboardingPreparation {
   managedProfileVersion: typeof MANAGED_CUSTODY_PROFILE_VERSION | null;
   monitorOrigin: string;
   monitorPublicKey: string;
+  monitorAssurance: "independent" | "reduced-assurance-alpha-v1";
+}
+
+export interface AlphaMonitoringPolicy {
+  profile: "reduced-assurance-alpha-v1";
+  monitorOrigin: string;
+  monitorPublicKey: string;
 }
 
 export class PublicOnboarding {
   constructor(private readonly sql: SQL, private readonly plc: PlcDirectoryClient,
     private readonly resolver: HailDidResolver, private readonly encryptor: KeyEncryptor,
-    registryOrigin: string, private readonly serviceBase: string, private readonly verifier: AddressVerificationService) {
+    registryOrigin: string, private readonly serviceBase: string, private readonly verifier: AddressVerificationService,
+    private readonly alphaMonitoring?: AlphaMonitoringPolicy) {
     if (registryOrigin !== "https://plc.directory" || serviceBase !== `${new URL(serviceBase).origin}/hail`) {
       throw new Error("Public onboarding requires canonical public PLC and provider Hail services");
     }
@@ -62,7 +71,12 @@ export class PublicOnboarding {
 
   async prepare(addressInput: string, recovery: string, identity: string, backupChecked: boolean,
     profile: "owner-controlled" | "managed", monitorOrigin: string, monitorPublicKey: string,
-    signupHash?: Uint8Array): Promise<PublicOnboardingPreparation> {
+    signupHash?: Uint8Array, alphaMonitoringAccepted = false): Promise<PublicOnboardingPreparation> {
+    const assurance = this.alphaMonitoring?.profile ?? "independent";
+    if (this.alphaMonitoring ? profile !== "managed" || !alphaMonitoringAccepted ||
+      monitorOrigin !== this.alphaMonitoring.monitorOrigin || monitorPublicKey !== this.alphaMonitoring.monitorPublicKey : alphaMonitoringAccepted) {
+      throw new Error("Alpha onboarding requires explicit managed custody, reduced-assurance consent and the pinned monitor");
+    }
     if (!backupChecked || !recovery.startsWith("did:key:z") || !identity.startsWith("did:key:z") || recovery === identity) {
       throw new Error("Public onboarding needs a verified backup and distinct recovery/identity public keys");
     }
@@ -82,7 +96,7 @@ export class PublicOnboarding {
       WHERE account.canonical_address = ${address}`;
     if (prior[0]) {
       const row = prior[0];
-      if (row.owner_recovery_public_key !== recovery || row.custody_profile !== profile ||
+      if (row.monitor_assurance !== assurance || row.owner_recovery_public_key !== recovery || row.custody_profile !== profile ||
         row.monitor_origin !== monitorOrigin || row.monitor_public_key !== monitorPublicKey ||
         (profile === "owner-controlled" && row.owner_identity_public_key !== identity) ||
         (signupHash && (!row.signup_token_hash || !Buffer.from(row.signup_token_hash).equals(Buffer.from(signupHash)))) ||
@@ -104,15 +118,16 @@ export class PublicOnboarding {
       }
       await tx`INSERT INTO public_onboarding_preparations (account_id, owner_recovery_public_key,
         owner_identity_public_key, provider_rotation_public_key, provider_messaging_public_key,
-        monitor_origin, monitor_public_key, custody_profile, managed_profile_version, backup_confirmed_at, signup_token_hash)
+         monitor_origin, monitor_public_key, custody_profile, managed_profile_version, backup_confirmed_at, signup_token_hash, monitor_assurance)
         VALUES (${accountId}, ${recovery}, ${identity}, ${generated.rotationDidKey}, ${generated.messagingDidKey},
           ${monitorOrigin}, ${monitorPublicKey}, ${profile}, ${profile === "managed" ? MANAGED_CUSTODY_PROFILE_VERSION : null},
-          clock_timestamp(), ${signupHash ?? null})`;
+           clock_timestamp(), ${signupHash ?? null}, ${assurance})`;
     });
     return { accountId, address, userRecoveryKey: recovery, userIdentityKey: identity,
       providerRotationKey: generated.rotationDidKey, providerMessagingKey: generated.messagingDidKey,
       sourceServiceBase: this.serviceBase, custodyProfile: profile,
-      managedProfileVersion: profile === "managed" ? MANAGED_CUSTODY_PROFILE_VERSION : null, monitorOrigin, monitorPublicKey };
+       managedProfileVersion: profile === "managed" ? MANAGED_CUSTODY_PROFILE_VERSION : null, monitorOrigin, monitorPublicKey,
+       monitorAssurance: assurance };
   }
 
   async register(accountId: string, operationBytes: Uint8Array, bindingCose: Uint8Array): Promise<{ did: string; state: string; operationCid: string }> {
@@ -121,6 +136,7 @@ export class PublicOnboarding {
     }
     const prepared = (await this.sql<PreparationRow[]>`SELECT * FROM public_onboarding_preparations WHERE account_id=${accountId}`)[0];
     if (!prepared) throw new Error("Public provider key preparation does not exist");
+    this.checkAssurance(prepared);
     const repository = new OnboardingRepository(this.sql);
     let account = await repository.getAccount(accountId);
     const operation = def.operation.parse(parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8", { fatal: true }).decode(operationBytes)));
@@ -222,6 +238,7 @@ export class PublicOnboarding {
   async activate(accountId: string, signed: SignedMonitorAttestation): Promise<void> {
     const prepared = (await this.sql<PreparationRow[]>`SELECT * FROM public_onboarding_preparations WHERE account_id=${accountId}`)[0];
     if (!prepared) throw new Error("Public onboarding preparation does not exist");
+    this.checkAssurance(prepared);
     const repository = new OnboardingRepository(this.sql), account = await repository.getAccount(accountId);
     if (!account.did) throw new Error("Public DID is not registered");
     const existing = (await this.sql<{ monitor_payload: Uint8Array; monitor_signature: Uint8Array }[]>`
@@ -259,7 +276,8 @@ export class PublicOnboarding {
           serviceBase: this.serviceBase, representation: binding.cose, evidence: verified.plcEvidence });
         if (prepared.custody_profile === "managed") await tx`INSERT INTO managed_custody_evidence
           (account_id, owner_recovery_public_key, provider_identity_public_key, verification_mode, managed_profile_version)
-          VALUES (${accountId}, ${prepared.owner_recovery_public_key}, ${prepared.owner_identity_public_key}, 'strict-public-v1',
+           VALUES (${accountId}, ${prepared.owner_recovery_public_key}, ${prepared.owner_identity_public_key},
+             ${prepared.monitor_assurance === "independent" ? "strict-public-v1" : prepared.monitor_assurance},
             ${MANAGED_CUSTODY_PROFILE_VERSION})`;
         else await tx`INSERT INTO portable_custody_evidence (account_id, user_recovery_public_key,
           user_identity_public_key, monitor_origin, monitor_public_key, monitor_confirmed_at,
@@ -268,11 +286,12 @@ export class PublicOnboarding {
           ${now}, ${prepared.backup_confirmed_at}, 'independent')`;
         await tx`INSERT INTO public_onboarding_evidence (account_id, did, operation_cid, genesis_digest,
           binding_digest, plc_evidence_digest, monitor_origin, monitor_public_key, monitor_payload,
-          monitor_signature, monitor_state_digest, monitor_export_sequence, activated_at, record_version, read_evidence_policy_version)
+           monitor_signature, monitor_state_digest, monitor_export_sequence, activated_at, record_version, read_evidence_policy_version, monitor_assurance)
           VALUES (${accountId}, ${account.did}, ${genesis.operationCid},
             ${new Uint8Array(createHash("sha256").update(genesis.operationBytes).digest())}, ${binding.digest}, ${plcDigest},
             ${prepared.monitor_origin}, ${prepared.monitor_public_key}, ${signed.payloadBytes}, ${signed.signature},
-            ${monitor.bootstrap_state_digest}, ${monitor.export_sequence??null}, ${now}, 1, ${PLC_READ_EVIDENCE_POLICY_VERSION})`;
+             ${monitor.bootstrap_state_digest}, ${monitor.export_sequence??null}, ${now}, 1, ${PLC_READ_EVIDENCE_POLICY_VERSION},
+             ${prepared.monitor_assurance})`;
         const activated = await tx`UPDATE provider_accounts AS account SET onboarding_state='active', activated_at=${now},
           activation_binding_digest=${binding.digest}, activation_verification_mode='public', activation_attempt_id=NULL,
           state_version=state_version+1, updated_at=${now} FROM address_bindings AS selected
@@ -292,6 +311,14 @@ export class PublicOnboarding {
       userIdentityKey: row.owner_identity_public_key, providerRotationKey: row.provider_rotation_public_key,
       providerMessagingKey: row.provider_messaging_public_key, sourceServiceBase: this.serviceBase,
       custodyProfile: row.custody_profile, managedProfileVersion: row.managed_profile_version,
-      monitorOrigin: row.monitor_origin, monitorPublicKey: row.monitor_public_key };
+      monitorOrigin: row.monitor_origin, monitorPublicKey: row.monitor_public_key, monitorAssurance: row.monitor_assurance };
+  }
+
+  private checkAssurance(row: PreparationRow) {
+    if (row.monitor_assurance !== (this.alphaMonitoring?.profile ?? "independent") ||
+      this.alphaMonitoring && (row.custody_profile !== "managed" || row.monitor_origin !== this.alphaMonitoring.monitorOrigin ||
+        row.monitor_public_key !== this.alphaMonitoring.monitorPublicKey)) {
+      throw new Error("Onboarding monitor assurance does not match this activation profile");
+    }
   }
 }

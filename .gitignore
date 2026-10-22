@@ -5,3 +5,4 @@ coverage/
 *.tsbuildinfo
 .env
 apps/*/deploy/**/secrets/
+apps/plc-monitor/deploy/cloudflare-alert-worker/.dev.vars*

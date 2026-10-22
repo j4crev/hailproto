@@ -198,6 +198,7 @@ const migrations: readonly Migration[] = [
   { version: 54, name: "passkey-sessions", url: new URL("../../migrations/0054_passkey_sessions.sql", import.meta.url) },
   { version: 55, name: "passkey-recovery", url: new URL("../../migrations/0055_passkey_recovery.sql", import.meta.url) },
   { version: 56, name: "browser-authorization", url: new URL("../../migrations/0056_browser_authorization.sql", import.meta.url) },
+  { version: 57, name: "alpha-monitoring", url: new URL("../../migrations/0057_alpha_monitoring.sql", import.meta.url) },
 ];
 
 export class ProviderDatabase {

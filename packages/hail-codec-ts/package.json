@@ -11,7 +11,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./vectors/v0.json": "./vectors/v0.json"
+    "./vectors/v0.json": "./vectors/v0.json",
+    "./base64url": {
+      "types": "./dist/base64url.d.ts",
+      "import": "./dist/base64url.js"
+    }
   },
   "bin": {
     "hail-codec": "./dist/cli.js"

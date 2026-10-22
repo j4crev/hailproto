@@ -40,6 +40,7 @@ export class ManagedTransferAuthorization {
       SELECT account.id,managed.owner_recovery_public_key,managed.provider_identity_public_key
       FROM provider_accounts account JOIN managed_custody_evidence managed ON managed.account_id=account.id
       WHERE account.did=${grant.did} AND account.onboarding_state='active' AND account.activation_verification_mode='public'
+        AND managed.verification_mode IN ('poc-local','strict-public-v1')
         AND EXISTS (SELECT 1 FROM account_keys held WHERE held.account_id=account.id AND held.role='hail-identity'
           AND held.public_key=managed.provider_identity_public_key)`)[0];
     if(!account||account.owner_recovery_public_key!==ownerRecoveryKey||

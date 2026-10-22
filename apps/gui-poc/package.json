@@ -8,6 +8,7 @@
     "build": "vite build",
     "start": "HOST=127.0.0.1 node build",
     "test": "vitest run",
+    "test:browser": "bun scripts/check-browser-signup.ts",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {

@@ -38,6 +38,7 @@ import { AddressVerifier } from "./discovery/verifier.js";
 import { SenderProfileVerifier } from "./profiles/verifier.js";
 import { PrivatePocOnboarding } from "./onboarding/private-poc.js";
 import { PublicOnboarding } from "./onboarding/public.js";
+import { SignupEmailClient } from "./onboarding/email.js";
 import { ActivationService } from "./onboarding/activation.js";
 import { AccountMessaging } from "./accounts/messaging.js";
 import { EnvelopeService } from "./envelopes/service.js";
@@ -251,6 +252,7 @@ const app = createApp(config, schemaRehearsal ? {
   checkReadiness,
 } : {
   servingSql:database.sql,
+  ...(config.signupEmail?{signupEmail:{sql:database.sql,client:new SignupEmailClient(config.signupEmail)}}:{}),
   ...(config.passkeys?{passkeys:new PasskeyAuth(database.sql,config.passkeys.rpId,config.passkeys.origin)}:{}),
   ...(process.env.POC_ACCOUNT_ACCESS === "true" || publicManaged ?
     { accountAccess: { access: new AccountAccess(database.sql, resolver, config.publicOrigin), sql: database.sql } } : {}),

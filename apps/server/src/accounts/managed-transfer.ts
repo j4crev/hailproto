@@ -22,7 +22,8 @@ export class ManagedAccountTransfer {
       JOIN managed_custody_evidence managed ON managed.account_id=account.id
       JOIN account_api_credentials credential ON credential.account_id=account.id AND credential.id=${session.credential_id}
       WHERE account.id=${session.account_id} AND account.did=${session.did} AND account.canonical_address=${session.canonical_address}
-        AND account.onboarding_state='active' AND account.activation_verification_mode='public'
+         AND account.onboarding_state='active' AND account.activation_verification_mode='public'
+         AND managed.verification_mode IN ('poc-local','strict-public-v1')
         AND credential.revoked_at IS NULL AND credential.expires_at>clock_timestamp() AND credential.scopes ? 'account:write'
         AND EXISTS (SELECT 1 FROM account_keys held WHERE held.account_id=account.id AND held.role='hail-identity'
           AND held.public_key=managed.provider_identity_public_key)`;

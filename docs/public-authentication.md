@@ -2,6 +2,41 @@
 
 Status: product plan, not implementation approval or a change to protocol requirements.
 
+## Implementation Progress
+
+- Browser-safe vault encryption/verification is shared with `hailp`, preserving
+  the existing v1 backup format. Managed genesis signing also shares the reviewed
+  role checks and signing implementation with the CLI.
+- A real Chromium check covers generation, encrypted export, saved-material
+  verification, incorrect-secret refusal and exact-state signing, with network
+  connections blocked by CSP. Unit tests cross-check signatures, DID and CID
+  against the official PLC library. Other browser/platform results remain open.
+- An opt-in local recovery preview exists at `/signup/recovery` with
+  `HAIL_GUI_SIGNUP_PREVIEW=true`. It creates no account, publishes nothing and
+  does not implement post-signup recovery import.
+- Migration 57 and the public onboarding service support separately retained
+  `reduced-assurance-alpha-v1` monitoring for explicitly consenting managed
+  accounts. Tests cover strict/alpha isolation, old-writer mislabel refusal,
+  unchanged freshness checks and guarded rollback.
+- [The alpha profile](../spec/alpha-onboarding.md) records its exact limits.
+  No public alpha account-creation route, automatic monitor enrollment or production rollout
+  is enabled yet. Browser signup is not end-to-end complete.
+- Cloudflare Email Sending is selected, using `notify.haili.app`. The existing
+  Worker now supports authenticated verification codes and immutable per-DID
+  routing to verified consumer destinations, while retaining operator alerts for
+  existing unmapped canaries and infrastructure health transitions.
+- An optional same-origin provider proxy hides the Worker service secret and
+  binds email only to the matching owner-authorized, registered alpha genesis.
+  Enable it with private `SIGNUP_EMAIL_ORIGIN` and `SIGNUP_EMAIL_TOKEN` settings.
+  This does not yet connect the full browser wizard or automate monitor enrollment.
+  See the [email Worker runbook](../apps/plc-monitor/deploy/cloudflare-alert-worker/README.md).
+
+Next: live email configuration/delivery proof, authenticated automatic monitor
+enrollment, narrow signup capability lifecycle, then the resumable full browser
+wizard. Do not treat a delivered operator email as verification of a signup
+user's external alert destination. Asynchronous email bounce/complaint handling
+and broader deliverability monitoring remain rollout gates.
+
 Treat guided CLI signup as a bridge, not the consumer solution. The long-term
 goal is a mobile-friendly browser wizard that handles recovery, monitoring and
 passkey enrollment without terminal commands, file paths or operator intervention.

@@ -23,13 +23,15 @@
   ],
   "send_email": [
     {
-      "name": "ALERT_EMAIL",
-      "destination_address": "the@j4w8n.com"
+      "name": "EMAIL",
+      "remote": true
     }
   ],
   "vars": {
     "ALERT_RECIPIENT": "the@j4w8n.com",
-    "ALERT_SENDER": "alerts@plcmonitor.us",
+    "ALERT_SENDER": "security@notify.haili.app",
+    "SIGNUP_SENDER": "welcome@notify.haili.app",
+    "SIGNUP_ORIGIN": "https://haili.app",
     "PROVIDER_HEALTH_URL": "https://haili.app/health/ready"
   }
 }

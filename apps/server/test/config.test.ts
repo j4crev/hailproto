@@ -74,6 +74,15 @@ describe("loadConfig", () => {
       expect(()=>loadConfig({...validEnvironment,THIN_GUI_ORIGIN:value})).toThrow();
   });
 
+  it("enables the signup email proxy only with a Worker origin and a canonical server-only secret",()=>{
+    expect(loadConfig(validEnvironment).signupEmail).toBeUndefined();
+    const email={SIGNUP_EMAIL_ORIGIN:"https://alerts.plcmonitor.us",SIGNUP_EMAIL_TOKEN:"A".repeat(43)};
+    expect(loadConfig({...validEnvironment,...email}).signupEmail).toEqual({origin:email.SIGNUP_EMAIL_ORIGIN,token:email.SIGNUP_EMAIL_TOKEN});
+    for(const override of [{SIGNUP_EMAIL_ORIGIN:undefined},{SIGNUP_EMAIL_TOKEN:undefined},{SIGNUP_EMAIL_TOKEN:"short"},
+      {SIGNUP_EMAIL_ORIGIN:"http://alerts.example.com"},{SIGNUP_EMAIL_ORIGIN:"https://alerts.example.com/path"}])
+      expect(()=>loadConfig({...validEnvironment,...email,...override})).toThrow();
+  });
+
   it("enables private managed transfer only with its existing private gates",()=>{
     const enabled={...validEnvironment,POC_MANAGED_TRANSFER:"true",POC_ACCOUNT_ACCESS:"true",
       POC_SELF_SERVICE_TRANSFER:"true",POC_SELF_SERVICE_RETURN:"true"};

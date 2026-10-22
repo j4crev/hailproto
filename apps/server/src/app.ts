@@ -28,6 +28,7 @@ import type { AccountApiRepository } from "./accounts/repository.js";
 import type { GrantRepository } from "./grants/repository.js";
 import type { GrantService } from "./grants/service.js";
 import { registerSelfServiceOnboarding, type SelfServiceOnboarding } from "./accounts/onboarding-routes.js";
+import { registerSignupEmailRoutes, type SignupEmailClient } from "./onboarding/email.js";
 import type { AccountMessaging } from "./accounts/messaging.js";
 import { registerAccountAccess } from "./accounts/access-routes.js";
 import type { AccountAccess } from "./accounts/access.js";
@@ -79,6 +80,7 @@ export interface AppDependencies {
     binding?:AccountBinding;transfer?:AccountTransfer;custodyTransition?:SameProviderCustodyTransition;managedTransfer?:ManagedAccountTransfer;
     profiles?:SenderProfileService;profileVerifier?:Pick<SenderProfileVerifier,"verify"> };
   selfServiceOnboarding?: SelfServiceOnboarding;
+  signupEmail?:{sql:SQL;client:SignupEmailClient};
   accountAccess?: { access: AccountAccess; sql: SQL };
   servingSql?:SQL;
   passkeys?:PasskeyAuth;
@@ -98,6 +100,7 @@ export function createApp(
   if(dependencies.servingSql)app.use("*",async(_context,next)=>withFreshServingGenerations(dependencies.servingSql!,next));
   const protectedSchedule = new ProtectedResponseSchedule();
   if(dependencies.selfServiceOnboarding)registerSelfServiceOnboarding(app,dependencies.selfServiceOnboarding);
+  if(dependencies.signupEmail)registerSignupEmailRoutes(app,dependencies.signupEmail.sql,dependencies.signupEmail.client,config.passkeys?.origin??config.publicOrigin);
   if (dependencies.accountAccess) registerAccountAccess(app, dependencies.accountAccess.access, dependencies.accountAccess.sql);
 
   if (dependencies.accountApi) {

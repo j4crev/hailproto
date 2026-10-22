@@ -6,6 +6,10 @@ This document defines the protocol-visible outcomes a Hail provider must establi
 
 Hail does not standardize the client-to-provider account API in v0. Providers may use any local authentication, enrollment, billing, and user-interface mechanisms that produce the state required here.
 
+The separately labeled [reduced-assurance alpha](alpha-onboarding.md) documents
+an early managed deployment using same-operator monitoring. It does not meet or
+weaken this document's independent-monitor production requirements.
+
 ## Goals
 
 - Give every account a durable `did:plc` identity before federation begins.

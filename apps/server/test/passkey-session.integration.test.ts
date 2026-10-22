@@ -41,6 +41,7 @@ integration("passkey session migration",()=>{
         await rollback.unsafe("ROLLBACK");
       }finally{rollback.release();}
       const browserRollback=await db.sql.reserve();try{
+        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0057_alpha_monitoring.sql",import.meta.url)).text());
         await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0056_browser_authorization.sql",import.meta.url)).text());
       }finally{browserRollback.release();}
       await db.sql`INSERT INTO account_passkey_sessions(id,token_hash,account_id,credential_id,serving_generation,scopes,expires_at)
