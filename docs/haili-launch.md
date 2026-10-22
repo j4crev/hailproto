@@ -286,7 +286,7 @@ removed after their useful guidance was consolidated.
 | `docs/production-portable-custody.md` | Preserved as design history and private-POC recovery guidance. |
 | Completed CBOR migration plan | Deleted after its normative rules and remaining work were consolidated into the encoding specification, object specifications and codec documentation. |
 | `BUILD_ORDER.md` | Keep as architectural background, not an execution checklist. |
-| `docs/poc-cleanup.md` | Keep until private rehearsals and legacy-account disposition permit the remaining compatibility cleanup. |
+| Completed POC cleanup audit | Deleted after the deferred compatibility cuts finished; historical migrations and required readers remain intact. |
 
 Do not delete private-PLC fixtures, applied migrations or compatibility readers
 while they remain required for recovery and regression evidence.

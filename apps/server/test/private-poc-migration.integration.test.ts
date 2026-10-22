@@ -31,7 +31,7 @@ import {DeliveryStatusSigner} from "../src/delivery/status.js";
 import {TerminalStatusPublisher} from "../src/delivery/status-publisher.js";
 import {bodyFromText} from "../src/bodies/service.js";
 import {validateReturningEvidence} from "../src/migration/return.js";
-import {PrivatePocTransferAbandonment} from "../src/migration/abandonment.js";
+import {PrivatePocTransferAbandonment} from "./support/private-poc-transfer-abandonment.js";
 import {encodeSignedRecord,decodeSignedRecord} from "../src/migration/wire.js";
 import { TransferAddressReservation } from "../src/migration/address-selection.js";
 import { PortableMigrationActivation } from "../src/migration/activation.js";

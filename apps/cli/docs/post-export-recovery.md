@@ -1,8 +1,8 @@
 # Coordinated post-export recovery — private-POC proof
 
-Status: local domain implementation and positive race proof. The coordinator is
-not registered as public routes or a `hailp` command. Its migration/code is included
-in the private-POC migration-39 implementation; the recovery race
+Status: local domain implementation and positive race proof. The integration-only
+coordinator is not registered as public routes or a `hailp` command. Its schema is
+included in the private-POC migration-39 implementation; the recovery race
 proof remains a local integration result, not a live recovery ceremony.
 This covers a durably staged destination that never became active. An active or
 uncertain destination requires a new reverse transfer of its latest state.
@@ -17,7 +17,8 @@ and exact protective operation CID. Ordinary API tokens and provider identity
 keys are not substitutes. Only the reviewed full-vault surface exposes this
 signer; identity-only routine signing does not load recovery authority.
 
-The provider's `PrivatePocTransferAbandonment` coordinator has three stages:
+The integration fixture's `PrivatePocTransferAbandonment` coordinator has three
+stages:
 
 1. **Invalidate target.** Under the staged import-row lock, verify independent
    owner approval and known PLC authority, reject an active import, invalidate

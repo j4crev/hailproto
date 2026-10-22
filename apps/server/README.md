@@ -116,10 +116,10 @@ The server checks configured reader health every five minutes and logs only the
 initial result and state changes. Set `PLC_READER_DIAGNOSTIC_DID` to a public
 Hail-profile DID to also log reader state disagreement; leave it unset until a
 reviewed public canary exists.
-Prototype operator `onboard` and `activate:local/public` remain private/legacy tools
-and refuse strict mode. Set `PUBLIC_SELF_SERVICE_ONBOARDING=true` only with the strict
-profile to enable the migration-44 owner-key/monitor HTTP ceremony; do not also enable
-the private POC signup flag.
+The legacy custodial operator onboarding tools have been removed. Set
+`PUBLIC_SELF_SERVICE_ONBOARDING=true` only with the strict profile to enable the
+migration-44 owner-key/monitor HTTP ceremony; do not also enable the private POC
+signup flag.
 
 Migration **44** retains public preparations separately from private-POC records.
 The owner signs the exact genesis with top recovery authority; registration writes
@@ -393,9 +393,10 @@ not public PLC evidence; no deployment flag or registry was switched.
 
 ### Never-active post-export recovery (internal migration 39)
 
-`PrivatePocTransferAbandonment` implements independent owner-recovery approvals,
-staged-target invalidation, protective source PLC verification, target release
-and exact source resumption. It is not registered as public routes. An active
+The integration-only `PrivatePocTransferAbandonment` coordinator implements
+independent owner-recovery approvals, staged-target invalidation, protective
+source PLC verification, target release and exact source resumption. It is not
+registered as public routes. An active
 destination is rejected and requires latest-state reverse transfer. Submission,
 invalidation, publication and activation share the import-row serialization
 point; a protective owner-signed successor prevents delayed external PLC replay.
@@ -408,8 +409,8 @@ the source generation only after current protective authority, target release
 and source binding verify. Unknown PLC changes or missing counterpart/binding
 proof leave the source fenced. Exact receipts support restart/lost responses.
 The guarded rollback refuses accepted abandonment or sole-copy observation loss.
-Its code/schema is included in the migration-39 rollout, but no public recovery
-route/command is enabled. See the
+Its schema remains in the migration-39 rollout, but the coordinator lives only in
+test support and no public recovery route or command is enabled. See the
 [private recovery proof](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/post-export-recovery.md).
 
 ## API-first account management direction
@@ -594,35 +595,10 @@ bun run dev
 
 The server also runs pending migrations before binding its HTTP listener.
 
-With PostgreSQL and the configured private PLC directory running, create or
-resume a custodial POC identity with:
-
-```bash
-bun run onboard -- alice@hailproto.app
-```
-
-The command is restart-safe and returns the same account and DID when repeated.
-It stops at `address-staged`; WebFinger publication and activation are separate
-steps.
-
-Exercise WebFinger publication and the complete semantic verification path
-locally with:
-
-```bash
-bun run activate:local -- alice@hailproto.app
-```
-
-This command deliberately routes HTTPS-shaped requests through Hono in memory.
-It records `activationVerificationMode: "local"` and is not evidence of public
-DNS, TLS, reachability, certificate, redirect, or DNS-rebinding behavior. Public
-activation requires the later deployment verifier and records mode `public`.
-
+Create and activate test accounts through the owner-key account API using the
+[`hailp` signup workflow](../cli/docs/cli-workflows.md#create-an-account). The
+legacy provider-custodial onboarding and activation commands have been removed.
 The public deployment profile is in [`deploy/public/README.md`](deploy/public/README.md).
-After DNS and TLS are live, run:
-
-```bash
-bun run activate:public -- alice@hailproto.app
-```
 
 Initial health endpoints:
 

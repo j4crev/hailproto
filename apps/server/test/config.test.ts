@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { spawnSync } from "node:child_process";
 import { loadConfig } from "../src/config.js";
 import {base58btc} from "multiformats/bases/base58";
 import {createPublicManagedRuntime} from "../src/migration/public-managed-runtime.js";
@@ -45,13 +44,6 @@ describe("loadConfig", () => {
       {...publicEnvironment,PLC_PUBLIC_READERS:JSON.stringify([{origin:"https://reader-one.example.com",operator:"reader-one"},{origin:validEnvironment.PUBLIC_ORIGIN,operator:"reader-two"}])},
       {...publicEnvironment,PLC_PUBLIC_READERS:'[{"origin":"https://reader-one.example.com","origin":"https://reader-two.example.com","operator":"x"}]'},
     ])expect(()=>loadConfig(environment)).toThrow();
-  });
-  it("does not allow prototype onboarding/activation to stand in for a strict public ceremony",()=>{
-    for(const script of ["onboard.ts","activate-public.ts","activate-local.ts"]){
-      const result=spawnSync("bun",[`src/cli/${script}`,"owner@hailproto.app"],{cwd:new URL("../",import.meta.url).pathname,
-        env:{...process.env,...publicEnvironment,NODE_ENV:"production",DATABASE_URL:"postgresql://not-a-database.invalid/unreachable"},encoding:"utf8",timeout:5000});
-      expect(result.status).toBe(1);expect(result.stdout).toBe("");expect(result.stderr).toMatch(/ceremony|Local prototype/);
-    }
   });
   it("loads a valid provider configuration", () => {
     expect(loadConfig(validEnvironment)).toMatchObject({
