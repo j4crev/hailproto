@@ -89,9 +89,6 @@ services:
       HAIL_GUI_PROVIDER: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
       HAIL_GUI_API_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
       HAIL_GUI_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
-      HAIL_GUI_CREDENTIAL_FILE: /run/secrets/canary-api-credential.json
-    volumes:
-      - /home/hailops/.hail/canary-api-credential.json:/run/secrets/canary-api-credential.json:ro
     healthcheck:
       test: [CMD, bun, -e, "const r=await fetch('http://127.0.0.1:3000/auth/login'); process.exit(r.ok?0:1)"]
       interval: 10s

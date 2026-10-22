@@ -41,10 +41,9 @@ for rollback; changing the RP ID invalidates existing provider-local passkeys.
 The provider keeps `/api`, `/hail`, `/.well-known`, and `/health` locally owned
 and proxies only GUI paths to the internal thin-client sidecar.
 
-The initial canary enrollment temporarily mounts a mode-0600 credential at
-`/home/hailops/.hail/canary-api-credential.json`. Remove the mount, environment
-declaration, and host file immediately after a passkey has been enrolled and
-tested. Never enable `HAIL_GUI_CREDENTIAL_FALLBACK` in production.
+Initial canary enrollment may temporarily mount a mode-0600 credential. The
+deployed profile must not retain that mount or enable
+`HAIL_GUI_CREDENTIAL_FALLBACK` after a passkey has been tested.
 
 ## Validate and start
 

@@ -29,7 +29,7 @@ export class PasskeyAuth {
     const options=await generateRegistrationOptions({rpName:"Hail",rpID:this.rpId,userID:uuidBytes(session.account_id),
       userName:session.canonical_address,userDisplayName:session.canonical_address,attestationType:"none",
       timeout:300_000,
-      authenticatorSelection:{residentKey:"required",userVerification:"required"},supportedAlgorithmIDs:[COSEALG.ES256],
+      authenticatorSelection:{residentKey:"required",userVerification:"required"},supportedAlgorithmIDs:[COSEALG.ES256,COSEALG.RS256],
       excludeCredentials:existing.map(row=>({id:row.credential_id,transports:Array.isArray(row.transports)?row.transports as string[]:[]}))});
     const challengeId=randomUUID();
     await this.sql`DELETE FROM account_passkey_challenges WHERE expires_at<=now()`;
@@ -45,7 +45,7 @@ export class PasskeyAuth {
     const challenge=await this.challenge(challengeId,"registration",session.account_id,session.serving_generation??1);
     let result;
     try{result=await verifyRegistrationResponse({response,expectedChallenge:challenge,expectedOrigin:this.origin,
-      expectedRPID:this.rpId,requireUserVerification:true,supportedAlgorithmIDs:[COSEALG.ES256]});}
+      expectedRPID:this.rpId,requireUserVerification:true,supportedAlgorithmIDs:[COSEALG.ES256,COSEALG.RS256]});}
     catch{throw new PasskeyError(400);}
     if(!result.verified||!result.registrationInfo)throw new PasskeyError(400);
     const info=result.registrationInfo,credential=info.credential;
