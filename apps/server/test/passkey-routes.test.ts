@@ -11,7 +11,8 @@ function fixture(){
     scopes:["credentials:write"],migration_state:null,serving_generation:1}));
   const service={origin,rpId:"haili.app",authenticationOptions:vi.fn(async()=>({challengeId:"00000000-0000-4000-8000-000000000003",options:{challenge:"challenge"}})),
     authenticate:vi.fn(async()=>({token,expiresAt:new Date("2030-01-01T00:00:00Z")})),registrationOptions:vi.fn(async()=>({ok:true})),
-    register:vi.fn(async()=>({registered:true})),logout:vi.fn(async()=>{})};
+    register:vi.fn(async()=>({registered:true})),list:vi.fn(async()=>({recentlyVerified:true,passkeys:[]})),
+    rename:vi.fn(async()=>({renamed:true})),revoke:vi.fn(async()=>({revoked:true})),logout:vi.fn(async()=>{})};
   const app=new Hono();registerPasskeyRoutes(app,service as unknown as PasskeyAuth,{authenticate} as unknown as AccountApiRepository);
   return {app,service,authenticate};
 }
@@ -25,9 +26,10 @@ describe("passkey routes",()=>{
   });
 
   it("returns only session metadata and sets a protected cookie",async()=>{
-    const {app}=fixture(),response=await app.request("/api/v1/auth/passkeys/authentication",{method:"POST",headers:{Origin:origin,"Content-Type":"application/json"},
+    const {app,service}=fixture(),response=await app.request("/api/v1/auth/passkeys/authentication",{method:"POST",headers:{Origin:origin,"Content-Type":"application/json",Cookie:`hail_session=${token}`},
       body:JSON.stringify({challengeId:"00000000-0000-4000-8000-000000000003",response:{id:"credential"}})});
     expect(response.status).toBe(200);expect(await response.json()).toEqual({authenticated:true,expiresAt:"2030-01-01T00:00:00.000Z"});
+    expect(service.logout).toHaveBeenCalledWith(token);
     const cookie=response.headers.get("Set-Cookie")!;
     for(const attribute of ["hail_session=hails_","Max-Age=43200","Path=/","HttpOnly","SameSite=Lax","Secure"])
       expect(cookie).toContain(attribute);
@@ -37,5 +39,13 @@ describe("passkey routes",()=>{
     const {app,service,authenticate}=fixture();
     const response=await app.request("/api/v1/auth/passkeys/registration/options",{method:"POST",headers:{Authorization:`Bearer hailp_${"B".repeat(43)}`}});
     expect(response.status).toBe(200);expect(authenticate).toHaveBeenCalledOnce();expect(service.registrationOptions).toHaveBeenCalledOnce();
+  });
+
+  it("lists and manages passkeys through an authenticated session",async()=>{
+    const {app,service}=fixture(),headers={Origin:origin,Cookie:`hail_session=${token}`};
+    expect((await app.request("/api/v1/auth/passkeys",{headers})).status).toBe(200);
+    const response=await app.request("/api/v1/auth/passkeys/manage",{method:"POST",headers:{...headers,"Content-Type":"application/json"},
+      body:JSON.stringify({credentialId:"credential",label:"Phone"})});
+    expect(response.status).toBe(200);expect(service.rename).toHaveBeenCalledOnce();
   });
 });

@@ -49,12 +49,25 @@ export function registerPasskeyRoutes(app:Hono,passkeys:PasskeyAuth,accounts:Acc
       typeof value.label!=="string"||!value.response||typeof value.response!=="object"||Array.isArray(value.response))throw new PasskeyError(400);
     return passkeys.register(session,value.challengeId,value.response as RegistrationResponseJSON,value.label);
   }));
+  app.get("/api/v1/auth/passkeys",context=>run(context,async()=>{
+    const session=await accounts.authenticate(context.req.header("Authorization"),getCookie(context,COOKIE));
+    if(!session)throw new PasskeyError(401);return passkeys.list(session);
+  }));
+  app.post("/api/v1/auth/passkeys/manage",context=>run(context,async()=>{
+    const session=await accounts.authenticate(context.req.header("Authorization"),getCookie(context,COOKIE));
+    if(!session)throw new PasskeyError(401);const value=await input(context.req.raw);
+    if(typeof value.credentialId!=="string")throw new PasskeyError(400);
+    if(Object.keys(value).length===2&&typeof value.label==="string")return passkeys.rename(session,value.credentialId,value.label);
+    if(Object.keys(value).length===2&&value.revoke===true)return passkeys.revoke(session,value.credentialId);
+    throw new PasskeyError(400);
+  }));
   app.post("/api/v1/auth/passkeys/authentication/options",context=>run(context,()=>passkeys.authenticationOptions()));
   app.post("/api/v1/auth/passkeys/authentication",context=>run(context,async()=>{
     const value=await input(context.req.raw);
     if(Object.keys(value).length!==2||typeof value.challengeId!=="string"||!UUID.test(value.challengeId)||
       !value.response||typeof value.response!=="object"||Array.isArray(value.response))throw new PasskeyError(400);
     const session=await passkeys.authenticate(value.challengeId,value.response as AuthenticationResponseJSON);
+    await passkeys.logout(getCookie(context,COOKIE));
     setCookie(context,COOKIE,session.token,{httpOnly:true,secure:passkeys.origin.startsWith("https://"),sameSite:"Lax",path:"/",maxAge:43_200});
     return {authenticated:true,expiresAt:session.expiresAt.toISOString()};
   }));

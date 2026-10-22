@@ -14,6 +14,8 @@ export interface AccountApiSession {
   scopes: AccountApiScope[];
   migration_state: "fenced" | "exported" | "retired" | null;
   serving_generation?:number;
+  passkey_credential_id?:string|null;
+  passkey_verified_at?:Date|null;
 }
 export const tokenHash = (token: string) => new Uint8Array(createHash("sha256").update(token).digest());
 export class CredentialConflictError extends Error {}
@@ -92,14 +94,16 @@ export class AccountApiRepository {
           AND NOT EXISTS (SELECT 1 FROM provider_migration_fences fence WHERE fence.account_id=account.id)
         RETURNING account.id AS account_id,session.id AS credential_id,session.expires_at AS credential_expires_at,
           account.did,account.canonical_address,session.scopes,NULL::text AS migration_state,
-          session.serving_generation::integer AS serving_generation`;
+          session.serving_generation::integer AS serving_generation,passkey.credential_id AS passkey_credential_id,
+          session.created_at AS passkey_verified_at`;
       if(!rows[0])return null;const scopes=typeof rows[0].scopes==="string"?JSON.parse(rows[0].scopes):rows[0].scopes;
       return {...rows[0],scopes:scopes as AccountApiScope[]};
     }
     const rows = await this.sql<(Omit<AccountApiSession, "scopes"> & { scopes: unknown })[]>`
       SELECT account.id AS account_id, credential.id AS credential_id,
         credential.expires_at AS credential_expires_at, account.did, account.canonical_address,
-        credential.scopes, fence.state AS migration_state,generation.generation::integer AS serving_generation
+        credential.scopes, fence.state AS migration_state,generation.generation::integer AS serving_generation,
+        NULL::text AS passkey_credential_id,NULL::timestamptz AS passkey_verified_at
       FROM account_api_credentials credential JOIN provider_accounts account ON account.id = credential.account_id
       JOIN account_credential_generations binding ON binding.credential_id=credential.id
       JOIN account_serving_generations generation ON generation.account_id=account.id AND generation.generation=binding.generation

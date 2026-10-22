@@ -22,8 +22,14 @@ export class PasskeyError extends Error {
 export class PasskeyAuth {
   constructor(private readonly sql:SQL,readonly rpId:string,readonly origin:string){}
 
+  private management(session:AccountApiSession){
+    if(session.scopes.includes("credentials:write")||session.passkey_verified_at&&
+      session.passkey_verified_at.getTime()>Date.now()-5*60_000)return;
+    throw new PasskeyError(403);
+  }
+
   async registrationOptions(session:AccountApiSession){
-    if(!session.scopes.includes("credentials:write"))throw new PasskeyError(403);
+    this.management(session);
     const existing=await this.sql<{credential_id:string;transports:unknown}[]>`
       SELECT credential_id,transports FROM account_passkeys WHERE account_id=${session.account_id} AND revoked_at IS NULL`;
     const options=await generateRegistrationOptions({rpName:"Hail",rpID:this.rpId,userID:uuidBytes(session.account_id),
@@ -40,7 +46,7 @@ export class PasskeyAuth {
   }
 
   async register(session:AccountApiSession,challengeId:string,response:RegistrationResponseJSON,label:string){
-    if(!session.scopes.includes("credentials:write"))throw new PasskeyError(403);
+    this.management(session);
     if(!UUID.test(challengeId)||!label.trim()||label.trim().length>80||!ID.test(response.id))throw new PasskeyError(400);
     const challenge=await this.challenge(challengeId,"registration",session.account_id,session.serving_generation??1);
     let result;
@@ -59,6 +65,40 @@ export class PasskeyAuth {
     });}
     catch(error){if(error&&typeof error==="object"&&"code" in error&&(error as {code?:string}).code==="23505")throw new PasskeyError(409);throw error;}
     return {registered:true,credentialId:credential.id,label:label.trim()};
+  }
+
+  async list(session:AccountApiSession){
+    if(!session.passkey_credential_id&&!session.scopes.includes("credentials:write"))throw new PasskeyError(403);
+    const rows=await this.sql<{credential_id:string;label:string;device_type:string;backed_up:boolean;created_at:Date;last_used_at:Date|null}[]>`
+      SELECT credential_id,label,device_type,backed_up,created_at,last_used_at FROM account_passkeys
+      WHERE account_id=${session.account_id} AND serving_generation=${session.serving_generation??1} AND revoked_at IS NULL
+      ORDER BY created_at,credential_id`;
+    return {recentlyVerified:session.scopes.includes("credentials:write")||Boolean(session.passkey_verified_at&&
+      session.passkey_verified_at.getTime()>Date.now()-5*60_000),passkeys:rows.map(row=>({credentialId:row.credential_id,label:row.label,
+      deviceType:row.device_type,backedUp:row.backed_up,createdAt:row.created_at.toISOString(),
+      lastUsedAt:row.last_used_at?.toISOString()??null,current:row.credential_id===session.passkey_credential_id}))};
+  }
+
+  async rename(session:AccountApiSession,credentialId:string,label:string){
+    this.management(session);
+    if(!ID.test(credentialId)||!label.trim()||label.trim().length>80)throw new PasskeyError(400);
+    const rows=await this.sql`UPDATE account_passkeys SET label=${label.trim()} WHERE credential_id=${credentialId}
+      AND account_id=${session.account_id} AND serving_generation=${session.serving_generation??1} AND revoked_at IS NULL RETURNING credential_id`;
+    if(!rows.length)throw new PasskeyError(404);return {renamed:true};
+  }
+
+  async revoke(session:AccountApiSession,credentialId:string){
+    this.management(session);
+    if(!ID.test(credentialId))throw new PasskeyError(400);
+    await this.sql.begin(async tx=>{
+      const rows=await tx<{credential_id:string}[]>`SELECT credential_id FROM account_passkeys WHERE account_id=${session.account_id}
+        AND serving_generation=${session.serving_generation??1} AND revoked_at IS NULL FOR UPDATE`;
+      if(!rows.some(row=>row.credential_id===credentialId))throw new PasskeyError(404);
+      if(credentialId===session.passkey_credential_id||rows.length===1)throw new PasskeyError(409);
+      await tx`UPDATE account_passkeys SET revoked_at=now() WHERE credential_id=${credentialId}`;
+      await tx`UPDATE account_passkey_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE credential_id=${credentialId} AND revoked_at IS NULL`;
+    });
+    return {revoked:true};
   }
 
   async authenticationOptions(){

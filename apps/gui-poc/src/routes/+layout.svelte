@@ -10,7 +10,7 @@
 <div class="shell">
   <header>
     <a href="/" class="brand" aria-label="Hail inbox home"><span>H</span> Hail</a>
-    <nav><a href="/">Inbox</a><a href="/sent">Sent</a><a href="/compose">Compose</a></nav>
+    <nav><a href="/">Inbox</a><a href="/sent">Sent</a><a href="/compose">Compose</a><a href="/settings/security">Security</a></nav>
   </header>
   <main>{@render children()}</main>
 </div>
