@@ -166,6 +166,8 @@ function checkValue(
       throw new HailCodecError("resource-limit", "map has too many entries", path);
     }
     for (const [key, entry] of value.entries()) {
+      count.value += 1;
+      if(count.value>limits.maximumItems)throw new HailCodecError("resource-limit","too many values",path);
       if (typeof key !== "string") {
         throw new HailCodecError("invalid-value", "map keys must be text", path);
       }
@@ -196,6 +198,8 @@ function checkValue(
       throw new HailCodecError("resource-limit", "map has too many entries", path);
     }
     for (const [key, descriptor] of entries) {
+      count.value += 1;
+      if(count.value>limits.maximumItems)throw new HailCodecError("resource-limit","too many values",path);
       if (!key.isWellFormed() || textEncoder.encode(key).length > limits.maximumTextBytes) {
         throw new HailCodecError("resource-limit", "map key is invalid or too large", `${path}.${key}`);
       }

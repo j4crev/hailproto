@@ -106,6 +106,8 @@ describe("payload validation", () => {
     const unsafe = structuredClone(richBody);
     unsafe.blocks[1]!.markDefs[0]!.href = "javascript:alert(1)";
     expect(() => encodePayload("hail.body.spt-2", unsafe)).toThrow(HailCodecError);
+    const noncanonical=structuredClone(richBody);noncanonical.blocks[1]!.markDefs[0]!.href="https:example.com";
+    expect(()=>encodePayload("hail.body.spt-2",noncanonical)).toThrow(HailCodecError);
     const unresolved = structuredClone(richBody);
     unresolved.blocks[1]!.children[0]!.marks = ["missing-link"];
     expect(() => encodePayload("hail.body.spt-2", unresolved)).toThrow(HailCodecError);

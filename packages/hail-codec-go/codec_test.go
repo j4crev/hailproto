@@ -402,6 +402,10 @@ func TestTypedCollectionPreflight(t *testing.T) {
 	if _, err := EncodePayload(rich); err == nil {
 		t.Fatal("accepted unsafe rich link")
 	}
+	rich.Blocks[0].MarkDefs[0].Href = "https:example.com"
+	if _, err := EncodePayload(rich); err == nil {
+		t.Fatal("accepted noncanonical HTTPS link")
+	}
 
 	grantPayload, err := DecodePayload(GrantType, fromHex(t, m.Positive[4].PayloadHex))
 	if err != nil {

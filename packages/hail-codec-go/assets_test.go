@@ -29,4 +29,11 @@ func TestAssetManifest(t *testing.T) {
 	if err := ValidateAssetManifest(manifest); err == nil {
 		t.Fatal("accepted mismatched asset digest")
 	}
+	manifest = assetFixture(t)
+	manifest.Assets[0].Data[29] ^= 1
+	digest := sha256.Sum256(manifest.Assets[0].Data)
+	manifest.Assets[0].Digest.Value = digest[:]
+	if err := ValidateAssetManifest(manifest); err == nil {
+		t.Fatal("accepted invalid PNG chunk CRC")
+	}
 }

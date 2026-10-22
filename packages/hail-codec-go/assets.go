@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"regexp"
 )
 
@@ -17,7 +18,8 @@ func pngDimensions(data []byte) (int64, int64, error) {
 		return 0, 0, errors.New("asset data must be a PNG image")
 	}
 	offset, width, height := 8, int64(0), int64(0)
-	header, imageData, endChunk := false, false, false
+	header, imageData, endChunk, palette, dataEnded := false, false, false, false, false
+	colorType := byte(255)
 	for offset+12 <= len(data) {
 		length := int(binary.BigEndian.Uint32(data[offset : offset+4]))
 		end := offset + 12 + length
@@ -25,6 +27,9 @@ func pngDimensions(data []byte) (int64, int64, error) {
 			return 0, 0, errors.New("asset data contains a truncated PNG chunk")
 		}
 		chunkType := string(data[offset+4 : offset+8])
+		if binary.BigEndian.Uint32(data[offset+8+length:end]) != crc32.ChecksumIEEE(data[offset+4:offset+8+length]) {
+			return 0, 0, errors.New("asset PNG has invalid chunk CRC")
+		}
 		if !header && chunkType != "IHDR" {
 			return 0, 0, errors.New("asset PNG must begin with IHDR")
 		}
@@ -36,22 +41,43 @@ func pngDimensions(data []byte) (int64, int64, error) {
 			header = true
 			width = int64(binary.BigEndian.Uint32(data[offset+8 : offset+12]))
 			height = int64(binary.BigEndian.Uint32(data[offset+12 : offset+16]))
+			depth, color := data[offset+16], data[offset+17]
+			valid := map[byte]map[byte]bool{0: {1: true, 2: true, 4: true, 8: true, 16: true}, 2: {8: true, 16: true}, 3: {1: true, 2: true, 4: true, 8: true}, 4: {8: true, 16: true}, 6: {8: true, 16: true}}
+			if !valid[color][depth] || data[offset+18] != 0 || data[offset+19] != 0 || data[offset+20] > 1 {
+				return 0, 0, errors.New("asset PNG has invalid IHDR profile")
+			}
+			colorType = color
 		case "acTL":
 			return 0, 0, errors.New("animated PNG is unsupported")
+		case "PLTE":
+			if imageData || palette || length == 0 || length%3 != 0 || length > 768 {
+				return 0, 0, errors.New("asset PNG has invalid palette")
+			}
+			palette = true
 		case "IDAT":
+			if dataEnded {
+				return 0, 0, errors.New("asset PNG has nonconsecutive image data")
+			}
 			imageData = true
 		case "IEND":
 			if length != 0 || end != len(data) {
 				return 0, 0, errors.New("asset PNG has invalid IEND")
 			}
 			endChunk = true
+		default:
+			if imageData {
+				dataEnded = true
+			}
+			if data[offset+4] >= 'A' && data[offset+4] <= 'Z' {
+				return 0, 0, errors.New("asset PNG has unsupported critical chunk")
+			}
 		}
 		offset = end
 		if endChunk {
 			break
 		}
 	}
-	if !header || !imageData || !endChunk || width == 0 || height == 0 {
+	if !header || !imageData || !endChunk || width == 0 || height == 0 || colorType == 3 && !palette || (colorType == 0 || colorType == 4) && palette {
 		return 0, 0, errors.New("asset data must be a complete PNG image")
 	}
 	return width, height, nil

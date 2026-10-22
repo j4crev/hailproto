@@ -78,6 +78,8 @@ describe("deterministic Hail CBOR", () => {
         },
       ),
     ).toThrow(/map key/);
+    expect(()=>encodeDeterministic({a:1},{maximumBytes:100,maximumDepth:4,maximumItems:2,maximumArrayLength:10,
+      maximumMapEntries:10,maximumTextBytes:10,maximumByteStringLength:10})).toThrow(/too many values/);
   });
 
   it("rejects excessive nesting before decoding", () => {

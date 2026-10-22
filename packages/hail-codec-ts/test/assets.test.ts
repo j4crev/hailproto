@@ -21,6 +21,9 @@ function manifest(): HailAssetManifest {
   }] };
 }
 
+function replaceData(value:HailAssetManifest,data:Uint8Array){value.assets[0]!.data=data;value.assets[0]!.size=data.length;
+  value.assets[0]!.digest.value=new Uint8Array(createHash("sha256").update(data).digest());}
+
 describe("asset manifest", () => {
   it("accepts a bounded digest-bound PNG", () => {
     expect(() => validateAssetManifest(manifest())).not.toThrow();
@@ -30,5 +33,10 @@ describe("asset manifest", () => {
     const invalid = manifest();
     invalid.assets[0].digest.value[0]! ^= 1;
     expect(() => validateAssetManifest(invalid)).toThrow(HailCodecError);
+  });
+
+  it("rejects invalid PNG structure even when its digest and dimensions match",()=>{
+    const invalid=manifest(),data=Uint8Array.from(invalid.assets[0]!.data);data[29]=data[29]!^1;replaceData(invalid,data);
+    expect(()=>validateAssetManifest(invalid)).toThrow(/CRC/);
   });
 });

@@ -524,7 +524,7 @@ function validateSpt2Body(payload: HailRecord): void {
       const href = text(definition.href, `${definitionPath}.href`);
       let url: URL;
       try { url = new URL(href); } catch { fail("must be an absolute HTTPS URL", `${definitionPath}.href`); }
-      if (url.protocol !== "https:" || url.username || url.password) fail("must be an HTTPS URL without credentials", `${definitionPath}.href`);
+      if (!href.startsWith("https://")||url.protocol !== "https:" || url.username || url.password) fail("must be an HTTPS URL without credentials", `${definitionPath}.href`);
       if (definition.title !== undefined) text(definition.title, `${definitionPath}.title`);
     });
     const children = array(block.children, `${path}.children`);
@@ -546,28 +546,39 @@ function pngDimensions(data: Uint8Array, path: string): { width: number; height:
   const signature = [137, 80, 78, 71, 13, 10, 26, 10];
   if (data.length < 45 || signature.some((byte, index) => data[index] !== byte)) fail("must be a PNG image", path);
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-  let offset = 8, width = 0, height = 0, sawHeader = false, sawData = false, sawEnd = false;
+  let offset = 8, width = 0, height = 0, sawHeader = false, sawData = false, sawEnd = false,sawPalette=false,dataEnded=false;
+  const crc32=(start:number,end:number)=>{let crc=0xffffffff;for(let index=start;index<end;index++){
+    crc^=data[index]!;for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}return (crc^0xffffffff)>>>0;};
   while (offset + 12 <= data.length) {
     const length = view.getUint32(offset);
     const end = offset + 12 + length;
     if (end > data.length) fail("contains a truncated PNG chunk", path);
     const type = String.fromCharCode(data[offset + 4]!, data[offset + 5]!, data[offset + 6]!, data[offset + 7]!);
+    if(view.getUint32(offset+8+length)!==crc32(offset+4,offset+8+length))fail("contains an invalid PNG chunk CRC",path);
     if (!sawHeader && type !== "IHDR") fail("must begin with a PNG IHDR chunk", path);
     if (type === "IHDR") {
       if (sawHeader || length !== 13) fail("contains an invalid PNG IHDR chunk", path);
       sawHeader = true;
       width = view.getUint32(offset + 8);
       height = view.getUint32(offset + 12);
+      const depth=data[offset+16]!,color=data[offset+17]!,valid:Record<number,number[]>={0:[1,2,4,8,16],2:[8,16],3:[1,2,4,8],4:[8,16],6:[8,16]};
+      if(!valid[color]?.includes(depth)||data[offset+18]!==0||data[offset+19]!==0||![0,1].includes(data[offset+20]!))
+        fail("contains an invalid PNG IHDR profile",path);
     } else if (type === "acTL") fail("animated PNG is unsupported", path);
-    else if (type === "IDAT") sawData = true;
+    else if(type==="PLTE"){
+      if(sawData||sawPalette||length===0||length%3!==0||length>768)fail("contains an invalid PNG palette",path);sawPalette=true;
+    }
+    else if (type === "IDAT") {if(dataEnded)fail("contains nonconsecutive PNG image data",path);sawData = true;}
     else if (type === "IEND") {
       if (length !== 0 || end !== data.length) fail("contains an invalid PNG IEND chunk", path);
       sawEnd = true;
       break;
-    }
+    }else {if(sawData)dataEnded=true;if(type.charCodeAt(0)>=65&&type.charCodeAt(0)<=90)fail("contains an unsupported critical PNG chunk",path);}
     offset = end;
   }
-  if (!sawHeader || !sawData || !sawEnd || width === 0 || height === 0) fail("must be a complete PNG image", path);
+  const color=data[25];
+  if (!sawHeader || !sawData || !sawEnd || width === 0 || height === 0||color===3&&!sawPalette||[0,4].includes(color!)&&sawPalette)
+    fail("must be a complete PNG image", path);
   return { width, height };
 }
 

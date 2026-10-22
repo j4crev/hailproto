@@ -167,25 +167,19 @@ each fixed finding has a separate applied-change note.
 - Applied: `ignoreBOM: true` preserves identifier bytes for the existing exact
   signer-role comparison. The regression verifies noncanonical IDs are refused.
 
-## Validation and interoperability concerns
+## Validation and interoperability hardening
 
-These do not establish an authentication bypass or an image-decoder exploit:
+These were not authentication bypasses or demonstrated image-decoder exploits,
+but are now resolved:
 
-- **Malformed PNG accepted:** `packages/hail-codec-ts/src/validation.ts:545–571`
-  and `packages/hail-codec-go/assets.go:14–57` accept an image with illegal IHDR
-  bit depth/color type, zero CRCs, and invalid IDAT content when its digest and
-  dimensions match. Go's standard PNG decoder rejects it. Improve structural
-  validation (header parameters, ordering, CRCs), retain pre-decode dimension
-  bounds, and continue treating image bytes as untrusted. Do not assume a valid
-  digest establishes a safe image.
-- **Encoder/decoder resource accounting differs:**
-  `packages/hail-codec-ts/src/cbor.ts:168–175,198–209` counts map values but not
-  keys; `src/scan.ts:80–86` counts both. An SPT-1 body with 2,500 short spans
-  encodes to 65,080 bytes, then both TS and Go reject it for excessive items.
-  Align accounting and add an encode/decode boundary test.
-- **HTTPS link grammar differs:** `packages/hail-codec-ts/src/validation.ts:524–527`
-  accepts `https:example.com`; `packages/hail-codec-go/payload.go:1063–1066`
-  rejects it. Specify one canonical wire grammar and cross-language edge vectors.
+- PNG validation in TypeScript and Go checks chunk CRCs, legal IHDR profiles,
+  palette rules, critical chunks and contiguous image data before accepting the
+  existing digest/dimension bounds. Compressed image bytes remain untrusted input
+  to platform decoders.
+- TypeScript encoding now counts map keys and values exactly as the pre-decode
+  scanner does, with a boundary regression test.
+- Both codecs require the canonical `https://` wire form; TypeScript no longer
+  normalizes `https:example.com` into acceptance.
 
 ## Dependency advisories
 
