@@ -21,8 +21,9 @@ export function registerPasskeyRoutes(app:Hono,passkeys:PasskeyAuth,accounts:Acc
   let window=Date.now(),requests=0;
   app.use("/api/v1/auth/*",async(context,next)=>{
     context.header("Cache-Control","no-store");
-    const origin=context.req.header("Origin"),registration=context.req.path.includes("/registration");
-    if(origin!==passkeys.origin&&!(registration&&origin===undefined))return context.json({type:"about:blank",title:"Forbidden",status:403},403);
+    const origin=context.req.header("Origin"),trustedServer=context.req.path.includes("/registration")||
+      ["/api/v1/auth/authorization/prepare","/api/v1/auth/authorization/token"].includes(context.req.path);
+    if(origin!==passkeys.origin&&!(trustedServer&&origin===undefined))return context.json({type:"about:blank",title:"Forbidden",status:403},403);
     if(Date.now()-window>=60_000){window=Date.now();requests=0;}
     if(++requests>120){context.header("Retry-After","60");return context.json({type:"about:blank",title:"Too Many Requests",status:429},429);}
     await next();
@@ -68,6 +69,20 @@ export function registerPasskeyRoutes(app:Hono,passkeys:PasskeyAuth,accounts:Acc
     deleteCookie(context,COOKIE,{secure:passkeys.origin.startsWith("https://"),path:"/"});
     return result;
   }));
+  app.post("/api/v1/auth/authorization/prepare",context=>run(context,async()=>passkeys.prepareAuthorization(await input(context.req.raw))));
+  app.post("/api/v1/auth/authorization/details",context=>run(context,async()=>{
+    const value=await input(context.req.raw);
+    if(Object.keys(value).length!==2||typeof value.requestId!=="string"||typeof value.state!=="string")throw new PasskeyError(400);
+    return passkeys.authorizationDetails(value.requestId,value.state);
+  }));
+  app.post("/api/v1/auth/authorization/complete",context=>run(context,async()=>{
+    const session=await accounts.authenticate(context.req.header("Authorization"),getCookie(context,COOKIE));
+    if(!session)throw new PasskeyError(401);const value=await input(context.req.raw);
+    if(Object.keys(value).length!==3||typeof value.requestId!=="string"||typeof value.state!=="string"||typeof value.code!=="string")
+      throw new PasskeyError(400);
+    return passkeys.completeAuthorization(session,value.requestId,value.state,value.code);
+  }));
+  app.post("/api/v1/auth/authorization/token",context=>run(context,async()=>passkeys.exchangeAuthorization(await input(context.req.raw))));
   app.post("/api/v1/auth/passkeys/recovery/options",context=>run(context,async()=>{
     const value=await input(context.req.raw);
     if(Object.keys(value).length!==1||typeof value.token!=="string")throw new PasskeyError(400);

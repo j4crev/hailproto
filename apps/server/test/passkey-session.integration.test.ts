@@ -40,6 +40,9 @@ integration("passkey session migration",()=>{
         await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0054_passkey_sessions.sql",import.meta.url)).text())).rejects.toThrow("active passkey access");
         await rollback.unsafe("ROLLBACK");
       }finally{rollback.release();}
+      const browserRollback=await db.sql.reserve();try{
+        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0056_browser_authorization.sql",import.meta.url)).text());
+      }finally{browserRollback.release();}
       await db.sql`INSERT INTO account_passkey_sessions(id,token_hash,account_id,credential_id,serving_generation,scopes,expires_at)
         VALUES(${randomUUID()},${randomBytes(32)},${account},${credential},1,'["account:read","grants:read","messages:read","messages:write"]',now()+interval '12 hours')`;
       await passkeys.revokeSessions(authenticated);

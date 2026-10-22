@@ -12,6 +12,7 @@ it.skipIf(!process.env.DATABASE_URL)("migration 40 preserves legacy rows/auth an
   const rollback = async () => {
     const connection = await db.sql.reserve();
     try {
+      if((await connection`SELECT version FROM schema_migrations WHERE version=56`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0056_browser_authorization.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=55`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0055_passkey_recovery.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=54`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0054_passkey_sessions.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=53`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0053_spt3_profile.sql",import.meta.url)).text());
@@ -64,7 +65,7 @@ it.skipIf(!process.env.DATABASE_URL)("migration 40 preserves legacy rows/auth an
         WHERE table_schema=${schema} AND table_type='BASE TABLE' AND table_name NOT IN ('schema_migrations','public_cutover_evidence','public_cutover_evidence_selection',
            'public_plc_resolution_evidence','public_envelope_authority_evidence','public_grant_authority_evidence','public_signing_authority_evidence',
            'public_onboarding_preparations','public_onboarding_evidence','custody_transition_preparations','custody_transition_grant_successors',
-           'account_passkeys','account_passkey_challenges','account_passkey_sessions','account_passkey_enrollment_capabilities') ORDER BY table_name`;
+           'account_passkeys','account_passkey_challenges','account_passkey_sessions','account_passkey_enrollment_capabilities','account_browser_authorizations') ORDER BY table_name`;
       return Promise.all(tables.map(async ({table_name}) => {
         const keys = added[table_name] ?? [];
         const row = keys.length

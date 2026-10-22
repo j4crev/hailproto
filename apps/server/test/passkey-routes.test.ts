@@ -14,7 +14,11 @@ function fixture(){
     register:vi.fn(async()=>({registered:true})),list:vi.fn(async()=>({recentlyVerified:true,passkeys:[]})),
     rename:vi.fn(async()=>({renamed:true})),revoke:vi.fn(async()=>({revoked:true})),
     recoveryOptions:vi.fn(async()=>({challengeId:"00000000-0000-4000-8000-000000000004",options:{challenge:"recovery"}})),
-    recover:vi.fn(async()=>({registered:true})),revokeSessions:vi.fn(async()=>({revoked:true})),logout:vi.fn(async()=>{})};
+    recover:vi.fn(async()=>({registered:true})),revokeSessions:vi.fn(async()=>({revoked:true})),
+    prepareAuthorization:vi.fn(async()=>({requestId:"00000000-0000-4000-8000-000000000005"})),
+    authorizationDetails:vi.fn(async()=>({clientId:"hailp-cli-v1",scopes:["account:read"]})),
+    completeAuthorization:vi.fn(async()=>({redirectUri:"http://127.0.0.1:45678/callback"})),
+    exchangeAuthorization:vi.fn(async()=>({type:"hailp.api-credential"})),logout:vi.fn(async()=>{})};
   const app=new Hono();registerPasskeyRoutes(app,service as unknown as PasskeyAuth,{authenticate} as unknown as AccountApiRepository);
   return {app,service,authenticate};
 }
@@ -64,5 +68,15 @@ describe("passkey routes",()=>{
       headers:{Origin:origin,Cookie:`hail_session=${token}`}});
     expect(response.status).toBe(200);expect(service.revokeSessions).toHaveBeenCalledOnce();
     expect(response.headers.get("Set-Cookie")).toContain("hail_session=; Max-Age=0");
+  });
+
+  it("allows CLI prepare/exchange without an Origin but protects browser approval with the pinned origin",async()=>{
+    const {app,service}=fixture(),json={"Content-Type":"application/json"};
+    expect((await app.request("/api/v1/auth/authorization/prepare",{method:"POST",headers:json,body:"{}"})).status).toBe(200);
+    expect(service.prepareAuthorization).toHaveBeenCalledOnce();
+    expect((await app.request("/api/v1/auth/authorization/details",{method:"POST",headers:{...json,Origin:"https://evil.example"},
+      body:JSON.stringify({requestId:"00000000-0000-4000-8000-000000000005",state:"A".repeat(43)})})).status).toBe(403);
+    expect((await app.request("/api/v1/auth/authorization/token",{method:"POST",headers:json,body:"{}"})).status).toBe(200);
+    expect(service.exchangeAuthorization).toHaveBeenCalledOnce();
   });
 });

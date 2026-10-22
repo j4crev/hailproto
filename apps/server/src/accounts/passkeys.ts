@@ -1,4 +1,4 @@
-import {randomBytes,randomUUID} from "node:crypto";
+import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {generateAuthenticationOptions,generateRegistrationOptions,verifyAuthenticationResponse,
   verifyRegistrationResponse,type AuthenticationResponseJSON,type RegistrationResponseJSON} from "@simplewebauthn/server";
 import {COSEALG} from "@simplewebauthn/server/helpers";
@@ -9,10 +9,17 @@ import {tokenHash,type AccountApiSession,type AccountApiScope} from "./repositor
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 const ID=/^[A-Za-z0-9_-]{1,1366}$/;
 const SESSION_SCOPES:AccountApiScope[]=["account:read","grants:read","messages:read","messages:write"];
+const BROWSER_SCOPES=SESSION_SCOPES;
 
 function uuidBytes(value:string){
   if(!UUID.test(value))throw new Error("Invalid account ID");
   return Uint8Array.from(Buffer.from(value.replaceAll("-",""),"hex"));
+}
+function loopback(value:string){
+  const url=new URL(value),port=Number(url.port);
+  if(url.protocol!=="http:"||url.hostname!=="127.0.0.1"||url.pathname!=="/callback"||url.username||url.password||
+    url.search||url.hash||!Number.isSafeInteger(port)||port<1024||port>65535)throw new PasskeyError(400);
+  return url;
 }
 
 export class PasskeyError extends Error {
@@ -115,6 +122,100 @@ export class PasskeyAuth {
       (id,challenge,purpose,account_id,serving_generation,expires_at,enrollment_capability_id)
       VALUES (${challengeId},${options.challenge},'registration',${row.account_id},${Number(row.serving_generation)},now()+interval '5 minutes',${row.id})`;
     return {challengeId,options};
+  }
+
+  async prepareAuthorization(input:Record<string,unknown>){
+    if(Object.keys(input).length!==6||Object.keys(input).some(key=>!["clientId","redirectUri","state","code","codeChallenge","scopes"].includes(key))||
+      input.clientId!=="hailp-cli-v1"||typeof input.redirectUri!=="string"||typeof input.state!=="string"||
+      typeof input.code!=="string"||typeof input.codeChallenge!=="string"||!Array.isArray(input.scopes)||
+      !/^[A-Za-z0-9_-]{43}$/.test(input.state)||!/^hailc_[A-Za-z0-9_-]{43}$/.test(input.code)||
+      !/^[A-Za-z0-9_-]{43}$/.test(input.codeChallenge)||new Set(input.scopes).size!==input.scopes.length||
+      input.scopes.some(scope=>!BROWSER_SCOPES.includes(scope as AccountApiScope)))throw new PasskeyError(400);
+    const redirectUri=input.redirectUri as string,state=input.state as string,code=input.code as string,
+      codeChallenge=input.codeChallenge as string,requested=input.scopes as unknown[];
+    loopback(redirectUri);const scopes=BROWSER_SCOPES.filter(scope=>requested.includes(scope));
+    if(!scopes.length||JSON.stringify(scopes)!==JSON.stringify(requested))throw new PasskeyError(400);
+    return this.sql.begin(async tx=>{
+      await tx`SELECT pg_advisory_xact_lock(684245135)`;
+      await tx`DELETE FROM account_browser_authorizations WHERE expires_at<now()-interval '1 day'`;
+      const prior=await tx<{id:string;client_id:string;redirect_uri:string;state:string;code_challenge:string;scopes:unknown;expires_at:Date}[]>`
+        SELECT id,client_id,redirect_uri,state,code_challenge,scopes,expires_at FROM account_browser_authorizations
+        WHERE code_hash=${tokenHash(code)} FOR UPDATE`;
+      if(prior[0]){
+        const priorScopes=typeof prior[0].scopes==="string"?JSON.parse(prior[0].scopes):prior[0].scopes;
+        if(prior[0].client_id!==input.clientId||prior[0].redirect_uri!==redirectUri||prior[0].state!==state||
+          prior[0].code_challenge!==codeChallenge||JSON.stringify(priorScopes)!==JSON.stringify(scopes)||prior[0].expires_at.getTime()<=Date.now())
+          throw new PasskeyError(409);
+        return {requestId:prior[0].id,authorizationUrl:`${this.origin}/auth/authorize?request=${prior[0].id}&state=${state}#code=${code}`,
+          expiresAt:prior[0].expires_at.toISOString()};
+      }
+      const id=randomUUID(),inserted=await tx<{expires_at:Date}[]>`INSERT INTO account_browser_authorizations
+        (id,client_id,redirect_uri,state,code_hash,code_challenge,scopes,expires_at)
+        VALUES(${id},${input.clientId},${redirectUri},${state},${tokenHash(code)},${codeChallenge},
+          (${JSON.stringify(scopes)}::text)::jsonb,now()+interval '5 minutes') RETURNING expires_at`;
+      return {requestId:id,authorizationUrl:`${this.origin}/auth/authorize?request=${id}&state=${state}#code=${code}`,
+        expiresAt:inserted[0]!.expires_at.toISOString()};
+    });
+  }
+
+  async authorizationDetails(requestId:string,state:string){
+    if(!UUID.test(requestId)||!/^[A-Za-z0-9_-]{43}$/.test(state))throw new PasskeyError(400);
+    const rows=await this.sql<{client_id:string;redirect_uri:string;scopes:unknown;expires_at:Date}[]>`
+      SELECT client_id,redirect_uri,scopes,expires_at FROM account_browser_authorizations
+      WHERE id=${requestId} AND state=${state} AND exchanged_at IS NULL AND expires_at>now()`;
+    const row=rows[0];if(!row)throw new PasskeyError(404);
+    return {clientId:row.client_id,redirectUri:row.redirect_uri,scopes:typeof row.scopes==="string"?JSON.parse(row.scopes):row.scopes,
+      expiresAt:row.expires_at.toISOString()};
+  }
+
+  async completeAuthorization(session:AccountApiSession,requestId:string,state:string,code:string){
+    if(!session.passkey_credential_id||!session.passkey_verified_at||session.passkey_verified_at.getTime()<=Date.now()-5*60_000)
+      throw new PasskeyError(403);
+    if(!UUID.test(requestId)||!/^[A-Za-z0-9_-]{43}$/.test(state)||!/^hailc_[A-Za-z0-9_-]{43}$/.test(code))throw new PasskeyError(400);
+    return this.sql.begin(async tx=>{
+      const rows=await tx<{redirect_uri:string;account_id:string|null;serving_generation:number|string|null}[]>`
+        SELECT redirect_uri,account_id,serving_generation FROM account_browser_authorizations
+        WHERE id=${requestId} AND state=${state} AND code_hash=${tokenHash(code)} AND exchanged_at IS NULL AND expires_at>now() FOR UPDATE`;
+      const row=rows[0];if(!row)throw new PasskeyError(404);const generation=session.serving_generation??1;
+      if(row.account_id&&(row.account_id!==session.account_id||Number(row.serving_generation)!==generation))throw new PasskeyError(409);
+      if(!row.account_id)await tx`UPDATE account_browser_authorizations SET account_id=${session.account_id},serving_generation=${generation},completed_at=now()
+        WHERE id=${requestId}`;
+      const redirect=loopback(row.redirect_uri);redirect.searchParams.set("code",code);redirect.searchParams.set("state",state);
+      return {redirectUri:redirect.toString()};
+    });
+  }
+
+  async exchangeAuthorization(input:Record<string,unknown>){
+    if(Object.keys(input).length!==5||Object.keys(input).some(key=>!["clientId","redirectUri","code","verifier","token"].includes(key))||
+      input.clientId!=="hailp-cli-v1"||typeof input.redirectUri!=="string"||typeof input.code!=="string"||
+      typeof input.verifier!=="string"||typeof input.token!=="string"||!/^hailc_[A-Za-z0-9_-]{43}$/.test(input.code)||
+      !/^[A-Za-z0-9_-]{43}$/.test(input.verifier)||!/^hailp_[A-Za-z0-9_-]{43}$/.test(input.token))throw new PasskeyError(400);
+    const redirectUri=input.redirectUri as string,code=input.code as string,verifier=input.verifier as string,token=input.token as string;
+    loopback(redirectUri);const challenge=encodeBase64Url(new Uint8Array(createHash("sha256").update(verifier).digest()));
+    try{return await this.sql.begin(async tx=>{
+      const rows=await tx<{id:string;account_id:string;serving_generation:number|string;scopes:unknown;credential_id:string|null}[]>`
+        SELECT auth.id,auth.account_id,auth.serving_generation,auth.scopes,auth.credential_id
+        FROM account_browser_authorizations auth JOIN provider_accounts account ON account.id=auth.account_id
+        JOIN account_serving_generations generation ON generation.account_id=account.id AND generation.generation=auth.serving_generation
+        LEFT JOIN provider_migration_fences fence ON fence.account_id=account.id
+        WHERE auth.code_hash=${tokenHash(code)} AND auth.client_id=${input.clientId}
+          AND auth.redirect_uri=${redirectUri} AND auth.code_challenge=${challenge}
+          AND auth.completed_at IS NOT NULL AND auth.expires_at>now()
+          AND account.onboarding_state='active' AND account.did IS NOT NULL AND fence.account_id IS NULL FOR UPDATE OF auth`;
+      const row=rows[0];if(!row)throw new PasskeyError(401);const scopes=typeof row.scopes==="string"?JSON.parse(row.scopes) as AccountApiScope[]:row.scopes as AccountApiScope[];
+      let credentialId=row.credential_id;
+      if(!credentialId){
+        if((await tx`SELECT id FROM account_api_credentials WHERE token_hash=${tokenHash(token)}`).length)throw new PasskeyError(409);
+        credentialId=randomUUID();await tx`INSERT INTO account_api_credentials(id,account_id,token_hash,scopes,expires_at)
+          VALUES(${credentialId},${row.account_id},${tokenHash(token)},(${JSON.stringify(scopes)}::text)::jsonb,now()+interval '30 days')`;
+        await tx`UPDATE account_browser_authorizations SET exchanged_at=now(),credential_id=${credentialId} WHERE id=${row.id}`;
+      }
+      const credential=await tx<{expires_at:Date}[]>`SELECT expires_at FROM account_api_credentials WHERE id=${credentialId}
+        AND account_id=${row.account_id} AND token_hash=${tokenHash(token)} AND revoked_at IS NULL AND expires_at>now()`;
+      if(!credential[0])throw new PasskeyError(401);
+      return {type:"hailp.api-credential",version:1,provider:this.origin,accountId:row.account_id,credentialId,token,
+        scopes,expiresAt:credential[0].expires_at.toISOString()};
+    });}catch(error){if(error&&typeof error==="object"&&"code" in error&&(error as {code?:string}).code==="23505")throw new PasskeyError(409);throw error;}
   }
 
   async recover(token:string,challengeId:string,response:RegistrationResponseJSON,label:string){

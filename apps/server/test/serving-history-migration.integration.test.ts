@@ -27,7 +27,7 @@ integration("migration 36 serving metadata and immutable retirement history",()=
          'account_challenge_generations','serving_worker_leases','provider_retired_import_history','provider_transfer_abandonments','provider_retired_observation_history',
          'public_cutover_evidence','public_cutover_evidence_selection','public_plc_resolution_evidence','public_envelope_authority_evidence','public_grant_authority_evidence','public_signing_authority_evidence',
          'public_onboarding_preparations','public_onboarding_evidence','custody_transition_preparations','custody_transition_grant_successors',
-          'account_passkeys','account_passkey_challenges','account_passkey_sessions','account_passkey_enrollment_capabilities') ORDER BY table_name`;
+          'account_passkeys','account_passkey_challenges','account_passkey_sessions','account_passkey_enrollment_capabilities','account_browser_authorizations') ORDER BY table_name`;
     const added:Record<string,string[]>={prepared_migration_target_keys:["custody_profile","identity_public_key","identity_private_ciphertext","identity_nonce"],
       account_access_challenges:["enrollment_capability_id"],
       provider_transfer_authorizations:["custody_profile","owner_recovery_public_key"],provider_migration_fences:["source_custody_profile","owner_recovery_public_key","source_identity_public_key","destination_identity_public_key"],
@@ -111,6 +111,7 @@ integration("migration 36 serving metadata and immutable retirement history",()=
     await db.migrate();expect((await db.sql`SELECT transfer_id FROM provider_retired_transfer_history`).length).toBe(2);
     expect(await fingerprints()).toEqual(beforeRollback);
     const current=await new AccountApiRepository(db.sql).authenticate(`Bearer ${original.credential.token}`);expect(current?.serving_generation).toBe(1);
+    await rollback("0056_browser_authorization.sql");
     await rollback("0055_passkey_recovery.sql");
     await rollback("0054_passkey_sessions.sql");
     await rollback("0053_spt3_profile.sql");

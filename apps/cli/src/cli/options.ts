@@ -23,6 +23,7 @@ const commands = [
   ["account show", "", "", "", true, "Read the selected account and current credential metadata."],
   ["account create", "", "provider address custody vault state credentials backup-verified", "monitor-origin monitor-key monitor-attestation", false, "Resumable owner-signed signup; public mode pauses for reviewed monitor enrollment."],
   ["account login", "", "provider did signer vault state credentials scope", "", false, "Issue fresh access using explicit identity or owner-recovery proof."],
+  ["account browser-login", "", "provider state credentials", "scope", false, "Issue scoped CLI access through a system-browser passkey login with PKCE."],
   ["account passkey-recover", "", "provider did signer vault state output", "", false, "Create one private short-lived passkey enrollment file using explicit owner proof."],
   ["account transfer offer", "", "destination vault state", "", true, "Sign/review one exact destination Offer with identity only."],
   ["account transfer status", "", "", "", true, "Read retained source transfer state; expiry never releases a fence."],

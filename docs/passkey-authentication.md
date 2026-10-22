@@ -288,7 +288,10 @@ after session authentication is proven.
 The baseline command behaves like:
 
 ```console
-hailp account login --provider https://provider.example
+hailp account browser-login \
+  --provider https://provider.example \
+  --state browser-login.state.json \
+  --credentials account.credential.json
 ```
 
 1. `hailp` generates state, a PKCE verifier/challenge and a loopback callback.
@@ -298,6 +301,10 @@ hailp account login --provider https://provider.example
 5. `hailp` checks state and exchanges the code, verifier and exact redirect URI.
 6. The provider issues an appropriately scoped provider-local API credential.
 7. `hailp` stores it using the existing private credential-file rules.
+
+The initial browser-issued CLI scope set is `account:read`, `grants:read`,
+`messages:read` and `messages:write`. Callers may request a narrower subset;
+browser login cannot mint credential-management or account-write authority.
 
 Authorization codes are bound to the provider, client, redirect URI, account,
 serving generation and PKCE challenge. They are never bearer credentials and
@@ -372,7 +379,7 @@ the browser.
       and atomic consumption.
 - [x] Add hashed server sessions with account/generation, scope, expiry and
       revocation state.
-- [ ] Add hashed one-use authorization codes with client, redirect URI, PKCE,
+- [x] Add hashed one-use authorization codes with client, redirect URI, PKCE,
       account/generation and expiry bindings.
 - [x] Make schema rollback refuse removal of active passkey-only access without
       an explicit alternate-access cutover; sessions may be invalidated safely.
@@ -385,7 +392,7 @@ the browser.
 - [x] Passkey list, label, add and revoke operations with step-up checks.
 - [ ] Single-use enrollment capability from onboarding, current access and
       owner-proof recovery.
-- [ ] Authorization-code creation and PKCE exchange for `hailp`/native clients.
+- [x] Authorization-code creation and PKCE exchange for `hailp` clients.
 - [x] Exact origin, RP ID, challenge, type, user-verification, size and replay
       validation at every boundary.
 
@@ -402,11 +409,11 @@ the browser.
 
 ### 5. Add `hailp` browser login
 
-- [ ] Add provider selection, state and PKCE generation.
-- [ ] Open the system browser and bind a random loopback callback.
-- [ ] Exchange the one-use code and preserve current private credential-file
+- [x] Add provider selection, state and PKCE generation.
+- [x] Open the system browser and bind a random loopback callback.
+- [x] Exchange the one-use code and preserve current private credential-file
       permissions and output contracts.
-- [ ] Handle cancellation, callback collision, timeout, browser-open failure,
+- [x] Handle cancellation, callback collision, timeout, browser-open failure,
       provider mismatch and exact retry without leaking code/verifier material.
 - [ ] Use the browser login to enroll a passkey after signup and owner recovery.
 
@@ -437,6 +444,19 @@ the browser.
 - [ ] Manual matrix: synced passkey, hardware security key and phone-based
       cross-device authentication.
 - [ ] `hailp` login on Linux, macOS and Windows.
+
+Current manual interoperability evidence:
+
+| Platform/path | Status |
+| --- | --- |
+| Linux desktop browser with Android cross-device QR | Passed on Haili canary |
+| Android direct biometric login with Samsung Pass | Passed on Haili canary |
+| Google Password Manager passkey enrollment/login | Passed on Haili canary |
+| FIDO2 hardware security key | Pending device access |
+| iOS/iPadOS and macOS | Pending device access |
+| Windows Hello | Pending device access |
+| `hailp` browser login: Linux | Pending production canary |
+| `hailp` browser login: macOS/Windows | Pending device access |
 
 ### 8. Roll out safely
 

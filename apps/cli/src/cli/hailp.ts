@@ -17,6 +17,7 @@ import { createCredential } from "../credential-creation.js";
 import { rotateCredential } from "../credential-rotation.js";
 import { loginAccount } from "../account-login.js";
 import {recoverPasskey} from "../passkey-recovery.js";
+import {browserLogin} from "../browser-login.js";
 import { renewBinding,showBinding } from "../binding-renewal.js";
 import { updateGrant } from "../grant-update.js";
 import { transferOffer,transferStatus,cancelTransfer,selectTransferAddress,exportTransferSnapshot,signAccountTransferCutover,completeAccountTransfer } from "../account-transfer.js";
@@ -86,6 +87,8 @@ try {
       const client=await AccountApiClient.fromCredentialFile(credential,selection);
       printResult(argument==="owner-controlled"?await transitionToOwner(client,values.vault!,values.state!):
         await transitionToManaged(client,values.vault,values.state!));
+    } else if(group==="account"&&command==="browser-login") {
+      printResult(await browserLogin(values.provider!,values.scope??[],values.state!,values.credentials!));
     } else if(group==="account"&&command==="passkey-recover") {
       printResult(await recoverPasskey(values.provider!,values.did!,values.signer as "identity"|"owner-recovery",values.vault!,values.state!,values.output!));
     } else if(group==="account"&&command==="login") {
