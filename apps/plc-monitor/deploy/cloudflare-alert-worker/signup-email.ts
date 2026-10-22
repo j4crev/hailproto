@@ -1,5 +1,6 @@
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
+import { decodeBase64Url } from "@hailproto/codec/base64url";
 import { CID } from "multiformats/cid";
+import { hash } from "../../src/http.js";
 
 export interface EmailBinding {
   send(message: { to: string; from: { email: string; name: string }; subject: string; text: string }): Promise<{ messageId: string }>;
@@ -29,21 +30,6 @@ const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 export const signupEmailPaths = new Set(["/signup-email", "/signup-email/verify", "/signup-email/bind"]);
 const reply = (value: unknown, status = 200, retry?: number) => Response.json(value, { status,
   headers: { "Cache-Control": "no-store", ...(retry ? { "Retry-After": String(retry) } : {}) } });
-
-export async function hash(value: string): Promise<string> {
-  return encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))));
-}
-
-export async function authenticated(request: Request, secret: string | undefined): Promise<boolean> {
-  if (!secret) return false;
-  try { decodeBase64Url(secret, 32); } catch { return false; }
-  const actual = request.headers.get("Authorization");
-  if (!actual || actual.length > 128) return false;
-  const [a, b] = await Promise.all([hash(actual), hash(`Bearer ${secret}`)]);
-  let difference = 0;
-  for (let index = 0; index < a.length; index++) difference |= a.charCodeAt(index) ^ b.charCodeAt(index);
-  return difference === 0;
-}
 
 function emailAddress(value: unknown): string | null {
   if (typeof value !== "string" || value.length > 254) return null;

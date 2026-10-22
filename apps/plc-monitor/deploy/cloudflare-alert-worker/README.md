@@ -55,6 +55,28 @@ acknowledgement. A failed email releases only its own claim for retry. Reusing a
 alert UUID with different signed content is refused. Existing deduplication rows
 remain readable; no Durable Object migration or data deletion is required.
 
+### Consumer-only monitor endpoints (local implementation)
+
+`POST /hail/signup` verifies the same pinned monitor signature as `/hail`, but
+requires an existing verified consumer binding. For enrollment notifications,
+the signed `detail.operationCid` must match the bound genesis CID. It never falls
+back to the operator. Its deduplication scope is separate, so an earlier operator
+acknowledgement cannot certify delivery to the consumer. `/hail` retains legacy
+operator fallback for existing canaries.
+
+`POST /hail/signup/binding` is a read-only monitor check. Its exact JSON fields
+are `type: "hail.plc-monitor-email-binding"`, `version: 1`, `signupId`,
+`signupHash`, `did`, `operationCid` and Unix-second `issuedAt`. The request must
+be within five minutes and signed by the pinned monitor key under
+`hail.plc-monitor-email-binding.v1\0`, using the existing monitor-key/signature
+headers. An alert signature cannot be reused for this purpose. Only an exact
+bound context returns `{bound:true,did,operationCid}`; no email address or secret
+is returned, and the call grants no new authority or sends email.
+
+These additions need a separately reviewed monitor/receiver rollout. They do not
+enable automatic enrollment merely by existing in the source tree. See the
+[automatic monitor runbook](../public/README.md#automatic-reduced-assurance-alpha-enrollment).
+
 ## Signup Email Verification And Routing
 
 `POST /signup-email`, `/signup-email/verify` and `/signup-email/bind` are private

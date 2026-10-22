@@ -3,17 +3,23 @@ import { PlcMonitor } from "../monitor.js";
 import { MonitorNotifier, PinnedHttpsAlertTransport } from "../notifier.js";
 import { BoundedMonitorPlcClient } from "../plc.js";
 import { MonitorSigner } from "../signing.js";
+import { createMonitorEnrollmentApi, monitorEnrollmentConfig } from "../enrollment.js";
 
 if (!Bun.env.DATABASE_URL || !Bun.env.PLC_DIRECTORY_URL || !Bun.env.MONITOR_PRIVATE_KEY_FILE) {
   throw new Error("DATABASE_URL, PLC_DIRECTORY_URL and MONITOR_PRIVATE_KEY_FILE are required");
 }
+const enrollment = monitorEnrollmentConfig(Bun.env);
 const database = new MonitorDatabase(Bun.env.DATABASE_URL);
 await database.migrate();
 const signer = await MonitorSigner.fromPrivateFile(Bun.env.MONITOR_PRIVATE_KEY_FILE);
 const monitor = new PlcMonitor(database.sql, new BoundedMonitorPlcClient(Bun.env.PLC_DIRECTORY_URL));
 const notifier = new MonitorNotifier(database.sql, signer, new PinnedHttpsAlertTransport());
+if (enrollment) {
+  const api = createMonitorEnrollmentApi(enrollment, monitor, signer);
+  Bun.serve({ hostname: enrollment.hostname, port: enrollment.port, maxRequestBodySize: 32_768, fetch: api.fetch });
+}
 console.info(JSON.stringify({ event: "monitor-started", monitorDidKey: signer.publicDidKey,
-  deploymentProfile: Bun.env.MONITOR_DEPLOYMENT_PROFILE ?? "unspecified" }));
+  deploymentProfile: Bun.env.MONITOR_DEPLOYMENT_PROFILE ?? "unspecified", enrollmentApi: enrollment ? "reduced-assurance-alpha-v1" : "disabled" }));
 
 let polling = false;
 let notifying = false;

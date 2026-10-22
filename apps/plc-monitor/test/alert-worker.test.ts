@@ -5,6 +5,7 @@ import worker,{AlertDeduplicator,type Env} from "../deploy/cloudflare-alert-work
 import {encodeBase64Url} from "@hailproto/codec";
 import {cidForCbor} from "@atproto/common";
 import type {EmailBinding} from "../deploy/cloudflare-alert-worker/signup-email.js";
+import {SIGNUP_ALERT_PATH,SIGNUP_BINDING_PATH,type MonitorEmailBindingQuery} from "../src/email-binding.js";
 type EmailMessage=Parameters<EmailBinding["send"]>[0];
 
 function deduplicator(env:Record<string,unknown>){
@@ -87,7 +88,7 @@ function signupFixture(){
     return new Request("https://alerts.plcmonitor.us/hail",{method:"POST",headers:{"Content-Type":"application/json",
       "X-Hail-Monitor-Key":signer.publicDidKey,"X-Hail-Monitor-Signature":encodeBase64Url(signer.signAlert(bytes))},body:bytes});
   };
-  return {env,send,coordinator,identity,post,challenge,alert};
+  return {env,send,coordinator,identity,post,challenge,alert,signer};
 }
 
 it("separates the signup URL from punctuation and displays Hail as the sender",async()=>{
@@ -195,4 +196,50 @@ it("does not acknowledge an in-flight alert and retries failures without exposin
   f.send.mockRejectedValueOnce(new Error("vendor secret"));
   const response=await f.post("/signup-email",{...f.identity,email:"failed@example.com"});
   expect(response.status).toBe(503);expect(await response.text()).not.toContain("vendor secret");
+});
+
+it("requires a domain-separated monitor signature to confirm an exact verified email binding",async()=>{
+  const f=signupFixture(),did=`did:plc:${"a".repeat(24)}`,operationCid=(await cidForCbor({genesis:true})).toString();
+  const query:MonitorEmailBindingQuery={type:"hail.plc-monitor-email-binding",version:1,...f.identity,did,operationCid,issuedAt:Math.floor(Date.now()/1000)};
+  const check=(value:MonitorEmailBindingQuery=query,wrongDomain=false)=>{
+    const bytes=new TextEncoder().encode(JSON.stringify(value));
+    return worker.fetch(new Request(`https://alerts.plcmonitor.us${SIGNUP_BINDING_PATH}`,{method:"POST",headers:{"Content-Type":"application/json",
+      "X-Hail-Monitor-Key":f.signer.publicDidKey,"X-Hail-Monitor-Signature":encodeBase64Url(wrongDomain?f.signer.signAlert(bytes):f.signer.signEmailBindingRequest(bytes))},body:bytes}),f.env);
+  };
+  expect((await check()).status).toBe(409);
+  await f.post("/signup-email",{...f.identity,email:"alice@example.com"});
+  expect((await check()).status).toBe(409);
+  await f.post("/signup-email/verify",{...f.identity,code:f.challenge()});
+  expect((await check()).status).toBe(409);
+  await f.post("/signup-email/bind",{...f.identity,did,operationCid});
+  const response=await check();expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({bound:true,did,operationCid});
+  expect((await check(query,true)).status).toBe(401);
+  expect((await check({...query,issuedAt:query.issuedAt-301})).status).toBe(400);
+  expect((await check({...query,signupId:crypto.randomUUID()})).status).toBe(409);
+  expect((await check({...query,signupHash:encodeBase64Url(crypto.getRandomValues(new Uint8Array(32)))})).status).toBe(409);
+  expect((await check({...query,operationCid:(await cidForCbor({other:true})).toString()})).status).toBe(409);
+  expect(f.send).toHaveBeenCalledOnce(); // Binding reads never send email or authorize login.
+});
+
+it("never substitutes operator fallback or its deduplication receipt for a consumer enrollment alert",async()=>{
+  const f=signupFixture(),did=`did:plc:${"a".repeat(24)}`,operationCid=(await cidForCbor({genesis:true})).toString();
+  const original=f.alert(did),consumer=()=>new Request(`https://alerts.plcmonitor.us${SIGNUP_ALERT_PATH}`,original.clone());
+  expect((await worker.fetch(original.clone(),f.env)).status).toBe(204);
+  expect(f.send.mock.calls.at(-1)![0].to).toBe("operator@example.com");
+  expect((await worker.fetch(consumer(),f.env)).status).toBe(409);expect(f.send).toHaveBeenCalledOnce();
+  await f.post("/signup-email",{...f.identity,email:"alice@example.com"});
+  await f.post("/signup-email/verify",{...f.identity,code:f.challenge()});
+  await f.post("/signup-email/bind",{...f.identity,did,operationCid});
+  expect((await worker.fetch(consumer(),f.env)).status).toBe(204);
+  expect(f.send.mock.calls.at(-1)![0].to).toBe("alice@example.com");expect(f.send).toHaveBeenCalledTimes(3);
+  expect((await worker.fetch(consumer(),f.env)).status).toBe(204);expect(f.send).toHaveBeenCalledTimes(3);
+  const enrollment={...(await original.clone().json() as Record<string,unknown>),id:crypto.randomUUID(),category:"onboarding-enrollment",detail:{operationCid}};
+  const send=(cid:string)=>{
+    const bytes=new TextEncoder().encode(JSON.stringify({...enrollment,detail:{operationCid:cid}}));
+    return worker.fetch(new Request(`https://alerts.plcmonitor.us${SIGNUP_ALERT_PATH}`,{method:"POST",headers:{"Content-Type":"application/json",
+      "X-Hail-Monitor-Key":f.signer.publicDidKey,"X-Hail-Monitor-Signature":encodeBase64Url(f.signer.signAlert(bytes))},body:bytes}),f.env);
+  };
+  expect((await send((await cidForCbor({wrong:true})).toString())).status).toBe(409);
+  expect((await send(operationCid)).status).toBe(204);
 });

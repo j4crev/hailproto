@@ -20,7 +20,7 @@ Status: product plan, not implementation approval or a change to protocol requir
   unchanged freshness checks and guarded rollback.
 - [The alpha profile](../spec/alpha-onboarding.md) records its exact limits.
   No public alpha account-creation route or automatic monitor enrollment is
-  enabled yet. Browser signup is not end-to-end complete.
+  enabled in production yet. Browser signup is not end-to-end complete.
 - Cloudflare Email Sending is selected, using `notify.haili.app`. The existing
   Worker now supports authenticated verification codes and immutable per-DID
   routing to verified consumer destinations, while retaining operator alerts for
@@ -36,10 +36,20 @@ Status: product plan, not implementation approval or a change to protocol requir
   second email. Schema 57, provider/GUI health and unchanged account keys/passkeys
   were checked. No test DID or account was created or bound. The recovery preview
   remains disabled in production.
+- Automatic monitoring now has local end-to-end proof across the provider,
+  monitor and email receiver. It binds verified email, independently confirms
+  that binding through a signed monitor request, enrolls the exact owner-signed
+  genesis and waits for accepted consumer-only notification plus a fresh poll.
+  The provider cryptographically verifies the returned attestation before
+  activation. Operator fallback cannot satisfy consumer notification.
+- Exact retries preserve monitoring history and ambiguous replies do not create
+  replacement identities. Tests cover notification failures, stale coverage,
+  tampered signatures and restart. Optional API/configuration gates default off;
+  no production listener, secrets or deployments were changed for this slice.
+  See the [monitor enrollment runbook](../apps/plc-monitor/deploy/public/README.md#automatic-reduced-assurance-alpha-enrollment).
 
-Next: authenticated automatic monitor enrollment, narrow signup capability
-lifecycle, then the resumable full browser
-wizard. Do not treat a delivered operator email as verification of a signup
+Next: guarded monitor API/receiver rollout, narrow signup capability lifecycle,
+then the resumable full browser wizard. Do not treat a delivered operator email as verification of a signup
 user's external alert destination. Asynchronous email bounce/complaint handling
 and broader deliverability monitoring remain rollout gates.
 

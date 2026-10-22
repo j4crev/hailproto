@@ -90,6 +90,11 @@ integration("independent monitor durable cursor", () => {
   it("enrolls a validated DID, advances an exact sequence and alerts on unexpected changes", async () => {
     const monitor = new PlcMonitor(db.sql, client, observed);
     await monitor.enroll(did, cid, "https://user.example.com/alerts");
+    const before=JSON.stringify(await db.sql`SELECT to_jsonb(watched) AS value FROM monitored_dids watched WHERE did=${did}`);
+    await monitor.enroll(did, cid, "https://user.example.com/alerts");
+    expect(JSON.stringify(await db.sql`SELECT to_jsonb(watched) AS value FROM monitored_dids watched WHERE did=${did}`)).toBe(before);
+    await expect(monitor.enroll(did,cid,"https://user.example.com/changed")).rejects.toThrow("retry differs");
+    await expect(monitor.enroll(did,cid,"https://user.example.com/alerts",await client.getDocumentData(did))).rejects.toThrow("retry differs");
     expect(await monitor.poll()).toMatchObject({ state: "current", inspected: 0, alerts: 0 });
     const updated = await signOperation({ type: "plc_operation", rotationKeys: [key.did()],
       verificationMethods: { "hail-identity": (genesis as { verificationMethods: Record<string, string> }).verificationMethods["hail-identity"]!,

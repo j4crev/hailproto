@@ -13,6 +13,10 @@ export interface MonitorPollResult {
   alerts: number;
 }
 
+export class OnboardingMonitorPending extends Error {
+  constructor() { super("Independent onboarding monitor coverage is unavailable"); }
+}
+
 export class PlcMonitor {
   constructor(private readonly sql: SQL, private readonly plc: MonitorPlcClient,
     private readonly now: () => Date = () => new Date()) {}
@@ -29,7 +33,25 @@ export class PlcMonitor {
     }
     const enrolledAt = this.now();
     await this.sql.begin(async (tx) => {
-      await tx`SELECT singleton FROM monitor_cursor WHERE singleton = true FOR UPDATE`;
+      // Serialize initial enrollment and exact retries without taking the cursor
+      // lock before watched rows (polling locks watched rows before the cursor).
+      await tx`SELECT pg_advisory_xact_lock(686169155, hashtext(${did}))`;
+      const prior = (await tx<{ expected_cid: string; expected_state: unknown; alert_webhook_url: string;
+        bootstrap_cid: string | null; bootstrap_state: unknown }[]>`
+        SELECT watched.expected_cid,watched.expected_state,watched.alert_webhook_url,
+          bootstrap.operation_cid AS bootstrap_cid,bootstrap.reviewed_state AS bootstrap_state
+        FROM monitored_dids watched LEFT JOIN monitor_bootstrap_checkpoints bootstrap ON bootstrap.did=watched.did
+        WHERE watched.did=${did} FOR UPDATE OF watched`)[0];
+      if (prior) {
+        const expected = typeof prior.expected_state === "string" ? JSON.parse(prior.expected_state) : prior.expected_state;
+        const bootstrap = typeof prior.bootstrap_state === "string" ? JSON.parse(prior.bootstrap_state) : prior.bootstrap_state;
+        if (prior.expected_cid !== expectedCid || prior.alert_webhook_url !== alertWebhookUrl ||
+          !isDeepStrictEqual(expected, current.state) || Boolean(prior.bootstrap_cid) !== (reviewed !== undefined) ||
+          reviewed !== undefined && (prior.bootstrap_cid !== expectedCid || !isDeepStrictEqual(bootstrap, reviewed))) {
+          throw new Error("Monitor enrollment retry differs from retained bootstrap or alert destination");
+        }
+        return; // Never reset coverage, alerts, approvals or the original checkpoint.
+      }
       await tx`INSERT INTO monitored_dids (did, expected_cid, expected_state, alert_webhook_url,
         enrolled_at, last_verified_cid, last_verified_at, last_audit, coverage_since)
         VALUES (${did}, ${expectedCid}, ${JSON.stringify(current.state)}::jsonb,
@@ -196,12 +218,13 @@ export class PlcMonitor {
       const now = this.now();
       if (!watched || watched.expected_cid !== operationCid || watched.bootstrap_cid !== operationCid ||
         !isDeepStrictEqual(current.state, expected) || !isDeepStrictEqual(current.state, bootstrap) ||
-        watched.gaps !== 0 || watched.notified !== 1 || !watched.coverage_since || !watched.poll_ready || !watched.last_polled_at ||
-        watched.last_polled_at.getTime() < watched.enrolled_at.getTime() ||
-        now.getTime() - watched.last_polled_at.getTime() > 300_000 ||
-        watched.last_polled_at.getTime() > now.getTime() + 300_000) {
+        watched.gaps !== 0 || watched.notified > 1 || watched.enrolled_at.getTime() > now.getTime() + 300_000 ||
+        watched.last_polled_at && watched.last_polled_at.getTime() > now.getTime() + 300_000) {
         throw new Error("Independent onboarding monitor coverage is unavailable");
       }
+      if (!watched.notified || !watched.coverage_since || !watched.poll_ready || !watched.last_polled_at ||
+        watched.last_polled_at.getTime() < watched.enrolled_at.getTime() || now.getTime() - watched.last_polled_at.getTime() > 300_000)
+        throw new OnboardingMonitorPending();
       if(!retained)throw new Error("Independent onboarding monitor has no retained DID audit");
       this.assertNoHistoryRegression(retained,current.audit);
       if(!isDeepStrictEqual(retained,current.audit))throw new Error("Independent onboarding monitor has not polled the current DID audit");

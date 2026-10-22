@@ -2,6 +2,7 @@ import { createPrivateKey, createPublicKey, sign, type KeyObject } from "node:cr
 import { readFile, stat } from "node:fs/promises";
 import { base58btc } from "multiformats/bases/base58";
 import { encodeDeterministic, type HailValue } from "@hailproto/codec";
+import { EMAIL_BINDING_CONTEXT } from "./email-binding.js";
 
 const ALERT_CONTEXT = new TextEncoder().encode("hail.plc-monitor-alert.v1\0");
 const COVERAGE_CONTEXT = new TextEncoder().encode("hail.independent-plc-monitor.v1\0");
@@ -34,6 +35,9 @@ export class MonitorSigner {
   }
 
   signAlert(bytes: Uint8Array): Uint8Array { return this.sign(ALERT_CONTEXT, bytes); }
+  signEmailBindingRequest(bytes: Uint8Array): Uint8Array {
+    return this.sign(new TextEncoder().encode(EMAIL_BINDING_CONTEXT), bytes);
+  }
 
   signCoverage(payload: { type: "hail.plc-monitor-attestation"; version: 1 | 2 | 3;
     did: string; transfer_id: string; operation_cid: string; monitor_origin: string;

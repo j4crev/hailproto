@@ -21,6 +21,7 @@ export interface AppConfig {
   passkeys?: { rpId: string; origin: string };
   thinGuiOrigin?:string;
   signupEmail?:{origin:string;token:string};
+  signupMonitor?:{apiOrigin:string;token:string;publicKey:string};
 }
 
 type Environment = Record<string, string | undefined>;
@@ -183,6 +184,17 @@ export function loadConfig(environment: Environment = Bun.env): AppConfig {
     try{decodeBase64Url(token,32);}catch{throw new Error("SIGNUP_EMAIL_TOKEN must be a canonical 32-byte base64url secret");}
     signupEmail={origin:withoutTrailingSlash(url),token};
   }
+  let signupMonitor:AppConfig["signupMonitor"];
+  if(environment.SIGNUP_MONITOR_API_ORIGIN||environment.SIGNUP_MONITOR_TOKEN||environment.SIGNUP_MONITOR_PUBLIC_KEY){
+    if(!signupEmail||!publicPlcAuthority)throw new Error("Automatic signup monitoring requires signup email and strict public PLC authority");
+    const url=parseUrl(required(environment,"SIGNUP_MONITOR_API_ORIGIN"),"SIGNUP_MONITOR_API_ORIGIN",["https:"]);
+    if(url.pathname!=="/")throw new Error("SIGNUP_MONITOR_API_ORIGIN must not contain a path");
+    const token=required(environment,"SIGNUP_MONITOR_TOKEN"),publicKey=required(environment,"SIGNUP_MONITOR_PUBLIC_KEY");
+    decodeBase64Url(token,32);
+    const key=publicKey.startsWith("did:key:")?base58btc.decode(publicKey.slice(8)):new Uint8Array();
+    if(key.length!==34||key[0]!==0xed||key[1]!==1)throw new Error("Automatic monitoring requires a pinned Ed25519 public key");
+    signupMonitor={apiOrigin:withoutTrailingSlash(url),token,publicKey};
+  }
   return {
     nodeEnv,
     port,
@@ -199,6 +211,7 @@ export function loadConfig(environment: Environment = Bun.env): AppConfig {
     ...(passkeys?{passkeys}:{}),
     ...(thinGuiOrigin?{thinGuiOrigin}:{}),
     ...(signupEmail?{signupEmail}:{}),
+    ...(signupMonitor?{signupMonitor}:{}),
   };
 }
 import { decodeBase64Url } from "@hailproto/codec";

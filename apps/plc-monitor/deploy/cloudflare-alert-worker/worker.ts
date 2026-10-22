@@ -1,7 +1,9 @@
 import { base58btc } from "multiformats/bases/base58";
 import { parseJsonWithoutDuplicateKeys } from "../../src/strict-json.js";
-import { authenticated, hash, pruneSignupEmail, sendEmail, signupEmail, signupEmailPaths,
+import { pruneSignupEmail, sendEmail, signupEmail, signupEmailPaths,
   type DurableStorage, type EmailEnvironment, type Recipient } from "./signup-email.js";
+import { authenticated, hash, boundedBody } from "../../src/http.js";
+import { EMAIL_BINDING_CONTEXT, SIGNUP_ALERT_PATH, SIGNUP_BINDING_PATH, checkEmailBindingQuery } from "../../src/email-binding.js";
 
 const context = new TextEncoder().encode("hail.plc-monitor-alert.v1\0");
 const categories = new Set(["unexpected-operation", "coverage-lost", "invalid-operation-log", "export-gap", "onboarding-enrollment"]);
@@ -30,14 +32,25 @@ export class AlertDeduplicator {
   async fetch(request:Request):Promise<Response>{
     if(request.method!=="POST")return new Response(null,{status:405});
     const path=new URL(request.url).pathname;
-    const bytes=await body(request,signupEmailPaths.has(path)?4096:65_536);
+    const bytes=await boundedBody(request,signupEmailPaths.has(path)||path==="/binding"?4096:65_536);
     if(!bytes)return new Response(null,{status:413});
     let alert:Record<string,unknown>;
     try{alert=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as Record<string,unknown>;}catch{return new Response(null,{status:400});}
     if(signupEmailPaths.has(path))return signupEmail(path,alert,this.state.storage,this.env);
+    if(path==="/binding"){
+      try{checkEmailBindingQuery(alert,Math.floor(Date.now()/1000));}catch{return new Response(null,{status:400});}
+      const recipient=await this.state.storage.get<Recipient>(`recipient:${alert.did}`);
+      if(!recipient||recipient.signupId!==alert.signupId||recipient.signupHash!==alert.signupHash||recipient.operationCid!==alert.operationCid)
+        return new Response(null,{status:409,headers:{"Cache-Control":"no-store"}});
+      return Response.json({bound:true,did:alert.did,operationCid:alert.operationCid},{headers:{"Cache-Control":"no-store"}});
+    }
     if(!alert||typeof alert!=="object"||Array.isArray(alert)||typeof alert.id!=="string"||typeof alert.did!=="string"||typeof alert.category!=="string")return new Response(null,{status:400});
+    const consumer=path==="/alert/signup",recipient=await this.state.storage.get<Recipient>(`recipient:${alert.did}`);
+    if(consumer&&(!recipient||alert.category==="onboarding-enrollment"&&
+      (alert.detail as Record<string,unknown>|undefined)?.operationCid!==recipient.operationCid))return new Response(null,{status:409});
     const digest=await hash(new TextDecoder().decode(bytes));
-    const key=`alert:${alert.id}`,now=Date.now(),claim=crypto.randomUUID(),claimed=await this.state.storage.transaction(async storage=>{
+    // An earlier operator-fallback acknowledgement cannot satisfy consumer delivery.
+    const key=`alert:${consumer?"signup:":""}${alert.id}`,now=Date.now(),claim=crypto.randomUUID(),claimed=await this.state.storage.transaction(async storage=>{
       const prior=await storage.get<{state:string;updatedAt:number;digest?:string}>(key);
       if(prior?.digest&&prior.digest!==digest)return "conflict";
       if(prior?.state==="sent")return "sent";
@@ -46,7 +59,6 @@ export class AlertDeduplicator {
     });
     if(claimed!=="send")return new Response(null,{status:claimed==="sent"?204:claimed==="busy"?503:409});
     try{
-      const recipient=await this.state.storage.get<Recipient>(`recipient:${alert.did}`);
       const text=`A signed Hail PLC monitor alert was received.\n\n${JSON.stringify(alert,null,2)}\n\nIf this identity change was not expected, investigate immediately. PLC recovery must reach the directory within 72 hours of the unwanted operation; you may have less time remaining. An alert does not perform recovery. Never share your recovery secret.`;
       await sendEmail(this.env,{to:recipient?.email??this.env.ALERT_RECIPIENT,from:this.env.ALERT_SENDER,
         subject:`[Hail PLC] ${alert.category}: ${alert.did}`,text});
@@ -80,24 +92,14 @@ function signature(value:string|null):Uint8Array<ArrayBuffer>|null {
   catch{return null;}
 }
 
-async function verify(bytes:Uint8Array,encoded:string,keyDid:string):Promise<boolean>{
+async function verify(bytes:Uint8Array,encoded:string,keyDid:string,domain=context):Promise<boolean>{
   try{
     const decoded=base58btc.decode(keyDid.slice(8));
     if(!keyDid.startsWith("did:key:z")||decoded.length!==34||decoded[0]!==0xed||decoded[1]!==1)return false;
-    const signed=new Uint8Array(context.length+bytes.length);signed.set(context);signed.set(bytes,context.length);
+    const signed=new Uint8Array(domain.length+bytes.length);signed.set(domain);signed.set(bytes,domain.length);
     const publicKey=Uint8Array.from(decoded.slice(2)),sig=signature(encoded)!;
     return crypto.subtle.verify("Ed25519",await crypto.subtle.importKey("raw",publicKey,"Ed25519",false,["verify"]),sig,signed);
   }catch{return false;}
-}
-
-async function body(request:Request,maximum=65_536):Promise<Uint8Array|null>{
-  if(!request.body)return null;
-  const reader=request.body.getReader(),parts:Uint8Array[]=[];let length=0,done=false;
-  try{while(true){const next=await reader.read();if(next.done){done=true;break;}length+=next.value.length;
-    if(length>maximum)return null;parts.push(next.value);}}
-  finally{if(!done)await reader.cancel();}
-  if(!length)return null;
-  const bytes=new Uint8Array(length);let offset=0;for(const part of parts){bytes.set(part,offset);offset+=part.length;}return bytes;
 }
 
 export default {
@@ -108,7 +110,7 @@ export default {
       if(!env.SIGNUP_EMAIL_TOKEN)return new Response(null,{status:503});
       if(!await authenticated(request,env.SIGNUP_EMAIL_TOKEN))return new Response(null,{status:401});
       if(request.headers.get("content-type")!=="application/json"||request.headers.has("content-encoding"))return new Response(null,{status:415});
-      const bytes=await body(request,4096);if(!bytes)return new Response(null,{status:413});
+      const bytes=await boundedBody(request,4096);if(!bytes)return new Response(null,{status:413});
       const id=env.ALERT_DEDUPLICATOR.idFromName("hail-monitor-alerts");
       try{return await env.ALERT_DEDUPLICATOR.get(id).fetch(new Request(`https://deduplicator.internal${url.pathname}`,{
         method:"POST",headers:{"Content-Type":"application/json"},body:Uint8Array.from(bytes).buffer}));}
@@ -124,14 +126,22 @@ export default {
       await env.HAIL_PRODUCTION_MONITOR.put(backupKey,String(Date.now()));
       return new Response(null,{status:204});
     }
-    if(request.method!=="POST"||url.pathname!=="/hail")return new Response(null,{status:404});
+    const bindingQuery=url.pathname===SIGNUP_BINDING_PATH,consumer=url.pathname===SIGNUP_ALERT_PATH;
+    if(request.method!=="POST"||url.pathname!=="/hail"&&!consumer&&!bindingQuery)return new Response(null,{status:404});
     if(request.headers.get("content-type")!=="application/json")return new Response(null,{status:415});
-    const bytes=await body(request);if(!bytes)return new Response(null,{status:413});
+    const bytes=await boundedBody(request,bindingQuery?4096:65_536);if(!bytes)return new Response(null,{status:413});
     const key=request.headers.get("x-hail-monitor-key"),encoded=request.headers.get("x-hail-monitor-signature");
-    if(key!==env.MONITOR_PUBLIC_KEY||!encoded||!signature(encoded)||!await verify(bytes,encoded,key))return new Response(null,{status:401});
+    if(key!==env.MONITOR_PUBLIC_KEY||!encoded||!signature(encoded)||!await verify(bytes,encoded,key,
+      bindingQuery?new TextEncoder().encode(EMAIL_BINDING_CONTEXT):context))return new Response(null,{status:401});
     let alert:Record<string,unknown>;
     try{alert=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as Record<string,unknown>;}catch{return new Response(null,{status:400});}
     if(!alert||typeof alert!=="object"||Array.isArray(alert))return new Response(null,{status:400});
+    if(bindingQuery){
+      try{checkEmailBindingQuery(alert,Math.floor(Date.now()/1000));}catch{return new Response(null,{status:400});}
+      const id=env.ALERT_DEDUPLICATOR.idFromName("hail-monitor-alerts");
+      return env.ALERT_DEDUPLICATOR.get(id).fetch(new Request("https://deduplicator.internal/binding",{method:"POST",
+        headers:{"Content-Type":"application/json"},body:Uint8Array.from(bytes).buffer}));
+    }
     const occurred=typeof alert.occurred_at==="string"?Date.parse(alert.occurred_at):NaN,now=Date.now();
     if(!alert||Array.isArray(alert)||Object.keys(alert).length!==7||alert.type!=="hail.plc-monitor-alert"||alert.version!==1||
       typeof alert.id!=="string"||!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(alert.id)||
@@ -139,7 +149,7 @@ export default {
       !Number.isFinite(occurred)||occurred>now+5*60_000||occurred<now-7*86400_000||!alert.detail||typeof alert.detail!=="object"||Array.isArray(alert.detail))
       return new Response(null,{status:400});
     const id=env.ALERT_DEDUPLICATOR.idFromName("hail-monitor-alerts");
-    return env.ALERT_DEDUPLICATOR.get(id).fetch(new Request("https://deduplicator.internal/alert",{method:"POST",
+    return env.ALERT_DEDUPLICATOR.get(id).fetch(new Request(`https://deduplicator.internal/alert${consumer?"/signup":""}`,{method:"POST",
       headers:{"Content-Type":"application/json"},body:Uint8Array.from(bytes).buffer}));
   },
   async scheduled(_controller:unknown,env:Env):Promise<void>{

@@ -29,6 +29,7 @@ import type { GrantRepository } from "./grants/repository.js";
 import type { GrantService } from "./grants/service.js";
 import { registerSelfServiceOnboarding, type SelfServiceOnboarding } from "./accounts/onboarding-routes.js";
 import { registerSignupEmailRoutes, type SignupEmailClient } from "./onboarding/email.js";
+import { registerSignupMonitorRoutes, type SignupMonitorService } from "./onboarding/monitor.js";
 import type { AccountMessaging } from "./accounts/messaging.js";
 import { registerAccountAccess } from "./accounts/access-routes.js";
 import type { AccountAccess } from "./accounts/access.js";
@@ -81,6 +82,7 @@ export interface AppDependencies {
     profiles?:SenderProfileService;profileVerifier?:Pick<SenderProfileVerifier,"verify"> };
   selfServiceOnboarding?: SelfServiceOnboarding;
   signupEmail?:{sql:SQL;client:SignupEmailClient};
+  signupMonitor?:SignupMonitorService;
   accountAccess?: { access: AccountAccess; sql: SQL };
   servingSql?:SQL;
   passkeys?:PasskeyAuth;
@@ -101,6 +103,7 @@ export function createApp(
   const protectedSchedule = new ProtectedResponseSchedule();
   if(dependencies.selfServiceOnboarding)registerSelfServiceOnboarding(app,dependencies.selfServiceOnboarding);
   if(dependencies.signupEmail)registerSignupEmailRoutes(app,dependencies.signupEmail.sql,dependencies.signupEmail.client,config.passkeys?.origin??config.publicOrigin);
+  if(dependencies.signupMonitor)registerSignupMonitorRoutes(app,dependencies.signupMonitor,config.passkeys?.origin??config.publicOrigin);
   if (dependencies.accountAccess) registerAccountAccess(app, dependencies.accountAccess.access, dependencies.accountAccess.sql);
 
   if (dependencies.accountApi) {

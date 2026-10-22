@@ -83,6 +83,18 @@ describe("loadConfig", () => {
       expect(()=>loadConfig({...validEnvironment,...email,...override})).toThrow();
   });
 
+  it("requires explicit email, authority and pinned monitor configuration for automatic signup monitoring",()=>{
+    expect(loadConfig(publicEnvironment).signupMonitor).toBeUndefined();
+    const key=`did:key:${base58btc.encode(new Uint8Array([0xed,1,...new Uint8Array(32)]))}`;
+    const settings={SIGNUP_EMAIL_ORIGIN:"https://alerts.example.com",SIGNUP_EMAIL_TOKEN:"A".repeat(43),
+      SIGNUP_MONITOR_API_ORIGIN:"https://monitor.example.com",SIGNUP_MONITOR_TOKEN:"A".repeat(43),SIGNUP_MONITOR_PUBLIC_KEY:key};
+    expect(loadConfig({...publicEnvironment,...settings}).signupMonitor).toEqual({apiOrigin:settings.SIGNUP_MONITOR_API_ORIGIN,token:settings.SIGNUP_MONITOR_TOKEN,publicKey:key});
+    for(const change of [{SIGNUP_EMAIL_TOKEN:undefined},{SIGNUP_MONITOR_TOKEN:undefined},{SIGNUP_MONITOR_TOKEN:"bad"},
+      {SIGNUP_MONITOR_PUBLIC_KEY:"bad"},{SIGNUP_MONITOR_API_ORIGIN:"http://monitor.example.com"},
+      {SIGNUP_MONITOR_API_ORIGIN:"https://monitor.example.com/path"},{PLC_AUTHORITY_PROFILE:undefined}])
+      expect(()=>loadConfig({...publicEnvironment,...settings,...change})).toThrow();
+  });
+
   it("enables private managed transfer only with its existing private gates",()=>{
     const enabled={...validEnvironment,POC_MANAGED_TRANSFER:"true",POC_ACCOUNT_ACCESS:"true",
       POC_SELF_SERVICE_TRANSFER:"true",POC_SELF_SERVICE_RETURN:"true"};

@@ -9,10 +9,28 @@ import { clientAddress, FixedWindowRateLimit } from "../http/rate-limit.js";
 import { boundedTransferBody } from "../migration/wire.js";
 
 export interface SignupEmailConfig { origin: string; token: string; }
-class SignupEmailError extends Error {
+export class SignupEmailError extends Error {
   constructor(readonly status: number, readonly retry?: string) { super("Signup email request refused"); }
 }
 const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
+
+export interface SignupIdentity {
+  did: string; operation_cid: string; monitor_origin: string; monitor_public_key: string; operation: unknown;
+}
+export async function signupIdentity(sql: SQL, accountId: string, token: string): Promise<SignupIdentity | null> {
+  const row = (await sql<(SignupIdentity & { signup_token_hash: Uint8Array })[]>`
+    SELECT account.did,evidence.operation_cid,evidence.signed_operation AS operation,
+      preparation.signup_token_hash,preparation.monitor_origin,preparation.monitor_public_key FROM provider_accounts account
+    JOIN public_onboarding_preparations preparation ON preparation.account_id=account.id
+    JOIN plc_operation_evidence evidence ON evidence.account_id=account.id AND evidence.previous_cid IS NULL
+    WHERE account.id=${accountId} AND account.did=evidence.did
+      AND account.onboarding_state IN ('did-registered','address-staged','active')
+      AND preparation.custody_profile='managed' AND preparation.monitor_assurance='reduced-assurance-alpha-v1'`)[0];
+  const expected = tokenHash(token);
+  if (!row?.signup_token_hash || row.signup_token_hash.length !== expected.length ||
+    !timingSafeEqual(Buffer.from(row.signup_token_hash), Buffer.from(expected))) return null;
+  return row;
+}
 
 export class SignupEmailClient {
   constructor(private readonly config: SignupEmailConfig, private readonly request: typeof fetch = fetch) {
@@ -76,16 +94,8 @@ export function registerSignupEmailRoutes(app: Hono, sql: SQL, client: SignupEma
       if (step === "bind") {
         // Never accept a browser-selected DID/CID. Bind only an alpha genesis
         // retained after owner signature verification and public read-back.
-        const row = (await sql<{ did: string; operation_cid: string; signup_token_hash: Uint8Array }[]>`
-          SELECT account.did,evidence.operation_cid,preparation.signup_token_hash FROM provider_accounts account
-          JOIN public_onboarding_preparations preparation ON preparation.account_id=account.id
-          JOIN plc_operation_evidence evidence ON evidence.account_id=account.id AND evidence.previous_cid IS NULL
-          WHERE account.id=${input.accountId as string} AND account.did=evidence.did
-            AND account.onboarding_state IN ('did-registered','address-staged','active')
-            AND preparation.custody_profile='managed' AND preparation.monitor_assurance='reduced-assurance-alpha-v1'`)[0];
-        const expected = tokenHash(token);
-        if (!row?.signup_token_hash || row.signup_token_hash.length !== expected.length ||
-          !timingSafeEqual(Buffer.from(row.signup_token_hash), Buffer.from(expected))) return context.json({ error: "Signup identity refused" }, 403);
+        const row = await signupIdentity(sql, input.accountId as string, token);
+        if (!row) return context.json({ error: "Signup identity refused" }, 403);
         return context.json(await client.post("bind", { signupId: input.signupId, did: row.did, operationCid: row.operation_cid }, token));
       }
       return context.json(await client.post(step, input, token));

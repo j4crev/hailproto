@@ -35,6 +35,11 @@ services:
       MONITOR_PRIVATE_KEY_FILE: /run/monitor/monitor.pkcs8
       MONITOR_ORIGIN: ${MONITOR_ORIGIN:?set MONITOR_ORIGIN}
       MONITOR_DEPLOYMENT_PROFILE: provider-bootstrap-public
+      MONITOR_ENROLLMENT_TOKEN: ${MONITOR_ENROLLMENT_TOKEN:-}
+      MONITOR_ENROLLMENT_PROVIDER: ${MONITOR_ENROLLMENT_PROVIDER:-}
+      MONITOR_ENROLLMENT_ALERT_ORIGIN: ${MONITOR_ENROLLMENT_ALERT_ORIGIN:-}
+      MONITOR_API_HOST: ${MONITOR_API_HOST:-}
+      MONITOR_API_PORT: ${MONITOR_API_PORT:-}
     volumes:
       - ./secrets:/run/monitor:ro
       - ./reviewed:/reviewed:ro
