@@ -4,6 +4,8 @@ import {MonitorSigner} from "../src/signing.js";
 import worker,{AlertDeduplicator,type Env} from "../deploy/cloudflare-alert-worker/worker.js";
 import {encodeBase64Url} from "@hailproto/codec";
 import {cidForCbor} from "@atproto/common";
+import type {EmailBinding} from "../deploy/cloudflare-alert-worker/signup-email.js";
+type EmailMessage=Parameters<EmailBinding["send"]>[0];
 
 function deduplicator(env:Record<string,unknown>){
   let alarm:number|null=null,queue:Promise<unknown>=Promise.resolve();
@@ -19,7 +21,7 @@ function deduplicator(env:Record<string,unknown>){
 
 it("emails only a valid pinned signed monitor alert",async()=>{
   const signer=new MonitorSigner(generateKeyPairSync("ed25519").privateKey),
-    send=vi.fn(async(_message:{to:string;from:string;subject:string;text:string})=>({messageId:"test"}));
+    send=vi.fn(async(_message:EmailMessage)=>({messageId:"test"}));
   const env:any={EMAIL:{send},ALERT_RECIPIENT:"the@j4w8n.com",ALERT_SENDER:"alerts@plcmonitor.us",MONITOR_PUBLIC_KEY:signer.publicDidKey,
     HEARTBEAT_TOKEN:"token",BACKUP_TOKEN:"backup",PROVIDER_HEALTH_URL:"https://haili.app/health/ready",HAIL_PRODUCTION_MONITOR:{get:vi.fn(),put:vi.fn()}};
   env.ALERT_DEDUPLICATOR=deduplicator(env);
@@ -30,7 +32,7 @@ it("emails only a valid pinned signed monitor alert",async()=>{
       "X-Hail-Monitor-Key":signer.publicDidKey,"X-Hail-Monitor-Signature":encodeBase64Url(signature)},body:bytes});
   expect((await worker.fetch(request(signer.signAlert(bytes)),env)).status).toBe(204);
   expect((await worker.fetch(request(signer.signAlert(bytes)),env)).status).toBe(204);
-  expect(send).toHaveBeenCalledWith(expect.objectContaining({to:"the@j4w8n.com",from:"alerts@plcmonitor.us"}));
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({to:"the@j4w8n.com",from:{email:"alerts@plcmonitor.us",name:"Hail"}}));
   expect(send.mock.calls[0]![0].text).not.toContain("Monitor key:");
   const bad=signer.signAlert(bytes);bad[0]=bad[0]!^1;
   expect((await worker.fetch(request(bad),env)).status).toBe(401);
@@ -42,7 +44,7 @@ it("emails only a valid pinned signed monitor alert",async()=>{
 });
 
 it("accepts authenticated heartbeats and alerts only on health transitions",async()=>{
-  const values=new Map<string,string>(),send=vi.fn(async(_message:{to:string;from:string;subject:string;text:string})=>({messageId:"test"})),put=vi.fn(async(key:string,value:string)=>{values.set(key,value)}),
+  const values=new Map<string,string>(),send=vi.fn(async(_message:EmailMessage)=>({messageId:"test"})),put=vi.fn(async(key:string,value:string)=>{values.set(key,value)}),
     env:any={EMAIL:{send},ALERT_RECIPIENT:"the@j4w8n.com",ALERT_SENDER:"alerts@plcmonitor.us",MONITOR_PUBLIC_KEY:"unused",
       HEARTBEAT_TOKEN:"secret",BACKUP_TOKEN:"backup",PROVIDER_HEALTH_URL:"https://haili.app/health/ready",HAIL_PRODUCTION_MONITOR:{get:async(key:string)=>values.get(key)??null,put}};
   env.ALERT_DEDUPLICATOR=deduplicator(env);
@@ -68,7 +70,7 @@ it("accepts authenticated heartbeats and alerts only on health transitions",asyn
 
 function signupFixture(){
   const signer=new MonitorSigner(generateKeyPairSync("ed25519").privateKey);
-  const send=vi.fn(async(_message:{to:string;from:string;subject:string;text:string})=>({messageId:"test"}));
+  const send=vi.fn(async(_message:EmailMessage)=>({messageId:"test"}));
   const env:Env={EMAIL:{send},ALERT_RECIPIENT:"operator@example.com",ALERT_SENDER:"security@notify.haili.app",
     SIGNUP_SENDER:"welcome@notify.haili.app",SIGNUP_ORIGIN:"https://haili.app",
     SIGNUP_EMAIL_TOKEN:encodeBase64Url(crypto.getRandomValues(new Uint8Array(32))),MONITOR_PUBLIC_KEY:signer.publicDidKey,
@@ -88,6 +90,15 @@ function signupFixture(){
   return {env,send,coordinator,identity,post,challenge,alert};
 }
 
+it("separates the signup URL from punctuation and displays Hail as the sender",async()=>{
+  const f=signupFixture();
+  expect((await f.post("/signup-email",{...f.identity,email:"alice@example.com"})).status).toBe(200);
+  const message=f.send.mock.calls[0]![0];
+  expect(message.text.match(/https:\/\/\S+/g)).toEqual(["https://haili.app/"]);
+  expect(message.text.split("\n")).toContain("https://haili.app/");
+  expect(message.from).toEqual({email:"welcome@notify.haili.app",name:"Hail"});
+});
+
 it("authenticates signup verification, stores only code hashes and binds one verified destination to one exact signup identity",async()=>{
   const f=signupFixture(),input={...f.identity,email:"alice@example.com"};
   expect((await f.post("/signup-email",input,"wrong")).status).toBe(401);
@@ -103,7 +114,7 @@ it("authenticates signup verification, stores only code hashes and binds one ver
   expect(start.status).toBe(200);expect(result.verified).toBe(false);
   const code=f.challenge();expect(JSON.stringify(result)).not.toContain(code);
   expect(JSON.stringify([...f.coordinator.values])).not.toContain(code);
-  expect(f.send).toHaveBeenCalledWith(expect.objectContaining({to:input.email,from:"welcome@notify.haili.app"}));
+  expect(f.send).toHaveBeenCalledWith(expect.objectContaining({to:input.email,from:{email:"welcome@notify.haili.app",name:"Hail"}}));
   expect((await f.post("/signup-email",input)).status).toBe(200);expect(f.send).toHaveBeenCalledOnce();
   expect((await f.post("/signup-email",{...input,email:"bob@example.com"})).status).toBe(409);
   const did=`did:plc:${"a".repeat(24)}`,operationCid=(await cidForCbor({genesis:"fixture"})).toString();
@@ -123,7 +134,7 @@ it("authenticates signup verification, stores only code hashes and binds one ver
   expect((await f.post("/signup-email/bind",{...other,did,operationCid})).status).toBe(409);
   const request=f.alert(did);
   expect((await worker.fetch(request.clone(),f.env)).status).toBe(204);
-  expect(f.send.mock.calls.at(-1)![0]).toMatchObject({to:"alice@example.com",from:"security@notify.haili.app"});
+  expect(f.send.mock.calls.at(-1)![0]).toMatchObject({to:"alice@example.com",from:{email:"security@notify.haili.app",name:"Hail"}});
   const count=f.send.mock.calls.length;
   expect((await worker.fetch(request.clone(),f.env)).status).toBe(204);expect(f.send).toHaveBeenCalledTimes(count);
   const changed=f.alert(`did:plc:${"c".repeat(24)}`,(await request.clone().json() as {id:string}).id);

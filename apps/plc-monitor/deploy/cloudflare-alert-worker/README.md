@@ -16,6 +16,9 @@ required DNS authentication. The structured `EMAIL.send()` binding supports
 arbitrary recipients; no Cloudflare Email API key is needed in the monitor VPS
 or provider. Operator alerts and user security alerts use
 `security@notify.haili.app`; signup verification uses `welcome@notify.haili.app`.
+All messages use **Hail** as the sender display name; the underlying email
+addresses are unchanged. The verification URL is on its own line so mail clients
+do not include sentence punctuation in the link.
 
 The Wrangler binding is `{"name":"EMAIL","remote":true}`. Remote sending during
 `wrangler dev` is deliberately enabled: development can send real emails and

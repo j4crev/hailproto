@@ -2,7 +2,7 @@ import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
 import { CID } from "multiformats/cid";
 
 export interface EmailBinding {
-  send(message: { to: string; from: string; subject: string; text: string }): Promise<{ messageId: string }>;
+  send(message: { to: string; from: { email: string; name: string }; subject: string; text: string }): Promise<{ messageId: string }>;
 }
 export interface EmailEnvironment { EMAIL: EmailBinding; SIGNUP_SENDER: string; SIGNUP_ORIGIN: string; }
 export interface DurableStorage {
@@ -64,8 +64,8 @@ function code(): string {
   return String(value % 100_000_000).padStart(8, "0");
 }
 
-export async function sendEmail(env: Pick<EmailEnvironment, "EMAIL">, message: Parameters<EmailBinding["send"]>[0]): Promise<void> {
-  try { await env.EMAIL.send(message); }
+export async function sendEmail(env: Pick<EmailEnvironment, "EMAIL">, message: Omit<Parameters<EmailBinding["send"]>[0], "from"> & { from: string }): Promise<void> {
+  try { await env.EMAIL.send({ ...message, from: { email: message.from, name: "Hail" } }); }
   catch { throw new Error("Email delivery unavailable"); } // Do not expose vendor errors containing recipients or message content.
 }
 
@@ -105,7 +105,7 @@ export async function signupEmail(path: string, input: unknown, storage: Durable
     if (!result.send) return reply({ verified: result.verified, expiresAt: result.expiresAt });
     try {
       await sendEmail(env, { to: email, from: env.SIGNUP_SENDER, subject: "Verify your Hail security email",
-        text: `Your Hail signup verification code is: ${challenge}\n\nEnter it only in the signup you started at ${env.SIGNUP_ORIGIN}. It expires in 10 minutes.\n\nThis verifies where identity-security alerts should be sent. It does not sign you in, reset your account or authorize recovery. Never send anyone your recovery secret.\n\nIf you did not request this email, ignore it.` });
+        text: `Your Hail signup verification code is: ${challenge}\n\nEnter it only in the signup you started at:\n${origin.href}\n\nIt expires in 10 minutes.\n\nThis verifies where identity-security alerts should be sent. It does not sign you in, reset your account or authorize recovery. Never send anyone your recovery secret.\n\nIf you did not request this email, ignore it.` });
       return await storage.transaction(async tx => {
         const saved = await tx.get<Signup>(key);
         if (!saved || saved.claim !== claim) return reply({ error: "Signup email request superseded" }, 409);
