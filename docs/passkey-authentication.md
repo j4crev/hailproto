@@ -14,11 +14,16 @@ inbox access and logout. The temporary API credential was revoked, its server
 copy was deleted, and the enrollment mount and button were removed in commit
 `0a4bd82`.
 
+Commit `473b24b` added recent-verification-gated passkey listing, labeling,
+enrollment and revocation. The canary then enrolled independent Samsung Pass
+and Google Password Manager credentials, signed out, and authenticated using
+the Google credential alone. Both credentials remain active.
+
 The next release gate is **account safety**, not broader enrollment. Complete
 these in order:
 
-1. Add passkey list, label, step-up enrollment and revocation UI/API operations.
-2. Enroll and test a second independent authenticator for the canary.
+1. ~~Add passkey list, label, step-up enrollment and revocation UI/API operations.~~
+2. ~~Enroll and test a second independent authenticator for the canary.~~
 3. Prevent removal of the final passkey unless an owner-proof recovery path has
    been verified recently.
 4. Implement and exercise owner-proof replacement-passkey enrollment without a
@@ -317,7 +322,7 @@ the browser.
 - [x] Confirm opaque account user-handle representation and maximum size.
 - [x] Select a maintained Bun-compatible server WebAuthn library.
 - [ ] Record browser/platform minimums; deployed algorithms are ES256 and RS256.
-- [ ] Define step-up freshness; session lifetimes are 30 minutes idle and 12
+- [x] Define step-up freshness; session lifetimes are 30 minutes idle and 12
       hours absolute.
 - [ ] Define initial API-credential scopes issued through browser authorization.
 
@@ -339,7 +344,7 @@ the browser.
 - [x] Registration options and verified registration completion.
 - [x] Accountless discoverable authentication options and verified completion.
 - [ ] Session authentication, rotation, logout and account-wide revocation.
-- [ ] Passkey list, label, add and revoke operations with step-up checks.
+- [x] Passkey list, label, add and revoke operations with step-up checks.
 - [ ] Single-use enrollment capability from onboarding, current access and
       owner-proof recovery.
 - [ ] Authorization-code creation and PKCE exchange for `hailp`/native clients.
@@ -353,7 +358,7 @@ the browser.
 - [x] Resolve every account route from the authenticated session.
 - [ ] Add session expiry and reauthentication UX without exposing account
       existence or private credentials.
-- [ ] Add passkey-management UI with recent-auth confirmation.
+- [x] Add passkey-management UI with recent-auth confirmation.
 - [x] Retain the fixed canary credential only behind a rollback configuration.
 - [x] Remove `HAIL_GUI_CREDENTIAL_FILE` after the production canary passes.
 
@@ -399,8 +404,8 @@ the browser.
 
 - [ ] Back up provider state and deploy schema/runtime with passkeys disabled.
 - [x] Enable registration for one Haili canary using its current trusted access.
-- [ ] Register at least two recovery-capable authenticators or confirm the
-      independent owner-recovery path before removing bootstrap access.
+- [x] Register and independently authenticate with at least two recovery-capable
+      authenticators.
 - [ ] Exercise login, expiry, restart, revocation and recovery on the canary.
 - [x] Enable GUI sessions through the reversible canary rollout.
 - [ ] Exercise `hailp` browser login and credential rotation.
