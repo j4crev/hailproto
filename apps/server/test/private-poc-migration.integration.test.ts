@@ -215,7 +215,7 @@ integration("private PLC transfer between disposable POC providers", () => {
     const reader=await accounts.issue(sourceAddress);
     const preparationDir=await mkdtemp(join(tmpdir(), "hail-transfer-client-"));
     const destinationUsername=`moved-${randomUUID()}`,destinationAddress=`${destinationUsername}@target.example.com`;
-    let offered:SignedHandshake,reservation:SignedHandshake,retainedTransferState:string,exportedSnapshot:Record<string,unknown>;
+    let offered:SignedHandshake,retainedTransferState:string,exportedSnapshot:Record<string,unknown>;
     try {
       const vaultPath=join(preparationDir,"vault.json"),statePath=join(preparationDir,"state.json"),credentialPath=join(preparationDir,"credential.json");
       await writeFile(vaultPath,JSON.stringify({...client.vault,recovery:{...client.vault.recovery,ciphertext:"AA"}}),{mode:0o600});
@@ -247,7 +247,6 @@ integration("private PLC transfer between disposable POC providers", () => {
         expect(received[0]).toBe(received[1]);
         const saved=JSON.parse(await readFile(statePath,"utf8"));
         offered={payloadBytes:decodeBase64Url(saved.offer.payload),signature:decodeBase64Url(saved.offer.signature)};
-        reservation={payloadBytes:decodeBase64Url(saved.reservation.payload),signature:decodeBase64Url(saved.reservation.signature)};
         expect((await exportRequest(credential.token,randomUUID())).status).toBe(409);
         const snapshotPath=join(preparationDir,"snapshot.json");
         await expect(exportTransferSnapshot(api,statePath,snapshotPath)).rejects.toThrow("HTTP 503");
@@ -274,7 +273,6 @@ integration("private PLC transfer between disposable POC providers", () => {
     try {
       const paths = { vault: join(ceremony, "vault.json"), snapshot: join(ceremony, "snapshot.json"),
         state:join(ceremony,"transfer-state.json"),
-        offer: join(ceremony, "offer.json"), reservation: join(ceremony, "reservation.json"),
         consent: join(ceremony, "consent.json"), operation: join(ceremony, "operation.json"),
         binding: join(ceremony, "binding.cose") };
       await Promise.all([
@@ -285,10 +283,6 @@ integration("private PLC transfer between disposable POC providers", () => {
           digest: encodeBase64Url(signedSnapshot.digest),
           signature: encodeBase64Url(signedSnapshot.signature),
           sourceMessagingPublicKey: signedSnapshot.sourceMessagingPublicKey }), { mode: 0o600 }),
-        writeFile(paths.offer, JSON.stringify({ payload: encodeBase64Url(offered.payloadBytes),
-          signature: encodeBase64Url(offered.signature) }), { mode: 0o600 }),
-        writeFile(paths.reservation, JSON.stringify({ payload: encodeBase64Url(reservation.payloadBytes),
-          signature: encodeBase64Url(reservation.signature) }), { mode: 0o600 }),
       ]);
       const runClient = async (operation=paths.operation) => {
         const child = Bun.spawn(["bun", "src/cli/hailp.ts","account","transfer","sign-cutover",
@@ -318,11 +312,6 @@ integration("private PLC transfer between disposable POC providers", () => {
       expect(await readFile(paths.operation)).toEqual(firstOperation);
       expect(await readFile(paths.consent)).toEqual(firstConsent);
       expect(await readFile(paths.binding)).toEqual(firstBinding);
-      const legacy=Bun.spawn(["bun","src/cli/sign-private-poc-cutover.ts",paths.vault,paths.snapshot,paths.offer,paths.reservation,
-        paths.consent,paths.operation,paths.binding],{cwd:new URL("../../cli/",import.meta.url).pathname,stdin:"pipe",stdout:"pipe",stderr:"pipe"});
-      legacy.stdin.write(`${encodeBase64Url(vault.recoverySecret)}\n`);legacy.stdin.end();
-      expect(await legacy.exited,await new Response(legacy.stderr).text()).toBe(0);
-      expect(await readFile(paths.operation)).toEqual(firstOperation);expect(await readFile(paths.consent)).toEqual(firstConsent);
       operationCid = (await cidForCbor(JSON.parse(firstOperation.toString("utf8")) as Operation)).toString();
     } catch(error) {await rm(ceremony,{recursive:true,force:true});throw error;}
     try {

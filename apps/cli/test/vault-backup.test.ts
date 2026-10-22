@@ -66,15 +66,6 @@ it("verifies, backs up and imports exact private vaults offline without overwrit
     const copied = await invoke(["backup", "--vault", imported, "--output", cliBackup]);
     expect(copied.code, copied.stderr).toBe(0);
     expect(await readFile(cliBackup, "utf8")).toBe(original);
-    const recovery = join(dir, "recovery.txt");
-    await writeFile(recovery, `${encodeBase64Url(generated.recoverySecret)}\n`, { mode: 0o600 });
-    const legacyBackup = join(dir, "legacy-backup.json");
-    const legacy = Bun.spawn(["bun", "src/cli/verify-private-poc-backup.ts", source, recovery, legacyBackup], {
-      cwd: new URL("..", import.meta.url).pathname, stdout: "pipe", stderr: "pipe",
-    });
-    const legacyError = await new Response(legacy.stderr).text();
-    expect(await legacy.exited, legacyError).toBe(0);
-    expect(await readFile(legacyBackup, "utf8")).toBe(original);
   } finally {
     generated.recoverySecret.fill(0);
     await rm(dir, { recursive: true, force: true });

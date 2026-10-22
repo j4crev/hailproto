@@ -20,11 +20,9 @@ finish, then delete it.
 4. **Done:** Removed the eight standalone provider `poc:*` CLI wrappers after
    onboarding, Grants and transfer completion moved to account API/runtime
    orchestration.
-5. **Delete:** Replace six legacy client `poc:*` wrappers and wrapper-specific
-   subprocess tests with `hailp` coverage. Keep the underlying signing/vault
-   functions still used by private fixtures.
-   [`apps/cli/package.json:22-27`,
-   `apps/cli/src/cli/*private-poc*.ts`]
+5. **Done:** Removed six legacy client `poc:*` wrappers and wrapper-specific
+   subprocess checks after `hailp` replaced them. The underlying signing and
+   vault functions remain covered and available to private fixtures.
 6. **Shrink:** Move `PrivatePocTransferAbandonment` from production `src/` into
    test support; it is referenced only by the private migration integration test
    and is deliberately not routed.
@@ -45,7 +43,7 @@ cannot be rewritten safely.
 
 ## Recommendation
 
-- Do items 5 and 6 immediately after the private gates finish.
+- Do item 6 immediately after the private gates finish.
 - Do item 2 only after legacy-account disposition.
 - Do item 7 when independent monitoring lands.
 

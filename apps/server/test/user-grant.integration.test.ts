@@ -15,6 +15,7 @@ import { OnboardingRepository } from "../src/onboarding/repository.js";
 import type { HailDidResolver } from "../src/plc/resolver.js";
 import type { VerifiedSenderProfile } from "../src/profiles/store.js";
 import { createUserVault, unlockUserVault } from "../../cli/src/vault.js";
+import { signGrantRevocation } from "../../cli/src/grant-revocation.js";
 
 const integration = process.env.DATABASE_URL ? describe : describe.skip;
 function didKey(key: CryptoKey): Promise<string> {
@@ -155,24 +156,15 @@ integration("user-held authoritative Grant", () => {
     try {
       await writeFile(vaultPath, JSON.stringify(vault.vault), { mode: 0o600 });
       await writeFile(currentPath, representation, { mode: 0o600 });
-      const runClient = async (grantId = proposed.grant_id) => {
-        const child = Bun.spawn(["bun", "src/cli/revoke-private-poc-grant.ts",
-          vaultPath, currentPath, grantId, senderAddress, revokedPath], {
-          cwd: new URL("../../cli/", import.meta.url).pathname,
-          stdin: "pipe", stdout: "pipe", stderr: "pipe",
-        });
-        child.stdin.write(`${encodeBase64Url(vault.recoverySecret)}\n`);
-        child.stdin.end();
-        const exit = await child.exited;
-        return { exit, stderr: await new Response(child.stderr).text() };
-      };
-      expect((await runClient(randomUUID())).exit).not.toBe(0);
-      expect(await runClient()).toMatchObject({ exit: 0 });
-      const revokedBytes = new Uint8Array(await readFile(revokedPath));
-      expect(await runClient()).toMatchObject({ exit: 0 });
+      const runClient = async (grantId = proposed.grant_id) => signGrantRevocation(
+        vaultPath, new Uint8Array(await readFile(currentPath)), grantId, senderAddress,
+        revokedPath, vault.recoverySecret, grantorDid);
+      await expect(runClient(randomUUID())).rejects.toThrow();
+      const revokedBytes = await runClient();
+      expect(await runClient()).toEqual(revokedBytes);
       expect(new Uint8Array(await readFile(revokedPath))).toEqual(revokedBytes);
       await writeFile(currentPath, corrupted);
-      expect((await runClient()).exit).not.toBe(0);
+      await expect(runClient()).rejects.toThrow();
       expect(new Uint8Array(await readFile(revokedPath))).toEqual(revokedBytes);
       await writeFile(currentPath, representation);
       const terminal = inspectSignedPayload("hail.grant", revokedBytes).payload;

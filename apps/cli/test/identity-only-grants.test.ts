@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWebCryptoVerifier, encodeBase64Url, encodePayload, verifySignedPayload, type HailGrant } from "@hailproto/codec";
+import { createWebCryptoVerifier, encodeBase64Url, verifySignedPayload, type HailGrant } from "@hailproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { expect, it, vi } from "vitest";
 import { createUserVault, unlockUserIdentity, unlockUserVault } from "../src/vault.js";
@@ -72,19 +72,6 @@ it("creates, retries and revokes Grants without decrypting recovery, while full 
     await expect(signGrantRevocation(vaultPath, signed, grant.grant_id, "bob@example.com",
       revokedPath, generated.recoverySecret, grant.grantee)).rejects.toThrow("authenticated account");
 
-    const proposal = join(dir, "proposal.json");
-    await writeFile(proposal, JSON.stringify({ type: "hail.user-grant-proposal", version: 1,
-      grantorAddress: "alice@example.com", granteeAddress: "bob@example.com",
-      payload: encodeBase64Url(encodePayload("hail.grant", grant)) }), { mode: 0o600 });
-    const legacyOutput = join(dir, "legacy.cose");
-    const child = Bun.spawn(["bun", "src/cli/sign-private-poc-grant.ts", vaultPath, proposal,
-      "alice@example.com", "bob@example.com", legacyOutput], { cwd: new URL("..", import.meta.url).pathname,
-      stdin: "pipe", stdout: "pipe", stderr: "pipe" });
-    child.stdin.write(`${input.secret}\n`);
-    child.stdin.end();
-    const error = await new Response(child.stderr).text();
-    expect(await child.exited, error).toBe(0);
-    expect(new Uint8Array(await readFile(legacyOutput))).toEqual(signed);
   } finally {
     input.secret = "";
     generated.recoverySecret.fill(0);

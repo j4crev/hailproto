@@ -8,8 +8,8 @@ the saved copy. Existing output files are never overwritten. Import requires a
 reviewed `--expected-did` (or `unbound`). JSON output includes public fingerprints
 and paths, never encryption secrets, ciphertext or private keys.
 
-The existing `vault:verify` and `poc:verify-vault-copy` scripts reuse these same
-verification/copy primitives. Vault inputs reject unknown fields, invalid key
+The `hailp vault` commands reuse these same verification/copy primitives. Vault
+inputs reject unknown fields, invalid key
 record shapes and invalid metadata; file reads remain bounded to 16 KiB. Wrong
 secrets, damaged key ciphertext or mismatched key fingerprints fail verification.
 
