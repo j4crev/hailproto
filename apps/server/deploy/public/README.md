@@ -161,3 +161,39 @@ erase either pending identity evidence or retired authority. Pausing the rollout
 means disabling new signup access, not deleting retained records. Full browser
 state export/import, wider platform tests and the production monitor API rollout
 remain outstanding.
+
+## Narrow Monitor Configuration Operation
+
+After the monitor bridge is ready, the provider needs three matching settings.
+Do not enable root SSH or restore `NOPASSWD:ALL` to add them.
+
+The agent can stage the reviewed source with the existing guarded deploy wrapper,
+leaving signup/monitor gates off. In the provider console, as root, install that
+checkout's updated wrapper once:
+
+```bash
+install -o root -g root -m 0755 \
+  /opt/hailproto/apps/server/deploy/public/provider-ops.sh \
+  /usr/local/sbin/hail-provider-ops
+```
+
+Then the normal `hailops` account can run:
+
+```bash
+sudo hail-provider-ops signup-monitor-configure < /home/hailops/<private-monitor-settings.json>
+```
+
+The private JSON contains exactly `SIGNUP_MONITOR_API_ORIGIN`,
+`SIGNUP_MONITOR_TOKEN` and `SIGNUP_MONITOR_PUBLIC_KEY`. The initial host-specific
+operation accepts only HTTPS origins under `plcmonitor.us`. It validates the
+complete candidate with the running reference provider, backs up before writing,
+preserves unrelated environment lines, writes atomically with mode 0600 and
+refuses to overwrite a different existing configuration. It does **not** enable
+public alpha signup or change any account keys, SSH settings or sudoers rules.
+The token goes through stdin; neither stdout nor errors expose it.
+
+Recreate through the guarded deployment operation afterward; a plain Docker
+restart does not load changed container environment. Remove temporary staging
+files only after both services have been verified. Explicit token rotation and
+non-`plcmonitor.us` deployments require a separate configuration review rather
+than broadening this helper's privileges silently.

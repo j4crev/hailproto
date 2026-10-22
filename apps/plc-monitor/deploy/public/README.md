@@ -179,3 +179,93 @@ monitor key, database, polling, notifier and bound consumer webhook routes. Do
 not downgrade a consumer webhook to `/hail` or remove the receiver's consumer
 route while enrolled identities depend on it. Never reset a cursor or generate
 a replacement DID to recover from an ambiguous API response.
+
+## One-Time Legacy Host Bridge (Console Approval Required)
+
+The existing `2.25.206.150` host still builds from the separate repository at
+`/opt/hail/hail-plc-monitor-ts`. Do not give its old deployment wrapper a monorepo
+commit: it fetches from a different Git origin. Root SSH remains disabled;
+`hailops` authenticates with the existing SSH agent and retains wrapper-only sudo.
+
+The reviewed `enrollment-setup.py` bridges **code builds**, not data storage:
+
+- Keep both old checkouts and the old Compose base unchanged. The PostgreSQL
+  image (currently `postgres:14.4-alpine`), project/volume names, key mounts,
+  monitor identity origin and heartbeat stay on their existing paths.
+- Put the new protected monorepo at `/opt/hailproto`. A root-owned override in
+  `/etc/hail-monitor-enrollment` changes only the monitor build, API settings,
+  loopback port binding and an added Caddy edge. It does not recreate PostgreSQL.
+- Build and test key readability before stopping the old monitor. Verify applied
+  migration checksums and the reviewed running monitor public key; this fixed
+  host bridge refuses unexpected key/schema transitions before stopping it.
+- Pause only the monitor for a consistent encrypted backup and immutable-history
+  snapshot, then switch runtime. Verify retained rows, accepted alert receipts,
+  current polling, API authentication and the pinned signed mail-peer request.
+  New observations/delivery progress are allowed, loss of old evidence is not.
+- Use only the public backup recipient matching
+  `870DECF2F98318BCDE17D4B8333035D2650B0400`. Private backup-decryption keys are
+  refused. Temporary plaintext dumps are removed; encrypted archives are
+  root-owned/group-readable by `hailops` under `/var/lib/hail-monitor-enrollment`
+  so they can be downloaded and checksum-verified off-host.
+- Add HTTPS with `caddy:2.10.2-alpine`, disable its administration listener, and
+  permit only IPv4 provider `5.161.254.78` to POST the enrollment path. All other
+  application traffic gets `403`. Forwarded IP headers are not trusted. Backend
+  port `3001` is published only on loopback. No SSH or sudoers changes are made.
+
+This is a one-time console-approved operation, not an unrestricted sudo grant.
+The scripts have configuration/rendering/preservation regression checks and the
+actual legacy Compose merge has been validated locally. They have **not been
+applied on the production monitor**. Root preflights and backups must still pass.
+
+### Operator Actions
+
+1. In Cloudflare, create a **DNS-only** A record for `enroll.plcmonitor.us` pointing
+   to `2.25.206.150`, with no AAAA record. A proxied record is refused: it would
+   hide the provider's source IP. Ensure the VPS firewall permits TCP 80/443 for
+   ACME/TLS, but do not reset firewall rules or open backend 3001.
+2. Have the agent stage a private `monitor.json` containing exactly `api_domain`
+   and a newly generated `enrollment_token`, plus the reviewed **public** backup
+   key, in a mode-0700 `hailops` directory. The JSON must be mode 0600. Do not
+   paste the token into chat, shell arguments or the repository.
+3. Deploy the compatible email Worker first; its signed binding-read endpoint
+   must exist before the monitor's mail-peer verification can pass.
+4. In the monitor VPS console, as root, clone the monorepo into the new location
+   and pin the reviewed full release SHA. If the target already exists, stop
+   and inspect it rather than resetting or overwriting it:
+
+   ```bash
+   set -eu
+   umask 022
+   git clone --no-checkout https://github.com/j4crev/hailproto.git /opt/hailproto
+   git -C /opt/hailproto fetch origin <reviewed-full-release-SHA>
+   git -C /opt/hailproto checkout --detach <reviewed-full-release-SHA>
+   git -C /opt/hailproto submodule update --init --recursive
+   python3 /opt/hailproto/apps/plc-monitor/deploy/public/enrollment-setup.py \
+     --apply /home/hailops/<private-staging-directory>/monitor.json \
+     --backup-key /home/hailops/<private-staging-directory>/backup-public.asc \
+     --commit <reviewed-full-release-SHA>
+   ```
+
+   Use the console, not root SSH. The helper checks DNS, source ownership and
+   cleanliness, port availability, backup recipient, schema/key paths and old
+   runtime health before switching. It never edits the old `.env`. A second
+   encrypted backup includes the new protected enrollment configuration.
+5. The helper installs the updated root-owned `hail-monitor-ops` only after
+   verification. Its `status` reports only public enrollment metadata; `backup`,
+   guarded `deploy` and `rollback` remain available through the existing sudo
+   rule. Download the encrypted archives via `hailops` and verify their hashes.
+6. From the provider, verify trusted HTTPS to the new API: an unauthenticated
+   empty POST must return `401`, and an authenticated empty POST `400`, without
+   creating an identity. From outside the provider IP, expect `403`. Only then
+   install the matching provider settings using its narrow configuration command.
+   TLS issuance and external reachability are not proven by local container health.
+
+The first migration's `rollback` restores the legacy image and original wrapper
+while keeping the current database and signing key. Later code releases have a
+separate previous-release record. Rollback never restores an older database dump
+over newly observed history and never removes data/certificate volumes. On a
+setup failure, the old runtime is restarted and newly written configuration is
+retained for review; reapplying refuses to overwrite that directory. If the
+console/process is killed mid-switch, use `sudo hail-monitor-ops status/restart`
+and inspect the retained backup/configuration before continuing. Do not delete
+the legacy checkout or rewrite consumer webhooks as cleanup.

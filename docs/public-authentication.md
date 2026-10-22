@@ -56,9 +56,13 @@ Status: product plan, not implementation approval or a change to protocol requir
   explicitly gated off. The browser wizard is still outstanding.
   See the [backend runbook](../apps/server/deploy/public/README.md#invited-browser-signup-backend-local-implementation).
 
-The monitor rollout is pending a confirmed direct SSH target and reviewed
-private HTTPS ingress/configuration access; the provider currently permits only
-its operations wrapper. No broader SSH/sudo access has been enabled.
+The monitor rollout is pending reviewed private HTTPS ingress/configuration
+access; the provider currently permits only its operations wrapper. No broader
+SSH/sudo access has been enabled. The direct monitor target is now confirmed as
+`hailops@2.25.206.150`; agent login
+and the restricted wrapper work. That host still uses the separate monitor
+repository. Console-approved bridging/configuration tools are prepared and
+tested locally, but DNS and the one-time console setup remain operator actions.
 
 Next: guarded monitor API/receiver rollout and the resumable full browser wizard.
 Do not treat a delivered operator email as verification of a signup

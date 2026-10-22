@@ -23,6 +23,10 @@ case "${1:-}" in
   backup)
     exec /usr/local/sbin/hail-provider-backup
     ;;
+  signup-monitor-configure)
+    [ "$#" -eq 1 ] || exit 2
+    exec python3 "$root/apps/server/deploy/public/configure-signup-monitor.py"
+    ;;
   deploy)
     commit=${2:-}
     printf '%s' "$commit" | grep -Eq '^[0-9a-f]{40}$' || { echo "deploy requires a full commit SHA" >&2; exit 2; }
@@ -51,7 +55,7 @@ case "${1:-}" in
     curl --fail --retry 12 --retry-delay 5 --retry-all-errors --silent --show-error https://haili.app/health/ready
     ;;
   *)
-    echo "usage: $0 status|restart|logs|backup|deploy|rollback" >&2
+    echo "usage: $0 status|restart|logs|backup|signup-monitor-configure|deploy|rollback" >&2
     exit 2
     ;;
 esac
