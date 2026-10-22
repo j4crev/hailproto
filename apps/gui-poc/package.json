@@ -11,8 +11,13 @@
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
+    "@atproto/common": "0.8.1",
+    "@atproto/crypto": "0.5.4",
+    "@did-plc/lib": "file:../../vendor/did-method-plc/packages/lib",
     "@hailproto/codec": "workspace:*",
-    "@simplewebauthn/browser": "^14.0.0"
+    "@ipld/dag-cbor": "9.2.7",
+    "@simplewebauthn/browser": "^14.0.0",
+    "multiformats": "13.4.2"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "5.5.7",
