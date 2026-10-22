@@ -55,8 +55,9 @@ protocol boundary.
   hosted public monitor; messages between `haili.app` and each disposable provider
   reached terminal `delivered` state in both directions.
 
-The permanent Haili provider has closed its operational launch gates. The two
-disposable providers still share one VPS, public managed migration remains
+The permanent Haili provider has closed its operational launch gates and enables
+public provider transfer for owner-controlled and managed custody. The two
+disposable providers still share one VPS and keep their public transfer runtimes
 disabled. Guarded live and private-clone drills now prove reader disagreement,
 audit-gap refusal, dead-man alerting, stale-attestation refusal, outage recovery,
 cross-host restoration and managed-transfer throttle/size boundaries.

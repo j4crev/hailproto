@@ -1,9 +1,9 @@
 # `haili.app` launch milestone
 
-Status: operational gates completed. The strict-public provider and permanent owner-controlled
-canary were deployed October 21, 2026. This checklist does not enable public
-managed transfer or turn the disposable `hailproto.app` and `hailproto.dev`
-alpha providers into production services.
+Status: operational gates completed. The strict-public provider and permanent
+owner-controlled canary were deployed October 21, 2026. Public provider transfer
+was enabled on Haili October 22; this does not turn the disposable
+`hailproto.app` and `hailproto.dev` alpha providers into production services.
 
 ## Launch checklist
 
@@ -38,8 +38,8 @@ alpha providers into production services.
   controlled host reboot. `https://haili.app/health/ready` passed over IPv4 and
   IPv6 with a valid Let's Encrypt certificate.
 - Runtime is `strict-public-v1` against canonical `https://plc.directory`.
-  Owner-controlled public onboarding is enabled; custody transitions,
-  private-POC features and public managed transfer remain explicitly disabled.
+  Owner-controlled public onboarding and public provider transfer are enabled;
+  custody transitions and private-POC features remain explicitly disabled.
 
 ## Permanent canary record
 
@@ -64,6 +64,15 @@ operations are canonical with no nullified entries, and its Grant history surviv
 both moves. Public managed transfer was disabled again on both providers after
 the proof; general enablement remains a later milestone behind the tabled
 operational gates.
+
+On October 22, commit `88bd34b69909da1c5adc23a825b5a9ab29043e6a`
+removed the global two-provider startup assumption and added strict-public
+owner-controlled completion alongside managed custody. Haili enabled
+`PUBLIC_MANAGED_TRANSFER=true` with local operator `haili-provider` and the
+independent `plcmonitor.us` key while keeping public onboarding enabled. Both
+portable and managed transfer routes, monitor health, provider readiness and the
+active managed canary credential passed after recreation; temporary rollback and
+full sudo access were then removed.
 
 ## `spt-2` rollout record
 
