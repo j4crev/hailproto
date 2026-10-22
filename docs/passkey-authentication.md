@@ -5,6 +5,30 @@ This document defines provider-local account authentication, not a Hail
 federation requirement. Hail protocol authority remains defined by the
 specifications in [`../spec`](../spec).
 
+## Production Canary Status
+
+On October 22, 2026, Haili deployed provider-local passkey authentication and
+the session-backed thin GUI at `https://haili.app`. The canary passed desktop
+cross-device registration, desktop login, direct smartphone biometric login,
+inbox access and logout. The temporary API credential was revoked, its server
+copy was deleted, and the enrollment mount and button were removed in commit
+`0a4bd82`.
+
+The next release gate is **account safety**, not broader enrollment. Complete
+these in order:
+
+1. Add passkey list, label, step-up enrollment and revocation UI/API operations.
+2. Enroll and test a second independent authenticator for the canary.
+3. Prevent removal of the final passkey unless an owner-proof recovery path has
+   been verified recently.
+4. Implement and exercise owner-proof replacement-passkey enrollment without a
+   custody change or PLC operation.
+5. Add account-wide session revocation and test passkey/session invalidation.
+6. Publish passkey-loss and recovery guidance before general enrollment.
+
+Do not restore the revoked bootstrap API credential to implement this phase.
+Use a fresh passkey step-up or the existing owner-proof trust boundary.
+
 ## Goals
 
 - Passwordless, phishing-resistant account login without SMS or TOTP.
@@ -292,8 +316,9 @@ the browser.
 - [x] Confirm provider RP ID and allowed production/development origins.
 - [x] Confirm opaque account user-handle representation and maximum size.
 - [x] Select a maintained Bun-compatible server WebAuthn library.
-- [ ] Record the supported algorithm list and browser/platform minimums.
-- [ ] Define session idle/absolute lifetimes and step-up freshness.
+- [ ] Record browser/platform minimums; deployed algorithms are ES256 and RS256.
+- [ ] Define step-up freshness; session lifetimes are 30 minutes idle and 12
+      hours absolute.
 - [ ] Define initial API-credential scopes issued through browser authorization.
 
 ### 2. Add durable server state
@@ -330,7 +355,7 @@ the browser.
       existence or private credentials.
 - [ ] Add passkey-management UI with recent-auth confirmation.
 - [x] Retain the fixed canary credential only behind a rollback configuration.
-- [ ] Remove `HAIL_GUI_CREDENTIAL_FILE` after the production canary passes.
+- [x] Remove `HAIL_GUI_CREDENTIAL_FILE` after the production canary passes.
 
 ### 5. Add `hailp` browser login
 
@@ -373,15 +398,16 @@ the browser.
 ### 8. Roll out safely
 
 - [ ] Back up provider state and deploy schema/runtime with passkeys disabled.
-- [ ] Enable registration for one Haili canary using its current trusted access.
+- [x] Enable registration for one Haili canary using its current trusted access.
 - [ ] Register at least two recovery-capable authenticators or confirm the
       independent owner-recovery path before removing bootstrap access.
 - [ ] Exercise login, expiry, restart, revocation and recovery on the canary.
-- [ ] Enable GUI sessions while retaining the fixed credential rollback path.
+- [x] Enable GUI sessions through the reversible canary rollout.
 - [ ] Exercise `hailp` browser login and credential rotation.
-- [ ] Confirm external health, bounded error rates and privacy-safe audit events.
-- [ ] Remove the fixed GUI credential and rollback flag only after the retained
-      recovery path has been exercised.
+- [x] Confirm external health and successful guarded backup/deployment checks.
+- [ ] Confirm bounded error rates and privacy-safe audit events.
+- [x] Remove and revoke the fixed GUI credential after canary login and logout.
+- [ ] Exercise the retained owner-proof recovery path before general enrollment.
 - [ ] Publish user guidance for passkey loss, provider transfer and account
       recovery before general enrollment.
 
