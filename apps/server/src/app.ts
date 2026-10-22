@@ -164,7 +164,7 @@ export function createApp(
     const url=new URL(context.req.url);
     if(config.thinGuiOrigin&&![/^\/api(?:\/|$)/,/^\/hail(?:\/|$)/,/^\/\.well-known(?:\/|$)/,/^\/health(?:\/|$)/].some(pattern=>pattern.test(url.pathname))){
       try{
-        const headers=new Headers(context.req.raw.headers);headers.delete("host");headers.delete("content-length");
+        const headers=new Headers(context.req.raw.headers);headers.delete("host");headers.delete("content-length");headers.set("accept-encoding","identity");
         return await fetch(new URL(url.pathname+url.search,`${config.thinGuiOrigin}/`),{method:context.req.method,headers,
           ...(context.req.method==="GET"||context.req.method==="HEAD"?{}:{body:context.req.raw.body}),redirect:"manual"});
       }catch{return context.json({type:"about:blank",title:"Service Unavailable",status:503},503,{"Cache-Control":"no-store"});}

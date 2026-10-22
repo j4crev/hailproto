@@ -101,9 +101,10 @@ describe("unknown routes", () => {
     const transport=vi.fn(async()=>new Response("gui",{headers:{"Content-Type":"text/plain"}}));vi.stubGlobal("fetch",transport);
     try{
       const app=createApp({...config,thinGuiOrigin:"http://gui:3000"});
-      const page=await app.request("https://hailproto.app/auth/login?next=%2F");expect(await page.text()).toBe("gui");
-      const [target]=transport.mock.calls[0]! as unknown as [URL];
+      const page=await app.request("https://hailproto.app/auth/login?next=%2F",{headers:{"Accept-Encoding":"gzip"}});expect(await page.text()).toBe("gui");
+      const [target,init]=transport.mock.calls[0]! as unknown as [URL,RequestInit];
       expect(target.toString()).toBe("http://gui:3000/auth/login?next=%2F");
+      expect(new Headers(init.headers).get("accept-encoding")).toBe("identity");
       expect((await app.request("/api/unknown")).status).toBe(404);
       expect((await app.request("/.well-known/unknown")).status).toBe(404);
       expect(transport).toHaveBeenCalledOnce();
