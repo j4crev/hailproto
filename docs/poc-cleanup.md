@@ -17,10 +17,9 @@ finish, then delete it.
 3. **Done:** The production build context excludes server operator CLIs and
    sample Alice/Bob files; neither is imported by `src/index.ts`.
    [`apps/server/Dockerfile.dockerignore:6-8`, `apps/server/Dockerfile:34-39`]
-4. **Delete:** Remove the eight standalone provider `poc:*` CLI wrappers once the
-   remaining private gates use API/runtime orchestration exclusively; only
-   `package.json` references them. [`apps/server/package.json:16-23`,
-   `apps/server/src/cli/*private-poc*.ts`]
+4. **Done:** Removed the eight standalone provider `poc:*` CLI wrappers after
+   onboarding, Grants and transfer completion moved to account API/runtime
+   orchestration.
 5. **Delete:** Replace six legacy client `poc:*` wrappers and wrapper-specific
    subprocess tests with `hailp` coverage. Keep the underlying signing/vault
    functions still used by private fixtures.
@@ -46,7 +45,7 @@ cannot be rewritten safely.
 
 ## Recommendation
 
-- Do items 4, 5, and 6 immediately after the private gates finish.
+- Do items 5 and 6 immediately after the private gates finish.
 - Do item 2 only after legacy-account disposition.
 - Do item 7 when independent monitoring lands.
 

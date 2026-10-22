@@ -353,10 +353,9 @@ is required before production.
 
 ### Grant lifetime and offline subscriptions
 
-The POC `poc:grant-propose` command currently selects **seven days**. That is
-a test-driver default, not a protocol requirement. Ongoing subscriptions may
-use `expires_at: null`, subject to recipient policy, and continue without
-periodic signatures until revoked. Transactional permissions can deliberately
+Grant lifetimes are product policy, not a protocol-wide default. Ongoing
+subscriptions may use `expires_at: null`, subject to recipient policy, and
+continue without periodic signatures until revoked. Transactional permissions can deliberately
 expire. An expiring Grant cannot be renewed silently by a user-held-key
 provider; a higher signed revision is needed. Product lifetime defaults and
 renewal UX must be chosen explicitly. See [Grant expiration](../spec/grants.md#expiration).
@@ -678,44 +677,12 @@ with the imported active account's same signed binding. The source retires
 only on the target's signed activation receipt. No separate monitoring VPS or
 public PLC mirror is required for this deliberately non-independent POC test.
 
-### Resuming a private-PLC POC ceremony
+### Retired private-PLC operator ceremony
 
-Keep one private ceremony directory (mode `0700`) containing the signed Grant,
-Offer, address selection/reservation, snapshot, consent, PLC operation, binding
-and eventual activation receipt (files mode `0600`). Keep the vault and its
-recovery secret on the user device. Provider-side commands receive only signed
-artifacts; they never receive the vault or recovery secret.
-
-Resume from persisted state, rather than creating another transfer:
-
-| Checkpoint | Recovery action |
-| --- | --- |
-| Grant delivered, no fence | Recover the same Offer; select the address directly at its authenticated provider. Before cancellation, obtain the source's signed no-fence receipt and forward it to the target. |
-| Final push timed out | Inspect the source fence and retry the stored exact final request. An ambiguous response is not proof that the source stayed active. |
-| Source `fenced`, no snapshot exported | Retry export. The internal pre-export release operation is restricted to this state; do not use it after export. |
-| Source `exported`, target `staged` | Retain the fence and prepared target keys. Retry the existing user cutover-signing command with the same artifact paths; it verifies and reuses complete output bytes. Never substitute a newly signed PLC operation after submission. |
-| PLC accepted, target still `staged` | Retry address publication and activation after fixing the blocking fault. An activation transaction failure leaves the imported domain inactive. HTTPS/PLC verification must succeed again. |
-| Target `active`, receipt file lost | Retry activation to recover its committed result and regenerate the receipt under the current authenticated target messaging key. Identical existing receipt files are accepted; conflicting or insecure files are rejected. |
-| Source `retired`, response lost | Retry retirement with the exact same receipt. It authenticates the receipt and current PLC destination without changing the retained retirement record. |
-
-For an already staged dev → app transfer, provider commands are:
-
-```bash
-# Run at the destination; transfer ID is the existing ID, not a new UUID.
-bun run poc:submit-cutover -- "$transfer_id"
-bun run poc:publish-address -- "$transfer_id"
-bun run poc:activate-transfer -- "$transfer_id" "$receipt_file"
-# Copy only the signed receipt to the source, preserving mode 0600.
-bun run poc:retire-source -- "$did" "$transfer_id" "$receipt_file"
-```
-
-Skip completed submission/publication steps when the target is already active;
-those steps intentionally require a staged import. Activation and retirement
-are restart-safe while current PLC authority still matches. If PLC has changed
-again, stop and reconcile the current operation before continuing. Post-export
-rollback is not automated: recovery in this tested POC slice is **forward
-completion of the exact staged transfer**, not releasing the source to create
-two active owners. Restoring an old database alone cannot undo a PLC cutover.
+The original file-based provider ceremony and its standalone `poc:*` wrappers
+were retired after onboarding, Grants and transfer completion moved behind the
+account API and `hailp`. The private runtime paths and fixtures remain for
+compatibility and regression evidence; Git history preserves the old ceremony.
 
 ### Message continuity and collocated Grants
 
@@ -792,8 +759,8 @@ destination address, transactionally imported state and retired the source
 on a signed receipt. The integration fixture additionally verifies
 rollback on a target conflict, re-signing under the new messaging key, and
 deadline failure for accepted work whose deadline elapsed during a delayed
-cutover. POC-only private-PLC submission and activation CLIs exist, but no
-corresponding public-registry rollout ceremony or independently provisioned
+cutover. POC-only private-PLC submission and activation remain runtime test
+paths, but no corresponding public-registry rollout ceremony or independently provisioned
 monitor/mirrors exists. The private DID is not a production-ready migrated
 account. Alice's and Bob's older POC DIDs were created custodially and cannot
 become portable by merely applying a database migration.

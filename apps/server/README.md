@@ -111,7 +111,7 @@ of the authority profile preserves the POC baseline; orphaned/invalid public
 declarations are refused. Use one consistent runtime for all serving/worker/tools
 when enabling strict authority; existing public writers do not gain verified
 evidence merely because schema 41 is installed. Normal operator CLIs and address
-discovery share the factory; private-POC commands retain their registry guard.
+discovery share the factory; private-POC runtime paths retain their registry guard.
 The server checks configured reader health every five minutes and logs only the
 initial result and state changes. Set `PLC_READER_DIAGNOSTIC_DID` to a public
 Hail-profile DID to also log reader state disagreement; leave it unset until a
@@ -819,14 +819,12 @@ run
 and fresh user-signed Address Binding. Export and consent files must be private
 (`0600`) and transferred over an authenticated administrative channel.
 The reference client additionally has `transfer:submit-grant` and
-`transfer:cancel` commands. Production account UX, automatic submission
-of the final user-signed PLC operation and activation CLIs remain open; an independent
-monitor, mirror/checkpoint, vault recovery and destination-domain publication still
-require production infrastructure. Do not deploy this rehearsal as a public
-transfer service.
+`transfer:cancel` commands. The supported account workflow now lives in
+[`hailp`](../cli/docs/cli-workflows.md); the operator commands above remain
+diagnostic building blocks, not a public transfer procedure.
 The original Alice/Bob POC accounts were created with custodial keys in a private
 directory and **must not be used as portable migration sources**. New user-held
-private-PLC DIDs have completed the separate POC ceremony below. Separate
+private-PLC DIDs completed the earlier POC ceremony. Separate
 reference projects now exist at `../cli` for user-controlled
 key generation, encrypted vault recovery and offline signing, and
 `../plc-monitor` for user-run independent PLC monitoring and signed
@@ -843,92 +841,7 @@ TRANSFER_TARGET_DATABASE_URL=postgresql://hail:password@127.0.0.1:5432/hail_targ
   bun --bun vitest run test/migration-fence.integration.test.ts
 ```
 
-### Private-PLC POC Ceremony (New DIDs Only)
-
-The `private-poc` profile is explicitly restricted to the POC's internal
-`http://plc:2582` registry and the configured `hailproto.app`/`hailproto.dev`
-Hail service bases. Disposable tests also permit `http://plc.fixture:2582`.
-It uses one validated canonical private PLC log and records `poc-local`
-monitor evidence: **no independent mirror or monitoring guarantee is implied**.
-The normal public activation profile still requires `https://plc.directory`,
-two independent read paths and the signed external monitor attestation.
-
-For a **fresh** POC DID, generate and independently back up a user vault using
-`../cli`. After verifying its recovery secret, the source
-provider and client run:
-
-```text
-source: poc:prepare-portable -- <address> <user-recovery-key> <user-identity-key> <new-private-preparation-file> --backup-verified
-client: poc:sign-onboarding -- <vault> <preparation-file> <new-signed-output-file>
-source: poc:register-portable -- <signed-output-file>
-source: activate:public -- <address>
-```
-
-The source imports the exact user-signed genesis and Address Binding before
-`activate:public` verifies public HTTPS WebFinger and binding retrieval. Here
-`activate:public` describes the **external HTTPS address verification**,
-not registration on the public PLC network. The source stores its own
-operational keys but neither user private key. Existing custodial POC DIDs
-cannot be reused for this profile.
-
-After the user signs/submits a Transfer Grant and selects an address at the
-other POC provider, use `migration:export` on the fenced source:
-
-```text
-client: poc:sign-cutover -- <vault> <snapshot> <origin-verified-offer> <signed-reservation> <new-consent> <new-plc-operation> <new-binding>
-target: migration:stage -- <snapshot> <consent> <plc-operation> <binding>
-target: poc:submit-cutover -- <transfer-id>
-target: poc:publish-address -- <transfer-id>
-target: poc:activate-transfer -- <transfer-id> <new-receipt-file>
-source: poc:retire-source -- <did> <transfer-id> <receipt-file>
-```
-
-The client signs the exact PLC cutover, consent and Address Binding; the
-source verifies the target's activation receipt before retiring. Signed files must
-be private mode `0600`, transferred over an authenticated administrative
-channel. The user-held vault/recovery secret never goes to either provider.
-No signed cutover is submitted automatically by starting the web server.
-
-To rehearse message continuity with a user-held identity, the source POC
-provider can prepare a Grant after verifying the sender address and profile:
-
-```text
-source: poc:grant-propose -- <user-address> <sender-address> <offered-category> <new-proposal-file>
-client: poc:sign-grant -- <user-vault> <proposal-file> <reviewed-own-address> <reviewed-sender-address> <new-signed-grant.cose>
-source: poc:grant-import -- <user-address> <sender-address> <signed-grant.cose>
-source: grant:publish -- --once
-```
-
-The client signs with its own `#hail-identity` key; the source re-verifies
-the exact Address Binding, Sender Profile, chosen scope and consent hashes
-before queuing publication. Import of unchanged signed bytes is idempotent.
-An accepted message with a pending delivery obligation can then be used to
-test more than empty-account transfer.
-
-Migration 31 preserves both local Grant roles when a transfer places grantor
-and grantee on the same provider, retaining one exact immutable revision
-chain. Activation, signed receipt writes and retirement support exact
-completion retries after a lost response. Resume the existing staged transfer
-after a fault; never release an exported fence or re-sign a submitted PLC
-operation merely to get past a failure. Returning to a former provider with a
-retained retired account and coordinated post-export rollback remain separate
-work. See the linked recovery guide and deployment log for the verified proof.
-
-For user-held Grant revocation, the client signs a terminal successor of the
-exact current Grant; the provider uses the same signed-Grant import command:
-
-```text
-client: poc:revoke-grant -- <user-vault> <current-grant.cose> <reviewed-grant-id> <reviewed-sender-address> <new-revocation.cose>
-current-provider: poc:grant-import -- <user-address> <reviewed-sender-address> <revocation.cose>
-```
-
-The provider checks the current user identity signature, local ownership,
-exact predecessor, timestamps and preserved fields, then commits the terminal
-revision and publication outbox entry atomically. It never retrieves a
-provider-held user identity key, and it does not require sender/profile
-availability or an unexpired Grant. Exact retries converge without another
-revision or job. Existing fences and collocated grantor/grantee roles continue
-to apply. `grant:revoke` remains the custodial authoring command; user-held
-accounts use signed import. See the client README for its reference-vault
-limitation: routine unlocking currently also loads the PLC recovery key and
-needs an identity-only path before production.
+The original file-based private-PLC operator ceremony has been retired. New
+private rehearsals use the account API and [`hailp` workflows](../cli/docs/cli-workflows.md);
+the private runtime services and integration fixtures remain for compatibility
+and regression evidence.
