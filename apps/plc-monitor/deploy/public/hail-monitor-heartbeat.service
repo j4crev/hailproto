@@ -1,0 +1,8 @@
+[Unit]
+Description=Report Hail PLC monitor health
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/hail-monitor-heartbeat

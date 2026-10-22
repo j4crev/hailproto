@@ -60,7 +60,7 @@ The Cloudflare Worker runs each minute. It alerts on state transitions and again
 on recovery:
 
 - `https://haili.app/health/ready` non-2xx or timeout after 10 seconds;
-- no authenticated PLC-monitor heartbeat for 5 minutes;
+- no authenticated PLC-monitor heartbeat for 6 minutes;
 - no verified encrypted provider backup for 26 hours.
 
 The monitor host sends a heartbeat only while its container health check passes.

@@ -31,8 +31,8 @@ it("accepts authenticated heartbeats and alerts only on health transitions",asyn
   expect((await worker.fetch(new Request("https://alerts.plcmonitor.us/backup-heartbeat",{method:"POST",headers:{Authorization:"Bearer backup"}}),env)).status).toBe(204);
   const originalFetch=globalThis.fetch;globalThis.fetch=vi.fn(async()=>new Response(null,{status:200})) as unknown as typeof fetch;
   try{await worker.scheduled({},env);await worker.scheduled({},env);}finally{globalThis.fetch=originalFetch;}
-  expect(send).not.toHaveBeenCalled();
-  values.set("monitor-heartbeat",String(Date.now()-6*60_000));
+  expect(send).not.toHaveBeenCalled();expect(put).toHaveBeenCalledTimes(5);
+  values.set("monitor-heartbeat",String(Date.now()-7*60_000));
   values.set("backup-heartbeat",String(Date.now()-27*60*60_000));
   const originalFetch2=globalThis.fetch;globalThis.fetch=vi.fn(async()=>new Response(null,{status:503})) as unknown as typeof fetch;
   try{await worker.scheduled({},env);await worker.scheduled({},env);}finally{globalThis.fetch=originalFetch2;}
@@ -43,4 +43,5 @@ it("accepts authenticated heartbeats and alerts only on health transitions",asyn
   const originalFetch3=globalThis.fetch;globalThis.fetch=vi.fn(async()=>new Response(null,{status:200})) as unknown as typeof fetch;
   try{await worker.scheduled({},env);await worker.scheduled({},env);}finally{globalThis.fetch=originalFetch3;}
   expect(send.mock.calls.slice(3).map(call=>call[0].subject)).toEqual(["[Hail ops] haili provider ok","[Hail ops] PLC monitor ok","[Hail ops] provider backup ok"]);
+  expect(put).toHaveBeenCalledTimes(13);
 });

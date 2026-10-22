@@ -8,6 +8,12 @@ uses an external signed-alert email receiver. A deployment beside a provider or
 within the same failure domain remains bootstrap evidence, not independent
 production monitoring.
 
+The host heartbeat timer runs every three minutes and the external receiver
+alerts after six minutes without a successful authenticated heartbeat. Install
+`heartbeat.sh` as root-owned `/usr/local/sbin/hail-monitor-heartbeat`, install
+the included service and timer in `/etc/systemd/system`, then daemon-reload and
+enable the timer. The DID audit poll remains independent at four minutes.
+
 ## Prepare, but do not start yet
 
 Keep sibling `hailproto`, `did-method-plc` and `hail-plc-monitor-ts` checkouts in

@@ -14,7 +14,7 @@ interface Env {
   PROVIDER_HEALTH_URL:string;
 }
 
-const heartbeatKey="monitor-heartbeat",backupKey="backup-heartbeat",staleAfterMs=5*60_000,backupStaleAfterMs=26*60*60_000;
+const heartbeatKey="monitor-heartbeat",backupKey="backup-heartbeat",staleAfterMs=6*60_000,backupStaleAfterMs=26*60*60_000;
 
 async function email(env:Env,subject:string,text:string):Promise<void>{
   await env.ALERT_EMAIL.send({to:env.ALERT_RECIPIENT,from:env.ALERT_SENDER,subject,text});
@@ -22,9 +22,10 @@ async function email(env:Env,subject:string,text:string):Promise<void>{
 
 async function recordHealth(env:Env,name:string,ok:boolean,detail:string):Promise<void>{
   const key=`health:${name}`,next=ok?"ok":"down",previous=await env.HAIL_PRODUCTION_MONITOR.get(key);
-  if(previous!==next&&(next==="down"||previous==="down"))
-    await email(env,`[Hail ops] ${name} ${next}`,`${name} is ${next}.\n\n${detail}`);
-  await env.HAIL_PRODUCTION_MONITOR.put(key,next);
+  if(previous!==next){
+    if(next==="down"||previous==="down")await email(env,`[Hail ops] ${name} ${next}`,`${name} is ${next}.\n\n${detail}`);
+    await env.HAIL_PRODUCTION_MONITOR.put(key,next);
+  }
 }
 
 function signature(value:string|null):Uint8Array<ArrayBuffer>|null {
