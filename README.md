@@ -35,6 +35,27 @@ and the [portable-custody boundary](docs/production-portable-custody.md).
 
 The repository includes TypeScript and Go reference codecs, shared conformance vectors, executable schema checks, diagnostic tooling and benchmarks. The intended v0 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
 
+## Client capabilities
+
+The reference CLI covers account administration and sensitive identity ceremonies. The thin GUI is intentionally limited to everyday messaging and keeps credentials and keys out of the browser.
+
+| Capability | [`hailp` CLI](apps/cli) | [Thin GUI client](apps/gui-poc) |
+| --- | --- | --- |
+| View account identity | Full account details | Address, DID and custody summary |
+| Account onboarding | Owner-controlled and managed | — |
+| Vault backup and recovery | Create, verify, back up and import | — |
+| Credential management | Create, rotate, revoke and recovery login | — |
+| Sender Profiles | Create, view and update | Displays verified avatars |
+| Grants | Create, list, inspect, update and revoke | Reads active Grants for composing and address labels |
+| Inbox | List and retrieve messages | Paginated feed, safe rich-text rendering, avatars and bundled headers |
+| Compose | Plain text with reply invitations | Plain or rich text, formatting and a bundled PNG header |
+| Replies | Plain-text replies | Plain-text replies while the capability remains valid |
+| Sent messages | Status and retry by message ID | Paginated Sent view, detail, status and indeterminate retry |
+| Address bindings | View and renew | — |
+| Custody transitions | Managed ↔ owner-controlled | — |
+| Provider transfers | Owner-controlled and managed workflows | — |
+| Credential storage | Local encrypted vault and credential files | Fixed server-side credential; none in the browser |
+
 ## Core Principles
 
 - Recipients control who may deliver messages.
@@ -49,6 +70,7 @@ The repository includes TypeScript and Go reference codecs, shared conformance v
 
 - [`apps/server`](apps/server): TypeScript provider server, account APIs, delivery workers and custody-transfer runtime.
 - [`apps/cli`](apps/cli): `hailp` reference CLI (`hail-cli-ts`), encrypted user vault and owner-authorized onboarding, recovery and transfer workflows.
+- [`apps/gui-poc`](apps/gui-poc): Disposable thin GUI for inbox, safe rich-message rendering, composing, replies and sent-message status.
 - [`apps/plc-monitor`](apps/plc-monitor): PLC history monitor, durable coverage and alerting, and signed onboarding/transfer attestations.
 - [`packages/hail-codec-ts`](packages/hail-codec-ts): TypeScript reference codec.
 - [`packages/hail-codec-go`](packages/hail-codec-go): Go reference codec.
