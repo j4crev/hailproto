@@ -86,7 +86,6 @@ The reference CLI covers account administration and sensitive identity ceremonie
 - [Provider deployment runbook](apps/server/deploy/public/README.md): Strict-public provider setup and validation.
 - [User-key CLI](apps/cli/README.md): User-device vault, onboarding, Grant signing and exact-byte cutover commands.
 - [Public monitor deployment](apps/plc-monitor/deploy/public/README.md): Per-DID public PLC monitoring, reviewed bootstrap, signed attestations and external email alerts.
-- [`CBOR_MIGRATION.md`](CBOR_MIGRATION.md): Active migration plan from the earlier JSON/JWS draft to deterministic CBOR and COSE.
 - [`BODY_FORMAT.md`](BODY_FORMAT.md): Safe Portable Text body-format design.
 - [`spec/encoding.md`](spec/encoding.md): Normative Hail data model, deterministic CBOR, COSE, and diagnostic JSON profile.
 - [`spec/hail.cddl`](spec/hail.cddl): Draft machine-readable structural schemas for Hail v0 payloads and the initial body profile.
