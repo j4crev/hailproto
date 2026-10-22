@@ -28,6 +28,7 @@ export class PasskeyAuth {
       SELECT credential_id,transports FROM account_passkeys WHERE account_id=${session.account_id} AND revoked_at IS NULL`;
     const options=await generateRegistrationOptions({rpName:"Hail",rpID:this.rpId,userID:uuidBytes(session.account_id),
       userName:session.canonical_address,userDisplayName:session.canonical_address,attestationType:"none",
+      timeout:300_000,
       authenticatorSelection:{residentKey:"required",userVerification:"required"},supportedAlgorithmIDs:[COSEALG.ES256],
       excludeCredentials:existing.map(row=>({id:row.credential_id,transports:Array.isArray(row.transports)?row.transports as string[]:[]}))});
     const challengeId=randomUUID();
@@ -61,7 +62,7 @@ export class PasskeyAuth {
   }
 
   async authenticationOptions(){
-    const options=await generateAuthenticationOptions({rpID:this.rpId,userVerification:"required"}),challengeId=randomUUID();
+    const options=await generateAuthenticationOptions({rpID:this.rpId,userVerification:"required",timeout:300_000}),challengeId=randomUUID();
     await this.sql`DELETE FROM account_passkey_challenges WHERE expires_at<=now()`;
     await this.sql`INSERT INTO account_passkey_challenges (id,challenge,purpose,expires_at)
       VALUES (${challengeId},${options.challenge},'authentication',now()+interval '5 minutes')`;
