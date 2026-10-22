@@ -41,6 +41,9 @@ integration("owner-proof passkey recovery",()=>{
     expect(await passkeys.recover(secret,start.challengeId,response(credential),"Changed label")).toEqual(first);
     await expect(passkeys.recover(secret,start.challengeId,response(encodeBase64Url(randomBytes(32))),"Other"))
       .rejects.toMatchObject({status:400});
+    const duplicate=token(),duplicateStart=await capability(duplicate);
+    await expect(passkeys.recover(duplicate,duplicateStart.challengeId,response(credential),"Duplicate"))
+      .rejects.toMatchObject({status:409});
     expect(await db.sql`SELECT credential_id FROM account_passkeys WHERE account_id=${account}`).toHaveLength(1);
   });
 

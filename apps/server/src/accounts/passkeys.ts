@@ -21,6 +21,10 @@ function loopback(value:string){
     url.search||url.hash||!Number.isSafeInteger(port)||port<1024||port>65535)throw new PasskeyError(400);
   return url;
 }
+function uniqueConflict(error:unknown){
+  const value=error as {code?:unknown;errno?:unknown}|null;
+  return value?.code==="23505"||value?.errno==="23505";
+}
 
 export class PasskeyError extends Error {
   constructor(readonly status:400|401|403|404|409|429){super("Passkey request refused");}
@@ -28,7 +32,8 @@ export class PasskeyError extends Error {
 
 export class PasskeyAuth {
   constructor(private readonly sql:SQL,readonly rpId:string,readonly origin:string,
-    private readonly verifyRegistration:typeof verifyRegistrationResponse=verifyRegistrationResponse){}
+    private readonly verifyRegistration:typeof verifyRegistrationResponse=verifyRegistrationResponse,
+    private readonly verifyAuthentication:typeof verifyAuthenticationResponse=verifyAuthenticationResponse){}
 
   private management(session:AccountApiSession){
     if(session.scopes.includes("credentials:write")||session.passkey_verified_at&&
@@ -97,7 +102,7 @@ export class PasskeyAuth {
       if(capabilityId)await tx`UPDATE account_passkey_enrollment_capabilities SET consumed_at=now(),credential_id=${credential.id} WHERE id=${capabilityId}`;
       return {registered:true,credentialId:credential.id,label:label.trim()};
     });}
-    catch(error){if(error&&typeof error==="object"&&"code" in error&&(error as {code?:string}).code==="23505")throw new PasskeyError(409);throw error;}
+    catch(error){if(uniqueConflict(error))throw new PasskeyError(409);throw error;}
   }
 
   async recoveryOptions(token:string){
@@ -215,7 +220,7 @@ export class PasskeyAuth {
       if(!credential[0])throw new PasskeyError(401);
       return {type:"hailp.api-credential",version:1,provider:this.origin,accountId:row.account_id,credentialId,token,
         scopes,expiresAt:credential[0].expires_at.toISOString()};
-    });}catch(error){if(error&&typeof error==="object"&&"code" in error&&(error as {code?:string}).code==="23505")throw new PasskeyError(409);throw error;}
+    });}catch(error){if(uniqueConflict(error))throw new PasskeyError(409);throw error;}
   }
 
   async recover(token:string,challengeId:string,response:RegistrationResponseJSON,label:string){
@@ -298,7 +303,7 @@ export class PasskeyAuth {
         AND account.did IS NOT NULL AND fence.account_id IS NULL`;
     const row=rows[0];if(!row)throw new PasskeyError(401);
     let result;
-    try{result=await verifyAuthenticationResponse({response,expectedChallenge:challenge,expectedOrigin:this.origin,
+    try{result=await this.verifyAuthentication({response,expectedChallenge:challenge,expectedOrigin:this.origin,
       expectedRPID:this.rpId,requireUserVerification:true,credential:{id:row.credential_id,publicKey:new Uint8Array(row.public_key),
         counter:Number(row.signature_counter),transports:Array.isArray(row.transports)?row.transports as string[]:[]}});}
     catch{throw new PasskeyError(401);}

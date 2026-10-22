@@ -37,6 +37,10 @@ least-privilege CLI credential remains active until its normal 30-day expiry.
 The existing browser session survived a guarded provider restart. The canary's
 session was then aged past the 30-minute idle limit in production, rejected on
 its next request and successfully replaced through normal passkey sign-in.
+Chromium 152's built-in CTAP2 USB virtual authenticator then registered a
+resident, user-verified passkey and completed accountless login. The temporary
+virtual credential was revoked afterward; only the intended Samsung and Google
+passkeys remain.
 
 The next release gate is **account safety**, not broader enrollment. Complete
 these in order:
@@ -440,10 +444,10 @@ the browser.
 
 ### 7. Test security and interoperability
 
-- [ ] Registration and login success with a software/virtual authenticator.
-- [ ] Challenge replay, expiry, wrong purpose and concurrent consumption.
+- [x] Registration and login success with a software/virtual authenticator.
+- [x] Challenge replay, expiry, wrong purpose and concurrent consumption.
 - [ ] Wrong origin, RP ID, ceremony type, signature and user-verification flag.
-- [ ] Duplicate credential ID, unknown credential and inactive generation.
+- [x] Duplicate credential ID, unknown credential and inactive generation.
 - [ ] Session fixation, expiry, logout, revocation, CSRF and account isolation.
 - [ ] Authorization-code replay, wrong redirect URI, wrong provider and invalid
       PKCE verifier.
@@ -462,6 +466,7 @@ Current manual interoperability evidence:
 | Linux desktop browser with Android cross-device QR | Passed on Haili canary |
 | Android direct biometric login with Samsung Pass | Passed on Haili canary |
 | Google Password Manager passkey enrollment/login | Passed on Haili canary |
+| Chromium 152 CTAP2 USB virtual authenticator | Passed registration/login on Haili canary; credential removed |
 | FIDO2 hardware security key | Pending device access |
 | iOS/iPadOS and macOS | Pending device access |
 | Windows Hello | Pending device access |
