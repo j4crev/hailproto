@@ -52,8 +52,13 @@ verified exact retry and terminal source revocation, and revoked the replacement
 All temporary rotation credentials and state were deleted; the least-privilege
 browser credential remains healthy.
 
-The next release gate is **account safety**, not broader enrollment. Complete
-these in order:
+Commit `9b41cab` removed the legacy GUI credential enrollment proxy entirely.
+Initial and replacement enrollment now use the short-lived owner-authorized,
+recent-passkey or owner-proof paths described below; no long-lived credential or
+private key is exposed to browser JavaScript. The hardened release was deployed
+to all three providers on October 22, 2026.
+
+The account-safety gate completed in this order:
 
 1. ~~Add passkey list, label, step-up enrollment and revocation UI/API operations.~~
 2. ~~Enroll and test a second independent authenticator for the canary.~~
@@ -420,7 +425,7 @@ the browser.
 - [x] Accountless discoverable authentication options and verified completion.
 - [x] Session authentication, rotation, logout and account-wide revocation.
 - [x] Passkey list, label, add and revoke operations with step-up checks.
-- [ ] Single-use enrollment capability from onboarding, current access and
+- [x] Single-use enrollment capability from onboarding, current access and
       owner-proof recovery.
 - [x] Authorization-code creation and PKCE exchange for `hailp` clients.
 - [x] Exact origin, RP ID, challenge, type, user-verification, size and replay
@@ -495,7 +500,8 @@ Current manual interoperability evidence:
 
 ### 8. Roll out safely
 
-- [ ] Back up provider state and deploy schema/runtime with passkeys disabled.
+- [x] Back up provider state and deploy schema/runtime through the guarded
+      release procedure.
 - [x] Enable registration for one Haili canary using its current trusted access.
 - [x] Register and independently authenticate with at least two recovery-capable
       authenticators.

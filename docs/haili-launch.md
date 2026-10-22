@@ -207,6 +207,26 @@ The final release archive SHA-256 is
 `7b297c9fb923e6bdee397c022583fd74b03aeec22f94dc8c374263f7991e9075`.
 The provider remained healthy with zero unexpected restarts.
 
+## Security hardening deployment
+
+Commit `9b41cab2257f5e16cca5714e58e4d0af2cf8734d` completed the October 22,
+2026 source review and was deployed to `haili.app`, `hailproto.app` and
+`hailproto.dev`. The release removed unauthenticated bootstrap enrollment,
+made migration admission atomic, isolated ingress quotas by trusted client or
+authenticated account, hardened signed-evidence and codec validation, and
+updated affected dependencies. `bun audit` reported no remaining advisories.
+
+The provider, PLC and monitor databases were upgraded in place from PostgreSQL
+14.4 to 14.24. All three providers, both independent monitors and their database
+health checks remained healthy after deployment. Caddy was restarted on each
+provider and now overwrites `X-Hail-Trusted-Client-IP` before forwarding private
+provider traffic.
+
+The signed-alert Worker was deployed as version
+`46fd47ce-6e63-40c3-a521-24cf235e2120`. It rejects alerts older than seven days
+or more than five minutes in the future, atomically claims alert UUIDs in a
+Durable Object and suppresses completed replays for 30 days.
+
 ## Production operations gate record
 
 The five operational gates closed October 21, 2026. Direct root, password,

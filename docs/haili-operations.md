@@ -50,9 +50,13 @@ only then sends the backup heartbeat. Missing heartbeats alert after 26 hours.
 No automatic deletion policy is enabled.
 
 Quarterly, download a fresh object on a non-provider host, decrypt it, restore it
-into a disposable PostgreSQL 14 instance, compare schema and row counts, and
+into a disposable PostgreSQL 14.24 instance, compare schema and row counts, and
 decrypt every `account_keys` row. Record the object name, digest, counts and
 result in `docs/haili-launch.md`; remove plaintext artifacts afterward.
+
+PostgreSQL 14 reaches end of life in November 2026. Before then, rehearse a
+backup, restore and rollback on the next supported major release; deploy the
+major upgrade only after schema counts, key decryption and canary flows match.
 
 ## Monitoring and recovery thresholds
 
@@ -63,6 +67,12 @@ on recovery:
 - no authenticated PLC-monitor heartbeat for 6 minutes;
 - no verified encrypted provider backup for 26 hours.
 
+Signed monitor alerts must be no more than seven days old and no more than five
+minutes in the future. A Durable Object atomically claims each alert UUID,
+retains completed IDs for 30 days and releases failed email claims for retry.
+Treat Durable Object errors or repeated `503` delivery responses as alerting
+failures; do not replace this claim with eventually consistent KV deduplication.
+
 The monitor host sends a heartbeat only while its container health check passes.
 Treat any alert as an incident. If no alert arrives during a quarterly simulated
 failure, treat alerting itself as failed and use the Cloudflare Worker logs.
@@ -71,10 +81,10 @@ failure, treat alerting itself as failed and use the Cloudflare Worker logs.
 
 | Surface | Limit | Expected overload behavior |
 | --- | --- | --- |
-| Account API | 120 requests/minute/provider process | `429`, `Retry-After: 60` |
-| Envelope submission | 120 requests/minute/provider process; 16 KiB request | `429` or `413` |
-| Grant publication | 120 requests/minute/provider process; 256 KiB request | `429` or `413` |
-| Delivery status | 120 requests/minute/provider process; 16 KiB request | `429` or `413` |
+| Account API | 120 requests/minute/authenticated account or anonymous client | `429`, `Retry-After` |
+| Envelope submission | 120 requests/minute/client; 16 KiB request | `429` or `413` |
+| Grant publication | 120 requests/minute/client; 256 KiB request | `429` or `413` |
+| Delivery status | 120 requests/minute/client; 16 KiB request | `429` or `413` |
 | Body storage/retrieval | 256 KiB body | `413` at bounded request surfaces |
 | Sender Profile retrieval | 64 KiB response | Verification failure |
 
@@ -86,3 +96,13 @@ are therefore policy limits, not observed capacity limits. Recalibrate after a
 host, database, runtime or traffic-shape change. Stop and investigate if the
 external readiness check fails; do not raise mutation limits without measuring
 the protected 500-ms response schedule and database contention separately.
+
+Caddy is the trusted client-address boundary and must overwrite
+`X-Hail-Trusted-Client-IP`; never forward a caller-supplied value. The provider
+container must remain private to the Compose network. Transfer ingress also has
+a separate, higher database-backed overload ceiling.
+
+After an enrollment or migration incident, inspect passkeys, sessions,
+invitations and prepared migration slots before cleanup. Unexpected passkeys and
+orphan slots are not deleted automatically because bulk removal could destroy
+legitimate recovery or standalone preparation state.
