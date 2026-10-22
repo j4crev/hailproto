@@ -33,4 +33,11 @@ describe("passkey management",()=>{
     await expect(passkeys.revoke(session,other)).resolves.toEqual({revoked:true});
     expect(statements.filter(statement=>statement.startsWith("UPDATE"))).toHaveLength(2);
   });
+
+  it("requires recent verification before revoking every account session",async()=>{
+    await expect(service([]).passkeys.revokeSessions({...session,passkey_verified_at:new Date(Date.now()-301_000)}))
+      .rejects.toMatchObject({status:403});
+    const {passkeys,statements}=service([]);await expect(passkeys.revokeSessions(session)).resolves.toEqual({revoked:true});
+    expect(statements.some(statement=>statement.includes("UPDATE account_passkey_sessions"))).toBe(true);
+  });
 });

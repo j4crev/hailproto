@@ -20,7 +20,8 @@ export class PasskeyError extends Error {
 }
 
 export class PasskeyAuth {
-  constructor(private readonly sql:SQL,readonly rpId:string,readonly origin:string){}
+  constructor(private readonly sql:SQL,readonly rpId:string,readonly origin:string,
+    private readonly verifyRegistration:typeof verifyRegistrationResponse=verifyRegistrationResponse){}
 
   private management(session:AccountApiSession){
     if(session.scopes.includes("credentials:write")||session.passkey_verified_at&&
@@ -49,22 +50,89 @@ export class PasskeyAuth {
     this.management(session);
     if(!UUID.test(challengeId)||!label.trim()||label.trim().length>80||!ID.test(response.id))throw new PasskeyError(400);
     const challenge=await this.challenge(challengeId,"registration",session.account_id,session.serving_generation??1);
+    return this.completeRegistration(session.account_id,session.serving_generation??1,challengeId,challenge,response,label);
+  }
+
+  private async completeRegistration(accountId:string,generation:number,challengeId:string,challenge:string,
+    response:RegistrationResponseJSON,label:string,capabilityId?:string){
     let result;
-    try{result=await verifyRegistrationResponse({response,expectedChallenge:challenge,expectedOrigin:this.origin,
+    try{result=await this.verifyRegistration({response,expectedChallenge:challenge,expectedOrigin:this.origin,
       expectedRPID:this.rpId,requireUserVerification:true,supportedAlgorithmIDs:[COSEALG.ES256,COSEALG.RS256]});}
     catch{throw new PasskeyError(400);}
     if(!result.verified||!result.registrationInfo)throw new PasskeyError(400);
     const info=result.registrationInfo,credential=info.credential;
-    try{await this.sql.begin(async tx=>{
-      const consumed=await tx`DELETE FROM account_passkey_challenges WHERE id=${challengeId} AND challenge=${challenge} AND expires_at>now() RETURNING id`;
-      if(!consumed.length)throw new PasskeyError(400);
+    try{return await this.sql.begin(async tx=>{
+      if(capabilityId){
+        const capability=await tx<{credential_id:string|null}[]>`SELECT capability.credential_id
+          FROM account_passkey_enrollment_capabilities capability JOIN account_passkey_challenges challenge
+            ON challenge.enrollment_capability_id=capability.id
+          WHERE capability.id=${capabilityId} AND capability.account_id=${accountId} AND capability.serving_generation=${generation}
+            AND capability.expires_at>now() AND challenge.id=${challengeId} AND challenge.challenge=${challenge}
+            AND challenge.expires_at>now() FOR UPDATE OF capability`;
+        if(!capability[0])throw new PasskeyError(400);
+        if(capability[0].credential_id){
+          const prior=await tx<{credential_id:string;label:string}[]>`SELECT capability.credential_id,key.label
+            FROM account_passkey_enrollment_capabilities capability JOIN account_passkeys key ON key.credential_id=capability.credential_id
+            WHERE capability.id=${capabilityId} AND capability.account_id=${accountId} AND capability.serving_generation=${generation}
+              AND capability.expires_at>now() AND capability.credential_id=${response.id}`;
+          if(!prior[0])throw new PasskeyError(400);
+          return {registered:true,credentialId:prior[0].credential_id,label:prior[0].label};
+        }
+      }else{
+        const consumed=await tx`DELETE FROM account_passkey_challenges WHERE id=${challengeId} AND challenge=${challenge}
+          AND expires_at>now() AND enrollment_capability_id IS NULL RETURNING id`;
+        if(!consumed.length)throw new PasskeyError(400);
+      }
       await tx`INSERT INTO account_passkeys
         (credential_id,account_id,serving_generation,public_key,signature_counter,device_type,backed_up,transports,label)
-        VALUES (${credential.id},${session.account_id},${session.serving_generation??1},${credential.publicKey},${credential.counter},
+        VALUES (${credential.id},${accountId},${generation},${credential.publicKey},${credential.counter},
           ${info.credentialDeviceType},${info.credentialBackedUp},(${JSON.stringify(credential.transports??response.response.transports??[])}::text)::jsonb,${label.trim()})`;
+      if(capabilityId)await tx`UPDATE account_passkey_enrollment_capabilities SET consumed_at=now(),credential_id=${credential.id} WHERE id=${capabilityId}`;
+      return {registered:true,credentialId:credential.id,label:label.trim()};
     });}
     catch(error){if(error&&typeof error==="object"&&"code" in error&&(error as {code?:string}).code==="23505")throw new PasskeyError(409);throw error;}
-    return {registered:true,credentialId:credential.id,label:label.trim()};
+  }
+
+  async recoveryOptions(token:string){
+    if(!/^hailp_[A-Za-z0-9_-]{43}$/.test(token))throw new PasskeyError(401);
+    await this.sql`DELETE FROM account_passkey_enrollment_capabilities WHERE expires_at<=now()`;
+    const rows=await this.sql<{id:string;account_id:string;serving_generation:number|string;canonical_address:string}[]>`
+      SELECT capability.id,capability.account_id,capability.serving_generation,account.canonical_address
+      FROM account_passkey_enrollment_capabilities capability JOIN provider_accounts account ON account.id=capability.account_id
+      JOIN account_serving_generations generation ON generation.account_id=account.id AND generation.generation=capability.serving_generation
+      LEFT JOIN provider_migration_fences fence ON fence.account_id=account.id
+      WHERE capability.token_hash=${tokenHash(token)} AND capability.consumed_at IS NULL AND capability.expires_at>now()
+        AND account.onboarding_state='active' AND account.did IS NOT NULL AND fence.account_id IS NULL`;
+    const row=rows[0];if(!row)throw new PasskeyError(401);
+    const existing=await this.sql<{credential_id:string;transports:unknown}[]>`SELECT credential_id,transports FROM account_passkeys
+      WHERE account_id=${row.account_id} AND serving_generation=${Number(row.serving_generation)} AND revoked_at IS NULL`;
+    const options=await generateRegistrationOptions({rpName:"Hail",rpID:this.rpId,userID:uuidBytes(row.account_id),
+      userName:row.canonical_address,userDisplayName:row.canonical_address,attestationType:"none",timeout:300_000,
+      authenticatorSelection:{residentKey:"required",userVerification:"required"},supportedAlgorithmIDs:[COSEALG.ES256,COSEALG.RS256],
+      excludeCredentials:existing.map(key=>({id:key.credential_id,transports:Array.isArray(key.transports)?key.transports as string[]:[]}))});
+    const challengeId=randomUUID();
+    await this.sql`INSERT INTO account_passkey_challenges
+      (id,challenge,purpose,account_id,serving_generation,expires_at,enrollment_capability_id)
+      VALUES (${challengeId},${options.challenge},'registration',${row.account_id},${Number(row.serving_generation)},now()+interval '5 minutes',${row.id})`;
+    return {challengeId,options};
+  }
+
+  async recover(token:string,challengeId:string,response:RegistrationResponseJSON,label:string){
+    if(!/^hailp_[A-Za-z0-9_-]{43}$/.test(token)||!UUID.test(challengeId)||!label.trim()||label.trim().length>80||!ID.test(response.id))
+      throw new PasskeyError(400);
+    const rows=await this.sql<{challenge:string;account_id:string;serving_generation:number|string;capability_id:string}[]>`
+      SELECT challenge.challenge,challenge.account_id,challenge.serving_generation,capability.id AS capability_id
+      FROM account_passkey_challenges challenge JOIN account_passkey_enrollment_capabilities capability
+        ON capability.id=challenge.enrollment_capability_id AND capability.account_id=challenge.account_id
+          AND capability.serving_generation=challenge.serving_generation
+      JOIN account_serving_generations generation ON generation.account_id=capability.account_id AND generation.generation=capability.serving_generation
+      JOIN provider_accounts account ON account.id=capability.account_id
+      LEFT JOIN provider_migration_fences fence ON fence.account_id=account.id
+      WHERE challenge.id=${challengeId} AND challenge.purpose='registration' AND challenge.expires_at>now()
+        AND capability.token_hash=${tokenHash(token)} AND capability.expires_at>now()
+        AND account.onboarding_state='active' AND account.did IS NOT NULL AND fence.account_id IS NULL`;
+    const row=rows[0];if(!row)throw new PasskeyError(401);
+    return this.completeRegistration(row.account_id,Number(row.serving_generation),challengeId,row.challenge,response,label,row.capability_id);
   }
 
   async list(session:AccountApiSession){
@@ -98,6 +166,13 @@ export class PasskeyAuth {
       await tx`UPDATE account_passkeys SET revoked_at=now() WHERE credential_id=${credentialId}`;
       await tx`UPDATE account_passkey_sessions SET revoked_at=COALESCE(revoked_at,now()) WHERE credential_id=${credentialId} AND revoked_at IS NULL`;
     });
+    return {revoked:true};
+  }
+
+  async revokeSessions(session:AccountApiSession){
+    this.management(session);
+    await this.sql`UPDATE account_passkey_sessions SET revoked_at=COALESCE(revoked_at,now())
+      WHERE account_id=${session.account_id} AND serving_generation=${session.serving_generation??1} AND revoked_at IS NULL`;
     return {revoked:true};
   }
 

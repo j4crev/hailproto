@@ -12,7 +12,9 @@ function fixture(){
   const service={origin,rpId:"haili.app",authenticationOptions:vi.fn(async()=>({challengeId:"00000000-0000-4000-8000-000000000003",options:{challenge:"challenge"}})),
     authenticate:vi.fn(async()=>({token,expiresAt:new Date("2030-01-01T00:00:00Z")})),registrationOptions:vi.fn(async()=>({ok:true})),
     register:vi.fn(async()=>({registered:true})),list:vi.fn(async()=>({recentlyVerified:true,passkeys:[]})),
-    rename:vi.fn(async()=>({renamed:true})),revoke:vi.fn(async()=>({revoked:true})),logout:vi.fn(async()=>{})};
+    rename:vi.fn(async()=>({renamed:true})),revoke:vi.fn(async()=>({revoked:true})),
+    recoveryOptions:vi.fn(async()=>({challengeId:"00000000-0000-4000-8000-000000000004",options:{challenge:"recovery"}})),
+    recover:vi.fn(async()=>({registered:true})),revokeSessions:vi.fn(async()=>({revoked:true})),logout:vi.fn(async()=>{})};
   const app=new Hono();registerPasskeyRoutes(app,service as unknown as PasskeyAuth,{authenticate} as unknown as AccountApiRepository);
   return {app,service,authenticate};
 }
@@ -47,5 +49,20 @@ describe("passkey routes",()=>{
     const response=await app.request("/api/v1/auth/passkeys/manage",{method:"POST",headers:{...headers,"Content-Type":"application/json"},
       body:JSON.stringify({credentialId:"credential",label:"Phone"})});
     expect(response.status).toBe(200);expect(service.rename).toHaveBeenCalledOnce();
+  });
+
+  it("accepts recovery tokens only through origin-checked JSON posts",async()=>{
+    const {app,service}=fixture(),response=await app.request("/api/v1/auth/passkeys/recovery/options",{method:"POST",
+      headers:{Origin:origin,"Content-Type":"application/json"},body:JSON.stringify({token:`hailp_${"B".repeat(43)}`})});
+    expect(response.status).toBe(200);expect(service.recoveryOptions).toHaveBeenCalledOnce();
+    expect((await app.request("/api/v1/auth/passkeys/recovery/options",{method:"POST",headers:{Origin:"https://evil.example",
+      "Content-Type":"application/json"},body:JSON.stringify({token:`hailp_${"B".repeat(43)}`})})).status).toBe(403);
+  });
+
+  it("revokes every account session and clears the current cookie",async()=>{
+    const {app,service}=fixture(),response=await app.request("/api/v1/auth/passkeys/sessions/revoke",{method:"POST",
+      headers:{Origin:origin,Cookie:`hail_session=${token}`}});
+    expect(response.status).toBe(200);expect(service.revokeSessions).toHaveBeenCalledOnce();
+    expect(response.headers.get("Set-Cookie")).toContain("hail_session=; Max-Age=0");
   });
 });

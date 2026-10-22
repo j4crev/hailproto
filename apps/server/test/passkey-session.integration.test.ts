@@ -40,9 +40,24 @@ integration("passkey session migration",()=>{
         await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0054_passkey_sessions.sql",import.meta.url)).text())).rejects.toThrow("active passkey access");
         await rollback.unsafe("ROLLBACK");
       }finally{rollback.release();}
+      await db.sql`INSERT INTO account_passkey_sessions(id,token_hash,account_id,credential_id,serving_generation,scopes,expires_at)
+        VALUES(${randomUUID()},${randomBytes(32)},${account},${credential},1,'["account:read","grants:read","messages:read","messages:write"]',now()+interval '12 hours')`;
+      await passkeys.revokeSessions(authenticated);
+      expect((await db.sql<{count:number}[]>`SELECT count(*)::integer AS count FROM account_passkey_sessions
+        WHERE account_id=${account} AND revoked_at IS NOT NULL`)[0]?.count).toBe(2);
       await db.sql`UPDATE account_passkeys SET revoked_at=now() WHERE account_id=${account}`;
-      const allowed=await db.sql.reserve();try{await allowed.unsafe(await Bun.file(new URL("../migrations/rollback/0054_passkey_sessions.sql",import.meta.url)).text());}finally{allowed.release();}
-      expect((await db.sql`SELECT version FROM schema_migrations WHERE version=54`).length).toBe(0);
+      const capability=randomUUID();await db.sql`INSERT INTO account_passkey_enrollment_capabilities
+        (id,token_hash,account_id,serving_generation,expires_at) VALUES(${capability},${randomBytes(32)},${account},2,now()+interval '5 minutes')`;
+      const guarded=await db.sql.reserve();try{
+        await expect(guarded.unsafe(await Bun.file(new URL("../migrations/rollback/0055_passkey_recovery.sql",import.meta.url)).text())).rejects.toThrow("active passkey recovery");
+        await guarded.unsafe("ROLLBACK");
+      }finally{guarded.release();}
+      await db.sql`UPDATE account_passkey_enrollment_capabilities SET consumed_at=now(),credential_id=${credential} WHERE id=${capability}`;
+      const allowed=await db.sql.reserve();try{
+        await allowed.unsafe(await Bun.file(new URL("../migrations/rollback/0055_passkey_recovery.sql",import.meta.url)).text());
+        await allowed.unsafe(await Bun.file(new URL("../migrations/rollback/0054_passkey_sessions.sql",import.meta.url)).text());
+      }finally{allowed.release();}
+      expect((await db.sql`SELECT version FROM schema_migrations WHERE version IN (54,55)`).length).toBe(0);
       await db.migrate();expect((await db.sql`SELECT credential_id FROM account_passkeys`).length).toBe(0);
     }finally{await db.close();await admin.unsafe(`DROP SCHEMA "${schema}" CASCADE`);await admin.close();}
   });

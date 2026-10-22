@@ -24,12 +24,12 @@ these in order:
 
 1. ~~Add passkey list, label, step-up enrollment and revocation UI/API operations.~~
 2. ~~Enroll and test a second independent authenticator for the canary.~~
-3. Prevent removal of the final passkey unless an owner-proof recovery path has
-   been verified recently.
-4. Implement and exercise owner-proof replacement-passkey enrollment without a
-   custody change or PLC operation.
-5. Add account-wide session revocation and test passkey/session invalidation.
-6. Publish passkey-loss and recovery guidance before general enrollment.
+3. ~~Prevent removal of the current or final passkey; replace it through the
+   owner-proof recovery path first.~~
+4. Owner-proof replacement-passkey enrollment is implemented without a custody
+   change or PLC operation; exercise it on the canary before general enrollment.
+5. ~~Add recent-verification-gated account-wide session revocation and tests.~~
+6. ~~Publish passkey-loss and recovery guidance before general enrollment.~~
 
 Do not restore the revoked bootstrap API credential to implement this phase.
 Use a fresh passkey step-up or the existing owner-proof trust boundary.
@@ -183,6 +183,35 @@ The existing Hail owner-proof recovery paths bootstrap a new passkey:
 
 Successful recovery returns a single-use enrollment capability. It does not
 rotate Hail keys, alter custody or publish a PLC operation.
+
+The reference CLI creates the capability without exposing owner keys or a
+long-lived API credential to the browser:
+
+```console
+hailp account passkey-recover \
+  --provider https://provider.example \
+  --did did:plc:... \
+  --signer owner-recovery \
+  --vault owner.vault.json \
+  --state passkey-recovery.state.json \
+  --output passkey-enrollment.json
+jq -r .url passkey-enrollment.json
+```
+
+Open the resulting URL within ten minutes. The URL is stored in a private file
+because it is a bearer enrollment capability; normal CLI output redacts it.
+Owner-controlled accounts may explicitly select their current identity signer.
+Managed accounts must use independent owner recovery. Delete the state and
+enrollment files after the replacement passkey has been tested.
+
+If one passkey still works, sign in, verify again on the security page, add a
+replacement, test it after signing out, then revoke the lost credential. If no
+passkey works, use the owner-proof command above, enroll and test the replacement,
+then use **Sign out everywhere** and revoke the lost credential. Never send the
+enrollment file or URL to another person: until it expires or is used, it grants
+one passkey registration. Losing both all passkeys and the independent owner
+vault/recovery material has no provider bypass. Provider transfer likewise needs
+new passkeys at the destination; source passkeys do not move.
 
 ### Provider transfer
 
@@ -343,7 +372,7 @@ the browser.
 
 - [x] Registration options and verified registration completion.
 - [x] Accountless discoverable authentication options and verified completion.
-- [ ] Session authentication, rotation, logout and account-wide revocation.
+- [x] Session authentication, rotation, logout and account-wide revocation.
 - [x] Passkey list, label, add and revoke operations with step-up checks.
 - [ ] Single-use enrollment capability from onboarding, current access and
       owner-proof recovery.
@@ -374,9 +403,9 @@ the browser.
 
 ### 6. Cover recovery and transfer
 
-- [ ] Owner-controlled identity-proof enrollment.
-- [ ] Deliberate top-recovery-proof enrollment for both custody profiles.
-- [ ] Reject provider-held managed identity as independent owner recovery.
+- [x] Owner-controlled identity-proof enrollment.
+- [x] Deliberate top-recovery-proof enrollment for both custody profiles.
+- [x] Reject provider-held managed identity as independent owner recovery.
 - [ ] Invalidate old sessions/codes after custody or serving-generation change.
 - [ ] Prove that source passkeys do not authenticate at the destination.
 - [ ] Register a fresh destination passkey after owner-controlled and managed
@@ -413,7 +442,7 @@ the browser.
 - [ ] Confirm bounded error rates and privacy-safe audit events.
 - [x] Remove and revoke the fixed GUI credential after canary login and logout.
 - [ ] Exercise the retained owner-proof recovery path before general enrollment.
-- [ ] Publish user guidance for passkey loss, provider transfer and account
+- [x] Publish user guidance for passkey loss, provider transfer and account
       recovery before general enrollment.
 
 ## Acceptance Conditions

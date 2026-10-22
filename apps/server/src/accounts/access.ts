@@ -7,12 +7,13 @@ import type { HailDidResolver } from "../plc/resolver.js";
 import { ALL_ACCOUNT_SCOPES, tokenHash, type AccountApiScope } from "./repository.js";
 
 interface Challenge {
-  type: "hailp.account-access"; version: 1; purpose: "new-api-credential";
+  type: "hailp.account-access"; version: 1; purpose: "new-api-credential"|"passkey-enrollment";
   challengeId: string; provider: string; accountId: string; did: string;
   signer: "identity" | "owner-recovery"; publicKey: string; scopes: AccountApiScope[];
   tokenHash: string; nonce: string; issuedAt: number; expiresAt: number;
 }
-interface ChallengeRow { payload: Challenge | string; completion_hash: Uint8Array | null; credential_id: string | null; }
+interface ChallengeRow { payload: Challenge | string; completion_hash: Uint8Array | null; credential_id: string | null;
+  enrollment_capability_id:string|null;serving_generation?:number|string; }
 const digest = (bytes: Uint8Array) => new Uint8Array(createHash("sha256").update(bytes).digest());
 const equal = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.from(b));
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -27,36 +28,41 @@ export class AccountAccess {
   constructor(private readonly sql: SQL, private readonly resolver: HailDidResolver, private readonly provider: string) {}
 
   async prepare(input: Record<string, unknown>) {
-    if (Object.keys(input).length !== 5 || Object.keys(input).some(k => !["did", "signer", "publicKey", "scopes", "tokenHash"].includes(k)) ||
+    if (![5,6].includes(Object.keys(input).length) || Object.keys(input).some(k => !["did", "signer", "publicKey", "scopes", "tokenHash","purpose"].includes(k)) ||
       typeof input.did !== "string" || !/^did:plc:[a-z2-7]{24}$/.test(input.did) ||
       !["identity", "owner-recovery"].includes(input.signer as string) ||
       typeof input.publicKey !== "string" || input.publicKey.length > 256 || !/^did:key:z[1-9A-HJ-NP-Za-km-z]+$/.test(input.publicKey) ||
       typeof input.tokenHash !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(input.tokenHash) ||
       !Array.isArray(input.scopes) || !input.scopes.length || new Set(input.scopes).size !== input.scopes.length ||
-      input.scopes.some(scope => !ALL_ACCOUNT_SCOPES.includes(scope))) throw new Error("Invalid account-access request");
+      input.scopes.some(scope => !ALL_ACCOUNT_SCOPES.includes(scope)) || input.purpose!==undefined&&
+      !["new-api-credential","passkey-enrollment"].includes(input.purpose as string)) throw new Error("Invalid account-access request");
     const token = decodeBase64Url(input.tokenHash);
     if (token.length !== 32 || encodeBase64Url(token) !== input.tokenHash) throw new Error("Invalid token hash");
-    const did = input.did, publicKey = input.publicKey, signer = input.signer as Challenge["signer"];
+    const did = input.did, publicKey = input.publicKey, signer = input.signer as Challenge["signer"],
+      purpose=(input.purpose??"new-api-credential") as Challenge["purpose"];
     const scopes = ALL_ACCOUNT_SCOPES.filter(scope => (input.scopes as unknown[]).includes(scope));
+    if(purpose==="passkey-enrollment"&&(scopes.length!==1||scopes[0]!=="credentials:write"))throw new Error("Invalid enrollment authority");
     return this.sql.begin(async tx => {
       // ponytail: one preparation lock caps the 4096-row POC store; partition quotas if throughput needs it.
       await tx`SELECT pg_advisory_xact_lock(684245134)`;
       await tx`DELETE FROM account_access_challenges WHERE expires_at < clock_timestamp() - interval '1 day'`;
-      const prior = await tx<ChallengeRow[]>`SELECT payload, completion_hash, credential_id FROM account_access_challenges
+      const prior = await tx<ChallengeRow[]>`SELECT payload, completion_hash, credential_id,enrollment_capability_id FROM account_access_challenges
         WHERE token_hash=${token} AND expires_at > clock_timestamp()`;
       if (prior[0]) {
         const challenge = payload(prior[0]);
-        if (challenge.provider !== this.provider || challenge.did !== did || challenge.publicKey !== publicKey || challenge.signer !== signer || !same(challenge.scopes, scopes)) throw new Error("Changed login request");
+        if (challenge.provider !== this.provider || challenge.did !== did || challenge.publicKey !== publicKey || challenge.signer !== signer ||
+          challenge.purpose!==purpose||!same(challenge.scopes, scopes)) throw new Error("Changed login request");
         return challenge;
       }
       const seen = await tx`SELECT id FROM account_access_challenges WHERE token_hash=${token}`;
       const used = await tx`SELECT id FROM account_api_credentials WHERE token_hash=${token}`;
+      const usedEnrollment=await tx`SELECT id FROM account_passkey_enrollment_capabilities WHERE token_hash=${token}`;
       const count = await tx<{count:number}[]>`SELECT count(*)::integer AS count FROM account_access_challenges`;
-      if (seen.length || used.length || count[0]!.count >= 4096) throw new Error("Login request unavailable");
+      if (seen.length || used.length || usedEnrollment.length || count[0]!.count >= 4096) throw new Error("Login request unavailable");
       const accounts = await tx<{id:string}[]>`SELECT id FROM provider_accounts WHERE did=${did}`;
       const issuedAt = Math.floor(Date.now() / 1000);
       // Unknown accounts receive the same opaque shape, not an existence/custody result.
-      const challenge: Challenge = { type: "hailp.account-access", version: 1, purpose: "new-api-credential",
+      const challenge: Challenge = { type: "hailp.account-access", version: 1, purpose,
         challengeId: randomUUID(), provider: this.provider, accountId: accounts[0]?.id ?? randomUUID(),
         did, signer, publicKey, scopes, tokenHash: input.tokenHash as string,
         nonce: encodeBase64Url(randomBytes(32)), issuedAt, expiresAt: issuedAt + 300 };
@@ -71,7 +77,7 @@ export class AccountAccess {
       !/^[A-Za-z0-9_-]{86}$/.test(encodedSignature)) throw new Error("Invalid login proof");
     const signature = decodeBase64Url(encodedSignature);
     if (signature.length !== 64 || encodeBase64Url(signature) !== encodedSignature) throw new Error("Invalid login signature");
-    const rows = await this.sql<ChallengeRow[]>`SELECT payload, completion_hash, credential_id FROM account_access_challenges
+    const rows = await this.sql<ChallengeRow[]>`SELECT payload, completion_hash, credential_id,enrollment_capability_id FROM account_access_challenges
       WHERE id=${id} AND token_hash=${tokenHash(token)} AND expires_at > clock_timestamp()`;
     if (!rows[0]) throw new Error("Login challenge unavailable");
     const challenge = payload(rows[0]), input = signatureInput(challenge);
@@ -86,7 +92,8 @@ export class AccountAccess {
         WHERE id=${challenge.accountId} AND did=${challenge.did} FOR UPDATE`;
       if (!accounts[0] || accounts[0].onboarding_state !== "active") throw new Error("Account unavailable");
       if ((await tx`SELECT did FROM provider_migration_fences WHERE account_id=${challenge.accountId}`).length) throw new Error("Account fenced");
-       const stored = await tx<ChallengeRow[]>`SELECT payload,completion_hash,credential_id FROM account_access_challenges c
+       const stored = await tx<ChallengeRow[]>`SELECT payload,completion_hash,credential_id,enrollment_capability_id,
+         generation.generation AS serving_generation FROM account_access_challenges c
          JOIN account_challenge_generations binding ON binding.challenge_id=c.id
          JOIN account_serving_generations generation ON generation.account_id=${challenge.accountId} AND generation.generation=binding.generation
          WHERE c.id=${id} AND expires_at > clock_timestamp() FOR UPDATE OF c`;
@@ -109,6 +116,24 @@ export class AccountAccess {
         !keys.some(key => key.role === "hail-messaging" && key.public_key === current.messagingDidKey) ||
         challenge.publicKey !== (challenge.signer === "identity" ? current.identityDidKey : evidence.recovery)) throw new Error("Owner authority no longer matches");
       if (stored[0].completion_hash && !equal(stored[0].completion_hash, completionHash)) throw new Error("Changed completion proof");
+      if(challenge.purpose==="passkey-enrollment"){
+        let capabilityId=stored[0].enrollment_capability_id;
+        if(!capabilityId){
+          if((await tx`SELECT id FROM account_passkey_enrollment_capabilities WHERE token_hash=${tokenHash(token)}`).length)
+            throw new Error("Token already used");
+          capabilityId=randomUUID();
+          await tx`INSERT INTO account_passkey_enrollment_capabilities (id,token_hash,account_id,serving_generation,expires_at)
+            VALUES (${capabilityId},${tokenHash(token)},${challenge.accountId},${Number(stored[0].serving_generation)},now()+interval '10 minutes')`;
+          const consumed=await tx`UPDATE account_access_challenges SET completion_hash=${completionHash},enrollment_capability_id=${capabilityId}
+            WHERE id=${id} AND expires_at > clock_timestamp() RETURNING id`;
+          if(!consumed.length||signal?.aborted)throw new Error("Challenge expired");
+        }
+        const capability=await tx<{expires_at:Date}[]>`SELECT expires_at FROM account_passkey_enrollment_capabilities
+          WHERE id=${capabilityId} AND token_hash=${tokenHash(token)} AND consumed_at IS NULL AND expires_at>clock_timestamp()`;
+        if(!capability[0]||signal?.aborted)throw new Error("Enrollment capability is terminal");
+        return {type:"hailp.passkey-enrollment",version:1,provider:this.provider,accountId:challenge.accountId,token,
+          url:`${this.provider}/auth/recover#token=${encodeURIComponent(token)}`,expiresAt:capability[0].expires_at.toISOString()};
+      }
       let credentialId = stored[0].credential_id;
       if (!credentialId) {
         if ((await tx`SELECT id FROM account_api_credentials WHERE token_hash=${tokenHash(token)}`).length) throw new Error("Token already used");

@@ -31,6 +31,11 @@
       body:JSON.stringify(action==="rename"?{credentialId,label:next}:{credentialId,revoke:true})}));location.reload();}
     catch(error){message=error instanceof Error?error.message:"Passkey update failed.";busy=false;}
   }
+  async function revokeSessions(){
+    if(!confirm("Sign out every browser and device, including this one?"))return;busy=true;message="";
+    try{await json(await fetch("/api/v1/auth/passkeys/sessions/revoke",{method:"POST"}));location.href="/auth/login";}
+    catch(error){message=error instanceof Error?error.message:"Session revocation failed.";busy=false;}
+  }
 </script>
 
 <section class="heading"><div><p class="eyebrow">Account safety</p><h1>Passkeys</h1></div>
@@ -52,6 +57,10 @@
   {#if message}<p aria-live="polite">{message}</p>{/if}
 </section>
 
+<section class="card add"><h2>Account sessions</h2><p>Sign out every browser and device currently using this account.</p>
+  <button class="danger" onclick={revokeSessions} disabled={busy||!data.recentlyVerified}>Sign out everywhere</button>
+</section>
+
 <style>
-  .heading{display:flex;align-items:end;justify-content:space-between;gap:20px}.eyebrow{margin:0 0 8px;color:#22714b;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}h1,h2,p{margin:0}h1{font-size:42px}.intro{margin:12px 0 24px;color:#657168}.list{display:grid;gap:12px}.key{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px}.key p,.key small{display:block;margin-top:5px;color:#6b766f}.actions{display:flex;align-items:center;gap:8px}.actions span{color:#22714b;font-size:12px;font-weight:750}.add{display:flex;align-items:flex-start;flex-direction:column;gap:14px;margin-top:22px;padding:24px}label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700}input{min-width:260px;padding:10px;border:1px solid #cad4cd;border-radius:8px;font:inherit}button{padding:9px 12px;border:0;border-radius:8px;background:#17633f;color:white;font:inherit;font-weight:750;cursor:pointer}button.secondary,.actions button{border:1px solid #cad4cd;background:white;color:#355143}button.danger{color:#9d3232}button:disabled{cursor:not-allowed;opacity:.45}.add small,.add p{color:#657168}@media(max-width:650px){.heading,.key{align-items:flex-start;flex-direction:column}.actions{flex-wrap:wrap}input{min-width:0;width:100%}}
+  .heading{display:flex;align-items:end;justify-content:space-between;gap:20px}.eyebrow{margin:0 0 8px;color:#22714b;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}h1,h2,p{margin:0}h1{font-size:42px}.intro{margin:12px 0 24px;color:#657168}.list{display:grid;gap:12px}.key{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px}.key p,.key small{display:block;margin-top:5px;color:#6b766f}.actions{display:flex;align-items:center;gap:8px}.actions span{color:#22714b;font-size:12px;font-weight:750}.add{display:flex;align-items:flex-start;flex-direction:column;gap:14px;margin-top:22px;padding:24px}label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700}input{min-width:260px;padding:10px;border:1px solid #cad4cd;border-radius:8px;font:inherit}button{padding:9px 12px;border:0;border-radius:8px;background:#17633f;color:white;font:inherit;font-weight:750;cursor:pointer}button.secondary,.actions button{border:1px solid #cad4cd;background:white;color:#355143}button.danger{color:#9d3232}.add button.danger{background:#9d3232;color:white}button:disabled{cursor:not-allowed;opacity:.45}.add small,.add p{color:#657168}@media(max-width:650px){.heading,.key{align-items:flex-start;flex-direction:column}.actions{flex-wrap:wrap}input{min-width:0;width:100%}}
 </style>

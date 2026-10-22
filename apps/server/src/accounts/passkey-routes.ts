@@ -61,6 +61,24 @@ export function registerPasskeyRoutes(app:Hono,passkeys:PasskeyAuth,accounts:Acc
     if(Object.keys(value).length===2&&value.revoke===true)return passkeys.revoke(session,value.credentialId);
     throw new PasskeyError(400);
   }));
+  app.post("/api/v1/auth/passkeys/sessions/revoke",context=>run(context,async()=>{
+    const session=await accounts.authenticate(context.req.header("Authorization"),getCookie(context,COOKIE));
+    if(!session)throw new PasskeyError(401);
+    const result=await passkeys.revokeSessions(session);
+    deleteCookie(context,COOKIE,{secure:passkeys.origin.startsWith("https://"),path:"/"});
+    return result;
+  }));
+  app.post("/api/v1/auth/passkeys/recovery/options",context=>run(context,async()=>{
+    const value=await input(context.req.raw);
+    if(Object.keys(value).length!==1||typeof value.token!=="string")throw new PasskeyError(400);
+    return passkeys.recoveryOptions(value.token);
+  }));
+  app.post("/api/v1/auth/passkeys/recovery",context=>run(context,async()=>{
+    const value=await input(context.req.raw);
+    if(Object.keys(value).length!==4||typeof value.token!=="string"||typeof value.challengeId!=="string"||
+      typeof value.label!=="string"||!value.response||typeof value.response!=="object"||Array.isArray(value.response))throw new PasskeyError(400);
+    return passkeys.recover(value.token,value.challengeId,value.response as RegistrationResponseJSON,value.label);
+  }));
   app.post("/api/v1/auth/passkeys/authentication/options",context=>run(context,()=>passkeys.authenticationOptions()));
   app.post("/api/v1/auth/passkeys/authentication",context=>run(context,async()=>{
     const value=await input(context.req.raw);

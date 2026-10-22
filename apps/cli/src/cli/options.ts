@@ -23,6 +23,7 @@ const commands = [
   ["account show", "", "", "", true, "Read the selected account and current credential metadata."],
   ["account create", "", "provider address custody vault state credentials backup-verified", "monitor-origin monitor-key monitor-attestation", false, "Resumable owner-signed signup; public mode pauses for reviewed monitor enrollment."],
   ["account login", "", "provider did signer vault state credentials scope", "", false, "Issue fresh access using explicit identity or owner-recovery proof."],
+  ["account passkey-recover", "", "provider did signer vault state output", "", false, "Create one private short-lived passkey enrollment file using explicit owner proof."],
   ["account transfer offer", "", "destination vault state", "", true, "Sign/review one exact destination Offer with identity only."],
   ["account transfer status", "", "", "", true, "Read retained source transfer state; expiry never releases a fence."],
   ["account transfer select", "", "username vault state", "", true, "Reserve an address; this can fence the source and block normal writes."],
@@ -122,7 +123,7 @@ export function parseCommand(args: string[]) {
   if (name === "account create" && !["owner-controlled", "managed"].includes(values.custody!)) throw new CliError("USAGE_ERROR", "Select owner-controlled or managed custody");
   if (name === "account create" && Boolean(values["monitor-origin"]) !== Boolean(values["monitor-key"])) throw new CliError("USAGE_ERROR", "Use --monitor-origin and --monitor-key together");
   if (name === "account create" && values["monitor-attestation"] && !values["monitor-key"]) throw new CliError("USAGE_ERROR", "Monitor attestation requires monitor origin/key");
-  if (name === "account login" && !["identity", "owner-recovery"].includes(values.signer!)) throw new CliError("USAGE_ERROR", "Select identity or owner-recovery signer");
+  if (["account login","account passkey-recover"].includes(name) && !["identity", "owner-recovery"].includes(values.signer!)) throw new CliError("USAGE_ERROR", "Select identity or owner-recovery signer");
   for (const key of ["expires-at", "reply-until"] as const) if (values[key] !== undefined &&
     (!/^(0|[1-9][0-9]*)$/.test(values[key]) || !Number.isSafeInteger(Number(values[key])))) throw new CliError("USAGE_ERROR", `--${key} must be a safe Unix timestamp`);
   if (values["reply-until"] !== undefined && Number(values["reply-until"]) <= Math.floor(Date.now() / 1000) ||

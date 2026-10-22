@@ -45,7 +45,7 @@ export async function loginAccount(provider: string, did: string, signer: LoginS
     const challenge = state.challenge ?? await client.request("/prepare", { did, signer, publicKey, scopes, tokenHash }, "/api/v1/account-access") as unknown as AccountAccessChallenge;
     accountAccessInput(challenge);
     const now = Math.floor(Date.now() / 1000);
-    if (challenge.provider !== provider || challenge.did !== did || challenge.signer !== signer || challenge.publicKey !== publicKey ||
+    if (challenge.purpose!=="new-api-credential"||challenge.provider !== provider || challenge.did !== did || challenge.signer !== signer || challenge.publicKey !== publicKey ||
       challenge.tokenHash !== tokenHash || JSON.stringify(challenge.scopes) !== JSON.stringify(scopes) ||
       challenge.issuedAt > now + 30 || challenge.issuedAt < state.createdAt - 30 || challenge.expiresAt <= now) throw new Error("Challenge differs from the reviewed login or expired");
     state.challenge = challenge; await writeState(statePath, state);

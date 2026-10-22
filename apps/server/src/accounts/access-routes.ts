@@ -32,7 +32,7 @@ export function registerAccountAccess(app: Hono, access: AccountAccess, sql: SQL
     const { challengeId, token, signature } = input;
     const result = await schedule.run(signal => access.complete(challengeId, token, signature, signal));
     if (result.kind === "busy") { context.header("Retry-After", "1"); return context.json({ error: "Account access unavailable" }, 429); }
-    return result.kind === "detailed" ? context.json({ credential: result.value }) :
+    return result.kind === "detailed" ? context.json(result.value.type==="hailp.passkey-enrollment"?{enrollment:result.value}:{credential:result.value}) :
       context.json({ error: "Account access unavailable; retain state" }, 401);
   });
 }
