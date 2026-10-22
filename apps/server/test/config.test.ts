@@ -76,12 +76,17 @@ describe("loadConfig", () => {
 
   it("defaults public managed transfer off and rejects incompatible production declarations before I/O",()=>{
     const publicManaged={...publicEnvironment,NODE_ENV:"production",PUBLIC_MANAGED_TRANSFER:"true",
-      PLC_PROVIDER_OPERATORS:'["provider-a","provider-b"]',PLC_MANAGED_MONITOR_ORIGIN:"https://monitor.example.com",
+      PLC_MANAGED_MONITOR_ORIGIN:"https://monitor.example.com",
       PLC_MANAGED_MONITOR_PUBLIC_KEY:`did:key:${base58btc.encode(new Uint8Array([0xed,1,...new Uint8Array(32)]))}`};
     expect(loadConfig(publicEnvironment).publicManagedTransfer).toBeUndefined();
-    expect(loadConfig(publicManaged).publicManagedTransfer?.monitorOrigin).toBe(publicManaged.PLC_MANAGED_MONITOR_ORIGIN);
+    const configured=loadConfig(publicManaged);
+    expect(configured.publicManagedTransfer?.monitorOrigin).toBe(publicManaged.PLC_MANAGED_MONITOR_ORIGIN);
+    const readers=configured.publicPlcAuthority!.readers.map(reader=>({...reader,resolver:{} as never,async audit(){return [];}}));
+    expect(createPublicManagedRuntime(configured,null as never,null as never,null as never,null as never,
+      {fetch,validateTarget:async()=>{}} as never,null as never,readers)).toBeDefined();
+    expect(loadConfig({...publicManaged,PUBLIC_SELF_SERVICE_ONBOARDING:"true"}).publicManagedTransfer).toBeDefined();
     for(const override of [{PUBLIC_MANAGED_TRANSFER:"yes"},{NODE_ENV:"test"},{PLC_DIRECTORY_URL:"http://plc:2582"},
-      {PLC_AUTHORITY_PROFILE:"poc"},{PLC_PROVIDER_OPERATORS:'["provider-a"]'},{PLC_MANAGED_MONITOR_ORIGIN:validEnvironment.PUBLIC_ORIGIN},
+      {PLC_AUTHORITY_PROFILE:"poc"},{PLC_MANAGED_MONITOR_ORIGIN:validEnvironment.PUBLIC_ORIGIN},
       {PLC_MANAGED_MONITOR_PUBLIC_KEY:"did:key:zInvalid"},...[
         "POC_MANAGED_TRANSFER","POC_ACCOUNT_ACCESS","POC_SELF_SERVICE_TRANSFER","POC_SELF_SERVICE_RETURN","POC_SELF_SERVICE_ONBOARDING","POC_SCHEMA_REHEARSAL",
       ].map(name=>({[name]:"true"}))])expect(()=>loadConfig({...publicManaged,...override})).toThrow();

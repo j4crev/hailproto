@@ -5,18 +5,21 @@ import type { SQL } from "bun";
 import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
 import { validateTransferManifest,type MigrationTransferService } from "./transfer.js";
 import { decodeSignedRecord,encodeSignedRecord } from "./wire.js";
-import type { PrivatePocPlcSubmission } from "./poc-plc-submission.js";
-import type { PrivatePocAddressPublication } from "./poc-address-publication.js";
+import type { PortablePlcSubmission } from "./poc-plc-submission.js";
+import type { PortableAddressPublication } from "./poc-address-publication.js";
 import type { PortableMigrationActivation } from "./activation.js";
 
-export class PrivatePocTransferCompletion {
+export class PortableTransferCompletion {
   constructor(private readonly sql:SQL,private readonly imports:Pick<MigrationTransferService,"stageImport">,
-    private readonly submission:Pick<PrivatePocPlcSubmission,"submit">,private readonly publication:Pick<PrivatePocAddressPublication,"publish">,
-    private readonly activation:Pick<PortableMigrationActivation,"activate"|"issueReceipt">,private readonly serviceBase:string){}
+    private readonly submission:Pick<PortablePlcSubmission,"submit">,private readonly publication:Pick<PortableAddressPublication,"publish">,
+    private readonly activation:Pick<PortableMigrationActivation,"activate"|"issueReceipt">,private readonly serviceBase:string,
+    private readonly profile:"public"|"private-poc"="public"){}
 
   async complete(input:unknown) {
-    if(!input||typeof input!=="object"||Array.isArray(input)||Object.keys(input).sort().join(",")!=="binding,consent,operation,snapshot")throw new Error("Invalid completion envelope");
+    if(!input||typeof input!=="object"||Array.isArray(input)||Object.keys(input).sort().join(",")!==
+      (this.profile==="public"&&"monitor" in input?"binding,consent,monitor,operation,snapshot":"binding,consent,operation,snapshot"))throw new Error("Invalid completion envelope");
     const row=input as Record<string,unknown>,snapshot=row.snapshot as Record<string,unknown>;
+    const monitor=this.profile==="public"&&"monitor" in row?decodeSignedRecord(row.monitor):undefined;
     if(!snapshot||typeof snapshot!=="object"||Object.keys(snapshot).sort().join(",")!=="digest,manifest,signature,sourceMessagingPublicKey,type,version"||
       snapshot.type!=="hail.portable-migration-transfer"||![2,3].includes(snapshot.version as number)||typeof snapshot.sourceMessagingPublicKey!=="string")throw new Error("Invalid source snapshot");
     const decode=(value:unknown,max:number)=>{if(typeof value!=="string")throw new Error("Invalid transfer bytes");const bytes=decodeBase64Url(value);
@@ -25,7 +28,8 @@ export class PrivatePocTransferCompletion {
     if(digest.length!==32||signature.length!==64)throw new Error("Invalid snapshot signature/digest length");
     const manifest=validateTransferManifest(bytes),consent=decodeSignedRecord(row.consent),operation=decode(row.operation,16000),binding=decode(row.binding,16384);
     if(snapshot.version!==manifest.version)throw new Error("Snapshot container and manifest versions differ");
-    if(manifest.destinationServiceBase!==this.serviceBase||manifest.tables.portable_custody_evidence[0]?.monitor_verification_mode!=="poc-local")throw new Error("Completion requires this private-POC destination");
+    if(manifest.destinationServiceBase!==this.serviceBase||manifest.tables.portable_custody_evidence[0]?.monitor_verification_mode!==
+      (this.profile==="public"?"independent":"poc-local"))throw new Error("Completion authority profile does not match this destination");
     const retained=await this.sql<{state:string;manifest_bytes:Uint8Array;manifest_digest:Uint8Array;signature:Uint8Array;source_messaging_public_key:string;
       user_consent_payload:Uint8Array;user_consent_signature:Uint8Array;signed_plc_operation_bytes:Uint8Array;destination_binding_cose:Uint8Array}[]>`
       SELECT state,manifest_bytes,manifest_digest,signature,source_messaging_public_key,user_consent_payload,user_consent_signature,
@@ -38,9 +42,20 @@ export class PrivatePocTransferCompletion {
         !same(prior.user_consent_signature,consent.signature)||!same(prior.signed_plc_operation_bytes,operation)||!same(prior.destination_binding_cose,binding))throw new Error("Completion conflicts with retained signed artifacts");
     }else await this.imports.stageImport({bytes,digest,signature,sourceMessagingPublicKey:snapshot.sourceMessagingPublicKey},consent,operation,binding);
     const operationCid=(await cidForCbor(def.operation.parse(parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(operation))))).toString();
-    if(prior?.state!=="active") {await this.submission.submit(manifest.transferId);await this.publication.publish(manifest.transferId);}
-    const activated=await this.activation.activate(manifest.transferId),receipt=await this.activation.issueReceipt(manifest.transferId);
+    if(prior?.state!=="active") {
+      if(await this.submission.submit(manifest.transferId)!==operationCid)throw new Error("Configured PLC retained another operation");
+      if(this.profile==="public"&&!monitor)return {type:"hailp.transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
+        transferId:manifest.transferId,operationCid,phase:"awaiting-monitor"};
+      await this.publication.publish(manifest.transferId,monitor);
+    }
+    const activated=await this.activation.activate(manifest.transferId,monitor),receipt=await this.activation.issueReceipt(manifest.transferId);
     return {type:"hailp.transfer-completion",version:1,did:activated.did,accountId:activated.accountId,transferId:manifest.transferId,
       operationCid,phase:"active",receipt:encodeSignedRecord(receipt)};
   }
+}
+
+export class PrivatePocTransferCompletion extends PortableTransferCompletion {
+  constructor(sql:SQL,imports:Pick<MigrationTransferService,"stageImport">,submission:Pick<PortablePlcSubmission,"submit">,
+    publication:Pick<PortableAddressPublication,"publish">,activation:Pick<PortableMigrationActivation,"activate"|"issueReceipt">,
+    serviceBase:string) {super(sql,imports,submission,publication,activation,serviceBase,"private-poc");}
 }

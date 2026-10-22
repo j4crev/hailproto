@@ -18,9 +18,11 @@ profile.
 The default reader is canonical `https://plc.directory`. An operator may instead
 configure one to three ordered canonical HTTPS DNS reader origins; the first is
 the primary and later entries are availability fallbacks. Record their operator
-identifiers and the source/destination provider operators to reject obvious
-same-host or same-operator mistakes. These declarations are operational metadata,
-not cryptographic proof of administrative independence or reader participation.
+identifiers and the local provider operator to reject obvious same-host or
+same-operator mistakes. Each provider performs this check independently; the
+policy does not require a global provider registry or a configured peer before a
+transfer exists. These declarations are operational metadata, not cryptographic
+proof of administrative independence or reader participation.
 Construct readers through `createIndependentPlcObserver(origin, operator)` so
 their bounded, redirect-rejecting, credential-free transport actually uses the
 declared origin. Source registration evidence must name the canonical public
@@ -119,7 +121,9 @@ any new resolution/action evidence exists.
 this candidate policy only with canonical
 `PLC_DIRECTORY_URL=https://plc.directory`. The existing POC profile remains the
 default. Optional `PLC_PUBLIC_READERS` JSON replaces the canonical default with
-one to three ordered read sources. Normal server/worker/operator paths and address discovery share the
+one to three ordered read sources. `PLC_PROVIDER_OPERATORS` identifies the local
+deployment operator(s), not every possible transfer peer. Normal
+server/worker/operator paths and address discovery share the
 factory; explicitly private-POC tools remain pinned to their private registry.
 Prototype custodial onboarding and local/public activation tools refuse the
 strict profile rather than substituting for the missing owner/monitor ceremony.

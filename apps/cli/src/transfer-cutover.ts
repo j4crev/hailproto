@@ -58,7 +58,7 @@ const secret = decodeBase64Url(await recoveryInput());
 try {
   const vault = JSON.parse(new TextDecoder().decode(await privateFile(vaultPath, 16_384))) as UserVaultFile;
   const user = await unlockUserVault(vault, secret);
-  if (!vault.did) throw new Error("POC cutover needs a vault bound to the original private-PLC DID");
+  if (!vault.did) throw new Error("Cutover needs a vault bound to the original DID");
   const snapshot = data(await privateFile(snapshotPath, 100_000_000));
   const verified=await verifyTransferSnapshot(snapshot),digest=verified.digest;
   const manifest = verified.manifest as {
@@ -73,10 +73,10 @@ try {
   const custody = manifest.tables.portable_custody_evidence[0];
   const oldKey = manifest.tables.account_keys.find((item) => item.role === "plc-rotation")?.public_key;
   const evidence = manifest.tables.plc_operation_evidence.at(-1);
-  if (manifest.did !== vault.did || !custody || custody.monitor_verification_mode !== "poc-local" ||
+  if (manifest.did !== vault.did || !custody || !["poc-local","independent"].includes(custody.monitor_verification_mode) ||
     custody.user_identity_public_key !== vault.identity.publicDidKey ||
     custody.user_recovery_public_key !== vault.recovery.publicDidKey || !oldKey || !evidence) {
-    throw new Error("POC snapshot is not for this user-held recovery and identity key");
+    throw new Error("Snapshot is not for this user-held recovery and identity key");
   }
   const prior = (typeof evidence.expected_state === "string" ?
     JSON.parse(evidence.expected_state) : evidence.expected_state) as {
@@ -211,6 +211,6 @@ try {
       expires_at: now + 90 * 86400, key_id: `${vault.did}#hail-identity` }));
   }
   return { did: vault.did, transferId: manifest.transferId,
-    address: receipt.address, operationCid, profile: "private-poc" };
+    address: receipt.address, operationCid, profile: custody.monitor_verification_mode === "independent" ? "public" : "private-poc" };
 } finally { secret.fill(0); }
 }

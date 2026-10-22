@@ -24,8 +24,8 @@ export function createPublicManagedRuntime(config:AppConfig,sql:SQL,plc:PlcDirec
   verifier:AddressVerificationService,readers?:readonly IndependentPlcObserver[]) {
   if(!config.publicManagedTransfer)return undefined;
   if(config.nodeEnv!=="production"||config.plcDirectoryUrl!=="https://plc.directory"||
-    config.publicPlcAuthority?.profile!=="strict-public-v1"||config.pocManagedTransfer||
-    config.publicPlcAuthority.providerOperators.length!==2)throw new Error("Public managed runtime requires production strict public authority without the private gate");
+    config.publicPlcAuthority?.profile!=="strict-public-v1"||config.pocManagedTransfer)
+    throw new Error("Public managed runtime requires production strict public authority without the private gate");
   const policy=config.publicPlcAuthority;
   const observers=readers??policy.readers.map(reader=>createIndependentPlcObserver(reader.origin,reader.operator));
   assertPublicPlcReaders(observers,policy.providerOperators,[config.publicOrigin]);

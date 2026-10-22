@@ -5,16 +5,19 @@ import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import type { HailDidResolver } from "../plc/resolver.js";
 import { PrivatePocCutoverGate } from "./poc-cutover-gate.js";
 import { assertPrivatePocRegistry } from "./poc-profile.js";
+import type {SignedMonitorAttestation} from "./monitor-attestation.js";
+import type {PortableCutoverGate} from "./cutover-gate.js";
 
-export class PrivatePocAddressPublication {
+export class PortableAddressPublication {
   constructor(private readonly sql: SQL, private readonly resolver: HailDidResolver,
-    private readonly gate: PrivatePocCutoverGate,
-    registryOrigin: string, private readonly serviceBase: string) {
-    assertPrivatePocRegistry(registryOrigin, serviceBase);
+    private readonly gate: Pick<PrivatePocCutoverGate|PortableCutoverGate,"assess">,
+    registryOrigin: string, private readonly serviceBase: string,
+    private readonly profile:"public"|"private-poc"="public") {
+    if(profile==="private-poc")assertPrivatePocRegistry(registryOrigin,serviceBase);
+    else if(registryOrigin!=="https://plc.directory")throw new Error("Public transfer requires the canonical PLC registry");
   }
 
-  async publish(transferId: string): Promise<string> {
-    const assessment = await this.gate.assess(transferId);
+  async publish(transferId: string,signedMonitor?:SignedMonitorAttestation): Promise<string> {
     const pending = await this.sql<{ did: string; destination_address: string;
       destination_binding_cose: Uint8Array; destination_binding_digest: Uint8Array;
       state: string }[]>`
@@ -22,11 +25,11 @@ export class PrivatePocAddressPublication {
         destination_binding_digest, state FROM pending_migration_imports
       WHERE transfer_id = ${transferId}`;
     const row = pending[0];
-    if (!row || row.state !== "staged") throw new Error("Only an inactive POC import can publish its address");
+    if (!row || row.state !== "staged") throw new Error("Only an inactive import can publish its address");
     const resolved = await this.resolver.resolve(row.did);
-    if (resolved.did !== row.did || resolved.serviceBase !== this.serviceBase ||
-      assessment.operationCid !== (await this.gate.assess(transferId)).operationCid) {
-      throw new Error("Private PLC no longer designates the pending target");
+    await this.gate.assess(transferId,signedMonitor);
+    if (resolved.did !== row.did || resolved.serviceBase !== this.serviceBase) {
+      throw new Error("PLC no longer designates the pending target");
     }
     const checked = await verifySignedPayload("hail.address-binding", row.destination_binding_cose,
       createWebCryptoVerifier(async (kid) => {
@@ -38,7 +41,7 @@ export class PrivatePocAddressPublication {
     if (binding.address !== row.destination_address || binding.did !== row.did ||
       binding.expires_at <= Math.floor(Date.now() / 1000) ||
       !Buffer.from(digest).equals(Buffer.from(row.destination_binding_digest))) {
-      throw new Error("POC address selection does not match the signed target binding");
+      throw new Error("Address selection does not match the signed target binding");
     }
     return this.sql.begin(async (tx) => {
       const current=await tx<{state:string}[]>`SELECT state FROM pending_migration_imports WHERE transfer_id=${transferId} FOR UPDATE`;
@@ -50,14 +53,14 @@ export class PrivatePocAddressPublication {
       const reservation = reservations[0];
       if (!reservation?.reserved_account_id || reservation.state !== "submitted" ||
         reservation.canonical_address !== row.destination_address) {
-        throw new Error("POC address was not durably reserved before source fencing");
+        throw new Error("Address was not durably reserved before source fencing");
       }
       const existing = await tx<{ id: string; cose: Uint8Array }[]>`
         SELECT id, cose FROM address_bindings WHERE account_id = ${reservation.reserved_account_id}
           AND canonical_address = ${row.destination_address} FOR UPDATE`;
       if (existing[0]) {
         if (!Buffer.from(existing[0].cose).equals(Buffer.from(row.destination_binding_cose))) {
-          throw new Error("POC pending address was published with another binding");
+          throw new Error("Pending address was published with another binding");
         }
         return existing[0].id;
       }
@@ -71,5 +74,11 @@ export class PrivatePocAddressPublication {
           clock_timestamp(), clock_timestamp(), clock_timestamp())`;
       return id;
     });
+  }
+}
+
+export class PrivatePocAddressPublication extends PortableAddressPublication {
+  constructor(sql:SQL,resolver:HailDidResolver,gate:PrivatePocCutoverGate,registryOrigin:string,serviceBase:string) {
+    super(sql,resolver,gate,registryOrigin,serviceBase,"private-poc");
   }
 }

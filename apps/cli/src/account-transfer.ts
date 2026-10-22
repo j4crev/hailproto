@@ -240,7 +240,7 @@ export async function signAccountTransferCutover(vaultPath:string,path:string,sn
   state.cutover.operationCid=result.operationCid;await writeState(path,state);return result;
 }
 
-export async function completeAccountTransfer(path:string,snapshotPath:string,transport:typeof fetch=fetch) {
+export async function completeAccountTransfer(path:string,snapshotPath:string,transport:typeof fetch=fetch,monitorPath?:string) {
   const state=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(path,32768))) as State;
   if(state.type!=="hailp.account-transfer"||state.version!==1||!state.cutover?.operationCid)throw new Error("Completion requires the original completed cutover-signing state");
   const {offer,reservation}=await retainedSelection(state),snapshot=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(snapshotPath,100000000)));
@@ -261,10 +261,14 @@ export async function completeAccountTransfer(path:string,snapshotPath:string,tr
     !equal(value.snapshot_digest,verified.digest)||!equal(value.plc_operation_sha256,sha(new Uint8Array(dagCbor.encode(operation))))||
     !Number.isSafeInteger(value.created_at)||!Number.isSafeInteger(value.expires_at)||value.expires_at<=value.created_at||value.expires_at-value.created_at>604800||
     !equal(consentBytes,encodeDeterministic(value)))throw new Error("Completion consent differs from the retained cutover");
-  const response=await targetRequest(state.destination,"completions",{snapshot,consent,operation:encodeBase64Url(operationBytes),binding:encodeBase64Url(binding)},transport);
+  const monitor=monitorPath?record(JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(monitorPath,16384)))):undefined;
+  const response=await targetRequest(state.destination,"completions",{snapshot,consent,operation:encodeBase64Url(operationBytes),binding:encodeBase64Url(binding),
+    ...(monitor?{monitor}:{})},transport);
   const result=response.record as Record<string,unknown>;
   if(!result||result.type!=="hailp.transfer-completion"||result.version!==1||result.did!==state.did||result.accountId!==state.accountId||result.transferId!==offer.transfer_id||
-    result.operationCid!==operationCid||result.phase!=="active")throw new Error("Destination did not confirm the retained exact transfer");
+    result.operationCid!==operationCid||!["awaiting-monitor","active"].includes(result.phase as string))throw new Error("Destination did not confirm the retained exact transfer");
+  if(result.phase==="awaiting-monitor")return {did:state.did,transferId:offer.transfer_id,operationCid,phase:"awaiting-monitor",pending:true,
+    monitorRequired:true,stateFile:path};
   const receipt=record(result.receipt),receiptBytes=decodeBase64Url(receipt.payload);
   await verifySignature("hail.portable-migration-activated.v1",receiptBytes,decodeBase64Url(receipt.signature),offer.destination_messaging_key);
   const activated=decodeDeterministic(receiptBytes) as Record<string,any>;

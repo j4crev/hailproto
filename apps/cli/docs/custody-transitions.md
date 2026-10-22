@@ -326,8 +326,9 @@ readable but cannot be promoted to strict-public evidence.
 
 The second item completed October 13, 2026, in private/injected fixtures only.
 `PUBLIC_MANAGED_TRANSFER` is off by default and requires production strict public
-authority, two reviewed readers, both provider operator declarations and a pinned
-independent monitor. It rejects private-POC gates. The public runtime uses full
+authority, reviewed readers, the local provider operator declaration and a pinned
+independent monitor. It rejects private-POC gates but may run alongside public
+onboarding. The public runtime uses full
 public cutover evidence and seals its selection atomically with activation; the
 private runtime and registry guards remain separate and unchanged.
 

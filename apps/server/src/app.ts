@@ -35,7 +35,7 @@ import type { SameProviderCustodyTransition } from "./accounts/custody-transitio
 import type { SQL } from "bun";
 import type { AccountBinding } from "./accounts/binding.js";
 import type { AccountTransfer } from "./accounts/transfer.js";
-import type { PrivatePocTransferCompletion } from "./migration/poc-completion.js";
+import type { PortableTransferCompletion } from "./migration/poc-completion.js";
 import type { ManagedTransferInvitationReceiver } from "./migration/managed-invitation-receiver.js";
 import type { ManagedTransferAddressReservation } from "./migration/managed-address-selection.js";
 import type { ManagedTransferFencePublisher } from "./migration/managed-fence-publisher.js";
@@ -67,7 +67,7 @@ export interface AppDependencies {
   transferRateLimit?: TransferRateLimit;
   transferCancellation?: TransferCancellationService;
   transferCancellationReceiver?: TransferCancellationReceiver;
-  transferCompletion?:PrivatePocTransferCompletion;
+  transferCompletion?:PortableTransferCompletion;
   managedTransferInvitationReceiver?:ManagedTransferInvitationReceiver;
   managedTransferAddressReservation?:ManagedTransferAddressReservation;
   managedTransferFencePublisher?:ManagedTransferFencePublisher;

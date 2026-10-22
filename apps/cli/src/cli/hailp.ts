@@ -54,7 +54,7 @@ try {
       }
     } else if(group==="account"&&command==="transfer") {
       if(argument==="complete") {
-        printResult(await completeAccountTransfer(values.state!,values.snapshot!));
+        printResult(await completeAccountTransfer(values.state!,values.snapshot!,fetch,values["monitor-attestation"]));
       }else if(argument==="sign-cutover") {
         printResult(await signAccountTransferCutover(values.vault!,values.state!,values.snapshot!,values.consent!,values.operation!,values.binding!));
       }else{

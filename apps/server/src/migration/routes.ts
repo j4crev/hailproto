@@ -7,7 +7,7 @@ import type { TransferGrantSubmission } from "./grant-submission.js";
 import type { TransferRateLimit } from "./rate-limit.js";
 import type { TransferCancellationService } from "./cancellation.js";
 import type { TransferCancellationReceiver } from "./cancellation-receiver.js";
-import type { PrivatePocTransferCompletion } from "./poc-completion.js";
+import type { PortableTransferCompletion } from "./poc-completion.js";
 import type { ManagedTransferInvitationReceiver } from "./managed-invitation-receiver.js";
 import type { ManagedTransferAddressReservation } from "./managed-address-selection.js";
 import type { ManagedTransferFencePublisher } from "./managed-fence-publisher.js";
@@ -95,7 +95,7 @@ export function registerTransferRoutes(app: Hono, receiver: TransferInvitationRe
   publisher?: Pick<TransferFinalRequestPublisher, "publish">,
   grantSubmission?: TransferGrantSubmission, rateLimit?: TransferRateLimit,
   cancellation?: TransferCancellationService,
-  cancellationReceiver?: TransferCancellationReceiver,completion?:PrivatePocTransferCompletion): void {
+  cancellationReceiver?: TransferCancellationReceiver,completion?:PortableTransferCompletion): void {
   if(completion) {
     app.post("/.well-known/hail/transfers/completions",async context=>{
       if(rateLimit&&!await rateLimit.admit("request"))return new Response(null,{status:429});

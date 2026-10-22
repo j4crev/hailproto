@@ -7,10 +7,12 @@ import { assertPrivatePocRegistry } from "./poc-profile.js";
 import { validateTransferManifest } from "./transfer.js";
 import { verifyPortableMigrationConsent } from "./consent.js";
 
-export class PrivatePocPlcSubmission {
+export class PortablePlcSubmission {
   constructor(private readonly sql: SQL, private readonly plc: PlcDirectoryClient,
-    registryOrigin: string, serviceBase: string) {
-    assertPrivatePocRegistry(registryOrigin, serviceBase);
+    registryOrigin: string, serviceBase: string,
+    private readonly profile:"public"|"private-poc"="public") {
+    if(profile==="private-poc")assertPrivatePocRegistry(registryOrigin,serviceBase);
+    else if(registryOrigin!=="https://plc.directory")throw new Error("Public transfer requires the canonical PLC registry");
   }
 
   async submit(transferId: string): Promise<string> {
@@ -21,11 +23,12 @@ export class PrivatePocPlcSubmission {
       SELECT did, state, manifest_bytes, signed_plc_operation_bytes,user_consent_payload,user_consent_signature,user_identity_public_key
       FROM pending_migration_imports WHERE transfer_id = ${transferId} FOR UPDATE`;
     const row = rows[0];
-    if (!row || row.state !== "staged") throw new Error("POC PLC write requires an inactive staged import");
+    if (!row || row.state !== "staged") throw new Error("PLC write requires an inactive staged import");
     const manifest = validateTransferManifest(row.manifest_bytes);
     if (manifest.did !== row.did || manifest.transferId !== transferId ||
-      manifest.tables.portable_custody_evidence[0]?.monitor_verification_mode !== "poc-local") {
-      throw new Error("POC PLC submission cannot use public cutover custody");
+      manifest.tables.portable_custody_evidence[0]?.monitor_verification_mode !==
+        (this.profile==="public"?"independent":"poc-local")) {
+      throw new Error("PLC submission does not match the configured authority profile");
     }
     const op = def.operation.parse(parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8", { fatal: true })
       .decode(row.signed_plc_operation_bytes)));
@@ -52,5 +55,11 @@ export class PrivatePocPlcSubmission {
     }
     return expectedCid;
     });
+  }
+}
+
+export class PrivatePocPlcSubmission extends PortablePlcSubmission {
+  constructor(sql:SQL,plc:PlcDirectoryClient,registryOrigin:string,serviceBase:string) {
+    super(sql,plc,registryOrigin,serviceBase,"private-poc");
   }
 }

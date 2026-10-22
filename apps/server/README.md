@@ -355,13 +355,17 @@ strict-public operation.
 The separate `PUBLIC_MANAGED_TRANSFER` runtime is **disabled by default**. It
 requires `NODE_ENV=production`, `PLC_DIRECTORY_URL=https://plc.directory`,
 `PLC_AUTHORITY_PROFILE=strict-public-v1`, one to three reviewed `PLC_PUBLIC_READERS`, and
-both source/destination operators in `PLC_PROVIDER_OPERATORS`. All private account
-access, onboarding, transfer, return and schema-rehearsal gates must be off.
+the local deployment operator in `PLC_PROVIDER_OPERATORS`. Each provider keeps
+its configured readers outside its own operator and origin; no peer registry or
+second provider declaration is required at startup. All private account access,
+onboarding, transfer, return and schema-rehearsal gates must be off. Public
+onboarding may remain enabled.
 `PLC_MANAGED_MONITOR_ORIGIN` and `PLC_MANAGED_MONITOR_PUBLIC_KEY` pin the independent
 HTTPS monitor and its Ed25519 `did:key`; orphan declarations fail startup. Enabling
 this flag is not permission to skip the remaining operational/public canary gates.
 
-This runtime wires owner-recovery account access, managed APIs/routes/workers,
+This runtime wires owner-recovery account access, owner-controlled and managed
+transfer APIs/routes/workers,
 and ordered validated reader fallback for routine resolution and public cutover.
 Public staging rejects private registration history before submission. Activation
 requires a reviewed bootstrap v2 monitor report, a fresh validated reader,
@@ -377,6 +381,10 @@ monitor observes that operation, retry the same snapshot/approval/operation with
 `monitor: {payload, signature}`. The pinned report may be refreshed without
 changing the owner-approved artifacts. The private endpoint still accepts only
 the original three-field request and never public monitor evidence.
+
+Owner-controlled completion uses the equivalent two-phase
+`/.well-known/hail/transfers/completions` flow. Retry `hailp account transfer complete` with
+`--monitor-attestation` after the monitor approves the exact operation.
 
 All implementation proof uses injected readers/PLC transport, including strict
 `A → B → A`, submission ambiguity, retries, monitor refusals, reader outages,

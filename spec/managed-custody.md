@@ -1,8 +1,8 @@
 # Hail Managed Identity Custody Profile v1
 
-Status: Frozen reference profile v1 — private-fixture review completed October 13,
-2026. This is not permission to enable public registration; deployment and
-public-environment gates remain. The
+Status: Frozen reference profile v1 — conformance review completed October 13,
+2026, with bounded public deployment evidence recorded separately. Enabling it
+still requires each deployment's public-environment and operational gates. The
 identifier `hail-managed-custody-v1` names this custody profile, not a new Hail
 wire object, COSE algorithm, account API or PLC operation format.
 
@@ -125,8 +125,15 @@ proof. The reference provider implements both same-provider custody directions
 for acknowledged authoritative Grant predecessors, with fresh intended-party
 identity, exact owner approvals and atomic custody/generation cutover. An owner
 return never exports the provider key or promotes the unused managed-vault key.
-Unacknowledged/nullified history and cross-provider managed execution remain
-disabled pending equivalent proof.
+Unacknowledged/nullified history remains outside the supported transition set.
+Cross-provider managed execution uses exact owner-recovery approvals, immutable
+snapshot/export artifacts, fresh destination provider keys, canonical PLC
+readback and independent monitor evidence before activation. Its parallel fixed
+endpoints use the `/managed-invitations`, `/managed-reservations`,
+`/managed-requests`, `/managed-completions` and `/managed-retirements` path
+suffixes. Public completion first returns `awaiting-monitor`; retrying the exact
+snapshot, owner approval and PLC operation with a fresh attestation permits
+activation and a signed retirement receipt.
 
 ## Conformance cases and acceptance evidence
 
@@ -151,14 +158,14 @@ guards alone does not establish production or physical custody conformance.
 | MC-13 | Historical object audit and coordinated recovery | Prove nullified-branch classification, receipt reconciliation, never-active protective resumption and latest-state reverse transfer |
 | MC-14 | Independent infrastructure and restoration/load evidence | Prove cross-host ownership/accepted-state preservation, calibrated limits, recovery deadlines and backup restoration |
 
-Before production acceptance, resolve the four shared policies in
+Production acceptance still requires the deployment evidence in
 [DID profile — Before Production](did-profile.md#before-production): current
-authority/cache during recovery, independent mirrors/checkpoints/outages,
-historical evidence, and pending-window migration ownership/recovery. This draft
-does not settle those policies or label local POC evidence as independent proof.
+authority/cache during recovery, independent readers/checkpoints/outages,
+historical evidence, and pending-window migration ownership/recovery. Fixture
+evidence alone is never relabeled as independent proof.
 
-The next [read-evidence policy candidate](plc-read-evidence.md) and reference
-monitor migration 3 now cover full audit agreement, explicit reader/operator
-selection, reviewed bootstrap, contiguous catch-up and fresh v2 attestation for
-public cutover. These are local implementation parts of MC-07/MC-13; independent
-deployment and full production/historical evidence remain separate acceptance.
+The [read-evidence policy](plc-read-evidence.md) and reference monitor cover full
+audit agreement, explicit reader/operator selection, reviewed bootstrap,
+contiguous catch-up and fresh v2/v3 attestation for public cutover. These are
+implementation parts of MC-07/MC-13; each production deployment still supplies
+its own operational evidence.

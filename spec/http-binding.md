@@ -150,12 +150,10 @@ only to a caller whose signed selection authenticates the invited DID;
 implementations apply per-transfer rate limits and generic failures before
 authentication.
 
-This is a proposed production profile: final interoperable wire encoding,
-multi-host throttling policy, user-interface review, submitted-transfer
-recovery, and a real cross-provider deployment still need validation. The
-local prototype includes signed-grant submission, database-leased retries,
-and conservative pre-fence cancellation, but is not a production migration
-service.
+The v0 portable profile uses the fixed representations and paths above.
+Production deployments still own user-interface review and automatic handling
+of longer-lived submitted failures; those operational concerns do not change
+the signed transfer authority.
 
 #### User submission, retries, and pre-fence cancellation
 
@@ -193,14 +191,31 @@ selection may learn whether its requested username is unavailable. Pending
 sessions whose grant expired **before any final request was submitted** may
 be cleaned up without split-brain risk. A submitted-but-unacknowledged
 session requires the signed source no-fence receipt or coordinated rollback.
-Production still needs user-interface review, cross-provider deployment
-testing, and automatic handling of longer-lived submitted failures.
+Production deployments still need user-interface review and an operator-owned
+procedure for longer-lived submitted failures.
+
+#### Cutover completion and retirement
+
+After fencing, the source exports one immutable signed snapshot. The owner signs
+the exact PLC operation, migration consent and destination Address Binding. The
+client submits those retained artifacts to
+`POST https://{destination_domain}/.well-known/hail/transfers/completions`.
+Under the strict-public profile, the destination first stages the inactive
+import and submits only that owner-signed operation, then returns
+`phase: awaiting-monitor`. It does not publish the address or activate the
+account before a fresh independent monitor attestation covers the exact
+operation. The client retries the unchanged artifacts with that attestation;
+the destination publishes and externally verifies the binding, activates
+atomically with retained public cutover evidence, and returns a signed activation
+receipt. The client sends that receipt to the source retirement endpoint. Exact
+retries at every phase are idempotent; a missing response never authorizes new
+keys, operation bytes or consent.
 
 The category manifest is embedded in the signed Sender Profile and is not a separate retrieval operation.
 
 Status acknowledgement is the `204 No Content` response to `PushDeliveryStatus`. There is no separate acknowledgement request object, method, path, or signature.
 
-Body creation and publication are sender-local prerequisites, not federation requests. Missing grant revisions are retransmitted with `PublishGrantRevision`; grant acknowledgement is its synchronous HTTP result. Read/open receipts, bulk submission, campaign status, unsolicited contact requests, and provider state-transfer transport are outside this inventory or deferred.
+Body creation and publication are sender-local prerequisites, not federation requests. Missing grant revisions are retransmitted with `PublishGrantRevision`; grant acknowledgement is its synchronous HTTP result. Read/open receipts, bulk submission, campaign status and unsolicited contact requests are outside this inventory or deferred.
 
 ## Sender Profile Retrieval Binding
 

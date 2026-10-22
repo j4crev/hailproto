@@ -75,8 +75,8 @@ cross-host restoration and managed-transfer throttle/size boundaries.
   though routine operations load only the identity key.
 - API credentials are provider-local and expire; rotate them while valid or use
   explicit owner-proof login.
-- Managed provider transfer and automated post-export rollback are not public
-  CLI workflows.
+- Owner-controlled and managed provider transfer are public two-phase CLI
+  workflows; automated post-export rollback remains operator-driven.
 - The reference CLI has no finished consumer review UI or automatic provider
   discovery.
 

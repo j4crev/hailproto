@@ -304,8 +304,11 @@ hailp account login --provider https://destination.example --did "$did" \
 ```
 
 Completion uses retained artifacts and requires neither a bearer credential nor
-a vault unlock. Repeat it after an ambiguous response. Fresh destination login
-creates a destination-local credential; the source token is never copied.
+a vault unlock. Public completion first returns `awaiting-monitor`; obtain the
+exact-operation monitor attestation and repeat the command with
+`--monitor-attestation /secure/account/monitor-attestation.json`. Repeat it after
+an ambiguous response. Fresh destination login creates a destination-local
+credential; the source token is never copied.
 
 Returning to a former provider uses the same five steps with a fresh transfer
 state and username. It is a new forward transfer, not reopening old provider

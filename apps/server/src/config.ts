@@ -136,9 +136,9 @@ export function loadConfig(environment: Environment = Bun.env): AppConfig {
   let publicManagedTransfer:AppConfig["publicManagedTransfer"];
   if(publicGate==="true") {
     if(nodeEnv!=="production"||plcDirectoryUrl!=="https://plc.directory"||!publicPlcAuthority||
-      publicPlcAuthority.providerOperators.length!==2||pocManagedTransfer||
+      pocManagedTransfer||
       ["POC_ACCOUNT_ACCESS","POC_SELF_SERVICE_TRANSFER","POC_SELF_SERVICE_RETURN","POC_SELF_SERVICE_ONBOARDING","POC_SCHEMA_REHEARSAL"]
-        .some(name=>environment[name]==="true"))throw new Error("Public managed transfer requires production strict public authority, both provider operators, and no private-POC gates");
+        .some(name=>environment[name]==="true"))throw new Error("Public managed transfer requires production strict public authority and no private-POC gates");
     const monitorOrigin=required(environment,"PLC_MANAGED_MONITOR_ORIGIN"),monitorPublicKey=required(environment,"PLC_MANAGED_MONITOR_PUBLIC_KEY");
     if(!canonicalPlcReadOrigin(monitorOrigin)||new URL(monitorOrigin).hostname===publicOriginUrl.hostname||
       !/^did:key:z[1-9A-HJ-NP-Za-km-z]{1,128}$/.test(monitorPublicKey))throw new Error("Public managed transfer requires a pinned independent HTTPS monitor and Ed25519 key");

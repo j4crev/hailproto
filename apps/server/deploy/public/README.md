@@ -30,8 +30,10 @@ reboot.
 
 Run the command separately for `DB_PASSWORD` and `KEY_ENCRYPTION_KEY`; never
 reuse them. Keep `PUBLIC_SELF_SERVICE_ONBOARDING=false` until the reviewed
-monitor, backup and abuse controls are ready. `PUBLIC_MANAGED_TRANSFER` is fixed
-off by this profile.
+monitor, backup and abuse controls are ready. Provider transfer defaults off;
+enable it with `PUBLIC_MANAGED_TRANSFER=true` plus the pinned
+`PLC_MANAGED_MONITOR_ORIGIN` and `PLC_MANAGED_MONITOR_PUBLIC_KEY`. Public
+onboarding may remain enabled at the same time.
 
 ## Validate and start
 

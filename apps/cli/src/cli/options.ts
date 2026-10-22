@@ -29,7 +29,7 @@ const commands = [
   ["account transfer cancel", "", "vault state", "", true, "Sign pre-fence cancellation and obtain target cleanup acknowledgement."],
   ["account transfer export", "", "state output", "", true, "Advance a fenced source to exported and retain its immutable signed snapshot."],
   ["account transfer sign-cutover", "", "vault state snapshot consent operation binding", "", false, "Offline full-vault signing; retain the exact PLC operation, consent and binding."],
-  ["account transfer complete", "", "state snapshot", "", false, "Submit retained artifacts, activate destination and retire source; no bearer or key unlock."],
+  ["account transfer complete", "", "state snapshot", "monitor-attestation", false, "Submit retained artifacts, activate destination and retire source; public mode requires independent monitor evidence."],
   ["account managed-transfer offer", "", "destination vault state", "", true, "Owner-authorize a managed move and retain the exact destination Offer."],
   ["account managed-transfer status", "", "", "", true, "Read retained managed-transfer handshake state."],
   ["account managed-transfer select", "", "username vault state", "", true, "Owner-select and reserve the destination address; this can fence the source."],

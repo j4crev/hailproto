@@ -2,6 +2,10 @@
 
 Status: Frozen private-fixture review, October 13, 2026.
 
+Follow-on bounded public deployment and transfer evidence is recorded in
+[`apps/cli/docs/custody-transitions.md`](../apps/cli/docs/custody-transitions.md);
+it does not alter the frozen profile or retroactively relabel fixture evidence.
+
 This review fixes `hail-managed-custody-v1` and
 `hail.plc-read-evidence-v1`. It maps every MC case to executable reference
 evidence without promoting private PLC observations to public or independent

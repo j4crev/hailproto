@@ -46,10 +46,10 @@ import { assertPrivatePocRegistry } from "./migration/poc-profile.js";
 import { AccountBinding } from "./accounts/binding.js";
 import { AccountTransfer } from "./accounts/transfer.js";
 import { MigrationTransferService } from "./migration/transfer.js";
-import { PrivatePocTransferCompletion } from "./migration/poc-completion.js";
-import { PrivatePocPlcSubmission } from "./migration/poc-plc-submission.js";
+import { PortableTransferCompletion,PrivatePocTransferCompletion } from "./migration/poc-completion.js";
+import { PortablePlcSubmission,PrivatePocPlcSubmission } from "./migration/poc-plc-submission.js";
 import { PrivatePocCutoverGate } from "./migration/poc-cutover-gate.js";
-import { PrivatePocAddressPublication } from "./migration/poc-address-publication.js";
+import { PortableAddressPublication,PrivatePocAddressPublication } from "./migration/poc-address-publication.js";
 import { PortableMigrationActivation } from "./migration/activation.js";
 import {withFreshServingGenerations} from "./db/serving.js";
 import { SameProviderCustodyTransition } from "./accounts/custody-transition.js";
@@ -222,11 +222,20 @@ const checkReadiness = async () => {
   await Promise.all([database.ping(), plc.health()]);
   return { ready: true };
 };
-let transferCompletion:PrivatePocTransferCompletion|undefined;
+let transferCompletion:PortableTransferCompletion|undefined;
 if(process.env.PUBLIC_SELF_SERVICE_ONBOARDING==="true"&&process.env.POC_SELF_SERVICE_ONBOARDING==="true") {
   throw new Error("Public and private-POC self-service onboarding cannot be enabled together");
 }
-if(!schemaRehearsal&&process.env.POC_SELF_SERVICE_TRANSFER==="true") {
+if(!schemaRehearsal&&publicManaged) {
+  const gate=publicManaged.gate,publicResolver=publicManaged.resolver;
+  transferCompletion=new PortableTransferCompletion(database.sql,
+    new MigrationTransferService(database.sql,onboardingRepository,encryptor,publicResolver,config.hailServiceBase),
+    new PortablePlcSubmission(database.sql,plc,config.plcDirectoryUrl,config.hailServiceBase),
+    new PortableAddressPublication(database.sql,publicResolver,gate,config.plcDirectoryUrl,config.hailServiceBase),
+    new PortableMigrationActivation(database.sql,encryptor,publicResolver,gate,
+      new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,publicResolver),
+      config.hailServiceBase,config.plcDirectoryUrl),config.hailServiceBase);
+} else if(!schemaRehearsal&&process.env.POC_SELF_SERVICE_TRANSFER==="true") {
   const encryptor=new KeyEncryptor(config.keyEncryptionKey),gate=new PrivatePocCutoverGate(database.sql,
     {origin:config.plcDirectoryUrl,resolver,audit:did=>plc.getAuditableLog(did)},config.plcDirectoryUrl,config.hailServiceBase);
   transferCompletion=new PrivatePocTransferCompletion(database.sql,new MigrationTransferService(database.sql,onboardingRepository,encryptor,resolver,config.hailServiceBase,process.env.POC_SELF_SERVICE_RETURN==="true"),
@@ -259,7 +268,7 @@ const app = createApp(config, schemaRehearsal ? {
         throw new Error("Public custody transitions require production strict public PLC authority");
       return {custodyTransition:new SameProviderCustodyTransition(database.sql,plc,resolver,new KeyEncryptor(config.keyEncryptionKey),
         config.hailServiceBase,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver))};})():{}),
-    ...(process.env.POC_SELF_SERVICE_TRANSFER==="true"?{transfer:new AccountTransfer(database.sql,
+    ...(publicManaged||process.env.POC_SELF_SERVICE_TRANSFER==="true"?{transfer:new AccountTransfer(database.sql,
       new TransferGrantSubmission(database.sql,resolver,config.hailServiceBase,onboardingRepository,new KeyEncryptor(config.keyEncryptionKey),
         new TransferInvitationService(database.sql,resolver,config.hailServiceBase),invitationDelivery,transferRateLimit),
       new TransferCancellationService(database.sql,resolver,config.hailServiceBase,onboardingRepository,new KeyEncryptor(config.keyEncryptionKey)),config.publicOrigin,
