@@ -30,7 +30,7 @@
     "migration:export": "bun src/cli/export-migration.ts",
     "migration:stage": "bun src/cli/stage-migration.ts",
     "server": "bun src/index.ts",
-    "test": "bun --bun vitest run",
+    "test": "bun --bun vitest run --no-isolate",
     "test:plc-live": "bun --bun vitest run test/public-plc-live.test.ts",
     "test:integration": "bun --bun vitest run test/grant-repository.integration.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
