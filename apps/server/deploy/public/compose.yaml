@@ -98,7 +98,7 @@ services:
     networks: [edge]
 
   db:
-    image: postgres:14.4-alpine
+    image: postgres:14.24-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: hail

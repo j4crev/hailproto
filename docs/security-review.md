@@ -189,8 +189,8 @@ These do not establish an authentication bypass or an image-decoder exploit:
 
 ## Dependency advisories
 
-`bun audit` reported five advisories; these are dependency matches, **not five
-demonstrated remotely exploitable application vulnerabilities**:
+The initial `bun audit` reported five advisories; these were dependency matches,
+**not five demonstrated remotely exploitable application vulnerabilities**:
 
 | Package | Severity | Advisory / relevant exposure |
 | --- | --- | --- |
@@ -200,9 +200,11 @@ demonstrated remotely exploitable application vulnerabilities**:
 | `hono@4.13.9` | Moderate | GHSA-5r4p-p66f-jhc7; static-path double-decoding. Update to at least 4.13.11; no `serveStatic` use found in server application code. |
 | `cookie@0.6.0` | Low | GHSA-pxg6-pf52-xh8x; invalid cookie name/path/domain handling. No attacker-controlled cookie attributes established here. |
 
-Refresh the lockfile deliberately and rerun tests/builds; no automatic dependency
-changes were made. Also update the old `postgres:14.4-alpine` deployment pin to a
-supported patched release; container/OS vulnerability scanning was not performed.
+Applied: Hono 4.13.11, Vitest 5.0.5, source-map-js 1.2.2 and cookie 0.7.2 clear
+`bun audit`; tests, typechecks and the GUI build pass. Deployment pins now use
+PostgreSQL 14.24, the current final supported 14.x minor. PostgreSQL 14 reaches
+end of life in November 2026, so a separately rehearsed major upgrade remains
+required; container/OS vulnerability scanning was not performed.
 
 ## Tests, evidence, and limits
 

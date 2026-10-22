@@ -16,7 +16,7 @@ x-provider: &provider
     - private
 
 x-postgres: &postgres
-  image: postgres:14.4-alpine
+  image: postgres:14.24-alpine
   restart: unless-stopped
   shm_size: 128mb
   networks:
