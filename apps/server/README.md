@@ -10,15 +10,15 @@ strict-public provider.
 
 The public alpha runs three strict-public providers against canonical
 `plc.directory`. Independently hosted `haili.app` has a permanent
-owner-controlled canary; the disposable `hailproto.app` and `hailproto.dev`
-providers share another VPS. All three completed monitored onboarding, Sender
-Profile publication and reciprocal Grant delivery. The private-PLC POC remains
-available for destructive transfer/recovery rehearsals. Public managed transfer
-remains disabled.
+owner-controlled canary and enables public provider transfer; the disposable
+`hailproto.app` and `hailproto.dev` providers share another VPS and keep transfer
+disabled. All three completed monitored onboarding, Sender Profile publication
+and reciprocal Grant delivery. The private-PLC POC remains available for
+destructive transfer/recovery rehearsals.
 
 - [Single public-provider deployment profile](deploy/public/README.md).
 - [User-device vault/signing client](https://github.com/j4crev/hailproto/tree/main/apps/cli#readme).
-- [Transfer/recovery checkpoints](https://github.com/j4crev/hailproto/blob/main/docs/production-portable-custody.md#resuming-a-private-plc-poc-ceremony).
+- [Transfer/recovery checkpoints](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/custody-transitions.md#post-export-abandonment-and-recovery).
 - [Public monitor deployment](https://github.com/j4crev/hailproto/blob/main/apps/plc-monitor/deploy/public/README.md).
 
 Original private Alice/Bob identities remain historical POC fixtures. The public

@@ -1,7 +1,6 @@
 # Production Portable Custody And Provider Cutover
 
-Status: Design history and private-POC recovery guide. Dated implementation
-status below is preserved as historical context, not as the active roadmap.
+Status: Architecture, trust model and private-POC boundary guide.
 Use [`../apps/cli/docs/custody-transitions.md`](../apps/cli/docs/custody-transitions.md)
 for current production gates. The protocol specifications in `../spec` remain
 authoritative; a rule proposed here is not a federation requirement until its
@@ -27,7 +26,7 @@ check. The client-to-provider API and encrypted vault representation remain
 local implementation details, but these outcomes are mandatory under
 `spec/account-onboarding.md`.
 
-The current owner-controlled TypeScript desktop/Bun client is a **reference
+The current owner-controlled TypeScript/Bun client is a **reference
 implementation and test driver**, not a platform requirement. Mobile and other
 clients may use their own OS-backed keys and recovery user experience while
 producing the same signed objects under the selected custody profile's
@@ -128,35 +127,14 @@ identity-signed revision at the provider; owner-controlled revocation imports
 the owner's signed revision. Neither is the rejected unsigned local-blocking
 convenience. Revocation remains a signed terminal state transition in both.
 
-Custody changes and managed-account moves require a separate reviewed transition
-design. An old provider retaining a managed identity key must lose its current
-signing authority through rotation; predecessor Grants, bindings and historical
-key verification must remain consistent. The current portable snapshot path
-rejects provider-held identity keys and cannot be bypassed by changing a custody
-flag. Owner recovery is useful authority, not a completed migration guarantee.
-
-The reference client's [milestone-5 transition design](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/custody-transitions.md)
-now specifies owner-controlled ↔ managed custody changes, managed moves with
-fresh destination identity authority, immutable historical evidence and proposed
-serving-generation separation for return transfers. It also distinguishes
-never-active abandonment with protective owner-signed PLC state from an active
-destination's latest-state reverse transfer. These are implementation-design
-decisions, not enabled execution or a managed-profile specification amendment;
-historical-key reconciliation and positive return/recovery proofs remain gates.
-
-The managed production profile is an approved **design direction**. A local
-private-PLC prototype now implements explicit managed identity with owner-held
-recovery, self-service signup and signed Grant operations. It is not a
-deployed production profile. The current
-[onboarding draft](../spec/account-onboarding.md#production-portable-custody-profile)
-requires portable support and explicitly describes all-key custody only in its
-POC profile. A managed-profile specification/conformance update is required
-before claiming its production guarantees.
-
-Milestone 7 now has a [managed-profile v1 draft](../spec/managed-custody.md) with
-explicit key/owner authority, onboarding/retry rules and MC-01–MC-14 conformance
-cases. It is a candidate specification, not completed independent production
-evidence; public activation and identity-changing execution remain gated.
+Custody changes and managed-account moves must remove an old provider's current
+signing authority through rotation while preserving predecessor Grants, bindings
+and historical-key evidence. They cannot be implemented by changing a custody
+flag or importing old provider private keys. The reviewed transition lifecycle,
+return and abandonment rules live in
+[`custody-transitions.md`](../apps/cli/docs/custody-transitions.md); the managed
+profile and conformance requirements live in
+[`managed-custody.md`](../spec/managed-custody.md).
 
 ## API-First Provider And CLI Clients
 
@@ -166,13 +144,8 @@ interact directly with its authenticated account-management API. A normal
 account operation must not require SSH access, a provider-local administrator
 CLI, database credentials or direct database writes.
 
-**CLI name:** use `hailp` for the Hail-provided executable (`p` for Protocol),
-avoiding the existing unrelated `hail` agent calling/text/email tool. Hail
-Protocol is the project name; `hailp` is its reference account CLI. The unified
-executable now implements the first account/Grant API slice in the reference
-client. The local CLI now also supports private-PLC signup for both custody
-choices, credential management, Grant creation/listing, sending, inbox and
-invited replies. Public provenance and managed migration remain later milestones.
+**CLI name:** `hailp` is the Hail-provided reference account CLI (`p` for
+Protocol), avoiding the existing unrelated `hail` agent calling/text/email tool.
 
 ```text
 human app / agent / native CLI / hailp
@@ -199,14 +172,12 @@ Human and agent callers exercise the same account ownership and authorization
 rules. A provider-native CLI and `hailp` are alternative API clients, not
 distinct signing authorities or bypasses around server validation.
 
-The intended account surface covers signup/preparation and signed onboarding,
-account/public-key/custody status, credentials, Grants, sending and inbox/reply
-operations, delivery status, binding renewal and the transfer ceremony.
-Credential/session details and endpoint paths must be designed before exposing
-these operations. Start with one complete authenticated slice and reuse
-existing domain services; do not duplicate business logic in HTTP handlers or
-CLI commands. Keep narrow administrative/migration tools for operator work,
-but distinguish them from normal client tools.
+The reference account surface covers signup and onboarding, account/custody
+status, credentials, Grants, messaging, delivery status, binding renewal and
+transfer ceremonies. Endpoint paths and credential/session details are local
+implementation choices. Business rules belong in shared provider services,
+not duplicated in HTTP handlers or CLI commands; narrow operator tools remain
+distinct from normal account clients.
 
 This architecture does not force every Hail provider to implement identical
 client API paths. Federation remains the interoperable protocol boundary;
@@ -214,51 +185,11 @@ the reference provider should expose a coherent documented client API, with
 its CLIs as first-party examples. Cross-provider management-API standardization
 is a separate decision, not implied by API-first operation.
 
-### Implementation sequence and acceptance
-
-1. **Authenticated owner-controlled account slice:** account-scoped
-   credentials/session handling, current account/custody status and signed
-   Grant submission/revocation through HTTP, exercised by a remote CLI. Require
-   valid user signatures, exact retries, existing fences and ownership checks.
-   The local CLI includes account/Grant reads, owner signing, managed Grant
-   operations, scoped credential creation/revocation and messaging/inbox/replies.
-   Migration 33 adds explicitly enabled private-PLC self-service signup for both
-   custody profiles. Credential rotation uses existing authenticated access;
-   expired-token recovery/login and public-PLC onboarding are not implemented.
-2. **Managed onboarding:** explicit profile selection, provider-generated
-   identity/operational keys and owner-generated top recovery authority.
-   Verify owner-signed exact genesis, custody disclosures and independent
-   recovery/monitor prerequisites before production activation. Test that the
-   provider never obtains the owner's recovery private key.
-3. **Managed Grant lifecycle:** authorize management requests, reuse the
-   identity signer, revision chain and outbox, and enforce account isolation.
-   Test creation/revocation by human and agent clients, denied permissions,
-   concurrency/restart recovery and absence of owner-controlled fallback.
-4. **Normal app/agent operation:** expose sending, inbox/replies, status and
-   signed binding renewal through the same authenticated surface. Test the
-   appropriate offline/expiry behaviors for each custody profile.
-5. **Custody change and managed migration:** design/test the explicit authority
-   rotation, historical evidence and fenced state transition before enabling it.
-   Existing owner-controlled transfer proof is not managed-transfer proof.
-
-The current server exposes federation/transfer routes and the authenticated
-account, Grant and messaging surface. `hailp` now offers API-driven Grant
-creation/listing, credential management, sending, inbox reads, invited replies
-and opt-in private-PLC signup with owner-controlled or explicit managed identity.
-The top recovery key stays owner-controlled in both new signup modes.
-Renewal, public signup, expired-credential recovery and managed migration are
-not completed by this local POC. See the
-[provider account API guide](https://github.com/j4crev/hailproto/tree/main/apps/server#hailp-account-api)
-and [CLI usage](https://github.com/j4crev/hailproto/tree/main/apps/cli#hailp-account-cli).
-API credentials remain provider-local; raw credentials never enter
-portable snapshots. The new slice requires a separate rollout before use on
-the live POC. Existing
-fully custodial Alice/Bob accounts likewise do not implement the preferred
-owner-recovery managed profile. This section records the next implementation
-milestones; it does not change the live deployment or custody of those accounts.
-The [CLI workflow guide](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md)
-records signup state, stable message-ID retries, per-sender inbox selection,
-explicit managed signing, credential scope inheritance and current limits.
+Current commands and capability status belong in the
+[`hailp` workflow guide](../apps/cli/docs/cli-workflows.md) and
+[`hailp` roadmap](../apps/cli/docs/cli-roadmap.md), not in this architecture
+document. API credentials remain provider-local and never enter portable
+snapshots.
 
 ## Signed Revocation And Custody
 
@@ -302,9 +233,9 @@ Other approaches discussed, but not selected for this implementation:
   without creating or expanding it, but would require new protocol and
   verification rules. Current v0 requires the identity signature.
 
-**No optional account-login-only blocking feature is included in this plan.**
-The selected user-facing revocation workflow remains signature-based in both
-custody profiles; managed signing is not unsigned local blocking.
+Account-login-only blocking is not Grant revocation. User-facing revocation
+remains signature-based in both custody profiles; managed signing is not
+unsigned local blocking.
 
 ## Offline Operation And Signing Requirements
 
@@ -330,9 +261,9 @@ choice, not permission to fall back to provider custody.
 | Retry publication of signed Grants/revocations | Yes | Retained exact signed bytes; no fresh consent is manufactured |
 | Monitor PLC changes and deliver/queue alerts | Yes | Monitor's own signing key and durable state; alert delivery depends on its receiver/network, and recovery still needs user recovery authority |
 | Enforce Grant expiration | Yes | Existing signed constraint; the provider cannot extend it silently |
-| Create a Grant, expand scope or renew expiration | No | Fresh user identity-signed revision; general active-update tooling remains future work |
+| Create a Grant, expand scope or renew expiration | No | Fresh user identity-signed revision |
 | Create a signed revocation | No | User identity signature; enforcement and notification continue without the signer after commit |
-| Renew an Address Binding | No | Fresh identity signature; renewal workflow remains a product requirement |
+| Renew an Address Binding | No | Fresh identity signature |
 | Initiate/approve transfer or identity recovery | No | Reviewed user signatures; backend execution/retries may continue after all required exact artifacts are durably submitted |
 
 This classifies required signing authority, not a claim that every scheduling,
@@ -347,9 +278,10 @@ The day-to-day identity key can be protected by a user-device keystore, with
 device unlock or biometric approval rather than repeated raw-key handling.
 The PLC recovery key is separate offline authority. A passkey may authenticate
 the user or unlock vault material, but a WebAuthn credential must not be assumed
-to produce Hail's arbitrary raw Ed25519 signatures. The current reference vault
-unlocks both user keys together; its [identity-only unlock follow-up](#reference-vault-follow-up-identity-only-unlocking)
-is required before production.
+to produce Hail's arbitrary raw Ed25519 signatures. The reference client keeps
+routine identity signing separate from full recovery-key unlocking; platform
+keystore integration is described in
+[`device-keystore.md`](../apps/cli/docs/device-keystore.md).
 
 ### Grant lifetime and offline subscriptions
 
@@ -399,10 +331,10 @@ bounded expiration. This planning discussion does not change that rule.
 
 A usable production account therefore needs user-signed binding renewal,
 advance expiry reminders and safe publication/retry handling. The provider
-cannot edit an existing signature's expiration. A user-controlled signer could
-perform narrowly approved same-association renewal, but any background signing
-policy needs explicit design and must not silently delegate identity custody
-to the Hail provider. This is a follow-up, not an existing automatic feature.
+cannot edit an existing signature's expiration. The reference CLI implements
+identity-only same-association renewal; any background signing policy still
+needs explicit design and must not silently delegate identity custody to the
+Hail provider.
 
 An expired binding makes the **address association unverified**. It does not
 expire the DID, revoke existing Grants, delete messages or transfer relationships
@@ -413,51 +345,11 @@ new consent still need valid address evidence. See the
 [cache](../spec/address-binding.md#caching) and
 [delivery](../spec/address-binding.md#grant-and-delivery-behavior) rules.
 
-## Verification And Follow-Up Plan
-
-Before claiming that split custody works as a complete product:
-
-1. **Prove offline routine operation.** After initial user authorization, make
-   the user signer unavailable and ensure the provider has no user private-key
-   material. Exercise delivery, queued sending, status reporting and signed
-   publication retries, then restart the providers and repeat. Valid permission,
-   peer availability and signed deadlines remain prerequisites.
-2. **Prove signing-role boundaries.** Reject messaging-key signatures for Grants
-   and Address Bindings, unauthorized identities, altered consent and stale/forked
-   predecessors. Missing user signatures must never trigger a custodial fallback.
-3. **Separate identity unlocking from PLC recovery.** Add the identity-only
-   signing path and verify that ordinary Grant creation/revocation never decrypts
-   or loads the PLC recovery key. Retain explicit reviewed recovery/transfer
-   unlocking and convenient user-device identity-key protection.
-4. **Exercise expiration and renewal.** Test unavailable signers, expired
-   Grants/bindings, valid identity-signed renewal, stale/conflicting revisions,
-   publication failure and exact retries across restart. Implement/document
-   binding renewal/reminders and choose subscription lifetime defaults; general
-   active Grant renewal and historical-key reconciliation remain separate work.
-5. **Retain revocation guarantees.** Commit local enforcement and the outbox
-   atomically; test offline senders, expired Grants, exact/concurrent retries,
-   acceptance-versus-revocation ordering, migration fences and collocated roles.
-   Already accepted work remains durable, and a sender notification failure
-   cannot reactivate permission or delay enforcement.
-6. **Prove independent recovery before production.** Verify second-device
-   restoration, independently controlled monitor alerts/coverage and recovery
-   from an unwanted lower-priority PLC operation within its recovery window.
-   Same-VPS monitor and same-device vault tests do not establish those guarantees.
-
-The local user-signed revocation and first authenticated `hailp` slice have passed provider/client checks,
-including exact CLI retries and PostgreSQL custody/fence/collocation tests.
-The account API proof additionally exercises real HTTPS CLI processes,
-credential hashing/scopes/expiry/revocation, account isolation and lost-response
-recovery without handing user keys to the provider.
-Existing message-continuity and monitor demonstrations supply additional POC
-evidence. They do not close the identity-only unlock, renewal or independent
-recovery follow-ups, or imply that newly added tooling is already deployed.
-
 ## Portable Transfer Ceremony
 
 ### At A Glance
 
-This diagram depicts the **proposed user-initiated production profile**. The
+This diagram depicts the user-initiated portable transfer profile. The
 user authorizes one destination before either provider can fence this DID.
 "Frozen" applies to this one DID, not every account at either provider.
 
@@ -528,9 +420,10 @@ the **final Transfer Request** signed by the *same* offered key, binding the
 user selection and reservation receipt. Only then does the old provider
 consume the user grant and fence. The user later reviews the actual snapshot
 and keys and signs final consent and the exact PLC update.
-The fixed-path transport and bounded representation are drafted in
-`spec/http-binding.md#provider-transfer-invitation-transport`; final
-interoperable wire encodings and retry scheduling remain open.
+The fixed-path transport and bounded representation are defined by the reference
+profile in
+[`http-binding.md`](../spec/http-binding.md#provider-transfer-invitation-transport);
+the specifications remain authoritative over this explanatory sequence.
 
 1. The user chooses the new provider's canonical DNS domain in their
    client, which derives its service base and signs a short-lived Transfer Grant with their
@@ -620,7 +513,7 @@ interoperable wire encodings and retry scheduling remain open.
    mark its permanent fence `retired`. It never resumes signing or accepting
    envelopes for the DID.
 
-## Top-User-Signed Cutover Policy To Validate
+## Top-User-Signed Cutover Policy
 
 The destination verifies that the exact signed PLC operation was authorized
 by the **current index-zero user recovery key** and is the current,
@@ -642,9 +535,10 @@ after validating the restored PLC state and receiving authenticated evidence
 that the destination import has been invalidated; otherwise it stays fenced.
 
 This policy trades the DID-specific fence and independent-verification time
-for a non-overlapping ownership claim. It must be reviewed against the recovery
-window, caching, body deadlines and mirror governance requirements in
-`spec/did-profile.md#before-production` before it becomes normative.
+for a non-overlapping ownership claim. Normative recovery-window, caching,
+deadline and read-evidence requirements live in
+[`did-profile.md`](../spec/did-profile.md) and
+[`plc-read-evidence.md`](../spec/plc-read-evidence.md).
 
 ## Private-PLC POC Rehearsal Profile
 
@@ -693,185 +587,3 @@ to send. Activation merges only matching DID pairs, current revision/status/
 digest and exact retained revision bytes; conflicts roll back the import.
 Grantee snapshots include their received chain, but publication work stays
 with the grantor. Neither local role is discarded to bypass a duplicate key.
-
-The October 6 private-PLC rehearsal accepted a message at dev before fencing,
-then imported and delivered it at app once, with one acknowledged terminal
-status. Dev retained its accepted historical row with zero attempts behind a
-retired fence. This demonstrates continuity for that test, not independent
-monitoring, public PLC finality or recovery from every post-fence failure.
-
-## October 6, 2026 Implementation Boundary
-
-Migrations 13–31 now run on the two public-HTTPS **private-PLC POC** providers;
-they are not deployed as a `plc.directory` production portable service.
-They fence source
-writes and leased work, retain a signed immutable snapshot and permit an
-authenticated, user-consented **inactive** target import. Portable snapshots
-strip provider operational ciphertext and require a user-controlled identity
-signature, a fresh user-signed destination Address Binding, and a separate
-top-recovery-key-signed exact PLC cutover operation;
-accounts that still have a provider-held `#hail-identity` key fail the
-portable-custody precondition. The destination stores the exact signed
-operation bytes without submitting them or activating the account. The local
-building blocks now include a user-key-signed Transfer Grant naming only a
-canonical provider domain, source-signed Transfer Invitation, an origin-
-verified inactive destination Offer, user-signed Address Selection, target-
-signed reservation receipt and a separately pushed final Transfer Request.
-The source validates their exact digests, authority, expiry and matching
-destination/address, then consumes the user grant atomically with the fence.
-The production-profile gate still requires two independently operated
-validated PLC read paths and an independent signed monitor attestation; it
-has not been exercised as production. The POC-only gate uses its one canonical
-private log, marked non-independent, without a fixed 72-hour wait. The
-prototype exposes fixed well-known
-invitation and address-selection endpoints at the new provider and a fixed
-final-request endpoint at the old provider. The source accepts the exact
-user-signed grant over a bounded endpoint, returns an Offer when delivery
-succeeds or `202` while it is pending, and a leased database worker retries
-the stored invitation. Source delivery uses the user-signed domain,
-TLS-verified and DNS-pinned HTTPS with no redirects. The returned signed
-Offer binds the challenge and
-is durably retained as origin proof. The reference client signs and submits
-the chosen address directly to the target; its pending local account
-reservation uses the same unique address index as ordinary onboarding.
-The target pushes the final request, and the old provider returns `204` only
-after the DID fence commits. An arbitrary signed request file alone cannot
-authorize the source. Exact retries reuse signed evidence and prepared keys.
-The target holds the final request for leased background retries. Database-
-backed global and authenticated per-DID rate buckets work across provider
-processes. A user-key-signed pre-fence cancellation wins or loses against the
-source's account-row fence; only a current source-signed no-fence receipt
-allows the target to release even an ambiguously submitted reservation.
-Expired sessions with **no final push** can be cleaned up automatically;
-submitted sessions stay held without that receipt or coordinated rollback.
-An expired grant with an origin-verified Offer is not overwritten by a new
-grant until the user obtains a source-signed cancellation receipt: the target
-may already have a submitted request with an ambiguous outcome and still
-needs that receipt to free its reservation safely.
-This is not yet an unattended **public PLC** transfer product: the reference CLI
-still needs an authenticated user-to-provider UI for reviewing the exact
-Offer, issued/selected address and final PLC operation. Distributed retry
-calibration, coordinated post-fence rollback and real-world independent-
-origin deployment remain to be validated.
-An isolated integration test and the first real private-PLC provider-to-provider
-rehearsal both staged a user-signed cutover, externally verified a new
-destination address, transactionally imported state and retired the source
-on a signed receipt. The integration fixture additionally verifies
-rollback on a target conflict, re-signing under the new messaging key, and
-deadline failure for accepted work whose deadline elapsed during a delayed
-cutover. POC-only private-PLC submission and activation remain runtime test
-paths, but no corresponding public-registry rollout ceremony or independently provisioned
-monitor/mirrors exists. The private DID is not a production-ready migrated
-account. Alice's and Bob's older POC DIDs were created custodially and cannot
-become portable by merely applying a database migration.
-
-The separate sibling [PLC monitor](https://github.com/j4crev/hailproto/tree/main/apps/plc-monitor)
-checkout is the first
-user-run-monitor prototype. It persists the PLC export cursor, validates full
-operation logs and complete resulting state, records unexpected operations or
-coverage gaps, signs out-of-band HTTPS webhook alerts, and can sign the
-provider-compatible monitor coverage attestation only after a reviewed CID is
-approved and its alert acknowledged. It still needs a verified public export
-bootstrap checkpoint, chosen independent mirror operators, independently
-hosted deployment, and second-device recovery testing. A copy run by Hail on
-its own infrastructure is useful for bootstrapping but **does not satisfy**
-the provider-independent monitor requirement.
-
-The October 6 same-VPS POC deployment now demonstrates live private PLC
-ingestion, reviewed operation approval, signed public-HTTPS webhook delivery
-and cursor/receipt durability across restart. The monitor has its own database
-and signing key, and its receipt sink holds only the public key. It is labeled
-`private-poc`, has no independent attestation origin configured and is never
-used to satisfy the production independent-monitor gate. A disposable PLC-only
-DID supplied the changes; existing provider identities were only enrolled for
-observation. Independent hosting and public PLC remain deferred.
-
-Before a production-ready rollout, implement and test:
-
-- a reviewed user-facing grant/Offer/cancellation UX, restart/fault testing
-  of the durable leased retry workers under realistic load, and an externally
-  hosted two-provider handshake deployment;
-- explicit authenticated **post-fence** rollback and recovery, including
-  release of submitted reservations only after both providers establish
-  that the target import cannot activate; clock expiry alone is insufficient;
-- production witnesses/checkpoints and independently confirmed current PLC
-  operation, including fail-closed handling of lower-priority changes, forks
-  and read-path disagreement;
-- a user-controlled vault/signing client, provider-independent recovery
-  verification, and independent monitor with authenticated coverage evidence;
-- new-DID and existing-DID onboarding using the user-signed exact PLC operation,
-  plus user-signed Grants and Address Bindings with no provider identity key;
-- exact submission and ambiguous-result reconciliation for the
-  user-authorized PLC cutover operation at the canonical public registry;
-  independently validated production mirror/checkpoint evidence;
-- two independently operated read paths, finality observation and outage
-  handling, historical accepted-object PLC evidence, and a fenced,
-  transactional materialization/rollback test with competing workers;
-- destination address control: the selected provider server reserves an address
-  on its **own** domain; a prior address on the departing provider's domain
-  does not automatically move with the DID. The client must choose a new
-  username unless the user self-hosts the new Hail provider on the old domain.
-
-The [desktop/Bun reference client](https://github.com/j4crev/hailproto/tree/main/apps/cli)
-(`a271519`) generates and encrypts the user-held keys and signs exact PLC and
-Hail objects; it does not yet prove second-device recovery, independently
-managed backup or a reviewed onboarding UX. These remain requirements for
-production portable custody, not requirements that every future mobile client
-use the reference vault-file representation.
-
-### Reference vault follow-up: identity-only unlocking
-
-The current reference client's `unlockUserVault()` decrypts and loads **both**
-user keys together. Routine Grant creation and revocation sign only with
-`#hail-identity`, but also load the top PLC recovery key into memory. This is
-a reference-vault limitation, not the intended production custody behavior.
-Before production, separate convenient identity-only signing/unlocking from
-explicit PLC recovery/transfer unlocking, as required by
-`spec/account-onboarding.md#user-key-storage-and-recovery`. Neither path may
-disclose user private keys to a provider. Track second-device recovery and
-provider-independent backup verification separately.
-
-The public POC's private-directory DIDs, custodial identity keys and shared
-host cannot by themselves demonstrate these production guarantees. Keep the
-production mode fail-closed until its prerequisites and recovery policy are
-specified, reviewed and verified end to end.
-
-## Decisions Still Required Before Calling This Production-Ready
-
-1. **Transfer authorization and recovery-window policy.** Specify the
-   user-signed Transfer Grant, old-provider-signed invitation, origin-bound
-   Offer, signed Address Selection and reservation, final request wire and
-   delivery profile, replay
-   handling, independent witness set, production cache/timeout rules,
-   and recovery/fork response. The user-top-key normal transfer has no fixed
-   72-hour delay; a lower-key operation cannot qualify as a normal transfer.
-   Define how accepted work expiring during any pause gets a signed result.
-2. **User-controlled client and recovery.** Complete the reference desktop/Bun
-   client and verify its backup recovery on a second device. The
-   provider-local signature verifier is implemented; a user-owned signing and
-   recovery product is not. Private-PLC user-device onboarding, initial Grant
-   signing and terminal revocation tooling supplement the original custodial
-   CLIs without giving providers user private keys. General active Grant
-   updates, historical-key reconciliation and production onboarding remain
-   separate work; identity-only unlocking and second-device recovery still
-   need production proof.
-3. **Monitor independence and mirrors.** The user chose a separate user-run
-   host for independent monitoring. Select actual independent mirror
-   operators, authenticate their read/attestation endpoints, handle
-   disagreements and missed coverage, and retain CIDs, chain snapshots and
-   nullification evidence for historical signed-object audits. Distinct URLs
-   in a test fixture do not establish different administrative control.
-4. **Account and address activation.** Wire the tested materialization to
-   real address publication under the selected provider's domain and verify
-   public WebFinger and Address Binding resources. Self-hosted and third-party
-   servers use the same direct signed reservation flow; delegated address
-   domains require a future profile. An address on the departing provider's
-   domain cannot move without that domain operator's cooperation. Verify the
-   imported status/outbox and body responsibilities across actual provider
-   processes and independent infrastructure, not only two test databases.
-5. **Public PLC identity provenance.** The live demonstration DIDs exist only
-   in a private PLC registry and were created with custodial top keys. They
-   do not become public, portable identities through a database migration.
-   Test production onboarding with a new user-generated DID on
-   `https://plc.directory` using only non-disposable keys and an independently
-   verifiable audit trail.

@@ -81,8 +81,8 @@ The reference CLI covers account administration and sensitive identity ceremonie
 - [`DESIGN.md`](DESIGN.md): High-level product and protocol design.
 - [`BUILD_ORDER.md`](BUILD_ORDER.md): Recommended specification and implementation sequence.
 - [`docs/production-portable-custody.md`](docs/production-portable-custody.md): Key custody, transfer ceremony, recovery checkpoints and POC/production boundaries.
-- [Key custody and offline operation](docs/production-portable-custody.md#key-custody-in-plain-language): Signing-role and custody comparisons, offline feature requirements, binding-expiration rationale and verification follow-ups.
-- [Managed profiles and API-first clients](docs/production-portable-custody.md#managed-profiles-and-people-or-agents): Approved human/agent custody choices, owner-controlled recovery, native/`hailp` CLI interaction and implementation milestones.
+- [Key custody and offline operation](docs/production-portable-custody.md#key-custody-in-plain-language): Signing-role and custody comparisons, offline requirements and binding-expiration rationale.
+- [Managed profiles and API-first clients](docs/production-portable-custody.md#managed-profiles-and-people-or-agents): Human/agent custody choices, owner-controlled recovery and native/`hailp` API interaction.
 - [Provider deployment runbook](apps/server/deploy/public/README.md): Strict-public provider setup and validation.
 - [User-key CLI](apps/cli/README.md): User-device vault, onboarding, Grant signing and exact-byte cutover commands.
 - [Public monitor deployment](apps/plc-monitor/deploy/public/README.md): Per-DID public PLC monitoring, reviewed bootstrap, signed attestations and external email alerts.
