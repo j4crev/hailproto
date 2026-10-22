@@ -313,9 +313,8 @@ state or credentials.
 
 ## Start a managed-account provider move
 
-The local managed-migration profile currently exposes only the owner handshake
-through source fencing. It does not submit the PLC cutover or activate the
-destination account.
+Managed migration keeps owner approval, source export, PLC cutover and destination
+activation in separate resumable steps.
 
 ```bash
 hailp account managed-transfer offer \
@@ -328,13 +327,30 @@ hailp account managed-transfer status
 hailp account managed-transfer select --username moved-name \
   --vault /secure/account/vault.json \
   --state /secure/account/managed-transfer.json
+
+hailp account managed-transfer export \
+  --state /secure/account/managed-transfer.json \
+  --output /secure/account/managed-snapshot.json
+
+hailp account managed-transfer sign-cutover \
+  --vault /secure/account/vault.json \
+  --state /secure/account/managed-transfer.json \
+  --snapshot /secure/account/managed-snapshot.json \
+  --operation /secure/account/managed-operation.json \
+  --approval /secure/account/managed-approval.json
+
+hailp account managed-transfer complete \
+  --state /secure/account/managed-transfer.json \
+  --snapshot /secure/account/managed-snapshot.json
 ```
 
 Use the managed source credential with `account:read` and `account:write`.
 Both signing commands unlock the owner recovery key, save the signed artifact
 before network submission, and reuse the same bytes after an ambiguous response.
-After address selection, the destination can fence the source; retain the state
-file. There is not yet a CLI cancellation or completion path for this profile.
+After address selection, the destination can fence the source; retain every file.
+Public completion first returns `awaiting-monitor`; obtain the exact-operation
+monitor attestation and repeat `complete` with `--monitor-attestation`. After
+activation, use owner-recovery login to create a destination-local credential.
 
 ## Change owner-controlled custody to managed
 

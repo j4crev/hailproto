@@ -381,6 +381,17 @@ merging, same-address return reservation and equivalent JSONB Grant-evidence
 reconciliation. Both providers returned to `PUBLIC_MANAGED_TRANSFER=false`, and
 `hailproto.app` also returned to custody transitions disabled.
 
+A second bounded public exercise moved managed canary
+`did:plc:ilpqbrfq4mvhx3jhcd6qhiti` from `canary-prov@hailproto.app` to
+`canary-prov-hailproto@haili.app`. Transfer
+`3475f30a-a8a5-4594-a28d-e6ccbb5e5ab6` used owner-recovery approval, exact
+snapshot v4, canonical operation
+`bafyreicjix6offduc2nw7uux45ptgv2s44jr7ilarxpmbnasyjz7u3b34m` and a fresh v3
+monitor attestation. Haili activated generation 2, retained the Sender Profile as
+revision 2 and issued only a fresh owner-recovery credential; the source credential
+became terminal `401` and the old address returned `404`. Both providers returned
+to `PUBLIC_MANAGED_TRANSFER=false` immediately afterward.
+
 The same day, a guarded live monitor outage exceeded the five-minute freshness
 limit. External supervision changed to `down`, fresh attestation failed closed,
 and an independent eight-minute recovery timer restarted the monitor. Supervision
