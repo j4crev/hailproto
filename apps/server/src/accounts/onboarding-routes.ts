@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID,timingSafeEqual } from "node:crypto";
 import { decodeBase64Url } from "@hailproto/codec";
 import type { Hono } from "hono";
 import type { SQL } from "bun";
@@ -48,8 +48,10 @@ export function registerSelfServiceOnboarding(app: Hono, dependencies: SelfServi
         if(input.monitorOrigin!==undefined||input.monitorKey!==undefined)return context.json({error:"Private signup does not accept public monitor claims"},400);
         return context.json(await (dependencies.onboarding as PrivatePocOnboarding).prepare(input.address,input.recoveryKey,input.identityKey,true,input.custody as "managed"|"owner-controlled",hash));
       }
-      if (Object.keys(input).some(k=>!["operation","binding","monitor"].includes(k)) || !input.operation || typeof input.operation !== "object" ||
+      if (Object.keys(input).some(k=>!["operation","binding","monitor","enrollmentToken"].includes(k)) || !input.operation || typeof input.operation !== "object" ||
         (input.binding !== null && typeof input.binding !== "string")) return context.json({error:"Invalid signed registration"},400);
+      if(input.enrollmentToken!==undefined&&(typeof input.enrollmentToken!=="string"||!/^hailp_[A-Za-z0-9_-]{43}$/.test(input.enrollmentToken)||input.enrollmentToken===token))
+        return context.json({error:"Invalid passkey enrollment"},400);
       const operation=new TextEncoder().encode(JSON.stringify(input.operation));
       const binding=input.binding === null ? new Uint8Array() : decodeBase64Url(input.binding as string);
       let monitor:{payloadBytes:Uint8Array;signature:Uint8Array}|undefined;
@@ -75,7 +77,23 @@ export function registerSelfServiceOnboarding(app: Hono, dependencies: SelfServi
       }
       const address = await dependencies.sql<{canonical_address:string}[]>`SELECT canonical_address FROM provider_accounts WHERE id=${id}`;
       const credential=await new AccountApiRepository(dependencies.sql).issue(address[0]!.canonical_address,true,token,[...ALL_ACCOUNT_SCOPES]);
-      return context.json({did:result.did,credential:{type:"hailp.api-credential",version:1,provider:dependencies.provider,...credential}});
+      let enrollment;
+      if(typeof input.enrollmentToken==="string"){
+        const hash=tokenHash(input.enrollmentToken),rows=await dependencies.sql.begin(async tx=>{
+          if((await tx`SELECT id FROM account_api_credentials WHERE token_hash=${hash}`).length)throw new Error("Enrollment token conflicts");
+          await tx`INSERT INTO account_passkey_enrollment_capabilities(id,token_hash,account_id,serving_generation,expires_at)
+            SELECT ${randomUUID()},${hash},${id},generation,clock_timestamp()+interval '10 minutes'
+            FROM account_serving_generations WHERE account_id=${id} ON CONFLICT (token_hash) DO NOTHING`;
+          return tx<{account_id:string;serving_generation:number|string;expires_at:Date}[]>`SELECT capability.account_id,capability.serving_generation,capability.expires_at
+            FROM account_passkey_enrollment_capabilities capability JOIN account_serving_generations generation
+              ON generation.account_id=capability.account_id AND generation.generation=capability.serving_generation
+            WHERE capability.token_hash=${hash}`;
+        }),capability=rows[0];
+        if(!capability||capability.account_id!==id)throw new Error("Enrollment token conflicts");
+        enrollment={type:"hailp.passkey-enrollment",version:1,provider:dependencies.provider,accountId:id,token:input.enrollmentToken,
+          url:`${dependencies.provider}/auth/recover#token=${encodeURIComponent(input.enrollmentToken)}`,expiresAt:capability.expires_at.toISOString()};
+      }
+      return context.json({did:result.did,credential:{type:"hailp.api-credential",version:1,provider:dependencies.provider,...credential},...(enrollment?{enrollment}:{})});
     } catch { return context.json({error:"Signup not completed; retain artifacts and retry the same request"},409); }
   });
 }

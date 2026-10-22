@@ -180,9 +180,13 @@ must first establish that the requester controls that account.
 ### New account
 
 The owner-authorized onboarding ceremony creates and activates the account.
-After activation, the provider issues a short-lived, single-use passkey
+When requested after activation, the provider issues a short-lived, single-use passkey
 enrollment capability bound to the exact account and serving generation.
-`hailp signup` may open that enrollment URL in the system browser.
+`hailp account create --passkey-enrollment new-account.passkey.json` generates
+an independent token, sends it only to the selected provider and stores the
+returned enrollment URL in that private file. Open the URL within ten minutes;
+the browser receives the enrollment capability, never the signup API credential
+or Hail private keys.
 
 ### Existing account
 
@@ -415,7 +419,7 @@ the browser.
 - [x] Add explicit passkey sign-in and logout pages.
 - [ ] Add optional conditional mediation behind feature detection.
 - [x] Resolve every account route from the authenticated session.
-- [ ] Add session expiry and reauthentication UX without exposing account
+- [x] Add session expiry and reauthentication UX without exposing account
       existence or private credentials.
 - [x] Add passkey-management UI with recent-auth confirmation.
 - [x] Retain the fixed canary credential only behind a rollback configuration.
@@ -429,7 +433,8 @@ the browser.
       permissions and output contracts.
 - [x] Handle cancellation, callback collision, timeout, browser-open failure,
       provider mismatch and exact retry without leaking code/verifier material.
-- [ ] Use the browser login to enroll a passkey after signup and owner recovery.
+- [x] Issue an independent private system-browser enrollment after signup.
+- [x] Use system-browser enrollment after owner recovery.
 
 ### 6. Cover recovery and transfer
 

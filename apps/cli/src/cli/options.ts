@@ -9,6 +9,7 @@ const options = {
   "expires-at": { type: "string" }, "reply-until": { type: "string" }, "expected-did": { type: "string" },
   "refresh-consent": { type: "boolean" }, "no-expiry": { type: "boolean" }, uncategorized: { type: "boolean" },
   "backup-verified": { type: "boolean" }, "recovery-file": { type: "string" },
+  "passkey-enrollment": { type: "string" },
   sender: { type: "string" }, address: { type: "string" }, custody: { type: "string" },
   file: { type: "string" }, grant: { type: "string" }, did: { type: "string" }, signer: { type: "string" },
   destination: { type: "string" }, username: { type: "string" }, snapshot: { type: "string" },
@@ -21,7 +22,7 @@ const options = {
 // One command table owns help, option allowlists and required arguments.
 const commands = [
   ["account show", "", "", "", true, "Read the selected account and current credential metadata."],
-  ["account create", "", "provider address custody vault state credentials backup-verified", "monitor-origin monitor-key monitor-attestation", false, "Resumable owner-signed signup; public mode pauses for reviewed monitor enrollment."],
+  ["account create", "", "provider address custody vault state credentials backup-verified", "monitor-origin monitor-key monitor-attestation passkey-enrollment", false, "Resumable owner-signed signup; optionally save short-lived browser passkey enrollment."],
   ["account login", "", "provider did signer vault state credentials scope", "", false, "Issue fresh access using explicit identity or owner-recovery proof."],
   ["account browser-login", "", "provider state credentials", "scope", false, "Issue scoped CLI access through a system-browser passkey login with PKCE."],
   ["account passkey-recover", "", "provider did signer vault state output", "", false, "Create one private short-lived passkey enrollment file using explicit owner proof."],

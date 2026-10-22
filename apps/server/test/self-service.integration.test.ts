@@ -1,5 +1,5 @@
 import {randomBytes,randomUUID} from "node:crypto";
-import {mkdtemp,writeFile,readFile,rm} from "node:fs/promises";
+import {mkdtemp,writeFile,readFile,rm,stat} from "node:fs/promises";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {cidForCbor} from "@atproto/common";
@@ -17,7 +17,7 @@ import {KeyEncryptor} from "../src/identity/key-encryption.js";
 import {PrivatePocOnboarding} from "../src/onboarding/private-poc.js";
 import {OnboardingRepository} from "../src/onboarding/repository.js";
 import {ActivationService} from "../src/onboarding/activation.js";
-import {AccountApiRepository} from "../src/accounts/repository.js";
+import {AccountApiRepository,tokenHash} from "../src/accounts/repository.js";
 import {GrantRepository} from "../src/grants/repository.js";
 import {GrantService} from "../src/grants/service.js";
 import {createApp} from "../src/app.js";
@@ -27,6 +27,7 @@ import type {AppConfig} from "../src/config.js";
 import {rotateCredential} from "../../cli/src/credential-rotation.js";
 import {renewBinding,showBinding} from "../../cli/src/binding-renewal.js";
 import {AccountBinding} from "../src/accounts/binding.js";
+import {PasskeyAuth} from "../src/accounts/passkeys.js";
 
 const integration=process.env.DATABASE_URL?describe:describe.skip;
 integration("self-service custody profiles and credentials",()=>{
@@ -47,7 +48,7 @@ integration("self-service custody profiles and credentials",()=>{
       const rows=await db.sql<{grant_id:string}[]>`SELECT grant_id FROM grant_lineages WHERE local_account_id=${account.id}`;
       for(const row of rows)for(const table of ["grant_publications","grant_consent_evidence","grant_revisions","grant_lineages"])
         await db.sql.unsafe(`DELETE FROM ${table} WHERE grant_id=$1`,[row.grant_id]);
-      for(const table of ["account_api_credentials","managed_custody_evidence","portable_custody_evidence","address_bindings","plc_operation_evidence","private_poc_onboarding_preparations","account_keys"])
+      for(const table of ["account_passkey_enrollment_capabilities","account_api_credentials","managed_custody_evidence","portable_custody_evidence","address_bindings","plc_operation_evidence","private_poc_onboarding_preparations","account_keys"])
         await db.sql.unsafe(`DELETE FROM ${table} WHERE account_id=$1`,[account.id]);
       await db.sql`DELETE FROM provider_accounts WHERE id=${account.id}`;
     }
@@ -78,16 +79,23 @@ integration("self-service custody profiles and credentials",()=>{
     const app=createApp({publicOrigin:origin,hailServiceBase:base,providerId:"test"} as AppConfig,{accountApi:{accounts,grants,service,binding},discoveryStore:repository,
       selfServiceOnboarding:{sql:db.sql,onboarding,activation,provider:origin},async checkReadiness(){return {ready:true};}});
     vi.stubGlobal("fetch",(input:RequestInfo|URL,init?:RequestInit)=>app.fetch(input instanceof Request?input:new Request(String(input),init)));
-    const paths={vault:join(directory,"vault.json"),state:join(directory,"state.json"),credential:join(directory,"credential.json")};
+    const paths={vault:join(directory,"vault.json"),state:join(directory,"state.json"),credential:join(directory,"credential.json"),
+      enrollment:join(directory,"passkey-enrollment.json")};
     await writeFile(paths.vault,JSON.stringify(vault.vault),{mode:0o600});
     const address=`signup-${randomUUID()}@source.example.com`;
     try {
       const input=async()=>encodeBase64Url(vault.recoverySecret);
-      const created=await createAccount(origin,address,custody,paths.vault,paths.state,paths.credential,input);
+      const created=await createAccount(origin,address,custody,paths.vault,paths.state,paths.credential,input,undefined,paths.enrollment);
       const before=writes;
-      expect(await createAccount(origin,address,custody,paths.vault,paths.state,paths.credential,input)).toEqual(created);
+      expect(await createAccount(origin,address,custody,paths.vault,paths.state,paths.credential,input,undefined,paths.enrollment)).toEqual(created);
       expect(writes).toBe(before);
+      const enrollment=JSON.parse(await readFile(paths.enrollment,"utf8"));
+      expect(created).toMatchObject({enrollmentFile:paths.enrollment});expect(enrollment).toMatchObject({type:"hailp.passkey-enrollment",provider:origin});
+      expect(enrollment.url).toBe(`${origin}/auth/recover#token=${enrollment.token}`);expect((await stat(paths.enrollment)).mode&0o777).toBe(0o600);
       const client=await AccountApiClient.fromCredentialFile(paths.credential),summary=await client.account();
+      const savedCredential=JSON.parse(await readFile(paths.credential,"utf8"));expect(enrollment.token).not.toBe(savedCredential.token);
+      expect(await db.sql`SELECT id FROM account_passkey_enrollment_capabilities WHERE account_id=${summary.accountId} AND token_hash=${tokenHash(enrollment.token)}`).toHaveLength(1);
+      expect(await new PasskeyAuth(db.sql,"source.example.com",origin).recoveryOptions(enrollment.token)).toHaveProperty("challengeId");
       expect(summary.custodyProfile).toBe(custody);expect(summary.ownerRecoveryPublicKey).toBe(vault.vault.recovery.publicDidKey);
       const op=log.get(created.did!)!;expect(op.rotationKeys[0]).toBe(vault.vault.recovery.publicDidKey);
       const keys=await db.sql<{role:string;public_key:string}[]>`SELECT role,public_key FROM account_keys WHERE account_id=${summary.accountId}`;
@@ -132,7 +140,7 @@ integration("self-service custody profiles and credentials",()=>{
       expect(selected).toHaveLength(1);expect(selected[0]!.id).toBe(resumed.bindingId);
       // Original signup artifacts still resolve their original immutable binding.
       await writeFile(paths.vault,boundSource);
-      expect(await createAccount(origin,address,custody,paths.vault,paths.state,paths.credential,input)).toEqual(created);
+      expect(await createAccount(origin,address,custody,paths.vault,paths.state,paths.credential,input,undefined,paths.enrollment)).toEqual(created);
       await expect(renewBinding(client,renewal,expiry+1,custody==="owner-controlled"?paths.vault:undefined,input)).rejects.toThrow("changed");
       await expect(renewBinding(client,join(directory,"too-long.cose"),Math.floor(Date.now()/1000)+91*86400,
         custody==="owner-controlled"?paths.vault:undefined,input)).rejects.toThrow("90 days");
