@@ -248,6 +248,13 @@ restored 5 monitored DIDs, 5 bootstrap checkpoints, 8 alerts, 3 approvals and
 3 observations. The restored key matched the pinned monitor key; canonical polling
 and fresh attestation succeeded before the plaintext clone was removed.
 
+On October 22, 2026, the root-owned monitor heartbeat timer was updated from
+one minute to the committed three-minute interval. The unit was daemon-reloaded
+and restarted; systemd showed it active with consecutive firings three minutes
+apart, while both independent monitor containers remained healthy. The external
+receiver's six-minute missing-heartbeat threshold therefore remains two missed
+heartbeats and avoids unnecessary request volume.
+
 Readiness load calibration reached 339.0 requests/s at 16 connections with no
 HTTP or transport errors, p50 45.7 ms, p99 125.1 ms and maximum 281.6 ms on the
 2-vCPU host. Production mutation limits remain 120 requests/minute per surface,

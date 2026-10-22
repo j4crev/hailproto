@@ -28,6 +28,16 @@ authenticated with it again. Samsung and the replacement Google credential
 remain active. The recovery bearer files were deleted, no API credential was
 restored, and the public PLC data remained exactly equal to the reviewed data.
 
+Commit `98942e0` added migration 56 and the `hailp` system-browser authorization
+code flow. Its guarded Haili deployment completed on October 22, 2026. The Linux
+canary passed passkey approval, loopback callback, PKCE exchange, private scoped
+credential storage, account lookup, inbox access and exact retry. The temporary
+browser-login state file was deleted after verification; the resulting
+least-privilege CLI credential remains active until its normal 30-day expiry.
+The existing browser session survived a guarded provider restart. The canary's
+session was then aged past the 30-minute idle limit in production, rejected on
+its next request and successfully replaced through normal passkey sign-in.
+
 The next release gate is **account safety**, not broader enrollment. Complete
 these in order:
 
@@ -369,7 +379,7 @@ the browser.
 - [ ] Record browser/platform minimums; deployed algorithms are ES256 and RS256.
 - [x] Define step-up freshness; session lifetimes are 30 minutes idle and 12
       hours absolute.
-- [ ] Define initial API-credential scopes issued through browser authorization.
+- [x] Define initial API-credential scopes issued through browser authorization.
 
 ### 2. Add durable server state
 
@@ -455,7 +465,7 @@ Current manual interoperability evidence:
 | FIDO2 hardware security key | Pending device access |
 | iOS/iPadOS and macOS | Pending device access |
 | Windows Hello | Pending device access |
-| `hailp` browser login: Linux | Pending production canary |
+| `hailp` browser login: Linux | Passed on Haili canary |
 | `hailp` browser login: macOS/Windows | Pending device access |
 
 ### 8. Roll out safely
@@ -464,9 +474,11 @@ Current manual interoperability evidence:
 - [x] Enable registration for one Haili canary using its current trusted access.
 - [x] Register and independently authenticate with at least two recovery-capable
       authenticators.
-- [ ] Exercise login, expiry, restart, revocation and recovery on the canary.
+- [x] Exercise login, expiry, restart, revocation and recovery on the canary.
 - [x] Enable GUI sessions through the reversible canary rollout.
-- [ ] Exercise `hailp` browser login and credential rotation.
+- [x] Exercise `hailp` browser login on Linux.
+- [ ] Exercise credential rotation using separately authorized
+      `credentials:write` access.
 - [x] Confirm external health and successful guarded backup/deployment checks.
 - [ ] Confirm bounded error rates and privacy-safe audit events.
 - [x] Remove and revoke the fixed GUI credential after canary login and logout.
