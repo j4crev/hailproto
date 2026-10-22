@@ -48,7 +48,7 @@ This implementation decision
 does not standardize client API paths across independent providers; the
 interoperable boundary below remains server-to-server federation. The approved
 custody choices and next implementation slices are in
-[the account API plan](docs/production-portable-custody.md#api-first-provider-and-cli-clients).
+[the account API plan](docs/portable-custody.md#api-first-provider-and-cli-clients).
 
 The required interoperable API is the server-to-server federation API.
 

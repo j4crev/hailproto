@@ -159,7 +159,7 @@ users bootstrap but cannot satisfy the portable-custody rule that the monitor
 be outside the provider's administrative control.
 
 The remaining portable migration prerequisites are recorded in
-[`../../docs/production-portable-custody.md`](../../docs/production-portable-custody.md). Test the monitor against a
+[`../../docs/portable-custody.md`](../../docs/portable-custody.md). Test the monitor against a
 fresh disposable PostgreSQL 14.4 database with:
 
 ```bash

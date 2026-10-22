@@ -283,7 +283,7 @@ removed after their useful guidance was consolidated.
 | `apps/cli/docs/cli-roadmap.md` | Keep as the concise capability and gate summary. |
 | `apps/cli/docs/custody-transitions.md` | Keep as the detailed production-gate authority; archive completed checklist sections when distilled. |
 | Completed reader-refactor plans | Deleted after consolidation into `spec/plc-read-evidence.md`, `spec/did-profile.md` and operator guidance. |
-| `docs/production-portable-custody.md` | Keep the custody architecture, transfer invariants and private-POC boundary; completed rollout plans were removed. |
+| `docs/portable-custody.md` | Keep the custody architecture, transfer invariants and private-POC boundary; completed rollout plans were removed. |
 | Completed CBOR migration plan | Deleted after its normative rules and remaining work were consolidated into the encoding specification, object specifications and codec documentation. |
 | `BUILD_ORDER.md` | Keep as architectural background, not an execution checklist. |
 | Completed POC cleanup audit | Deleted after the deferred compatibility cuts finished; historical migrations and required readers remain intact. |

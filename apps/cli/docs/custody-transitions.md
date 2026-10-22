@@ -5,7 +5,7 @@ directions and the local configured-registry managed path through source
 retirement are implemented; production cross-provider rollout remains disabled.
 This document specifies the local lifecycle
 and its implementation gates; it does not amend Hail federation formats or settle
-production historical PLC authority. The [protocol custody direction](https://github.com/j4crev/hailproto/blob/main/docs/production-portable-custody.md#managed-profiles-and-people-or-agents),
+production historical PLC authority. The [protocol custody direction](https://github.com/j4crev/hailproto/blob/main/docs/portable-custody.md#managed-profiles-and-people-or-agents),
 [DID profile](https://github.com/j4crev/hailproto/blob/main/spec/did-profile.md#provider-migration)
 and [historical-key decision](grant-key-reconciliation.md) remain the baseline.
 

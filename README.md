@@ -41,7 +41,7 @@ historical recovery, abandonment, and equivalent recovery/load/security controls
 for every participating provider remain gated. Track the [`haili.app`
 permanent-provider launch](docs/haili-launch.md),
 the detailed [production gate checklist](apps/cli/docs/custody-transitions.md#production-enablement-required-versus-deferrable)
-and the [portable-custody boundary](docs/production-portable-custody.md).
+and the [portable-custody boundary](docs/portable-custody.md).
 
 The repository includes TypeScript and Go reference codecs, shared conformance vectors, executable schema checks, diagnostic tooling and benchmarks. The intended v0 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
 
@@ -80,9 +80,9 @@ The reference CLI covers account administration and sensitive identity ceremonie
 
 - [`DESIGN.md`](DESIGN.md): High-level product and protocol design.
 - [`BUILD_ORDER.md`](BUILD_ORDER.md): Recommended specification and implementation sequence.
-- [`docs/production-portable-custody.md`](docs/production-portable-custody.md): Key custody, transfer ceremony, recovery checkpoints and POC/production boundaries.
-- [Key custody and offline operation](docs/production-portable-custody.md#key-custody-in-plain-language): Signing-role and custody comparisons, offline requirements and binding-expiration rationale.
-- [Managed profiles and API-first clients](docs/production-portable-custody.md#managed-profiles-and-people-or-agents): Human/agent custody choices, owner-controlled recovery and native/`hailp` API interaction.
+- [`docs/portable-custody.md`](docs/portable-custody.md): Key custody, transfer ceremony, recovery checkpoints and POC/production boundaries.
+- [Key custody and offline operation](docs/portable-custody.md#key-custody-in-plain-language): Signing-role and custody comparisons, offline requirements and binding-expiration rationale.
+- [Managed profiles and API-first clients](docs/portable-custody.md#managed-profiles-and-people-or-agents): Human/agent custody choices, owner-controlled recovery and native/`hailp` API interaction.
 - [Provider deployment runbook](apps/server/deploy/public/README.md): Strict-public provider setup and validation.
 - [User-key CLI](apps/cli/README.md): User-device vault, onboarding, Grant signing and exact-byte cutover commands.
 - [Public monitor deployment](apps/plc-monitor/deploy/public/README.md): Per-DID public PLC monitoring, reviewed bootstrap, signed attestations and external email alerts.

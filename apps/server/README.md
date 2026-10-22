@@ -567,7 +567,7 @@ and an opt-in strict-public owner/monitor ceremony for both custody profiles. Li
 independent deployment, public recovery, history transport and managed migration still
 need work. Extend the account boundary over existing services and
 transactions rather than treating administrator CLIs as client APIs. The
-[API and custody plan](https://github.com/j4crev/hailproto/blob/main/docs/production-portable-custody.md#api-first-provider-and-cli-clients)
+[API and custody plan](https://github.com/j4crev/hailproto/blob/main/docs/portable-custody.md#api-first-provider-and-cli-clients)
 defines the first authenticated slice, profile-specific signing, isolation,
 renewal and managed-migration acceptance conditions.
 
@@ -807,7 +807,7 @@ key generation, encrypted vault recovery and offline signing, and
 coverage attestations. They are reference implementations, not production
 infrastructure. Mobile clients can implement the same signing profile with
 platform-specific secure storage. See the sibling
-`../../docs/production-portable-custody.md` for the complete trust model.
+`../../docs/portable-custody.md` for the complete trust model.
 
 Test the safe cutover boundaries using two disposable PostgreSQL databases:
 

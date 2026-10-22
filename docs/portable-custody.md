@@ -1,4 +1,4 @@
-# Production Portable Custody And Provider Cutover
+# Portable Custody And Provider Cutover
 
 Status: Architecture, trust model and private-POC boundary guide.
 Use [`../apps/cli/docs/custody-transitions.md`](../apps/cli/docs/custody-transitions.md)
