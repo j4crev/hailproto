@@ -2,9 +2,9 @@
 
 Reviewed baseline: `407380b`, 2026-10-22. This is a source review with bounded local
 checks, not a certification or a production penetration test. The defensive fixes
-below have been applied locally; no dependency upgrades or live-provider attacks
-were performed. Work after the scope clarification used source review and
-regression tests, not further exploit demonstrations.
+and dependency updates below have been applied to the reviewed repository; no
+live-provider attacks were performed. Work after the scope clarification used
+source review and regression tests, not further exploit demonstrations.
 
 ## Current status
 
@@ -18,7 +18,8 @@ regression tests, not further exploit demonstrations.
 | S5: repeated signed alert delivery | Low | Fixed: Durable Object claim, freshness bound and 30-day deduplication. |
 | S6: protected key-ID BOM normalization | Low | Fixed: preserve BOM and reject noncanonical identifiers. |
 
-Validation/interoperability concerns and dependency advisories below remain open.
+All source findings, validation/interoperability concerns and dependency
+advisories identified by this review are resolved.
 Existing unexpected passkeys or orphan migration rows, if any, are not removed
 automatically by these code changes; inspect and remediate those operationally.
 Finding descriptions and line references below refer to the reviewed baseline;
@@ -222,22 +223,18 @@ pointed at production databases.
 
 Executed existing checks:
 
-- After fixes, `bun run test:ts`: **444 passed**, with **103 database-dependent
+- After fixes, `bun run test:ts`: **448 passed**, with **104 database-dependent
   tests skipped** when no database URLs are set. No expected failures.
 - `mise exec -- go -C packages/hail-codec-go test -count=1 ./...`: passed.
-- Isolated local PostgreSQL, server suite run serially: **223 passed, 22 skipped**.
+- Isolated PostgreSQL 14.24, server suite run serially: **227 passed, 22 skipped**.
+- Isolated PostgreSQL 14.24, monitor suite: **15 passed**.
 - After fixes, managed preparation/admission/orchestration suites: **4 passed**,
   including the new rollback assertions and managed provider round trips.
 - After fixes, portable migration/cancellation/cleanup suites on fresh source and
   target databases: **5 passed**. The disposable database container was removed.
-- Four remaining two-database transfer suites on fresh databases: **20 passed,
-  1 failed**. The failure at `apps/server/test/migration-fence.integration.test.ts:1000`
-  expects an error containing `bootstrap v2`, but the operation correctly rejects
-  with `Public cutover requires a reviewed bootstrap monitor attestation`.
-  This is an assertion/message mismatch, not a demonstrated acceptance bypass;
-  later assertions in that test were not reached.
-- Monitor's existing database suite also passed (15 existing tests including
-  unit tests). Workspace-wide typechecking passed after the fixes.
+- The complete serial database suite includes the remaining two-database transfer
+  coverage and passed without the previously observed assertion mismatch.
+- Workspace-wide typechecking passed after the fixes.
 - GUI production build passed; final GUI typecheck reported no errors or warnings.
 - An initial concurrent cross-workspace database run failed because monitor and
   server shared a migration namespace and exhausted connections; separate
