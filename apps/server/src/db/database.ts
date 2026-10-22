@@ -195,6 +195,7 @@ const migrations: readonly Migration[] = [
   { version: 51, name: "did-monitor-coverage", url: new URL("../../migrations/0051_did_monitor_coverage.sql", import.meta.url) },
   { version: 52, name: "spt2-profile", url: new URL("../../migrations/0052_spt2_profile.sql", import.meta.url) },
   { version: 53, name: "spt3-profile", url: new URL("../../migrations/0053_spt3_profile.sql", import.meta.url) },
+  { version: 54, name: "passkey-sessions", url: new URL("../../migrations/0054_passkey_sessions.sql", import.meta.url) },
 ];
 
 export class ProviderDatabase {

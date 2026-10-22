@@ -65,6 +65,19 @@ it("binds selection before network, preserves private credentials and produces b
   } finally { vi.unstubAllGlobals(); await rm(directory, { recursive: true, force: true }); }
 });
 
+it("forwards browser sessions only as cookies with their pinned origin",async()=>{
+  const transport=vi.fn(async()=>new Response("{}",{headers:{"Content-Type":"application/json"}}));vi.stubGlobal("fetch",transport);
+  try{
+    const client=AccountApiClient.fromSession("https://haili.app",`hails_${"a".repeat(43)}`,"http://localhost:5173","http://localhost:3000");
+    await client.request("");
+    const [url,init]=transport.mock.calls[0]! as unknown as [string,RequestInit],headers=new Headers(init.headers);
+    expect(url).toBe("http://localhost:3000/api/v1/account");
+    expect(headers.get("Cookie")).toBe(`hail_session=hails_${"a".repeat(43)}`);
+    expect(headers.get("Origin")).toBe("http://localhost:5173");expect(headers.has("Authorization")).toBe(false);
+    expect(()=>AccountApiClient.fromSession("http://127.0.0.1:3000",`hails_${"a".repeat(43)}`)).toThrow();
+  }finally{vi.unstubAllGlobals();}
+});
+
 it("paginates within bounds, retains next cursors and rejects malformed/cyclic pages", async () => {
   const request = vi.fn().mockResolvedValueOnce({ grants: [{ grantId: id }], next: id })
     .mockResolvedValueOnce({ grants: [{ grantId: otherId }], next: null });

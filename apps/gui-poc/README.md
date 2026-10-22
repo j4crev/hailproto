@@ -1,19 +1,26 @@
 # Hail GUI proof of concept
 
 Disposable Svelte 5/SvelteKit 2 inbox and safe `spt-1`/`spt-2`/`spt-3` reader for
-an account at `haili.app`. It reuses the reference CLI's account client and does not
-store credentials or keys in the browser.
+accounts at `haili.app`. It uses provider passkey sessions and does not store API
+credentials or Hail keys in browser JavaScript.
 
 ```bash
 bun install
+PASSKEY_AUTH=true PASSKEY_ORIGIN=http://localhost:5173 PASSKEY_RP_ID=localhost \
+  bun run --cwd apps/server dev
 HAIL_GUI_CREDENTIAL_FILE=/secure/canary/api.credential.json \
+HAIL_GUI_API_ORIGIN=http://localhost:3000 HAIL_GUI_ORIGIN=http://localhost:5173 \
   bun run --cwd apps/gui-poc dev --open
 ```
 
-The credential must belong to an account at `https://haili.app` and
-include `account:read` and `messages:read`. `grants:read` adds verified sender
-addresses; without it the inbox safely falls back to DIDs. Nothing private belongs in this
-directory or in `.env` files committed to Git.
+Open `http://localhost:5173/auth/login`, create the initial canary passkey through
+the server-held bootstrap credential, then sign in. The credential needs
+`account:read` and `credentials:write`; it is never returned to the browser.
+Production serves the GUI and reverse-proxies `/api` on one HTTPS origin, normally
+`https://haili.app`, with RP ID `haili.app`. Set
+`HAIL_GUI_CREDENTIAL_FALLBACK=true` only to restore the old fixed-account mode
+during rollback. Nothing private belongs in this directory or committed `.env`
+files.
 
 The reader supports headings, blockquotes, captions, lists, basic decorators,
 declared HTTPS links, and one bundled PNG header. This slice still excludes

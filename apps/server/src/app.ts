@@ -45,6 +45,8 @@ import type {ManagedMigrationCompletion} from "./migration/managed-completion.js
 import {withFreshServingGenerations} from "./db/serving.js";
 import type {SenderProfileService} from "./profiles/service.js";
 import type {SenderProfileVerifier} from "./profiles/verifier.js";
+import type {PasskeyAuth} from "./accounts/passkeys.js";
+import {registerPasskeyRoutes} from "./accounts/passkey-routes.js";
 
 export interface ReadinessResult {
   ready: boolean;
@@ -79,6 +81,7 @@ export interface AppDependencies {
   selfServiceOnboarding?: SelfServiceOnboarding;
   accountAccess?: { access: AccountAccess; sql: SQL };
   servingSql?:SQL;
+  passkeys?:PasskeyAuth;
 }
 
 const defaultDependencies: AppDependencies = {
@@ -99,7 +102,8 @@ export function createApp(
 
   if (dependencies.accountApi) {
     const { accounts, grants, service, messaging, binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier } = dependencies.accountApi;
-    registerAccountApiRoutes(app, accounts, grants, service, config.publicOrigin,messaging,binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier);
+    registerAccountApiRoutes(app, accounts, grants, service, config.publicOrigin,messaging,binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,config.passkeys?.origin);
+    if(dependencies.passkeys)registerPasskeyRoutes(app,dependencies.passkeys,accounts);
   }
 
   if (dependencies.discoveryStore) {

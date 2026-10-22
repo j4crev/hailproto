@@ -11,7 +11,8 @@
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
-    "@hailproto/codec": "workspace:*"
+    "@hailproto/codec": "workspace:*",
+    "@simplewebauthn/browser": "^14.0.0"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "5.5.7",

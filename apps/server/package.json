@@ -41,6 +41,7 @@
     "@did-plc/lib": "file:../../vendor/did-method-plc/packages/lib",
     "@hailproto/codec": "workspace:*",
     "@ipld/dag-cbor": "9.2.7",
+    "@simplewebauthn/server": "^14.0.3",
     "hono": "4.13.9",
     "ipaddr.js": "2.2.0",
     "multiformats": "13.4.2"

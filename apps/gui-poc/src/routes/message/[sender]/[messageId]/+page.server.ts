@@ -3,8 +3,8 @@ import { messageId } from "$lib/server/message-id.js";
 import { parseMessage } from "$lib/messages.js";
 import { error,fail,isRedirect,redirect } from "@sveltejs/kit";
 
-export async function load({ params }) {
-  const { client } = await canaryAccount();
+export async function load({ params,cookies }) {
+  const { client } = await canaryAccount(cookies);
   const result = await client.request(`/inbox/${encodeURIComponent(params.sender)}/${encodeURIComponent(params.messageId)}`);
   try {
     const message=parseMessage(result);
@@ -15,9 +15,9 @@ export async function load({ params }) {
   }
 }
 
-export const actions={reply:async({params,request})=>{
+export const actions={reply:async({params,request,cookies})=>{
   try {
-    const {client}=await canaryAccount(),original=parseMessage(await client.request(`/inbox/${encodeURIComponent(params.sender)}/${encodeURIComponent(params.messageId)}`));
+    const {client}=await canaryAccount(cookies),original=parseMessage(await client.request(`/inbox/${encodeURIComponent(params.sender)}/${encodeURIComponent(params.messageId)}`));
     const form=await request.formData(),text=form.get("text"),allowReply=form.get("allowReply")==="yes";
     if(original.sender!==params.sender||original.messageId!==params.messageId||!original.replyAvailable||
       typeof text!=="string"||!text.trim()||Buffer.byteLength(text)>65536)

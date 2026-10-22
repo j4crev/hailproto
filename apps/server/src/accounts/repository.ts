@@ -77,9 +77,25 @@ export class AccountApiRepository {
       next: rows.length > 50 ? rows[49]!.id : null };
   }
 
-  async authenticate(header: string | undefined): Promise<AccountApiSession | null> {
+  async authenticate(header: string | undefined, sessionToken?:string): Promise<AccountApiSession | null> {
     const token = /^Bearer (hailp_[A-Za-z0-9_-]{43})$/i.exec(header ?? "")?.[1];
-    if (!token) return null;
+    if (!token) {
+      if(!/^hails_[A-Za-z0-9_-]{43}$/.test(sessionToken??""))return null;
+      const rows=await this.sql<(Omit<AccountApiSession,"scopes">&{scopes:unknown})[]>`
+        UPDATE account_passkey_sessions session SET last_seen_at=now()
+        FROM provider_accounts account,account_serving_generations generation,account_passkeys passkey
+        WHERE session.token_hash=${tokenHash(sessionToken!)} AND session.revoked_at IS NULL AND session.expires_at>now()
+          AND session.last_seen_at>now()-interval '30 minutes'
+          AND account.id=session.account_id AND account.onboarding_state='active' AND account.did IS NOT NULL
+          AND generation.account_id=account.id AND generation.generation=session.serving_generation
+          AND passkey.credential_id=session.credential_id AND passkey.account_id=account.id AND passkey.revoked_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM provider_migration_fences fence WHERE fence.account_id=account.id)
+        RETURNING account.id AS account_id,session.id AS credential_id,session.expires_at AS credential_expires_at,
+          account.did,account.canonical_address,session.scopes,NULL::text AS migration_state,
+          session.serving_generation::integer AS serving_generation`;
+      if(!rows[0])return null;const scopes=typeof rows[0].scopes==="string"?JSON.parse(rows[0].scopes):rows[0].scopes;
+      return {...rows[0],scopes:scopes as AccountApiScope[]};
+    }
     const rows = await this.sql<(Omit<AccountApiSession, "scopes"> & { scopes: unknown })[]>`
       SELECT account.id AS account_id, credential.id AS credential_id,
         credential.expires_at AS credential_expires_at, account.did, account.canonical_address,

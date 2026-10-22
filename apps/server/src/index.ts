@@ -1,4 +1,5 @@
 import { createApp } from "./app.js";
+import {PasskeyAuth} from "./accounts/passkeys.js";
 import { loadConfig } from "./config.js";
 import { ProviderDatabase } from "./db/database.js";
 import { createPlcDirectoryClient } from "./plc/client.js";
@@ -250,6 +251,7 @@ const app = createApp(config, schemaRehearsal ? {
   checkReadiness,
 } : {
   servingSql:database.sql,
+  ...(config.passkeys?{passkeys:new PasskeyAuth(database.sql,config.passkeys.rpId,config.passkeys.origin)}:{}),
   ...(process.env.POC_ACCOUNT_ACCESS === "true" || publicManaged ?
     { accountAccess: { access: new AccountAccess(database.sql, resolver, config.publicOrigin), sql: database.sql } } : {}),
   ...(process.env.PUBLIC_SELF_SERVICE_ONBOARDING === "true" ? (()=>{

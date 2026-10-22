@@ -289,47 +289,47 @@ the browser.
 
 ### 1. Freeze the reference profile
 
-- [ ] Confirm provider RP ID and allowed production/development origins.
-- [ ] Confirm opaque account user-handle representation and maximum size.
-- [ ] Select a maintained Bun-compatible server WebAuthn library.
+- [x] Confirm provider RP ID and allowed production/development origins.
+- [x] Confirm opaque account user-handle representation and maximum size.
+- [x] Select a maintained Bun-compatible server WebAuthn library.
 - [ ] Record the supported algorithm list and browser/platform minimums.
 - [ ] Define session idle/absolute lifetimes and step-up freshness.
 - [ ] Define initial API-credential scopes issued through browser authorization.
 
 ### 2. Add durable server state
 
-- [ ] Add passkey credentials with unique credential IDs, account/generation,
+- [x] Add passkey credentials with unique credential IDs, account/generation,
       public key, counter, backup/transports metadata and lifecycle timestamps.
-- [ ] Add purpose-bound registration/authentication challenges with expiration
+- [x] Add purpose-bound registration/authentication challenges with expiration
       and atomic consumption.
-- [ ] Add hashed server sessions with account/generation, scope, expiry and
+- [x] Add hashed server sessions with account/generation, scope, expiry and
       revocation state.
 - [ ] Add hashed one-use authorization codes with client, redirect URI, PKCE,
       account/generation and expiry bindings.
-- [ ] Make schema rollback refuse removal of active passkey-only access without
+- [x] Make schema rollback refuse removal of active passkey-only access without
       an explicit alternate-access cutover; sessions may be invalidated safely.
 
 ### 3. Implement server ceremonies
 
-- [ ] Registration options and verified registration completion.
-- [ ] Accountless discoverable authentication options and verified completion.
+- [x] Registration options and verified registration completion.
+- [x] Accountless discoverable authentication options and verified completion.
 - [ ] Session authentication, rotation, logout and account-wide revocation.
 - [ ] Passkey list, label, add and revoke operations with step-up checks.
 - [ ] Single-use enrollment capability from onboarding, current access and
       owner-proof recovery.
 - [ ] Authorization-code creation and PKCE exchange for `hailp`/native clients.
-- [ ] Exact origin, RP ID, challenge, type, user-verification, size and replay
+- [x] Exact origin, RP ID, challenge, type, user-verification, size and replay
       validation at every boundary.
 
 ### 4. Convert the thin GUI
 
-- [ ] Add explicit passkey sign-in and logout pages.
+- [x] Add explicit passkey sign-in and logout pages.
 - [ ] Add optional conditional mediation behind feature detection.
-- [ ] Resolve every account route from the authenticated session.
+- [x] Resolve every account route from the authenticated session.
 - [ ] Add session expiry and reauthentication UX without exposing account
       existence or private credentials.
 - [ ] Add passkey-management UI with recent-auth confirmation.
-- [ ] Retain the fixed canary credential only behind a rollback configuration.
+- [x] Retain the fixed canary credential only behind a rollback configuration.
 - [ ] Remove `HAIL_GUI_CREDENTIAL_FILE` after the production canary passes.
 
 ### 5. Add `hailp` browser login

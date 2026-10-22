@@ -12,9 +12,9 @@
 
 {#if !data.configured}
   <section class="card setup">
-    <p class="eyebrow">Setup required</p>
-    <h1>Connect the canary</h1>
-    <p>Set <code>HAIL_GUI_CREDENTIAL_FILE</code> to a credential for <strong>canary@haili.app</strong>, then restart the app.</p>
+    <p class="eyebrow">Signed out</p>
+    <h1>Connect your Hail account</h1>
+    <p><a class="sign-in" href="/auth/login">Sign in with a passkey</a></p>
   </section>
 {:else}
   <section class="account">
@@ -24,6 +24,7 @@
       <p class="did">{data.account.did}</p>
     </div>
     <span class="custody">{data.account.custodyProfile}</span>
+    <form method="POST" action="/auth/logout"><button class="sign-out">Sign out</button></form>
   </section>
 
   <section class="feed-tools" aria-label="Inbox preferences">
@@ -77,6 +78,7 @@
   .pages { display:flex;justify-content:center;gap:22px;margin-top:18px; }.pages a { color:#286446;font-size:13px;font-weight:750;text-decoration:none; }
   .empty span, .setup > p:last-child { color: #657168; }
   .setup { max-width: 620px; }.setup h1 { margin-bottom: 8px; }.setup p { line-height: 1.65; }
-  code { padding: 2px 6px; border-radius: 6px; background: #edf0ed; font-size: 13px; }
+  .sign-in { display:inline-block;padding:10px 14px;border-radius:9px;background:#17633f;color:white;font-weight:750;text-decoration:none; }
+  .sign-out { padding:8px 11px;border:1px solid #cad4cd;border-radius:8px;background:white;color:#526058;font:inherit;font-size:12px;font-weight:700;cursor:pointer; }
   @media (max-width: 600px) { .account { align-items: flex-start; flex-direction: column; gap: 16px; } .feed-tools { align-items: flex-start; flex-direction: column; } }
 </style>

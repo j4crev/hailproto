@@ -449,6 +449,22 @@ Expired/unauthorized credentials, changed keys and source fences cannot renew.
 Existing Grants and completed signup evidence are retained. See the
 [renewal contract/proof](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/binding-renewal.md).
 
+### Passkey browser sessions (migration 54)
+
+`PASSKEY_AUTH=true` enables discoverable WebAuthn registration, authentication,
+logout and cookie-backed account API sessions. `PASSKEY_ORIGIN` pins the exact
+browser origin and `PASSKEY_RP_ID` pins its RP domain; production requires HTTPS.
+The default for both is `PUBLIC_ORIGIN` and its hostname. Local development may
+use `PASSKEY_ORIGIN=http://localhost:5173` with `PASSKEY_RP_ID=localhost`.
+
+Sessions use hashed random tokens, a 30-minute idle limit and 12-hour absolute
+expiry. The browser cookie is `HttpOnly`, `SameSite=Lax`, and `Secure` on HTTPS.
+Passkeys and sessions remain provider-local, generation-bound access state and
+are not included in portable custody data. Initial registration requires an
+existing `credentials:write` API credential; owner-proof enrollment and passkey
+management remain later phases described in
+[`../../docs/passkey-authentication.md`](../../docs/passkey-authentication.md).
+
 ### Credential lifecycle extension
 
 The deployed API-plus-CLI slice adds `GET /api/v1/account/credentials` for

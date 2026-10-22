@@ -18,6 +18,7 @@ export interface AppConfig {
   plcReaderDiagnosticDid?: string;
   pocManagedTransfer: boolean;
   publicManagedTransfer?: { monitorOrigin: string; monitorPublicKey: string };
+  passkeys?: { rpId: string; origin: string };
 }
 
 type Environment = Record<string, string | undefined>;
@@ -153,6 +154,19 @@ export function loadConfig(environment: Environment = Bun.env): AppConfig {
     environment.POC_SELF_SERVICE_RETURN!=="true")) {
     throw new Error("Private-PLC managed transfer requires account access, transfer/return gates, and a non-public PLC profile");
   }
+  const passkeyGate=environment.PASSKEY_AUTH?.trim();
+  if(passkeyGate!==undefined&&passkeyGate!=="true"&&passkeyGate!=="false")throw new Error("PASSKEY_AUTH must be true or false");
+  let passkeys:AppConfig["passkeys"];
+  if(passkeyGate==="true"){
+    const originUrl=parseUrl(environment.PASSKEY_ORIGIN?.trim()||publicOrigin,"PASSKEY_ORIGIN",
+      nodeEnv==="production"?["https:"]:["https:","http:"]);
+    if(originUrl.pathname!=="/"||originUrl.protocol==="http:"&&originUrl.hostname!=="localhost")
+      throw new Error("PASSKEY_ORIGIN must be an HTTPS origin or development http://localhost origin");
+    const rpId=environment.PASSKEY_RP_ID?.trim()||originUrl.hostname;
+    if(!/^(?:localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$/.test(rpId)||
+      originUrl.hostname!==rpId&&!originUrl.hostname.endsWith(`.${rpId}`))throw new Error("PASSKEY_RP_ID must contain the passkey origin");
+    passkeys={rpId,origin:withoutTrailingSlash(originUrl)};
+  } else if(environment.PASSKEY_ORIGIN||environment.PASSKEY_RP_ID)throw new Error("Passkey declarations require PASSKEY_AUTH=true");
   return {
     nodeEnv,
     port,
@@ -166,6 +180,7 @@ export function loadConfig(environment: Environment = Bun.env): AppConfig {
     ...(publicManagedTransfer?{publicManagedTransfer}:{}),
     ...(publicPlcAuthority ? { publicPlcAuthority } : {}),
     ...(plcReaderDiagnosticDid?{plcReaderDiagnosticDid}:{}),
+    ...(passkeys?{passkeys}:{}),
   };
 }
 import { decodeBase64Url } from "@hailproto/codec";

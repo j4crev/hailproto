@@ -34,7 +34,7 @@ export class AccountApiError extends Error {
 
 export class AccountApiClient {
   private constructor(private readonly provider: string, private readonly token: string,
-    private readonly accountId: string) {}
+    private readonly accountId: string,private readonly sessionOrigin?:string,private readonly transport=provider) {}
 
   static signup(provider: string, token: string) {
     const url=new URL(provider);
@@ -42,7 +42,22 @@ export class AccountApiClient {
     return new AccountApiClient(provider,token,"");
   }
 
-  static async fromCredentialFile(path: string, selection: { provider?: string | undefined; accountId?: string | undefined } = {}): Promise<AccountApiClient> {
+  static fromSession(provider:string,token:string,origin=provider,transport=provider){
+    const url=new URL(provider);
+    if(url.origin!==provider||url.username||url.password||url.search||url.hash||
+      url.protocol!=="https:"&&!(url.protocol==="http:"&&url.hostname==="localhost")||
+      !/^hails_[A-Za-z0-9_-]{43}$/.test(token))throw new Error("Invalid session origin or token");
+    const originUrl=new URL(origin);
+    if(originUrl.origin!==origin||originUrl.protocol!=="https:"&&!(originUrl.protocol==="http:"&&originUrl.hostname==="localhost"))
+      throw new Error("Invalid session browser origin");
+    const transportUrl=new URL(transport);
+    if(transportUrl.origin!==transport||transportUrl.protocol!=="https:"&&!(transportUrl.protocol==="http:"&&transportUrl.hostname==="localhost"))
+      throw new Error("Invalid account API transport");
+    return new AccountApiClient(provider,token,"",origin,transport);
+  }
+
+  static async fromCredentialFile(path: string, selection: { provider?: string | undefined; accountId?: string | undefined;
+    transport?:string|undefined } = {}): Promise<AccountApiClient> {
     const record = object(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(await privateFile(path, 16_384))));
     if (record.type !== "hailp.api-credential" || record.version !== 1 ||
       typeof record.provider !== "string" || typeof record.token !== "string" ||
@@ -58,16 +73,19 @@ export class AccountApiClient {
       selection.accountId !== undefined && selection.accountId !== record.accountId) {
       throw new ClientError("SELECTION_MISMATCH", "Selected provider/account does not match the private credential; select a matching credential file");
     }
-    return new AccountApiClient(record.provider, record.token, record.accountId);
+    const transport=selection.transport??record.provider,transportUrl=new URL(transport);
+    if(transportUrl.origin!==transport||transportUrl.protocol!=="https:"&&!(transportUrl.protocol==="http:"&&transportUrl.hostname==="localhost"))
+      throw new Error("Invalid account API transport");
+    return new AccountApiClient(record.provider, record.token, record.accountId,undefined,transport);
   }
 
   async request(path: string, bytes?: Uint8Array | JsonObject, namespace = "/api/v1/account",maxResponse=MAX_RESPONSE, signal?: AbortSignal): Promise<JsonObject> {
-    const headers: Record<string, string> = { Authorization: `Bearer ${this.token}`,
+    const headers: Record<string, string> = { ...(this.sessionOrigin?{Cookie:`hail_session=${this.token}`,Origin:this.sessionOrigin}:{Authorization:`Bearer ${this.token}`}),
       Accept: "application/json", "Accept-Encoding": "identity", "Cache-Control": "no-store" };
     if (bytes) headers["Content-Type"] = bytes instanceof Uint8Array ? 'application/cose; cose-type="cose-sign1"' : "application/json";
     let response: Response;
     try {
-      response = await fetch(`${this.provider}${namespace}${path}`, {
+      response = await fetch(`${this.transport}${namespace}${path}`, {
         method: bytes ? bytes instanceof Uint8Array ? "PUT" : "POST" : "GET", headers, redirect: "error", credentials: "omit",
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000), ...(bytes ? { body: bytes instanceof Uint8Array ? Uint8Array.from(bytes) : JSON.stringify(bytes) } : {}),
       });
@@ -116,7 +134,9 @@ export class AccountApiClient {
     const publicKey = (value: unknown) => value === null || typeof value === "string" &&
       value.length <= 256 && /^did:key:z[1-9A-HJ-NP-Za-km-z]+$/.test(value);
     if (result.type !== "hailp.account" || result.version !== 1 || result.provider !== this.provider ||
-      result.accountId !== this.accountId || typeof result.did !== "string" || !/^did:plc:[a-z2-7]{24}$/.test(result.did) ||
+      typeof result.accountId!=="string"||(this.accountId!==""?result.accountId!==this.accountId:
+        this.sessionOrigin!==undefined&&!UUID.test(result.accountId))||
+      typeof result.did !== "string" || !/^did:plc:[a-z2-7]{24}$/.test(result.did) ||
       typeof result.address !== "string" || result.address.length > 254 ||
       ![null, "fenced", "exported", "retired"].includes(result.migrationState as null | string) ||
       !["owner-controlled", "managed", "custodial-poc", "unknown"].includes(result.custodyProfile as string) ||
@@ -139,7 +159,7 @@ export class AccountApiClient {
       }
       credential = { credentialId: metadata.credentialId, expiresAt: metadata.expiresAt };
     }
-    return { provider: this.provider, accountId: this.accountId, did: result.did, address: result.address,
+    return { provider: this.provider, accountId: result.accountId, did: result.did, address: result.address,
       migrationState: result.migrationState, custodyProfile: result.custodyProfile, scopes: result.scopes,
       monitorVerificationMode: result.monitorVerificationMode, identityPublicKey: result.identityPublicKey,
       ownerRecoveryPublicKey: result.ownerRecoveryPublicKey, managedProfileVersion: result.managedProfileVersion ?? null, credential };

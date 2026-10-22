@@ -13,6 +13,7 @@ import type { SameProviderCustodyTransition } from "./custody-transition.js";
 import type { ManagedAccountTransfer } from "./managed-transfer.js";
 import { parseSenderProfileDefinition, SenderProfileConflictError, type SenderProfileService } from "../profiles/service.js";
 import type { SenderProfileVerifier } from "../profiles/verifier.js";
+import {getCookie} from "hono/cookie";
 
 const GRANT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_BYTES = 262_144;
@@ -43,12 +44,12 @@ export async function accountRequestBytes(request: Request,limit=MAX_BYTES): Pro
 export function registerAccountApiRoutes(app: Hono, accounts: AccountApiRepository,
   grants: GrantRepository, service: GrantService, provider: string, messaging?:AccountMessaging, binding?:AccountBinding,
   transfer?:AccountTransfer,custodyTransition?:SameProviderCustodyTransition,managedTransfer?:ManagedAccountTransfer,
-  profiles?:SenderProfileService,profileVerifier?:Pick<SenderProfileVerifier,"verify">): void {
+  profiles?:SenderProfileService,profileVerifier?:Pick<SenderProfileVerifier,"verify">,sessionOrigin?:string): void {
   let window = Date.now();
   let requests = 0;
   const handle = async (context: Context, grantId: string | null, action?: string):Promise<Response> => {
     context.header("Cache-Control", "no-store");
-    context.header("Vary", "Authorization");
+    context.header("Vary", "Authorization, Cookie");
     const problem = (status: 400 | 401 | 403 | 404 | 405 | 409 | 413 | 415 | 429 | 503) => {
       const title = ({ 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found",
         405: "Method Not Allowed", 409: "Conflict", 413: "Content Too Large", 415: "Unsupported Media Type",
@@ -59,8 +60,10 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
     if (Date.now() - window >= 60_000) { window = Date.now(); requests = 0; }
     if (++requests > 120) { context.header("Retry-After", "60"); return problem(429); }
     try {
-      const session = await accounts.authenticate(context.req.header("Authorization"));
+      const session = await accounts.authenticate(context.req.header("Authorization"),getCookie(context,"hail_session"));
       if (!session) { context.header("WWW-Authenticate", 'Bearer realm="hailp-account"'); return problem(401); }
+      if(getCookie(context,"hail_session")&&context.req.method!=="GET"&&context.req.method!=="HEAD"&&
+        context.req.header("Origin")!==sessionOrigin)return problem(403);
       return await withServingGeneration<Response>(session.account_id,session.serving_generation??1,async():Promise<Response>=>{
       const query = new URL(context.req.url).searchParams;
       if (query.size && action !== "list" && action !== "inbox" && action !== "sent" && action !== "credential") return problem(400);

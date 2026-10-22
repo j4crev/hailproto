@@ -57,6 +57,17 @@ describe("loadConfig", () => {
     });
   });
 
+  it("pins passkeys to an explicit RP and browser origin",()=>{
+    expect(loadConfig({...validEnvironment,PASSKEY_AUTH:"true",PASSKEY_ORIGIN:"http://localhost:5173",PASSKEY_RP_ID:"localhost"}).passkeys)
+      .toEqual({origin:"http://localhost:5173",rpId:"localhost"});
+    expect(loadConfig({...validEnvironment,PASSKEY_AUTH:"true"}).passkeys)
+      .toEqual({origin:"https://hailproto.app",rpId:"hailproto.app"});
+    for(const override of [{PASSKEY_AUTH:"yes"},{PASSKEY_ORIGIN:"http://127.0.0.1:5173"},
+      {PASSKEY_ORIGIN:"https://login.example.com",PASSKEY_RP_ID:"hailproto.app"},
+      {PASSKEY_AUTH:"false",PASSKEY_RP_ID:"hailproto.app"}])expect(()=>loadConfig({...validEnvironment,...override})).toThrow();
+    expect(()=>loadConfig({...validEnvironment,NODE_ENV:"production",PASSKEY_AUTH:"true",PASSKEY_ORIGIN:"http://localhost:5173"})).toThrow();
+  });
+
   it("enables private managed transfer only with its existing private gates",()=>{
     const enabled={...validEnvironment,POC_MANAGED_TRANSFER:"true",POC_ACCOUNT_ACCESS:"true",
       POC_SELF_SERVICE_TRANSFER:"true",POC_SELF_SERVICE_RETURN:"true"};
