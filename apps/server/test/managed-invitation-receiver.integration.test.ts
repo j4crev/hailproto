@@ -1,12 +1,13 @@
 import {randomBytes,randomUUID} from "node:crypto";
 import {P256Keypair} from "@atproto/crypto";
-import {encodeBase64Url} from "@hailproto/codec";
+import {encodeBase64Url,encodeDeterministic} from "@hailproto/codec";
 import {base58btc} from "multiformats/bases/base58";
 import {SQL} from "bun";
-import {expect,it} from "vitest";
+import {expect,it,vi} from "vitest";
 import {ProviderDatabase} from "../src/db/database.js";
 import {KeyEncryptor} from "../src/identity/key-encryption.js";
 import {ManagedTransferInvitationReceiver} from "../src/migration/managed-invitation-receiver.js";
+import {TransferInvitationReceiver} from "../src/migration/invitation-receiver.js";
 import {encodeManagedHandshake,managedHandshakeDigest,managedHandshakeSignatureInput,signManagedProviderHandshake,
   verifyManagedProviderHandshake,type ManagedTransferAcknowledgement,type ManagedTransferGrant}
   from "../src/migration/managed-handshake.js";
@@ -42,6 +43,15 @@ integration("materializes one exact managed destination Offer from the owner gra
           verifiedAt:new Date().toISOString()}}};}};
     const target=new PreparedMigrationTarget(db.sql,new KeyEncryptor(encodeBase64Url(randomBytes(32))),grantValue.destination_service_base);
     const receiver=new ManagedTransferInvitationReceiver(db.sql,resolver,target);
+    const validation=vi.spyOn(target,"validateManagedInvitation").mockRejectedValueOnce(new Error("Authority unavailable"));
+    try {await expect(receiver.receive(grant,acknowledgement)).rejects.toThrow("Authority unavailable");}
+    finally {validation.mockRestore();}
+    expect(await db.sql`SELECT transfer_id FROM prepared_migration_target_keys`).toHaveLength(0);
+    const offerFailure=vi.spyOn(PreparedMigrationTarget.prototype,"createManagedOffer").mockRejectedValueOnce(new Error("Offer unavailable"));
+    try {await expect(receiver.receive(grant,acknowledgement)).rejects.toThrow("Offer unavailable");}
+    finally {offerFailure.mockRestore();}
+    expect(await db.sql`SELECT transfer_id FROM prepared_migration_target_keys`).toHaveLength(0);
+    expect(await db.sql`SELECT transfer_id FROM received_transfer_invitations`).toHaveLength(0);
     const first=await receiver.receive(grant,acknowledgement),retry=await receiver.receive(grant,acknowledgement);
     expect(retry).toEqual(first);
     const row=(await db.sql<{custody_profile:string;messaging_public_key:string;identity_public_key:string;transfer_id:string}[]>`
@@ -52,4 +62,23 @@ integration("materializes one exact managed destination Offer from the owner gra
     const changedValue={...acknowledgementValue,issued_at:now+1},changed=await signManagedProviderHandshake(changedValue,messaging.pair.privateKey);
     await expect(receiver.receive(grant,changed)).rejects.toThrow("occupies this DID");
   } finally {await db.close();await admin.unsafe(`DROP SCHEMA "${schema}" CASCADE`);await admin.close();}
+},30_000);
+
+integration("rolls back portable target preparation when offer admission fails",async()=>{
+  const admin=new SQL(process.env.DATABASE_URL!),schema=`portable_ingress_${randomUUID().replaceAll("-","")}`;
+  await admin.unsafe(`CREATE SCHEMA "${schema}"`);const url=new URL(process.env.DATABASE_URL!);
+  url.searchParams.set("options",`-csearch_path=${schema}`);const db=new ProviderDatabase(url.toString());
+  try{
+    await db.migrate();const did=`did:plc:${"p".repeat(24)}`,now=Math.floor(Date.now()/1000),grantValue={type:"hail.transfer-grant" as const,
+      version:1 as const,did,nonce:randomUUID(),source_service_base:"https://a.example.com/hail",
+      destination_service_base:"https://b.example.com/hail",destination_domain:"b.example.com",issued_at:now,expires_at:now+3600},
+      signed={payloadBytes:encodeDeterministic(grantValue),signature:new Uint8Array(64)},
+      target=new PreparedMigrationTarget(db.sql,new KeyEncryptor(encodeBase64Url(randomBytes(32))),grantValue.destination_service_base),
+      receiver=new TransferInvitationReceiver(db.sql,{} as never,target);
+    vi.spyOn(target,"validateInvitation").mockResolvedValue({grant:grantValue,invitation:{} as never});
+    const failure=vi.spyOn(PreparedMigrationTarget.prototype,"createOffer").mockRejectedValueOnce(new Error("Offer unavailable"));
+    try{await expect(receiver.receive(signed,signed)).rejects.toThrow("Offer unavailable");}finally{failure.mockRestore();}
+    expect(await db.sql`SELECT transfer_id FROM prepared_migration_target_keys`).toHaveLength(0);
+    expect(await db.sql`SELECT transfer_id FROM received_transfer_invitations`).toHaveLength(0);
+  }finally{await db.close();await admin.unsafe(`DROP SCHEMA "${schema}" CASCADE`);await admin.close();}
 },30_000);

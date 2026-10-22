@@ -8,14 +8,16 @@ credentials or Hail keys in browser JavaScript.
 bun install
 PASSKEY_AUTH=true PASSKEY_ORIGIN=http://localhost:5173 PASSKEY_RP_ID=localhost \
   bun run --cwd apps/server dev
-HAIL_GUI_CREDENTIAL_FILE=/secure/canary/api.credential.json \
 HAIL_GUI_API_ORIGIN=http://localhost:3000 HAIL_GUI_ORIGIN=http://localhost:5173 \
   bun run --cwd apps/gui-poc dev --open
 ```
 
-Open `http://localhost:5173/auth/login`, create the initial canary passkey through
-the server-held bootstrap credential, then sign in. The credential needs
-`account:read` and `credentials:write`; it is never returned to the browser.
+The HTTP commands above support GUI development after an account already has a
+passkey. Initial owner-authorized enrollment requires an HTTPS provider/GUI origin;
+use the enrollment link issued by account creation or `hailp account
+passkey-recover` in that environment, then sign in at `/auth/login`. The legacy
+`/auth/enroll/*` bootstrap credential proxy is disabled; setting
+`HAIL_GUI_CREDENTIAL_FILE` does not enable passkey enrollment.
 Production serves the GUI and reverse-proxies `/api` on one HTTPS origin, normally
 `https://haili.app`, with RP ID `haili.app`. Set
 `HAIL_GUI_CREDENTIAL_FALLBACK=true` only to restore the old fixed-account mode

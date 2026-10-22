@@ -25,9 +25,10 @@ export class TransferInvitationReceiver {
     const grantHash = handshakeDigest(grantSigned.payloadBytes);
     const invitationHash = handshakeDigest(invitationSigned.payloadBytes);
     return this.sql.begin(async (tx) => {
+      const target=this.target.withTransaction(tx);
       // Serialize retries, including first-time preparation, without ever activating the DID.
       await tx`SELECT pg_advisory_xact_lock(684245102, hashtext(${grant.did}))`;
-      await this.target.recycleRetiredSlots(tx,grant.did);
+      await target.recycleRetiredSlots(tx,grant.did);
       const cancelled = await tx`SELECT 1 FROM cancelled_transfer_sessions
         WHERE did = ${grant.did} AND nonce = ${grant.nonce}`;
       if (cancelled.length) throw new Error("This user transfer was cancelled by the source");
@@ -56,7 +57,7 @@ export class TransferInvitationReceiver {
           FROM prepared_migration_target_keys WHERE transfer_id = ${row.transfer_id}`;
         const stored = keys[0];
         if (!stored || stored.did !== grant.did) throw new Error("Prepared destination key was lost");
-        const refreshed = await this.target.createOffer({ transferId: row.transfer_id, did: grant.did,
+        const refreshed = await target.createOffer({ transferId: row.transfer_id, did: grant.did,
           destinationServiceBase: stored.destination_service_base,
           rotationPublicKey: stored.rotation_public_key, messagingPublicKey: stored.messaging_public_key },
         grantSigned, invitationSigned, this.resolver);
@@ -64,8 +65,8 @@ export class TransferInvitationReceiver {
           request_signature = ${refreshed.signature} WHERE did = ${grant.did}`;
         return refreshed;
       }
-      const prepared = await this.target.prepare(grant.did);
-      const signed = await this.target.createOffer(prepared, grantSigned, invitationSigned, this.resolver);
+      const prepared = await target.prepare(grant.did);
+      const signed = await target.createOffer(prepared, grantSigned, invitationSigned, this.resolver);
       await tx`INSERT INTO received_transfer_invitations
         (did, nonce, grant_digest, invitation_digest, transfer_id,
          request_bytes, request_signature, grant_bytes, grant_signature,

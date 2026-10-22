@@ -53,6 +53,10 @@ export class PreparedMigrationTarget {
     private readonly allowReturns=false,
   ) {}
 
+  withTransaction(sql:SQL):PreparedMigrationTarget {
+    return new PreparedMigrationTarget(sql,this.encryptor,this.destinationServiceBase,this.allowReturns);
+  }
+
   async recycleRetiredSlots(tx:SQL,did:string,custodyProfile:"portable"|"managed"="portable") {
     if(this.allowReturns){const retired=custodyProfile==="managed"?await retiredManagedReturnAccount(tx,did):await retiredReturnAccount(tx,did);
       if(retired)await clearRetiredImportSlots(tx,retired.account_id);}
@@ -138,36 +142,14 @@ export class PreparedMigrationTarget {
 
   async createManagedOffer(prepared: PreparedTargetKeys, grantSigned: SignedManagedHandshake,
     acknowledgementSigned: SignedManagedHandshake, resolver: HailDidResolver): Promise<SignedManagedHandshake> {
-    if (prepared.custodyProfile !== "managed" || !prepared.identityPublicKey) {
+    if (prepared.custodyProfile !== "managed" || !prepared.identityPublicKey || prepared.destinationServiceBase!==this.destinationServiceBase) {
       throw new Error("Managed Offer requires prepared managed destination roles");
     }
-    if (!grantSigned.payloadBytes.length || grantSigned.payloadBytes.length > 8192) throw new Error("Managed grant exceeds limit");
-    const decoded: unknown = decodeDeterministic(grantSigned.payloadBytes);
-    if (!decoded || typeof decoded !== "object") throw new Error("Managed grant names another DID");
-    const raw = decoded as Partial<ManagedTransferGrant>;
-    if (raw.type !== "hail.managed-transfer-grant" || raw.did !== prepared.did) throw new Error("Managed grant names another DID");
-    const state = await resolver.resolve(prepared.did), data = def.documentData.parse(state.evidence.data);
-    const ownerRecoveryKey = data.rotationKeys[0];
-    if (!ownerRecoveryKey || !state.evidence.verification || state.did !== prepared.did ||
-      state.serviceBase !== raw.source_service_base || state.identityDidKey !== raw.source_identity_key ||
-      prepared.destinationServiceBase !== raw.destination_service_base) {
-      throw new Error("Managed Offer requires strict current source authority");
-    }
-    const grant = await verifyManagedOwnerHandshake(grantSigned, "hail.managed-transfer-grant", ownerRecoveryKey);
-    const acknowledgement = await verifyManagedProviderHandshake(acknowledgementSigned,
-      "hail.managed-transfer-acknowledgement", state.messagingDidKey);
-    const now = Math.floor(Date.now() / 1000);
-    const sourceKeys=new Set([ownerRecoveryKey,state.identityDidKey,state.messagingDidKey,...data.rotationKeys]);
-    if (grant.issued_at > now + 300 || grant.expires_at <= now || acknowledgement.issued_at > now + 300 ||
-      acknowledgement.expires_at <= now || acknowledgement.expires_at !== grant.expires_at ||
-      acknowledgement.did !== grant.did || acknowledgement.nonce !== grant.nonce ||
-      acknowledgement.source_service_base !== grant.source_service_base ||
-      acknowledgement.destination_service_base !== grant.destination_service_base ||
-      !Buffer.from(acknowledgement.grant_digest).equals(Buffer.from(managedHandshakeDigest(grantSigned.payloadBytes))) ||
-      sourceKeys.has(prepared.identityPublicKey) || sourceKeys.has(prepared.messagingPublicKey) ||
-      sourceKeys.has(prepared.rotationPublicKey)) {
+    const {grant,sourceKeys}=await this.validateManagedInvitation(prepared.did,grantSigned,acknowledgementSigned,resolver);
+    if(sourceKeys.has(prepared.identityPublicKey)||sourceKeys.has(prepared.messagingPublicKey)||sourceKeys.has(prepared.rotationPublicKey)) {
       throw new Error("Managed destination roles are not fresh against source authority");
     }
+    const now = Math.floor(Date.now() / 1000);
     const offer: ManagedTransferOffer = {type:"hail.managed-transfer-offer",version:1,did:grant.did,nonce:grant.nonce,
       transfer_id:prepared.transferId,source_service_base:grant.source_service_base,
       destination_service_base:grant.destination_service_base,grant_digest:managedHandshakeDigest(grantSigned.payloadBytes),
@@ -182,6 +164,36 @@ export class PreparedMigrationTarget {
       {ciphertext:row.messaging_private_ciphertext,nonce:row.messaging_nonce,encryptionVersion:1,kekId:"poc-v1"});
     try { return signManagedProviderHandshake(offer,await importEd25519PrivateKey(keyBytes)); }
     finally { keyBytes.fill(0); }
+  }
+
+  async validateManagedInvitation(did:string,grantSigned:SignedManagedHandshake,
+    acknowledgementSigned:SignedManagedHandshake,resolver:HailDidResolver) {
+    if (!grantSigned.payloadBytes.length || grantSigned.payloadBytes.length > 8192) throw new Error("Managed grant exceeds limit");
+    const decoded: unknown = decodeDeterministic(grantSigned.payloadBytes);
+    if (!decoded || typeof decoded !== "object") throw new Error("Managed grant names another DID");
+    const raw = decoded as Partial<ManagedTransferGrant>;
+    if (raw.type !== "hail.managed-transfer-grant" || raw.did !== did) throw new Error("Managed grant names another DID");
+    const state = await resolver.resolve(did), data = def.documentData.parse(state.evidence.data);
+    const ownerRecoveryKey = data.rotationKeys[0];
+    if (!ownerRecoveryKey || !state.evidence.verification || state.did !== did ||
+      state.serviceBase !== raw.source_service_base || state.identityDidKey !== raw.source_identity_key ||
+      this.destinationServiceBase !== raw.destination_service_base) {
+      throw new Error("Managed Offer requires strict current source authority");
+    }
+    const grant = await verifyManagedOwnerHandshake(grantSigned, "hail.managed-transfer-grant", ownerRecoveryKey);
+    const acknowledgement = await verifyManagedProviderHandshake(acknowledgementSigned,
+      "hail.managed-transfer-acknowledgement", state.messagingDidKey);
+    const now = Math.floor(Date.now() / 1000);
+    const sourceKeys=new Set([ownerRecoveryKey,state.identityDidKey,state.messagingDidKey,...data.rotationKeys]);
+    if (grant.issued_at > now + 300 || grant.expires_at <= now || acknowledgement.issued_at > now + 300 ||
+      acknowledgement.expires_at <= now || acknowledgement.expires_at !== grant.expires_at ||
+      acknowledgement.did !== grant.did || acknowledgement.nonce !== grant.nonce ||
+      acknowledgement.source_service_base !== grant.source_service_base ||
+      acknowledgement.destination_service_base !== grant.destination_service_base ||
+      !Buffer.from(acknowledgement.grant_digest).equals(Buffer.from(managedHandshakeDigest(grantSigned.payloadBytes)))) {
+      throw new Error("Managed destination roles are not fresh against source authority");
+    }
+    return {grant,sourceKeys};
   }
 
   async signManagedArtifact(prepared: PreparedTargetKeys,

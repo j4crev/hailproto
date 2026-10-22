@@ -20,9 +20,14 @@ async function request(provider:string,path:string,body:Record<string,unknown>,t
     headers:{"Content-Type":"application/json",Accept:"application/json","Accept-Encoding":"identity","Cache-Control":"no-store"},
     body:JSON.stringify(body),signal:AbortSignal.timeout(20_000)});}catch{throw new ClientError("TRANSPORT_ERROR","Provider authorization transport failed");}
   if(!response.ok){void response.body?.cancel();throw new Error(`Provider authorization returned HTTP ${response.status}`);}
-  if(response.headers.get("Content-Type")!=="application/json"||response.headers.has("Content-Encoding")||response.headers.has("Location"))
-    throw new Error("Provider returned an invalid authorization response");
-  const bytes=new Uint8Array(await response.arrayBuffer());if(bytes.length>65_536)throw new Error("Provider authorization response was too large");
+  if(response.headers.get("Content-Type")!=="application/json"||response.headers.has("Content-Encoding")||response.headers.has("Location")){
+    void response.body?.cancel();throw new Error("Provider returned an invalid authorization response");}
+  const reader=response.body?.getReader();if(!reader)throw new Error("Provider returned an empty authorization response");
+  const chunks:Uint8Array[]=[];let size=0;
+  try{while(true){const next=await reader.read();if(next.done)break;size+=next.value.length;
+    if(size>65_536)throw new Error("Provider authorization response was too large");chunks.push(next.value);}}
+  catch(error){await reader.cancel().catch(()=>{});throw error;}
+  const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
   const value=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
   if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("Provider returned an invalid authorization response");
   return value as Record<string,unknown>;

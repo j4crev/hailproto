@@ -28,7 +28,7 @@ import { expectedKeyId, validatePayload } from "./validation.js";
 import { encodePayload } from "./payload.js";
 import { assertCborResourceLimits } from "./scan.js";
 
-const textDecoder = new TextDecoder("utf-8", { fatal: true });
+const textDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const textEncoder = new TextEncoder();
 const EMPTY_BYTES = new Uint8Array();
 
@@ -88,7 +88,7 @@ function parseCose<T extends HailSignedPayloadType>(
   ) {
     throw new HailCodecError("resource-limit", "signed representation is too large");
   }
-  const representationBytes = representation.slice();
+  const representationBytes = Uint8Array.from(representation);
   assertCborResourceLimits(
     representationBytes,
     coseLimits(profile.maximumRepresentationBytes ?? 262_144),

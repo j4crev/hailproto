@@ -25,9 +25,11 @@ export class ManagedTransferInvitationReceiver {
       !/^did:plc:[a-z2-7]{24}$/.test(decoded.did))throw new Error("Managed grant has no canonical DID");
     const did=decoded.did,grantDigest=managedHandshakeDigest(grantSigned.payloadBytes);
     const acknowledgementDigest=managedHandshakeDigest(acknowledgementSigned.payloadBytes);
+    await this.target.validateManagedInvitation(did,grantSigned,acknowledgementSigned,this.resolver);
     return this.sql.begin(async tx=>{
+      const target=this.target.withTransaction(tx);
       await tx`SELECT pg_advisory_xact_lock(684245103,hashtext(${did}))`;
-      await this.target.recycleRetiredSlots(tx,did,"managed");
+      await target.recycleRetiredSlots(tx,did,"managed");
       const cancelled=await tx`SELECT 1 FROM cancelled_transfer_sessions WHERE did=${did} AND nonce=${decoded.nonce}`;
       if(cancelled.length)throw new Error("This managed transfer session was cancelled by the source");
       const row=(await tx<ReceivedManaged[]>`SELECT received.nonce,received.grant_digest,received.invitation_digest,
@@ -43,7 +45,7 @@ export class ManagedTransferInvitationReceiver {
         const prepared:PreparedTargetKeys={transferId:row.transfer_id,did,destinationServiceBase:row.destination_service_base,
           rotationPublicKey:row.rotation_public_key,messagingPublicKey:row.messaging_public_key,
           custodyProfile:"managed",identityPublicKey:row.identity_public_key};
-        await this.target.createManagedOffer(prepared,grantSigned,acknowledgementSigned,this.resolver);
+        await target.createManagedOffer(prepared,grantSigned,acknowledgementSigned,this.resolver);
         const prior={payloadBytes:new Uint8Array(row.request_bytes),signature:new Uint8Array(row.request_signature)};
         const offer=await verifyManagedProviderHandshake(prior,"hail.managed-transfer-offer",prepared.messagingPublicKey);
         if(offer.did!==did||offer.nonce!==decoded.nonce||offer.transfer_id!==prepared.transferId||
@@ -52,8 +54,8 @@ export class ManagedTransferInvitationReceiver {
           throw new Error("Stored managed Offer conflicts with the admitted transfer");
         return prior;
       }
-      const prepared=await this.target.prepare(did,"managed");
-      const offer=await this.target.createManagedOffer(prepared,grantSigned,acknowledgementSigned,this.resolver);
+      const prepared=await target.prepare(did,"managed");
+      const offer=await target.createManagedOffer(prepared,grantSigned,acknowledgementSigned,this.resolver);
       const parsed=await verifyManagedProviderHandshake(offer,"hail.managed-transfer-offer",prepared.messagingPublicKey);
       await tx`INSERT INTO received_transfer_invitations(did,nonce,grant_digest,invitation_digest,transfer_id,
         request_bytes,request_signature,grant_bytes,grant_signature,invitation_bytes,invitation_signature,expires_at)
