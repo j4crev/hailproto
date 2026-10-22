@@ -6,6 +6,16 @@ Unlike email, knowing someone's address is not enough. A sender needs permission
 
 Hail is designed for independent providers, portable `did:plc` identities, rich and safe messages, and inexpensive spam rejection.
 
+## Core Principles
+
+- Recipients control who may deliver messages.
+- Send permissions (grants) bind to stable DIDs rather than addresses or providers.
+- Servers reject unauthorized envelopes before transferring message bodies.
+- Grant revocation immediately prevents new envelope acceptance and does not require sender cooperation.
+- Rich content uses Safe Portable Text, a custom subset of Sanity's Portable Text.
+- Federation uses open web standards where practical.
+- The protocol should remain approachable to hobbyists and independent implementers.
+
 ## Status
 
 Hail is a working **public alpha**. Three HTTPS TypeScript providers resolve
@@ -55,16 +65,6 @@ The reference CLI covers account administration and sensitive identity ceremonie
 | Custody transitions | Managed ↔ owner-controlled | — |
 | Provider transfers | Owner-controlled and managed workflows | — |
 | Credential storage | Local encrypted vault and credential files | Fixed server-side credential; none in the browser |
-
-## Core Principles
-
-- Recipients control who may deliver messages.
-- Send permissions (grants) bind to stable DIDs rather than addresses or providers.
-- Servers reject unauthorized envelopes before transferring message bodies.
-- Grant revocation immediately prevents new envelope acceptance and does not require sender cooperation.
-- Rich content uses Safe Portable Text, a custom subset of Sanity's Portable Text.
-- Federation uses open web standards where practical.
-- The protocol should remain approachable to hobbyists and independent implementers.
 
 ## Repository layout
 
