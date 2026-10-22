@@ -35,6 +35,10 @@ enable it with `PUBLIC_MANAGED_TRANSFER=true` plus the pinned
 `PLC_MANAGED_MONITOR_ORIGIN` and `PLC_MANAGED_MONITOR_PUBLIC_KEY`. Public
 onboarding may remain enabled at the same time.
 
+Passkey authentication defaults on for this profile, with the exact HTTPS
+provider origin and provider domain as its RP ID. Set `PASSKEY_AUTH=false` only
+for rollback; changing the RP ID invalidates existing provider-local passkeys.
+
 ## Validate and start
 
 ```bash
