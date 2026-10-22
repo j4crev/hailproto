@@ -5,7 +5,7 @@ import { TransferRateLimit } from "../src/migration/rate-limit.js";
 const integration = process.env.DATABASE_URL ? describe : describe.skip;
 
 integration("shared transfer throttling", () => {
-  it("shares per-DID and global limits across independent service instances", async () => {
+  it("shares per-DID and overload limits across independent service instances", async () => {
     const db = new ProviderDatabase(process.env.DATABASE_URL!);
     try {
       await db.migrate();
@@ -19,11 +19,10 @@ integration("shared transfer throttling", () => {
       }
       expect(await second.admitAuthenticated("reservation", did)).toBe(false);
       expect(await first.admitAuthenticated("reservation", "not-a-did")).toBe(false);
-      // This bucket is shared by all DIDs and provider processes.
-      for (let i = 0; i < 120; i += 1) {
-        expect(await (i % 2 ? first : second).admit("request")).toBe(true);
-      }
-      expect(await second.admit("request")).toBe(false);
+      await db.sql`INSERT INTO transfer_rate_limits(bucket,attempts) VALUES('global:request',5999)
+        ON CONFLICT(bucket) DO UPDATE SET attempts=5999,window_started_at=clock_timestamp()`;
+      expect(await first.admit("request","192.0.2.1")).toBe(true);
+      expect(await second.admit("request","192.0.2.2")).toBe(false);
       await db.sql`UPDATE transfer_rate_limits SET window_started_at = clock_timestamp() - interval '2 minutes'
         WHERE bucket IN (${`did:reservation:${did}`}, 'global:request')`;
       expect(await first.admitAuthenticated("reservation", did)).toBe(true);

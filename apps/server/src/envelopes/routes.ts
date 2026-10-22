@@ -5,6 +5,7 @@ import { inspectSignedPayload } from "@hailproto/codec";
 import { COSE_SIGN1_MEDIA_TYPE } from "../discovery/routes.js";
 import type { DeliveryStatusSigner } from "../delivery/status.js";
 import { ProtectedResponseSchedule } from "../http/protected-schedule.js";
+import {clientAddress,FixedWindowRateLimit} from "../http/rate-limit.js";
 
 const MAX_BYTES = 16_384;
 
@@ -37,12 +38,10 @@ async function requestBytes(request: Request): Promise<Uint8Array | null> {
 export function registerEnvelopeRoutes(app: Hono, receiver: Pick<EnvelopeReceiver, "receive">,
   signer?: Pick<DeliveryStatusSigner, "signCurrent">,
   schedule = new ProtectedResponseSchedule()): void {
-  let started = Date.now();
-  let count = 0;
+  const rateLimit=new FixedWindowRateLimit();
   app.all("/hail/envelopes", async (context) => {
-    const now = Date.now();
-    if (now - started >= 60_000) { started = now; count = 0; }
-    if (++count > 120) return problem(429, "Too Many Requests", { "Retry-After": String(Math.max(1, Math.ceil((60_000 - (now - started)) / 1000))) });
+    const retry=rateLimit.take(clientAddress(context.req.raw),120);
+    if(retry!==null)return problem(429,"Too Many Requests",{"Retry-After":String(retry)});
     if (context.req.method !== "POST") return problem(405, "Method Not Allowed", { Allow: "POST" });
     if (!isCoseSign1MediaType(context.req.header("Content-Type") ?? null) || context.req.header("Content-Encoding") !== undefined) {
       return problem(415, "Unsupported Media Type");

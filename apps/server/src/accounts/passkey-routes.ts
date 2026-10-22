@@ -5,6 +5,7 @@ import {accountRequestBytes} from "./routes.js";
 import type {AccountApiRepository} from "./repository.js";
 import {PasskeyAuth,PasskeyError} from "./passkeys.js";
 import {parseJsonWithoutDuplicateKeys} from "../discovery/strict-json.js";
+import {clientAddress,FixedWindowRateLimit} from "../http/rate-limit.js";
 
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 const COOKIE="hail_session";
@@ -28,7 +29,7 @@ async function input(request:Request){
 
 export function registerPasskeyRoutes(app:Hono,passkeys:PasskeyAuth,accounts:AccountApiRepository,
   audit:(event:PasskeyAuditEvent)=>void=event=>console.info(JSON.stringify(event))){
-  let window=Date.now(),requests=0;
+  const rateLimit=new FixedWindowRateLimit();
   const record=(context:Context,status:number)=>audit({type:"hail.auth",operation:OPERATIONS[context.req.path]??"unknown",
     outcome:status<400?"accepted":status<500?"refused":"failed",status});
   app.use("/api/v1/auth/*",async(context,next)=>{
@@ -36,8 +37,8 @@ export function registerPasskeyRoutes(app:Hono,passkeys:PasskeyAuth,accounts:Acc
     const origin=context.req.header("Origin"),trustedServer=context.req.path.includes("/registration")||
       ["/api/v1/auth/authorization/prepare","/api/v1/auth/authorization/token"].includes(context.req.path);
     if(origin!==passkeys.origin&&!(trustedServer&&origin===undefined)){record(context,403);return context.json({type:"about:blank",title:"Forbidden",status:403},403);}
-    if(Date.now()-window>=60_000){window=Date.now();requests=0;}
-    if(++requests>120){context.header("Retry-After","60");record(context,429);return context.json({type:"about:blank",title:"Too Many Requests",status:429},429);}
+    const retry=rateLimit.take(clientAddress(context.req.raw),120);
+    if(retry!==null){context.header("Retry-After",String(retry));record(context,429);return context.json({type:"about:blank",title:"Too Many Requests",status:429},429);}
     await next();
   });
   const run=async(context:Context,operation:()=>Promise<unknown>)=>{

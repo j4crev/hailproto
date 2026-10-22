@@ -12,7 +12,7 @@ regression tests, not further exploit demonstrations.
 | --- | --- | --- |
 | S1: bootstrap enrollment authorization | High | Fixed: legacy credential proxy disabled; use owner-authorized enrollment. |
 | S7: migration preparation outside admission transaction | High | Fixed: authenticate before preparation; key preparation and admission commit together. |
-| S2: shared ingress quotas | Medium | Open: needs a trusted client-address/principal rate-limit design. |
+| S2: shared ingress quotas | Medium | Fixed: trusted per-client and authenticated-account budgets plus a separate overload ceiling. |
 | S3: mutable verified Buffer evidence | Medium | Fixed: copy input into an independent Uint8Array. |
 | S4: CLI response buffering | Low | Fixed: streaming byte limit and cancellation. |
 | S5: repeated signed alert delivery | Low | Open: needs atomic delivery deduplication. |
@@ -97,9 +97,12 @@ each fixed finding has a separate applied-change note.
   address and authenticated account/session respectively. Keep any global overload
   ceiling separate and meaningfully higher. Do not trust arbitrary forwarded IP
   headers without a configured trusted proxy boundary.
-- Deferred: the fix needs a consistent trusted-client identity boundary across
-  direct requests, reverse-proxied requests, and authenticated principals. Merely
-  removing the global limit or trusting arbitrary forwarded headers is unsafe.
+- Applied: Caddy overwrites an internal client-address header at the private
+  provider boundary. Anonymous and federation ingress use bounded per-client
+  buckets, authenticated account traffic uses an account-local bucket, and
+  transfer ingress retains a separate database-backed overload ceiling. Direct
+  development requests share the deliberately unidentified bucket rather than
+  trusting caller-supplied forwarding headers.
 
 ### S3 — Medium: Buffer input makes verified evidence mutable
 

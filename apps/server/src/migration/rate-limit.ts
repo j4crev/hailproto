@@ -1,4 +1,5 @@
 import type { SQL } from "bun";
+import {FixedWindowRateLimit} from "../http/rate-limit.js";
 
 const limits = {
   "access-prepare": 20,
@@ -10,10 +11,12 @@ const limits = {
 } as const;
 
 export class TransferRateLimit {
+  private readonly clients=new FixedWindowRateLimit();
   constructor(private readonly sql: SQL) {}
 
-  async admit(category: keyof typeof limits): Promise<boolean> {
-    return this.take(`global:${category}`, limits[category]);
+  async admit(category:keyof typeof limits,client="unidentified"):Promise<boolean>{
+    if(!await this.take(`global:${category}`,limits[category]*50))return false;
+    return this.clients.take(`${category}:${client}`,limits[category])===null;
   }
 
   async admitAuthenticated(category: keyof typeof limits, did: string): Promise<boolean> {

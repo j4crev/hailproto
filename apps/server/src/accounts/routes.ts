@@ -14,6 +14,7 @@ import type { ManagedAccountTransfer } from "./managed-transfer.js";
 import { parseSenderProfileDefinition, SenderProfileConflictError, type SenderProfileService } from "../profiles/service.js";
 import type { SenderProfileVerifier } from "../profiles/verifier.js";
 import {getCookie} from "hono/cookie";
+import {clientAddress,FixedWindowRateLimit} from "../http/rate-limit.js";
 
 const GRANT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_BYTES = 262_144;
@@ -45,8 +46,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   grants: GrantRepository, service: GrantService, provider: string, messaging?:AccountMessaging, binding?:AccountBinding,
   transfer?:AccountTransfer,custodyTransition?:SameProviderCustodyTransition,managedTransfer?:ManagedAccountTransfer,
   profiles?:SenderProfileService,profileVerifier?:Pick<SenderProfileVerifier,"verify">,sessionOrigin?:string): void {
-  let window = Date.now();
-  let requests = 0;
+  const ingress=new FixedWindowRateLimit(),anonymous=new FixedWindowRateLimit(),authenticated=new FixedWindowRateLimit();
   const handle = async (context: Context, grantId: string | null, action?: string):Promise<Response> => {
     context.header("Cache-Control", "no-store");
     context.header("Vary", "Authorization, Cookie");
@@ -57,11 +57,13 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
       context.header("Content-Type", "application/problem+json");
       return context.json({ type: "about:blank", title, status }, status, { "Content-Type": "application/problem+json" });
     };
-    if (Date.now() - window >= 60_000) { window = Date.now(); requests = 0; }
-    if (++requests > 120) { context.header("Retry-After", "60"); return problem(429); }
+    const client=clientAddress(context.req.raw),ingressRetry=ingress.take(client,600);
+    if(ingressRetry!==null){context.header("Retry-After",String(ingressRetry));return problem(429);}
     try {
       const session = await accounts.authenticate(context.req.header("Authorization"),getCookie(context,"hail_session"));
-      if (!session) { context.header("WWW-Authenticate", 'Bearer realm="hailp-account"'); return problem(401); }
+      if (!session) {const retry=anonymous.take(client,120);if(retry!==null){context.header("Retry-After",String(retry));return problem(429);}
+        context.header("WWW-Authenticate", 'Bearer realm="hailp-account"'); return problem(401); }
+      const retry=authenticated.take(session.account_id,120);if(retry!==null){context.header("Retry-After",String(retry));return problem(429);}
       if(getCookie(context,"hail_session")&&context.req.method!=="GET"&&context.req.method!=="HEAD"&&
         context.req.header("Origin")!==sessionOrigin)return problem(403);
       return await withServingGeneration<Response>(session.account_id,session.serving_generation??1,async():Promise<Response>=>{

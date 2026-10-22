@@ -95,6 +95,8 @@ describe("passkey routes",()=>{
     for(let request=0;request<120;request++)expect((await limited.app.request("/api/v1/auth/passkeys/authentication/options",{method:"POST",headers:{Origin:origin}})).status).toBe(200);
     const blocked=await limited.app.request("/api/v1/auth/passkeys/authentication/options",{method:"POST",headers:{Origin:origin}});
     expect(blocked.status).toBe(429);expect(blocked.headers.get("Retry-After")).toBe("60");
+    expect((await limited.app.request("/api/v1/auth/passkeys/authentication/options",{method:"POST",headers:{Origin:origin,
+      "X-Hail-Trusted-Client-IP":"192.0.2.2"}})).status).toBe(200);
   });
 
   it("audits outcomes without request or account identifiers",async()=>{

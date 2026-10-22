@@ -1,6 +1,7 @@
 import type { Context, Hono } from "hono";
 import { isCoseSign1MediaType } from "../http/media-type.js";
 import { GrantReceiveError, type GrantReceiver } from "./receiver.js";
+import {clientAddress,FixedWindowRateLimit} from "../http/rate-limit.js";
 
 const GRANT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_GRANT_BYTES = 262_144;
@@ -60,19 +61,7 @@ export function registerGrantRoutes(
   hailServiceBase: string,
   receiver: GrantReceiver,
 ): void {
-  let rateWindowStartedAt = Date.now();
-  let requestsInWindow = 0;
-  const rateLimit = (): number | null => {
-    const now = Date.now();
-    if (now - rateWindowStartedAt >= 60_000) {
-      rateWindowStartedAt = now;
-      requestsInWindow = 0;
-    }
-    requestsInWindow += 1;
-    return requestsInWindow <= 120
-      ? null
-      : Math.max(1, Math.ceil((60_000 - (now - rateWindowStartedAt)) / 1_000));
-  };
+  const rateLimit=new FixedWindowRateLimit();
 
   app.all("/hail/grants/:grantId", async (context) => {
     const startedAt = Date.now();
@@ -80,7 +69,7 @@ export function registerGrantRoutes(
       "Cache-Control": "no-store",
       "Content-Type": "application/problem+json",
     };
-    const retryAfter = rateLimit();
+    const retryAfter=rateLimit.take(clientAddress(context.req.raw),120);
     if (retryAfter !== null) {
       return context.json(problem(429, titleFor(429)), 429, {
         ...headers,
@@ -141,7 +130,7 @@ export function registerGrantRoutes(
 
   const malformedPath = (context: Context) => {
     const headers = { "Cache-Control": "no-store", "Content-Type": "application/problem+json" };
-    const retryAfter = rateLimit();
+    const retryAfter=rateLimit.take(clientAddress(context.req.raw),120);
     if (retryAfter !== null) {
       return context.json(problem(429, titleFor(429)), 429, {
         ...headers,

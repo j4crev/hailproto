@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec";
 import type { Hono } from "hono";
 import { BODY_MEDIA_TYPE, type BodyStore } from "./service.js";
+import {clientAddress,FixedWindowRateLimit} from "../http/rate-limit.js";
 
 const PATH = /^\/hail\/bodies\/([A-Za-z0-9_-]{43})$/;
 const BEARER = /^Bearer ([A-Za-z0-9_-]{43})$/i;
@@ -34,13 +35,11 @@ function acceptsBody(value: string | undefined): boolean {
 }
 
 export function registerBodyRoutes(app: Hono, store: BodyStore): void {
-  let windowStart = Date.now();
-  let count = 0;
+  const rateLimit=new FixedWindowRateLimit();
   app.all("/hail/bodies/*", async (context) => {
     const started = Date.now();
-    const now = Date.now();
-    if (now - windowStart >= 60_000) { windowStart = now; count = 0; }
-    if (++count > 120) return problem(429, "Too Many Requests", { "Retry-After": String(Math.max(1, Math.ceil((60_000 - (now - windowStart)) / 1000))) });
+    const retry=rateLimit.take(clientAddress(context.req.raw),120);
+    if(retry!==null)return problem(429,"Too Many Requests",{"Retry-After":String(retry)});
     if (context.req.method !== "GET") return problem(405, "Method Not Allowed", { Allow: "GET" });
     const notFound = async () => {
       const remaining = WAIT_MS - (Date.now() - started);

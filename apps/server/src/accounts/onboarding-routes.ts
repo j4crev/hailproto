@@ -8,17 +8,18 @@ import type { PrivatePocOnboarding } from "../onboarding/private-poc.js";
 import type { PublicOnboarding } from "../onboarding/public.js";
 import { AccountApiRepository, ALL_ACCOUNT_SCOPES, tokenHash } from "./repository.js";
 import { accountRequestBytes } from "./routes.js";
+import {clientAddress,FixedWindowRateLimit} from "../http/rate-limit.js";
 
 export interface SelfServiceOnboarding { sql: SQL; onboarding: PrivatePocOnboarding | PublicOnboarding;
   activation?: ActivationService; provider: string; profile?: "private-poc" | "strict-public-v1"; }
 
 export function registerSelfServiceOnboarding(app: Hono, dependencies: SelfServiceOnboarding) {
-  let window = Date.now(), count = 0;
+  const rateLimit=new FixedWindowRateLimit();
   app.all("/api/v1/onboarding/:id?", async context => {
     context.header("Cache-Control","no-store");
     if (context.req.method !== "POST") return context.json({error:"Use POST"},405);
-    if (Date.now()-window>60000) {window=Date.now();count=0;}
-    if (++count>20) return context.json({error:"Rate limited"},429);
+    const retry=rateLimit.take(clientAddress(context.req.raw),20);
+    if(retry!==null){context.header("Retry-After",String(retry));return context.json({error:"Rate limited"},429);}
     if (context.req.header("Content-Type") !== "application/json" || context.req.header("Content-Encoding") !== undefined) return context.json({error:"Use uncoded JSON"},415);
     const id = context.req.param("id");
     let token: string | undefined;

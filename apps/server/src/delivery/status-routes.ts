@@ -2,6 +2,7 @@ import type { Hono } from "hono";
 import { isCoseSign1MediaType } from "../http/media-type.js";
 import type { DeliveryStatusReceiver } from "./status-receiver.js";
 import { ProtectedResponseSchedule } from "../http/protected-schedule.js";
+import {clientAddress,FixedWindowRateLimit} from "../http/rate-limit.js";
 
 const DIGEST_PATH = /^\/hail\/deliveries\/([A-Za-z0-9_-]{43})$/;
 
@@ -18,12 +19,10 @@ function generic(): Response {
 
 export function registerDeliveryStatusRoutes(app: Hono, receiver: Pick<DeliveryStatusReceiver, "receive">,
   schedule = new ProtectedResponseSchedule()): void {
-  let windowStart = Date.now();
-  let count = 0;
+  const rateLimit=new FixedWindowRateLimit();
   app.all("/hail/deliveries/*", async (context) => {
-    const now = Date.now();
-    if (now - windowStart >= 60_000) { windowStart = now; count = 0; }
-    if (++count > 120) return problem(429, "Too Many Requests", { "Retry-After": "60" });
+    const retry=rateLimit.take(clientAddress(context.req.raw),120);
+    if(retry!==null)return problem(429,"Too Many Requests",{"Retry-After":String(retry)});
     if (context.req.method !== "PUT") return problem(405, "Method Not Allowed", { Allow: "PUT" });
     if (!isCoseSign1MediaType(context.req.header("Content-Type") ?? null) || context.req.header("Content-Encoding") !== undefined) {
       return problem(415, "Unsupported Media Type");

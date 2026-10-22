@@ -5,12 +5,13 @@ import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
 import { accountRequestBytes } from "./routes.js";
 import type { AccountAccess } from "./access.js";
 import type { SQL } from "bun";
+import {clientAddress} from "../http/rate-limit.js";
 
 export function registerAccountAccess(app: Hono, access: AccountAccess, sql: SQL) {
   const limits = new TransferRateLimit(sql), schedule = new ProtectedResponseSchedule();
   for (const operation of ["prepare", "complete"] as const) app.all(`/api/v1/account-access/${operation}`, async context => {
     context.header("Cache-Control", "no-store");
-    if (!await limits.admit(operation === "prepare" ? "access-prepare" : "access-complete")) {
+    if(!await limits.admit(operation==="prepare"?"access-prepare":"access-complete",clientAddress(context.req.raw))){
       context.header("Retry-After", "60"); return context.json({ error: "Account access unavailable" }, 429);
     }
     if (context.req.method !== "POST") return context.json({ error: "Use POST" }, 405);

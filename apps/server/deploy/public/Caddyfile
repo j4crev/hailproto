@@ -4,5 +4,7 @@
 }
 
 {$PROVIDER_DOMAIN} {
-	reverse_proxy provider:3000
+	reverse_proxy provider:3000 {
+		header_up X-Hail-Trusted-Client-IP {remote_host}
+	}
 }
