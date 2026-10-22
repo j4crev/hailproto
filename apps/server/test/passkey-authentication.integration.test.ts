@@ -10,7 +10,7 @@ import type {AccountApiSession} from "../src/accounts/repository.js";
 
 const integration=process.env.DATABASE_URL?describe:describe.skip;
 integration("passkey authentication",()=>{
-  let admin:SQL,db:ProviderDatabase,schema:string,account:string,credential:string,passkeys:PasskeyAuth;
+  let admin:SQL,db:ProviderDatabase,destinationDb:ProviderDatabase,schema:string,destinationSchema:string,account:string,credential:string,passkeys:PasskeyAuth;
   const keys=generateKeyPairSync("ec",{namedCurve:"prime256v1"}),jwk=keys.publicKey.export({format:"jwk"});
   const cose=Buffer.concat([Buffer.from("a5010203262001215820","hex"),Buffer.from(jwk.x!,"base64url"),
     Buffer.from("225820","hex"),Buffer.from(jwk.y!,"base64url")]);
@@ -38,15 +38,20 @@ integration("passkey authentication",()=>{
 
   beforeAll(async()=>{
     admin=new SQL(process.env.DATABASE_URL!);schema=`passkey_auth_${randomUUID().replaceAll("-","")}`;
-    await admin.unsafe(`CREATE SCHEMA "${schema}"`);const url=new URL(process.env.DATABASE_URL!);url.searchParams.set("options",`-csearch_path=${schema}`);
+    destinationSchema=`passkey_destination_${randomUUID().replaceAll("-","")}`;
+    await admin.unsafe(`CREATE SCHEMA "${schema}"`);await admin.unsafe(`CREATE SCHEMA "${destinationSchema}"`);
+    const url=new URL(process.env.DATABASE_URL!);url.searchParams.set("options",`-csearch_path=${schema}`);
     db=new ProviderDatabase(url.toString());await db.migrate();account=randomUUID();credential=encodeBase64Url(randomBytes(32));
+    const destinationUrl=new URL(process.env.DATABASE_URL!);destinationUrl.searchParams.set("options",`-csearch_path=${destinationSchema}`);
+    destinationDb=new ProviderDatabase(destinationUrl.toString());await destinationDb.migrate();
     await db.sql`INSERT INTO provider_accounts(id,tenant_id,canonical_address,did,onboarding_state,activated_at,activation_binding_digest,activation_verification_mode)
       VALUES(${account},${randomUUID()},'passkey@example.com',${`did:plc:${"a".repeat(24)}`},'active',now(),${randomBytes(32)},'public')`;
     await db.sql`INSERT INTO account_passkeys(credential_id,account_id,serving_generation,public_key,device_type,backed_up,label)
       VALUES(${credential},${account},1,${cose},'singleDevice',false,'Test passkey')`;
     passkeys=new PasskeyAuth(db.sql,"example.com","https://example.com");
   });
-  afterAll(async()=>{if(db)await db.close();if(admin){await admin.unsafe(`DROP SCHEMA "${schema}" CASCADE`);await admin.close();}});
+  afterAll(async()=>{if(db)await db.close();if(destinationDb)await destinationDb.close();if(admin){await admin.unsafe(`DROP SCHEMA "${schema}" CASCADE`);
+    await admin.unsafe(`DROP SCHEMA "${destinationSchema}" CASCADE`);await admin.close();}});
 
   it("consumes one challenge once and updates the authenticator counter",async()=>{
     const start=await passkeys.authenticationOptions();passkeys=new PasskeyAuth(db.sql,"example.com","https://example.com");
@@ -109,6 +114,18 @@ integration("passkey authentication",()=>{
     }
     const row=(await db.sql<{signature_counter:number|string;backed_up:boolean}[]>`SELECT signature_counter,backed_up FROM account_passkeys WHERE credential_id=${synced}`)[0];
     expect(Number(row?.signature_counter)).toBe(0);expect(row?.backed_up).toBe(true);
+  });
+
+  it("preserves account linkage after an address change",async()=>{
+    await db.sql`UPDATE provider_accounts SET canonical_address='renamed@example.com' WHERE id=${account}`;
+    const start=await passkeys.authenticationOptions(),session=await passkeys.authenticate(start.challengeId,
+      response(start.options.challenge,{counter:4}));
+    expect((await new AccountApiRepository(db.sql).authenticate(undefined,session.token))?.canonical_address).toBe("renamed@example.com");
+  });
+
+  it("does not recognize a source-provider passkey at a separate destination",async()=>{
+    const destination=new PasskeyAuth(destinationDb.sql,"example.com","https://example.com"),start=await destination.authenticationOptions();
+    await expect(destination.authenticate(start.challengeId,response(start.options.challenge,{counter:5}))).rejects.toMatchObject({status:401});
   });
 
   it("rejects expired, wrong-purpose, unknown and inactive-generation attempts",async()=>{

@@ -453,11 +453,11 @@ the browser.
 - [x] Owner-controlled identity-proof enrollment.
 - [x] Deliberate top-recovery-proof enrollment for both custody profiles.
 - [x] Reject provider-held managed identity as independent owner recovery.
-- [ ] Invalidate old sessions/codes after custody or serving-generation change.
-- [ ] Prove that source passkeys do not authenticate at the destination.
+- [x] Invalidate old sessions/codes after custody or serving-generation change.
+- [x] Prove that source passkeys do not authenticate at the destination.
 - [ ] Register a fresh destination passkey after owner-controlled and managed
       provider transfer.
-- [ ] Prove address changes preserve passkey account linkage.
+- [x] Prove address changes preserve passkey account linkage.
 
 ### 7. Test security and interoperability
 
