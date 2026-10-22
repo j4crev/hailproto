@@ -32,8 +32,7 @@ export class PasskeyError extends Error {
 
 export class PasskeyAuth {
   constructor(private readonly sql:SQL,readonly rpId:string,readonly origin:string,
-    private readonly verifyRegistration:typeof verifyRegistrationResponse=verifyRegistrationResponse,
-    private readonly verifyAuthentication:typeof verifyAuthenticationResponse=verifyAuthenticationResponse){}
+    private readonly verifyRegistration:typeof verifyRegistrationResponse=verifyRegistrationResponse){}
 
   private management(session:AccountApiSession){
     if(session.scopes.includes("credentials:write")||session.passkey_verified_at&&
@@ -303,7 +302,7 @@ export class PasskeyAuth {
         AND account.did IS NOT NULL AND fence.account_id IS NULL`;
     const row=rows[0];if(!row)throw new PasskeyError(401);
     let result;
-    try{result=await this.verifyAuthentication({response,expectedChallenge:challenge,expectedOrigin:this.origin,
+    try{result=await verifyAuthenticationResponse({response,expectedChallenge:challenge,expectedOrigin:this.origin,
       expectedRPID:this.rpId,requireUserVerification:true,credential:{id:row.credential_id,publicKey:new Uint8Array(row.public_key),
         counter:Number(row.signature_counter),transports:Array.isArray(row.transports)?row.transports as string[]:[]}});}
     catch{throw new PasskeyError(401);}

@@ -2,6 +2,7 @@ import {randomBytes,randomUUID} from "node:crypto";
 import {SQL} from "bun";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
 import {encodeBase64Url} from "@hailproto/codec";
+import {verifyRegistrationResponse} from "@simplewebauthn/server";
 
 import {ProviderDatabase} from "../src/db/database.js";
 import {PasskeyAuth} from "../src/accounts/passkeys.js";
@@ -12,6 +13,10 @@ integration("owner-proof passkey recovery",()=>{
   let admin:SQL,db:ProviderDatabase,schema:string,account:string,other:string,passkeys:PasskeyAuth;
   const token=()=>`hailp_${encodeBase64Url(randomBytes(32))}`;
   const response=(id:string)=>({id,rawId:id,type:"public-key" as const,response:{clientDataJSON:"AA",attestationObject:"AA",transports:[]},clientExtensionResults:{}});
+  const verifyRegistration:typeof verifyRegistrationResponse=async({response})=>({verified:true,registrationInfo:{credential:{id:response.id,publicKey:randomBytes(64),counter:0,transports:[]},
+    credentialDeviceType:"multiDevice",credentialBackedUp:true,fmt:"none",aaguid:"00000000-0000-0000-0000-000000000000",
+    credentialType:"public-key",attestationObject:new Uint8Array(),userVerified:true,credentialBackedUpStatus:false,
+    origin:"https://example.com",rpID:"example.com"}});
   const capability=async(secret:string)=>{
     const id=randomUUID();
     await db.sql`INSERT INTO account_passkey_enrollment_capabilities(id,token_hash,account_id,serving_generation,expires_at)
@@ -22,11 +27,7 @@ integration("owner-proof passkey recovery",()=>{
   beforeAll(async()=>{
     admin=new SQL(process.env.DATABASE_URL!);schema=`recovery_${randomUUID().replaceAll("-","")}`;
     await admin.unsafe(`CREATE SCHEMA "${schema}"`);const url=new URL(process.env.DATABASE_URL!);url.searchParams.set("options",`-csearch_path=${schema}`);
-    db=new ProviderDatabase(url.toString());await db.migrate();passkeys=new PasskeyAuth(db.sql,"example.com","https://example.com",
-      async({response})=>({verified:true,registrationInfo:{credential:{id:response.id,publicKey:randomBytes(64),counter:0,transports:[]},
-        credentialDeviceType:"multiDevice",credentialBackedUp:true,fmt:"none",aaguid:"00000000-0000-0000-0000-000000000000",
-        credentialType:"public-key",attestationObject:new Uint8Array(),userVerified:true,credentialBackedUpStatus:false,
-        origin:"https://example.com",rpID:"example.com"}}));
+    db=new ProviderDatabase(url.toString());await db.migrate();passkeys=new PasskeyAuth(db.sql,"example.com","https://example.com",verifyRegistration);
     account=randomUUID();other=randomUUID();
     for(const [id,address] of [[account,"owner@example.com"],[other,"other@example.com"]])await db.sql`
       INSERT INTO provider_accounts(id,tenant_id,canonical_address,did,onboarding_state,activated_at,activation_binding_digest,activation_verification_mode)
@@ -36,6 +37,7 @@ integration("owner-proof passkey recovery",()=>{
 
   it("survives a lost response but rejects reuse for another credential",async()=>{
     const secret=token(),start=await capability(secret),credential=encodeBase64Url(randomBytes(32));
+    passkeys=new PasskeyAuth(db.sql,"example.com","https://example.com",verifyRegistration);
     const first=await passkeys.recover(secret,start.challengeId,response(credential),"Recovered phone");
     expect(first).toEqual({registered:true,credentialId:credential,label:"Recovered phone"});
     expect(await passkeys.recover(secret,start.challengeId,response(credential),"Changed label")).toEqual(first);

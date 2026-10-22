@@ -446,14 +446,17 @@ the browser.
 
 - [x] Registration and login success with a software/virtual authenticator.
 - [x] Challenge replay, expiry, wrong purpose and concurrent consumption.
-- [ ] Wrong origin, RP ID, ceremony type, signature and user-verification flag.
+- [x] Authentication rejects wrong origin, RP ID, ceremony type, signature and
+      user-verification flag using real signed ES256 assertions.
+- [x] Registration rejects the corresponding malformed ceremony inputs using
+      a real ES256 `none`-attestation response.
 - [x] Duplicate credential ID, unknown credential and inactive generation.
-- [ ] Session fixation, expiry, logout, revocation, CSRF and account isolation.
-- [ ] Authorization-code replay, wrong redirect URI, wrong provider and invalid
+- [x] Session fixation, expiry, logout, revocation, CSRF and account isolation.
+- [x] Authorization-code replay, wrong redirect URI, wrong provider and invalid
       PKCE verifier.
-- [ ] Counter behavior for device-bound and synced credentials.
-- [ ] Generic errors and rate limits that resist account enumeration.
-- [ ] Restart and lost-response tests for every durable ceremony.
+- [x] Counter behavior for device-bound and synced credentials.
+- [x] Generic errors and rate limits that resist account enumeration.
+- [x] Restart and lost-response tests for every durable ceremony.
 - [ ] Manual matrix: Android, iOS, macOS, Windows and Linux browsers.
 - [ ] Manual matrix: synced passkey, hardware security key and phone-based
       cross-device authentication.

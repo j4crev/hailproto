@@ -14,7 +14,7 @@ import type {AccountApiRepository,AccountApiSession} from "../src/accounts/repos
 
 const integration=process.env.DATABASE_URL?describe:describe.skip;
 integration("browser authorization code and PKCE",()=>{
-  let admin:SQL,db:ProviderDatabase,schema:string,directory:string,passkeys:PasskeyAuth,app:Hono;
+  let admin:SQL,db:ProviderDatabase,otherDb:ProviderDatabase,schema:string,otherSchema:string,directory:string,passkeys:PasskeyAuth,app:Hono;
   const origin="https://example.com";
   let session:AccountApiSession;
   const secret=(prefix:string)=>`${prefix}_${encodeBase64Url(randomBytes(32))}`;
@@ -25,8 +25,10 @@ integration("browser authorization code and PKCE",()=>{
     const result=await passkeys.prepareAuthorization(input);return {verifier,code,state,redirectUri,input,...result};
   };
   beforeAll(async()=>{
-    admin=new SQL(process.env.DATABASE_URL!);schema=`browser_${randomUUID().replaceAll("-","")}`;await admin.unsafe(`CREATE SCHEMA "${schema}"`);
+    admin=new SQL(process.env.DATABASE_URL!);schema=`browser_${randomUUID().replaceAll("-","")}`;otherSchema=`browser_other_${randomUUID().replaceAll("-","")}`;
+    await admin.unsafe(`CREATE SCHEMA "${schema}"`);await admin.unsafe(`CREATE SCHEMA "${otherSchema}"`);
     const url=new URL(process.env.DATABASE_URL!);url.searchParams.set("options",`-csearch_path=${schema}`);db=new ProviderDatabase(url.toString());await db.migrate();
+    const otherUrl=new URL(process.env.DATABASE_URL!);otherUrl.searchParams.set("options",`-csearch_path=${otherSchema}`);otherDb=new ProviderDatabase(otherUrl.toString());await otherDb.migrate();
     const account=randomUUID();await db.sql`INSERT INTO provider_accounts(id,tenant_id,canonical_address,did,onboarding_state,activated_at,activation_binding_digest,activation_verification_mode)
       VALUES(${account},${randomUUID()},'browser@example.com',${`did:plc:${"a".repeat(24)}`},'active',now(),${randomBytes(32)},'public')`;
     session={account_id:account,credential_id:randomUUID(),credential_expires_at:new Date(Date.now()+60_000),did:`did:plc:${"a".repeat(24)}`,
@@ -35,18 +37,20 @@ integration("browser authorization code and PKCE",()=>{
     directory=await mkdtemp(join(tmpdir(),"hail-browser-login-"));app=new Hono();passkeys=new PasskeyAuth(db.sql,"example.com",origin);
     registerPasskeyRoutes(app,passkeys,{authenticate:async()=>session} as unknown as AccountApiRepository);
   });
-  afterAll(async()=>{if(db)await db.close();if(admin){await admin.unsafe(`DROP SCHEMA "${schema}" CASCADE`);await admin.close();}if(directory)await rm(directory,{recursive:true,force:true});});
+  afterAll(async()=>{if(db)await db.close();if(otherDb)await otherDb.close();if(admin){await admin.unsafe(`DROP SCHEMA "${schema}" CASCADE`);
+    await admin.unsafe(`DROP SCHEMA "${otherSchema}" CASCADE`);await admin.close();}if(directory)await rm(directory,{recursive:true,force:true});});
 
   it("exchanges one exact code with PKCE and makes lost responses idempotent",async()=>{
     const request=await prepare(),token=secret("hailp");
     expect(await passkeys.prepareAuthorization(request.input)).toMatchObject({requestId:request.requestId,expiresAt:request.expiresAt});
-    expect(await passkeys.authorizationDetails(request.requestId,request.state)).toMatchObject({clientId:"hailp-cli-v1",scopes:["account:read"]});
-    const redirect=await passkeys.completeAuthorization(session,request.requestId,request.state,request.code);
+    const restarted=new PasskeyAuth(db.sql,"example.com",origin);
+    expect(await restarted.authorizationDetails(request.requestId,request.state)).toMatchObject({clientId:"hailp-cli-v1",scopes:["account:read"]});
+    const redirect=await restarted.completeAuthorization(session,request.requestId,request.state,request.code);
     expect(new URL(redirect.redirectUri).searchParams.get("code")).toBe(request.code);
-    const credential=await passkeys.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:request.redirectUri,code:request.code,verifier:request.verifier,token});
+    const credential=await restarted.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:request.redirectUri,code:request.code,verifier:request.verifier,token});
     expect(credential).toMatchObject({type:"hailp.api-credential",accountId:session.account_id,token,scopes:["account:read"]});
-    expect(await passkeys.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:request.redirectUri,code:request.code,verifier:request.verifier,token})).toEqual(credential);
-    await expect(passkeys.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:request.redirectUri,code:request.code,verifier:request.verifier,token:secret("hailp")}))
+    expect(await restarted.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:request.redirectUri,code:request.code,verifier:request.verifier,token})).toEqual(credential);
+    await expect(restarted.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:request.redirectUri,code:request.code,verifier:request.verifier,token:secret("hailp")}))
       .rejects.toMatchObject({status:401});
   });
 
@@ -82,5 +86,12 @@ integration("browser authorization code and PKCE",()=>{
       await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0056_browser_authorization.sql",import.meta.url)).text()))
         .rejects.toThrow("active browser authorization");await rollback.unsafe("ROLLBACK");
     }finally{rollback.release();}
+  });
+
+  it("rejects a code at a separate provider database",async()=>{
+    const request=await prepare();await passkeys.completeAuthorization(session,request.requestId,request.state,request.code);
+    const other=new PasskeyAuth(otherDb.sql,"other.example","https://other.example");
+    await expect(other.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:request.redirectUri,code:request.code,
+      verifier:request.verifier,token:secret("hailp")})).rejects.toMatchObject({status:401});
   });
 });

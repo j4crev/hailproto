@@ -1,7 +1,7 @@
 import {describe,expect,it,vi} from "vitest";
 import {Hono} from "hono";
 import {registerPasskeyRoutes} from "../src/accounts/passkey-routes.js";
-import type {PasskeyAuth} from "../src/accounts/passkeys.js";
+import {PasskeyError,type PasskeyAuth} from "../src/accounts/passkeys.js";
 import type {AccountApiRepository} from "../src/accounts/repository.js";
 
 const origin="https://haili.app",token=`hails_${"A".repeat(43)}`;
@@ -78,5 +78,22 @@ describe("passkey routes",()=>{
       body:JSON.stringify({requestId:"00000000-0000-4000-8000-000000000005",state:"A".repeat(43)})})).status).toBe(403);
     expect((await app.request("/api/v1/auth/authorization/token",{method:"POST",headers:json,body:"{}"})).status).toBe(200);
     expect(service.exchangeAuthorization).toHaveBeenCalledOnce();
+  });
+
+  it("returns generic failures and bounds authentication requests",async()=>{
+    const failure=fixture(),headers={Origin:origin,"Content-Type":"application/json"},body=JSON.stringify({
+      challengeId:"00000000-0000-4000-8000-000000000003",response:{id:"credential"}});
+    failure.service.authenticate.mockRejectedValueOnce(new Error("private account detail"));
+    const unavailable=await failure.app.request("/api/v1/auth/passkeys/authentication",{method:"POST",headers,body});
+    expect(unavailable.status).toBe(503);expect(await unavailable.text()).not.toContain("private account detail");
+    expect(unavailable.headers.get("Retry-After")).toBe("30");
+    failure.service.authenticate.mockRejectedValueOnce(new PasskeyError(401));
+    expect(await (await failure.app.request("/api/v1/auth/passkeys/authentication",{method:"POST",headers,body})).json())
+      .toEqual({type:"about:blank",title:"Unauthorized",status:401});
+
+    const limited=fixture();
+    for(let request=0;request<120;request++)expect((await limited.app.request("/api/v1/auth/passkeys/authentication/options",{method:"POST",headers:{Origin:origin}})).status).toBe(200);
+    const blocked=await limited.app.request("/api/v1/auth/passkeys/authentication/options",{method:"POST",headers:{Origin:origin}});
+    expect(blocked.status).toBe(429);expect(blocked.headers.get("Retry-After")).toBe("60");
   });
 });
