@@ -455,7 +455,7 @@ the browser.
 - [x] Reject provider-held managed identity as independent owner recovery.
 - [x] Invalidate old sessions/codes after custody or serving-generation change.
 - [x] Prove that source passkeys do not authenticate at the destination.
-- [ ] Register a fresh destination passkey after owner-controlled and managed
+- [x] Register a fresh destination passkey after owner-controlled and managed
       provider transfer.
 - [x] Prove address changes preserve passkey account linkage.
 

@@ -17,6 +17,9 @@ import {expect,it} from "vitest";
 import {registerAccountApiRoutes} from "../src/accounts/routes.js";
 import {ManagedAccountTransfer} from "../src/accounts/managed-transfer.js";
 import {AccountApiRepository} from "../src/accounts/repository.js";
+import {AccountAccess} from "../src/accounts/access.js";
+import {accountAccessInput} from "../../cli/src/account-access-proof.js";
+import {PasskeyAuth} from "../src/accounts/passkeys.js";
 import {bodyFromText} from "../src/bodies/service.js";
 import {ProviderDatabase} from "../src/db/database.js";
 import {KeyEncryptor} from "../src/identity/key-encryption.js";
@@ -45,6 +48,7 @@ import {OnboardingRepository} from "../src/onboarding/repository.js";
 import {withFreshServingGenerations,withServingGeneration} from "../src/db/serving.js";
 import {TransferDeliveryWorker} from "../src/migration/delivery-worker.js";
 import {finalRequestWire,parseRequestWire,requestWire,TRANSFER_MEDIA_TYPE} from "../src/migration/wire.js";
+import {virtualPasskey} from "./support/virtual-passkey.js";
 
 const integration=process.env.DATABASE_URL?it:it.skip;
 
@@ -489,6 +493,19 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
     expect(await target.sql`SELECT 1 FROM detached_bodies WHERE sender_account_id=${accountId} AND digest=${bodyHash}`).toHaveLength(1);
     expect((await target.sql<{state:string}[]>`SELECT state FROM delivery_work WHERE sender_did=${grantee} AND message_id=${incomingId}`)[0]?.state).toBe("accepted");
     expect(await target.sql`SELECT 1 FROM account_api_credentials WHERE account_id=${accountId}`).toHaveLength(0);
+    expect(await target.sql`SELECT 1 FROM account_passkeys WHERE account_id=${accountId}`).toHaveLength(0);
+    const targetOrigin="https://b.example.com",enrollmentToken=`hailp_${encodeBase64Url(randomBytes(32))}`,
+      access=new AccountAccess(target.sql,resolver,targetOrigin),challenge=await access.prepare({did,signer:"owner-recovery",publicKey:owner.did(),
+        scopes:["credentials:write"],tokenHash:encodeBase64Url(new Uint8Array(createHash("sha256").update(enrollmentToken).digest())),purpose:"passkey-enrollment"}),
+      signature=encodeBase64Url(await owner.sign(accountAccessInput(challenge)));
+    await access.complete(challenge.challengeId,enrollmentToken,signature);
+    const passkeys=new PasskeyAuth(target.sql,"b.example.com",targetOrigin),authenticator=virtualPasskey(),
+      registration=await passkeys.recoveryOptions(enrollmentToken);
+    await passkeys.recover(enrollmentToken,registration.challengeId,
+      authenticator.registration(registration.options.challenge,"b.example.com",targetOrigin),"Destination passkey");
+    const authentication=await passkeys.authenticationOptions(),session=await passkeys.authenticate(authentication.challengeId,
+      authenticator.authentication(authentication.options.challenge,"b.example.com",targetOrigin));
+    expect((await new AccountApiRepository(target.sql).authenticate(undefined,session.token))?.canonical_address).toBe("alice@b.example.com");
     await withFreshServingGenerations(target.sql,()=>target.sql`UPDATE grant_revisions SET scope_payload=to_jsonb(scope_payload::text),
       signing_plc_document=to_jsonb(signing_plc_document::text),signing_plc_data=to_jsonb(signing_plc_data::text),
       signing_plc_operation_log=to_jsonb(signing_plc_operation_log::text) WHERE grant_id=${grantId} AND revision=2`);

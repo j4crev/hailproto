@@ -14,6 +14,7 @@ import { AccountApiClient } from "../../cli/src/account-api.js";
 import { transferOffer,selectTransferAddress,exportTransferSnapshot,completeAccountTransfer,signAccountTransferCutover } from "../../cli/src/account-transfer.js";
 import { loginAccount } from "../../cli/src/account-login.js";
 import { AccountAccess } from "../src/accounts/access.js";
+import {PasskeyAuth} from "../src/accounts/passkeys.js";
 import { PrivatePocTransferCompletion } from "../src/migration/poc-completion.js";
 import {withFreshServingGenerations,withServingGeneration} from "../src/db/serving.js";
 import { AccountApiRepository } from "../src/accounts/repository.js";
@@ -54,6 +55,7 @@ import { OnboardingRepository } from "../src/onboarding/repository.js";
 import type { PlcDirectoryClient } from "../src/plc/client.js";
 import { PlcHailDidResolver } from "../src/plc/resolver.js";
 import type { AppConfig } from "../src/config.js";
+import {virtualPasskey} from "./support/virtual-passkey.js";
 
 const integration = process.env.DATABASE_URL && process.env.TRANSFER_TARGET_DATABASE_URL ? describe : describe.skip;
 const registry = "http://plc.fixture:2582";
@@ -398,6 +400,19 @@ integration("private PLC transfer between disposable POC providers", () => {
     expect(log).toHaveLength(2);
     expect(await target.sql`SELECT canonical_address FROM provider_accounts
       WHERE did = ${genesis.did}`).toHaveLength(1);
+    expect(await target.sql`SELECT credential_id FROM account_passkeys WHERE account_id=${prepared.accountId}`).toHaveLength(0);
+    const enrollmentToken=`hailp_${encodeBase64Url(randomBytes(32))}`,destinationAccess=new AccountAccess(target.sql,resolver,"https://target.example.com"),
+      enrollmentChallenge=await destinationAccess.prepare({did:genesis.did,signer:"owner-recovery",publicKey:client.vault.recovery.publicDidKey,
+        scopes:["credentials:write"],tokenHash:encodeBase64Url(hash(new TextEncoder().encode(enrollmentToken))),purpose:"passkey-enrollment"}),
+      enrollmentSignature=encodeBase64Url(await client.signAccountRecovery(enrollmentChallenge));
+    await destinationAccess.complete(enrollmentChallenge.challengeId,enrollmentToken,enrollmentSignature);
+    const destinationPasskeys=new PasskeyAuth(target.sql,"target.example.com","https://target.example.com"),authenticator=virtualPasskey(),
+      registration=await destinationPasskeys.recoveryOptions(enrollmentToken);
+    await destinationPasskeys.recover(enrollmentToken,registration.challengeId,
+      authenticator.registration(registration.options.challenge,"target.example.com","https://target.example.com"),"Destination passkey");
+    const authentication=await destinationPasskeys.authenticationOptions(),passkeySession=await destinationPasskeys.authenticate(
+      authentication.challengeId,authenticator.authentication(authentication.options.challenge,"target.example.com","https://target.example.com"));
+    expect((await targetAccounts.authenticate(undefined,passkeySession.token))?.canonical_address).toBe(destinationAddress);
     const loginFetch=vi.spyOn(globalThis,"fetch").mockImplementation(async(input,init)=>{
       const request=new Request(input,init);expect(new URL(request.url).origin).toBe("https://target.example.com");return app.fetch(request);
     });
