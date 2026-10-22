@@ -47,6 +47,7 @@ services:
       PASSKEY_AUTH: ${PASSKEY_AUTH:-true}
       PASSKEY_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
       PASSKEY_RP_ID: ${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
+      THIN_GUI_ORIGIN: http://gui:3000
       PUBLIC_SELF_SERVICE_ONBOARDING: ${PUBLIC_SELF_SERVICE_ONBOARDING:-false}
       PUBLIC_CUSTODY_TRANSITIONS: "false"
       PUBLIC_MANAGED_TRANSFER: ${PUBLIC_MANAGED_TRANSFER:-false}
@@ -60,6 +61,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      gui:
+        condition: service_healthy
     healthcheck:
       test: [CMD, bun, -e, "const r=await fetch('http://127.0.0.1:3000/health/ready'); process.exit(r.ok?0:1)"]
       interval: 10s
@@ -67,6 +70,35 @@ services:
       retries: 12
       start_period: 20s
     networks: [edge, storage]
+
+  gui:
+    image: hail-server-ts:public
+    command: [bun, /workspace/hailproto/apps/gui-poc/build/index.js]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
+      HAIL_GUI_PROVIDER: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
+      HAIL_GUI_API_ORIGIN: http://provider:3000
+      HAIL_GUI_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
+      HAIL_GUI_CREDENTIAL_FILE: /run/secrets/canary-api-credential.json
+    volumes:
+      - /home/hailops/.hail/canary-api-credential.json:/run/secrets/canary-api-credential.json:ro
+    healthcheck:
+      test: [CMD, bun, -e, "const r=await fetch('http://127.0.0.1:3000/auth/login'); process.exit(r.ok?0:1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks: [edge]
 
   db:
     image: postgres:14.4-alpine

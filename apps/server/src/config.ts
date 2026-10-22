@@ -19,6 +19,7 @@ export interface AppConfig {
   pocManagedTransfer: boolean;
   publicManagedTransfer?: { monitorOrigin: string; monitorPublicKey: string };
   passkeys?: { rpId: string; origin: string };
+  thinGuiOrigin?:string;
 }
 
 type Environment = Record<string, string | undefined>;
@@ -167,6 +168,12 @@ export function loadConfig(environment: Environment = Bun.env): AppConfig {
       originUrl.hostname!==rpId&&!originUrl.hostname.endsWith(`.${rpId}`))throw new Error("PASSKEY_RP_ID must contain the passkey origin");
     passkeys={rpId,origin:withoutTrailingSlash(originUrl)};
   } else if(environment.PASSKEY_ORIGIN||environment.PASSKEY_RP_ID)throw new Error("Passkey declarations require PASSKEY_AUTH=true");
+  let thinGuiOrigin:string|undefined;
+  if(environment.THIN_GUI_ORIGIN){
+    const url=parseUrl(environment.THIN_GUI_ORIGIN.trim(),"THIN_GUI_ORIGIN",["http:","https:"]);
+    if(url.pathname!=="/")throw new Error("THIN_GUI_ORIGIN must not contain a path");
+    thinGuiOrigin=withoutTrailingSlash(url);
+  }
   return {
     nodeEnv,
     port,
@@ -181,6 +188,7 @@ export function loadConfig(environment: Environment = Bun.env): AppConfig {
     ...(publicPlcAuthority ? { publicPlcAuthority } : {}),
     ...(plcReaderDiagnosticDid?{plcReaderDiagnosticDid}:{}),
     ...(passkeys?{passkeys}:{}),
+    ...(thinGuiOrigin?{thinGuiOrigin}:{}),
   };
 }
 import { decodeBase64Url } from "@hailproto/codec";

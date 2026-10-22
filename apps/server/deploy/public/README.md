@@ -38,6 +38,13 @@ onboarding may remain enabled at the same time.
 Passkey authentication defaults on for this profile, with the exact HTTPS
 provider origin and provider domain as its RP ID. Set `PASSKEY_AUTH=false` only
 for rollback; changing the RP ID invalidates existing provider-local passkeys.
+The provider keeps `/api`, `/hail`, `/.well-known`, and `/health` locally owned
+and proxies only GUI paths to the internal thin-client sidecar.
+
+The initial canary enrollment temporarily mounts a mode-0600 credential at
+`/home/hailops/.hail/canary-api-credential.json`. Remove the mount, environment
+declaration, and host file immediately after a passkey has been enrolled and
+tested. Never enable `HAIL_GUI_CREDENTIAL_FALLBACK` in production.
 
 ## Validate and start
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it,vi } from "vitest";
 import { createApp } from "../src/app.js";
 import type { AppConfig } from "../src/config.js";
 import { ADDRESS_BINDING_REL, COSE_SIGN1_MEDIA_TYPE } from "../src/discovery/routes.js";
@@ -95,6 +95,19 @@ describe("unknown routes", () => {
       title: "Not Found",
       status: 404,
     });
+  });
+
+  it("proxies only GUI paths when the thin client is enabled",async()=>{
+    const transport=vi.fn(async()=>new Response("gui",{headers:{"Content-Type":"text/plain"}}));vi.stubGlobal("fetch",transport);
+    try{
+      const app=createApp({...config,thinGuiOrigin:"http://gui:3000"});
+      const page=await app.request("https://hailproto.app/auth/login?next=%2F");expect(await page.text()).toBe("gui");
+      const [target]=transport.mock.calls[0]! as unknown as [URL];
+      expect(target.toString()).toBe("http://gui:3000/auth/login?next=%2F");
+      expect((await app.request("/api/unknown")).status).toBe(404);
+      expect((await app.request("/.well-known/unknown")).status).toBe(404);
+      expect(transport).toHaveBeenCalledOnce();
+    }finally{vi.unstubAllGlobals();}
   });
 });
 

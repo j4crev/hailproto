@@ -68,6 +68,12 @@ describe("loadConfig", () => {
     expect(()=>loadConfig({...validEnvironment,NODE_ENV:"production",PASSKEY_AUTH:"true",PASSKEY_ORIGIN:"http://localhost:5173"})).toThrow();
   });
 
+  it("accepts only a canonical internal thin-GUI origin",()=>{
+    expect(loadConfig({...validEnvironment,THIN_GUI_ORIGIN:"http://gui:3000"}).thinGuiOrigin).toBe("http://gui:3000");
+    for(const value of ["gui:3000","http://gui:3000/path","http://user@gui:3000"])
+      expect(()=>loadConfig({...validEnvironment,THIN_GUI_ORIGIN:value})).toThrow();
+  });
+
   it("enables private managed transfer only with its existing private gates",()=>{
     const enabled={...validEnvironment,POC_MANAGED_TRANSFER:"true",POC_ACCOUNT_ACCESS:"true",
       POC_SELF_SERVICE_TRANSFER:"true",POC_SELF_SERVICE_RETURN:"true"};
