@@ -14,9 +14,9 @@ finish, then delete it.
    `apps/server/src/cli/onboard.ts:1`,
    `apps/server/src/cli/activate-local.ts:1`,
    `apps/server/src/cli/activate-public.ts:1`]
-3. **Shrink:** Stop copying server operator CLIs and sample Alice/Bob files into
-   the production image. They add roughly 1,164 source lines to the artifact but
-   are not imported by `src/index.ts`. [`apps/server/Dockerfile:34-37`]
+3. **Done:** The production build context excludes server operator CLIs and
+   sample Alice/Bob files; neither is imported by `src/index.ts`.
+   [`apps/server/Dockerfile.dockerignore:6-8`, `apps/server/Dockerfile:34-39`]
 4. **Delete:** Remove the eight standalone provider `poc:*` CLI wrappers once the
    remaining private gates use API/runtime orchestration exclusively; only
    `package.json` references them. [`apps/server/package.json:16-23`,
@@ -46,7 +46,6 @@ cannot be rewritten safely.
 
 ## Recommendation
 
-- Do item 3 now.
 - Do items 4, 5, and 6 immediately after the private gates finish.
 - Do item 2 only after legacy-account disposition.
 - Do item 7 when independent monitoring lands.

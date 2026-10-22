@@ -31,10 +31,12 @@ RUN bun install --production --frozen-lockfile
 FROM oven/bun:1.4.0
 WORKDIR /workspace/hailproto/apps/server
 ENV NODE_ENV=production
-COPY --from=dependencies /workspace/hailproto /workspace/hailproto
+COPY --from=dependencies /workspace/hailproto/node_modules /workspace/hailproto/node_modules
+COPY --from=dependencies /workspace/hailproto/packages/hail-codec-ts /workspace/hailproto/packages/hail-codec-ts
+COPY --from=dependencies /workspace/hailproto/apps/server/package.json ./package.json
+COPY --from=dependencies /workspace/hailproto/apps/server/node_modules ./node_modules
 COPY apps/server/src ./src
 COPY apps/server/migrations ./migrations
-COPY apps/server/examples ./examples
 USER bun
 EXPOSE 3000
 CMD ["bun", "src/index.ts"]

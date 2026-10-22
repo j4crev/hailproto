@@ -4,8 +4,8 @@
 !tsconfig.json
 !apps/server/package.json
 !apps/server/src/**
+apps/server/src/cli
 !apps/server/migrations/**
-!apps/server/examples/**
 !apps/cli/package.json
 !apps/plc-monitor/package.json
 !packages/hail-codec-ts/**
