@@ -1,5 +1,34 @@
 # `haili.app` launch milestone
 
+## Allowed Senders Deployed — October 23, 2026 UTC
+
+- Release `377c62cd9aa57d96628b6c7849c7390eb9d0f4a8` deployed through the
+  existing encrypted-backup/build/readiness wrapper; image
+  `sha256:6023ee459640be16349748e400fd050fa24bd5d680c2aa28ccbd3226fd2d5269`.
+  Provider, GUI and PostgreSQL remain healthy. PostgreSQL stays 14.24; no monitor,
+  SSH, sudoers or service-secret changes were needed.
+- `/permissions` now offers typed-address review, public identity-pinned sender
+  QR links, category/expiry review, exact-action passkey approval, permission
+  listing and revocation. Scanning only prefills review. Normal passkey sessions
+  still have no general `grants:write` or credential-management scope.
+- Expand-only migration 59 retains provider-local immutable Grant approval
+  intents and terminal proof. Rollback is verified while empty and refused once
+  approval records exist. Old-account/key/session preservation and older migration
+  rollback ordering checks passed against disposable PostgreSQL schemas.
+- Checks: 238 server tests passed (22 environment/live checks skipped), 23 GUI
+  tests passed, server/GUI typechecks passed, and the packaged image built and
+  served the anonymous permission landing page with no-store/no-referrer/CSP.
+  Chromium exercised typed and QR-linked review, no automatic approval, virtual
+  user-verified passkey approval and revocation. Backend integration covers foreign
+  accounts/sessions, unchanged scopes, expiry, concurrent retries, changed consent,
+  a Grant edit racing revocation, and lost committed revocation responses.
+- External health, login, signed-out home and permission landing return 200.
+  Permission writes without a session return 401; foreign-Origin and bearer-only
+  attempts return 403. These probes issued no live Grant. The next live operation
+  is the operator's explicit approval of `canary-prov@haili.app` from `j4@haili.app`.
+  Actual phone-camera behavior and the message exchange remain pilot checks.
+  See [browser permissions](browser-permissions.md) for authority/rollback limits.
+
 ## Invited Pilot And Inbox Repair — October 23, 2026 UTC
 
 - The operator enabled the invited pilot, received the security enrollment email,
