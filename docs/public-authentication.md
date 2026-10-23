@@ -84,15 +84,21 @@ Status: product plan, not implementation approval or a change to protocol requir
   registration/login verification and terminal cleanup. It uses simulated mail,
   activation and monitor responses, not a real production identity. Separate
   PostgreSQL integration tests cover the real coordinator/monitor/mail services.
-  Real mobile platforms and the invited live ceremony remain outstanding.
+  Both desktop and 390px mobile-viewport Chromium checks pass; this is not proof
+  of native mobile passkeys. Real mobile platforms and the invited live ceremony
+  remain outstanding.
+- Release `93d5be6` is deployed with the wizard/account-creation gates still off.
+  External readiness and passkey login return 200; `/signup`, recovery preview,
+  account creation and invited address checks return 404. The monitor and source-IP
+  restriction remain healthy. No live invitation, account or DID has been created.
 
 The monitor uses the confirmed `hailops@2.25.206.150` agent connection and its
 restricted wrapper. One-time console approval installed the protected source
 bridge and provider configuration operation; no root SSH or unrestricted sudo
 was enabled. The legacy checkout remains for rollback, not for new code builds.
 
-Next: deploy the wizard with its gate off, then console-enable a single invited
-production ceremony with the operator handling recovery material and real passkey
+Next: console-enable a single invited production ceremony with the operator
+handling recovery material and real passkey
 prompts. Follow with wider platform/recovery validation before more invitations.
 Do not treat a delivered operator email as verification of a signup
 user's external alert destination. Asynchronous email bounce/complaint handling

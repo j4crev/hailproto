@@ -1,5 +1,34 @@
 # `haili.app` launch milestone
 
+## Browser Wizard Staged — October 23, 2026 UTC
+
+- Provider/GUI release `93d5be6db4c57bcabc2af20a6cbfa5220f25189d` deployed
+  through the existing guarded wrapper; image
+  `sha256:0d6638bcc7bfc68552fc75e297119fe33ec6b1b7913ba2debfdc44eae207ccad`.
+  The pre-deploy encrypted backup upload recovered on retry before the build.
+- Full server checks passed 236 tests with disposable PostgreSQL 14.24, plus
+  the new address-route test passed separately. GUI checks passed 18 tests,
+  typecheck with zero warnings, build and a packaged GUI startup/headers check.
+  Chromium checks cover offline recovery crypto and the built wizard at desktop
+  and a 390px mobile viewport. Virtual passkeys were cryptographically verified;
+  mail, monitor and activation were local fixtures in the UI check. Separate
+  backend integration exercises those real services against local PLC/mail data.
+- External readiness and passkey login return 200. `/signup`,
+  `/signup/recovery`, `/api/v1/signup` and `/api/v1/signup/check-address`
+  return 404 with the gate off. The already-enabled monitor orchestration route
+  returns 401 without setup authority. The monitor is healthy and its HTTPS edge
+  still returns 403 for non-provider traffic with a spoofed forwarding header.
+- The console-only `enable-signup-pilot.py` is ready for one operator invitation:
+  it backs up, validates and atomically sets only alpha declarations and displays
+  an intended-recipient invitation URL. No new sudo/SSH privileges are installed.
+  Console enablement and subsequent guarded recreation have **not** happened.
+  No live invitation, account, DID, email binding or passkey was created during
+  this rollout; the real operator-handled ceremony remains the next gate.
+- Wider mobile/WebAuthn support, post-signup browser recovery (not approved),
+  asynchronous bounce handling and a useful invited message exchange are not
+  established by these local checks. Do not treat this staged release as public
+  consumer signup approval.
+
 ## Monitor API Bridge Completed — October 23, 2026 UTC
 
 - Operator-applied bridge and provider connection use code release
