@@ -4,21 +4,23 @@ import {mkdtemp,readFile,readdir,rm} from "node:fs/promises";
 import {join} from "node:path";
 import {createRequire} from "node:module";
 import {createSignupBackup} from "../src/lib/signup-recovery.js";
-import {assureValidSig} from "@did-plc/lib";
+import {assureValidSig,didForCreateOp} from "@did-plc/lib";
 import {cidForCbor} from "@atproto/common";
 const {generateRegistrationOptions,verifyRegistrationResponse,generateAuthenticationOptions,verifyAuthenticationResponse}=
   createRequire(new URL("../../server/package.json",import.meta.url))("@simplewebauthn/server");
 const work=await mkdtemp(join(process.env.OPENCODE_TMP_DIR||"/tmp/opencode","hail-wizard-proof-"));
 const provider=await createSignupBackup(),messaging=await createSignupBackup();
 let gui:ReturnType<typeof Bun.spawn>|undefined,chrome:ReturnType<typeof Bun.spawn>|undefined,socket:WebSocket|undefined;
+let passed=false;
 let prepared:any=null,state="prepared",operation:any=null,enrolled=false,retired=false,authenticated=false,challenge="",credential:any;
+let did:string|null=null;const sessionToken="hails_"+"A".repeat(43);
 let setupId="",setupToken="",enrollmentToken="",secret="",invitation="fixture-invitation",publicationAttempts=0,prepareCalls=0;
 const browserErrors:string[]=[];
 const requests:{path:string;body:string;authorization:string}[]=[];
 const policy={provider:"https://provider.example",monitorOrigin:"https://monitor.example",monitorKey:messaging.vault.identity.publicDidKey};
 const reserved=Bun.serve({hostname:"127.0.0.1",port:0,fetch:()=>new Response()});const guiPort=reserved.port!;reserved.stop(true);
-const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{"Cache-Control":"no-store"}});
-function summary(){return {type:"hail.signup",version:1,signupId:setupId,accountId:prepared.accountId,address:prepared.address,did:null,state,
+const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{"Cache-Control":"no-store","Content-Type":"application/json"}});
+function summary(){return {type:"hail.signup",version:1,signupId:setupId,accountId:prepared.accountId,address:prepared.address,did,state,
   expiresAt:new Date(Date.now()+86400_000).toISOString(),preparation:prepared,enrollmentExpiresAt:new Date(Date.now()+600_000).toISOString()};}
 const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   const path=new URL(request.url).pathname;
@@ -28,6 +30,12 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     catch{return new Response("GUI starting",{status:503});}
   }
   const body=await request.text();requests.push({path,body,authorization:request.headers.get("Authorization")??""});const input=body?JSON.parse(body):{};
+  if(path==="/api/v1/account"||path==="/api/v1/account/inbox"){
+    assert(retired&&request.headers.get("Cookie")?.includes("hail_session="+sessionToken),"Inbox must use the completed account's session");
+    return json(path.endsWith("/inbox")?{messages:[],next:null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
+      address:prepared.address,did,migrationState:null,custodyProfile:"managed",monitorVerificationMode:"reduced-assurance-alpha-v1",managedProfileVersion:"hail-managed-custody-v1",
+      identityPublicKey:prepared.userIdentityKey,ownerRecoveryPublicKey:prepared.userRecoveryKey,scopes:["account:read","grants:read","messages:read","messages:write"]});
+  }
   if(path==="/api/v1/signup/check-address")return json({address:input.address,available:true});
   if(path==="/api/v1/signup"){
     prepareCalls++;setupId=input.signupId;setupToken=request.headers.get("Authorization")!.slice(7);
@@ -43,6 +51,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     publicationAttempts++;enrollmentToken=input.enrollmentToken;
     if(input.operation){await assureValidSig([prepared.userRecoveryKey],input.operation);if(operation)assert.deepEqual(input.operation,operation);operation=input.operation;}
     assert(operation,"Expected retained signed genesis");
+    did=await didForCreateOp(operation);
     assert((await cidForCbor(operation)).toString().startsWith("b"));
     state=publicationAttempts===1?"awaiting-monitor":"passkey-enrollment";
     return json(summary(),publicationAttempts===1?202:200);
@@ -61,7 +70,8 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   }
   if(path==="/api/v1/auth/passkeys/authentication"){
     const result=await verifyAuthenticationResponse({response:input.response,expectedChallenge:challenge,expectedOrigin:origin,expectedRPID:"localhost",credential,requireUserVerification:true});
-    assert(result.verified);authenticated=true;return json({authenticated:true});
+    assert(result.verified);authenticated=true;const response=json({authenticated:true});
+    response.headers.set("Set-Cookie",`hail_session=${sessionToken}; HttpOnly; SameSite=Lax; Path=/`);return response;
   }
   if(path===`/api/v1/signup/${setupId}/complete`){assert(authenticated);retired=true;return json({state:"complete",signupId:setupId});}
   return json({},404);
@@ -70,7 +80,8 @@ const origin=`http://localhost:${server.port}`;
 const wait=async(fn:()=>Promise<boolean>,description:string)=>{const end=Date.now()+25_000;while(Date.now()<end){if(await fn())return;await Bun.sleep(100);}throw new Error("Timed out: "+description);};
 try{
   gui=Bun.spawn(["bun","build/index.js"],{cwd:new URL("..",import.meta.url).pathname,env:{...process.env,HOST:"127.0.0.1",PORT:String(guiPort),ORIGIN:origin,
-    HAIL_GUI_SIGNUP:"true",HAIL_GUI_PROVIDER:policy.provider,ALPHA_SIGNUP_MONITOR_ORIGIN:policy.monitorOrigin,SIGNUP_MONITOR_PUBLIC_KEY:policy.monitorKey},stdout:"ignore",stderr:"pipe"});
+    HAIL_GUI_SIGNUP:"true",HAIL_GUI_PROVIDER:policy.provider,HAIL_GUI_API_ORIGIN:origin,HAIL_GUI_ORIGIN:origin,
+    ALPHA_SIGNUP_MONITOR_ORIGIN:policy.monitorOrigin,SIGNUP_MONITOR_PUBLIC_KEY:policy.monitorKey},stdout:"ignore",stderr:"pipe"});
   let startupStatus="";
   try{await wait(async()=>{try{const r=await fetch(origin+"/signup");startupStatus=String(r.status)+" "+(await r.text()).slice(0,300);return r.ok;}catch(error){startupStatus=String(error);return false;}},"GUI startup");}
   catch(error){console.error(startupStatus);throw error;}
@@ -144,14 +155,18 @@ try{
   assert.equal(await evaluate("localStorage.getItem('hail.pending-signup.v1')"),null);
   await wait(async()=> (await readdir(work)).includes("hail-account-recovery.vault.json"),"final identity-bound backup");
   const finalBackup=JSON.parse(await readFile(join(work,"hail-account-recovery.vault.json"),"utf8"));assert(/^did:plc:[a-z2-7]{24}$/.test(finalBackup.did));
+  await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your inbox').click()`);
+  await wait(()=>has("No messages yet"),"completed alpha account inbox");
+  assert(await has("alice@provider.example"));
   for(const req of requests){assert(!req.body.includes(secret),"Recovery secret uploaded");assert(!req.body.includes('"ciphertext"'),"Recovery vault uploaded");}
   assert(requests.filter(r=>r.authorization).every(r=>r.authorization==="Bearer "+setupToken||r.path.endsWith("check-address")));
-  console.info("PASS: Chromium wizard, saved-file verification, wrong-secret refusal, encrypted reloads, exact genesis retries, virtual passkey registration/login and setup cleanup (local fixtures only)");
+  passed=true;
+  console.info("PASS: Chromium wizard, saved-file verification, wrong-secret refusal, encrypted reloads, exact genesis retries, virtual passkey registration/login, setup cleanup and alpha inbox (local fixtures only)");
 }finally{
   socket?.close();chrome?.kill();gui?.kill();server.stop(true);
   if(chrome)await chrome.exited;if(gui)await gui.exited;
-  if(!retired&&gui)console.error((await new Response(gui.stderr).text()).slice(-2000));
-  if(!retired)console.error(browserErrors.slice(-5).join("\n"));
+  if(!passed&&gui)console.error((await new Response(gui.stderr).text()).slice(-2000));
+  if(!passed)console.error(browserErrors.slice(-5).join("\n"));
   provider.recoverySecret.fill(0);messaging.recoverySecret.fill(0);secret="";
   await rm(work,{recursive:true,force:true});
 }

@@ -140,13 +140,14 @@ export class AccountApiClient {
       typeof result.address !== "string" || result.address.length > 254 ||
       ![null, "fenced", "exported", "retired"].includes(result.migrationState as null | string) ||
       !["owner-controlled", "managed", "custodial-poc", "unknown"].includes(result.custodyProfile as string) ||
-      (result.custodyProfile === "managed" && result.monitorVerificationMode === "strict-public-v1" &&
+      (result.custodyProfile === "managed" && ["strict-public-v1", "reduced-assurance-alpha-v1"].includes(result.monitorVerificationMode as string) &&
         result.managedProfileVersion !== MANAGED_CUSTODY_PROFILE_VERSION) ||
+      (result.monitorVerificationMode === "reduced-assurance-alpha-v1" && result.custodyProfile !== "managed") ||
       (result.custodyProfile !== "managed" && result.managedProfileVersion !== null && result.managedProfileVersion !== undefined) ||
       (result.managedProfileVersion !== undefined && result.managedProfileVersion !== null &&
         result.managedProfileVersion !== MANAGED_CUSTODY_PROFILE_VERSION) ||
       !publicKey(result.identityPublicKey) || !publicKey(result.ownerRecoveryPublicKey) ||
-      ![null, "independent", "poc-local", "strict-public-v1"].includes(result.monitorVerificationMode as null | string) ||
+      ![null, "independent", "poc-local", "strict-public-v1", "reduced-assurance-alpha-v1"].includes(result.monitorVerificationMode as null | string) ||
        !Array.isArray(result.scopes) || !result.scopes.every(scope => ACCOUNT_API_SCOPES.includes(scope))) {
       throw new ClientError("RESPONSE_ERROR", "Provider account does not match the credential or API contract");
     }
