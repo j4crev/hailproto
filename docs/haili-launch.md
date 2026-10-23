@@ -1,5 +1,27 @@
 # `haili.app` launch milestone
 
+## Invited Pilot And Inbox Repair — October 23, 2026 UTC
+
+- The operator enabled the invited pilot, received the security enrollment email,
+  and reported successful passkey creation and setup completion. The real message
+  exchange and authenticated inbox confirmation remain outstanding.
+- Release `606a7cb` corrected premature signup sign-in: a locally signed DID must
+  not offer passkey authentication before provider-confirmed enrollment. Browser
+  regression checks cover the prepared, monitoring and unenrolled states.
+- First inbox access exposed an account-client contract gap: the server returned
+  retained `reduced-assurance-alpha-v1`, but the shared client rejected it and the
+  GUI loader failed. Release `f9d30bb9304f47822c58d5b21a8930bce51c9c97`
+  accepts this label only for managed custody with the frozen managed profile;
+  it does not relabel monitoring as independent or relax authority checks.
+- GUI checks pass 20 tests and typecheck; all 21 CLI tests and typecheck pass.
+  Desktop/mobile-viewport Chromium proof now follows the actual inbox link with
+  a session cookie through the real account client and empty-inbox loader.
+  Fixture mail/PLC/monitor data remain distinct from the operator's live account.
+- Guarded deployment completed with an encrypted pre-deploy backup. Public
+  readiness, login, signup and signed-out home return 200. No account keys,
+  passkeys, sessions, setup lifetimes or database records were rewritten by the
+  patch. Confirmation from the operator's authenticated inbox is still required.
+
 ## Browser Wizard Staged — October 23, 2026 UTC
 
 - Provider/GUI release `93d5be6db4c57bcabc2af20a6cbfa5220f25189d` deployed

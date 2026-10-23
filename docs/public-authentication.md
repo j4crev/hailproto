@@ -97,9 +97,12 @@ restricted wrapper. One-time console approval installed the protected source
 bridge and provider configuration operation; no root SSH or unrestricted sudo
 was enabled. The legacy checkout remains for rollback, not for new code builds.
 
-Next: console-enable a single invited production ceremony with the operator
-handling recovery material and real passkey
-prompts. Follow with wider platform/recovery validation before more invitations.
+Pilot update: invitation-gated signup is now enabled. The operator confirmed the
+enrollment security email and passkey/setup completion. Premature sign-in and
+alpha account-client validation bugs were repaired in `606a7cb` and `f9d30bb`.
+Next is confirmation that the repaired authenticated inbox opens and a useful
+message exchange; this is not evidence for wider consumer enrollment yet.
+Follow with wider platform/recovery validation before more invitations.
 Do not treat a delivered operator email as verification of a signup
 user's external alert destination. Asynchronous email bounce/complaint handling
 and broader deliverability monitoring remain rollout gates.
