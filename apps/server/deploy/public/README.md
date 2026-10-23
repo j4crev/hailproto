@@ -72,8 +72,8 @@ it requires the external reviewed-monitor ceremony documented in the
 The resumable backend has local integration proof through owner-signed genesis,
 verified email, monitored activation, real WebAuthn registration and fresh
 passkey login. **The code is staged on the provider, but account creation remains
-disabled. The browser wizard is not implemented yet; do not invite ordinary users
-to this backend alone.** Existing
+disabled by default. The browser wizard has local Chromium proof, but the invited
+live ceremony is still required before widening access.** Existing
 CLI onboarding is unchanged.
 
 Enabling it requires production HTTPS/passkeys on the provider origin, strict
@@ -113,6 +113,7 @@ private key, recovery secret or vault is sent to this API.
 
 | Operation | Request | Behavior |
 | --- | --- | --- |
+| `POST /api/v1/signup/check-address` | Random setup-form bearer; address and valid invitation | Read-only availability check, no invitation consumption or reservation; the actual reservation remains authoritative |
 | `POST /api/v1/signup` | Setup bearer; `signupId`, address, recovery/identity public `did:key` values, enrollment-token SHA-256 `enrollmentHash`, invitation, and explicit `backupVerified`, `managedAccepted`, `alphaMonitoringAccepted` true flags | Atomically admits immutable intent before allocating resources; returns public preparation and fixed setup expiry |
 | `GET /api/v1/signup/:id` | Original setup bearer | Read-only progress, provider keys and identity metadata; a same-origin browser GET need not supply Origin |
 | `POST /api/v1/signup/:id/advance` | Original setup bearer; original `enrollmentToken`, optional first owner-signed `operation` | Retains and resumes the exact genesis, email binding, monitoring and activation; returns progress or the bounded enrollment URL |
@@ -159,9 +160,85 @@ before the signed operation becomes immutable.
 Migration 58 adds the retained ceremony/tombstone records without changing old
 accounts. Rollback is allowed only before any ceremony exists; it refuses to
 erase either pending identity evidence or retired authority. Pausing the rollout
-means disabling new signup access, not deleting retained records. Full browser
-state export/import, wider platform tests and the production monitor API rollout
-remain outstanding.
+means disabling new signup access, not deleting retained records. The production
+monitor connection and local browser state export/import proof are complete.
+The invited live ceremony and wider platform/recovery tests remain outstanding.
+
+## Invited Browser Pilot
+
+The built `/signup` page reuses the existing browser recovery and WebAuthn code.
+Compose maps `PUBLIC_ALPHA_SIGNUP` to private GUI flag `HAIL_GUI_SIGNUP` (the
+`PUBLIC_` prefix is reserved for SvelteKit public environment exports). The GUI
+receives only provider/monitor public pins, never the invitation signing key or
+provider-to-monitor/mail service secrets. Default deployments return 404.
+
+Pending setup is encrypted with the separate random recovery secret using
+AES-GCM with fresh nonces and distinct associated data. Only ciphertext is placed
+in browser storage and downloadable setup files. The vault remains v1-compatible;
+the raw secret and unlocked keys are not included in pending artifacts or API
+requests. The page holds an in-memory nonextractable encryption key only while
+setup is open and clears sensitive page references on pagehide/unmount. This
+does not promise secure erasure or protect against compromised same-origin code.
+No third-party scripts/analytics are added; same-origin CSP, no-referrer and
+no-store cover the wizard. Unfinished setup import is not post-signup recovery.
+
+Before admission the user must verify a saved recovery file and separately
+retained secret and save an encrypted setup file. After signing, the updated
+setup file must be saved before publication. Reloads/eviction reopen the original
+state; no automatic replacement keys or DID are generated. An earlier setup file
+can reconcile an already retained operation through backend status. If both
+encrypted pending state and its exported file are lost after submission, the
+wizard cannot recreate setup capabilities from the recovery vault: retain the
+vault and use provider assistance/existing owner-proof tooling. Expired setup or
+enrollment shows an explicit terminal explanation rather than renewed authority.
+
+Activation leads to passkey creation, a final DID-bound recovery-backup download,
+and a fresh sign-in before completion. Completion removes the browser ciphertext;
+the user must delete obsolete pending downloads. No full-access API credential
+is created. Keep the final recovery vault and its separate secret.
+
+### One Operator-Invited Live Ceremony
+
+Deploy the tested release **with gates off first**. Then, in the provider VPS
+console as root, run the reviewed one-time helper:
+
+```bash
+python3 /opt/hailproto/apps/server/deploy/public/enable-signup-pilot.py
+```
+
+This validates the candidate against the running provider, takes the normal
+encrypted backup, retains a private pre-change environment, and atomically sets
+only the three alpha gate/signing-key/monitor-identity fields. It refuses existing
+pilot configuration rather than rotating a key. It mints one seven-day single-use
+invitation and displays its browser URL **only to the intended operator in the
+console**. Treat that URL as private; do not put it in repository/central logs.
+No account, DID or owner recovery material is created by the helper. It does not
+modify SSH, sudoers, database images or old accounts. No new privileged wrapper
+command is installed; this enablement deliberately needs the approved console.
+
+Have the agent recreate through the existing guarded deployment wrapper and
+verify both GUI/API gates, HTTPS and email/monitor availability. Only then open
+the invitation link on the test browser. The operator selects an unused address
+and their external alert email and handles all recovery secrets/passkey prompts.
+Confirm verification mail and the monitor enrollment alert actually arrive.
+If it waits or fails, preserve original encrypted setup state and report the
+step/message, never recovery material or setup-token contents. The user should
+finish by entering the inbox, checking security settings and exchanging a message
+with an existing test account through explicit permissions.
+
+After successful completion, pause the pilot by console-setting
+`PUBLIC_ALPHA_SIGNUP=false` and removing its two `ALPHA_SIGNUP_*` declarations,
+then recreate through the guarded wrapper. Existing passkey login remains on.
+Do not pause midway through a pending ceremony without an explicit recovery plan:
+this initial gate controls both admission and its continuation routes. Do not
+rollback migration 58 after pending/terminal ceremonies exist; code rollback
+must retain their records and use a compatible backend. The retained before.env
+is a rollback reference, not permission to overwrite unrelated later changes.
+
+Local checks: `bun run --cwd apps/gui-poc build`, `test`, `typecheck`,
+`test:browser`, and `test:wizard`; repeat the latter with
+`HAIL_WIZARD_MOBILE=true` for a narrow mobile viewport. This is Chromium emulation,
+not proof of Safari/iOS/Android passkey behavior or real email deliverability.
 
 ## Narrow Monitor Configuration Operation
 

@@ -176,7 +176,7 @@ it.skipIf(!process.env.DATABASE_URL)("automates verified-email monitored signup 
       const accounts=new AccountApiRepository(db.sql),signupApp=new Hono();
       // Forward through a stable route while replacing the controller to simulate restart.
       registerSignupRoutes(signupApp,{prepare:(...args)=>coordinator.prepare(...args),status:(...args)=>coordinator.status(...args),
-        advance:(...args)=>coordinator.advance(...args),complete:(...args)=>coordinator.complete(...args)} as SignupCoordinator,accounts,providerOrigin);
+        checkAddress:(...args)=>coordinator.checkAddress(...args),advance:(...args)=>coordinator.advance(...args),complete:(...args)=>coordinator.complete(...args)} as SignupCoordinator,accounts,providerOrigin);
       registerSignupEmailRoutes(signupApp,db.sql,email,providerOrigin);
       const call=(path:string,body?:unknown,cookie?:string)=>signupApp.request(`${providerOrigin}/api/v1/${path}`,{
         method:body===undefined?"GET":"POST",headers:{Origin:providerOrigin,"Content-Type":"application/json",Authorization:`Bearer ${setupToken}`,
@@ -184,7 +184,11 @@ it.skipIf(!process.env.DATABASE_URL)("automates verified-email monitored signup 
       const request={signupId:id,address:`browser-${suffix}@provider.example.com`,recoveryKey:browserVault.vault.recovery.publicDidKey,
         identityKey:browserVault.vault.identity.publicDidKey,enrollmentHash:encodeBase64Url(createHash("sha256").update(enrollmentToken).digest()),
         invitation:invite,backupVerified:true,managedAccepted:true,alphaMonitoringAccepted:true};
+      expect(await coordinator.checkAddress({address:request.address,invitation:invite})).toEqual({address:request.address,available:true});
+      await expect(coordinator.checkAddress({address:request.address,invitation:"invalid"})).rejects.toMatchObject({status:403});
+      await expect(coordinator.checkAddress({address:"elsewhere@other.example",invitation:invite})).rejects.toMatchObject({status:400});
       const created=await call("signup",request);expect(created.status).toBe(200);
+      expect(await coordinator.checkAddress({address:request.address,invitation:invite})).toEqual({address:request.address,available:false});
       const setup=await created.json() as {accountId:string;state:string;expiresAt:string;preparation:typeof prepared};
       expect((await signupApp.request(`${providerOrigin}/api/v1/signup/${id}`,{headers:{Authorization:`Bearer ${setupToken}`}})).status).toBe(200);
       expect(setup.state).toBe("prepared");expect((await call("signup",request)).status).toBe(200);

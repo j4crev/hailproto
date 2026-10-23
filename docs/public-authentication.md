@@ -53,7 +53,7 @@ Status: product plan, not implementation approval or a change to protocol requir
   access. Migration 58 retains immutable intent, exact genesis, activation proof
   and terminal authority. Activation epochs fence superseded controllers.
   Admission is provider-bound and single-use; the account-creation surface is
-  explicitly gated off. The browser wizard is still outstanding.
+  explicitly gated off by default.
   See the [backend runbook](../apps/server/deploy/public/README.md#invited-browser-signup-backend-local-implementation).
 - Rollout preparation staged provider release `dc6458d` and compatible receiver
   version `8566a060-ed8b-4a83-a5c6-45a904f1f9b4`. Provider readiness and passkey
@@ -69,14 +69,31 @@ Status: product plan, not implementation approval or a change to protocol requir
   off-host. Provider readiness/login and external heartbeat remain healthy.
   Setup staging secrets were removed after handover. The orchestration endpoint
   is enabled; public signup and recovery preview remain disabled.
+- The invited browser wizard is implemented at `/signup`, behind the same
+  explicit alpha gate (mapped to private GUI flag `HAIL_GUI_SIGNUP`). It checks
+  address availability under an invitation before key generation, verifies the
+  saved recovery kit, and stores/exports only AES-GCM-encrypted pending setup.
+  The separately saved recovery secret is never retained with that state.
+  Prepared genesis signing, external email, monitored activation and existing
+  passkey ceremonies reuse the backend. A final v1 recovery vault includes the
+  actual DID. A fresh passkey login retires setup authority and clears browser
+  pending state; downloaded obsolete setup files must be removed by the user.
+- Local Chromium proof exercises the built page, real saved-file import,
+  wrong-secret refusal, storage eviction, exact signed-genesis retries, reloads
+  during monitoring/after passkey enrollment, virtual-authenticator WebAuthn
+  registration/login verification and terminal cleanup. It uses simulated mail,
+  activation and monitor responses, not a real production identity. Separate
+  PostgreSQL integration tests cover the real coordinator/monitor/mail services.
+  Real mobile platforms and the invited live ceremony remain outstanding.
 
 The monitor uses the confirmed `hailops@2.25.206.150` agent connection and its
 restricted wrapper. One-time console approval installed the protected source
 bridge and provider configuration operation; no root SSH or unrestricted sudo
 was enabled. The legacy checkout remains for rollback, not for new code builds.
 
-Next: the resumable browser wizard and a deliberately invited production signup
-ceremony, followed by wider platform/recovery validation.
+Next: deploy the wizard with its gate off, then console-enable a single invited
+production ceremony with the operator handling recovery material and real passkey
+prompts. Follow with wider platform/recovery validation before more invitations.
 Do not treat a delivered operator email as verification of a signup
 user's external alert destination. Asynchronous email bounce/complaint handling
 and broader deliverability monitoring remain rollout gates.

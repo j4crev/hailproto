@@ -62,6 +62,18 @@ export class SignupCoordinator {
   }
   private async rowById(id:string):Promise<SignupRow>{return (await this.sql<SignupRow[]>`SELECT * FROM account_signup_ceremonies WHERE id=${id}`)[0]!;}
 
+  async checkAddress(input:Record<string,unknown>){
+    if(Object.keys(input).length!==2||typeof input.address!=="string"||typeof input.invitation!=="string"||input.invitation.length>2048)
+      throw new SignupError(400);
+    try{verifySignupInvitation(input.invitation,this.origin,this.invitationKey);}catch{throw new SignupError(403,"Invitation invalid or expired");}
+    let address:string;
+    try{address=canonicalizeHailAddress(input.address);}catch{throw new SignupError(400,"Invalid address");}
+    if(address.split("@")[1]!==new URL(this.origin).hostname)throw new SignupError(400,"Choose an address at this provider");
+    const held=await this.sql`SELECT 1 FROM provider_accounts WHERE canonical_address=${address}
+      UNION ALL SELECT 1 FROM transfer_address_reservations WHERE canonical_address=${address} LIMIT 1`;
+    return {address,available:held.length===0};
+  }
+
   async prepare(input:Record<string,unknown>,token:string){
     const allowed=["signupId","address","recoveryKey","identityKey","enrollmentHash","invitation","backupVerified","managedAccepted","alphaMonitoringAccepted"];
     if(Object.keys(input).length!==allowed.length||Object.keys(input).some(key=>!allowed.includes(key))||
@@ -233,7 +245,8 @@ export function registerSignupRoutes(app:Hono,signup:SignupCoordinator,accounts:
     if(retry!==null){context.header("Retry-After",String(retry));return context.json({error:"Rate limited"},429);}
     const id=context.req.param("id"),step=context.req.param("step"),token=/^Bearer (hailp_[A-Za-z0-9_-]{43})$/.exec(context.req.header("Authorization")??"")?.[1];
     try{
-      if(id&&!UUID.test(id))throw new SignupError(400);
+      if(id&&id!=="check-address"&&!UUID.test(id))throw new SignupError(400);
+      if(id==="check-address"&&(context.req.method!=="POST"||step))throw new SignupError(405);
       if(id&&step==="complete"&&context.req.method==="POST"){
         const session=await accounts.authenticate(undefined,getCookie(context,"hail_session"));
         if(!session)throw new SignupError(401);
@@ -248,6 +261,7 @@ export function registerSignupRoutes(app:Hono,signup:SignupCoordinator,accounts:
       try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as Record<string,unknown>;}
       catch{throw new SignupError(400);}
       if(!input||typeof input!=="object"||Array.isArray(input))throw new SignupError(400);
+      if(id==="check-address"&&!step)return context.json(await signup.checkAddress(input));
       if(!id&&!step)return context.json(await signup.prepare(input,token));
       if(id&&step==="advance"){
         const result=await signup.advance(id,token,input);
