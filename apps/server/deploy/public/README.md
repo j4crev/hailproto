@@ -71,8 +71,9 @@ it requires the external reviewed-monitor ceremony documented in the
 
 The resumable backend has local integration proof through owner-signed genesis,
 verified email, monitored activation, real WebAuthn registration and fresh
-passkey login. **It has not been deployed or enabled. The browser wizard is not
-implemented yet; do not invite ordinary users to this backend alone.** Existing
+passkey login. **The code is staged on the provider, but account creation remains
+disabled. The browser wizard is not implemented yet; do not invite ordinary users
+to this backend alone.** Existing
 CLI onboarding is unchanged.
 
 Enabling it requires production HTTPS/passkeys on the provider origin, strict

@@ -1,5 +1,27 @@
 # `haili.app` launch milestone
 
+## Monitor Enrollment Rollout Preparation — October 23, 2026 UTC
+
+- Provider code staged through the existing backup/build/readiness wrapper at
+  `dc6458d3fc5d3dea916913ee130d020609f1769b`; image
+  `sha256:8b06df15a9d0455f898b4559f1c14e35d5a7fb51392615c577eeb9a07b892b23`.
+  The wrapper's encrypted backup upload recovered on retry before deployment.
+- Compatible receiver deployed as version `8566a060-ed8b-4a83-a5c6-45a904f1f9b4`.
+  Unsigned consumer alert/binding requests return 401. Existing operator alerts
+  and heartbeat handling remain available.
+- External provider readiness and login return 200; `/api/v1/signup`,
+  `/api/v1/signup-monitor` and `/signup/recovery` remain 404. No invitation,
+  account, DID or new passkey was created as a production test.
+- Monitor preflight confirmed `hailops@2.25.206.150` agent access, healthy legacy
+  containers, active heartbeat supervision, matching five migration source
+  checksums, and an unchanged reviewed monitor public key. The existing
+  PostgreSQL 14.4 image, volume and key paths have not been migrated or changed.
+- The one-time source bridge, DNS-only HTTPS edge and service configuration are
+  still awaiting operator DNS/console actions. Private mode-0600 staging files
+  are inside mode-0700 directories. No root SSH or unrestricted sudo was enabled.
+  Actual monitor database snapshots, encrypted backups, runtime switch and
+  external TLS/ACL verification remain required before rollout completion.
+
 ## Consumer Signup Email Plumbing — October 22, 2026
 
 - Guarded provider release: `95f36b19a7f0706cad15ea9c789659be27394999`.

@@ -45,7 +45,7 @@ Status: product plan, not implementation approval or a change to protocol requir
 - Exact retries preserve monitoring history and ambiguous replies do not create
   replacement identities. Tests cover notification failures, stale coverage,
   tampered signatures and restart. Optional API/configuration gates default off;
-  no production listener, secrets or deployments were changed for this slice.
+  the initial implementation left production unchanged pending a guarded rollout.
   See the [monitor enrollment runbook](../apps/plc-monitor/deploy/public/README.md#automatic-reduced-assurance-alpha-enrollment).
 - The invited, resumable signup backend now has local proof through real passkey
   registration and scoped sign-in. It creates no full-access signup credential;
@@ -55,6 +55,12 @@ Status: product plan, not implementation approval or a change to protocol requir
   Admission is provider-bound and single-use; the account-creation surface is
   explicitly gated off. The browser wizard is still outstanding.
   See the [backend runbook](../apps/server/deploy/public/README.md#invited-browser-signup-backend-local-implementation).
+- Rollout preparation staged provider release `dc6458d` and compatible receiver
+  version `8566a060-ed8b-4a83-a5c6-45a904f1f9b4`. Provider readiness and passkey
+  login return 200; signup, monitor orchestration and the recovery preview remain
+  404/gated off. Monitor containers and heartbeat remain on their legacy runtime.
+  Private configuration is staged for the console-approved setup; it has not
+  enabled a listener, changed monitor keys or broadened SSH/sudo access.
 
 The monitor rollout is pending reviewed private HTTPS ingress/configuration
 access; the provider currently permits only its operations wrapper. No broader
