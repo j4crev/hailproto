@@ -1,5 +1,37 @@
 # `haili.app` launch milestone
 
+## Monitor API Bridge Completed — October 23, 2026 UTC
+
+- Operator-applied bridge and provider connection use code release
+  `dc6458d3fc5d3dea916913ee130d020609f1769b`. The monitor now builds monorepo
+  code at `/opt/hailproto` while preserving legacy configuration/key mounts,
+  PostgreSQL 14.4 image and data volume. Old checkouts were retained for rollback.
+- Console setup passed migration-checksum, signing-key, immutable-history and
+  delivery-receipt preservation checks. The monitor public key remains
+  `did:key:z6Mknh84ZKz6BNm2mh4LFGKc1JkW2WN9ZdfCVRbi58s1k4Zr`.
+- Encrypted post-switch archive `monitor-20261023T002149Z-ba9721a1.tar.gpg`
+  was downloaded to private off-host operations storage and verified against
+  SHA-256 `eb62effee05d28aa5141b8b7a6d729853b91070ea26f10699b3c05ca90923434`.
+  It remains outside temporary configuration staging with its checksum sidecar.
+- Opening the previously blocked TCP 80/443 rules and restarting only the new
+  edge allowed certificate issuance. Trusted HTTPS at `enroll.plcmonitor.us`
+  now returns 401 for unsigned service access and 400 for an authenticated empty
+  enrollment request. Non-provider access returns 403, including when a
+  forwarding header falsely claims the provider IP. Backend 3001 binds loopback.
+- Matching provider settings were installed through the console-approved narrow
+  wrapper action, backed up before mutation and loaded through a guarded
+  recreation. Provider/GUI readiness and login return 200. Monitor heartbeat is
+  fresh, and existing monitor/database containers remain healthy.
+- `/api/v1/signup-monitor` is mounted and returns 401 without setup authority,
+  or 400 for malformed setup input. `/api/v1/signup` and `/signup/recovery`
+  remain 404/gated off. No production account, DID, enrollment binding or passkey
+  was created for a test. Full consumer signup still needs the browser wizard
+  and an explicitly invited live ceremony.
+- Temporary service-secret copies were removed from both `hailops` staging
+  directories and the workstation after hash checks. Protected runtime settings,
+  rollback state and encrypted backups were retained. SSH keys, root-login
+  policy and wrapper-only passwordless sudo were unchanged.
+
 ## Monitor Enrollment Rollout Preparation — October 23, 2026 UTC
 
 - Provider code staged through the existing backup/build/readiness wrapper at

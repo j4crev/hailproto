@@ -84,10 +84,11 @@ recovery secret or provider credential between trust domains.
 
 ## Automatic Reduced-Assurance Alpha Enrollment
 
-Local implementation and regression proof are available; this API is **disabled
-by default and has not been rolled out to production**. The legacy CLI ceremony
-above remains available. Automatic enrollment does not change existing canaries
-or claim independent monitoring for a same-operator service.
+The private API and Haili provider connection are deployed and verified as of
+October 23, 2026 UTC. They remain **disabled by default** for other deployments;
+public alpha account creation and the browser wizard are not enabled. The legacy
+CLI ceremony above remains available. Automatic enrollment does not change
+existing canaries or claim independent monitoring for a same-operator service.
 
 The existing monitor process can optionally serve an authenticated private API.
 Configure the monitor's protected environment with:
@@ -182,9 +183,11 @@ a replacement DID to recover from an ambiguous API response.
 
 ## One-Time Legacy Host Bridge (Console Approval Required)
 
-The existing `2.25.206.150` host still builds from the separate repository at
-`/opt/hail/hail-plc-monitor-ts`. Do not give its old deployment wrapper a monorepo
-commit: it fetches from a different Git origin. Root SSH remains disabled;
+Before the rollout, `2.25.206.150` built from the separate repository at
+`/opt/hail/hail-plc-monitor-ts`. The bridge is now active: monorepo code builds at
+`/opt/hailproto`, with the legacy private configuration/storage paths retained.
+Do not give an unconverted old deployment wrapper a monorepo commit: it fetches
+from a different Git origin. Root SSH remains disabled;
 `hailops` authenticates with the existing SSH agent and retains wrapper-only sudo.
 
 The reviewed `enrollment-setup.py` bridges **code builds**, not data storage:
@@ -214,8 +217,11 @@ The reviewed `enrollment-setup.py` bridges **code builds**, not data storage:
 
 This is a one-time console-approved operation, not an unrestricted sudo grant.
 The scripts have configuration/rendering/preservation regression checks and the
-actual legacy Compose merge has been validated locally. They have **not been
-applied on the production monitor**. Root preflights and backups must still pass.
+actual legacy Compose merge has been validated locally. The operator applied
+this bridge successfully on the production monitor. The protected API is healthy,
+external TLS and source-IP restrictions are verified, and its encrypted backup
+has been downloaded and checksum-verified off-host. On another installation,
+all root preflights and backups must still pass.
 
 ### Operator Actions
 

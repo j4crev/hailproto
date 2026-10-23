@@ -61,16 +61,22 @@ Status: product plan, not implementation approval or a change to protocol requir
   404/gated off. Monitor containers and heartbeat remain on their legacy runtime.
   Private configuration is staged for the console-approved setup; it has not
   enabled a listener, changed monitor keys or broadened SSH/sudo access.
+- The monitor bridge and provider connection are now complete (October 23, 2026
+  UTC). Trusted HTTPS returns 401 without service authentication and 400 for an
+  authenticated empty request; non-provider traffic is denied with 403 even with
+  a spoofed forwarding header. Port 3001 is loopback-only, the original monitor
+  key/database paths remain, and the encrypted post-switch backup is verified
+  off-host. Provider readiness/login and external heartbeat remain healthy.
+  Setup staging secrets were removed after handover. The orchestration endpoint
+  is enabled; public signup and recovery preview remain disabled.
 
-The monitor rollout is pending reviewed private HTTPS ingress/configuration
-access; the provider currently permits only its operations wrapper. No broader
-SSH/sudo access has been enabled. The direct monitor target is now confirmed as
-`hailops@2.25.206.150`; agent login
-and the restricted wrapper work. That host still uses the separate monitor
-repository. Console-approved bridging/configuration tools are prepared and
-tested locally, but DNS and the one-time console setup remain operator actions.
+The monitor uses the confirmed `hailops@2.25.206.150` agent connection and its
+restricted wrapper. One-time console approval installed the protected source
+bridge and provider configuration operation; no root SSH or unrestricted sudo
+was enabled. The legacy checkout remains for rollback, not for new code builds.
 
-Next: guarded monitor API/receiver rollout and the resumable full browser wizard.
+Next: the resumable browser wizard and a deliberately invited production signup
+ceremony, followed by wider platform/recovery validation.
 Do not treat a delivered operator email as verification of a signup
 user's external alert destination. Asynchronous email bounce/complaint handling
 and broader deliverability monitoring remain rollout gates.
