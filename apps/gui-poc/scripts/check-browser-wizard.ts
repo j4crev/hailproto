@@ -7,6 +7,8 @@ import {createSignupBackup} from "../src/lib/signup-recovery.js";
 import {assureValidSig,didForCreateOp} from "@did-plc/lib";
 import {cidForCbor} from "@atproto/common";
 import {createWebCryptoSigner,signPayload,encodeBase64Url,toDiagnosticJson,type HailGrant} from "@hailproto/codec";
+import {createApp} from "../../server/src/app.js";
+import type {AppConfig} from "../../server/src/config.js";
 const {generateRegistrationOptions,verifyRegistrationResponse,generateAuthenticationOptions,verifyAuthenticationResponse}=
   createRequire(new URL("../../server/package.json",import.meta.url))("@simplewebauthn/server");
 const work=await mkdtemp(join(process.env.OPENCODE_TMP_DIR||"/tmp/opencode","hail-wizard-proof-"));
@@ -22,6 +24,11 @@ const policy={provider:"https://provider.example",monitorOrigin:"https://monitor
 const permissionSigner=await crypto.subtle.generateKey("Ed25519",true,["sign","verify"]),peerDid="did:plc:"+"b".repeat(24),peerAddress="peer@peer.example.com";
 let allowed:HailGrant|null=null,allowedCose="",allowedDigest="";
 const approvals=new Map<string,{action:string;payload:HailGrant;challenge:string;approved:boolean;result:unknown}>();
+const incomingId="019a15fd-2bd0-7433-8afa-bd0355e0608d";
+let incoming=false,replyPosts=0,replied:any=null,guiProxy:ReturnType<typeof createApp>;
+const textBody=(text:string)=>({version:1,profile:"spt-1",blocks:[{_type:"block",_key:"b1",style:"normal",markDefs:[],children:[{_type:"span",_key:"s1",text,marks:[]}]}]});
+const incomingMessage=()=>({messageId:incomingId,sender:peerDid,senderAddress:peerAddress,recipient:did,category:"updates",deliveredAt:new Date().toISOString(),
+  body:textBody("One-time reply browser transport test"),reply:{allowed:true,until:Math.floor(Date.now()/1000)+86400},replyAvailable:replyPosts===0});
 const permissionPayload=(id:string):HailGrant=>({type:"hail.grant",version:1,grant_id:id,revision:1,previous:null,grantor:did!,grantee:peerDid,
   scope:[{type:"categories",values:["updates"]}],status:"active",issued_at:Math.floor(Date.now()/1000),updated_at:Math.floor(Date.now()/1000),expires_at:Math.floor(Date.now()/1000)+30*86400,
   consent_context:{grantee_address:peerAddress,address_binding_hash:{algorithm:"sha-256",value:new Uint8Array(32)},sender_profile_hash:{algorithm:"sha-256",value:new Uint8Array(32)}},key_id:did!+"#hail-identity"});
@@ -34,11 +41,17 @@ function summary(){return {type:"hail.signup",version:1,signupId:setupId,account
 const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   const path=new URL(request.url).pathname;
   if(!path.startsWith("/api/")){
-    const headers=new Headers(request.headers);headers.set("accept-encoding","identity");
-    try{return await fetch(`http://127.0.0.1:${guiPort}${path}${new URL(request.url).search}`,{headers,redirect:"manual"});}
+    try{return await guiProxy.fetch(request);}
     catch{return new Response("GUI starting",{status:503});}
   }
   const body=await request.text();requests.push({path,body,authorization:request.headers.get("Authorization")??""});const input=body?JSON.parse(body):{};
+  if(path===`/api/v1/account/inbox/${encodeURIComponent(peerDid)}/${incomingId}`||path===`/api/v1/account/inbox/${peerDid}/${incomingId}`)return json(incomingMessage());
+  if(path==="/api/v1/account/messages"){
+    assert.equal(input.replyTo,incomingId);assert.equal(input.text,"Browser transport reply");assert.equal(replyPosts,0);replyPosts++;
+    replied={messageId:input.messageId,sender:did,recipient:peerDid,recipientAddress:peerAddress,category:null,createdAt:new Date().toISOString(),
+      state:"delivered",revision:2,reason:null,retryAt:null,body:textBody(input.text)};return json({messageId:input.messageId,state:"delivered"});
+  }
+  if(path.startsWith("/api/v1/account/sent/")&&replied)return json(replied);
   if(path.startsWith("/api/v1/account/permissions/")){
     assert(request.headers.get("Cookie")?.includes("hail_session="+sessionToken));
     const step=path.split("/").at(-1)!;
@@ -67,7 +80,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   if(path.startsWith("/api/v1/account/grants/")&&allowed)return json({type:"hailp.grant",version:1,cose:allowedCose,digest:allowedDigest,localRole:"grantor"});
   if(path==="/api/v1/account"||path==="/api/v1/account/inbox"){
     assert(retired&&request.headers.get("Cookie")?.includes("hail_session="+sessionToken),"Inbox must use the completed account's session");
-    return json(path.endsWith("/inbox")?{messages:[],next:null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
+    return json(path.endsWith("/inbox")?{messages:incoming?[incomingMessage()]:[],next:null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
       address:prepared.address,did,migrationState:null,custodyProfile:"managed",monitorVerificationMode:"reduced-assurance-alpha-v1",managedProfileVersion:"hail-managed-custody-v1",
       identityPublicKey:prepared.userIdentityKey,ownerRecoveryPublicKey:prepared.userRecoveryKey,scopes:["account:read","grants:read","messages:read","messages:write"]});
   }
@@ -112,6 +125,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   return json({},404);
 }});
 const origin=`http://localhost:${server.port}`;
+guiProxy=createApp({publicOrigin:origin,providerId:"browser-fixture",thinGuiOrigin:`http://127.0.0.1:${guiPort}`} as AppConfig);
 const wait=async(fn:()=>Promise<boolean>,description:string)=>{const end=Date.now()+25_000;while(Date.now()<end){if(await fn())return;await Bun.sleep(100);}throw new Error("Timed out: "+description);};
 try{
   gui=Bun.spawn(["bun","build/index.js"],{cwd:new URL("..",import.meta.url).pathname,env:{...process.env,HOST:"127.0.0.1",PORT:String(guiPort),ORIGIN:origin,
@@ -193,6 +207,19 @@ try{
   await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your inbox').click()`);
   await wait(()=>has("No messages yet"),"completed alpha account inbox");
   assert(await has("alice@provider.example"));
+  // Follow the same-document route out of sensitive signup into a message.
+  // A full Page.navigate here would conceal a leaked signup form-action CSP.
+  incoming=true;
+  const messagePath=`/message/${encodeURIComponent(peerDid)}/${incomingId}`;
+  await evaluate(`(()=>{const a=document.createElement('a');a.href=${JSON.stringify(messagePath)};a.textContent='Open received test';document.body.append(a);a.click();})()`);
+  await wait(()=>has("Send reply"),"incoming one-time reply after signup navigation");
+  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Browser transport reply';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await click("Send reply");
+  await wait(async()=>evaluate("location.pathname.startsWith('/sent/') && !!document.querySelector('[aria-label=\"Status: delivered\"]')"),"native reply form through provider proxy and redirect to Sent");
+  assert.equal(replyPosts,1);
+  await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("This reply invitation has expired or was already used"),"consumed one-time reply");
+  assert.equal(replyPosts,1);
+  await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("Message feed"),"return to inbox");
   await evaluate(`[...document.querySelectorAll('nav a')].find(a=>a.textContent.trim()==='Allowed senders').click()`);
   await wait(()=>has("No permissions on this page"),"allowed-sender list");
   await fill("Potential sender's Hail address",peerAddress);await click("Review sender");await wait(()=>has("Test sender"),"verified sender review");
@@ -213,7 +240,7 @@ try{
   for(const req of requests){assert(!req.body.includes(secret),"Recovery secret uploaded");assert(!req.body.includes('"ciphertext"'),"Recovery vault uploaded");}
   assert(requests.filter(r=>r.authorization).every(r=>r.authorization==="Bearer "+setupToken||r.path.endsWith("check-address")));
   passed=true;
-  console.info("PASS: Chromium signup/inbox, typed and QR sender review, exact-action virtual passkey approval and revocation (local service fixtures only)");
+  console.info("PASS: Chromium signup/inbox, sender permissions and native one-time reply through the real provider GUI proxy (local API fixtures only)");
 }finally{
   socket?.close();chrome?.kill();gui?.kill();server.stop(true);
   if(chrome)await chrome.exited;if(gui)await gui.exited;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   let { children } = $props();
 </script>
 
@@ -7,7 +8,9 @@
   <meta name="description" content="Disposable Hail GUI proof of concept" />
 </svelte:head>
 
-<div class="shell">
+<!-- CSP is document-scoped: leave recovery/signup with a full load so their
+     no-form/no-network policies cannot leak into the ordinary app via SPA routing. -->
+<div class="shell" data-sveltekit-reload={page.url.pathname==="/signup"||page.url.pathname==="/signup/recovery"}>
   <header>
     <a href="/" class="brand" aria-label="Hail inbox home"><span>H</span> Hail</a>
     <nav><a href="/">Inbox</a><a href="/sent">Sent</a><a href="/compose">Compose</a><a href="/permissions">Allowed senders</a><a href="/settings/security">Security</a></nav>
