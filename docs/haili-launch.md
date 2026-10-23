@@ -20,8 +20,12 @@
   through the real provider GUI proxy, without a manual reload concealing CSP.
 - Guarded deployment and public readiness/login/permissions checks passed. The
   production signup page retains its no-form CSP and serves the full-load link
-  boundary. Live reply confirmation remains pending; hard-refreshing the original
-  message clears a stale document policy before the operator retries once.
+  boundary. After hard-refreshing the original message, the operator confirmed
+  success. Reply `01a168ab-3373-787a-a7d8-9e722dd8b64d` arrived from j4 in the
+  canary inbox at `2026-10-23T12:10:14.276Z`; its body was not collected for proof.
+  The invited browser signup → inbox → passkey-approved sender permission →
+  delivered message → one-time reply pilot is complete. Real phone-camera and
+  broader platform/recovery/deliverability gates remain separate.
 
 ## Allowed Senders Deployed — October 23, 2026 UTC
 
