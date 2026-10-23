@@ -84,6 +84,14 @@ export class GrantService {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
+  async inspectSender(addressInput:string){
+    const address=await this.addressVerifier.verify(canonicalizeHailAddress(addressInput));
+    const profile=await this.profileVerifier.verify(address.did);
+    if(profile.did!==address.did||profile.serviceBase!==address.serviceBase||profile.messagingDidKey!==address.messagingDidKey)
+      throw new UserGrantError(409,"Sender address and profile evidence disagree");
+    return {address,profile};
+  }
+
   async prepareUserSignedUpdate(addressInput:string,grantId:string,input:GrantUpdateDefinition):Promise<HailGrant> {
     const account=await this.accounts.getAccountByAddress(canonicalizeHailAddress(addressInput));
     const current=await this.grants.findCurrentByGrantId(grantId);
@@ -359,7 +367,7 @@ export class GrantService {
     return { ...revision, receivedAt: this.now() };
   }
 
-  async revoke(grantorAddressInput: string, grantId: string): Promise<SignedGrantRevision> {
+  async revoke(grantorAddressInput: string, grantId: string, reviewed?:{revision:number;digest:Uint8Array}): Promise<SignedGrantRevision> {
     const grantor = await this.accounts.getAccountByAddress(
       canonicalizeHailAddress(grantorAddressInput),
     );
@@ -374,6 +382,8 @@ export class GrantService {
     if (!current || current.localRole !== "grantor" || current.payload.grantor !== grantor.did) {
       throw new Error("Authoritative Grant does not exist");
     }
+    if(reviewed&&(current.payload.revision!==reviewed.revision||!Buffer.from(current.digest).equals(Buffer.from(reviewed.digest))))
+      throw new UserGrantError(409,"Grant changed after revocation review");
     if (current.payload.status === "revoked") return current;
 
     const identityKey = await this.accounts.getKey(grantor.id, "hail-identity");

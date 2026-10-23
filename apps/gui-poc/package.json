@@ -19,7 +19,8 @@
     "@hailproto/codec": "workspace:*",
     "@ipld/dag-cbor": "9.2.7",
     "@simplewebauthn/browser": "^14.0.0",
-    "multiformats": "13.4.2"
+    "multiformats": "13.4.2",
+    "qrcode-generator": "^2.0.4"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "5.5.7",

@@ -103,6 +103,10 @@ alpha account-client validation bugs were repaired in `606a7cb` and `f9d30bb`.
 Next is confirmation that the repaired authenticated inbox opens and a useful
 message exchange; this is not evidence for wider consumer enrollment yet.
 Follow with wider platform/recovery validation before more invitations.
+The next GUI slice implements [Allowed senders](browser-permissions.md): address
+entry and identity-pinned public QR links lead to a single review; managed Grant
+approval/revocation requires an account/session-bound exact-action passkey proof.
+It reuses the existing Grant lifecycle without adding broad session write scopes.
 Do not treat a delivered operator email as verification of a signup
 user's external alert destination. Asynchronous email bounce/complaint handling
 and broader deliverability monitoring remain rollout gates.

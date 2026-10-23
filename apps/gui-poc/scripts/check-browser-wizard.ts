@@ -6,6 +6,7 @@ import {createRequire} from "node:module";
 import {createSignupBackup} from "../src/lib/signup-recovery.js";
 import {assureValidSig,didForCreateOp} from "@did-plc/lib";
 import {cidForCbor} from "@atproto/common";
+import {createWebCryptoSigner,signPayload,encodeBase64Url,toDiagnosticJson,type HailGrant} from "@hailproto/codec";
 const {generateRegistrationOptions,verifyRegistrationResponse,generateAuthenticationOptions,verifyAuthenticationResponse}=
   createRequire(new URL("../../server/package.json",import.meta.url))("@simplewebauthn/server");
 const work=await mkdtemp(join(process.env.OPENCODE_TMP_DIR||"/tmp/opencode","hail-wizard-proof-"));
@@ -18,6 +19,14 @@ let setupId="",setupToken="",enrollmentToken="",secret="",invitation="fixture-in
 const browserErrors:string[]=[];
 const requests:{path:string;body:string;authorization:string}[]=[];
 const policy={provider:"https://provider.example",monitorOrigin:"https://monitor.example",monitorKey:messaging.vault.identity.publicDidKey};
+const permissionSigner=await crypto.subtle.generateKey("Ed25519",true,["sign","verify"]),peerDid="did:plc:"+"b".repeat(24),peerAddress="peer@peer.example.com";
+let allowed:HailGrant|null=null,allowedCose="",allowedDigest="";
+const approvals=new Map<string,{action:string;payload:HailGrant;challenge:string;approved:boolean;result:unknown}>();
+const permissionPayload=(id:string):HailGrant=>({type:"hail.grant",version:1,grant_id:id,revision:1,previous:null,grantor:did!,grantee:peerDid,
+  scope:[{type:"categories",values:["updates"]}],status:"active",issued_at:Math.floor(Date.now()/1000),updated_at:Math.floor(Date.now()/1000),expires_at:Math.floor(Date.now()/1000)+30*86400,
+  consent_context:{grantee_address:peerAddress,address_binding_hash:{algorithm:"sha-256",value:new Uint8Array(32)},sender_profile_hash:{algorithm:"sha-256",value:new Uint8Array(32)}},key_id:did!+"#hail-identity"});
+const actionSummary=(id:string)=>{const row=approvals.get(id)!;return {requestId:id,action:row.action,approved:row.approved,result:row.result,
+  expiresAt:new Date(Date.now()+300_000).toISOString(),permission:toDiagnosticJson("hail.grant",row.payload),options:row.approved?null:{challenge:row.challenge,rpId:"localhost",userVerification:"required",allowCredentials:[{id:credential.id,type:"public-key"}]}};};
 const reserved=Bun.serve({hostname:"127.0.0.1",port:0,fetch:()=>new Response()});const guiPort=reserved.port!;reserved.stop(true);
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{"Cache-Control":"no-store","Content-Type":"application/json"}});
 function summary(){return {type:"hail.signup",version:1,signupId:setupId,accountId:prepared.accountId,address:prepared.address,did,state,
@@ -30,6 +39,32 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     catch{return new Response("GUI starting",{status:503});}
   }
   const body=await request.text();requests.push({path,body,authorization:request.headers.get("Authorization")??""});const input=body?JSON.parse(body):{};
+  if(path.startsWith("/api/v1/account/permissions/")){
+    assert(request.headers.get("Cookie")?.includes("hail_session="+sessionToken));
+    const step=path.split("/").at(-1)!;
+    if(step==="review"){assert.equal(input.sender,peerAddress);if(input.senderDid)assert.equal(input.senderDid,peerDid);
+      return json({address:peerAddress,did:peerDid,displayName:"Test sender",addressDigest:"A".repeat(43),profileDigest:"A".repeat(43),offersUncategorized:false,categories:[{id:"updates",label:"Updates"}]});}
+    if(step==="prepare"){
+      assert(["allow","revoke"].includes(input.action));
+      if(input.action==="allow"){assert.equal(input.senderDid,peerDid);assert.deepEqual(input.scope,{type:"categories",values:["updates"]});assert(!allowed);}
+      else assert(allowed?.status==="active");
+      const options=await generateAuthenticationOptions({rpID:"localhost",userVerification:"required",allowCredentials:[{id:credential.id}]});
+      approvals.set(input.requestId,{action:input.action,payload:input.action==="allow"?{...permissionPayload("019a15fd-2bd0-7433-8afa-bd0355e0608c"),expires_at:input.expiresAt}:allowed!,challenge:options.challenge,approved:false,result:null});
+      return json(actionSummary(input.requestId));
+    }
+    if(step==="commit"){
+      const row=approvals.get(input.requestId)!;assert(row);
+      if(!row.approved){const result=await verifyAuthenticationResponse({response:input.response,expectedChallenge:row.challenge,expectedOrigin:origin,expectedRPID:"localhost",credential,requireUserVerification:true});
+        assert(result.verified);credential.counter=result.authenticationInfo.newCounter;row.approved=true;}
+      allowed=row.action==="allow"?row.payload:{...row.payload,status:"revoked",revision:row.payload.revision+1,previous:Buffer.from(allowedDigest,"base64url"),updated_at:row.payload.updated_at+1};
+      const raw=await signPayload("hail.grant",allowed,createWebCryptoSigner(did!+"#hail-identity",permissionSigner.privateKey));
+      allowedCose=encodeBase64Url(raw);allowedDigest=encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256",Uint8Array.from(raw))));
+      row.result={grantId:allowed.grant_id,revision:allowed.revision,status:allowed.status,publication:"durable"};return json(actionSummary(input.requestId));
+    }
+    if(approvals.has(step))return json(actionSummary(step));
+  }
+  if(path==="/api/v1/account/grants")return json({grants:allowed?[{grantId:allowed.grant_id,localRole:"grantor",status:allowed.status}]:[],next:null});
+  if(path.startsWith("/api/v1/account/grants/")&&allowed)return json({type:"hailp.grant",version:1,cose:allowedCose,digest:allowedDigest,localRole:"grantor"});
   if(path==="/api/v1/account"||path==="/api/v1/account/inbox"){
     assert(retired&&request.headers.get("Cookie")?.includes("hail_session="+sessionToken),"Inbox must use the completed account's session");
     return json(path.endsWith("/inbox")?{messages:[],next:null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
@@ -70,7 +105,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   }
   if(path==="/api/v1/auth/passkeys/authentication"){
     const result=await verifyAuthenticationResponse({response:input.response,expectedChallenge:challenge,expectedOrigin:origin,expectedRPID:"localhost",credential,requireUserVerification:true});
-    assert(result.verified);authenticated=true;const response=json({authenticated:true});
+    assert(result.verified);credential.counter=result.authenticationInfo.newCounter;authenticated=true;const response=json({authenticated:true});
     response.headers.set("Set-Cookie",`hail_session=${sessionToken}; HttpOnly; SameSite=Lax; Path=/`);return response;
   }
   if(path===`/api/v1/signup/${setupId}/complete`){assert(authenticated);retired=true;return json({state:"complete",signupId:setupId});}
@@ -158,10 +193,27 @@ try{
   await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your inbox').click()`);
   await wait(()=>has("No messages yet"),"completed alpha account inbox");
   assert(await has("alice@provider.example"));
+  await evaluate(`[...document.querySelectorAll('nav a')].find(a=>a.textContent.trim()==='Allowed senders').click()`);
+  await wait(()=>has("No permissions on this page"),"allowed-sender list");
+  await fill("Potential sender's Hail address",peerAddress);await click("Review sender");await wait(()=>has("Test sender"),"verified sender review");
+  await evaluate(`document.querySelector('fieldset input[value=updates]').click()`);
+  await click("Review permission before approving");await wait(()=>has("Confirm allowed sender"),"exact permission review");
+  assert.equal(allowed,null);assert(await has("alice@provider.example"));
+  await click("Allow sender with my passkey");await wait(()=>has("Review revocation"),"passkey-approved permission saved");
+  assert.equal(allowed!.status,"active");await click("Review revocation");await wait(()=>has("Confirm revocation"),"revocation review");
+  await click("Revoke sender with my passkey");await wait(()=>has("revoked"),"passkey-confirmed revocation");
+  assert.equal(allowed!.status,"revoked");
+  await click("Show my sender QR");assert(await evaluate("!!document.querySelector('svg[role=img] path')"));
+  const qrRequests=requests.filter(r=>r.path.endsWith("/permissions/prepare")).length;
+  await cdp("Page.navigate",{url:origin+"/permissions#"+new URLSearchParams({sender:peerAddress,did:peerDid})});
+  await wait(()=>has("QR identity pin:"),"scanned sender QR prefill");
+  assert.equal(await evaluate(`document.querySelector('input[placeholder="canary-prov@haili.app"]').value`),peerAddress);
+  assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Opening a QR must not prepare or approve a permission");
+  await click("Review sender");await wait(()=>has("Test sender"),"QR and typed address share the same review");
   for(const req of requests){assert(!req.body.includes(secret),"Recovery secret uploaded");assert(!req.body.includes('"ciphertext"'),"Recovery vault uploaded");}
   assert(requests.filter(r=>r.authorization).every(r=>r.authorization==="Bearer "+setupToken||r.path.endsWith("check-address")));
   passed=true;
-  console.info("PASS: Chromium wizard, saved-file verification, wrong-secret refusal, encrypted reloads, exact genesis retries, virtual passkey registration/login, setup cleanup and alpha inbox (local fixtures only)");
+  console.info("PASS: Chromium signup/inbox, typed and QR sender review, exact-action virtual passkey approval and revocation (local service fixtures only)");
 }finally{
   socket?.close();chrome?.kill();gui?.kill();server.stop(true);
   if(chrome)await chrome.exited;if(gui)await gui.exited;

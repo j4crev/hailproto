@@ -31,6 +31,7 @@ import { registerSelfServiceOnboarding, type SelfServiceOnboarding } from "./acc
 import { registerSignupEmailRoutes, type SignupEmailClient } from "./onboarding/email.js";
 import { registerSignupMonitorRoutes, type SignupMonitorService } from "./onboarding/monitor.js";
 import { registerSignupRoutes, type SignupCoordinator } from "./onboarding/signup.js";
+import {GrantPermissions,registerPermissionRoutes} from "./accounts/permissions.js";
 import type { AccountMessaging } from "./accounts/messaging.js";
 import { registerAccountAccess } from "./accounts/access-routes.js";
 import type { AccountAccess } from "./accounts/access.js";
@@ -116,6 +117,8 @@ export function createApp(
     const { accounts, grants, service, messaging, binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier } = dependencies.accountApi;
     registerAccountApiRoutes(app, accounts, grants, service, config.publicOrigin,messaging,binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,config.passkeys?.origin);
     if(dependencies.passkeys)registerPasskeyRoutes(app,dependencies.passkeys,accounts);
+    if(dependencies.passkeys&&dependencies.servingSql)registerPermissionRoutes(app,
+      new GrantPermissions(dependencies.servingSql,accounts,grants,service,dependencies.passkeys,config.publicOrigin),accounts,dependencies.passkeys.origin);
   }
 
   if (dependencies.discoveryStore) {

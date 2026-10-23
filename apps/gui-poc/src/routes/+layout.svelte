@@ -10,7 +10,7 @@
 <div class="shell">
   <header>
     <a href="/" class="brand" aria-label="Hail inbox home"><span>H</span> Hail</a>
-    <nav><a href="/">Inbox</a><a href="/sent">Sent</a><a href="/compose">Compose</a><a href="/settings/security">Security</a></nav>
+    <nav><a href="/">Inbox</a><a href="/sent">Sent</a><a href="/compose">Compose</a><a href="/permissions">Allowed senders</a><a href="/settings/security">Security</a></nav>
   </header>
   <main>{@render children()}</main>
 </div>
@@ -26,5 +26,5 @@
   nav { display: flex; gap: 16px; } nav a { color: #526058; font-size: 13px; font-weight: 700; text-decoration: none; }
   main { padding: 28px 0 64px; }
   :global(.card) { background: white; border: 1px solid #dfe5e0; border-radius: 18px; box-shadow: 0 10px 30px rgba(21, 50, 35, .05); }
-  @media (max-width: 540px) { main { padding-top: 12px; } }
+  @media (max-width: 540px) { main { padding-top: 12px; } header{height:auto;min-height:76px;flex-wrap:wrap;gap:12px;padding:12px 0}nav{flex-wrap:wrap;gap:12px} }
 </style>

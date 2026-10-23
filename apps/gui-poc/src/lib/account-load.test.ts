@@ -2,6 +2,7 @@ import {expect,it,vi} from "vitest";
 
 vi.mock("$env/dynamic/private",()=>({env:{HAIL_GUI_PROVIDER:"https://provider.example",HAIL_GUI_API_ORIGIN:"https://provider.example",HAIL_GUI_ORIGIN:"https://provider.example"}}));
 import {load} from "../routes/+page.server.js";
+import {load as loadPermissions} from "../routes/permissions/+page.server.js";
 import {AccountApiClient} from "../../../cli/src/account-api.js";
 
 const token="hails_"+"A".repeat(43),provider="https://provider.example";
@@ -39,5 +40,15 @@ it("preserves public managed profile validation and rejects unknown or non-manag
       vi.stubGlobal("fetch",async()=>new Response(JSON.stringify(bad),{headers:{"Content-Type":"application/json"}}));
       await expect(client.account()).rejects.toThrow("contract");
     }
+  }finally{vi.unstubAllGlobals();}
+});
+
+it("keeps a QR landing page available for inline sign-in when its session has expired",async()=>{
+  vi.stubGlobal("fetch",async()=>new Response("",{status:401}));
+  const cookies={get:()=>token,delete:vi.fn()};
+  try{
+    const result=await loadPermissions({url:new URL(provider+"/permissions"),cookies,setHeaders:vi.fn()} as never);
+    expect(result).toEqual({configured:false,origin:provider});
+    expect(cookies.delete).toHaveBeenCalledWith("hail_session",{path:"/"});
   }finally{vi.unstubAllGlobals();}
 });

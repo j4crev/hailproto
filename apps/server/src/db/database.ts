@@ -200,6 +200,7 @@ const migrations: readonly Migration[] = [
   { version: 56, name: "browser-authorization", url: new URL("../../migrations/0056_browser_authorization.sql", import.meta.url) },
   { version: 57, name: "alpha-monitoring", url: new URL("../../migrations/0057_alpha_monitoring.sql", import.meta.url) },
   { version: 58, name: "signup-ceremonies", url: new URL("../../migrations/0058_signup_ceremonies.sql", import.meta.url) },
+  { version: 59, name: "grant-approvals", url: new URL("../../migrations/0059_grant_approvals.sql", import.meta.url) },
 ];
 
 export class ProviderDatabase {

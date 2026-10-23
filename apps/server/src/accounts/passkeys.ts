@@ -2,7 +2,7 @@ import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {generateAuthenticationOptions,generateRegistrationOptions,verifyAuthenticationResponse,
   verifyRegistrationResponse,type AuthenticationResponseJSON,type RegistrationResponseJSON} from "@simplewebauthn/server";
 import {COSEALG} from "@simplewebauthn/server/helpers";
-import {encodeBase64Url} from "@hailproto/codec";
+import {decodeBase64Url,encodeBase64Url} from "@hailproto/codec";
 import type {SQL} from "bun";
 import {tokenHash,type AccountApiSession,type AccountApiScope} from "./repository.js";
 
@@ -297,7 +297,40 @@ export class PasskeyAuth {
   async authenticate(challengeId:string,response:AuthenticationResponseJSON){
     if(!UUID.test(challengeId)||!ID.test(response.id))throw new PasskeyError(400);
     const challenge=await this.challenge(challengeId,"authentication");
-    const rows=await this.sql<{credential_id:string;account_id:string;serving_generation:number|string;public_key:Uint8Array;
+    const {row,result}=await this.verifyAssertion(challenge,response);
+    const token=`hails_${encodeBase64Url(randomBytes(32))}`,id=randomUUID(),generation=Number(row.serving_generation);
+    await this.sql.begin(async tx=>{
+      const consumed=await tx`DELETE FROM account_passkey_challenges WHERE id=${challengeId} AND challenge=${challenge} AND expires_at>now() RETURNING id`;
+      if(!consumed.length)throw new PasskeyError(401);
+      await this.recordAssertion(tx,row,result.authenticationInfo);
+      await tx`INSERT INTO account_passkey_sessions
+        (id,token_hash,account_id,credential_id,serving_generation,scopes,expires_at)
+        VALUES (${id},${tokenHash(token)},${row.account_id},${row.credential_id},${generation},
+          (${JSON.stringify(SESSION_SCOPES)}::text)::jsonb,now()+interval '12 hours')`;
+    });
+    return {token,expiresAt:new Date(Date.now()+12*60*60*1000)};
+  }
+
+  async actionOptions(session:AccountApiSession,challenge:string){
+    const keys=await this.sql<{credential_id:string;transports:unknown}[]>`SELECT credential_id,transports FROM account_passkeys
+      WHERE account_id=${session.account_id} AND serving_generation=${session.serving_generation??1} AND revoked_at IS NULL`;
+    if(!session.passkey_credential_id||!keys.length)throw new PasskeyError(403);
+    return generateAuthenticationOptions({rpID:this.rpId,challenge:Uint8Array.from(decodeBase64Url(challenge,32)),userVerification:"required",timeout:300_000,
+      allowCredentials:keys.map(key=>({id:key.credential_id,transports:Array.isArray(key.transports)?key.transports as string[]:[]}))});
+  }
+
+  // The caller atomically consumes its own exact-action challenge. This issues
+  // neither a session nor an API credential and cannot be used for login.
+  async approveAction(sql:SQL,session:AccountApiSession,challenge:string,response:AuthenticationResponseJSON){
+    const {row,result}=await this.verifyAssertion(challenge,response,sql);
+    if(!session.passkey_credential_id||row.account_id!==session.account_id||Number(row.serving_generation)!==(session.serving_generation??1))throw new PasskeyError(403);
+    await this.recordAssertion(sql,row,result.authenticationInfo);
+    return row.credential_id;
+  }
+
+  private async verifyAssertion(challenge:string,response:AuthenticationResponseJSON,sql=this.sql){
+    if(!response||!ID.test(response.id))throw new PasskeyError(400);
+    const rows=await sql<{credential_id:string;account_id:string;serving_generation:number|string;public_key:Uint8Array;
       signature_counter:number|string;transports:unknown;device_type:"singleDevice"|"multiDevice";backed_up:boolean}[]>`
       SELECT key.credential_id,key.account_id,key.serving_generation,key.public_key,key.signature_counter,key.transports,key.device_type,key.backed_up
       FROM account_passkeys key JOIN provider_accounts account ON account.id=key.account_id
@@ -312,21 +345,15 @@ export class PasskeyAuth {
         counter:Number(row.signature_counter),transports:Array.isArray(row.transports)?row.transports as string[]:[]}});}
     catch{throw new PasskeyError(401);}
     if(!result.verified)throw new PasskeyError(401);
-    const token=`hails_${encodeBase64Url(randomBytes(32))}`,id=randomUUID(),generation=Number(row.serving_generation);
-    await this.sql.begin(async tx=>{
-      const consumed=await tx`DELETE FROM account_passkey_challenges WHERE id=${challengeId} AND challenge=${challenge} AND expires_at>now() RETURNING id`;
-      if(!consumed.length)throw new PasskeyError(401);
-      const updated=await tx`UPDATE account_passkeys SET signature_counter=${result.authenticationInfo.newCounter},
-        backed_up=${result.authenticationInfo.credentialBackedUp},last_used_at=now()
-        WHERE credential_id=${row.credential_id} AND revoked_at IS NULL AND serving_generation=${generation}
+    return {row,result};
+  }
+
+  private async recordAssertion(sql:SQL,row:{credential_id:string;serving_generation:number|string;signature_counter:number|string},info:{newCounter:number;credentialBackedUp:boolean}){
+      const updated=await sql`UPDATE account_passkeys SET signature_counter=${info.newCounter},
+        backed_up=${info.credentialBackedUp},last_used_at=now()
+        WHERE credential_id=${row.credential_id} AND revoked_at IS NULL AND serving_generation=${Number(row.serving_generation)}
           AND signature_counter=${Number(row.signature_counter)} RETURNING credential_id`;
       if(!updated.length)throw new PasskeyError(401);
-      await tx`INSERT INTO account_passkey_sessions
-        (id,token_hash,account_id,credential_id,serving_generation,scopes,expires_at)
-        VALUES (${id},${tokenHash(token)},${row.account_id},${row.credential_id},${generation},
-          (${JSON.stringify(SESSION_SCOPES)}::text)::jsonb,now()+interval '12 hours')`;
-    });
-    return {token,expiresAt:new Date(Date.now()+12*60*60*1000)};
   }
 
   async logout(token:string|undefined){
