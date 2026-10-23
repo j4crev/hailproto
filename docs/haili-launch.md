@@ -1,5 +1,28 @@
 # `haili.app` launch milestone
 
+## Live Permission, Delivery And Reply Navigation Repair — October 23, 2026 UTC
+
+- The operator approved `canary-prov@haili.app` from `j4@haili.app` through the
+  new UI. Received `updates` Grant `01a16897-2df7-72c9-8aef-e3efbb458291`
+  was checked from the canary without issuing another permission. One labeled
+  test message `01a1689a-b499-72f9-a334-8edfe934f43c` reached authenticated
+  `delivered` revision 2; the operator confirmed opening it. It offers one reply
+  for seven days, not standing reciprocal authorization.
+- The reply form exposed document-scoped CSP leaking through SPA navigation:
+  signup's `form-action 'none'` remained active after entering the inbox, so the
+  browser blocked native form submission before the API. Local Chromium reproduced
+  the exact violation; the canary inbox showed no reply had arrived.
+- Release `903af3ebb0325a8068b0dc6a66e3dbafb26d605f` forces full-document
+  navigation when leaving signup/recovery pages, preserving their strict policy
+  while giving normal pages their own policy. No Grant, reply capability, session,
+  key or database lifetime was reset. GUI checks pass 23 tests and typecheck;
+  desktop/mobile-viewport browser proof now follows signup to native reply/Sent
+  through the real provider GUI proxy, without a manual reload concealing CSP.
+- Guarded deployment and public readiness/login/permissions checks passed. The
+  production signup page retains its no-form CSP and serves the full-load link
+  boundary. Live reply confirmation remains pending; hard-refreshing the original
+  message clears a stale document policy before the operator retries once.
+
 ## Allowed Senders Deployed — October 23, 2026 UTC
 
 - Release `377c62cd9aa57d96628b6c7849c7390eb9d0f4a8` deployed through the
