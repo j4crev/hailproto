@@ -578,3 +578,22 @@ image, volume, catalog, application schema, keys or data have been changed.
 References: [14.24 release notes](https://www.postgresql.org/docs/release/14.24/),
 [14.12 catalog repair](https://www.postgresql.org/docs/release/14.12/),
 [version policy](https://www.postgresql.org/support/versioning/).
+
+### Recovery handoff resolved; minor update prepared
+
+The operator found the original recovery files in
+`~/.local/share/hailproto/ops/`; no replacement key was generated. Fingerprint and
+owner-only permissions match, and actual encrypted-backup restore tests passed.
+The default GPG keyring's missing key did not mean the key was lost: the dedicated
+`ops/backup-gnupg` home and exported private key were already present. R2
+credentials were left untouched. The provider's narrow Git permission repair
+was also verified: readable index/objects, clean checkout at `07b4dec`, unchanged
+live ingress and no service restarts.
+
+A fresh 22:17 UTC monitor recovery point was downloaded, checksum-verified and
+retained in the established off-host ops backup directory. It too passed a real,
+isolated restore and same-volume 14.4 → 14.24 → 14.4 rehearsal, including all
+database/template catalog repairs and reindexing, with identical full-row hashes
+for seven tables/36 rows. No live engine/data changes have occurred yet.
+The guarded update, failure boundaries and console action are in
+[Monitor PostgreSQL update](monitor-postgres-update.md).

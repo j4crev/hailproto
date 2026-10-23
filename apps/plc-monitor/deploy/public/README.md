@@ -3,6 +3,8 @@
 The staged public enrollment Cloudflare Tunnel migration, console-only apply and
 rollback are in [Monitor tunnel hardening](../../../../docs/monitor-tunnel-hardening.md).
 This changes ingress only; independent-provider admission remains a separate task.
+The separately guarded 14.4 → 14.24 maintenance plan and verified restore evidence
+are in [Monitor PostgreSQL update](../../../../docs/monitor-postgres-update.md).
 
 This profile runs the monitor worker and its private PostgreSQL database. It polls
 each enrolled DID's canonical `https://plc.directory/<did>/log/audit` endpoint.
