@@ -30,6 +30,13 @@ delete evidence while responding to abuse.
 
 ## Access and key handling
 
+The staged Tailscale/Cloudflare Tunnel migration and its console-only apply,
+verification and rollback steps are in [VPS network hardening](vps-network-hardening.md).
+The October 23 cutover is complete: SSH uses Tailscale; public Haili and monitor
+HTTP use Cloudflare Tunnels; direct public TCP 22/80/443 was verified blocked on
+both IPv4 and IPv6. Hosting firewalls deny new inbound traffic. Review the
+hardening runbook's current checkpoint and release-adoption caveat before deploy.
+
 - SSH allows only the named `hailops` account with public-key authentication;
   root, passwords, keyboard-interactive authentication and X11 are disabled.
 - Passwordless sudo for `hailops` is limited to the root-owned provider/monitor operations wrapper.

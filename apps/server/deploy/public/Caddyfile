@@ -1,10 +1,23 @@
 {
-	email {$ACME_EMAIL}
 	admin off
 }
 
-{$PROVIDER_DOMAIN} {
-	reverse_proxy provider:3000 {
-		header_up X-Hail-Trusted-Client-IP {remote_host}
+# Host port 8080 is published only on loopback, for the local cloudflared service.
+# There is no direct public HTTP/HTTPS listener.
+:8080 {
+	@origin {
+		host {$PROVIDER_DOMAIN}
+		header CF-Connecting-IP *
+	}
+	handle @origin {
+		@http header X-Forwarded-Proto http
+		redir @http https://{$PROVIDER_DOMAIN}{uri} 308
+		reverse_proxy provider:3000 {
+			header_up X-Hail-Trusted-Client-IP {http.request.header.CF-Connecting-IP}
+			header_up X-Forwarded-Proto https
+		}
+	}
+	handle {
+		respond 400
 	}
 }

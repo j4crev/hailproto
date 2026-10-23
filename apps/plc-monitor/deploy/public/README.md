@@ -1,5 +1,9 @@
 # Public alpha monitor
 
+The staged public enrollment Cloudflare Tunnel migration, console-only apply and
+rollback are in [Monitor tunnel hardening](../../../../docs/monitor-tunnel-hardening.md).
+This changes ingress only; independent-provider admission remains a separate task.
+
 This profile runs the monitor worker and its private PostgreSQL database. It polls
 each enrolled DID's canonical `https://plc.directory/<did>/log/audit` endpoint.
 
@@ -210,10 +214,13 @@ The reviewed `enrollment-setup.py` bridges **code builds**, not data storage:
   refused. Temporary plaintext dumps are removed; encrypted archives are
   root-owned/group-readable by `hailops` under `/var/lib/hail-monitor-enrollment`
   so they can be downloaded and checksum-verified off-host.
-- Add HTTPS with `caddy:2.10.2-alpine`, disable its administration listener, and
-  permit only IPv4 provider `5.161.254.78` to POST the enrollment path. All other
-  application traffic gets `403`. Forwarded IP headers are not trusted. Backend
-  port `3001` is published only on loopback. No SSH or sudoers changes are made.
+- Add a loopback-only HTTP origin with `caddy:2.10.2-alpine` for a host-local
+  Cloudflare Tunnel connector, with administration disabled and capabilities
+  dropped except the official binary's required `NET_BIND_SERVICE`. Only this
+  origin trusts `CF-Connecting-IP`, permitting the configured
+  Haili provider's public IPv4/IPv6 to POST the enrollment path. All other traffic
+  gets `403`. Backend port `3001` is published only on loopback. Public HTTPS is
+  terminated at Cloudflare, not directly on the VPS. No sudoers changes are made.
 
 This is a one-time console-approved operation, not an unrestricted sudo grant.
 The scripts have configuration/rendering/preservation regression checks and the
@@ -225,10 +232,12 @@ all root preflights and backups must still pass.
 
 ### Operator Actions
 
-1. In Cloudflare, create a **DNS-only** A record for `enroll.plcmonitor.us` pointing
-   to `2.25.206.150`, with no AAAA record. A proxied record is refused: it would
-   hide the provider's source IP. Ensure the VPS firewall permits TCP 80/443 for
-   ACME/TLS, but do not reset firewall rules or open backend 3001.
+1. Prepare a Cloudflare Tunnel for `enroll.plcmonitor.us`. The edge listens only
+   on `127.0.0.1:8080`; direct DNS-only A/AAAA records, ACME and public 80/443 are
+   no longer required. After the local edge is ready, install the protected
+   connector and publish the proxied tunnel CNAME using the pattern documented in
+   [Monitor tunnel hardening](../../../../docs/monitor-tunnel-hardening.md).
+   Do not re-run this one-time bridge on an already-converted host or open 3001.
 2. Have the agent stage a private `monitor.json` containing exactly `api_domain`
    and a newly generated `enrollment_token`, plus the reviewed **public** backup
    key, in a mode-0700 `hailops` directory. The JSON must be mode 0600. Do not
@@ -252,7 +261,7 @@ all root preflights and backups must still pass.
      --commit <reviewed-full-release-SHA>
    ```
 
-   Use the console, not root SSH. The helper checks DNS, source ownership and
+   Use the console, not root SSH. The helper checks source ownership and
    cleanliness, port availability, backup recipient, schema/key paths and old
    runtime health before switching. It never edits the old `.env`. A second
    encrypted backup includes the new protected enrollment configuration.

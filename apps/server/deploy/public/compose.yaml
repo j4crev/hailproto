@@ -8,12 +8,9 @@ services:
       provider:
         condition: service_healthy
     environment:
-      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
       PROVIDER_DOMAIN: ${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

@@ -27,7 +27,7 @@ BACKUPS = Path('/var/lib/hail-monitor-enrollment')
 WRAPPER = Path('/usr/local/sbin/hail-monitor-ops')
 MONITOR = 'hail-public-monitor-monitor-1'
 PROVIDER_IP = '5.161.254.78'
-MONITOR_IP = '2.25.206.150'
+PROVIDER_IPV6 = '2a01:4ff:f0:a15f::1'
 EXPECTED_MONITOR_KEY = 'did:key:z6Mknh84ZKz6BNm2mh4LFGKc1JkW2WN9ZdfCVRbi58s1k4Zr'
 RECIPIENT = '870DECF2F98318BCDE17D4B8333035D2650B0400'
 IMAGE = 'hail-plc-monitor-ts:public'
@@ -69,6 +69,7 @@ def override():
                             'MONITOR_ENROLLMENT_ALERT_ORIGIN', 'MONITOR_API_HOST', 'MONITOR_API_PORT')}},
         'enrollment-edge': {'image': 'caddy:2.10.2-alpine', 'restart': 'unless-stopped',
                             'network_mode': 'host', 'read_only': True, 'cap_drop': ['ALL'],
+                            # The official binary needs this file capability even on 8080.
                             'cap_add': ['NET_BIND_SERVICE'], 'security_opt': ['no-new-privileges:true'],
                             'tmpfs': ['/tmp:size=16m,mode=1777'], 'volumes': [
                                 str(CONFIG / 'Caddyfile') + ':/etc/caddy/Caddyfile:ro',
@@ -79,22 +80,26 @@ def override():
 def caddy(domain):
     return '''{
   admin off
-  email ops@haili.app
 }
-%s {
-  @provider {
-    remote_ip %s
+
+# Only the host-local cloudflared service may supply trusted Cloudflare headers.
+:8080 {
+  bind 127.0.0.1
+  @tunnel_provider {
+    host %s
+    header CF-Connecting-IP %s
+    header CF-Connecting-IP %s
     method POST
     path /api/v1/onboarding
   }
-  handle @provider {
+  handle @tunnel_provider {
     reverse_proxy 127.0.0.1:3001
   }
   handle {
     respond 403
   }
 }
-''' % (domain, PROVIDER_IP)
+''' % (domain, PROVIDER_IP, PROVIDER_IPV6)
 
 
 def compose():
@@ -219,9 +224,8 @@ def apply(config, public_key, commit):
     if CONFIG.exists(): raise SetupError('Enrollment configuration already exists; review it instead of overwriting')
     if text('git', '-C', str(LEGACY), 'status', '--porcelain'): raise SetupError('Legacy deployment has unrelated changes')
     public_data = backup_recipient(public_key); grp.getgrnam('hailops')
-    resolved = {item[4][0] for item in socket.getaddrinfo(config['api_domain'], 443, type=socket.SOCK_STREAM)}
-    if resolved != {MONITOR_IP}: raise SetupError('Create a DNS-only A record pointing directly to ' + MONITOR_IP)
-    for port in (80, 443, 3001):
+    # Public HTTPS/DNS belong to Cloudflare Tunnel, not a direct origin address.
+    for port in (8080, 3001):
         with socket.socket() as listener: listener.bind(('0.0.0.0', port))
     versions = sql('SELECT version,checksum FROM schema_migrations ORDER BY version').splitlines()
     if len(versions) != len(list((ROOT / 'apps/plc-monitor/migrations').glob('0*.sql'))):

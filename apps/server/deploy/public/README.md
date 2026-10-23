@@ -6,11 +6,18 @@ public onboarding, custody transitions or managed transfer.
 
 Production operation, backup, monitoring, limits and incident response are in
 [`docs/haili-operations.md`](../../../../docs/haili-operations.md).
+The staged private-origin Cloudflare Tunnel migration, console apply and rollback
+are in [`docs/vps-network-hardening.md`](../../../../docs/vps-network-hardening.md).
+The edge publishes only loopback `127.0.0.1:8080` for a host-local cloudflared
+service; no direct public HTTP/HTTPS bindings are needed.
 
 ## Prepare
 
-Point the provider domain's DNS-only `A`/`AAAA` records at the host. Then create
-the private environment file:
+Create a Cloudflare Tunnel and its proxied hostname CNAME, routing HTTP to
+`127.0.0.1:8080` with the provider domain as HTTP Host Header. Configure the
+connector, HTTPS enforcement, API browser-check exceptions and cache bypass as
+documented in the hardening runbook. Do not retain direct-origin A/AAAA records.
+Then create the private environment file:
 
 ```bash
 cd apps/server/deploy/public

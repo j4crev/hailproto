@@ -1,0 +1,18 @@
+[Unit]
+Description=Hail PLC Monitor Cloudflare Tunnel
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+DynamicUser=yes
+LoadCredential=tunnel-token:/etc/cloudflared/haili-monitor.token
+ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate --metrics 127.0.0.1:20241 run --token-file %d/tunnel-token
+Restart=always
+RestartSec=5s
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

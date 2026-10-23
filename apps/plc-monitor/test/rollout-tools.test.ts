@@ -22,8 +22,13 @@ assert 'db' not in rendered['services'] and 'monitor_db' not in rendered['volume
 assert rendered['services']['monitor']['ports']==['127.0.0.1:3001:3001']
 assert 'volumes' not in rendered['services']['monitor']
 assert rendered['services']['monitor']['build']['context']=='/opt/hailproto'
-assert 'remote_ip 5.161.254.78' in edge and 'respond 403' in edge and 'admin off' in edge
-assert 'reverse_proxy 127.0.0.1:3001' in edge and 'header' not in edge
+assert 'respond 403' in edge and 'admin off' in edge and 'remote_ip' not in edge
+assert 'reverse_proxy 127.0.0.1:3001' in edge and ':8080' in edge
+assert 'bind 127.0.0.1' in edge and 'host '+cfg['api_domain'] in edge
+assert 'header CF-Connecting-IP 5.161.254.78' in edge and 'header CF-Connecting-IP 2a01:4ff:f0:a15f::1' in edge
+assert 'method POST' in edge and 'path /api/v1/onboarding' in edge
+assert rendered['services']['enrollment-edge']['cap_drop']==['ALL']
+assert rendered['services']['enrollment-edge']['cap_add']==['NET_BIND_SERVICE']
 assert cfg['enrollment_token'] not in edge and cfg['enrollment_token'] not in json.dumps(rendered)
 for bad in [dict(cfg,api_domain='enroll.plcmonitor.us\\nmalicious'),dict(cfg,api_domain='attacker.example.com'),dict(cfg,enrollment_token='bad'),dict(cfg,arbitrary='setting')]:
  try:m.validate(bad)
