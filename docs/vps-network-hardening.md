@@ -522,3 +522,59 @@ versus the earlier 14.24 rollout record. If the engine is old, prepare encrypted
 backup, disposable restore/preservation proof, a minor-only target and rollback
 before any live change. If the engine is already updated, correct/pin the stale
 image reference instead of claiming or performing an unnecessary engine upgrade.
+
+### Follow-up results and next gate
+
+Reviewed ingress commit `07b4decf0ada2ce0b11a6ec3682cdb915176cdb0` was pushed to
+`origin/main` with operator approval. The provider adopted that exact commit;
+its live Caddy/Compose hashes remain `04eec931...` / `2d59e2bd...`, matching the
+reviewed source, and public readiness/tunnel health remain good. No services
+were restarted for adoption.
+
+Adoption exposed a permission side effect: the backup process's umask 077 also
+affected Git's index refresh and fetched pack metadata, preventing `hailops`
+read-only Git inspection. The one-time adopter now gives Git subprocesses umask
+022 while keeping the Python preservation backup private. The Git regression
+check was extended to fetch a new pack under restrictive umask and check readable
+index/pack modes, alongside unchanged ingress/env and unrelated-work refusal.
+Repair only the introduced index and pack files, preserving root ownership and
+adding no group/other write permissions, in the provider root console:
+
+```bash
+sh /home/hailops/fix.ef0160/run.sh
+```
+
+Monitor audit `/var/lib/hail-db-audit.POb0XU/report.txt` (19:21 UTC) confirms SQL
+`server_version_num=140004`, running binary 14.4 and immutable image binary 14.4.
+The merged legacy deployment also specifies 14.4. The earlier 14.24 record is not
+the live state. The monorepo's newer base Compose already specifies 14.24 but is
+not the monitor's authoritative legacy base/active override.
+
+A fresh existing-wrapper encrypted backup was created without stopping services:
+
+```text
+Host: /var/lib/hail-monitor-enrollment/monitor-20261023T193834Z-39612a16.tar.gpg
+Off-host temporary copy: /tmp/opencode/monitor-20261023T193834Z-39612a16.tar.gpg
+SHA-256: 3919b8527cb025f35b7ced0ff1b72070cda63026c7dbd189745bc324f44ae049
+```
+
+The downloaded ciphertext hash matches. This is not yet restore proof or a
+durable off-host retention policy. The local default GPG keyring has no secret
+key for recovery recipient `870DECF2F98318BCDE17D4B8333035D2650B0400`. Confirm the
+operator's off-host private recovery key/passphrase before the upgrade. Never
+paste either into chat or copy the recovery private key to a VPS. Use it locally
+to stream-decrypt only the dump into an isolated restore rehearsal; do not expose
+the archive's credential/key members in tool output.
+
+The planned minor target is 14.24, currently supported upstream, not a major
+upgrade. The official multiarch image digest checked during preparation is
+`postgres:14.24-alpine@sha256:50fce0c9c54c43d8b02ce16cb9daff75eb94c09c4ee3d41c157852ebd9700c80`.
+Review the cumulative migration notes before applying: 14.10 recommends relevant
+reindexing; 14.12 requires `fix-CVE-2024-4317.sql` in existing databases including
+templates; 14.24 refers back to those changes and extension-specific caveats.
+The vendor CVE repair file is present in the target image. No live database
+image, volume, catalog, application schema, keys or data have been changed.
+
+References: [14.24 release notes](https://www.postgresql.org/docs/release/14.24/),
+[14.12 catalog repair](https://www.postgresql.org/docs/release/14.12/),
+[version policy](https://www.postgresql.org/support/versioning/).
