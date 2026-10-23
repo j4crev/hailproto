@@ -87,6 +87,7 @@ try{
   const cdp=(method:string,params:unknown={})=>new Promise<any>((resolve,reject)=>{const id=++sequence;waiting.set(id,{resolve,reject});socket!.send(JSON.stringify({id,method,params}));});
   const evaluate=async(expression:string)=>{const result=await cdp("Runtime.evaluate",{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw new Error("Browser evaluation failed: "+(result.exceptionDetails.exception?.description??result.exceptionDetails.text));return result.result.value;};
   const has=async(text:string)=>evaluate(`document.body?.innerText.includes(${JSON.stringify(text)})??false`);
+  const noPrematureSignIn=async()=>assert(await evaluate(`![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Sign in with a created passkey and finish setup')`),"Sign-in offered before confirmed passkey enrollment");
   const click=async(text:string)=>{await wait(async()=>evaluate(`!![...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled)`),"button: "+text);
     await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled).click()`);};
   const fill=async(label:string,value:string)=>evaluate(`(()=>{const e=[...document.querySelectorAll('label')].find(l=>l.textContent.startsWith(${JSON.stringify(label)})).querySelector('input');e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
@@ -115,6 +116,7 @@ try{
   await click("Send code / check verification");await wait(()=>has("Check your external inbox"),"email start");
   await fill("Eight-digit code","12345678");await click("Verify email");await wait(()=>has("Review and sign your exact identity"),"email verification");
   await fill("Recovery secret (used locally once to sign)",secret);await click("Sign this identity locally");await wait(()=>has("Save encrypted signed setup file"),"genesis signing");
+  await click("Save account recovery backup");await noPrematureSignIn();
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Identity screen overflows viewport");
   await click("Save encrypted signed setup file");
   const checkpoint=await evaluate("localStorage.getItem('hail.pending-signup.v1')");let signedFile="";
@@ -126,10 +128,13 @@ try{
   await upload("Pending setup file",join(work,signedFile));
   await fill("Separate recovery secret",secret);await click("Continue setup");await wait(()=>has("Publish and activate this identity"),"resume exact genesis");
   await click("Publish and activate this identity");await wait(()=>has("awaiting-monitor"),"monitor wait");
+  await noPrematureSignIn();
   // A reload must not create another account/identity while monitoring is pending.
   await cdp("Page.reload");await wait(()=>has("Encrypted setup was found"),"monitor resume");
   await fill("Separate recovery secret",secret);await click("Continue setup");await wait(()=>has("Retry activation with original state"),"pending monitor state");
   await click("Retry activation with original state");await wait(()=>has("Create your passkey"),"activation");
+  await noPrematureSignIn();assert(!requests.some(r=>r.path.includes("authentication")),"Authentication requested before enrollment");
+  await click("Check passkey registration status");await wait(()=>has("Passkey registration is not confirmed"),"unenrolled status check");await noPrematureSignIn();
   await click("Create passkey");await wait(()=>has("sign-in-required"),"real WebAuthn registration");
   await cdp("Page.reload");await wait(()=>has("Encrypted setup was found"),"post-passkey resume");
   await fill("Separate recovery secret",secret);await click("Continue setup");await wait(()=>has("sign-in-required"),"retained passkey state");

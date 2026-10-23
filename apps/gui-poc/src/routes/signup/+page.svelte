@@ -119,15 +119,23 @@
     if(summary.state==="awaiting-monitor")retryAt=Date.now()+15_000;
   }
   async function enroll(){
-    if(!pending)return;
+    if(!pending||summary?.state!=="passkey-enrollment")return;
     const start=await request("/api/v1/auth/passkeys/recovery/options",{token:pending.enrollmentToken});
     const response=await startRegistration({optionsJSON:start.options});
     await request("/api/v1/auth/passkeys/recovery",{token:pending.enrollmentToken,challengeId:start.challengeId,response,label});
     summary=checkSummary(await request(`/api/v1/signup/${pending.signupId}`,undefined,pending.token),pending);
     message="Passkey created. Sign in with it now to finish and retire setup authority.";
   }
+  async function checkEnrollment(){
+    if(!pending)return;
+    summary=checkSummary(await request(`/api/v1/signup/${pending.signupId}`,undefined,pending.token),pending);
+    message=summary.state==="sign-in-required"?"Your passkey is registered. Sign in to finish setup.":
+      "Passkey registration is not confirmed. Use Create passkey if enrollment is still open; do not start another signup.";
+  }
   async function finish(){
-    if(!pending||!finalBackupSaved)return;
+    if(!pending||!finalBackupSaved||summary?.state!=="sign-in-required")return;
+    await checkEnrollment();
+    if(summary.state!=="sign-in-required")return;
     const start=await request("/api/v1/auth/passkeys/authentication/options",{});
     const response=await startAuthentication({optionsJSON:start.options});
     await request("/api/v1/auth/passkeys/authentication",{challengeId:start.challengeId,response});
@@ -201,17 +209,22 @@
         <p>Publishing is permanent. Retries reuse this identity and wait for verified email, monitoring and activation; they do not make another identity.</p>
         <button disabled={busy||!pendingSaved||now<retryAt} onclick={()=>run(advance)}>{summary.state==="prepared"?"Publish and activate this identity":"Retry activation with original state"}</button>
       {:else if summary.state==="passkey-enrollment"}
-        <h2>Create your passkey</h2><p>Enrollment expires {summary.enrollmentExpiresAt?new Date(summary.enrollmentExpiresAt).toLocaleString():"soon"}. If creation already succeeded but its reply was lost, sign in below instead of creating another.</p>
+        <h2>Create your passkey</h2><p>Enrollment expires {summary.enrollmentExpiresAt?new Date(summary.enrollmentExpiresAt).toLocaleString():"soon"}. Create a passkey first; sign-in will appear after registration is confirmed. If creation may already have succeeded, check its status instead of creating another.</p>
         <label>Passkey name<input bind:value={label} maxlength="80" /></label>
         <button disabled={busy||!label.trim()} onclick={()=>run(enroll)}>Create passkey</button>
       {:else if summary.state==="enrollment-expired"}
         <p>Passkey enrollment expired. Do not create a replacement identity. Keep your original recovery kit and setup file and contact the provider about the existing owner-proof recovery path.</p>
       {/if}
+      {#if summary.state==="passkey-enrollment"||summary.state==="enrollment-expired"}
+        <button disabled={busy||now<retryAt} onclick={()=>run(checkEnrollment)}>Check passkey registration status</button>
+      {/if}
     {/if}
     {#if pending.did||summary?.did}
       <p>Save the final recovery backup with your public account identity attached. It uses the same separate recovery secret; keep it instead of the initial unbound backup.</p>
       <button disabled={busy} onclick={()=>{if(pending){download(JSON.stringify({...$state.snapshot(pending.vault),did:pending.did??summary?.did},null,2),"hail-account-recovery.vault.json");finalBackupSaved=true;}}}>Save account recovery backup</button>
-      <button disabled={busy||!finalBackupSaved} onclick={()=>run(finish)}>Sign in with a created passkey and finish setup</button>
+      {#if summary?.state==="sign-in-required"}
+        <button disabled={busy||!finalBackupSaved} onclick={()=>run(finish)}>Sign in with a created passkey and finish setup</button>
+      {/if}
     {/if}
     <p>Closing this tab clears unlocked page memory, not the encrypted pending setup. After publication there is no erase-and-start-over action.</p>
   {/if}
