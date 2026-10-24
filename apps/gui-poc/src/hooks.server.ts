@@ -1,7 +1,15 @@
 import type { Handle } from "@sveltejs/kit";
+import {isAccountPath,loginPath} from "$lib/auth-routing.js";
+import {isConfigured} from "$lib/server/canary.js";
 
 export const handle: Handle = async ({ event, resolve }) => {
+  if (isAccountPath(event.url.pathname) && !isConfigured(event.cookies)) {
+    return new Response(null,{status:303,headers:{location:loginPath(event.url),"cache-control":"no-store","referrer-policy":"no-referrer"}});
+  }
   const response = await resolve(event);
+  response.headers.set("cache-control","no-store");
+  // Native same-origin POSTs need a non-null Origin for SvelteKit's CSRF check.
+  response.headers.set("referrer-policy",event.url.pathname.startsWith("/auth/")?"no-referrer":"same-origin");
   if (event.url.pathname === "/signup/recovery") {
     // Additional policy intersects SvelteKit's nonce-bearing policy. No API calls
     // or form submissions are needed while preview recovery material is unlocked.

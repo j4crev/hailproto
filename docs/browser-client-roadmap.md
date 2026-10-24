@@ -4,6 +4,67 @@ Status: Product direction and planning record, October 24, 2026. This document
 does not amend protocol specifications, approve gated security work, or authorize
 production changes. Proposed mechanisms below require separate design and review.
 
+## Implementation Checkpoint — Messaging Screens And Consistent Sign-In
+
+The next local slice extends the teal design to Compose, received/sent readers,
+Sent, Allowed Senders and Security. Shared controls and semantic status colors
+replace their old green styles; optional composer image fields are grouped, and
+technical message IDs are available without dominating the reader. Security
+distinguishes passkeys from owner recovery and retains fresh-verification and
+current/last-passkey safeguards.
+
+Signed-out behavior is now deliberate:
+
+- The public homepage shows a focused welcome/sign-in experience, not private
+  folders or a compose action. Authentication and signup also use the focused shell.
+- All private screen links lead to the same passkey sign-in, then return to the
+  requested screen and query. This includes client-side data loads and sessions
+  that have expired, rather than mixing placeholders, inline login and redirects.
+- Return paths are restricted to local inbox screens, excluding external URLs,
+  authentication/enrollment routes and signup. No form action is replayed by login.
+- Sender QR address/DID fragments survive document redirects and login, remaining
+  browser-local. Public-shell and displayed sender-QR links use document navigation;
+  opening or signing in through a QR still does not review or approve permission.
+- Navigation visibility uses only a session-presence hint; account loaders still
+  validate the provider session and clear expired cookies. Rendered pages are
+  non-cacheable. Messaging pages retain a same-origin referrer policy so native
+  POSTs continue to satisfy the framework's CSRF protection; sensitive pages retain
+  their stricter policies.
+
+Local verification: production build, Svelte typecheck, 25 unit tests, desktop and
+mobile-width Chromium flows through the real GUI proxy, plus screenshot review.
+The browser checks include anonymous document/data redirects for all private route
+families, actual passkey login/return, expired-session QR continuity, native replies,
+permission approval/revocation, composer formatting and security verification.
+These remain local fixtures, not production or real-device validation.
+
+Signup/recovery presentation and final brand artwork remain future work. No new
+component dependency, relationship/reply protocol change or deployment was added.
+
+## Earlier Checkpoint — Shell And Feed
+
+The first local implementation slice evolves `apps/gui-poc` in place:
+
+- Responsive Haili navigation, active-route indication, keyboard skip link and a
+  focused shell for authentication/signup, retaining the existing CSP reload boundary.
+- Teal semantic color tokens, shared native control/button styles, reduced-motion
+  support and a provisional lettermark/favicon (not final logo designs).
+- Redesigned signed-out, empty and populated feeds; technical account details are
+  collapsed, while passkey settings, sender review and pagination remain accessible.
+- Bundled images and the browser-local header preference are preserved. Preference
+  controls wait for initialization and remain usable when storage is blocked.
+
+Local verification: production build, Svelte typecheck (no errors/warnings), 23 unit
+tests and Chromium browser checks at desktop and mobile viewport sizes. Browser
+checks exercise signup, native one-time replies, sender approval/revocation,
+navigation, keyboard skip, bundled feed headers, preference persistence and paging.
+These are local API fixtures, not production federation or real-phone validation.
+
+The subsequent messaging-screen slice above covers composing, reading, Sent,
+sender permissions and security. No shadcn dependency or Preflight reset was
+needed for this first slice. No relationship/reply protocol changes, package
+renames, infrastructure changes or production deployment were performed.
+
 ## Product Direction
 
 Hail is primarily a B2C subscription feed: consumers explicitly subscribe to

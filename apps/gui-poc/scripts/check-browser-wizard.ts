@@ -25,10 +25,14 @@ const permissionSigner=await crypto.subtle.generateKey("Ed25519",true,["sign","v
 let allowed:HailGrant|null=null,allowedCose="",allowedDigest="";
 const approvals=new Map<string,{action:string;payload:HailGrant;challenge:string;approved:boolean;result:unknown}>();
 const incomingId="019a15fd-2bd0-7433-8afa-bd0355e0608d";
-let incoming=false,replyPosts=0,replied:any=null,guiProxy:ReturnType<typeof createApp>;
+let incoming=false,replyPosts=0,replied:any=null,recentlyVerified=false,guiProxy:ReturnType<typeof createApp>;
 const textBody=(text:string)=>({version:1,profile:"spt-1",blocks:[{_type:"block",_key:"b1",style:"normal",markDefs:[],children:[{_type:"span",_key:"s1",text,marks:[]}]}]});
+const headerPng=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
 const incomingMessage=()=>({messageId:incomingId,sender:peerDid,senderAddress:peerAddress,recipient:did,category:"updates",deliveredAt:new Date().toISOString(),
-  body:textBody("One-time reply browser transport test"),reply:{allowed:true,until:Math.floor(Date.now()/1000)+86400},replyAvailable:replyPosts===0});
+  body:{...textBody("One-time reply browser transport test"),profile:"spt-3",assets:{version:1,assets:[{id:"hero",role:"header",media_type:"image/png",loading:"bundled",
+    size:headerPng.length,width:1,height:1,data:headerPng.toString("base64url"),digest:{algorithm:"sha-256",value:"view-fixture"}}]},
+    blocks:[{_type:"spt.image",asset:"hero",alt:"Bundled test header"},...textBody("One-time reply browser transport test").blocks]},
+  reply:{allowed:true,until:Math.floor(Date.now()/1000)+86400},replyAvailable:replyPosts===0});
 const permissionPayload=(id:string):HailGrant=>({type:"hail.grant",version:1,grant_id:id,revision:1,previous:null,grantor:did!,grantee:peerDid,
   scope:[{type:"categories",values:["updates"]}],status:"active",issued_at:Math.floor(Date.now()/1000),updated_at:Math.floor(Date.now()/1000),expires_at:Math.floor(Date.now()/1000)+30*86400,
   consent_context:{grantee_address:peerAddress,address_binding_hash:{algorithm:"sha-256",value:new Uint8Array(32)},sender_profile_hash:{algorithm:"sha-256",value:new Uint8Array(32)}},key_id:did!+"#hail-identity"});
@@ -52,6 +56,9 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
       state:"delivered",revision:2,reason:null,retryAt:null,body:textBody(input.text)};return json({messageId:input.messageId,state:"delivered"});
   }
   if(path.startsWith("/api/v1/account/sent/")&&replied)return json(replied);
+  if(path==="/api/v1/account/sent")return json({messages:replied?[replied]:[],next:null});
+  if(path==="/api/v1/auth/passkeys")return json({recentlyVerified,passkeys:[{credentialId:credential.id,label:"Primary passkey",deviceType:"multiDevice",backedUp:true,
+    current:true,createdAt:new Date().toISOString(),lastUsedAt:null}]});
   if(path.startsWith("/api/v1/account/permissions/")){
     assert(request.headers.get("Cookie")?.includes("hail_session="+sessionToken));
     const step=path.split("/").at(-1)!;
@@ -79,8 +86,9 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   if(path==="/api/v1/account/grants")return json({grants:allowed?[{grantId:allowed.grant_id,localRole:"grantor",status:allowed.status}]:[],next:null});
   if(path.startsWith("/api/v1/account/grants/")&&allowed)return json({type:"hailp.grant",version:1,cose:allowedCose,digest:allowedDigest,localRole:"grantor"});
   if(path==="/api/v1/account"||path==="/api/v1/account/inbox"){
-    assert(retired&&request.headers.get("Cookie")?.includes("hail_session="+sessionToken),"Inbox must use the completed account's session");
-    return json(path.endsWith("/inbox")?{messages:incoming?[incomingMessage()]:[],next:null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
+    if(!request.headers.get("Cookie")?.includes("hail_session="+sessionToken))return json({},401);
+    assert(retired,"Inbox must use the completed account's session");
+    return json(path.endsWith("/inbox")?{messages:incoming?[incomingMessage()]:[],next:incoming&&!new URL(request.url).searchParams.has("after")?"older-page":null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
       address:prepared.address,did,migrationState:null,custodyProfile:"managed",monitorVerificationMode:"reduced-assurance-alpha-v1",managedProfileVersion:"hail-managed-custody-v1",
       identityPublicKey:prepared.userIdentityKey,ownerRecoveryPublicKey:prepared.userRecoveryKey,scopes:["account:read","grants:read","messages:read","messages:write"]});
   }
@@ -118,7 +126,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   }
   if(path==="/api/v1/auth/passkeys/authentication"){
     const result=await verifyAuthenticationResponse({response:input.response,expectedChallenge:challenge,expectedOrigin:origin,expectedRPID:"localhost",credential,requireUserVerification:true});
-    assert(result.verified);credential.counter=result.authenticationInfo.newCounter;authenticated=true;const response=json({authenticated:true});
+    assert(result.verified);credential.counter=result.authenticationInfo.newCounter;authenticated=true;recentlyVerified=true;const response=json({authenticated:true});
     response.headers.set("Set-Cookie",`hail_session=${sessionToken}; HttpOnly; SameSite=Lax; Path=/`);return response;
   }
   if(path===`/api/v1/signup/${setupId}/complete`){assert(authenticated);retired=true;return json({state:"complete",signupId:setupId});}
@@ -156,12 +164,32 @@ try{
   const upload=async(label:string,path:string)=>{await evaluate(`(()=>{const e=[...document.querySelectorAll('label')].find(l=>l.textContent.startsWith(${JSON.stringify(label)})).querySelector('input');e.dataset.proof='upload';})()`);await file("upload",path);};
   await cdp("Page.enable");await cdp("Runtime.enable");await cdp("Log.enable");await cdp("WebAuthn.enable");
   if(process.env.HAIL_WIZARD_MOBILE==="true")await cdp("Emulation.setDeviceMetricsOverride",{width:390,height:844,deviceScaleFactor:3,mobile:true});
+  else await cdp("Emulation.setDeviceMetricsOverride",{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   await cdp("WebAuthn.addVirtualAuthenticator",{options:{protocol:"ctap2",transport:"internal",hasResidentKey:true,hasUserVerification:true,isUserVerified:true,automaticPresenceSimulation:true}});
   await cdp("Browser.setDownloadBehavior",{behavior:"allow",downloadPath:work});
+  await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("A little more signal."),"signed-out feed");
+  assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Signed-out feed overflows viewport");
+  assert.equal(await evaluate(`!!document.querySelector('nav[aria-label="Main navigation"]') || !!document.querySelector('a[href="/compose"]')`),false,"Public home must not show private folders or compose");
+  const privatePaths=["/permissions","/settings/security","/sent?after=older","/compose",`/sent/${incomingId}`,`/message/${encodeURIComponent(peerDid)}/${incomingId}`];
+  for(const path of privatePaths){
+    const response=await fetch(origin+path,{redirect:"manual"});assert.equal(response.status,303);
+    assert.equal(new URL(response.headers.get("location")!,origin).searchParams.get("next"),path);
+    assert.equal(response.headers.get("cache-control"),"no-store");
+    const dataUrl=new URL(origin+path);dataUrl.pathname+="/__data.json";
+    const routeData=await (await fetch(dataUrl)).json();assert.equal(routeData.type,"redirect");
+    assert.equal(new URL(routeData.location,origin).searchParams.get("next"),path,"Client-side loads must use the same login destination");
+    await cdp("Page.navigate",{url:origin+path});
+    await wait(async()=>evaluate(`location.pathname==='/auth/login' && new URL(location.href).searchParams.get('next')===${JSON.stringify(path)}`),"anonymous screen uses shared login: "+path);
+    assert(await has("Sign in to Haili"));
+  }
+  assert(!requests.some(r=>r.path==="/api/v1/account"),"Anonymous screens must not request account data");
+  await cdp("Page.navigate",{url:origin+"/auth/login"});await wait(()=>has("Sign in to Hail"),"passkey login screen");
+  assert.equal(await evaluate("document.querySelector('nav[aria-label=\"Main navigation\"]')===null"),true,"Login keeps a focused shell");
   await cdp("Page.navigate",{url:origin+"/signup#invitation="+invitation});
   await wait(()=>has("Start with an invitation"),"signup render");
   await wait(async()=>evaluate("location.hash==='' && document.querySelector('input[type=password]')?.value===''") ,"signup hydration");
-  assert.deepEqual(await styles("body",["backgroundColor","margin"]),["rgb(244, 246, 243)","0px"]);
+  assert.deepEqual(await styles("body",["backgroundColor","margin"]),["rgb(247, 248, 245)","0px"]);
+  assert.equal(await evaluate("document.querySelector('nav[aria-label=\"Main navigation\"]')===null"),true,"Signup keeps a focused shell");
   assert.deepEqual(await styles("main > section",["display","gap","paddingTop","borderRadius"]),
     ["flex","16px",process.env.HAIL_WIZARD_MOBILE==="true"?"18px":"28px","18px"]);
   assert.deepEqual(await styles("input[type=password]",["borderTopWidth","borderTopStyle","borderRadius"]),["1px","solid","6px"]);
@@ -213,6 +241,16 @@ try{
   await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your inbox').click()`);
   await wait(()=>has("No messages yet"),"completed alpha account inbox");
   assert(await has("alice@provider.example"));
+  assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Feed");
+  assert.equal(await evaluate("document.querySelector('details').open"),false,"Technical account details start collapsed");
+  assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Empty feed overflows viewport");
+  assert.deepEqual(await styles(".sidebar",["position"]),[process.env.HAIL_WIZARD_MOBILE==="true"?"static":"fixed"]);
+  if(process.env.HAIL_WIZARD_MOBILE!=="true")assert(await evaluate("document.querySelector('.sidebar').getBoundingClientRect().right<=document.querySelector('main').getBoundingClientRect().left"),"Desktop sidebar overlaps content");
+  else assert(await evaluate(`Array.from(document.querySelectorAll('nav[aria-label="Main navigation"] a')).every(a=>a.getBoundingClientRect().right<=innerWidth && a.getBoundingClientRect().height>=44)`),"Mobile navigation must remain visible and touch-sized");
+  await evaluate("document.querySelector('.skip-link').focus()");
+  await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:"Enter",code:"Enter",windowsVirtualKeyCode:13});
+  await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:"Enter",code:"Enter",windowsVirtualKeyCode:13});
+  await wait(async()=>evaluate("document.activeElement?.id==='main-content'"),"keyboard skip to content");
   // Follow the same-document route out of sensitive signup into a message.
   // A full Page.navigate here would conceal a leaked signup form-action CSP.
   incoming=true;
@@ -228,13 +266,37 @@ try{
   await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("This reply invitation has expired or was already used"),"consumed one-time reply");
   assert.equal(replyPosts,1);
   await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("Message feed"),"return to inbox");
+  const feedImage='[aria-label="Messages"] img[alt="Bundled test header"]';
+  await wait(async()=>evaluate(`document.querySelector('[aria-label="Inbox preferences"] input')?.disabled===false`),"feed preferences ready");
+  assert(await evaluate(`document.querySelector(${JSON.stringify(feedImage)}).src.startsWith('data:image/png;base64,')`),"Feed header remains bundled");
+  assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Populated feed overflows viewport");
+  await evaluate(`document.querySelector('[aria-label="Inbox preferences"] input').click()`);
+  await wait(async()=>evaluate(`document.querySelector(${JSON.stringify(feedImage)})===null`),"hide feed headers");
+  await evaluate("document.documentElement.dataset.beforePreferenceReload='true'");
+  await cdp("Page.reload");await wait(async()=>evaluate(`!document.documentElement.dataset.beforePreferenceReload && document.querySelector('[aria-label="Inbox preferences"] input')?.disabled===false && document.querySelector('[aria-label="Inbox preferences"] input')?.checked===false && !document.querySelector(${JSON.stringify(feedImage)})`),"persist hidden header preference");
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(feedImage)})===null`),true);
+  await evaluate(`document.querySelector('[aria-label="Feed pages"] a').click()`);
+  await wait(async()=>evaluate("new URL(location.href).searchParams.get('after')==='older-page' && !!document.querySelector('[aria-label=\"Feed pages\"] a[href=\"/\"]')"),"older feed page");
+  await evaluate(`document.querySelector('[aria-label="Feed pages"] a[href="/"]').click()`);
+  await wait(async()=>evaluate("location.search==='' && !!document.querySelector('[aria-label=\"Feed pages\"] a[href*=after]')"),"newest feed page");
+  await evaluate(`document.querySelector('[aria-label="Inbox preferences"] input').click()`);
+  await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"show feed headers again");
+  const blockedStorage=await cdp("Page.addScriptToEvaluateOnNewDocument",{source:`Storage.prototype.getItem=Storage.prototype.setItem=()=>{throw new DOMException('Storage blocked','SecurityError');};`});
+  await evaluate("document.documentElement.dataset.beforeStorageReload='true'");
+  await cdp("Page.reload");await wait(async()=>evaluate(`!document.documentElement.dataset.beforeStorageReload && document.querySelector('[aria-label="Inbox preferences"] input')?.disabled===false && !!document.querySelector(${JSON.stringify(feedImage)})`),"feed remains readable when storage is blocked");
+  await evaluate(`document.querySelector('[aria-label="Inbox preferences"] input').click()`);
+  await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"header toggle works without storage");
+  await cdp("Page.removeScriptToEvaluateOnNewDocument",{identifier:blockedStorage.identifier});
+  // A new document restores ordinary storage before the permission ceremony.
+  await cdp("Page.navigate",{url:origin+"/"});await wait(async()=>evaluate(`document.querySelector('[aria-label="Inbox preferences"] input')?.disabled===false && !!document.querySelector(${JSON.stringify(feedImage)})`),"restore normal feed preferences");
   await evaluate(`[...document.querySelectorAll('nav a')].find(a=>a.textContent.trim()==='Allowed senders').click()`);
   await wait(()=>has("No permissions on this page"),"allowed-sender list");
+  assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Allowed senders");
   await fill("Potential sender's Hail address",peerAddress);await click("Review sender");await wait(()=>has("Test sender"),"verified sender review");
   await evaluate(`document.querySelector('fieldset input[value=updates]').click()`);
   assert.deepEqual(await styles("fieldset label",["flexDirection","alignItems"]),["row","center"]);
   await click("Review permission before approving");await wait(()=>has("Confirm allowed sender"),"exact permission review");
-  assert.deepEqual(await styles("main section:has(h2)",["borderTopWidth","borderTopColor"]),["2px","rgb(23, 99, 63)"]);
+  assert.deepEqual(await styles('[aria-label="Permission confirmation"]',["borderTopWidth","borderTopColor"]),["2px","rgb(15, 118, 110)"]);
   assert.equal(allowed,null);assert(await has("alice@provider.example"));
   await click("Allow sender with my passkey");await wait(()=>has("Review revocation"),"passkey-approved permission saved");
   assert.equal(allowed!.status,"active");await click("Review revocation");await wait(()=>has("Confirm revocation"),"revocation review");
@@ -244,19 +306,49 @@ try{
   const qrRequests=requests.filter(r=>r.path.endsWith("/permissions/prepare")).length;
   await cdp("Page.navigate",{url:origin+"/permissions#"+new URLSearchParams({sender:peerAddress,did:peerDid})});
   await wait(()=>has("QR identity pin:"),"scanned sender QR prefill");
-  assert.equal(await evaluate(`document.querySelector('input[placeholder="canary-prov@haili.app"]').value`),peerAddress);
+  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Opening a QR must not prepare or approve a permission");
   await click("Review sender");await wait(()=>has("Test sender"),"QR and typed address share the same review");
   await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>has("Compose a Hail"),"compose styling");
-  assert.deepEqual(await styles("form[enctype] label",["display","fontWeight"]),["grid","750"]);
-  assert.deepEqual(await styles("fieldset label",["display","gap"]),["flex","6px"]);
+  assert.deepEqual(await styles("form[enctype] label",["display","fontWeight"]),["grid","600"]);
+  assert.deepEqual(await styles("fieldset label",["display","gap"]),["flex","8px"]);
   assert.deepEqual(await styles("fieldset input",["width"]),["13px"]);
-  assert.deepEqual(await styles('[aria-label="Bold"]',["backgroundColor","paddingTop","borderTopWidth"]),["rgb(247, 249, 247)","6px","1px"]);
+  assert.deepEqual(await styles('[aria-label="Bold"]',["backgroundColor","paddingTop","borderTopWidth"]),["rgb(255, 255, 255)","10px","1px"]);
   assert.deepEqual(await styles('[aria-label="Message preview"]',["minHeight"]),[process.env.HAIL_WIZARD_MOBILE==="true"?"260px":"360px"]);
+  assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Composer overflows viewport");
+  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='A clear message';e.dispatchEvent(new Event('input',{bubbles:true}));e.setSelectionRange(2,7);})()`);
+  await evaluate(`document.querySelector('[aria-label="Bold"]').click()`);
+  await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] strong')?.textContent==='clear'`),"formatting stays visible in preview");
+  await evaluate(`document.querySelector('input[type=radio][value=plain]').click()`);
+  await wait(async()=>evaluate(`document.querySelector('input[name=title]').disabled && !document.querySelector('[aria-label="Text formatting"]')`),"plain format disables rich-only controls");
+  // Expired sessions use the same login, preserve the QR fragment, and clear the stale cookie.
+  const qrFragment=new URLSearchParams({sender:peerAddress,did:peerDid}).toString();
+  await cdp("Network.setCookie",{name:"hail_session",value:"hails_"+"B".repeat(43),url:origin,httpOnly:true,sameSite:"Lax"});
+  await cdp("Page.navigate",{url:origin+"/permissions#"+qrFragment});
+  await wait(async()=>evaluate(`location.pathname==='/auth/login' && new URL(location.href).searchParams.get('next')==='/permissions' && location.hash===${JSON.stringify("#"+qrFragment)}`),"expired-session login preserves QR identity pin");
+  const cookies=await cdp("Network.getCookies",{urls:[origin]});assert(!cookies.cookies.some((cookie:any)=>cookie.name==="hail_session"),"Expired cookie must be cleared");
+  await click("Sign in with a passkey");await wait(()=>has("QR identity pin:"),"shared passkey login returns to QR review");
+  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
+  assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Signing in through a QR must not approve or prepare it");
+  // Verify each ordinary folder resumes after login, including its query string.
+  for(const [path,text] of [["/sent?after=older","Sent messages"],["/compose","Compose a Hail"],["/settings/security","Passkeys & security"]]){
+    await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
+    await cdp("Page.navigate",{url:origin+path});
+    await wait(async()=>evaluate(`location.pathname==='/auth/login' && new URL(location.href).searchParams.get('next')===${JSON.stringify(path)}`),"folder login: "+path);
+    await click("Sign in with a passkey");
+    await wait(async()=>evaluate(`location.pathname+location.search===${JSON.stringify(path)} && document.body.innerText.includes(${JSON.stringify(text)})`),"resume folder: "+path);
+    assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),path+" overflows viewport");
+  }
+  assert(await has("Recovery is separate"));
+  assert(await evaluate(`document.querySelectorAll('button').length>0 && [...document.querySelectorAll('button')].find(b=>b.textContent==='Revoke').disabled`),"Current/last passkey cannot be revoked");
+  recentlyVerified=false;
+  await cdp("Page.navigate",{url:origin+"/settings/security?fresh=1"});await wait(()=>has("Verify with your current passkey before adding"),"security management requires fresh verification");
+  assert(await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent==='Add passkey').disabled`));
+  await click("Verify to manage");await wait(async()=>evaluate(`location.search==='?fresh=1' && [...document.querySelectorAll('button')].find(b=>b.textContent==='Add passkey')?.disabled===false`),"fresh passkey verification unlocks management");
   for(const req of requests){assert(!req.body.includes(secret),"Recovery secret uploaded");assert(!req.body.includes('"ciphertext"'),"Recovery vault uploaded");}
   assert(requests.filter(r=>r.authorization).every(r=>r.authorization==="Bearer "+setupToken||r.path.endsWith("check-address")));
   passed=true;
-  console.info("PASS: Chromium signup/inbox, sender permissions and native one-time reply through the real provider GUI proxy (local API fixtures only)");
+  console.info("PASS: Chromium public/private shells, sign-in return paths and QR pins, signup, messaging, permissions and security (local API fixtures only)");
 }finally{
   socket?.close();chrome?.kill();gui?.kill();server.stop(true);
   if(chrome)await chrome.exited;if(gui)await gui.exited;

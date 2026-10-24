@@ -38,25 +38,19 @@
   }
 </script>
 
-<section class="flex items-end justify-between gap-5 max-[650px]:flex-col max-[650px]:items-start"><div><p class="m-0 mb-2 text-[12px] font-extrabold tracking-[.12em] text-[#22714b] uppercase">Account safety</p><h1 class="m-0 text-[42px]">Passkeys</h1></div>
-  <button class="cursor-pointer rounded-lg border border-solid border-[#cad4cd] bg-white px-3 py-[9px] [font:inherit] font-[750]! text-[#355143] disabled:cursor-not-allowed disabled:opacity-45" onclick={verify} disabled={busy}>Verify to manage</button></section>
-<p class="mt-3 mb-6 text-[#657168]">Keep at least two independent passkeys before relying on passwordless recovery.</p>
-
-<section class="grid gap-3" aria-label="Passkeys">
-  {#each data.passkeys as passkey}
-    <article class="hail-card flex items-center justify-between gap-[18px] p-5 max-[650px]:flex-col max-[650px]:items-start"><div><strong>{passkey.label}</strong><p class="m-0 mt-[5px] block text-[#6b766f]">{passkey.deviceType==="multiDevice"?"Synced passkey":"Device-bound passkey"}{passkey.backedUp?" · backed up":""}</p>
-      <small class="mt-[5px] block text-[#6b766f]">Created {date(passkey.createdAt)}{passkey.lastUsedAt?` · used ${date(passkey.lastUsedAt)}`:""}</small></div>
-      <div class="flex items-center gap-2 max-[650px]:flex-wrap">{#if passkey.current}<span class="text-[12px] font-[750] text-[#22714b]">Current</span>{/if}<button class="cursor-pointer rounded-lg border border-solid border-[#cad4cd] bg-white px-3 py-[9px] [font:inherit] font-[750]! text-[#355143] disabled:cursor-not-allowed disabled:opacity-45" onclick={()=>manage(passkey.credentialId,"rename",passkey.label)} disabled={busy||!data.recentlyVerified}>Rename</button>
-        <button class="cursor-pointer rounded-lg border border-solid border-[#cad4cd] bg-white px-3 py-[9px] [font:inherit] font-[750]! text-[#9d3232] disabled:cursor-not-allowed disabled:opacity-45" onclick={()=>manage(passkey.credentialId,"revoke",passkey.label)} disabled={busy||!data.recentlyVerified||passkey.current||data.passkeys.length===1}>Revoke</button></div></article>
-  {/each}
-</section>
-
-<section class="hail-card mt-[22px] flex flex-col items-start gap-3.5 p-6 [&_small]:text-[#657168] [&_p]:m-0 [&_p]:text-[#657168]"><h2 class="m-0">Add a passkey</h2><label class="flex flex-col gap-1.5 text-[13px] font-bold">Label <input class="min-w-[260px] rounded-lg border border-solid border-[#cad4cd] p-2.5 [font:inherit] max-[650px]:min-w-0 max-[650px]:w-full" bind:value={label} maxlength="80" /></label>
-  <button class="cursor-pointer rounded-lg border-0 bg-[#17633f] px-3 py-[9px] [font:inherit] font-[750]! text-white disabled:cursor-not-allowed disabled:opacity-45" onclick={add} disabled={busy||!data.recentlyVerified||!label.trim()}>Add passkey</button>
-  {#if !data.recentlyVerified}<small>Verify with your current passkey before making changes.</small>{/if}
-  {#if message}<p aria-live="polite">{message}</p>{/if}
-</section>
-
-<section class="hail-card mt-[22px] flex flex-col items-start gap-3.5 p-6"><h2 class="m-0">Account sessions</h2><p class="m-0 text-[#657168]">Sign out every browser and device currently using this account.</p>
-  <button class="cursor-pointer rounded-lg border-0 bg-[#9d3232] px-3 py-[9px] [font:inherit] font-[750]! text-white disabled:cursor-not-allowed disabled:opacity-45" onclick={revokeSessions} disabled={busy||!data.recentlyVerified}>Sign out everywhere</button>
-</section>
+<svelte:head><title>Security · Haili</title></svelte:head>
+<header class="mb-8 flex flex-wrap items-start justify-between gap-4"><div class="grid gap-3"><p class="hail-eyebrow">Account safety</p><h1 class="hail-title">Passkeys &amp; security</h1><p class="m-0 max-w-xl text-sm text-muted">Keep a backup passkey on another device or security key. Passkeys provide account access, not owner recovery authority.</p></div><button class="hail-button-secondary" onclick={verify} disabled={busy}>Verify to manage</button></header>
+{#if message}<div class="mb-5"><p class="hail-error" role="alert">{message}</p></div>{/if}
+{#if !data.recentlyVerified}<p class="mb-6 rounded-xl border border-solid border-line bg-brand-soft p-4 text-sm text-brand-strong">Verify with your current passkey before adding, renaming or revoking passkeys or signing out other devices.</p>{/if}
+<div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+  <div class="grid min-w-0 gap-6">
+    <section class="grid gap-4" aria-label="Passkeys"><h2 class="m-0 text-xl">Your passkeys</h2>
+      {#each data.passkeys as passkey}<article class="hail-card grid min-w-0 gap-4 p-5"><div class="flex flex-wrap items-center gap-2"><strong class="[overflow-wrap:anywhere]">{passkey.label}</strong>{#if passkey.current}<span class="rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand-strong">Current</span>{/if}</div><p class="m-0 text-sm text-muted">{passkey.deviceType==="multiDevice"?"Synced passkey":"Device-bound passkey"}{passkey.backedUp?" · backed up":""}</p><small class="text-xs text-muted">Created {date(passkey.createdAt)}{passkey.lastUsedAt?` · used ${date(passkey.lastUsedAt)}`:""}</small><div class="flex flex-wrap gap-2"><button class="hail-button-secondary" onclick={()=>manage(passkey.credentialId,"rename",passkey.label)} disabled={busy||!data.recentlyVerified}>Rename</button><button class="hail-button-secondary text-danger" onclick={()=>manage(passkey.credentialId,"revoke",passkey.label)} disabled={busy||!data.recentlyVerified||passkey.current||data.passkeys.length===1}>Revoke</button></div></article>{/each}
+    </section>
+    <form class="hail-card grid min-w-0 gap-4 p-5 sm:p-7" onsubmit={event=>{event.preventDefault();void add();}}><h2 class="m-0 text-xl">Add a passkey</h2><p class="m-0 text-sm text-muted">Name it so you can recognize the device or security key later.</p><label class="hail-field">Label<input bind:value={label} maxlength="80" required /></label><button class="hail-button justify-self-start" disabled={busy||!data.recentlyVerified||!label.trim()}>Add passkey</button></form>
+  </div>
+  <aside class="grid min-w-0 gap-6">
+    <section class="hail-card grid gap-4 p-5 sm:p-7"><h2 class="m-0 text-xl">Recovery is separate</h2><p class="m-0 text-sm text-muted">Keep your encrypted owner recovery backup and its secret in separate safe places. Synced passkeys can share the same failure point.</p><p class="m-0 text-sm text-muted">Post-signup browser recovery is not available yet. If all passkeys are lost, use the supported owner-authorized <code>hailp</code> recovery flow or contact your provider for guidance. Never send anyone your recovery secret.</p></section>
+    <section class="hail-card grid gap-4 p-5 sm:p-7"><h2 class="m-0 text-xl">Account sessions</h2><p class="m-0 text-sm text-muted">Sign out every browser and device currently using this account, including this one.</p><button class="hail-button-secondary justify-self-start border-danger text-danger" onclick={revokeSessions} disabled={busy||!data.recentlyVerified}>Sign out everywhere</button></section>
+  </aside>
+</div>

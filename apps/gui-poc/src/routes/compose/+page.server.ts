@@ -2,14 +2,14 @@ import { createHash } from "node:crypto";
 import { fail,isRedirect,redirect } from "@sveltejs/kit";
 import { encodeBase64Url } from "@hailproto/codec";
 import { composeBlocks } from "$lib/compose.js";
-import { canaryAccount,isConfigured } from "$lib/server/canary.js";
+import { canaryAccount } from "$lib/server/canary.js";
 import { messageId } from "$lib/server/message-id.js";
 
 const UUID7=/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const CATEGORY=/^[a-z][a-z0-9-]{0,63}$/;
 
-async function targets(cookies:Parameters<typeof canaryAccount>[0]) {
-  const {account,client}=await canaryAccount(cookies),page=await client.request("/grants"),rows=Array.isArray(page.grants)?page.grants:[];
+async function targets(cookies:Parameters<typeof canaryAccount>[0],url:URL) {
+  const {account,client}=await canaryAccount(cookies,url),page=await client.request("/grants"),rows=Array.isArray(page.grants)?page.grants:[];
   const candidates=rows.flatMap(value=>{
     if(!value||typeof value!=="object"||Array.isArray(value))return [];
     const row=value as Record<string,unknown>;
@@ -27,8 +27,7 @@ async function targets(cookies:Parameters<typeof canaryAccount>[0]) {
 }
 
 export async function load({url,cookies}) {
-  if(!isConfigured(cookies))return {configured:false as const};
-  const {account,client,options}=await targets(cookies);
+  const {account,client,options}=await targets(cookies,url);
   const messageId=url.searchParams.get("message");
   let status:null|{messageId:string;state:string;revision:number|null}=null;
   if(messageId&&UUID7.test(messageId)){
@@ -38,10 +37,9 @@ export async function load({url,cookies}) {
   return {configured:true as const,account,options,status};
 }
 
-export const actions={default:async({request,cookies})=>{
-  if(!isConfigured(cookies))return fail(503,{error:"Sign in before composing."});
+export const actions={default:async({request,cookies,url})=>{
   try {
-    const {client,options}=await targets(cookies),form=await request.formData(),field=(name:string)=>{const value=form.get(name);return typeof value==="string"?value:"";};
+    const {client,options}=await targets(cookies,url),form=await request.formData(),field=(name:string)=>{const value=form.get(name);return typeof value==="string"?value:"";};
     const target=field("target"),mode=field("mode"),title=field("title"),text=field("text"),alt=field("alt"),caption=field("caption"),header=form.get("header"),allowReply=field("allowReply")==="yes";
     if(!options.some(option=>option.value===target)||!['plain','rich'].includes(mode)||!text.trim()||Buffer.byteLength(text)>65536||Buffer.byteLength(title)>128||
       Buffer.byteLength(alt)>1024||Buffer.byteLength(caption)>1024)

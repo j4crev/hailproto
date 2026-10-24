@@ -1,6 +1,7 @@
 import { env } from "$env/dynamic/private";
 import { error,redirect } from "@sveltejs/kit";
 import { AccountApiClient,AccountApiError } from "../../../../cli/src/account-api.js";
+import {loginPath} from "$lib/auth-routing.js";
 
 export const PROVIDER = env.HAIL_GUI_PROVIDER?.replace(/\/$/,"")||"https://haili.app";
 export const API_ORIGIN=env.HAIL_GUI_API_ORIGIN?.replace(/\/$/,"")||PROVIDER;
@@ -19,15 +20,15 @@ export async function bootstrapAccount() {
   return { account, client };
 }
 
-export async function canaryAccount(cookies?:Cookies) {
+export async function canaryAccount(cookies?:Cookies,url?:URL) {
   const session=cookies?.get("hail_session");
   if(session){
     const client=AccountApiClient.fromSession(PROVIDER,session,ORIGIN,API_ORIGIN);
     try{return {account:await client.account(),client};}
-    catch(error_){if(error_ instanceof AccountApiError&&error_.status===401){cookies?.delete?.("hail_session",{path:"/"});redirect(303,"/auth/login");}throw error_;}
+    catch(error_){if(error_ instanceof AccountApiError&&error_.status===401){cookies?.delete?.("hail_session",{path:"/"});redirect(303,loginPath(url));}throw error_;}
   }
   if(env.HAIL_GUI_CREDENTIAL_FALLBACK==="true")return bootstrapAccount();
-  redirect(303,"/auth/login");
+  redirect(303,loginPath(url));
 }
 
 export async function senderAvatars(client: AccountApiClient, senderDids: Set<string>) {

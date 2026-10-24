@@ -5,6 +5,12 @@ them. The recipient is the Grant's grantor; the potential sender is its grantee.
 This is one-way permission, not reciprocal contact access or permission to send
 as the recipient. Existing delivered messages are not removed by revocation.
 
+Signed-out and expired-session visits now use the same passkey sign-in screen as
+Sent, Compose and Security, then return to permission review. Sender QR address/DID
+fragments remain in the browser through document redirects and login; displayed
+QR links explicitly use document navigation. Signing in does not review, prepare
+or approve the sender. The public homepage does not expose private folder navigation.
+
 ## Two Entry Paths, One Review
 
 - Enter the sender's Hail address, then choose **Review sender**.
