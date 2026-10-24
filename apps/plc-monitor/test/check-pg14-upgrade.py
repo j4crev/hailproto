@@ -8,6 +8,7 @@ import io
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 from unittest.mock import patch
@@ -19,10 +20,11 @@ sys.path.insert(0,str(deploy))
 spec=importlib.util.spec_from_file_location('upgrade',deploy/'upgrade-pg14.py')
 upgrade=importlib.util.module_from_spec(spec);spec.loader.exec_module(upgrade)
 
-for case in ('success','preservation-failure','post-start-failure','concurrent-change'):
+for case in ('success','preservation-failure','post-start-failure','concurrent-change','expired-backup'):
     with tempfile.TemporaryDirectory(prefix='hail-upgrade-control-') as directory:
         root=Path(directory);config=root/'config';config.mkdir();stage=root/'stage';stage.mkdir()
         backups=root/'backups';backups.mkdir();archive=backups/'backup.gpg';archive.write_bytes(b'ciphertext proof fixture')
+        if case=='expired-backup':os.utime(archive,(0,0))
         override=config/'compose.override.json';original={'services':{'monitor':{'ports':['127.0.0.1:3001:3001']}}}
         override.write_text(json.dumps(original));active=config/'active';active.write_text('reviewed bridge\n')
         (stage/'plan.json').write_text(json.dumps({'backup':{'archive':str(archive),'sha256':hashlib.sha256(archive.read_bytes()).hexdigest()},'schema_sha256':'schema-proof'}))
@@ -82,9 +84,15 @@ for case in ('success','preservation-failure','post-start-failure','concurrent-c
                 patches.enter_context(patch.object(upgrade.urllib.request,'urlopen',ready))
                 patches.enter_context(patch.object(upgrade.shutil,'chown'))
                 try:upgrade.main()
-                except RuntimeError:assert case!='success'
+                except (RuntimeError,SystemExit) as error:
+                    assert case!='success'
+                    if case=='expired-backup':assert 'over one hour old' in str(error)
                 else:assert case=='success'
         finally:os.umask(previous_umask)
+        if case=='expired-backup':
+            assert state['version']==140004 and not state['events'] and state['switches']==0
+            assert not list(root.glob('hail-db-update-report-*/report.json'))
+            continue
         report=json.loads(next(root.glob('hail-db-update-report-*/report.json')).read_text())
         if case=='success':
             assert report['status']=='passed' and report['same_volume'] and state['catalog'] and state['version']==140024
@@ -98,3 +106,15 @@ for case in ('success','preservation-failure','post-start-failure','concurrent-c
             assert report['status']=='failed' and state['version']==140004 and state['switches']==0
             assert json.loads(override.read_text())['services']['monitor']['operator']=='keep this work'
 print('PASS: success, rollback boundaries, new-write safety and concurrent operator-work preservation')
+
+with tempfile.TemporaryDirectory(prefix='hail-upgrade-launcher-') as directory:
+    root=Path(directory);bin=root/'bin';bin.mkdir()
+    commands={'id':'echo 0','tailscale':'echo 100.102.184.47','sha256sum':'exit 0',
+              'date':'echo 1700000000','systemd-run':'exit 1',
+              'journalctl':'echo "Backup is over one hour old; prepare a fresh recovery point first"'}
+    for name,body in commands.items():
+        path=bin/name;path.write_text('#!/bin/sh\n'+body+'\n');path.chmod(0o700)
+    result=subprocess.run(['/bin/sh',str(deploy/'run-pg14-upgrade.sh')],
+        env={**os.environ,'PATH':str(bin)+':'+os.environ.get('PATH','')},capture_output=True,text=True)
+    assert result.returncode==1 and 'Backup is over one hour old' in result.stdout
+print('PASS: expired backup changes no services; launcher exposes the reason and preserves failure status')

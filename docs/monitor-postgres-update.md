@@ -25,16 +25,16 @@ separately; a single laptop should not be the only place that can recover R2.
 Fresh encrypted recovery point:
 
 ```text
-Server: /var/lib/hail-monitor-enrollment/monitor-20261023T221751Z-0f9f3338.tar.gpg
-Off-host: ~/.local/share/hailproto/ops/monitor-20261023T221751Z-0f9f3338.tar.gpg
-SHA-256: 6b4d5504de014357bc63f101eed5ebcef1bd6e4d5341d82a4a116699ed579fab
+Server: /var/lib/hail-monitor-enrollment/monitor-20261024T001921Z-aa791235.tar.gpg
+Off-host: ~/.local/share/hailproto/ops/monitor-20261024T001921Z-aa791235.tar.gpg
+SHA-256: 3811553d26fdab852dd55cb7bd9fd2c03fe1802e0e2b3757b77ff010969e84ac
 ```
 
 The off-host copy and adjacent `.sha256` file are owner-only. The encrypted
-19:38 recovery point was retained there too. R2 credentials were not used or
+19:38 and 22:17 recovery points were retained there too. R2 credentials were not used or
 changed; these follow the existing manual off-host monitor-backup workflow.
 
-Both exact encrypted backups were authenticated/decrypted locally and only the
+Each retained encrypted recovery point was authenticated/decrypted locally and only the
 `monitor.dump` member was extracted into a private temporary directory. Credential
 and signing-key members were not extracted or displayed. Restore proof used a
 network-isolated, unpublished disposable PostgreSQL 14.4 instance, then booted
@@ -45,6 +45,16 @@ template0's connection policy was restored, and `REINDEX DATABASE monitor` and
 application tables, 36 rows, including five retained migration records. All
 temporary containers, volume, dump and local GPG home were removed. No live
 database was changed during rehearsal.
+
+The first live attempt exited early in preflight. At inspection the previous
+recovery point was 7,011 seconds old, exceeding the one-hour guard; no maintenance
+report had been created, PostgreSQL was still 14.4 with its original uptime, and
+monitor/edge/heartbeat/tunnel remained healthy. The fresh October 24 recovery
+point above was therefore created, copied off-host, checksum-verified and put
+through the full restore/physical upgrade/rollback rehearsal too. The freshness
+guard was not weakened. The launcher now shows recent unit journal output on
+failure while preserving its nonzero exit status. Regression checks confirm an
+expired backup changes no services and its failure reason is visible.
 
 The exact shared SQL helpers used by the live operator were included in the
 rehearsal. Additional stdlib-only control tests cover success, pre-resume

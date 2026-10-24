@@ -597,3 +597,10 @@ database/template catalog repairs and reindexing, with identical full-row hashes
 for seven tables/36 rows. No live engine/data changes have occurred yet.
 The guarded update, failure boundaries and console action are in
 [Monitor PostgreSQL update](monitor-postgres-update.md).
+The first attempt exited during preflight, with the old checkpoint aged past its
+one-hour limit (7,011 seconds at inspection), no maintenance report and unchanged
+14.4/monitor/edge/heartbeat uptime/health. A fresh October 24 00:19 UTC encrypted
+snapshot was retained off-host, hash-verified and fully restore/upgrade/rollback
+tested; the staged plan is refreshed without relaxing the guard. The launcher
+now displays recent unit logs on failure so preflight reasons are not hidden
+behind systemd's generic exit status. No live database upgrade has occurred yet.
