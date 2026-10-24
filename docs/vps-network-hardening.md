@@ -38,9 +38,11 @@ Maintenance handoff:
 - Follow-up complete: the monitor's actual 14.4 engine was verified, recovery keys
   located, encrypted backups restore-tested, and 14.24 applied with preserved data
   and volume plus vendor catalog security repairs. A verified encrypted post-update
-  backup is retained off-host. PostgreSQL 14 still needs a separately rehearsed
-  major upgrade before November 12, 2026. No application schema/key rotation or POC
-  update occurred.
+  backup is retained off-host. Subsequently **both production databases completed
+  18.6**, with original 14 volumes retained, unchanged app images, all 20 Haili
+  key pairs verified and actual post-cutover encrypted backups restored off-host.
+  See [PostgreSQL updates](monitor-postgres-update.md). No application schema/key
+  rotation or POC update occurred.
 - Existing rollback/config backups and old Caddy certificate volumes were kept.
   Connector credentials remain root-only; existing monitor backup coverage does
   not include the new token/unit, which can be recreated through Cloudflare.
@@ -614,6 +616,9 @@ restored heartbeat, four tunnel connections, public enrollment 401 and Haili
 readiness 200 were verified. TCP 5432 is not publicly reachable on either family.
 A new 00:33 encrypted post-update backup was retained off-host and hash-verified;
 see [the completed database checkpoint](monitor-postgres-update.md).
-Both requested follow-ups are complete. PostgreSQL 14 still requires a separately
-rehearsed major migration before November 12, 2026; POC and independent-provider
-admission work remain separate. No reboot test or full UDP scan was performed.
+Both requested follow-ups are complete. The separately rehearsed direct 14→18
+migration subsequently completed on both production VPSs, with live SQL 180006,
+exact data preservation, original volumes retained and post-upgrade backup restores
+verified. See [the current major-update checkpoint](monitor-postgres-update.md).
+POC and independent-provider admission work remain separate. No reboot test or
+full UDP scan was performed.

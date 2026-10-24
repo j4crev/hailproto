@@ -22,7 +22,7 @@ lost, provision Ubuntu with Docker, copy the repository and root-only `.env`,
 restore the latest R2 dump into a new volume on its recorded PostgreSQL major,
 reinstall the corresponding database overlay, then start services and verify the
 managed canary. Do not change DNS until account, Grant, envelope and key counts
-match the backup manifest and all retained account keys decrypt.
+match the verified restore proof and all retained operational keys decrypt.
 
 For suspected key disclosure, stop onboarding and outbound sends, preserve logs,
 rotate the affected provider-controlled key through the existing PLC/custody
@@ -43,7 +43,10 @@ completed October 24: 14.24 is pinned in the active legacy override, data/volume
 and application identity are retained, and encrypted off-host backups are verified.
 The monitor subsequently completed 18.6 in a new volume with a higher-priority
 database overlay; its post-cutover encrypted backup has passed an off-host restore.
-Haili's separate 18.6 cutover is staged but has not run yet.
+Haili's separate 18.6 cutover is complete too: exact data/credentials and all 20
+retained operational key pairs passed; its actual post-upgrade R2 backup was
+downloaded, authenticated and restored off-host. Both app images stayed unchanged,
+both original 14 volumes remain retained, and the POC VPS was untouched.
 
 - SSH allows only the named `hailops` account with public-key authentication;
   root, passwords, keyboard-interactive authentication and X11 are disabled.
@@ -83,20 +86,20 @@ only then sends the backup heartbeat. Missing heartbeats alert after 26 hours.
 No automatic deletion policy is enabled.
 
 Quarterly, download a fresh object on a non-provider host, decrypt it, restore it
-into a disposable instance of the recorded PostgreSQL major (Haili is still 14.24;
-the monitor is now 18.6), compare schema and row counts, and
+into a disposable instance of the recorded PostgreSQL major (both production
+databases are now 18.6), compare schema and row counts, and
 decrypt every retained account and prepared-transfer operational key. Record the object name, digest, counts and
 result in `docs/haili-launch.md`; remove plaintext artifacts afterward.
 
 PostgreSQL 14 reaches end of life November 12, 2026. Direct 14→18 encrypted-copy
 rehearsals passed for both production databases; monitor-first console cutover
 and write-safe rollback boundaries are in [PostgreSQL updates](monitor-postgres-update.md).
-The monitor's cutover and post-upgrade backup restore passed; Haili's cutover is
-staged, not yet applied. Once installed, the provider database
+Both live cutovers and actual post-upgrade encrypted-backup restores passed.
+The installed provider database
 overlay at `/etc/hail-provider-postgres/compose.yaml` must accompany every Compose
 operation, including application rollback. A major migration uses a new volume;
 never attach 18 to a 14 directory or select an old volume after new writes.
-Prepared backup tooling includes the active DB image/version and database overlay
+Installed backup tooling includes the active DB image/version and database overlay
 in its encrypted archive; restore on the recorded major, not a hardcoded 14 image.
 
 ## Monitoring and recovery thresholds
