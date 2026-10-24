@@ -20,8 +20,8 @@ The backup timer is active/enabled; its new R2 backup was upload/download verifi
 GUI/Caddy remained running. The provider's public readiness, WebFinger discovery
 and PLC-resolved address-binding signature for `j4@haili.app` pass off-host.
 The cutover's existing-token monitor probe passed 401/400; a fresh provider-host
-unauthenticated probe returns 401. Manual browser passkey sign-in remains the
-operator's final check; it is not claimed as automated proof.
+unauthenticated probe returns 401. The operator also confirmed successful browser
+passkey sign-in after Haili's cutover, completing the final manual acceptance check.
 
 Actual post-cutover Haili recovery point, downloaded from R2, checksum-verified,
 authenticated/decrypted, restored into a fresh isolated 18.6 volume and checked
@@ -417,7 +417,8 @@ artifacts for review; never run Compose without the active database overlay.
 
 The live report, reported R2 backup restore/key check, public discovery/binding
 and monitor peer verification have now passed; see the current checkpoint above.
-Browser passkey sign-in is the remaining manual operator check.
+The operator subsequently confirmed browser passkey sign-in; all migration
+acceptance checks are complete.
 
 ```bash
 TMPDIR=/tmp/opencode python3 apps/server/test/check-pg18-upgrade.py
