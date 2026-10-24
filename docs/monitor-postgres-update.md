@@ -1,8 +1,33 @@
 # Monitor PostgreSQL 14.4 → 14.24
 
+## Completed checkpoint — October 24, 2026, 00:30 UTC
+
+The operator's refreshed attempt succeeded. Sanitized live report
+`/var/lib/hail-db-update-report-93973723/report.json` confirms SQL version 140024,
+exact application-data preservation, the same data volume, catalog security repair
+across all databases/templates, reindexing, and an unchanged monitor application
+image. The active override pins the approved digest. Monitor/database are healthy,
+heartbeat supervision was restored, four tunnel connections remain ready,
+provider-host public enrollment reaches 401, and Haili readiness returns 200.
+Public TCP 5432 is unavailable on the monitor's IPv4 and IPv6 addresses.
+
+Post-upgrade encrypted recovery point, copied off-host and SHA-256 verified:
+
+```text
+Server: /var/lib/hail-monitor-enrollment/monitor-20261024T003308Z-afd4ff29.tar.gpg
+Off-host: ~/.local/share/hailproto/ops/monitor-20261024T003308Z-afd4ff29.tar.gpg
+SHA-256: 9342a107797acb0034559320287fffa6ca1faaf091f51bb8af31766859a4bfb0
+```
+
+The `.sha256` sibling and ciphertext are owner-only. Pre-upgrade recovery points
+and the old image were retained. No data restore/deletion, application schema
+migration, key rotation, firewall change or POC deployment occurred. There is no
+upgrade rollback timer to cancel. No reboot was performed. The apply sections
+below are historical; **do not rerun the 14.4-only controller on 14.24**.
+
 ## Verified preparation
 
-The live monitor server, its container binary and its immutable image all report
+Before the update, the monitor server, its container binary and its immutable image all reported
 14.4 (`server_version_num=140004`). Its authoritative legacy Compose specifies
 14.4, despite the monorepo's newer base already specifying 14.24. The upgrade
 pins the image in the protected active override, so the legacy base cannot
@@ -101,7 +126,7 @@ Docker volume deletion, public port or firewall change is part of this operation
 
 The controller writes root-only preservation/config artifacts under
 `/var/lib/hail-pg14-update.*` and a sanitized `hailops`-readable report at
-`/var/lib/hail-db-update-report.*/report.json`. Report completion; do not paste
+`/var/lib/hail-db-update-report-*/report.json`. Report completion; do not paste
 credentials or private diagnostics. Verify SQL 140024, healthy monitor/database/
 heartbeat, public enrollment and the existing provider container probe afterward.
 

@@ -36,6 +36,10 @@ The October 23 cutover is complete: SSH uses Tailscale; public Haili and monitor
 HTTP use Cloudflare Tunnels; direct public TCP 22/80/443 was verified blocked on
 both IPv4 and IPv6. Hosting firewalls deny new inbound traffic. Review the
 hardening runbook's current checkpoint and release-adoption caveat before deploy.
+The ingress release was committed/pushed and adopted on the provider with a clean
+checkout. The monitor's separate [PostgreSQL update](monitor-postgres-update.md)
+completed October 24: 14.24 is pinned in the active legacy override, data/volume
+and application identity are retained, and encrypted off-host backups are verified.
 
 - SSH allows only the named `hailops` account with public-key authentication;
   root, passwords, keyboard-interactive authentication and X11 are disabled.

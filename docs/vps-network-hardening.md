@@ -27,19 +27,20 @@ Serve/grant path has been removed.
 
 Maintenance handoff:
 
-- Release adoption is the follow-up action. The protected provider checkout
-  intentionally has modified `apps/server/deploy/public/Caddyfile` and
-  `compose.yaml`; its normal deploy wrapper requires a clean checkout. Adopt the
-  reviewed ingress changes into a release and reconcile that checkout **before
-  its next guarded deploy**. Do not discard/reset the live changes to bypass the
-  guard. The monitor checkout is clean; its live ingress config is in `/etc`.
+- Follow-up complete: ingress commit `07b4dec` was published and adopted on the
+  provider, preserving the two live ingress files and environment. Its protected
+  checkout is clean and read-only Git inspection works again, without extra write
+  access. Normal guarded deploys are no longer blocked by the manual ingress edits.
+  The monitor's live ingress/database override remains protected configuration
+  in `/etc`, separate from its unchanged application image/source checkpoint.
 - The shared public provider profile is now tunnel-only. Do not apply its new
   ingress files to the unmigrated POC VPS without a separate transition plan.
-- The monitor database image is labeled `postgres:14.4-alpine`, conflicting with
-  earlier 14.24 upgrade records. Verify the running SQL/binary version before
-  deciding whether to upgrade: a retagged image can have a stale label. PostgreSQL
-  14 approaches end of support in November 2026. No database image/schema/key
-  changes occurred during network hardening.
+- Follow-up complete: the monitor's actual 14.4 engine was verified, recovery keys
+  located, encrypted backups restore-tested, and 14.24 applied with preserved data
+  and volume plus vendor catalog security repairs. A verified encrypted post-update
+  backup is retained off-host. PostgreSQL 14 still needs a separately rehearsed
+  major upgrade before November 12, 2026. No application schema/key rotation or POC
+  update occurred.
 - Existing rollback/config backups and old Caddy certificate volumes were kept.
   Connector credentials remain root-only; existing monitor backup coverage does
   not include the new token/unit, which can be recreated through Cloudflare.
@@ -604,3 +605,15 @@ snapshot was retained off-host, hash-verified and fully restore/upgrade/rollback
 tested; the staged plan is refreshed without relaxing the guard. The launcher
 now displays recent unit logs on failure so preflight reasons are not hidden
 behind systemd's generic exit status. No live database upgrade has occurred yet.
+
+The refreshed attempt then succeeded at October 24 00:30 UTC. Live report
+`/var/lib/hail-db-update-report-93973723/report.json` confirms PostgreSQL 140024,
+same volume, exact data preservation, all-database/template catalog repair,
+reindexing and unchanged application image. Actual monitor/database health,
+restored heartbeat, four tunnel connections, public enrollment 401 and Haili
+readiness 200 were verified. TCP 5432 is not publicly reachable on either family.
+A new 00:33 encrypted post-update backup was retained off-host and hash-verified;
+see [the completed database checkpoint](monitor-postgres-update.md).
+Both requested follow-ups are complete. PostgreSQL 14 still requires a separately
+rehearsed major migration before November 12, 2026; POC and independent-provider
+admission work remain separate. No reboot test or full UDP scan was performed.
