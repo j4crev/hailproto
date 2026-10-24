@@ -1,5 +1,35 @@
 # `haili.app` launch milestone
 
+## Onboarding And Rich Composer Deployed — October 24, 2026 UTC
+
+- Release `2a8f2e5798c60ad74cdde06419aa1b23b0e1da36` includes the teal signup,
+  recovery-preview/enrollment and CLI-authorization presentation, plus heading,
+  flat list and quote authoring through the existing `spt-2`/`spt-3` profiles.
+  The composer preview now uses the same safe projection/renderer as the reader.
+  No relationship, reply-capability, attachment or recovery-authority semantics
+  changed; no schema migration, account creation or enrollment widening occurred.
+- The guarded wrapper verified pre-deploy encrypted backup
+  `provider/haili-20261024T145343Z.tar.gpg`, SHA-256
+  `5f3b14d588d2ba4934d2391f19b2a2c8ebfe225b39f0333d55059c1effe6110b`.
+  The first upload returned 501; the existing retry succeeded. Build image config:
+  `sha256:ce91602f03f838e405f32e8a07c901a6d7737de786b7de1fb1280df205ee3d6f`.
+  One readiness attempt returned 502 during restart, then the wrapper's retry
+  passed. Provider and GUI are healthy; PostgreSQL 18.6 and Caddy kept their uptime.
+- Public readiness, homepage, login, invited signup and recovery/CLI authorization
+  pages return 200. Signup serves its phase indicator and retains its no-form CSP.
+  The local recovery preview still returns 404 in production. Private screens
+  retain non-cacheable 303 redirects and exact local return destinations.
+- Local checks pass: build, typecheck, 27 unit tests, desktop/mobile-width real
+  proxy flows, browser-only recovery crypto under denied network, and mobile
+  screenshot review. The browser proof submits a rich message only to its local
+  fixture, validates the codec document, and compares preview/Sent rendering,
+  including literal HTML. No production account/session/message was created for
+  the checks. Authenticated live use and broader real-device testing still need
+  operator confirmation.
+- Both retained backups use the existing wrapper upload/verification path. The
+  recurring first-attempt R2 501 is recorded, not treated as a reason to weaken
+  the backup gate or alter service credentials during this client release.
+
 ## Teal Browser Client Deployed — October 24, 2026 UTC
 
 - Release `f54120f7bed5d426eccfd15be6495d10bf7f101c` was committed, pushed and

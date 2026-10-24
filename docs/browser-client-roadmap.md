@@ -22,6 +22,13 @@ the native rich composer form, validates its actual `spt-2` document, reads its
 delivered Sent body and compares its rendering with the preview. Desktop and
 mobile-width runs pass, alongside 27 unit tests, build and typecheck.
 
+The onboarding and rich-authoring follow-ups were pushed and deployed together as
+`2a8f2e5798c60ad74cdde06419aa1b23b0e1da36` through the guarded provider wrapper.
+Public readiness, signup policy, preview gating and anonymous private-screen
+redirects passed; the production database was not restarted. Deployment evidence,
+backup hashes and limits on authenticated live proof are in
+[Haili launch](haili-launch.md).
+
 ## Follow-Up — Onboarding Presentation
 
 Signup, the local recovery-kit preview, owner-authorized replacement-passkey
