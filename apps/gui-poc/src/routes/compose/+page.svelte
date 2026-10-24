@@ -1,12 +1,14 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { invalidateAll } from "$app/navigation";
-  import { composeBlocks } from "$lib/compose.js";
+  import { composeBlocks,formatLines } from "$lib/compose.js";
+  import {parseBody} from "$lib/messages.js";
+  import RichText from "$lib/RichText.svelte";
   let {data,form}=$props();
   let mode=$state("rich"),title=$state(""),text=$state(""),alt=$state(""),caption=$state(""),preview=$state<string|null>(null);
   let editor=$state<HTMLTextAreaElement>();
   let refreshing=$state(false);
-  let blocks=$derived(composeBlocks("",text));
+  let blocks=$derived(parseBody({version:1,profile:"spt-2",blocks:composeBlocks(title,text)}).blocks);
   function image(event:Event){if(preview)URL.revokeObjectURL(preview);const file=(event.currentTarget as HTMLInputElement).files?.[0];preview=file?URL.createObjectURL(file):null;}
   async function insert(before:string,after=before,placeholder="text"){
     if(!editor)return;
@@ -17,6 +19,11 @@
     const href=prompt("HTTPS link URL");if(!href)return;
     try {const url=new URL(href);if(url.protocol!=="https:"||url.username||url.password)throw new Error();await insert("[","]("+url.href+")","link text");}
     catch {alert("Use an HTTPS URL without embedded credentials.");}
+  }
+  async function block(prefix:string){
+    if(!editor)return;
+    const formatted=formatLines(text,editor.selectionStart,editor.selectionEnd,prefix);
+    text=formatted.text;await tick();editor.focus();editor.setSelectionRange(formatted.start,formatted.end);
   }
   async function refreshStatus(){refreshing=true;try{await invalidateAll();}finally{refreshing=false;}}
 </script>
@@ -34,13 +41,15 @@
     <label class="hail-field">Title <span class="text-xs font-normal text-muted">Rich only</span><input name="title" maxlength="128" bind:value={title} disabled={mode==='plain'} /></label>
     <div class="grid gap-2">
       <label class="text-sm font-semibold" for="message-text">Message</label>
-      <p class="m-0 text-xs text-muted" id="format-help">{mode==='rich'?'Select text, then apply formatting.':'Plain text'}</p>
+      <p class="m-0 text-xs text-muted" id="format-help">{mode==='rich'?'Select text for inline formatting, or select lines for headings, lists and quotes.':'Plain text'}</p>
       {#if mode==='rich'}<div class="flex flex-wrap gap-2" role="group" aria-label="Text formatting"><button class="hail-button-secondary min-w-11" type="button" onclick={()=>insert('**')} aria-label="Bold"><strong>B</strong></button><button class="hail-button-secondary min-w-11" type="button" onclick={()=>insert('*')} aria-label="Italic"><em>I</em></button><button class="hail-button-secondary min-w-11" type="button" onclick={()=>insert('`')} aria-label="Code"><code>&lt;/&gt;</code></button><button class="hail-button-secondary" type="button" onclick={link} aria-label="Link">Link</button></div>{/if}
+      {#if mode==='rich'}<div class="flex flex-wrap gap-2" role="group" aria-label="Block formatting"><button class="hail-button-secondary" type="button" onclick={()=>block('## ')}>Heading</button><button class="hail-button-secondary" type="button" onclick={()=>block('- ')}>Bullets</button><button class="hail-button-secondary" type="button" onclick={()=>block('1. ')}>Numbered list</button><button class="hail-button-secondary" type="button" onclick={()=>block('> ')}>Quote</button></div>{/if}
       <textarea class="w-full resize-y leading-relaxed" id="message-text" aria-describedby="format-help" name="text" rows="9" maxlength="65536" bind:this={editor} bind:value={text} required></textarea>
     </div>
+    {#if mode==='rich'}<details class="text-xs text-muted"><summary class="cursor-pointer py-2 font-semibold">Formatting shortcuts</summary><p class="m-0 mt-2 leading-relaxed">Start lines with <code>## </code> or <code>### </code> for headings, <code>- </code> for bullets, <code>1. </code> for numbered items, and <code>&gt; </code> for quotes. List numbering is automatic. Separate ordinary paragraphs with blank lines. This is a small set of shortcuts, not a full Markdown editor; HTML is displayed as text.</p></details>{/if}
     <details class="rounded-xl border border-solid border-line p-4"><summary class="cursor-pointer text-sm font-semibold">Add a header image <span class="font-normal text-muted">· optional, rich only</span></summary><div class="mt-4 grid gap-4"><label class="hail-field">Header PNG<input name="header" type="file" accept="image/png" onchange={image} disabled={mode==='plain'} /></label><label class="hail-field">Header alt text<input name="alt" maxlength="1024" bind:value={alt} disabled={mode==='plain'} /></label><label class="hail-field">Header caption<input name="caption" maxlength="1024" bind:value={caption} disabled={mode==='plain'} /></label><p class="m-0 text-xs text-muted">Bundled PNG only, up to 192 KiB. Alt text is required when you add an image.</p></div></details>
     <label class="flex min-h-11 items-center gap-3 text-sm"><input name="allowReply" type="checkbox" value="yes" /> Allow one reply for 7 days</label>
     <button class="hail-button justify-self-start" disabled={!data.options.length}>Send message <span aria-hidden="true">→</span></button>
   </form>
-  <section class="hail-card min-h-[260px] min-w-0 p-5 sm:p-7 xl:sticky xl:top-8 xl:min-h-[360px]" aria-label="Message preview"><p class="hail-eyebrow">Preview</p><div class="mt-5 font-serif text-[17px] leading-[1.65] [overflow-wrap:anywhere]">{#if mode==='rich'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-cover" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}{#if mode==='rich'&&title}<h2 class="text-[1.65em]">{title}</h2>{/if}{#if mode==='plain'}<p class="whitespace-pre-wrap">{text}</p>{:else}{#each blocks as block}<p>{#each block.children as span}{@const link=block.markDefs.find(definition=>span.marks.includes(definition._key))}{#if link}<a class="text-brand" href={link.href} target="_blank" rel="noopener noreferrer">{span.text}</a>{:else if span.marks.includes('code')}<code class="rounded bg-canvas px-1">{span.text}</code>{:else if span.marks.includes('strong')}<strong>{span.text}</strong>{:else if span.marks.includes('em')}<em>{span.text}</em>{:else}{span.text}{/if}{/each}</p>{/each}{/if}{#if !text&&!title&&!(mode==='rich'&&preview)}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}</div></section>
+  <section class="hail-card min-h-[260px] min-w-0 p-5 sm:p-7 xl:sticky xl:top-8 xl:min-h-[360px]" aria-label="Message preview"><p class="hail-eyebrow">Preview</p><div class="mt-5 font-serif text-[17px] leading-[1.65] [overflow-wrap:anywhere]">{#if mode==='rich'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-cover" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}{#if mode==='plain'}<p class="whitespace-pre-wrap">{text}</p>{:else}<RichText {blocks}/>{/if}{#if !text&&(mode==='plain'||!title&&!preview)}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}</div></section>
 </div>

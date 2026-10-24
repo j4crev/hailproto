@@ -59,7 +59,7 @@ The reference CLI covers account administration and sensitive identity ceremonie
 | Sender Profiles | Create, view and update | Verified avatars and sender/category review; no profile editor |
 | Grants | Create, list, inspect, update and revoke | List scopes/expiry; managed sender approval by address or QR link, with passkey-confirmed creation and revocation |
 | Inbox | List and retrieve messages | Paginated feed, safe rich-text rendering, avatars and bundled headers |
-| Compose | Plain text with reply invitations | Plain or rich text, formatting and a bundled PNG header |
+| Compose | Plain text with reply invitations | Plain or rich text, headings, lists, quotes, inline formatting and a bundled PNG header |
 | Replies | Plain-text replies | Plain-text replies while the capability remains valid |
 | Sent messages | Status and retry by message ID | Paginated Sent view, detail, status and indeterminate retry |
 | Address bindings | View and renew | — |

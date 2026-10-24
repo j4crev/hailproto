@@ -6,7 +6,7 @@ import {createRequire} from "node:module";
 import {createSignupBackup} from "../src/lib/signup-recovery.js";
 import {assureValidSig,didForCreateOp} from "@did-plc/lib";
 import {cidForCbor} from "@atproto/common";
-import {createWebCryptoSigner,signPayload,encodeBase64Url,toDiagnosticJson,type HailGrant} from "@hailproto/codec";
+import {createWebCryptoSigner,signPayload,encodeBase64Url,toDiagnosticJson,fromDiagnosticJson,encodePayload,type HailGrant} from "@hailproto/codec";
 import {createApp} from "../../server/src/app.js";
 import type {AppConfig} from "../../server/src/config.js";
 const {generateRegistrationOptions,verifyRegistrationResponse,generateAuthenticationOptions,verifyAuthenticationResponse}=
@@ -20,11 +20,13 @@ let did:string|null=null;const sessionToken="hails_"+"A".repeat(43);
 let setupId="",setupToken="",enrollmentToken="",secret="",invitation="fixture-invitation",publicationAttempts=0,prepareCalls=0;
 const browserErrors:string[]=[];
 const requests:{path:string;body:string;authorization:string}[]=[];
-const policy={provider:"https://provider.example",monitorOrigin:"https://monitor.example",monitorKey:messaging.vault.identity.publicDidKey};
+const policy={provider:"https://provider.example.com",monitorOrigin:"https://monitor.example",monitorKey:messaging.vault.identity.publicDidKey};
 const permissionSigner=await crypto.subtle.generateKey("Ed25519",true,["sign","verify"]),peerDid="did:plc:"+"b".repeat(24),peerAddress="peer@peer.example.com";
 let allowed:HailGrant|null=null,allowedCose="",allowedDigest="";
 const approvals=new Map<string,{action:string;payload:HailGrant;challenge:string;approved:boolean;result:unknown}>();
 const incomingId="019a15fd-2bd0-7433-8afa-bd0355e0608d";
+const sendingGrantId="019a15fd-2bd0-7433-8afa-bd0355e0608e";
+let sendingGrant:{payload:HailGrant;cose:string;digest:string}|null=null,composed:any=null,composePosts=0;
 let incoming=false,replyPosts=0,replied:any=null,recentlyVerified=false,guiProxy:ReturnType<typeof createApp>;
 const textBody=(text:string)=>({version:1,profile:"spt-1",blocks:[{_type:"block",_key:"b1",style:"normal",markDefs:[],children:[{_type:"span",_key:"s1",text,marks:[]}]}]});
 const headerPng=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
@@ -51,12 +53,20 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   const body=await request.text();requests.push({path,body,authorization:request.headers.get("Authorization")??""});const input=body?JSON.parse(body):{};
   if(path===`/api/v1/account/inbox/${encodeURIComponent(peerDid)}/${incomingId}`||path===`/api/v1/account/inbox/${peerDid}/${incomingId}`)return json(incomingMessage());
   if(path==="/api/v1/account/messages"){
+    if(!input.replyTo){
+      assert(sendingGrant);assert.equal(input.grantId,sendingGrantId);assert.equal(input.category,"updates");assert.equal(composePosts,0);
+      const body=fromDiagnosticJson("hail.body.spt-2",input.body);encodePayload("hail.body.spt-2",body);
+      assert.deepEqual(body.blocks.map(block=>block.style),["h1","h2","normal","normal","normal","normal","blockquote","normal"]);
+      composed={messageId:input.messageId,sender:did,recipient:peerDid,recipientAddress:peerAddress,category:"updates",createdAt:new Date().toISOString(),state:"delivered",revision:2,reason:null,retryAt:null,body:input.body};
+      composePosts++;return json({messageId:input.messageId,state:"delivered"});
+    }
     assert.equal(input.replyTo,incomingId);assert.equal(input.text,"Browser transport reply");assert.equal(replyPosts,0);replyPosts++;
     replied={messageId:input.messageId,sender:did,recipient:peerDid,recipientAddress:peerAddress,category:null,createdAt:new Date().toISOString(),
       state:"delivered",revision:2,reason:null,retryAt:null,body:textBody(input.text)};return json({messageId:input.messageId,state:"delivered"});
   }
-  if(path.startsWith("/api/v1/account/sent/")&&replied)return json(replied);
-  if(path==="/api/v1/account/sent")return json({messages:replied?[replied]:[],next:null});
+  if(path===`/api/v1/account/messages/${composed?.messageId}`&&composed)return json({messageId:composed.messageId,state:composed.state,revision:composed.revision});
+  for(const message of [replied,composed])if(message&&path===`/api/v1/account/sent/${message.messageId}`)return json(message);
+  if(path==="/api/v1/account/sent")return json({messages:[composed,replied].filter(Boolean),next:null});
   if(path==="/api/v1/auth/passkeys")return json({recentlyVerified,passkeys:[{credentialId:credential.id,label:"Primary passkey",deviceType:"multiDevice",backedUp:true,
     current:true,createdAt:new Date().toISOString(),lastUsedAt:null}]});
   if(path.startsWith("/api/v1/account/permissions/")){
@@ -83,7 +93,8 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     }
     if(approvals.has(step))return json(actionSummary(step));
   }
-  if(path==="/api/v1/account/grants")return json({grants:allowed?[{grantId:allowed.grant_id,localRole:"grantor",status:allowed.status}]:[],next:null});
+  if(path==="/api/v1/account/grants")return json({grants:[...(allowed?[{grantId:allowed.grant_id,localRole:"grantor",status:allowed.status}]:[]),...(sendingGrant?[{grantId:sendingGrantId,localRole:"grantee",status:"active",expiresAt:sendingGrant.payload.expires_at}]:[])],next:null});
+  if(path===`/api/v1/account/grants/${sendingGrantId}`&&sendingGrant)return json({type:"hailp.grant",version:1,cose:sendingGrant.cose,digest:sendingGrant.digest,localRole:"grantee"});
   if(path.startsWith("/api/v1/account/grants/")&&allowed)return json({type:"hailp.grant",version:1,cose:allowedCose,digest:allowedDigest,localRole:"grantor"});
   if(path==="/api/v1/account"||path==="/api/v1/account/inbox"){
     if(!request.headers.get("Cookie")?.includes("hail_session="+sessionToken))return json({},401);
@@ -254,7 +265,7 @@ try{
   const finalBackup=JSON.parse(await readFile(join(work,"hail-account-recovery.vault.json"),"utf8"));assert(/^did:plc:[a-z2-7]{24}$/.test(finalBackup.did));
   await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your inbox').click()`);
   await wait(()=>has("No messages yet"),"completed alpha account inbox");
-  assert(await has("alice@provider.example"));
+  assert(await has("alice@provider.example.com"));
   assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Feed");
   assert.equal(await evaluate("document.querySelector('details').open"),false,"Technical account details start collapsed");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Empty feed overflows viewport");
@@ -311,7 +322,7 @@ try{
   assert.deepEqual(await styles("fieldset label",["flexDirection","alignItems"]),["row","center"]);
   await click("Review permission before approving");await wait(()=>has("Confirm allowed sender"),"exact permission review");
   assert.deepEqual(await styles('[aria-label="Permission confirmation"]',["borderTopWidth","borderTopColor"]),["2px","rgb(15, 118, 110)"]);
-  assert.equal(allowed,null);assert(await has("alice@provider.example"));
+  assert.equal(allowed,null);assert(await has("alice@provider.example.com"));
   await click("Allow sender with my passkey");await wait(()=>has("Review revocation"),"passkey-approved permission saved");
   assert.equal(allowed!.status,"active");await click("Review revocation");await wait(()=>has("Confirm revocation"),"revocation review");
   await click("Revoke sender with my passkey");await wait(()=>has("revoked"),"passkey-confirmed revocation");
@@ -332,9 +343,31 @@ try{
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Composer overflows viewport");
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='A clear message';e.dispatchEvent(new Event('input',{bubbles:true}));e.setSelectionRange(2,7);})()`);
   await evaluate(`document.querySelector('[aria-label="Bold"]').click()`);
-  await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] strong')?.textContent==='clear'`),"formatting stays visible in preview");
+  await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] span[class*="font-[750]"]')?.textContent==='clear'`),"formatting stays visible in preview");
+  for(const [button,selector] of [["Heading","h2"],["Quote","blockquote"],["Bullets","ul li"],["Numbered list","ol li"]]){
+    await click(button);await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] ${selector}')?.textContent==='A clear message'`),"block toolbar: "+button);
+  }
   await evaluate(`document.querySelector('input[type=radio][value=plain]').click()`);
-  await wait(async()=>evaluate(`document.querySelector('input[name=title]').disabled && !document.querySelector('[aria-label="Text formatting"]')`),"plain format disables rich-only controls");
+  await wait(async()=>evaluate(`document.querySelector('input[name=title]').disabled && !document.querySelector('[aria-label="Text formatting"]') && !document.querySelector('[aria-label="Block formatting"]')`),"plain format disables rich-only controls");
+  // Publish a local-fixture incoming Grant, then submit the real native composer form.
+  const payload:HailGrant={...permissionPayload(sendingGrantId),grantor:peerDid,grantee:did!,key_id:peerDid+"#hail-identity",
+    consent_context:{...permissionPayload(sendingGrantId).consent_context,grantee_address:prepared.address}};
+  const signed=await signPayload("hail.grant",payload,createWebCryptoSigner(peerDid+"#hail-identity",permissionSigner.privateKey));
+  sendingGrant={payload,cose:encodeBase64Url(signed),digest:encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256",Uint8Array.from(signed))))};
+  await cdp("Page.navigate",{url:origin+"/compose?rich-proof=1"});
+  await wait(async()=>evaluate(`document.querySelector('select[name=target]')?.options.length===2`),"incoming Grant is selectable");
+  const richText="## Highlights\n- **First**\n- Second\n1. Number one\n2. Number two\n> A quote\n\n<img src=x onerror=alert(1)>";
+  await fill("Title","Release notes");
+  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value=${JSON.stringify(richText)};e.dispatchEvent(new Event('input',{bubbles:true}));const s=document.querySelector('select[name=target]');s.value=s.options[1].value;s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] h1')?.textContent==='Release notes' && document.querySelectorAll('[aria-label="Message preview"] ul li').length===2 && document.querySelectorAll('[aria-label="Message preview"] ol li').length===2`),"rich message preview");
+  const rendered=async(selector:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});return {headings:[...e.querySelectorAll('h1,h2,h3')].map(n=>n.textContent),bullets:[...e.querySelectorAll('ul li')].map(n=>n.textContent),numbered:[...e.querySelectorAll('ol li')].map(n=>n.textContent),quote:e.querySelector('blockquote')?.textContent,images:e.querySelectorAll('img').length,text:e.innerText.includes('<img src=x onerror=alert(1)>')};})()`);
+  const previewContent=await rendered('[aria-label="Message preview"]');
+  assert.deepEqual(previewContent,{headings:["Release notes","Highlights"],bullets:["First","Second"],numbered:["Number one","Number two"],quote:"A quote",images:0,text:true});
+  await evaluate(`document.querySelector('form[enctype]').requestSubmit()`);
+  await wait(()=>has("Message delivered"),"native rich composition and delivery status");assert.equal(composePosts,1);
+  await evaluate(`document.querySelector('[aria-label="Submission status"] a').click()`);
+  await wait(async()=>evaluate(`location.pathname===${JSON.stringify(`/sent/${composed.messageId}`)} && !!document.querySelector('article h1')`),"sent rich-message reader");
+  assert.deepEqual(await rendered('article > div'),previewContent,"Preview and sent reader must render the same safe content");
   // Expired sessions use the same login, preserve the QR fragment, and clear the stale cookie.
   const qrFragment=new URLSearchParams({sender:peerAddress,did:peerDid}).toString();
   await cdp("Network.setCookie",{name:"hail_session",value:"hails_"+"B".repeat(43),url:origin,httpOnly:true,sameSite:"Lax"});

@@ -4,6 +4,24 @@ Status: Product direction and planning record, October 24, 2026. This document
 does not amend protocol specifications, approve gated security work, or authorize
 production changes. Proposed mechanisms below require separate design and review.
 
+## Follow-Up — Rich Authoring With Existing Safe Portable Text
+
+The composer now exposes heading, flat bullet/numbered-list and quote controls,
+in addition to the existing inline formatting and HTTPS links. These use the
+already specified `spt-2` blocks (or text blocks inside a bundled-header `spt-3`
+body), not new protocol features. The authoring syntax is a documented small
+subset, not arbitrary Markdown/HTML import. Numbering is automatic; nested-list
+authoring and general attachments remain deferred.
+
+The preview shares the reader's body projection and `RichText` component rather
+than maintaining another renderer. A behavior-preserving body-projection extraction
+was verified before authoring changes. Unit checks include codec round trips,
+line-selection boundaries, paragraph preservation and literal HTML. The real GUI
+proxy/browser check creates an incoming Grant only in its local fixture, submits
+the native rich composer form, validates its actual `spt-2` document, reads its
+delivered Sent body and compares its rendering with the preview. Desktop and
+mobile-width runs pass, alongside 27 unit tests, build and typecheck.
+
 ## Follow-Up — Onboarding Presentation
 
 Signup, the local recovery-kit preview, owner-authorized replacement-passkey

@@ -73,7 +73,10 @@ initials as the fallback; avatar bytes are bundled and never loaded remotely.
 The compose route sends plain or structured heading/body messages through an
 active categorized Grant, optionally with one bundled PNG header, and displays
 refreshable delivery status. Rich mode provides selection-based bold, italic,
-code, and HTTPS-link controls. Senders can invite one reply for seven days;
+code and HTTPS-link controls, plus line-based headings, flat bullet/numbered lists
+and quotes. Formatting shortcuts are documented in the composer; HTML remains
+literal text. The preview uses the same safe body projection and renderer as
+received/sent messages. Senders can invite one reply for seven days;
 Inbox detail exposes a plain-text reply form only while that signed capability
 is locally unused. It requires `grants:read` and `messages:write`.
 The Sent view reads retained outbound messages and authenticated delivery status
