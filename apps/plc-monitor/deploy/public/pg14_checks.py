@@ -5,24 +5,26 @@ import time
 
 
 def run(args, **kwargs):
-    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
+    kwargs.setdefault('stdout', subprocess.PIPE)
+    kwargs.setdefault('stderr', subprocess.PIPE)
+    result = subprocess.run(args, **kwargs)
     if result.returncode:
         raise RuntimeError(args[0] + ' operation failed; output withheld to protect credentials/data')
     return result.stdout
 
 
-def sql(container, query, database='monitor'):
+def sql(container, query, database='monitor', user='monitor'):
     return run(['docker', 'exec', '-e', 'PGOPTIONS=-c timezone=UTC -c statement_timeout=60000 -c lock_timeout=5000',
-                container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'monitor', '-d', database,
+                container, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', user, '-d', database,
                 '-Atq', '-c', query]).decode().strip()
 
 
-def wait_version(container, expected):
+def wait_version(container, expected, database='monitor', user='monitor'):
     for _ in range(80):
-        ready = subprocess.run(['docker', 'exec', container, 'pg_isready', '-U', 'monitor', '-d', 'monitor'], capture_output=True)
+        ready = subprocess.run(['docker', 'exec', container, 'pg_isready', '-h', '127.0.0.1', '-U', user, '-d', database], capture_output=True)
         if ready.returncode == 0:
             try:
-                if int(sql(container, 'SHOW server_version_num')) == expected:
+                if int(sql(container, 'SHOW server_version_num', database, user)) == expected:
                     return
             except RuntimeError:
                 pass
@@ -30,9 +32,9 @@ def wait_version(container, expected):
     raise RuntimeError('Database did not become ready at the expected minor version')
 
 
-def manifest(container):
+def manifest(container, database='monitor', user='monitor'):
     tables = sql(container, "SELECT format('%I.%I',schemaname,tablename) FROM pg_tables "
-                 "WHERE schemaname NOT IN ('pg_catalog','information_schema') ORDER BY 1").splitlines()
+                 "WHERE schemaname NOT IN ('pg_catalog','information_schema') ORDER BY 1", database, user).splitlines()
     if not tables:
         raise RuntimeError('No application tables found')
     result = {}
@@ -41,7 +43,7 @@ def manifest(container):
         query = "SELECT json_build_object('rows',count(*),'sha256',encode(sha256(convert_to(" \
                 "coalesce(string_agg(to_jsonb(t)::text,E'\\n' ORDER BY to_jsonb(t)::text COLLATE \"C\"),''),'UTF8')),'hex')) " \
                 'FROM ' + table + ' t'
-        result[table] = json.loads(sql(container, query))
+        result[table] = json.loads(sql(container, query, database, user))
     return result
 
 

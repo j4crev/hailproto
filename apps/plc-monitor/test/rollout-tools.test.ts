@@ -100,3 +100,21 @@ with tempfile.TemporaryDirectory() as directory:
  print('PASS')`,{});
   expect(output.trim()).toBe("PASS");
 });
+
+it("PG18 operations retain their database overlay and refuse legacy rollback before changing services",async()=>{
+  const output=await python(`import importlib.util,sys,tempfile
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('setup',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+with tempfile.TemporaryDirectory() as directory:
+ p=Path(directory);m.CONFIG=p;m.DEPLOY=p/'legacy'
+ assert str(p/'compose.postgres.yaml') not in m.compose()
+ (p/'compose.postgres.yaml').write_text('retained DB overlay')
+ assert m.compose()[-2:]==['-f',str(p/'compose.postgres.yaml')]
+ calls=[];m.run=lambda *args,**kwargs:calls.append(args)
+ try:m.restore_legacy('old-image',b'old wrapper')
+ except m.SetupError:pass
+ else:raise AssertionError('Legacy rollback accepted after major migration')
+ assert not calls and (p/'compose.postgres.yaml').read_text()=='retained DB overlay'
+ print('PASS')`,{});
+  expect(output.trim()).toBe("PASS");
+});

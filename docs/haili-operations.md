@@ -79,13 +79,20 @@ only then sends the backup heartbeat. Missing heartbeats alert after 26 hours.
 No automatic deletion policy is enabled.
 
 Quarterly, download a fresh object on a non-provider host, decrypt it, restore it
-into a disposable PostgreSQL 14.24 instance, compare schema and row counts, and
-decrypt every `account_keys` row. Record the object name, digest, counts and
+into a disposable instance of the recorded PostgreSQL major (currently 14.24;
+18 migration is prepared, not yet applied), compare schema and row counts, and
+decrypt every retained account and prepared-transfer operational key. Record the object name, digest, counts and
 result in `docs/haili-launch.md`; remove plaintext artifacts afterward.
 
-PostgreSQL 14 reaches end of life in November 2026. Before then, rehearse a
-backup, restore and rollback on the next supported major release; deploy the
-major upgrade only after schema counts, key decryption and canary flows match.
+PostgreSQL 14 reaches end of life November 12, 2026. Direct 14→18 encrypted-copy
+rehearsals passed for both production databases; monitor-first console cutover
+and write-safe rollback boundaries are in [PostgreSQL updates](monitor-postgres-update.md).
+No live major upgrade has occurred yet. Once installed, the provider database
+overlay at `/etc/hail-provider-postgres/compose.yaml` must accompany every Compose
+operation, including application rollback. A major migration uses a new volume;
+never attach 18 to a 14 directory or select an old volume after new writes.
+Prepared backup tooling includes the active DB image/version and database overlay
+in its encrypted archive; restore on the recorded major, not a hardcoded 14 image.
 
 ## Monitoring and recovery thresholds
 

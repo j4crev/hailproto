@@ -103,9 +103,12 @@ def caddy(domain):
 
 
 def compose():
-    return ['docker', 'compose', '--env-file', str(DEPLOY / '.env'),
-            '--env-file', str(CONFIG / 'enrollment.env'), '-f', str(DEPLOY / 'compose.yaml'),
-            '-f', str(CONFIG / 'compose.override.json')]
+    command = ['docker', 'compose', '--env-file', str(DEPLOY / '.env'),
+               '--env-file', str(CONFIG / 'enrollment.env'), '-f', str(DEPLOY / 'compose.yaml'),
+               '-f', str(CONFIG / 'compose.override.json')]
+    postgres = CONFIG / 'compose.postgres.yaml'
+    if postgres.exists(): command += ['-f', str(postgres)]
+    return command
 
 
 def private_write(path, value, mode=0o600):
@@ -117,7 +120,8 @@ def private_write(path, value, mode=0o600):
 
 
 def sql(query):
-    return text(*BASE, 'exec', '-T', 'db', 'psql', '-U', 'monitor', '-d', 'monitor', '-At', '-c', query)
+    command = compose() if (CONFIG / 'active').exists() else BASE
+    return text(*command, 'exec', '-T', 'db', 'psql', '-U', 'monitor', '-d', 'monitor', '-At', '-c', query)
 
 
 def snapshot():
@@ -163,10 +167,11 @@ def backup(public_key):
     archive = BACKUPS / ('monitor-' + time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()) + '-' + os.urandom(4).hex() + '.tar.gpg')
     with tempfile.TemporaryDirectory(prefix='hail-monitor-backup-', dir='/var/tmp') as temporary:
         work = Path(temporary)
+        command = compose() if (CONFIG / 'active').exists() else BASE
         with (work / 'monitor.dump').open('wb') as dump:
-            run(*BASE, 'exec', '-T', 'db', 'pg_dump', '-U', 'monitor', '-d', 'monitor', '-Fc', stdout=dump)
+            run(*command, 'exec', '-T', 'db', 'pg_dump', '-U', 'monitor', '-d', 'monitor', '-Fc', stdout=dump)
         with (work / 'monitor.dump').open('rb') as dump:
-            run(*BASE, 'exec', '-T', 'db', 'pg_restore', '--list', stdin=dump, stdout=subprocess.DEVNULL)
+            run(*command, 'exec', '-T', 'db', 'pg_restore', '--list', stdin=dump, stdout=subprocess.DEVNULL)
         with tarfile.open(work / 'backup.tar', 'w') as tar:
             tar.add(work / 'monitor.dump', arcname='monitor.dump')
             for name in ('.env', 'secrets', 'reviewed', 'compose.yaml'):
@@ -209,6 +214,8 @@ if(peer.status!==409)process.exit(1);"""
 
 def restore_legacy(image, wrapper):
     # Runtime-only rollback: never restore an older database over newer evidence.
+    if (CONFIG / 'compose.postgres.yaml').exists():
+        raise SetupError('Legacy runtime rollback requires review after the database migration')
     if CONFIG.exists(): subprocess.run([*compose(), 'stop', 'enrollment-edge'])
     run('docker', 'tag', image, IMAGE)
     run(*BASE, 'up', '-d', '--no-deps', '--force-recreate', 'monitor')

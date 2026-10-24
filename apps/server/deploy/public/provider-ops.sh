@@ -4,6 +4,11 @@ set -eu
 root=/opt/hailproto
 deploy=$root/apps/server/deploy/public
 compose="docker compose --env-file $deploy/.env -f $deploy/compose.yaml"
+postgres=/etc/hail-provider-postgres/compose.yaml
+# Database storage/major version survives application release rollbacks.
+if [ -f "$postgres" ]; then
+  compose="$compose -f $postgres"
+fi
 
 case "${1:-}" in
   status)
