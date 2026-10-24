@@ -147,6 +147,7 @@ try{
   const cdp=(method:string,params:unknown={})=>new Promise<any>((resolve,reject)=>{const id=++sequence;waiting.set(id,{resolve,reject});socket!.send(JSON.stringify({id,method,params}));});
   const evaluate=async(expression:string)=>{const result=await cdp("Runtime.evaluate",{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw new Error("Browser evaluation failed: "+(result.exceptionDetails.exception?.description??result.exceptionDetails.text));return result.result.value;};
   const has=async(text:string)=>evaluate(`document.body?.innerText.includes(${JSON.stringify(text)})??false`);
+  const styles=async(selector:string,properties:string[])=>evaluate(`(()=>{const style=getComputedStyle(document.querySelector(${JSON.stringify(selector)}));return ${JSON.stringify(properties)}.map(property=>style[property]);})()`);
   const noPrematureSignIn=async()=>assert(await evaluate(`![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Sign in with a created passkey and finish setup')`),"Sign-in offered before confirmed passkey enrollment");
   const click=async(text:string)=>{await wait(async()=>evaluate(`!![...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled)`),"button: "+text);
     await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled).click()`);};
@@ -160,10 +161,15 @@ try{
   await cdp("Page.navigate",{url:origin+"/signup#invitation="+invitation});
   await wait(()=>has("Start with an invitation"),"signup render");
   await wait(async()=>evaluate("location.hash==='' && document.querySelector('input[type=password]')?.value===''") ,"signup hydration");
+  assert.deepEqual(await styles("body",["backgroundColor","margin"]),["rgb(244, 246, 243)","0px"]);
+  assert.deepEqual(await styles("main > section",["display","gap","paddingTop","borderRadius"]),
+    ["flex","16px",process.env.HAIL_WIZARD_MOBILE==="true"?"18px":"28px","18px"]);
+  assert.deepEqual(await styles("input[type=password]",["borderTopWidth","borderTopStyle","borderRadius"]),["1px","solid","6px"]);
   await fill("Your Hail address","alice");await fill("External security-alert email","alice@example.net");
   await evaluate(`document.querySelector('input[type=checkbox]').click()`);
   await click("Create recovery kit locally");await wait(()=>has("Save and verify recovery"),"local key generation");
-  secret=await evaluate("document.querySelector('.secret').textContent");assert.equal(secret.length,43);
+  secret=await evaluate("document.querySelector('[data-recovery-secret]').textContent");assert.equal(secret.length,43);
+  assert.deepEqual(await styles("[data-recovery-secret]",["userSelect","overflowWrap"]),["all","anywhere"]);
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Recovery screen overflows viewport");
   await click("Save encrypted recovery backup");
   await wait(async()=>{try{return (await readdir(work)).includes("hail-recovery.vault.json");}catch{return false;}},"vault download");
@@ -213,6 +219,8 @@ try{
   const messagePath=`/message/${encodeURIComponent(peerDid)}/${incomingId}`;
   await evaluate(`(()=>{const a=document.createElement('a');a.href=${JSON.stringify(messagePath)};a.textContent='Open received test';document.body.append(a);a.click();})()`);
   await wait(()=>has("Send reply"),"incoming one-time reply after signup navigation");
+  assert.deepEqual(await styles("article",["borderRadius","overflow"]),["18px","hidden"]);
+  assert.deepEqual(await styles("article > div",["fontSize","lineHeight"]),["18px","30.6px"]);
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Browser transport reply';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await click("Send reply");
   await wait(async()=>evaluate("location.pathname.startsWith('/sent/') && !!document.querySelector('[aria-label=\"Status: delivered\"]')"),"native reply form through provider proxy and redirect to Sent");
@@ -224,7 +232,9 @@ try{
   await wait(()=>has("No permissions on this page"),"allowed-sender list");
   await fill("Potential sender's Hail address",peerAddress);await click("Review sender");await wait(()=>has("Test sender"),"verified sender review");
   await evaluate(`document.querySelector('fieldset input[value=updates]').click()`);
+  assert.deepEqual(await styles("fieldset label",["flexDirection","alignItems"]),["row","center"]);
   await click("Review permission before approving");await wait(()=>has("Confirm allowed sender"),"exact permission review");
+  assert.deepEqual(await styles("main section:has(h2)",["borderTopWidth","borderTopColor"]),["2px","rgb(23, 99, 63)"]);
   assert.equal(allowed,null);assert(await has("alice@provider.example"));
   await click("Allow sender with my passkey");await wait(()=>has("Review revocation"),"passkey-approved permission saved");
   assert.equal(allowed!.status,"active");await click("Review revocation");await wait(()=>has("Confirm revocation"),"revocation review");
@@ -237,6 +247,12 @@ try{
   assert.equal(await evaluate(`document.querySelector('input[placeholder="canary-prov@haili.app"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Opening a QR must not prepare or approve a permission");
   await click("Review sender");await wait(()=>has("Test sender"),"QR and typed address share the same review");
+  await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>has("Compose a Hail"),"compose styling");
+  assert.deepEqual(await styles("form[enctype] label",["display","fontWeight"]),["grid","750"]);
+  assert.deepEqual(await styles("fieldset label",["display","gap"]),["flex","6px"]);
+  assert.deepEqual(await styles("fieldset input",["width"]),["13px"]);
+  assert.deepEqual(await styles('[aria-label="Bold"]',["backgroundColor","paddingTop","borderTopWidth"]),["rgb(247, 249, 247)","6px","1px"]);
+  assert.deepEqual(await styles('[aria-label="Message preview"]',["minHeight"]),[process.env.HAIL_WIZARD_MOBILE==="true"?"260px":"360px"]);
   for(const req of requests){assert(!req.body.includes(secret),"Recovery secret uploaded");assert(!req.body.includes('"ciphertext"'),"Recovery vault uploaded");}
   assert(requests.filter(r=>r.authorization).every(r=>r.authorization==="Bearer "+setupToken||r.path.endsWith("check-address")));
   passed=true;

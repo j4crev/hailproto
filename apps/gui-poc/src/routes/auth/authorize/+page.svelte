@@ -27,14 +27,11 @@
   }
 </script>
 
-<section class="card authorize"><p class="eyebrow">hailp authorization</p><h1>Connect this command line?</h1>
-  {#if details}<p><strong>hailp</strong> will receive temporary access through <code>{new URL(details.redirectUri).host}</code>.</p>
-    <ul>{#each details.scopes as scope}<li>{scope}</li>{/each}</ul>
-    <button onclick={authorize} disabled={busy}>Verify with a passkey and authorize</button>
-  {:else if !message}<p>Loading authorization request…</p>{/if}
-  {#if message}<p class="status" aria-live="polite">{message}</p>{/if}
+<section class="hail-card flex max-w-[620px] flex-col items-start gap-4 p-[42px]">
+  <p class="m-0 text-[12px] font-extrabold tracking-[.12em] text-[#22714b] uppercase">hailp authorization</p><h1 class="m-0">Connect this command line?</h1>
+  {#if details}<p class="m-0 leading-[1.6] text-[#657168]"><strong>hailp</strong> will receive temporary access through <code class="text-[.9em]">{new URL(details.redirectUri).host}</code>.</p>
+    <ul class="m-0 pl-[22px] text-[#43544a]">{#each details.scopes as scope}<li>{scope}</li>{/each}</ul>
+    <button class="cursor-pointer rounded-[10px] border-0 bg-[#17633f] px-[18px] py-3 [font:inherit] font-[750]! text-white disabled:cursor-wait disabled:opacity-60" onclick={authorize} disabled={busy}>Verify with a passkey and authorize</button>
+  {:else if !message}<p class="m-0 leading-[1.6] text-[#657168]">Loading authorization request…</p>{/if}
+  {#if message}<p class="m-0 text-[14px] leading-[1.6] text-[#657168]" aria-live="polite">{message}</p>{/if}
 </section>
-
-<style>
-  .authorize{display:flex;max-width:620px;flex-direction:column;align-items:flex-start;gap:16px;padding:42px}.eyebrow{margin:0;color:#22714b;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}h1,p,ul{margin:0}.authorize>p:not(.eyebrow){color:#657168;line-height:1.6}ul{padding-left:22px;color:#43544a}code{font-size:.9em}button{padding:12px 18px;border:0;border-radius:10px;background:#17633f;color:white;font:inherit;font-weight:750;cursor:pointer}button:disabled{cursor:wait;opacity:.6}.status{font-size:14px}
-</style>

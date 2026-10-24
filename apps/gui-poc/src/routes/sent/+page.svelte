@@ -8,23 +8,19 @@
 </script>
 
 {#if !data.configured}
-  <section class="card notice">Connect the canary to view sent messages.</section>
+  <section class="hail-card p-[30px] text-center text-[#69756e]">Connect the canary to view sent messages.</section>
 {:else}
-  <section class="heading"><div><p>Sent</p><h1>{data.account.address}</h1><small>{data.account.did}</small></div><div class="actions"><button type="button" onclick={refresh} disabled={refreshing}>{refreshing?'Refreshing…':'Refresh'}</button><a href="/compose">Compose</a></div></section>
+  <section class="mb-6 flex items-end justify-between max-[560px]:flex-col max-[560px]:items-start max-[560px]:gap-3.5"><div><p class="m-0 mb-[7px] text-[12px] font-extrabold tracking-[.12em] text-[#22714b] uppercase">Sent</p><h1 class="m-0 mb-[5px] text-[32px]">{data.account.address}</h1><small class="text-[#748078]">{data.account.did}</small></div><div class="flex gap-2"><button class="cursor-pointer rounded-[10px] border-0 bg-[#e5ece7] px-3.5 py-2.5 [font:inherit] text-[13px]! font-[750]! text-[#28513c] disabled:cursor-not-allowed disabled:opacity-60" type="button" onclick={refresh} disabled={refreshing}>{refreshing?'Refreshing…':'Refresh'}</button><a class="cursor-pointer rounded-[10px] border-0 bg-[#17633f] px-3.5 py-2.5 [font:inherit] text-[13px]! font-[750]! text-white no-underline" href="/compose">Compose</a></div></section>
   {#if data.messages.length}
-    <section class="feed" aria-label="Sent messages">
+    <section class="grid gap-[13px]" aria-label="Sent messages">
       {#each data.messages as message}
-        <a class="card message" href={`/sent/${message.messageId}`}>
-          <div class="meta"><div class="recipient"><strong>To {message.recipientAddress??message.recipient}</strong>{#if message.recipientAddress}<small>{message.recipient}</small>{/if}</div><span class:accepted={message.state==='accepted'} class="status" aria-label={`Status: ${message.state}`} title={message.reason??undefined}><b aria-hidden="true">{deliveryIcon(message.state)}</b> {message.state}</span></div>
-          {#if message.header}<img src={message.header.src} alt={message.header.alt} width={message.header.width} height={message.header.height}/>{/if}
-          <p>{message.preview}</p><time datetime={message.createdAt}>{date(message.createdAt)}</time>
+        <a class="hail-card grid overflow-hidden text-inherit no-underline" href={`/sent/${message.messageId}`}>
+          <div class="flex items-center justify-between gap-3 px-[18px] pt-4 max-[560px]:items-start"><div class="flex min-w-0 flex-col gap-[3px]"><strong class="truncate text-[14px] max-[560px]:whitespace-normal">To {message.recipientAddress??message.recipient}</strong>{#if message.recipientAddress}<small class="truncate font-mono text-[11px] text-[#778179]">{message.recipient}</small>{/if}</div><span class={["text-[12px] font-[750] capitalize whitespace-nowrap",message.state==='accepted'?"text-[#168244]":"text-[#202723]"]} aria-label={`Status: ${message.state}`} title={message.reason??undefined}><b class="text-[16px]" aria-hidden="true">{deliveryIcon(message.state)}</b> {message.state}</span></div>
+          {#if message.header}<img class="mt-3.5 max-h-[220px] w-full object-cover" src={message.header.src} alt={message.header.alt} width={message.header.width} height={message.header.height}/>{/if}
+          <p class="mx-[18px] mt-[15px] mb-2.5 leading-[1.5] text-[#354139]">{message.preview}</p><time class="mx-[18px] mb-4 text-[11px] text-[#778179]" datetime={message.createdAt}>{date(message.createdAt)}</time>
         </a>
       {/each}
     </section>
-    {#if data.paged||data.next}<nav class="pages">{#if data.paged}<a href="/sent">← Newest messages</a>{/if}{#if data.next}<a href={`/sent?after=${encodeURIComponent(data.next)}`}>Older messages →</a>{/if}</nav>{/if}
-  {:else}<section class="card empty"><h2>No sent messages</h2><p>Messages you send will appear here.</p></section>{/if}
+    {#if data.paged||data.next}<nav class="mt-[18px] flex justify-center gap-[22px] [&_a]:text-[13px] [&_a]:font-[750] [&_a]:text-[#286446] [&_a]:no-underline">{#if data.paged}<a href="/sent">← Newest messages</a>{/if}{#if data.next}<a href={`/sent?after=${encodeURIComponent(data.next)}`}>Older messages →</a>{/if}</nav>{/if}
+  {:else}<section class="hail-card p-[30px] text-center"><h2 class="mt-0">No sent messages</h2><p class="text-[#69756e]">Messages you send will appear here.</p></section>{/if}
 {/if}
-
-<style>
-  .heading{display:flex;align-items:end;justify-content:space-between;margin-bottom:24px}.heading p{margin:0 0 7px;color:#22714b;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.heading h1{margin:0 0 5px;font-size:32px}.heading small{color:#748078}.actions{display:flex;gap:8px}.actions button,.actions a{padding:10px 14px;border:0;border-radius:10px;font:inherit;font-size:13px;font-weight:750;text-decoration:none;cursor:pointer}.actions button{background:#e5ece7;color:#28513c}.actions button:disabled{cursor:not-allowed;opacity:.6}.actions a{background:#17633f;color:white}.feed{display:grid;gap:13px}.message{display:grid;overflow:hidden;color:inherit;text-decoration:none}.meta{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px 0}.recipient{display:flex;min-width:0;flex-direction:column;gap:3px}.recipient strong,.recipient small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.recipient strong{font-size:14px}.recipient small{color:#778179;font-family:ui-monospace,monospace;font-size:11px}.status{color:#202723;font-size:12px;font-weight:750;text-transform:capitalize;white-space:nowrap}.status b{font-size:16px}.status.accepted{color:#168244}.message>img{width:100%;max-height:220px;margin-top:14px;object-fit:cover}.message>p{margin:15px 18px 10px;color:#354139;line-height:1.5}.message time{margin:0 18px 16px;color:#778179;font-size:11px}.pages{display:flex;justify-content:center;gap:22px;margin-top:18px}.pages a{color:#286446;font-size:13px;font-weight:750;text-decoration:none}.empty,.notice{padding:30px;text-align:center}.empty h2{margin-top:0}.empty p,.notice{color:#69756e}@media(max-width:560px){.heading{align-items:flex-start;flex-direction:column;gap:14px}.meta{align-items:flex-start}.recipient strong{white-space:normal}}
-</style>

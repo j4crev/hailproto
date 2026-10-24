@@ -1,4 +1,5 @@
 <script lang="ts">
+  import "../app.css";
   import {page} from "$app/state";
   let { children } = $props();
 </script>
@@ -10,24 +11,10 @@
 
 <!-- CSP is document-scoped: leave recovery/signup with a full load so their
      no-form/no-network policies cannot leak into the ordinary app via SPA routing. -->
-<div class="shell" data-sveltekit-reload={page.url.pathname==="/signup"||page.url.pathname==="/signup/recovery"}>
-  <header>
-    <a href="/" class="brand" aria-label="Hail inbox home"><span>H</span> Hail</a>
-    <nav><a href="/">Inbox</a><a href="/sent">Sent</a><a href="/compose">Compose</a><a href="/permissions">Allowed senders</a><a href="/settings/security">Security</a></nav>
+<div class="mx-auto w-[min(860px,calc(100%_-_32px))]" data-sveltekit-reload={page.url.pathname==="/signup"||page.url.pathname==="/signup/recovery"}>
+  <header class="flex h-[76px] items-center justify-between max-[540px]:h-auto max-[540px]:min-h-[76px] max-[540px]:flex-wrap max-[540px]:gap-3 max-[540px]:py-3">
+    <a href="/" class="flex items-center gap-2.5 text-[19px] font-[750] text-[#123f2b] no-underline" aria-label="Hail inbox home"><span class="grid size-8 place-items-center rounded-[10px] bg-[#17633f] text-white">H</span> Hail</a>
+    <nav class="flex gap-4 max-[540px]:flex-wrap max-[540px]:gap-3 [&_a]:text-[13px] [&_a]:font-bold [&_a]:text-[#526058] [&_a]:no-underline"><a href="/">Inbox</a><a href="/sent">Sent</a><a href="/compose">Compose</a><a href="/permissions">Allowed senders</a><a href="/settings/security">Security</a></nav>
   </header>
-  <main>{@render children()}</main>
+  <main class="pt-7 pb-16 max-[540px]:pt-3">{@render children()}</main>
 </div>
-
-<style>
-  :global(*) { box-sizing: border-box; }
-  :global(body) { margin: 0; background: #f4f6f3; color: #17231d; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-  :global(a) { color: inherit; }
-  .shell { width: min(860px, calc(100% - 32px)); margin: 0 auto; }
-  header { height: 76px; display: flex; align-items: center; justify-content: space-between; }
-  .brand { display: flex; align-items: center; gap: 10px; color: #123f2b; font-size: 19px; font-weight: 750; text-decoration: none; }
-  .brand span { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 10px; background: #17633f; color: white; }
-  nav { display: flex; gap: 16px; } nav a { color: #526058; font-size: 13px; font-weight: 700; text-decoration: none; }
-  main { padding: 28px 0 64px; }
-  :global(.card) { background: white; border: 1px solid #dfe5e0; border-radius: 18px; box-shadow: 0 10px 30px rgba(21, 50, 35, .05); }
-  @media (max-width: 540px) { main { padding-top: 12px; } header{height:auto;min-height:76px;flex-wrap:wrap;gap:12px;padding:12px 0}nav{flex-wrap:wrap;gap:12px} }
-</style>

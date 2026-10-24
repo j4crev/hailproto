@@ -14,14 +14,10 @@
   }
 </script>
 
-<section class="card login">
-  <p class="eyebrow">Provider access</p>
-  <h1>Sign in to Hail</h1>
-  <p>Use a passkey saved on this device, another device, or a security key.</p>
-  <button onclick={login} disabled={busy}>Sign in with a passkey</button>
-  {#if message}<p class="status" aria-live="polite">{message}</p>{/if}
+<section class="hail-card flex max-w-[560px] flex-col items-start gap-4 p-[42px]">
+  <p class="m-0 text-[12px] font-extrabold tracking-[.12em] text-[#22714b] uppercase">Provider access</p>
+  <h1 class="m-0">Sign in to Hail</h1>
+  <p class="m-0 leading-[1.6] text-[#657168]">Use a passkey saved on this device, another device, or a security key.</p>
+  <button class="cursor-pointer rounded-[10px] border-0 bg-[#17633f] px-[18px] py-3 [font:inherit] font-[750]! text-white disabled:cursor-wait disabled:opacity-60" onclick={login} disabled={busy}>Sign in with a passkey</button>
+  {#if message}<p class="m-0 text-[14px] leading-[1.6] text-[#657168]" aria-live="polite">{message}</p>{/if}
 </section>
-
-<style>
-  .login{display:flex;max-width:560px;flex-direction:column;align-items:flex-start;gap:16px;padding:42px}.eyebrow{margin:0;color:#22714b;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}h1,p{margin:0}.login>p:not(.eyebrow){color:#657168;line-height:1.6}button{padding:12px 18px;border:0;border-radius:10px;background:#17633f;color:white;font:inherit;font-weight:750;cursor:pointer}button:disabled{cursor:wait;opacity:.6}.status{font-size:14px}
-</style>

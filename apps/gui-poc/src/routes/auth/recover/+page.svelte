@@ -17,14 +17,11 @@
   }
 </script>
 
-<section class="card recovery"><p class="eyebrow">Owner recovery</p><h1>Create a replacement passkey</h1>
-  <p>This link proves existing Hail owner authority. It does not change custody or publish a PLC operation.</p>
-  {#if !complete}<label>Passkey label <input bind:value={label} maxlength="80" /></label>
-    <button onclick={enroll} disabled={busy||!token||!label.trim()}>Create replacement passkey</button>
-  {:else}<a href="/auth/login">Sign in with the new passkey</a>{/if}
-  {#if message}<p class="status" aria-live="polite">{message}</p>{/if}
+<section class="hail-card flex max-w-[600px] flex-col items-start gap-4 p-[42px]">
+  <p class="m-0 text-[12px] font-extrabold tracking-[.12em] text-[#22714b] uppercase">Owner recovery</p><h1 class="m-0">Create a replacement passkey</h1>
+  <p class="m-0 leading-[1.6] text-[#657168]">This link proves existing Hail owner authority. It does not change custody or publish a PLC operation.</p>
+  {#if !complete}<label class="flex flex-col gap-1.5 text-[13px] font-bold">Passkey label <input class="min-w-[280px] rounded-lg border border-solid border-[#cad4cd] p-2.5 [font:inherit]" bind:value={label} maxlength="80" /></label>
+    <button class="rounded-[9px] border-0 bg-[#17633f] px-[15px] py-[11px] [font:inherit] font-[750]! text-white disabled:opacity-50" onclick={enroll} disabled={busy||!token||!label.trim()}>Create replacement passkey</button>
+  {:else}<a class="rounded-[9px] border-0 bg-[#17633f] px-[15px] py-[11px] [font:inherit] font-[750]! text-white no-underline" href="/auth/login">Sign in with the new passkey</a>{/if}
+  {#if message}<p class="m-0 text-[14px] leading-[1.6] text-[#657168]" aria-live="polite">{message}</p>{/if}
 </section>
-
-<style>
-  .recovery{display:flex;max-width:600px;flex-direction:column;align-items:flex-start;gap:16px;padding:42px}.eyebrow{margin:0;color:#22714b;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}h1,p{margin:0}.recovery>p:not(.eyebrow){color:#657168;line-height:1.6}label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700}input{min-width:280px;padding:10px;border:1px solid #cad4cd;border-radius:8px;font:inherit}button,a{padding:11px 15px;border:0;border-radius:9px;background:#17633f;color:white;font:inherit;font-weight:750;text-decoration:none}button:disabled{opacity:.5}.status{font-size:14px}
-</style>

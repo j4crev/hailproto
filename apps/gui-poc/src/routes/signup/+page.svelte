@@ -148,7 +148,16 @@
 </script>
 
 <svelte:head><title>Create your Hail account</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
-<section class="card setup" aria-busy={busy}>
+<section class="hail-card flex flex-col gap-4 p-7 max-[540px]:p-[18px]
+  [&_h1]:m-0 [&_h2]:m-0 [&_h2]:text-[19px] [&_p]:m-0 [&_p]:leading-[1.6]
+  [&_label]:block [&_label]:leading-[1.6]
+  [&_input:not([type=checkbox])]:block [&_input:not([type=checkbox])]:w-full [&_input:not([type=checkbox])]:min-w-0
+  [&_input:not([type=checkbox])]:rounded-md [&_input:not([type=checkbox])]:border [&_input:not([type=checkbox])]:border-solid
+  [&_input:not([type=checkbox])]:border-[#cad4cd] [&_input:not([type=checkbox])]:p-2.5 [&_input:not([type=checkbox])]:[font:inherit]
+  [&_button]:self-start [&_button]:px-4 [&_button]:py-2.5 [&_button]:[font:inherit] [&_button]:cursor-pointer
+  [&_button:disabled]:opacity-60 [&_button:disabled]:cursor-not-allowed
+  [&_code]:[overflow-wrap:anywhere] [&_code]:whitespace-pre-wrap [&_code]:[word-break:break-word]
+  [&_pre]:[overflow-wrap:anywhere] [&_pre]:whitespace-pre-wrap [&_pre]:[word-break:break-word] [&_pre]:text-[12px]" aria-busy={busy}>
   <h1>Create your Hail account</h1>
   <p>Invited reduced-assurance alpha · managed identity</p>
   {#if complete}
@@ -164,7 +173,7 @@
     {#if !cached}
       <h2>Start with an invitation</h2>
       <label>Invitation<input type="password" bind:value={invitation} autocomplete="off" maxlength="2048" /></label>
-      <label>Your Hail address<div class="address"><input bind:value={local} pattern={'[a-z0-9][a-z0-9._-]{0,63}'} maxlength="64" autocomplete="username" />@{new URL(data.policy.provider).hostname}</div></label>
+      <label>Your Hail address<div class="flex flex-wrap items-center gap-[5px] [&_input]:!w-[200px]"><input bind:value={local} pattern={'[a-z0-9][a-z0-9._-]{0,63}'} maxlength="64" autocomplete="username" />@{new URL(data.policy.provider).hostname}</div></label>
       <p>Availability is checked before creating keys. The address is reserved when you submit your verified setup; another user could reserve it first.</p>
       <label>External security-alert email<input type="email" bind:this={emailInput} bind:value={email} autocomplete="email" maxlength="254" required /></label>
       <p>Your provider signs everyday Hail permissions. You retain separate owner recovery authority. Your address, identity keys and service endpoint will be permanently public after publication; cancellation cannot erase that identity.</p>
@@ -177,7 +186,7 @@
     <h2>Save and verify recovery</h2>
     <button disabled={busy} onclick={()=>{if(vault){download(JSON.stringify(vault,null,2),"hail-recovery.vault.json");backupSaved=true;}}}>Save encrypted recovery backup</button>
     <p>Store this secret in a password manager or on paper, separately from the backup. Anyone with both can unlock your owner keys.</p>
-    <code class="secret">{secret}</code>
+    <code data-recovery-secret class="select-all bg-[#f4f6f3] p-3.5">{secret}</code>
     <label><input type="checkbox" bind:checked={secretSaved} /> I saved the secret separately.</label>
     <label>Reopen the saved recovery backup<input type="file" accept=".json,application/json" onchange={e=>{backupFile=e.currentTarget.files?.[0]??null;}} /></label>
     <label>Secret from your separate copy<input type="password" bind:value={enteredSecret} autocomplete="off" spellcheck="false" maxlength="43" /></label>
@@ -232,6 +241,3 @@
   {#if now<retryAt}<p>Retry available in {Math.ceil((retryAt-now)/1000)} seconds.</p>{/if}
   {#if message}<p role="status">{message}</p>{/if}
 </section>
-<style>
-  .setup{padding:28px;display:flex;flex-direction:column;gap:16px}h1,h2,p{margin:0}h2{font-size:19px}p,label{line-height:1.6}label{display:block}input:not([type=checkbox]){display:block;width:100%;min-width:0;padding:10px;font:inherit;border:1px solid #cad4cd;border-radius:6px}button{align-self:flex-start;padding:10px 16px;font:inherit;cursor:pointer}button:disabled{opacity:.6;cursor:not-allowed}.secret,code,pre{overflow-wrap:anywhere;white-space:pre-wrap;word-break:break-word}.secret{user-select:all;background:#f4f6f3;padding:14px}.address{display:flex;flex-wrap:wrap;align-items:center;gap:5px}.address input{width:200px}pre{font-size:12px}@media(max-width:540px){.setup{padding:18px}}
-</style>

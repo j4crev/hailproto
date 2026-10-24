@@ -6,41 +6,27 @@
 </script>
 
 {#if header}
-  <figure><img src={header.src} alt={header.alt} width={header.width} height={header.height} />{#if header.caption}<figcaption>{header.caption}</figcaption>{/if}</figure>
+  <figure class="m-0 mb-[1em]"><img class="block h-auto max-h-[28rem] w-full rounded-[.6em] object-cover" src={header.src} alt={header.alt} width={header.width} height={header.height} />{#if header.caption}<figcaption class="mt-[.45em] text-[.72em] text-[#68766e]">{header.caption}</figcaption>{/if}</figure>
 {/if}
 
 {#snippet spans(values: MessageSpan[])}
   {#each values as span}
     {#if span.link}
       <a href={span.link.href} title={span.link.title ?? undefined} rel="noopener noreferrer" target="_blank"
-        class:strong={span.strong} class:emphasis={span.emphasis} class:code={span.code}>{span.text}<small>{span.link.hostname}</small></a>
+        class={["text-[#17633f] decoration-[.08em] underline-offset-[.16em]", span.strong && "font-[750]", span.emphasis && "italic", span.code && "rounded-[.3em] bg-[#edf0ed] px-[.3em] py-[.08em] font-mono text-[.88em]"]}>{span.text}<small class="ml-[.4em] inline-block font-[ui-sans-serif,system-ui,sans-serif] text-[.6em] font-medium text-[#718078] not-italic">{span.link.hostname}</small></a>
     {:else}
-      <span class:strong={span.strong} class:emphasis={span.emphasis} class:code={span.code}>{span.text}</span>
+      <span class={[span.strong && "font-[750]", span.emphasis && "italic", span.code && "rounded-[.3em] bg-[#edf0ed] px-[.3em] py-[.08em] font-mono text-[.88em]"]}>{span.text}</span>
     {/if}
   {/each}
 {/snippet}
 
 {#each groups as group}
   {#if group.listItem === "bullet"}
-    <ul style={`--level:${group.level}`}>{#each group.blocks as block}<li>{@render spans(block.spans)}</li>{/each}</ul>
+    <ul class="m-0 mb-[1em] pl-[calc(1.5em_+_(var(--level)_-_1)_*_1.25em)]" style={`--level:${group.level}`}>{#each group.blocks as block}<li>{@render spans(block.spans)}</li>{/each}</ul>
   {:else if group.listItem === "number"}
-    <ol style={`--level:${group.level}`}>{#each group.blocks as block}<li>{@render spans(block.spans)}</li>{/each}</ol>
+    <ol class="m-0 mb-[1em] pl-[calc(1.5em_+_(var(--level)_-_1)_*_1.25em)]" style={`--level:${group.level}`}>{#each group.blocks as block}<li>{@render spans(block.spans)}</li>{/each}</ol>
   {:else}
     {@const block = group.blocks[0]}
-    <svelte:element this={tag(block.style)} class:caption={block.style === "caption"}>{@render spans(block.spans)}</svelte:element>
+    <svelte:element this={tag(block.style)} class={["m-0 mb-[1em]", block.style === "caption" && "text-[.82em] text-[#68766e]", block.style === "h1" && "text-[1.8em]", block.style === "h2" && "text-[1.45em]", block.style === "h3" && "text-[1.2em]", block.style === "blockquote" && "border-0 border-l-[3px] border-solid border-[#91ad9d] pl-4 text-[#45584d]"]}>{@render spans(block.spans)}</svelte:element>
   {/if}
 {/each}
-
-<style>
-  p, h1, h2, h3, blockquote, ul, ol, figure { margin: 0 0 1em; }
-  figure img { display: block; width: 100%; height: auto; max-height: 28rem; border-radius: .6em; object-fit: cover; }
-  figcaption { margin-top: .45em; color: #68766e; font-size: .72em; }
-  h1 { font-size: 1.8em; } h2 { font-size: 1.45em; } h3 { font-size: 1.2em; }
-  blockquote { margin-left: 0; padding-left: 16px; border-left: 3px solid #91ad9d; color: #45584d; }
-  ul, ol { padding-left: calc(1.5em + (var(--level) - 1) * 1.25em); }
-  .caption { color: #68766e; font-size: .82em; }
-  .strong { font-weight: 750; } .emphasis { font-style: italic; }
-  .code { padding: .08em .3em; border-radius: .3em; background: #edf0ed; font-family: ui-monospace, monospace; font-size: .88em; }
-  a { color: #17633f; text-decoration-thickness: .08em; text-underline-offset: .16em; }
-  a small { display: inline-block; margin-left: .4em; color: #718078; font-family: ui-sans-serif, system-ui, sans-serif; font-size: .6em; font-style: normal; font-weight: 500; }
-</style>

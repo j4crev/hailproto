@@ -23,6 +23,12 @@ Firefox or mobile-device checks have passed. See the
 
 ## Run the messaging GUI
 
+Styles use Tailwind CSS 4 through `@tailwindcss/vite`. Global theme/base styles
+and the shared `hail-card` utility live in `src/app.css`; route and reader styles
+use utilities in the Svelte markup. Preflight is intentionally omitted to preserve
+the existing browser-default headings, lists, and form controls. No PostCSS or
+separate Tailwind config is needed.
+
 ```bash
 bun install
 PASSKEY_AUTH=true PASSKEY_ORIGIN=http://localhost:5173 PASSKEY_RP_ID=localhost \

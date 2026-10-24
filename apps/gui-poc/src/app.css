@@ -1,0 +1,20 @@
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+/* Keep browser defaults while migrating the existing design; no Preflight reset. */
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@theme {
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, monospace;
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  body { @apply m-0 bg-[#f4f6f3] text-[#17231d] font-sans; }
+  a { color: inherit; }
+}
+
+@utility hail-card {
+  @apply bg-white border border-solid border-[#dfe5e0] rounded-[18px] shadow-[0_10px_30px_rgba(21,50,35,.05)];
+}

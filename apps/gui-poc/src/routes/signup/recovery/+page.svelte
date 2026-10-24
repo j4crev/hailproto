@@ -53,7 +53,7 @@
 
 <svelte:head><title>Hail recovery setup preview</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 
-<section class="card setup">
+<section class="hail-card flex flex-col gap-4 p-7 [&_h1]:m-0 [&_h2]:m-0 [&_h2]:text-[18px] [&_p]:m-0 [&_p]:leading-[1.6] [&_label]:block [&_label]:leading-[1.6] [&_label>input:not([type=checkbox])]:mt-1.5 [&_label>input:not([type=checkbox])]:block [&_label>input:not([type=checkbox])]:max-w-full [&_input[type=password]]:w-full [&_input[type=password]]:p-2.5 [&_input[type=password]]:[font:inherit] [&_button]:self-start [&_button]:px-4 [&_button]:py-2.5 [&_button]:[font:inherit] [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-60">
   <h1>Recovery setup preview</h1>
   <p><strong>This preview does not create an account or publish an identity.</strong>
     It tests saving and reopening an encrypted recovery kit locally in your browser.</p>
@@ -70,7 +70,7 @@
     <h2>2. Store your secret separately</h2>
     <p>Save this secret in a password manager or write it down somewhere safe. Do not store
       it beside the backup. Anyone with both can unlock your recovery keys.</p>
-    <code class="secret">{secret}</code>
+    <code class="[overflow-wrap:anywhere] select-all bg-[#f4f6f3] p-3.5">{secret}</code>
     <label><input type="checkbox" bind:checked={secretSaved} disabled={busy} /> I stored the secret separately.</label>
     <h2>3. Reopen what you saved</h2>
     <label>Saved encrypted backup
@@ -86,7 +86,3 @@
   {#if verified}<p>Preview complete. Automatic monitored account creation is not enabled here yet.
     This unbound kit alone is not an active Hail account.</p>{/if}
 </section>
-
-<style>
-  .setup{padding:28px;display:flex;flex-direction:column;gap:16px}h1,h2,p{margin:0}h2{font-size:18px}p,label{line-height:1.6}label{display:block}label>input:not([type=checkbox]){display:block;max-width:100%;margin-top:6px}input[type=password]{width:100%;padding:10px;font:inherit}.secret{overflow-wrap:anywhere;user-select:all;background:#f4f6f3;padding:14px}button{align-self:flex-start;padding:10px 16px;font:inherit;cursor:pointer}button:disabled{cursor:not-allowed;opacity:.6}
-</style>
