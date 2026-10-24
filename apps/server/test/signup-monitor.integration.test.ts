@@ -277,10 +277,12 @@ it.skipIf(!process.env.DATABASE_URL)("automates verified-email monitored signup 
       expect((await db.sql<{signup_token_hash:Uint8Array|null}[]>`SELECT signup_token_hash FROM public_onboarding_preparations WHERE account_id=${setup.accountId}`)[0]!.signup_token_hash).toBeNull();
       await expect(db.sql`UPDATE account_signup_ceremonies SET completed_at=NULL,completed_by=NULL WHERE id=${id}`).rejects.toThrow("cannot be replaced");
       const rollback=await db.sql.reserve();try{
+        await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
         await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());
         await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0058_signup_ceremonies.sql",import.meta.url)).text())).rejects.toThrow("prevent rollback");
-      }finally{await rollback.unsafe("ROLLBACK");rollback.release();}
-      const generationVault=await createUserVault();try{
+       }finally{await rollback.unsafe("ROLLBACK");rollback.release();}
+       await db.migrate();
+       const generationVault=await createUserVault();try{
         const retiredToken=`hailp_${encodeBase64Url(randomBytes(32))}`,retiredId=randomUUID();
         const retired=await coordinator.prepare({...request,signupId:retiredId,address:`retired-${suffix}@provider.example.com`,
           recoveryKey:generationVault.vault.recovery.publicDidKey,identityKey:generationVault.vault.identity.publicDidKey,

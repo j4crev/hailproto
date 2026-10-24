@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "account:credential-create": "bun src/cli/create-account-credential.ts",
     "account:credential-revoke": "bun src/cli/revoke-account-credential.ts",
+    "account:role-authorize": "bun src/cli/authorize-provider-role.ts",
     "db:migrate": "bun src/cli/migrate.ts",
     "dev": "bun --watch src/index.ts",
     "profile:create": "bun src/cli/create-profile.ts",

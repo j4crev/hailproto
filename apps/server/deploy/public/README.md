@@ -69,8 +69,15 @@ docker compose --env-file .env ps
 docker compose --env-file .env up -d caddy
 ```
 
-The provider applies compatible database migrations before serving. Verify from
-another network:
+The provider applies compatible database migrations before serving.
+
+Migration 60 reserves `ops`, `alerts`, `abuse`, `security`, `support` and `admin`
+automatically; no accounts or credentials are generated. Before enabling signup,
+review any migration warning about an existing account occupying a role name.
+See [reserved provider addresses](../../README.md#reserved-provider-addresses)
+to authorize an intended owner's public recovery key and complete normal onboarding.
+
+Verify from another network:
 
 ```bash
 domain=$(sed -n 's/^PROVIDER_DOMAIN=//p' .env)

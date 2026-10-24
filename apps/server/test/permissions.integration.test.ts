@@ -61,7 +61,10 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
     const before=await db.sql`SELECT id,account_id,scopes FROM account_passkey_sessions ORDER BY id`;
     const snapshot=async()=>JSON.stringify(await db.sql`SELECT account_id,role,public_key,encrypted_private_key,encryption_nonce FROM account_keys ORDER BY account_id,role`);
     const keysBefore=await snapshot();
-    const emptyRollback=await db.sql.reserve();try{await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());}finally{emptyRollback.release();}
+    const emptyRollback=await db.sql.reserve();try{
+      await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
+      await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());
+    }finally{emptyRollback.release();}
     await db.migrate();expect(await snapshot()).toBe(keysBefore);
     const now=Math.floor(Date.now()/1000),profile={type:"hail.sender-profile" as const,version:1 as const,did:peerDid,revision:1,updated_at:now,display_name:"Peer",offers_uncategorized:true,
       categories:[{id:"receipts",label:"Receipts"},{id:"updates",label:"Updates"}],key_id:peerDid+"#hail-messaging"};

@@ -26,7 +26,7 @@ integration("migration 36 serving metadata and immutable retirement history",()=
       AND table_name NOT IN ('schema_migrations','account_serving_generations','provider_retired_transfer_history','account_credential_generations',
          'account_challenge_generations','serving_worker_leases','provider_retired_import_history','provider_transfer_abandonments','provider_retired_observation_history',
          'public_cutover_evidence','public_cutover_evidence_selection','public_plc_resolution_evidence','public_envelope_authority_evidence','public_grant_authority_evidence','public_signing_authority_evidence',
-         'public_onboarding_preparations','public_onboarding_evidence','custody_transition_preparations','custody_transition_grant_successors',
+          'public_onboarding_preparations','public_onboarding_evidence','custody_transition_preparations','custody_transition_grant_successors','provider_reserved_names','provider_role_claims',
            'account_passkeys','account_passkey_challenges','account_passkey_sessions','account_passkey_enrollment_capabilities','account_browser_authorizations','account_signup_ceremonies','account_grant_approvals') ORDER BY table_name`;
     const added:Record<string,string[]>={prepared_migration_target_keys:["custody_profile","identity_public_key","identity_private_ciphertext","identity_nonce"],
       account_access_challenges:["enrollment_capability_id"],
@@ -113,6 +113,7 @@ integration("migration 36 serving metadata and immutable retirement history",()=
     expect(await db.sql`SELECT id FROM account_grant_approvals`).toHaveLength(0);
     expect(await fingerprints()).toEqual(beforeRollback);
     const current=await new AccountApiRepository(db.sql).authenticate(`Bearer ${original.credential.token}`);expect(current?.serving_generation).toBe(1);
+    await rollback("0060_provider_role_addresses.sql");
     await rollback("0059_grant_approvals.sql");
     await rollback("0058_signup_ceremonies.sql");
     await rollback("0057_alpha_monitoring.sql");

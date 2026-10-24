@@ -201,6 +201,7 @@ const migrations: readonly Migration[] = [
   { version: 57, name: "alpha-monitoring", url: new URL("../../migrations/0057_alpha_monitoring.sql", import.meta.url) },
   { version: 58, name: "signup-ceremonies", url: new URL("../../migrations/0058_signup_ceremonies.sql", import.meta.url) },
   { version: 59, name: "grant-approvals", url: new URL("../../migrations/0059_grant_approvals.sql", import.meta.url) },
+  { version: 60, name: "provider-role-addresses", url: new URL("../../migrations/0060_provider_role_addresses.sql", import.meta.url) },
 ];
 
 export class ProviderDatabase {
@@ -257,6 +258,13 @@ export class ProviderDatabase {
         `;
       }
     });
+    const conflicts = await this.#sql<{ canonical_address: string }[]>`
+      SELECT account.canonical_address FROM provider_accounts account
+      JOIN provider_reserved_names reserved ON reserved.local_part = split_part(account.canonical_address, '@', 1)
+      LEFT JOIN provider_role_claims claim ON claim.canonical_address = account.canonical_address AND claim.account_id = account.id
+      WHERE claim.account_id IS NULL ORDER BY account.canonical_address`;
+    if (conflicts.length) console.warn("Existing provider-role accounts preserved; review ownership manually:",
+      conflicts.map(row => row.canonical_address).join(", "));
   }
 
   async close(): Promise<void> {

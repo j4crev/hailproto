@@ -26,6 +26,31 @@ canaries are real `plc.directory` identities and must not be reused as productio
 
 ## hailp Account API
 
+### Reserved provider addresses
+
+Migration 60 automatically reserves `ops`, `alerts`, `abuse`, `security`,
+`support` and `admin` on every served domain before registration opens. These
+are name reservations, not accounts: no DID, private keys, credentials or
+administrative privileges are created. Database enforcement also blocks incoming
+transfers from claiming these names. Public address checks report them unavailable.
+
+To activate a role, first generate and back up its owner's recovery key on the
+owner's device, then authorize its **public** key locally as the provider operator:
+
+```bash
+bun run account:role-authorize -- ops@example.com did:key:z...
+```
+
+Complete the normal public onboarding ceremony with that address and recovery
+key, including owner-signed genesis and monitor verification. The assignment is
+idempotent for the same key and refuses reassignment. The generic browser address
+picker deliberately keeps role names unavailable; use the public CLI onboarding
+flow for these accounts. Keep unused roles reserved rather than bootstrapping them.
+
+Upgrades preserve existing accounts and warn about occupied role names for manual
+ownership review; they never take over or rename an account. Reservation does not
+configure email forwarding. Keep an off-provider email path for outage alerts.
+
 Migration 32 adds the first authenticated account-management slice used by
 `hailp` in [`../cli`](../cli). It is separate from federation and supports
 existing active accounts, account details, current signed Grant retrieval and

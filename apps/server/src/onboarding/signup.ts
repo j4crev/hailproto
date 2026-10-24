@@ -70,7 +70,8 @@ export class SignupCoordinator {
     try{address=canonicalizeHailAddress(input.address);}catch{throw new SignupError(400,"Invalid address");}
     if(address.split("@")[1]!==new URL(this.origin).hostname)throw new SignupError(400,"Choose an address at this provider");
     const held=await this.sql`SELECT 1 FROM provider_accounts WHERE canonical_address=${address}
-      UNION ALL SELECT 1 FROM transfer_address_reservations WHERE canonical_address=${address} LIMIT 1`;
+      UNION ALL SELECT 1 FROM transfer_address_reservations WHERE canonical_address=${address}
+      UNION ALL SELECT 1 FROM provider_reserved_names WHERE local_part=split_part(${address}, '@', 1) LIMIT 1`;
     return {address,available:held.length===0};
   }
 

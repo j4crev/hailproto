@@ -22,6 +22,7 @@ import type { HailDidResolver } from "../plc/resolver.js";
 import { retainPublicSigningAuthority } from "../plc/signing-authority.js";
 import { verifyRegisteredGenesis } from "../plc/verify.js";
 import { OnboardingRepository } from "./repository.js";
+import { providerRoleAccountId } from "./provider-roles.js";
 
 interface PreparationRow {
   account_id: string;
@@ -105,7 +106,8 @@ export class PublicOnboarding {
       }
       return this.result(row, address);
     }
-    const accountId = randomUUID(), generated = await generateAccountKeys(accountId, this.encryptor);
+    const accountId = await providerRoleAccountId(this.sql, address, recovery) ?? randomUUID();
+    const generated = await generateAccountKeys(accountId, this.encryptor);
     if (profile === "managed") identity = generated.identityDidKey;
     await this.sql.begin(async tx => {
       const created = await tx`INSERT INTO provider_accounts (id, tenant_id, canonical_address, onboarding_state)

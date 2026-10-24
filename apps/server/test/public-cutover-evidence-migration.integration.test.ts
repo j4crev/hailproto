@@ -12,6 +12,7 @@ it.skipIf(!process.env.DATABASE_URL)("migration 40 preserves legacy rows/auth an
   const rollback = async () => {
     const connection = await db.sql.reserve();
     try {
+      if((await connection`SELECT version FROM schema_migrations WHERE version=60`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=59`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=58`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0058_signup_ceremonies.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=57`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0057_alpha_monitoring.sql",import.meta.url)).text());
@@ -67,7 +68,7 @@ it.skipIf(!process.env.DATABASE_URL)("migration 40 preserves legacy rows/auth an
       const tables = await db.sql<{table_name:string}[]>`SELECT table_name FROM information_schema.tables
         WHERE table_schema=${schema} AND table_type='BASE TABLE' AND table_name NOT IN ('schema_migrations','public_cutover_evidence','public_cutover_evidence_selection',
            'public_plc_resolution_evidence','public_envelope_authority_evidence','public_grant_authority_evidence','public_signing_authority_evidence',
-           'public_onboarding_preparations','public_onboarding_evidence','custody_transition_preparations','custody_transition_grant_successors',
+           'public_onboarding_preparations','public_onboarding_evidence','custody_transition_preparations','custody_transition_grant_successors','provider_reserved_names','provider_role_claims',
            'account_passkeys','account_passkey_challenges','account_passkey_sessions','account_passkey_enrollment_capabilities','account_browser_authorizations','account_signup_ceremonies','account_grant_approvals') ORDER BY table_name`;
       return Promise.all(tables.map(async ({table_name}) => {
         const keys = added[table_name] ?? [];
