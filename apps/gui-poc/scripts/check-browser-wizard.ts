@@ -137,7 +137,7 @@ guiProxy=createApp({publicOrigin:origin,providerId:"browser-fixture",thinGuiOrig
 const wait=async(fn:()=>Promise<boolean>,description:string)=>{const end=Date.now()+25_000;while(Date.now()<end){if(await fn())return;await Bun.sleep(100);}throw new Error("Timed out: "+description);};
 try{
   gui=Bun.spawn(["bun","build/index.js"],{cwd:new URL("..",import.meta.url).pathname,env:{...process.env,HOST:"127.0.0.1",PORT:String(guiPort),ORIGIN:origin,
-    HAIL_GUI_SIGNUP:"true",HAIL_GUI_PROVIDER:policy.provider,HAIL_GUI_API_ORIGIN:origin,HAIL_GUI_ORIGIN:origin,
+    HAIL_GUI_SIGNUP:"true",HAIL_GUI_SIGNUP_PREVIEW:"true",HAIL_GUI_PROVIDER:policy.provider,HAIL_GUI_API_ORIGIN:origin,HAIL_GUI_ORIGIN:origin,
     ALPHA_SIGNUP_MONITOR_ORIGIN:policy.monitorOrigin,SIGNUP_MONITOR_PUBLIC_KEY:policy.monitorKey},stdout:"ignore",stderr:"pipe"});
   let startupStatus="";
   try{await wait(async()=>{try{const r=await fetch(origin+"/signup");startupStatus=String(r.status)+" "+(await r.text()).slice(0,300);return r.ok;}catch(error){startupStatus=String(error);return false;}},"GUI startup");}
@@ -185,17 +185,29 @@ try{
   assert(!requests.some(r=>r.path==="/api/v1/account"),"Anonymous screens must not request account data");
   await cdp("Page.navigate",{url:origin+"/auth/login"});await wait(()=>has("Sign in to Hail"),"passkey login screen");
   assert.equal(await evaluate("document.querySelector('nav[aria-label=\"Main navigation\"]')===null"),true,"Login keeps a focused shell");
+  await cdp("Page.navigate",{url:origin+"/auth/recover#token=hailp_"+"C".repeat(43)});
+  await wait(async()=>evaluate(`location.hash==='' && document.querySelector('button')?.disabled===false`),"owner-authorized enrollment consumes its fragment locally");
+  assert(await has("does not import a recovery backup"));
+  assert(!requests.some(r=>r.path.includes("/recovery")),"Opening an enrollment link must not create a passkey");
+  await cdp("Page.navigate",{url:origin+"/auth/authorize"});await wait(()=>has("This authorization request is invalid or incomplete"),"incomplete CLI authorization is refused");
+  assert(!requests.some(r=>r.path.includes("/authorization/")),"Incomplete CLI authorization must not contact its API");
+  const recoveryPreview=await fetch(origin+"/signup/recovery");
+  assert(recoveryPreview.headers.get("content-security-policy")?.includes("connect-src 'none'; form-action 'none'"));
+  await cdp("Page.navigate",{url:origin+"/signup/recovery"});await wait(()=>has("Recovery setup preview"),"local recovery preview presentation");
+  assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Recovery preview overflows viewport");
   await cdp("Page.navigate",{url:origin+"/signup#invitation="+invitation});
   await wait(()=>has("Start with an invitation"),"signup render");
-  await wait(async()=>evaluate("location.hash==='' && document.querySelector('input[type=password]')?.value===''") ,"signup hydration");
+  await wait(async()=>evaluate(`location.hash==='' && document.querySelector('input[maxlength="2048"]')?.value==='fixture-invitation'`) ,"signup hydration");
+  assert.equal(await evaluate(`document.querySelector('[aria-label="Signup steps"] [aria-current=step]').textContent.trim()`),"1Invitation");
   assert.deepEqual(await styles("body",["backgroundColor","margin"]),["rgb(247, 248, 245)","0px"]);
   assert.equal(await evaluate("document.querySelector('nav[aria-label=\"Main navigation\"]')===null"),true,"Signup keeps a focused shell");
   assert.deepEqual(await styles("main > section",["display","gap","paddingTop","borderRadius"]),
-    ["flex","16px",process.env.HAIL_WIZARD_MOBILE==="true"?"18px":"28px","18px"]);
+    ["flex","20px",process.env.HAIL_WIZARD_MOBILE==="true"?"18px":"28px","18px"]);
   assert.deepEqual(await styles("input[type=password]",["borderTopWidth","borderTopStyle","borderRadius"]),["1px","solid","6px"]);
   await fill("Your Hail address","alice");await fill("External security-alert email","alice@example.net");
   await evaluate(`document.querySelector('input[type=checkbox]').click()`);
   await click("Create recovery kit locally");await wait(()=>has("Save and verify recovery"),"local key generation");
+  assert.equal(await evaluate(`document.querySelector('[aria-label="Signup steps"] [aria-current=step]').textContent.trim()`),"2Recovery kit");
   secret=await evaluate("document.querySelector('[data-recovery-secret]').textContent");assert.equal(secret.length,43);
   assert.deepEqual(await styles("[data-recovery-secret]",["userSelect","overflowWrap"]),["all","anywhere"]);
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Recovery screen overflows viewport");
@@ -219,6 +231,7 @@ try{
   const stored=await evaluate("localStorage.getItem('hail.pending-signup.v1')");assert(!stored.includes(secret)&&!stored.includes(setupToken));
   await evaluate("localStorage.clear()");
   await cdp("Page.reload");await wait(()=>has("Start with an invitation"),"clean-browser file resume");
+  await evaluate(`[...document.querySelectorAll('details')].find(d=>d.querySelector('summary')?.textContent==='Continue an interrupted setup').open=true`);
   await upload("Pending setup file",join(work,signedFile));
   await fill("Separate recovery secret",secret);await click("Continue setup");await wait(()=>has("Publish and activate this identity"),"resume exact genesis");
   await click("Publish and activate this identity");await wait(()=>has("awaiting-monitor"),"monitor wait");
@@ -234,6 +247,7 @@ try{
   await fill("Separate recovery secret",secret);await click("Continue setup");await wait(()=>has("sign-in-required"),"retained passkey state");
   await click("Save account recovery backup");
   await click("Sign in with a created passkey and finish setup");await wait(()=>has("Your account is ready"),"fresh passkey login and retirement");
+  assert.equal(await evaluate(`document.querySelector('[aria-label="Signup steps"] [aria-current=step]').textContent.trim()`),"4Ready");
   assert(retired&&authenticated&&enrolled);assert.equal(prepareCalls,1);assert.equal(publicationAttempts,2);
   assert.equal(await evaluate("localStorage.getItem('hail.pending-signup.v1')"),null);
   await wait(async()=> (await readdir(work)).includes("hail-account-recovery.vault.json"),"final identity-bound backup");

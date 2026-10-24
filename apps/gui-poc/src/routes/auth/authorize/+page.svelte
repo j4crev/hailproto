@@ -27,11 +27,12 @@
   }
 </script>
 
-<section class="hail-card flex max-w-[620px] flex-col items-start gap-4 p-[42px]">
-  <p class="m-0 text-[12px] font-extrabold tracking-[.12em] text-[#22714b] uppercase">hailp authorization</p><h1 class="m-0">Connect this command line?</h1>
-  {#if details}<p class="m-0 leading-[1.6] text-[#657168]"><strong>hailp</strong> will receive temporary access through <code class="text-[.9em]">{new URL(details.redirectUri).host}</code>.</p>
-    <ul class="m-0 pl-[22px] text-[#43544a]">{#each details.scopes as scope}<li>{scope}</li>{/each}</ul>
-    <button class="cursor-pointer rounded-[10px] border-0 bg-[#17633f] px-[18px] py-3 [font:inherit] font-[750]! text-white disabled:cursor-wait disabled:opacity-60" onclick={authorize} disabled={busy}>Verify with a passkey and authorize</button>
-  {:else if !message}<p class="m-0 leading-[1.6] text-[#657168]">Loading authorization request…</p>{/if}
-  {#if message}<p class="m-0 text-[14px] leading-[1.6] text-[#657168]" aria-live="polite">{message}</p>{/if}
+<svelte:head><title>Authorize hailp · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
+<section class="hail-card mx-auto mt-6 flex max-w-[620px] flex-col items-start gap-5 p-6 sm:p-10">
+  <p class="hail-eyebrow">hailp authorization</p><h1 class="hail-title">Authorize this command line?</h1>
+  {#if details}<p class="m-0 text-sm text-muted [overflow-wrap:anywhere]"><strong>hailp</strong> will receive temporary access through <code>{new URL(details.redirectUri).host}</code>. Approve only a command-line login you started.</p>
+    <div class="w-full rounded-xl bg-brand-soft p-4"><h2 class="m-0 mb-2 text-sm">Requested permissions</h2><ul class="m-0 pl-5 text-sm text-brand-strong">{#each details.scopes as scope}<li class="[overflow-wrap:anywhere]">{scope}</li>{/each}</ul><p class="m-0 mt-3 text-xs text-muted">Request expires {new Date(details.expiresAt).toLocaleString()}.</p></div>
+    <button class="hail-button max-w-full whitespace-normal" onclick={authorize} disabled={busy}>Verify with a passkey and authorize</button>
+  {:else if !message}<p class="m-0 text-sm text-muted">Loading authorization request…</p>{/if}
+  {#if message}<p class="hail-error" role="alert">{message}</p>{/if}
 </section>

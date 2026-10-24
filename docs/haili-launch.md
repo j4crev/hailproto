@@ -1,5 +1,25 @@
 # `haili.app` launch milestone
 
+## Teal Browser Client Deployed — October 24, 2026 UTC
+
+- Release `f54120f7bed5d426eccfd15be6495d10bf7f101c` was committed, pushed and
+  deployed through `hail-provider-ops deploy`. The wrapper verified encrypted
+  pre-deploy backup `provider/haili-20261024T143454Z.tar.gpg`, SHA-256
+  `58b0fda9f128e8f7bef9c3df6d17083342a109278947335c6879290d14ee19c9`;
+  its initial upload failed with 501 and the existing retry succeeded.
+- Provider and GUI were rebuilt/recreated and are healthy. Image config digest:
+  `sha256:613f2d1c7f389a629a8c6143fb1973bfd2d41bb128faf0ac4353074ffc613ac8`.
+  PostgreSQL remains 18.6 with unchanged uptime; Caddy and the monitor were not
+  restarted. No database migration or enrollment-policy change was introduced.
+- Public checks returned 200 for readiness, the focused homepage, login and the
+  favicon. Allowed Senders, Security, Sent and Compose each returned the expected
+  non-cacheable 303 to the shared login with a local return destination. The
+  signed-out homepage contains no private folder navigation.
+- Local proof before release: build, typecheck, 25 unit tests, desktop/mobile-width
+  Chromium through the real GUI proxy, and browser crypto with network denied.
+  Authenticated production passkey use still needs operator confirmation; no live
+  account, Grant, invitation or message was created for deployment verification.
+
 ## Live Permission, Delivery And Reply Navigation Repair — October 23, 2026 UTC
 
 - The operator approved `canary-prov@haili.app` from `j4@haili.app` through the

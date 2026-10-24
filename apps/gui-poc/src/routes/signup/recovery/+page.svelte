@@ -51,11 +51,11 @@
   }
 </script>
 
-<svelte:head><title>Hail recovery setup preview</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
+<svelte:head><title>Recovery setup preview · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 
-<section class="hail-card flex flex-col gap-4 p-7 [&_h1]:m-0 [&_h2]:m-0 [&_h2]:text-[18px] [&_p]:m-0 [&_p]:leading-[1.6] [&_label]:block [&_label]:leading-[1.6] [&_label>input:not([type=checkbox])]:mt-1.5 [&_label>input:not([type=checkbox])]:block [&_label>input:not([type=checkbox])]:max-w-full [&_input[type=password]]:w-full [&_input[type=password]]:p-2.5 [&_input[type=password]]:[font:inherit] [&_button]:self-start [&_button]:px-4 [&_button]:py-2.5 [&_button]:[font:inherit] [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-60">
-  <h1>Recovery setup preview</h1>
-  <p><strong>This preview does not create an account or publish an identity.</strong>
+<section class="hail-card flex flex-col gap-5 p-5 sm:p-7 [&_h2]:m-0 [&_h2]:text-lg [&_p]:m-0 [&_p]:text-sm [&_p]:leading-relaxed [&_label]:text-sm [&_label]:leading-relaxed [&_label>input:not([type=checkbox])]:mt-2 [&_label>input:not([type=checkbox])]:block [&_label>input:not([type=checkbox])]:max-w-full [&_input[type=password]]:w-full [&_button]:self-start [&_button]:max-w-full [&_button]:whitespace-normal">
+  <p class="hail-eyebrow">Local preview only</p><h1 class="hail-title">Recovery setup preview</h1>
+  <p class="rounded-xl bg-warning-soft p-4 text-warning"><strong>This preview does not create an account or publish an identity.</strong>
     It tests saving and reopening an encrypted recovery kit locally in your browser.</p>
   <p>Managed Hail accounts let the provider sign everyday permissions. You keep separate
     recovery authority. A passkey signs you in; it does not replace this backup.</p>
@@ -63,14 +63,14 @@
     <label><input type="checkbox" bind:checked={consent} disabled={busy} />
       I understand that this page temporarily handles recovery keys. Compromised page code
       or my device could steal them. I will keep the backup and secret separately.</label>
-    <button onclick={generate} disabled={!consent || busy}>{busy ? "Creating…" : "Create recovery kit"}</button>
+    <button class="hail-button" onclick={generate} disabled={!consent || busy}>{busy ? "Creating…" : "Create recovery kit"}</button>
   {:else if vault}
     <h2>1. Save your encrypted backup</h2>
-    <a href={backupUrl} download="hail-signup.vault.json" onclick={() => { backupSaved = true; }}>Save encrypted backup</a>
+    <a class="hail-button-secondary self-start" href={backupUrl} download="hail-signup.vault.json" onclick={() => { backupSaved = true; }}>Save encrypted backup</a>
     <h2>2. Store your secret separately</h2>
     <p>Save this secret in a password manager or write it down somewhere safe. Do not store
       it beside the backup. Anyone with both can unlock your recovery keys.</p>
-    <code class="[overflow-wrap:anywhere] select-all bg-[#f4f6f3] p-3.5">{secret}</code>
+    <code class="select-all rounded-xl border border-solid border-line bg-canvas p-4 [overflow-wrap:anywhere]">{secret}</code>
     <label><input type="checkbox" bind:checked={secretSaved} disabled={busy} /> I stored the secret separately.</label>
     <h2>3. Reopen what you saved</h2>
     <label>Saved encrypted backup
@@ -78,11 +78,11 @@
         onchange={(event) => { file = event.currentTarget.files?.[0] ?? null; }} /></label>
     <label>Recovery secret from your separate copy
       <input type="password" bind:value={enteredSecret} autocomplete="off" spellcheck="false" maxlength="43" disabled={busy} /></label>
-    <button onclick={verify} disabled={busy || !file || !backupSaved || !secretSaved || !enteredSecret}>
+    <button class="hail-button" onclick={verify} disabled={busy || !file || !backupSaved || !secretSaved || !enteredSecret}>
       {busy ? "Verifying…" : "Verify saved recovery kit"}</button>
-    <button onclick={() => { clear(); message = "Preview cleared. No account was created."; }} disabled={busy}>Cancel and clear</button>
+    <button class="hail-button-secondary" onclick={() => { clear(); message = "Preview cleared. No account was created."; }} disabled={busy}>Cancel and clear</button>
   {/if}
-  {#if message}<p role="status">{message}</p>{/if}
+  {#if message}<p class="rounded-xl border border-solid border-line bg-canvas p-4" role="status">{message}</p>{/if}
   {#if verified}<p>Preview complete. Automatic monitored account creation is not enabled here yet.
     This unbound kit alone is not an active Hail account.</p>{/if}
 </section>

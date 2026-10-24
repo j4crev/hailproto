@@ -4,6 +4,22 @@ Status: Product direction and planning record, October 24, 2026. This document
 does not amend protocol specifications, approve gated security work, or authorize
 production changes. Proposed mechanisms below require separate design and review.
 
+## Follow-Up — Onboarding Presentation
+
+Signup, the local recovery-kit preview, owner-authorized replacement-passkey
+enrollment and CLI authorization now use the shared teal controls. Signup shows
+four broad phases, keeps the invited start flow first, and groups unfinished-setup
+import in a disclosure that opens automatically when encrypted local state exists.
+Existing alpha warnings, explicit consent, file verification, owner signing and
+fresh-passkey completion gates are unchanged. Replacement-passkey enrollment is
+not a browser recovery-backup import. CLI access is labeled authorization rather
+than a personal connection.
+
+Local desktop/mobile-width Chromium checks cover signup phase progression,
+storage-eviction file resume, recovery-preview policy/layout, local enrollment
+fragment handling and refusal of incomplete CLI authorization. Production rollout
+of the earlier messaging slice is recorded in [Haili launch](haili-launch.md).
+
 ## Implementation Checkpoint — Messaging Screens And Consistent Sign-In
 
 The next local slice extends the teal design to Compose, received/sent readers,
@@ -38,7 +54,8 @@ families, actual passkey login/return, expired-session QR continuity, native rep
 permission approval/revocation, composer formatting and security verification.
 These remain local fixtures, not production or real-device validation.
 
-Signup/recovery presentation and final brand artwork remain future work. No new
+Signup/recovery presentation follows in the checkpoint above; final brand artwork
+remains future work. No new
 component dependency, relationship/reply protocol change or deployment was added.
 
 ## Earlier Checkpoint — Shell And Feed
