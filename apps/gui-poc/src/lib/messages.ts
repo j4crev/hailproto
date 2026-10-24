@@ -93,13 +93,8 @@ export function messagePreview(message: MessageView, maximum = 120): string {
   return characters.length <= maximum ? plain : `${characters.slice(0, maximum - 1).join("")}…`;
 }
 
-export function parseMessage(value: unknown): MessageView {
-  const message = object(value, "message");
-  const body = object(message.body, "message body");
-  let replyUntil:number|null=null;
-  if(message.reply!==undefined){const reply=object(message.reply,"reply invitation");
-    if(reply.allowed===true&&Number.isSafeInteger(reply.until)&&Number(reply.until)>0)replyUntil=Number(reply.until);
-    else if(reply.allowed!==false||reply.until!==undefined)throw new Error("Unsupported reply invitation");}
+export function parseBody(value: unknown): Pick<MessageView,"blocks"|"header"|"paragraphs"> {
+  const body = object(value, "message body");
   if (body.version !== 1 || !["spt-1","spt-2","spt-3"].includes(body.profile as string) || !Array.isArray(body.blocks)) {
     throw new Error("Unsupported message body");
   }
@@ -151,6 +146,17 @@ export function parseMessage(value: unknown): MessageView {
     if(body.profile==="spt-1"&&(block.style!=="normal"||listItem!==null||block.level!==undefined||block.markDefs.length||spans.some(span=>span.strong||span.emphasis||span.code||span.link)))throw new Error("Unsupported spt-1 extension");
     return { style: block.style as MessageBlock["style"], listItem, level, spans };
   });
+  return {blocks,header,paragraphs:blocks.map(block=>block.spans.map(span=>span.text).join(""))};
+}
+
+export function parseMessage(value: unknown): MessageView {
+  const message = object(value, "message");
+  const body = object(message.body, "message body");
+  let replyUntil:number|null=null;
+  if(message.reply!==undefined){const reply=object(message.reply,"reply invitation");
+    if(reply.allowed===true&&Number.isSafeInteger(reply.until)&&Number(reply.until)>0)replyUntil=Number(reply.until);
+    else if(reply.allowed!==false||reply.until!==undefined)throw new Error("Unsupported reply invitation");}
+  const content=parseBody(body);
   return {
     messageId: text(message.messageId, "message ID"),
     sender: text(message.sender, "sender"),
@@ -158,9 +164,9 @@ export function parseMessage(value: unknown): MessageView {
     recipient: text(message.recipient, "recipient"),
     deliveredAt: text(message.deliveredAt, "delivery time"),
     category: message.category === null ? null : text(message.category, "category"),
-    blocks,
-    header,
-    paragraphs: blocks.map((block) => block.spans.map((span) => span.text).join("")),
+    blocks:content.blocks,
+    header:content.header,
+    paragraphs:content.paragraphs,
     replyUntil,
     replyAvailable:message.replyAvailable===true,
   };
