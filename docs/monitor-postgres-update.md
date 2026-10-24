@@ -1,11 +1,34 @@
 # Production PostgreSQL updates
 
-## Current checkpoint — PostgreSQL 18 prepared, not yet applied
+## Current checkpoint — monitor on PostgreSQL 18; Haili cutover prepared
 
-Both production databases still run 14.24. The monitor-first PostgreSQL 18
-console cutover below is staged; Haili's cutover follows only after monitor live
-verification. The separate POC VPS is excluded. The completed minor update and
-its historical recovery instructions remain below.
+The monitor completed its PostgreSQL 18.6 cutover on October 24 at 02:20:48 UTC.
+Haili still runs 14.24; its separate guarded console cutover is staged below.
+The separate POC VPS is excluded. Completed-update history remains below;
+**do not rerun either monitor migration capsule**.
+
+The monitor's live report `/var/lib/hail-pg18-report-a5pamif4/report.json`
+confirms SQL 180006, exact retained data, an unchanged application image and a new
+encrypted backup. The run took 34.594 seconds, with backend maintenance roughly
+18 seconds. New volume: `hail-monitor-pg18-8ehg21so`; retained original:
+`hail-public-monitor_monitor_db`. Database/monitor are healthy, heartbeat
+supervision is active, and public enrollment from Haili returns 401 without a
+token. The monitor's own live verification also passed polling/API/signing/mail-peer
+checks. No identity, application environment, signing key, public ingress or POC service changed.
+
+Post-cutover backup, copied off-host, checksum-verified, authenticated/decrypted,
+restored into a fresh isolated PostgreSQL 18.6 volume and application-checked:
+
+```text
+/var/lib/hail-monitor-enrollment/monitor-20261024T022048Z-b1fac249.tar.gpg
+SHA-256: 95e9e5862a26d0fc70db6bd5c3205dada7c2696fc3ff4d246d0629ee15359803
+```
+
+The local owner-only ciphertext and `.sha256` sibling are in the ops directory;
+safe proof is `ops/pg18-rehearsal/monitor-post-cutover-backup-proof.json`. Temporary
+plaintext/GPG homes/containers/volumes were removed. Old volumes and encrypted
+recovery points remain retained. No automatic database downgrade is safe now that
+the monitor has resumed writes.
 
 ## Completed checkpoint — October 24, 2026, 00:30 UTC
 
@@ -163,7 +186,7 @@ Rollback must not discard any writes accepted after cutover.
 
 The initial target is official `postgres:18.6-alpine`, multiarch digest
 `sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5`.
-It was pulled off-host only; no live major migration has begun. Both servers have
+It was first pulled off-host for rehearsal and is now live on the monitor. Both servers have
 Compose 2.40.3, supporting explicit native volume overrides. PostgreSQL 18's
 official image uses `PGDATA=/var/lib/postgresql/18/docker` and the volume parent
 `/var/lib/postgresql`, unlike 14's `/var/lib/postgresql/data`; config and backup
@@ -237,9 +260,10 @@ SHA-256: e3c562ee9e0ec4f01edaf8ded47cf514e681e7ba9d3475ac146de4d9bf7fc05d
 Both encrypted files and `.sha256` siblings are owner-only in the local ops
 directory. The recovery private key/passphrase never left the operator machine.
 
-### Apply PostgreSQL 18: Hostinger monitor root console only
+### Completed PostgreSQL 18: Hostinger monitor root console (historical)
 
-Allow a few minutes of enrollment/monitoring maintenance. Do not deploy or edit
+The following capsule completed successfully; **do not rerun it**. Its original
+maintenance instructions were: allow a few minutes of enrollment/monitoring maintenance. Do not deploy or edit
 configuration concurrently. No Haili application or POC service is restarted.
 
 ```bash
@@ -290,4 +314,71 @@ Runnable focused checks:
 TMPDIR=/tmp/opencode python3 apps/plc-monitor/test/check-pg18-upgrade.py
 TMPDIR=/tmp/opencode python3 apps/plc-monitor/test/check-pg14-upgrade.py
 OPENCODE_TMP_DIR=/tmp/opencode bun run --cwd apps/plc-monitor test test/rollout-tools.test.ts
+```
+
+### Apply PostgreSQL 18: Hetzner Haili provider root console only
+
+Fresh R2 recovery point was downloaded and independently restored into 14.24 and
+18.6: 64 tables / 13,589 rows match exactly, 59 migration checksums match, all 14
+account plus 6 prepared-transfer keys decrypt and match their public keys, and
+the grant-repository integration file passes against a separate empty database.
+
+```text
+provider/haili-20261024T022441Z.tar.gpg
+SHA-256: f652e84c6923e28dc4b8e8332851676c5734ef3e029d856d491051ee750da878
+```
+
+The exact provider controller additionally passed a disposable real-cluster
+rehearsal, including source credential/database-ACL preservation and its actual
+runtime-image SQL/key probe. Host supervision, public application lifecycle and
+R2 upload were simulated in that rehearsal, not executed against production.
+Control tests cover restore/key/data/partial-install failures, expired backups,
+unexpected Compose changes, concurrent edits and no rollback after writes.
+
+Allow a few minutes of Haili API/sign-in unavailability; the monitor is not paused.
+Do not deploy, edit configuration or run concurrent database maintenance.
+
+```bash
+sh /home/hailops/pg18p.oIfgg3/run.sh
+```
+
+The checksum-verified capsule contains only reviewed code, a non-secret plan and
+the already-off-host-tested **encrypted** backup. It is copied into root-only
+storage before journal-backed systemd execution. No recovery private key or
+passphrase is copied. The one-hour age check uses the R2 backup creation time,
+not the newly copied file's modification time. If expired, refresh the backup
+and its restore proof; do not bypass or rerun a failed controller.
+
+Preflight pins host/source volume/SQL/app image and installed wrapper/backup
+checksums, requires healthy application/database/tunnel and sufficient space,
+checks cluster compatibility and live-versus-rendered environments, and probes
+public monitor enrollment for both 401 without a token and 400 with the existing
+token. It takes the existing backup lock and pauses its timer, not an active
+backup. The target image is downloaded before stopping the provider backend.
+GUI/Caddy/tunnel and the monitor remain in place.
+
+With writers stopped it captures a fresh logical dump, role verifier, database
+metadata and full-row manifest. Restore is confined to a fresh labeled PG18
+volume with the new parent mount. Exact data, credentials/ACL/locale, migration
+checksums and every retained operational key must pass before production writers
+resume. The key probe uses the existing app image with its entrypoint overridden
+to the SQL-only check; it starts no delivery workers, prints no secrets, and
+removes its root-only temporary environment afterward.
+
+The controller installs the reviewed operations/backup scripts and persistent
+`/etc/hail-provider-postgres/compose.yaml`. This DB overlay survives application
+release rollback; no app-source deployment or image rebuild occurs. It resumes
+the same provider image, requires public readiness and monitor enrollment checks,
+uploads/verifies a new encrypted backup in R2, then restores the backup timer.
+Before application-start it may resume the untouched original 14 volume/config;
+after application-start it never automatically downgrades or restores old data.
+No volume is deleted. Failure preserves both volumes and root-only dump/config
+artifacts for review; never run Compose without the active database overlay.
+
+Retrieve `/var/lib/hail-pg18-report-*/report.json`, then download and restore-test
+the reported new R2 backup before declaring both migrations complete. Verify
+public discovery/binding, monitor peer enrollment and browser passkey sign-in.
+
+```bash
+TMPDIR=/tmp/opencode python3 apps/server/test/check-pg18-upgrade.py
 ```

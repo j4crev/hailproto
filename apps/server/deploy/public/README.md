@@ -54,6 +54,13 @@ deployed profile must not retain that mount or enable
 
 ## Validate and start
 
+These are bootstrap commands, **not commands for the migrated production host**.
+On production use `sudo hail-provider-ops ...`. Once installed,
+`/etc/hail-provider-postgres/compose.yaml` must be included with `-f` after the
+base Compose file for every direct Compose operation, including rollback; omitting
+it can select the retained PostgreSQL 14 volume and discard access to newer writes.
+See [PostgreSQL updates](../../../../docs/monitor-postgres-update.md).
+
 ```bash
 docker compose --env-file .env config --quiet
 docker compose --env-file .env build provider
