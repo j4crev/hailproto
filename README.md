@@ -47,16 +47,17 @@ The repository includes TypeScript and Go reference codecs, shared conformance v
 
 ## Client capabilities
 
-The reference CLI covers account administration and sensitive identity ceremonies. The thin GUI is intentionally limited to everyday messaging and keeps credentials and keys out of the browser.
+The reference CLI covers account administration and sensitive identity ceremonies. The thin GUI now supports invited managed signup, passkey access and everyday messaging. Signup temporarily handles owner recovery keys in the browser; routine managed signing stays with the provider.
 
 | Capability | [`hailp` CLI](apps/cli) | [Thin GUI client](apps/gui-poc) |
 | --- | --- | --- |
 | View account identity | Full account details | Address, DID and custody summary |
-| Account onboarding | Owner-controlled and managed | — |
-| Vault backup and recovery | Create, verify, back up and import | — |
-| Credential management | Create, rotate, revoke and recovery login | — |
-| Sender Profiles | Create, view and update | Displays verified avatars |
-| Grants | Create, list, inspect, update and revoke | Reads active Grants for composing and address labels |
+| Account onboarding | Owner-controlled and managed | Invited managed signup: resumable setup, verified recovery kit, external email verification and automatic monitoring |
+| Vault backup and recovery | Create, verify, back up and import | Generate, save and verify a recovery kit during signup; no post-signup recovery import |
+| Passkeys and sessions | Browser-mediated passkey login | Sign in, add/rename/revoke passkeys, and sign out all sessions |
+| API credential management | Create, rotate, revoke and recovery login | Approve scoped CLI access; no credential-management UI |
+| Sender Profiles | Create, view and update | Verified avatars and sender/category review; no profile editor |
+| Grants | Create, list, inspect, update and revoke | List scopes/expiry; managed sender approval by address or QR link, with passkey-confirmed creation and revocation |
 | Inbox | List and retrieve messages | Paginated feed, safe rich-text rendering, avatars and bundled headers |
 | Compose | Plain text with reply invitations | Plain or rich text, formatting and a bundled PNG header |
 | Replies | Plain-text replies | Plain-text replies while the capability remains valid |
@@ -64,7 +65,9 @@ The reference CLI covers account administration and sensitive identity ceremonie
 | Address bindings | View and renew | — |
 | Custody transitions | Managed ↔ owner-controlled | — |
 | Provider transfers | Owner-controlled and managed workflows | — |
-| Credential storage | Local encrypted vault and credential files | Fixed server-side credential; none in the browser |
+| Credential storage | Local encrypted vault and credential files | HttpOnly session cookie and encrypted pending setup; no full-access signup API credential |
+
+Browser onboarding is an [invitation-only, reduced-assurance alpha](docs/public-authentication.md): its monitor shares the provider's operator. The live pilot completed signup, [sender permission approval](docs/browser-permissions.md), message delivery and a one-time reply. Broader platform/phone-camera validation remains open; post-signup browser recovery still requires separate approval.
 
 ## Repository layout
 
