@@ -1,5 +1,5 @@
 import {expect,it,vi} from "vitest";
-import {senderLink,senderRequest,senderQr,permissionRequest} from "./permissions.js";
+import {senderLink,senderRequest,senderQr,permissionRequest,subscriptionScopeLabel} from "./permissions.js";
 
 it("makes public identity-pinned QR links and rejects malformed or credential-bearing requests",()=>{
   const did="did:plc:"+"a".repeat(24),link=senderLink("https://haili.app","canary-prov@haili.app",did),url=new URL(link);
@@ -12,6 +12,12 @@ it("makes public identity-pinned QR links and rejects malformed or credential-be
     expect(()=>senderRequest(hash)).toThrow();
   expect(()=>senderLink("https://evil.example/path","a@b.com",did)).toThrow();
   expect(()=>senderLink("javascript:alert(1)","a@b.com",did)).toThrow();
+});
+
+it("labels General and keeps historical uncategorized permissions distinguishable",()=>{
+  expect(subscriptionScopeLabel({type:"categories",values:["general","updates"]})).toBe("General, updates");
+  expect(subscriptionScopeLabel({type:"uncategorized"})).toBe("Legacy uncategorized");
+  expect(subscriptionScopeLabel(undefined)).toBe("Permission unavailable");
 });
 
 it("permission requests use only the bounded same-origin cookie API, never QR-selected endpoints",async()=>{

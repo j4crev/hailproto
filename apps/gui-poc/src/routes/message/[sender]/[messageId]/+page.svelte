@@ -18,7 +18,7 @@
       {#if data.message.senderAddress}<small class="font-mono text-xs text-muted [overflow-wrap:anywhere]">{data.message.sender}</small>{/if}
       </div>
     </div>
-    {#if data.message.category}<mark class="max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{data.message.category}</mark>{/if}
+    {#if data.message.category}<mark class="max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{data.message.category==='general'?'General':data.message.category}</mark>{/if}
   </header>
   <div class="min-h-[220px] px-5 py-8 font-serif text-[18px] leading-[1.7] [overflow-wrap:anywhere] sm:px-7">
     <RichText blocks={data.message.blocks} header={data.message.header} />

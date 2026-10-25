@@ -33,6 +33,7 @@ import { registerSignupMonitorRoutes, type SignupMonitorService } from "./onboar
 import { registerSignupRoutes, type SignupCoordinator } from "./onboarding/signup.js";
 import {GrantPermissions,registerPermissionRoutes} from "./accounts/permissions.js";
 import type { AccountMessaging } from "./accounts/messaging.js";
+import type {AccountPublications} from "./accounts/publications.js";
 import { registerAccountAccess } from "./accounts/access-routes.js";
 import type { AccountAccess } from "./accounts/access.js";
 import type { SameProviderCustodyTransition } from "./accounts/custody-transition.js";
@@ -81,7 +82,7 @@ export interface AppDependencies {
   managedMigrationCompletion?:ManagedMigrationCompletion;
   accountApi?: { accounts: AccountApiRepository; grants: GrantRepository; service: GrantService; messaging?:AccountMessaging;
     binding?:AccountBinding;transfer?:AccountTransfer;custodyTransition?:SameProviderCustodyTransition;managedTransfer?:ManagedAccountTransfer;
-    profiles?:SenderProfileService;profileVerifier?:Pick<SenderProfileVerifier,"verify"> };
+    profiles?:SenderProfileService;profileVerifier?:Pick<SenderProfileVerifier,"verify">;publications?:AccountPublications };
   selfServiceOnboarding?: SelfServiceOnboarding;
   signupEmail?:{sql:SQL;client:SignupEmailClient};
   signupMonitor?:SignupMonitorService;
@@ -114,8 +115,8 @@ export function createApp(
   if (dependencies.accountAccess) registerAccountAccess(app, dependencies.accountAccess.access, dependencies.accountAccess.sql);
 
   if (dependencies.accountApi) {
-    const { accounts, grants, service, messaging, binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier } = dependencies.accountApi;
-    registerAccountApiRoutes(app, accounts, grants, service, config.publicOrigin,messaging,binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,config.passkeys?.origin);
+    const { accounts, grants, service, messaging, binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,publications } = dependencies.accountApi;
+    registerAccountApiRoutes(app, accounts, grants, service, config.publicOrigin,messaging,binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,config.passkeys?.origin,publications);
     if(dependencies.passkeys)registerPasskeyRoutes(app,dependencies.passkeys,accounts);
     if(dependencies.passkeys&&dependencies.servingSql)registerPermissionRoutes(app,
       new GrantPermissions(dependencies.servingSql,accounts,grants,service,dependencies.passkeys,config.publicOrigin),accounts,dependencies.passkeys.origin);

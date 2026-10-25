@@ -12,11 +12,21 @@ const ID=/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const DID=/^did:plc:[a-z2-7]{24}$/;
 const PAGE_SIZE=5;
 
-function bodyDocument(bytes:Uint8Array) {
+export function bodyDocument(bytes:Uint8Array) {
   const profile=validateBodyBytes(bytes);
   return profile==="spt-1"?toDiagnosticJson("hail.body.spt-1",decodePayload("hail.body.spt-1",bytes)):
     profile==="spt-2"?toDiagnosticJson("hail.body.spt-2",decodePayload("hail.body.spt-2",bytes)):
     toDiagnosticJson("hail.body.spt-3",decodePayload("hail.body.spt-3",bytes));
+}
+
+export function outboundBody(input:Record<string,unknown>):Uint8Array {
+  const text=typeof input.text==="string",document=Boolean(input.body)&&typeof input.body==="object"&&!Array.isArray(input.body);
+  if(text===document||text&&Buffer.byteLength(input.text as string)>65536)throw new UserGrantError(400,"Choose one bounded message body");
+  if(text)return bodyFromText(input.text as string);
+  const profile=(input.body as Record<string,unknown>).profile;
+  if(profile!=="spt-2"&&profile!=="spt-3")throw new UserGrantError(400,"Invalid body profile");
+  return profile==="spt-2"?bodyFromDocument(fromDiagnosticJson("hail.body.spt-2",input.body as DiagnosticJson)):
+    bodyFromDocument(fromDiagnosticJson("hail.body.spt-3",input.body as DiagnosticJson));
 }
 
 function statusDetails(bytes:Uint8Array|null) {
@@ -29,7 +39,7 @@ export class AccountMessaging {
   constructor(private readonly sql:SQL,private readonly bodies:BodyRepository,private readonly envelopes:EnvelopeRepository,
     private readonly service:EnvelopeService,readonly submit:(sender:string,id:string)=>Promise<object>){}
 
-  async send(session:AccountApiSession,input:Record<string,unknown>) {
+  async send(session:Pick<AccountApiSession,"did">,input:Record<string,unknown>) {
     const hasText=typeof input.text==="string",hasBody=Boolean(input.body)&&typeof input.body==="object"&&!Array.isArray(input.body);
     if(Object.keys(input).some(k=>!["messageId","text","body","grantId","category","replyTo","replyUntil"].includes(k))||
       typeof input.messageId!=="string"||!ID.test(input.messageId)||hasText===hasBody||
@@ -37,11 +47,7 @@ export class AccountMessaging {
       (input.grantId!==undefined&&(!ID.test(input.grantId as string)||typeof input.category!=="string"))||
       (input.replyTo!==undefined&&(!ID.test(input.replyTo as string)||input.category!==undefined))||
       (input.replyUntil!==undefined&&input.replyUntil!==null&&!Number.isSafeInteger(input.replyUntil)))throw new UserGrantError(400,"Invalid send request");
-    const profile=(input.body as Record<string,unknown> | undefined)?.profile;
-    if(hasBody&&profile!=="spt-2"&&profile!=="spt-3")throw new UserGrantError(400,"Invalid body profile");
-    const body=hasText?bodyFromText(input.text as string):profile==="spt-2"?
-      bodyFromDocument(fromDiagnosticJson("hail.body.spt-2",input.body as DiagnosticJson)):
-      bodyFromDocument(fromDiagnosticJson("hail.body.spt-3",input.body as DiagnosticJson));
+    const body=outboundBody(input);
     const digest=new Uint8Array(createHash("sha256").update(body).digest());
     let stored=await this.envelopes.sent(session.did,input.messageId);
     if(!stored){

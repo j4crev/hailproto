@@ -56,8 +56,8 @@ integration("active Grant updates and consent refresh through HTTPS hailp",()=>{
     const binding:HailAddressBinding={type:"hail.address-binding",version:1,address:senderAddress,did:senderDid,issued_at:now,expires_at:now+86400,key_id:`${senderDid}#hail-identity`};
     const bindingBytes=await signPayload("hail.address-binding",binding,createWebCryptoSigner(binding.key_id,senderIdentity.privateKey));
     address={address:senderAddress,did:senderDid,serviceBase:senderBase,identityDidKey:identity,messagingDidKey:messaging,plcEvidence:evidence,verifiedAt:new Date(),binding,representation:bindingBytes,digest:hash(bindingBytes)};
-    const payload:HailSenderProfile={type:"hail.sender-profile",version:1,did:senderDid,revision:1,updated_at:now,display_name:"Sender",offers_uncategorized:true,
-      categories:[{id:"receipts",label:"Receipts"},{id:"security",label:"Security"},{id:"updates",label:"Updates"}],key_id:`${senderDid}#hail-messaging`};
+    const payload:HailSenderProfile={type:"hail.sender-profile",version:1,did:senderDid,revision:1,updated_at:now,display_name:"Sender",offers_uncategorized:false,
+      categories:[{id:"general",label:"General"},{id:"receipts",label:"Receipts"},{id:"security",label:"Security"},{id:"updates",label:"Updates"}],key_id:`${senderDid}#hail-messaging`};
     const bytes=await signPayload("hail.sender-profile",payload,createWebCryptoSigner(payload.key_id,senderMessaging.privateKey));
     profile={did:senderDid,serviceBase:senderBase,messagingDidKey:messaging,profile:payload,representation:bytes,digest:hash(bytes),plcEvidence:evidence,verifiedAt:new Date(),etag:"profile"};
     for(const managed of [false,true]) {
@@ -139,14 +139,14 @@ integration("active Grant updates and consent refresh through HTTPS hailp",()=>{
     changeEvidence=true;
     const stale=await cli(fixture,["grant","update",grantId,"--category","receipts","--category","security","--expires-at",String(expiry+3600),"--output",join(directory,`${fixture.id}.stale.cose`),...signing]);
     expect(stale.code).toBe(1);expect(stale.stderr).toContain("HTTP_400");expect((await grants.findCurrentByGrantId(grantId))!.payload.revision).toBe(4);
-    const switched=await cli(fixture,["grant","update",grantId,"--uncategorized","--expires-at",String(expiry+3600),"--output",join(directory,`${fixture.id}.uncategorized.cose`),...signing]);
-    expect(switched.code,switched.stderr).toBe(0);expect((await grants.findCurrentByGrantId(grantId))!.payload.scope).toEqual([{type:"uncategorized"}]);
+    const switched=await cli(fixture,["grant","update",grantId,"--category","general","--expires-at",String(expiry+3600),"--output",join(directory,`${fixture.id}.general.cose`),...signing]);
+    expect(switched.code,switched.stderr).toBe(0);expect((await grants.findCurrentByGrantId(grantId))!.payload.scope).toEqual([{type:"categories",values:["general"]}]);
     changedOwnerKey=true;
-    const epoch=await cli(fixture,["grant","update",grantId,"--uncategorized","--refresh-consent","--output",join(directory,`${fixture.id}.epoch.cose`),...signing]);
+    const epoch=await cli(fixture,["grant","update",grantId,"--category","general","--refresh-consent","--output",join(directory,`${fixture.id}.epoch.cose`),...signing]);
     expect(epoch.code).toBe(1);expect(epoch.stderr).toContain("HTTP_409");changedOwnerKey=false;available=false;
     const revoked=await cli(fixture,["grant","revoke",grantId,...(managed?[]:[...signing,"--output",join(directory,`${fixture.id}.revoked.cose`)])]);
     expect(revoked.code,revoked.stderr).toBe(0);expect((await grants.findCurrentByGrantId(grantId))!.payload.status).toBe("revoked");
-    const terminal=await cli(fixture,["grant","update",grantId,"--uncategorized","--refresh-consent","--output",join(directory,`${fixture.id}.terminal.cose`),...signing]);expect(terminal.code).toBe(1);
+    const terminal=await cli(fixture,["grant","update",grantId,"--category","general","--refresh-consent","--output",join(directory,`${fixture.id}.terminal.cose`),...signing]);expect(terminal.code).toBe(1);
     const history=await db.sql<{revision:number}[]>`SELECT revision FROM grant_revisions WHERE grant_id=${grantId} ORDER BY revision`;expect(history.map(row=>row.revision)).toEqual([1,2,3,4,5,6]);
     const publication=await db.sql<{revision:number}[]>`SELECT revision FROM grant_publications WHERE grant_id=${grantId} ORDER BY revision`;expect(publication.map(row=>row.revision)).toEqual([1,2,3,4,5,6]);
     expect((await grants.findRevisionByGrantId(grantId,1))!.representation).toEqual(initial.representation);

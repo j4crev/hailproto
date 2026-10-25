@@ -6,10 +6,14 @@ export const APPROVAL_STORAGE="hail.pending-grant-approval.v1";
 export interface SenderReview {address:string;did:string;displayName:string;addressDigest:string;profileDigest:string;
   offersUncategorized:boolean;categories:{id:string;label:string;description?:string}[];}
 export interface Approval {requestId:string;action:"allow"|"revoke";expiresAt:string;approved:boolean;
-  permission:Pick<HailGrant,"grant_id"|"grantor"|"grantee"|"expires_at">&{scope:HailGrantScope[];consent_context:{grantee_address:string}};
+  permission:Pick<HailGrant,"grant_id"|"revision"|"grantor"|"grantee"|"expires_at">&{scope:HailGrantScope[];consent_context:{grantee_address:string}};
   options:Parameters<typeof startAuthentication>[0]["optionsJSON"]|null;
   result:{grantId:string;revision:number;status:"active"|"revoked";publication:"durable"}|null;}
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/,DID=/^did:plc:[a-z2-7]{24}$/;
+export function subscriptionScopeLabel(scope:HailGrantScope|undefined){
+  if(!scope)return "Permission unavailable";
+  return scope.type==="categories"?scope.values.map(value=>value==="general"?"General":value).join(", "):"Legacy uncategorized";
+}
 export function senderLink(origin:string,address:string,did:string){
   const url=new URL(origin);
   if(url.origin!==origin||url.protocol!=="https:"&&!(url.protocol==="http:"&&url.hostname==="localhost")||!DID.test(did)||
@@ -35,7 +39,7 @@ export function approval(value:any):Approval{
     typeof value.approved!=="boolean"||!value.approved&&!value.options||value.result&&
     (!UUID.test(value.result.grantId)||!Number.isSafeInteger(value.result.revision)||!["active","revoked"].includes(value.result.status)||value.result.publication!=="durable"))
     throw new Error("The provider returned an invalid permission review");
-  if(!permission||!UUID.test(permission.grant_id)||!DID.test(permission.grantor)||!DID.test(permission.grantee)||
+  if(!permission||!UUID.test(permission.grant_id)||!Number.isSafeInteger(permission.revision)||permission.revision<1||!DID.test(permission.grantor)||!DID.test(permission.grantee)||
     !Array.isArray(permission.scope)||permission.scope.length!==1||!scope||
     !(scope.type==="uncategorized"||scope.type==="categories"&&Array.isArray(scope.values)&&scope.values.length>0&&scope.values.every((v:unknown)=>typeof v==="string"&&/^[a-z0-9][a-z0-9._-]{0,63}$/.test(v)))||
     permission.expires_at!==null&&(!Number.isSafeInteger(permission.expires_at)||permission.expires_at<=0)||

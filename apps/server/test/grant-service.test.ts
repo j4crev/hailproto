@@ -192,6 +192,31 @@ function uuidTimestamp(uuid: string): number {
 }
 
 describe("GrantService", () => {
+  it("rejects new uncategorized subscriptions and signed updates while retaining legacy revocation",async()=>{
+    const context=fixture();context.profile.profile.offers_uncategorized=true;
+    const legacyDefinition:GrantDefinition={...definition,scope:{type:"uncategorized"}};
+    await expect(context.service.prepareUserSignedGrant(account.canonicalAddress,context.address.address,legacyDefinition)).rejects.toMatchObject({status:400});
+    await expect(context.service.createOrReuse(account.canonicalAddress,context.address.address,legacyDefinition)).rejects.toMatchObject({status:400});
+    const initial=await context.service.prepareUserSignedGrant(account.canonicalAddress,context.address.address,definition);
+    const key=await crypto.subtle.importKey("pkcs8",Uint8Array.from(identityPkcs8),"Ed25519",false,["sign"]);
+    const sign=(payload:HailGrant)=>signPayload("hail.grant",payload,createWebCryptoSigner(`${grantorDid}#hail-identity`,key));
+    const legacy:HailGrant={...initial,scope:[{type:"uncategorized"}]},bytes=await sign(legacy);
+    await expect(context.service.acceptUserSignedGrant(account.canonicalAddress,context.address.address,bytes)).rejects.toMatchObject({status:400});
+    await expect(context.service.updateManaged(account.canonicalAddress,legacy,identityDidKey)).rejects.toMatchObject({status:400});
+    expect(context.decrypt).not.toHaveBeenCalled();
+    const stored=await context.service.acceptUserSignedGrant(account.canonicalAddress,context.address.address,await sign(initial));
+    await expect(context.service.prepareUserSignedUpdate(account.canonicalAddress,initial.grant_id,{...legacyDefinition,
+      expectedRevision:1,expectedDigest:stored.digest,refreshConsent:false})).rejects.toMatchObject({status:400});
+    await expect(context.service.acceptUserSignedGrant(account.canonicalAddress,context.address.address,await sign({...stored.payload,
+      revision:2,previous:stored.digest,updated_at:nowSeconds+1,scope:[{type:"uncategorized"}]}))).rejects.toMatchObject({status:400});
+    // Seed retained historical bytes directly, as an older provider would have stored them.
+    await context.insertAuthoritativeRevision1({revision:{...stored,payload:legacy,representation:bytes,
+      digest:new Uint8Array(createHash("sha256").update(bytes).digest())},consent:{address:context.address,senderProfile:context.profile},destinationServiceBase:granteeService});
+    context.addressVerifier.verify.mockRejectedValue(new Error("Publisher offline"));
+    context.profileVerifier.verify.mockRejectedValue(new Error("Publisher offline"));
+    const revoked=await context.service.revoke(account.canonicalAddress,legacy.grant_id);
+    expect(revoked.payload.status).toBe("revoked");expect(revoked.payload.scope).toEqual([{type:"uncategorized"}]);
+  });
   it("imports user-signed terminal revocation without provider custody or sender discovery", async () => {
     const context = fixture();
     const initial = await context.service.prepareUserSignedGrant(account.canonicalAddress,

@@ -7,7 +7,7 @@ const options = {
   category: { type: "string", multiple: true }, scope: { type: "string", multiple: true },
   after: { type: "string" }, pages: { type: "string" }, wait: { type: "string" }, interval: { type: "string" },
   "expires-at": { type: "string" }, "reply-until": { type: "string" }, "expected-did": { type: "string" },
-  "refresh-consent": { type: "boolean" }, "no-expiry": { type: "boolean" }, uncategorized: { type: "boolean" },
+  "refresh-consent": { type: "boolean" }, "no-expiry": { type: "boolean" },
   "backup-verified": { type: "boolean" }, "recovery-file": { type: "string" },
   "passkey-enrollment": { type: "string" },
   sender: { type: "string" }, address: { type: "string" }, custody: { type: "string" },
@@ -61,8 +61,8 @@ const commands = [
   ["message status", "<message-id>", "", "wait interval", true, "Read/poll retained status; indeterminate never promises acceptance."],
   ["message submit", "<message-id>", "", "", true, "Resubmit the exact stored envelope under the same message ID."],
   ["grant list", "", "", "after pages", true, "List scoped Grant roles and revisions."],
-  ["grant create", "<sender-address>", "output", "category uncategorized vault expires-at no-expiry", true, "Select categories or uncategorized; owner signing unlocks identity only."],
-  ["grant update", "<grant-id>", "output", "category uncategorized vault expires-at no-expiry refresh-consent sender", true, "Sign a full-state revision; expanded permission requires fresh verified consent."],
+  ["grant create", "<sender-address>", "output category", "vault expires-at no-expiry", true, "Select named categories (general for General); owner signing unlocks identity only."],
+  ["grant update", "<grant-id>", "output category", "vault expires-at no-expiry refresh-consent sender", true, "Sign a full-state categorized revision; expanded permission requires fresh verified consent."],
   ["grant show", "<grant-id>", "", "output", true, "Read diagnostic Grant JSON; optional output retains exact signed COSE bytes."],
   ["grant submit", "<private-signed-grant.cose>", "", "", true, "Submit retained signed bytes; durable publication is not peer acknowledgement."],
   ["grant revoke", "<grant-id>", "", "vault output", true, "Sign a terminal revision; owner-controlled custody requires vault and output."],
@@ -116,9 +116,8 @@ export function parseCommand(args: string[]) {
   }
   if (values.help) return { values, positionals, authenticated, version: false, help: help(command) };
   if (words(required).some(key => !values[key as keyof typeof values])) throw new CliError("USAGE_ERROR", `Missing required options; use hailp ${name} --help`);
-  if (values["expires-at"] !== undefined && values["no-expiry"] || values.category && values.uncategorized ||
-    name.startsWith("grant ") && ["grant create", "grant update"].includes(name) && !values.category && !values.uncategorized) {
-    throw new CliError("USAGE_ERROR", "Select categories or --uncategorized, and only one expiry option");
+  if (values["expires-at"] !== undefined && values["no-expiry"]) {
+    throw new CliError("USAGE_ERROR", "Select only one expiry option");
   }
   if (values.category?.some(value => !value) || values.scope?.some(value => !value)) throw new CliError("USAGE_ERROR", "Categories/scopes must not be empty");
   if (name === "send" && values.category && values.category.length !== 1) throw new CliError("USAGE_ERROR", "Messages select exactly one category");

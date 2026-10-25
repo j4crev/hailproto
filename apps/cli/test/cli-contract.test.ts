@@ -6,6 +6,7 @@ import { expect, it, vi } from "vitest";
 import { AccountApiClient, AccountApiError } from "../src/account-api.js";
 import { listPages, waitForStatus } from "../src/account-reads.js";
 import { parseCommand } from "../src/cli/options.js";
+import {selectedScope} from "../src/grant-creation.js";
 
 const id = "019a0000-0000-7000-8000-000000000001";
 const otherId = "019a0000-0000-7000-8000-000000000002";
@@ -23,8 +24,16 @@ it("proves the process contract and rejects misplaced options, duplicate flags a
     ["reply", id, "--file", "x", "--state", "y", "--category", "a"],
     ["message", "status", id, "--interval", "1"], ["grant", "list", "--pages", "0"],
     ["grant", "update", id, "--output", "x", "--category", "a", "--expires-at", "1.5"],
+    ["grant", "create", "sender@example.com", "--output", "x", "--uncategorized"],
+    ["grant", "update", id, "--output", "x", "--uncategorized"],
+    ["grant", "create", "sender@example.com", "--output", "x"],
+    ["grant", "update", id, "--output", "x"],
+    ["profile","migrate-general"],
   ]) expect(() => parseCommand(args)).toThrow();
   expect(parseCommand(["grant", "update", "--help"]).help).toContain("fresh verified consent");
+  expect(parseCommand(["grant","create","--help"]).help).not.toContain("uncategorized");
+  expect(selectedScope("general")).toEqual({type:"categories",values:["general"]});
+  expect(()=>selectedScope(null)).toThrow("named category");
   expect(parseCommand(["account","managed-transfer","export","--state","state.json","--output","snapshot.json",
     "--credentials","credential.json"]).authenticated).toBe(true);
   expect(parseCommand(["account","managed-transfer","sign-cutover","--vault","vault.json","--state","state.json",

@@ -43,7 +43,7 @@ export class UserGrantError extends Error {
 
 function normalizeScope(scope: HailGrantScope): HailGrantScope {
   if(!scope||typeof scope!=="object"||Array.isArray(scope))throw new UserGrantError(400,"Invalid Grant scope");
-  if (scope.type === "uncategorized"&&Object.keys(scope).length===1) return { type: "uncategorized" };
+  if (scope.type === "uncategorized") throw new UserGrantError(400,"New subscriptions require named categories; use general for General");
   if(scope.type!=="categories"||Object.keys(scope).length!==2||!Array.isArray(scope.values)||!scope.values.length||
     new Set(scope.values).size!==scope.values.length||scope.values.some(value=>typeof value!=="string"||!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(value)))throw new UserGrantError(400,"Invalid selected categories");
   return {
@@ -233,6 +233,7 @@ export class GrantService {
       }
       return { ...signed, receivedAt: this.now() };
     }
+    if(payload.scope[0]?.type==="uncategorized")throw new UserGrantError(400,"New subscriptions require named categories; use general for General");
     if(payload.revision>1) {
       if(!retained||retained.localRole!=="grantor"||retained.localAccountId!==grantor.id||retained.payload.status!=="active"||
         retained.signingPublicKey!==resolved.identityDidKey||payload.revision!==retained.payload.revision+1||!payload.previous||
@@ -421,6 +422,7 @@ export class GrantService {
     payload: HailGrant,
     signingPlcEvidence: PlcResolutionEvidence,
   ): Promise<SignedGrantRevisionInput> {
+    if(payload.status==="active")normalizeScope(payload.scope[0]!);
     if (!account.did || key.algorithm !== "ed25519") throw new Error("Invalid identity signing key");
     assertPublicAuthorityFresh(signingPlcEvidence,this.now());
     const privateBytes = await this.encryptor.decrypt(

@@ -9,6 +9,7 @@ import {cidForCbor} from "@atproto/common";
 import {createWebCryptoSigner,signPayload,encodeBase64Url,toDiagnosticJson,fromDiagnosticJson,encodePayload,type HailGrant} from "@hailproto/codec";
 import {createApp} from "../../server/src/app.js";
 import type {AppConfig} from "../../server/src/config.js";
+import {uuidV7} from "../../server/src/identity/uuid-v7.js";
 const {generateRegistrationOptions,verifyRegistrationResponse,generateAuthenticationOptions,verifyAuthenticationResponse}=
   createRequire(new URL("../../server/package.json",import.meta.url))("@simplewebauthn/server");
 const work=await mkdtemp(join(process.env.OPENCODE_TMP_DIR||"/tmp/opencode","hail-wizard-proof-"));
@@ -22,11 +23,17 @@ const browserErrors:string[]=[];
 const requests:{path:string;body:string;authorization:string}[]=[];
 const policy={provider:"https://provider.example.com",monitorOrigin:"https://monitor.example",monitorKey:messaging.vault.identity.publicDidKey};
 const permissionSigner=await crypto.subtle.generateKey("Ed25519",true,["sign","verify"]),peerDid="did:plc:"+"b".repeat(24),peerAddress="peer@peer.example.com";
-let allowed:HailGrant|null=null,allowedCose="",allowedDigest="";
+let allowed:HailGrant|null=null,allowedCose="",allowedDigest="",generalAvailable=false;
 const approvals=new Map<string,{action:string;payload:HailGrant;challenge:string;approved:boolean;result:unknown}>();
 const incomingId="019a15fd-2bd0-7433-8afa-bd0355e0608d";
 const sendingGrantId="019a15fd-2bd0-7433-8afa-bd0355e0608e";
 let sendingGrant:{payload:HailGrant;cose:string;digest:string}|null=null,composed:any=null,composePosts=0;
+let publicationIntent:any=null,publicationReads=0,publicationCreated=0,composedOther:any=null;
+const publicationResult=()=>({publicationId:publicationIntent.publicationId,category:publicationIntent.category,total:2,state:publicationReads>=2?"finished":"publishing",
+  counts:{pending:publicationReads>=2?0:2,submitted:publicationReads>=2?2:0,blocked:0,cancelled:0,expired:0,indeterminate:0},
+  delivery:{accepted:0,delivered:publicationReads>=2?1:0,"on-hold":0,failed:0,cancelled:0,indeterminate:publicationReads>=2?1:0},
+  targets:[composed,composedOther].map(message=>({messageId:message.messageId,recipient:message.recipient,state:publicationReads>=2?"submitted":"pending",delivery:publicationReads>=2?message.state:null})),
+  createdAt:new Date(publicationCreated).toISOString(),expiresAt:new Date(publicationCreated+86400000).toISOString()});
 let incoming=false,replyPosts=0,replied:any=null,recentlyVerified=false,guiProxy:ReturnType<typeof createApp>;
 const textBody=(text:string)=>({version:1,profile:"spt-1",blocks:[{_type:"block",_key:"b1",style:"normal",markDefs:[],children:[{_type:"span",_key:"s1",text,marks:[]}]}]});
 const headerPng=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
@@ -53,33 +60,47 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   const body=await request.text();requests.push({path,body,authorization:request.headers.get("Authorization")??""});const input=body?JSON.parse(body):{};
   if(path===`/api/v1/account/inbox/${encodeURIComponent(peerDid)}/${incomingId}`||path===`/api/v1/account/inbox/${peerDid}/${incomingId}`)return json(incomingMessage());
   if(path==="/api/v1/account/messages"){
-    if(!input.replyTo){
-      assert(sendingGrant);assert.equal(input.grantId,sendingGrantId);assert.equal(input.category,"updates");assert.equal(composePosts,0);
-      const body=fromDiagnosticJson("hail.body.spt-2",input.body);encodePayload("hail.body.spt-2",body);
-      assert.deepEqual(body.blocks.map(block=>block.style),["h1","h2","normal","normal","normal","normal","blockquote","normal"]);
-      composed={messageId:input.messageId,sender:did,recipient:peerDid,recipientAddress:peerAddress,category:"updates",createdAt:new Date().toISOString(),state:"delivered",revision:2,reason:null,retryAt:null,body:input.body};
-      composePosts++;return json({messageId:input.messageId,state:"delivered"});
-    }
     assert.equal(input.replyTo,incomingId);assert.equal(input.text,"Browser transport reply");assert.equal(replyPosts,0);replyPosts++;
     replied={messageId:input.messageId,sender:did,recipient:peerDid,recipientAddress:peerAddress,category:null,createdAt:new Date().toISOString(),
       state:"delivered",revision:2,reason:null,retryAt:null,body:textBody(input.text)};return json({messageId:input.messageId,state:"delivered"});
   }
+  if(path==="/api/v1/account/publications/audiences")return json({maxRecipients:100,categories:sendingGrant?[{category:"general",subscribers:2},{category:"updates",subscribers:1}]:[]});
+  if(path==="/api/v1/account/publications"){
+    if(request.method==="GET")return json({publications:publicationIntent?[{publicationId:publicationIntent.publicationId,category:publicationIntent.category,
+      createdAt:new Date(publicationCreated).toISOString(),pending:publicationReads<2}]:[]});
+    assert(sendingGrant);assert.equal(input.category,"general");assert.equal(input.allowReplies,false);
+    assert.deepEqual(Object.keys(input).sort(),["allowReplies","body","category","publicationId"]);
+    const body=fromDiagnosticJson("hail.body.spt-2",input.body);encodePayload("hail.body.spt-2",body);
+    assert.deepEqual(body.blocks.map(block=>block.style),["h1","h2","normal","normal","normal","normal","blockquote","normal"]);
+    if(publicationIntent){assert.deepEqual(input,publicationIntent);return json(publicationResult(),202);}
+    publicationIntent=input;publicationCreated=Date.now();composePosts++;
+    composed={messageId:uuidV7(),sender:did,recipient:peerDid,recipientAddress:peerAddress,category:"general",createdAt:new Date().toISOString(),state:"delivered",revision:2,reason:null,retryAt:null,body:input.body};
+    composedOther={...composed,messageId:uuidV7(),recipient:"did:plc:"+"c".repeat(24),recipientAddress:null,state:"indeterminate",revision:null};
+    return json(publicationResult(),202);
+  }
+  if(publicationIntent&&path===`/api/v1/account/publications/${publicationIntent.publicationId}`){publicationReads++;return json(publicationResult());}
   if(path===`/api/v1/account/messages/${composed?.messageId}`&&composed)return json({messageId:composed.messageId,state:composed.state,revision:composed.revision});
-  for(const message of [replied,composed])if(message&&path===`/api/v1/account/sent/${message.messageId}`)return json(message);
-  if(path==="/api/v1/account/sent")return json({messages:[composed,replied].filter(Boolean),next:null});
+  for(const message of [replied,composed,composedOther])if(message&&path===`/api/v1/account/sent/${message.messageId}`)return json(message);
+  if(path==="/api/v1/account/sent")return json({messages:[composed,composedOther,replied].filter(Boolean),next:null});
   if(path==="/api/v1/auth/passkeys")return json({recentlyVerified,passkeys:[{credentialId:credential.id,label:"Primary passkey",deviceType:"multiDevice",backedUp:true,
     current:true,createdAt:new Date().toISOString(),lastUsedAt:null}]});
   if(path.startsWith("/api/v1/account/permissions/")){
     assert(request.headers.get("Cookie")?.includes("hail_session="+sessionToken));
     const step=path.split("/").at(-1)!;
     if(step==="review"){assert.equal(input.sender,peerAddress);if(input.senderDid)assert.equal(input.senderDid,peerDid);
-      return json({address:peerAddress,did:peerDid,displayName:"Test sender",addressDigest:"A".repeat(43),profileDigest:"A".repeat(43),offersUncategorized:false,categories:[{id:"updates",label:"Updates"}]});}
+      return json({address:peerAddress,did:peerDid,displayName:"Test sender",addressDigest:"A".repeat(43),profileDigest:"A".repeat(43),offersUncategorized:!generalAvailable,categories:[{id:"updates",label:"Updates"},...(generalAvailable?[{id:"general",label:"General"}]:[])]});}
     if(step==="prepare"){
       assert(["allow","revoke"].includes(input.action));
-      if(input.action==="allow"){assert.equal(input.senderDid,peerDid);assert.deepEqual(input.scope,{type:"categories",values:["updates"]});assert(!allowed);}
+      if(input.action==="allow"){
+        assert.equal(input.senderDid,peerDid);
+        assert.deepEqual(input.scope,{type:"categories",values:[generalAvailable?"general":"updates"]});
+        assert(!allowed||allowed.status==="revoked");
+      }
       else assert(allowed?.status==="active");
       const options=await generateAuthenticationOptions({rpID:"localhost",userVerification:"required",allowCredentials:[{id:credential.id}]});
-      approvals.set(input.requestId,{action:input.action,payload:input.action==="allow"?{...permissionPayload("019a15fd-2bd0-7433-8afa-bd0355e0608c"),expires_at:input.expiresAt}:allowed!,challenge:options.challenge,approved:false,result:null});
+      const proposed={...permissionPayload(generalAvailable?"019a15fd-2bd0-7433-8afa-bd0355e0608f":"019a15fd-2bd0-7433-8afa-bd0355e0608c"),
+        scope:[input.scope],expires_at:input.expiresAt};
+      approvals.set(input.requestId,{action:input.action,payload:input.action==="allow"?proposed:allowed!,challenge:options.challenge,approved:false,result:null});
       return json(actionSummary(input.requestId));
     }
     if(step==="commit"){
@@ -334,7 +355,7 @@ try{
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Opening a QR must not prepare or approve a permission");
   await click("Review sender");await wait(()=>has("Test sender"),"QR and typed address share the same review");
-  await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>has("Compose a Hail"),"compose styling");
+  await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>has("Publish an update"),"publisher styling");
   assert.deepEqual(await styles("form[enctype] label",["display","fontWeight"]),["grid","600"]);
   assert.deepEqual(await styles("fieldset label",["display","gap"]),["flex","8px"]);
   assert.deepEqual(await styles("fieldset input",["width"]),["13px"]);
@@ -355,17 +376,24 @@ try{
   const signed=await signPayload("hail.grant",payload,createWebCryptoSigner(peerDid+"#hail-identity",permissionSigner.privateKey));
   sendingGrant={payload,cose:encodeBase64Url(signed),digest:encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256",Uint8Array.from(signed))))};
   await cdp("Page.navigate",{url:origin+"/compose?rich-proof=1"});
-  await wait(async()=>evaluate(`document.querySelector('select[name=target]')?.options.length===2`),"incoming Grant is selectable");
+  await wait(async()=>evaluate(`document.querySelector('select[name=category]')?.options.length===3`),"category audiences are available");
+  assert.equal(await evaluate(`document.querySelector('select[name=category]').value`),"general","General is the default category");
+  assert(await evaluate(`!document.querySelector('select[name=target]') && !document.querySelector('input[name=grantId]')`),"Publisher must not select individual subscription recipients");
   const richText="## Highlights\n- **First**\n- Second\n1. Number one\n2. Number two\n> A quote\n\n<img src=x onerror=alert(1)>";
   await fill("Title","Release notes");
-  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value=${JSON.stringify(richText)};e.dispatchEvent(new Event('input',{bubbles:true}));const s=document.querySelector('select[name=target]');s.value=s.options[1].value;s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value=${JSON.stringify(richText)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] h1')?.textContent==='Release notes' && document.querySelectorAll('[aria-label="Message preview"] ul li').length===2 && document.querySelectorAll('[aria-label="Message preview"] ol li').length===2`),"rich message preview");
   const rendered=async(selector:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});return {headings:[...e.querySelectorAll('h1,h2,h3')].map(n=>n.textContent),bullets:[...e.querySelectorAll('ul li')].map(n=>n.textContent),numbered:[...e.querySelectorAll('ol li')].map(n=>n.textContent),quote:e.querySelector('blockquote')?.textContent,images:e.querySelectorAll('img').length,text:e.innerText.includes('<img src=x onerror=alert(1)>')};})()`);
   const previewContent=await rendered('[aria-label="Message preview"]');
   assert.deepEqual(previewContent,{headings:["Release notes","Highlights"],bullets:["First","Second"],numbered:["Number one","Number two"],quote:"A quote",images:0,text:true});
   await evaluate(`document.querySelector('form[enctype]').requestSubmit()`);
-  await wait(()=>has("Message delivered"),"native rich composition and delivery status");assert.equal(composePosts,1);
-  await evaluate(`document.querySelector('[aria-label="Submission status"] a').click()`);
+  await wait(()=>has("Publication publishing"),"durable category publication accepted");assert.equal(composePosts,1);
+  assert(await has("2 subscribers in the saved audience"));
+  await click("Refresh status");await wait(()=>has("Publication finished"),"publication work is distinct from delivery status");
+  assert(await has("1 delivered"));assert(await has("1 indeterminate"));
+  await evaluate(`document.querySelector('[aria-label="Publication status"] a[href="/sent"]').click()`);
+  await wait(()=>has("Sent messages"),"publication links to per-message delivery details");
+  await evaluate(`document.querySelector(${JSON.stringify(`a[href="/sent/${composed.messageId}"]`)}).click()`);
   await wait(async()=>evaluate(`location.pathname===${JSON.stringify(`/sent/${composed.messageId}`)} && !!document.querySelector('article h1')`),"sent rich-message reader");
   assert.deepEqual(await rendered('article > div'),previewContent,"Preview and sent reader must render the same safe content");
   // Expired sessions use the same login, preserve the QR fragment, and clear the stale cookie.
@@ -378,7 +406,7 @@ try{
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Signing in through a QR must not approve or prepare it");
   // Verify each ordinary folder resumes after login, including its query string.
-  for(const [path,text] of [["/sent?after=older","Sent messages"],["/compose","Compose a Hail"],["/settings/security","Passkeys & security"]]){
+  for(const [path,text] of [["/sent?after=older","Sent messages"],["/compose","Publish an update"],["/settings/security","Passkeys & security"]]){
     await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
     await cdp("Page.navigate",{url:origin+path});
     await wait(async()=>evaluate(`location.pathname==='/auth/login' && new URL(location.href).searchParams.get('next')===${JSON.stringify(path)}`),"folder login: "+path);
@@ -392,6 +420,17 @@ try{
   await cdp("Page.navigate",{url:origin+"/settings/security?fresh=1"});await wait(()=>has("Verify with your current passkey before adding"),"security management requires fresh verification");
   assert(await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent==='Add passkey').disabled`));
   await click("Verify to manage");await wait(async()=>evaluate(`location.search==='?fresh=1' && [...document.querySelectorAll('button')].find(b=>b.textContent==='Add passkey')?.disabled===false`),"fresh passkey verification unlocks management");
+  generalAvailable=true;
+  await cdp("Page.navigate",{url:origin+"/permissions?general-proof=1"});await wait(()=>has("Potential sender's Hail address"),"General subscription screen");
+  await fill("Potential sender's Hail address",peerAddress);await click("Review sender");
+  await wait(async()=>evaluate(`!!document.querySelector('input[value=general]')`),"General is an ordinary offered category");
+  assert(!await has("Allow uncategorized messages instead"));
+  await evaluate(`document.querySelector('input[value=general]').click()`);
+  await click("Review permission before approving");await wait(()=>has("Confirm allowed sender"),"review General subscription");
+  assert(await has("Scope: General"));await click("Allow sender with my passkey");
+  await wait(async()=>evaluate(`[...document.querySelectorAll('[aria-label="Issued permissions"] article p')].some(p=>p.textContent.startsWith('General · active'))`),"new General subscription saved");
+  assert.equal(allowed!.revision,1);assert.deepEqual(allowed!.scope,[{type:"categories",values:["general"]}]);
+  assert.equal(composePosts,1);assert.equal(replyPosts,1);
   for(const req of requests){assert(!req.body.includes(secret),"Recovery secret uploaded");assert(!req.body.includes('"ciphertext"'),"Recovery vault uploaded");}
   assert(requests.filter(r=>r.authorization).every(r=>r.authorization==="Bearer "+setupToken||r.path.endsWith("check-address")));
   passed=true;

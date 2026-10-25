@@ -41,6 +41,7 @@ integration("passkey session migration",()=>{
         await rollback.unsafe("ROLLBACK");
       }finally{rollback.release();}
       const browserRollback=await db.sql.reserve();try{
+        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());
         await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
         await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());
         await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0058_signup_ceremonies.sql",import.meta.url)).text());

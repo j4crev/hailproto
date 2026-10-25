@@ -77,6 +77,14 @@ stderr, and failures use a nonzero exit code. For automation, inspect the JSON
 result as well as the exit code: an indeterminate message status is still a
 successful status query, not proof of delivery.
 
+### Subscription categories
+
+Grant creation and updates require `--category`; use `--category general` for
+General subscriptions. Publishers offer `{ "id": "general", "label": "General" }`
+through the existing profile create/update commands. There is no special migration
+command, and uncategorized subscription authoring is no longer supported. Existing
+signed records remain readable and revocable.
+
 ## Create a test account
 
 Self-service account creation must be enabled by the provider. Keep all files

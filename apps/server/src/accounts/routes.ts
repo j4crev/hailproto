@@ -5,6 +5,7 @@ import { GrantConflictError, type GrantRepository } from "../grants/repository.j
 import { UserGrantError, type GrantService } from "../grants/service.js";
 import { ALL_ACCOUNT_SCOPES, CredentialConflictError, type AccountApiRepository } from "./repository.js";
 import type { AccountMessaging } from "./messaging.js";
+import type {AccountPublications} from "./publications.js";
 import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
 import { BindingError, type AccountBinding } from "./binding.js";
 import { AccountTransferError,type AccountTransfer } from "./transfer.js";
@@ -45,7 +46,7 @@ export async function accountRequestBytes(request: Request,limit=MAX_BYTES): Pro
 export function registerAccountApiRoutes(app: Hono, accounts: AccountApiRepository,
   grants: GrantRepository, service: GrantService, provider: string, messaging?:AccountMessaging, binding?:AccountBinding,
   transfer?:AccountTransfer,custodyTransition?:SameProviderCustodyTransition,managedTransfer?:ManagedAccountTransfer,
-  profiles?:SenderProfileService,profileVerifier?:Pick<SenderProfileVerifier,"verify">,sessionOrigin?:string): void {
+  profiles?:SenderProfileService,profileVerifier?:Pick<SenderProfileVerifier,"verify">,sessionOrigin?:string,publications?:AccountPublications): void {
   const ingress=new FixedWindowRateLimit(),anonymous=new FixedWindowRateLimit(),authenticated=new FixedWindowRateLimit();
   const handle = async (context: Context, grantId: string | null, action?: string):Promise<Response> => {
     context.header("Cache-Control", "no-store");
@@ -70,6 +71,25 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
       const query = new URL(context.req.url).searchParams;
       if (query.size && action !== "list" && action !== "inbox" && action !== "sent" && action !== "credential") return problem(400);
       const method = context.req.method;
+      if(action?.startsWith("publication-")){
+        const required=action==="publication-audiences"?"grants:read":action==="publication-status"||action==="publication-create"&&method==="GET"?"messages:read":"messages:write";
+        if(!session.scopes.includes(required))return problem(403);
+        if(!publications)return problem(503);
+        if(action==="publication-create"&&method==="GET")return context.json(await publications.recent(session));
+        if(action==="publication-audiences"||action==="publication-status"){
+          if(method!=="GET")return problem(405);
+          if(action==="publication-audiences")return context.json(await publications.audiences(session));
+          const found=await publications.status(session,grantId!);return found?context.json(found):problem(404);
+        }
+        if(method!=="POST")return problem(405);if(session.migration_state)return problem(409);
+        if(context.req.header("Content-Type")!=="application/json"||context.req.header("Content-Encoding")!==undefined)return problem(415);
+        const bytes=await accountRequestBytes(context.req.raw);if(!bytes)return problem(413);
+        let input:unknown;try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}catch{return problem(400);}
+        if(!input||typeof input!=="object"||Array.isArray(input))return problem(400);
+        if(action==="publication-create")return context.json(await publications.create(session,input as Record<string,unknown>),202);
+        if(Object.keys(input).length)return problem(400);
+        const found=await publications.cancel(session,grantId!);return found?context.json(found):problem(404);
+      }
       if(action==="sender-profile"){
         if(!session.scopes.includes("messages:read"))return problem(403);
         if(method!=="GET")return problem(405);
@@ -373,6 +393,10 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/profile",context=>handle(context,null,"profile"));
   app.all("/api/v1/account/senders/:sender/profile",context=>handle(context,context.req.param("sender"),"sender-profile"));
   app.all("/api/v1/account/messages",context=>handle(context,null,"send"));
+  app.all("/api/v1/account/publications/audiences",context=>handle(context,null,"publication-audiences"));
+  app.all("/api/v1/account/publications",context=>handle(context,null,"publication-create"));
+  app.all("/api/v1/account/publications/:publicationId/cancel",context=>handle(context,context.req.param("publicationId"),"publication-cancel"));
+  app.all("/api/v1/account/publications/:publicationId",context=>handle(context,context.req.param("publicationId"),"publication-status"));
   app.all("/api/v1/account/inbox",context=>handle(context,null,"inbox"));
   app.all("/api/v1/account/inbox/:sender/:messageId",context=>handle(context,context.req.param("messageId"),"read"));
   app.all("/api/v1/account/messages/:messageId/submit",context=>handle(context,context.req.param("messageId"),"resubmit"));

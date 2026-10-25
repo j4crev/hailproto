@@ -24,8 +24,8 @@ the address, DID, sender-chosen display name and offered categories. A profile
 name is not proof of real-world identity. A QR whose DID no longer matches the
 address is refused, rather than silently redirecting permission to its new owner.
 
-The recipient selects categories (or explicitly selects uncategorized permission,
-if offered) and a bounded expiry, then reviews the exact permission and confirms
+The recipient selects offered categories, including **General** when available,
+and a bounded expiry, then reviews the exact permission and confirms
 with a passkey. The provider signs/publishes the managed Grant using the existing
 service and durable publication queue. **Saved/durable** is not proof of delivery
 to the sender. Allowed senders are listed with scopes, expiry and a revocation
@@ -35,8 +35,17 @@ The QR contains `https://<this-provider>/permissions#sender=...&did=...`, with
 public data only. This first UI uses its own provider's permission-review page;
 it is not a provider-directory/deep-link standard. Typed addresses can resolve
 other supported public providers. Camera capture inside the browser, existing-DID
-signers, permission expansion/editing and Sender Profile authoring are not added.
+signers, general-purpose permission expansion/editing and Sender Profile authoring are not added.
 Owner-controlled accounts retain their existing signer workflow.
+
+## General Subscriptions
+
+General is the ordinary category `general`, with label General in a publisher's
+signed profile. It uses the existing review/approve flow—no special migration
+command, conversion button or new session scope. New uncategorized permissions
+are rejected by the browser approval API and shared Grant service, including
+direct API authoring. Historical permissions remain readable and revocable.
+See [the implementation and inventory boundary](subscriptions-and-connections.md).
 
 ## Authority And Retry Boundary
 
@@ -95,6 +104,10 @@ The built Chromium flow covers typed and QR-linked review, no automatic approval
 virtual passkey confirmation, saved Grant listing and revocation. Its remote
 services are local fixtures; real phone-camera/platform behavior and live Grant
 publication still need the operator pilot.
+
+The PostgreSQL and desktop/mobile-width browser checks also cover an ordinary
+General subscription and refusal of new uncategorized permissions. Unit checks
+cover CLI rejection, directly signed API requests and retained legacy revocation.
 
 For `j4@haili.app`, enter `canary-prov@haili.app`, select its offered `updates`
 category and expiry, and confirm with the existing passkey. This permits the

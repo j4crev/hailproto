@@ -7,7 +7,7 @@ import { readRecoverySecret } from "./cli/private-input.js";
 import type { AccountApiClient } from "./account-api.js";
 
 export function selectedScope(category:string|string[]|null):HailGrantScope {
-  if(category===null)return {type:"uncategorized"};
+  if(category===null)throw new Error("Select a named category; use general for General subscriptions");
   const values=typeof category==="string"?[category]:category;
   if(!values.length||new Set(values).size!==values.length||values.some(value=>!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(value)))throw new Error("Select unique category IDs; wildcards are not allowed");
   return {type:"categories",values:[...values].sort()};

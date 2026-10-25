@@ -4,6 +4,32 @@ Status: Product direction and planning record, October 24, 2026. This document
 does not amend protocol specifications, approve gated security work, or authorize
 production changes. Proposed mechanisms below require separate design and review.
 
+## Follow-Up — Durable Category Publishing
+
+The next local stage replaces the browser's individual subscription-recipient
+picker with category publishing. General is the default when available. A durable
+audience snapshot, stable IDs, retries, cancellation, per-subscriber outcomes and
+separate delivery counts are implemented. Pending work blocks provider cutover
+until it finishes or is cancelled/expired. See [category publishing](category-publishing.md)
+for migration 61, alpha limits and rollback. This work has not been deployed;
+connections, changed reply capabilities and attachments are still separate stages.
+
+## Approved Relationship Direction And General Subscriptions
+
+The operator confirmed the live browser release works. Subsequent discussion
+settled the product distinction: publish to General/custom-category subscribers,
+or message selected connections. General replaces legacy uncategorized
+subscriptions in the controlled alpha; it must not stand in for connection
+authorization. See [the staged implementation](subscriptions-and-connections.md).
+
+The operator rejected special migration tooling. The first local stage simply
+uses explicit named categories, including General, and removes uncategorized
+subscription authoring from CLI/web and the shared provider service. Existing
+signed history remains readable/revocable. No database wipe was performed; the
+accessible account inventories contained no uncategorized Grants. Category-wide
+publishing follows in the local checkpoint above; connections, new reply semantics
+and attachments remain later stages.
+
 ## Follow-Up — Rich Authoring With Existing Safe Portable Text
 
 The composer now exposes heading, flat bullet/numbered-list and quote controls,
@@ -147,10 +173,10 @@ Grants is not an agreed design. The current specification permits direct persona
 Grants using `uncategorized` scope, but that is not a definition of connection
 state. See [Grant scope boundaries](../spec/grants.md#scope-boundaries).
 
-One possibility to discuss is requiring categorized subscriptions between
-non-organizations and reserving uncategorized authorization for connections.
-This is a proposal, not a new restriction on existing Grants. Evaluate compatibility,
-relationship lifecycle, consent and independent revocation before choosing it.
+Superseded proposal: reserving uncategorized delivery for connections. The agreed
+direction instead uses General/custom-category subscriptions and an explicit
+connection authorization purpose. Compatibility, lifecycle and independent
+revocation must be preserved when implementing that later authorization change.
 
 Connection invitations must not become an unsolicited-message bypass. Invitation
 delivery, acceptance, blocking, withdrawal and disconnection semantics need design.

@@ -12,6 +12,7 @@ it.skipIf(!process.env.DATABASE_URL)("migration 40 preserves legacy rows/auth an
   const rollback = async () => {
     const connection = await db.sql.reserve();
     try {
+      if((await connection`SELECT version FROM schema_migrations WHERE version=61`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=60`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=59`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=58`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0058_signup_ceremonies.sql",import.meta.url)).text());
@@ -69,7 +70,8 @@ it.skipIf(!process.env.DATABASE_URL)("migration 40 preserves legacy rows/auth an
         WHERE table_schema=${schema} AND table_type='BASE TABLE' AND table_name NOT IN ('schema_migrations','public_cutover_evidence','public_cutover_evidence_selection',
            'public_plc_resolution_evidence','public_envelope_authority_evidence','public_grant_authority_evidence','public_signing_authority_evidence',
            'public_onboarding_preparations','public_onboarding_evidence','custody_transition_preparations','custody_transition_grant_successors','provider_reserved_names','provider_role_claims',
-           'account_passkeys','account_passkey_challenges','account_passkey_sessions','account_passkey_enrollment_capabilities','account_browser_authorizations','account_signup_ceremonies','account_grant_approvals') ORDER BY table_name`;
+            'account_passkeys','account_passkey_challenges','account_passkey_sessions','account_passkey_enrollment_capabilities','account_browser_authorizations','account_signup_ceremonies','account_grant_approvals',
+            'account_publications','publication_targets') ORDER BY table_name`;
       return Promise.all(tables.map(async ({table_name}) => {
         const keys = added[table_name] ?? [];
         const row = keys.length
@@ -83,6 +85,8 @@ it.skipIf(!process.env.DATABASE_URL)("migration 40 preserves legacy rows/auth an
     await db.migrate(); await db.migrate();
     expect(await db.sql`SELECT id FROM account_signup_ceremonies`).toHaveLength(0);
     expect(await db.sql`SELECT id FROM account_grant_approvals`).toHaveLength(0);
+    expect(await db.sql`SELECT id FROM account_publications`).toHaveLength(0);
+    expect(await db.sql`SELECT message_id FROM publication_targets`).toHaveLength(0);
     expect(await fingerprint()).toEqual(before); expect(await accounts.authenticate(`Bearer ${credential.token}`)).toEqual(session);
     expect(await db.sql`SELECT evidence_digest FROM public_cutover_evidence`).toHaveLength(0);
     await expect(db.sql`UPDATE pending_migration_imports SET state='active',activated_at=now() WHERE transfer_id=${transfer}`).rejects.toThrow("retained evidence bundle");

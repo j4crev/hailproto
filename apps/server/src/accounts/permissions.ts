@@ -84,6 +84,8 @@ export class GrantPermissions {
       throw new PermissionError(429,"Too many unfinished approvals; wait for them to expire");
     let payload:HailGrant;
     if(input.action==="allow"){
+      if((input.scope as Record<string,unknown>|undefined)?.type==="uncategorized")
+        throw new PermissionError(400,"Subscribe to General instead; the publisher must offer that category first");
       if(typeof input.sender!=="string"||input.sender.length>254||typeof input.senderDid!=="string"||!DID.test(input.senderDid)||input.senderDid===session.did||
         typeof input.addressDigest!=="string"||typeof input.profileDigest!=="string"||!Number.isSafeInteger(input.expiresAt)||
         Number(input.expiresAt)<=Math.floor(Date.now()/1000)||Number(input.expiresAt)>Math.floor(Date.now()/1000)+366*86400)

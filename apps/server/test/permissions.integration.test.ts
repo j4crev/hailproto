@@ -62,6 +62,7 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
     const snapshot=async()=>JSON.stringify(await db.sql`SELECT account_id,role,public_key,encrypted_private_key,encryption_nonce FROM account_keys ORDER BY account_id,role`);
     const keysBefore=await snapshot();
     const emptyRollback=await db.sql.reserve();try{
+      await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());
       await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
       await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());
     }finally{emptyRollback.release();}
@@ -72,7 +73,7 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
     const signer=createWebCryptoSigner(peerDid+"#hail-identity",identity.privateKey),profileBytes=await signPayload("hail.sender-profile",profile,createWebCryptoSigner(peerDid+"#hail-messaging",identity.privateKey)),bindingBytes=await signPayload("hail.address-binding",binding,signer);
     const address:VerifiedAddress={address:binding.address,did:peerDid,serviceBase:"https://peer.example.com/hail",identityDidKey:didKey,messagingDidKey:didKey,
       binding,representation:bindingBytes,digest:digest(bindingBytes),plcEvidence:evidence,verifiedAt:new Date()};
-    const senderProfile:VerifiedSenderProfile={did:peerDid,serviceBase:address.serviceBase,messagingDidKey:didKey,profile,representation:profileBytes,
+    let senderProfile:VerifiedSenderProfile={did:peerDid,serviceBase:address.serviceBase,messagingDidKey:didKey,profile,representation:profileBytes,
       digest:digest(profileBytes),etag:encodeBase64Url(digest(profileBytes)),plcEvidence:evidence,verifiedAt:new Date()};
     const resolver={async resolve(did:string){if(did===peerDid&&peerDown)throw new Error("Peer offline");return {did,identityDidKey:didKey,messagingDidKey:didKey,serviceBase:did===peerDid?address.serviceBase:base,evidence};}} as HailDidResolver;
     const service=new GrantService(new OnboardingRepository(db.sql),grants,encryptor,resolver,{async verify(){if(peerDown)throw new Error("Peer offline");return address;}},
@@ -131,6 +132,20 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
     expect(await db.sql`SELECT grant_id FROM grant_revisions`).toHaveLength(3);
     const expiry=vi.spyOn(Date,"now").mockReturnValue(Date.now()+7*60_000);
     try{await expect(permissions.commit(session,stale.requestId)).rejects.toMatchObject({status:410});expect((await permissions.status(session,revocation.requestId)).result).toEqual(done.result);}finally{expiry.mockRestore();}
+    peerDown=false;
+    await expect(permissions.prepare(session,{...input,requestId:randomUUID(),scope:{type:"uncategorized"}})).rejects.toMatchObject({status:400});
+    await expect(service.prepareUserSignedGrant(session.canonical_address,binding.address,{scope:{type:"uncategorized"},expiresAt:null})).rejects.toMatchObject({status:400});
+    const generalProfile={...profile,revision:2,updated_at:now+1,offers_uncategorized:false,categories:[{id:"general",label:"General"},...profile.categories]};
+    const generalBytes=await signPayload("hail.sender-profile",generalProfile,createWebCryptoSigner(peerDid+"#hail-messaging",identity.privateKey));
+    senderProfile={...senderProfile,profile:generalProfile,representation:generalBytes,digest:digest(generalBytes),etag:encodeBase64Url(digest(generalBytes))};
+    const generalReview=await permissions.review(session,{sender:binding.address});
+    const generalInput={...input,requestId:randomUUID(),profileDigest:generalReview.profileDigest,scope:{type:"categories",values:["general"]}};
+    const generalApproval=await permissions.prepare(session,generalInput),generalPayload=fromDiagnosticJson("hail.grant",generalApproval.permission);
+    expect(generalPayload).toMatchObject({revision:1,scope:[{type:"categories",values:["general"]}],expires_at:input.expiresAt});
+    await expect(permissions.commit(session,generalApproval.requestId)).rejects.toMatchObject({status:403});
+    const general=await permissions.commit(session,generalApproval.requestId,assertion(generalApproval.options!.challenge));
+    expect(general.result).toMatchObject({status:"active",revision:1});
+    expect((await grants.findCurrentByGrantId(generalPayload.grant_id))?.payload.scope).toEqual([{type:"categories",values:["general"]}]);
     await expect(db.sql`UPDATE account_grant_approvals SET action='revoke' WHERE id=${prepared.requestId}`).rejects.toThrow("cannot be replaced");
     const rollback=await db.sql.reserve();try{await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text())).rejects.toThrow("prevent rollback");}finally{await rollback.unsafe("ROLLBACK");rollback.release();}
     await db.sql`UPDATE account_passkeys SET revoked_at=now() WHERE credential_id=${credential}`;

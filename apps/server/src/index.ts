@@ -43,6 +43,7 @@ import { SignupMonitorClient, SignupMonitorService } from "./onboarding/monitor.
 import { SignupCoordinator } from "./onboarding/signup.js";
 import { ActivationService } from "./onboarding/activation.js";
 import { AccountMessaging } from "./accounts/messaging.js";
+import {AccountPublications} from "./accounts/publications.js";
 import { EnvelopeService } from "./envelopes/service.js";
 import { submitEnvelope } from "./envelopes/submission.js";
 import { AccountAccess } from "./accounts/access.js";
@@ -84,6 +85,11 @@ const grantRepository = new GrantRepository(database.sql);
 const transport = new SafeHttpsTransport();
 const profileVerifier = new SenderProfileVerifier(resolver, transport.fetch, transport.validateTarget, undefined, onboardingRepository);
 const encryptor=new KeyEncryptor(config.keyEncryptionKey);
+const messaging=new AccountMessaging(database.sql,new BodyRepository(database.sql),new EnvelopeRepository(database.sql),
+  new EnvelopeService(onboardingRepository,grantRepository,new EnvelopeRepository(database.sql),encryptor,resolver,config.hailServiceBase),
+  (sender,id)=>submitEnvelope(sender,id,new EnvelopeRepository(database.sql),resolver,
+    new DeliveryStatusReceiver(database.sql,onboardingRepository,resolver,config.hailServiceBase),transport));
+const publications=new AccountPublications(database.sql,messaging);
 const grantPublisher = new GrantPublisher(
   grantRepository,
   resolver,
@@ -176,6 +182,14 @@ setInterval(async () => {
     publicationRunning = false;
   }
 }, 5_000);
+
+let fanoutRunning=false;
+setInterval(async()=>{
+  if(fanoutRunning)return;fanoutRunning=true;
+  try{await withFreshServingGenerations(database.sql,()=>publications.workOne());}
+  catch(error){console.error(JSON.stringify({level:"error",message:"publication fan-out worker failed",error:error instanceof Error?error.message:"unknown error"}));}
+  finally{fanoutRunning=false;}
+},5_000);
 
 let cleanupRunning = false;
 setInterval(async () => {
@@ -290,10 +304,7 @@ const app = createApp(config, schemaRehearsal ? {
         new KeyEncryptor(config.keyEncryptionKey),resolver,config.hailServiceBase)})}:{}),
     binding:new AccountBinding(database.sql,resolver,new KeyEncryptor(config.keyEncryptionKey),config.publicOrigin,
        new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver)),
-    messaging:new AccountMessaging(database.sql,new BodyRepository(database.sql),new EnvelopeRepository(database.sql),
-      new EnvelopeService(onboardingRepository,grantRepository,new EnvelopeRepository(database.sql),new KeyEncryptor(config.keyEncryptionKey),resolver,config.hailServiceBase),
-      (sender,id)=>submitEnvelope(sender,id,new EnvelopeRepository(database.sql),resolver,
-        new DeliveryStatusReceiver(database.sql,onboardingRepository,resolver,config.hailServiceBase),transport)),
+     messaging,publications,
     profiles:new SenderProfileService(onboardingRepository,new KeyEncryptor(config.keyEncryptionKey),resolver,config.hailServiceBase),
     profileVerifier,
     service: new GrantService(onboardingRepository, grantRepository, new KeyEncryptor(config.keyEncryptionKey),

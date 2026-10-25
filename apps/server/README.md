@@ -576,6 +576,11 @@ Additional account endpoints:
 | `/messages` | POST, `messages:write` | Text (`spt-1`), rich `spt-2`, or bundled-header `spt-3` body, Grant or invited reply, with client-stable UUIDv7 |
 | `/messages/{id}/submit` | POST, `messages:write` | Resubmit exact own envelope |
 | `/messages/{id}` | GET, `messages:read` | Retained authenticated status, otherwise indeterminate |
+| `/publications/audiences` | GET, `grants:read` | Active category subscriber counts; General is category `general` |
+| `/publications` | POST, `messages:write` | Durable category-wide publication with a stable publication ID and immutable audience snapshot |
+| `/publications` | GET, `messages:read` | Account-private unfinished/recent publication links for recovering queued work |
+| `/publications/{id}` | GET, `messages:read` | Account-private fan-out outcomes and separate delivery counts |
+| `/publications/{id}/cancel` | POST, `messages:write` | Stop targets that have no created envelope; existing submission attempts are retained |
 | `/inbox` | GET, `messages:read` | Delivered recipient list, 50 items, opaque `after` cursor |
 | `/inbox/{sender_did}/{id}` | GET, `messages:read` | Own delivered body/safe metadata, no bearer token |
 
@@ -586,6 +591,13 @@ or a diagnostic-JSON `body`, either
 at 64 KiB and bodies retain the 256 KiB encoded limit. Stored envelopes bind retries to the same body, authorization and
 reply permission. Federation submission shares the operator CLI's submission
 service, preserving signed status versus generic receipt verification.
+
+Publication input is `{publicationId, category, text OR body, allowReplies}`;
+recipient selections are not accepted. Migration 61 adds the durable outbox and
+blocks provider cutover while targets are unfinished. Initial limits are 100
+recipients, five open publications per account and a 24-hour attempt window.
+See [category publishing](../../docs/category-publishing.md) for worker semantics,
+per-target status, cancellation, retention and code/schema rollback boundaries.
 
 Operator `account:credential-create` also accepts `--full-access` for all six
 account/Grant/message/credential scopes. Existing credentials are not silently

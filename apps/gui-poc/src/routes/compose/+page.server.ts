@@ -1,51 +1,36 @@
 import { createHash } from "node:crypto";
-import { fail,isRedirect,redirect } from "@sveltejs/kit";
+import { error,fail,isRedirect,redirect } from "@sveltejs/kit";
 import { encodeBase64Url } from "@hailproto/codec";
 import { composeBlocks } from "$lib/compose.js";
 import { canaryAccount } from "$lib/server/canary.js";
 import { messageId } from "$lib/server/message-id.js";
+import {publicationAudiences,publicationStatus,recentPublications} from "$lib/publications.js";
+import {AccountApiError} from "../../../../cli/src/account-api.js";
 
 const UUID7=/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const CATEGORY=/^[a-z][a-z0-9-]{0,63}$/;
-
-async function targets(cookies:Parameters<typeof canaryAccount>[0],url:URL) {
-  const {account,client}=await canaryAccount(cookies,url),page=await client.request("/grants"),rows=Array.isArray(page.grants)?page.grants:[];
-  const candidates=rows.flatMap(value=>{
-    if(!value||typeof value!=="object"||Array.isArray(value))return [];
-    const row=value as Record<string,unknown>;
-    return row.localRole==="grantee"&&row.status==="active"&&typeof row.grantId==="string"&&UUID7.test(row.grantId)&&
-      (row.expiresAt===null||typeof row.expiresAt==="number"&&row.expiresAt>Math.floor(Date.now()/1000))?[row.grantId]:[];
-  });
-  const options=(await Promise.all(candidates.map(async id=>{
-    try {
-      const grant=await client.grant(id),scope=grant.payload.scope[0];
-      if(grant.localRole!=="grantee"||grant.payload.grantee!==account.did||grant.payload.status!=="active"||scope?.type!=="categories")return [];
-      return scope.values.map(category=>({value:`${id}/${category}`,grantId:id,category,recipient:grant.payload.grantor}));
-    } catch{return [];}
-  }))).flat();
-  return {account,client,options};
-}
+const CATEGORY=/^[a-z0-9][a-z0-9._-]{0,63}$/;
 
 export async function load({url,cookies}) {
-  const {account,client,options}=await targets(cookies,url);
-  const messageId=url.searchParams.get("message");
-  let status:null|{messageId:string;state:string;revision:number|null}=null;
-  if(messageId&&UUID7.test(messageId)){
-    try {const value=await client.request(`/messages/${messageId}`);if(value.messageId===messageId&&typeof value.state==="string")
-      status={messageId,state:value.state,revision:typeof value.revision==="number"?value.revision:null};}catch{/* Status remains available through refresh. */}
-  }
-  return {configured:true as const,account,options,status};
+  const oldMessage=url.searchParams.get("message");if(oldMessage&&UUID7.test(oldMessage))redirect(303,`/sent/${oldMessage}`);
+  const {account,client}=await canaryAccount(cookies,url),audiences=publicationAudiences(await client.request("/publications/audiences"));
+  const id=url.searchParams.get("publication");if(id&&!UUID7.test(id))error(400,"Invalid publication ID");
+  let status:ReturnType<typeof publicationStatus>|null=null;
+  if(id){try{status=publicationStatus(await client.request(`/publications/${id}`));}
+    catch(cause){if(cause instanceof AccountApiError&&cause.status===404)error(404,"Publication unavailable for this account");throw cause;}
+    if(status.publicationId!==id)error(502,"Provider returned another publication");}
+  const recent=recentPublications(await client.request("/publications"));
+  return {account,...audiences,status,recent,newPublicationId:messageId(),defaultCategory:audiences.categories.some(row=>row.category==="general")?"general":""};
 }
 
-export const actions={default:async({request,cookies,url})=>{
+export const actions={publish:async({request,cookies,url})=>{
   try {
-    const {client,options}=await targets(cookies,url),form=await request.formData(),field=(name:string)=>{const value=form.get(name);return typeof value==="string"?value:"";};
-    const target=field("target"),mode=field("mode"),title=field("title"),text=field("text"),alt=field("alt"),caption=field("caption"),header=form.get("header"),allowReply=field("allowReply")==="yes";
-    if(!options.some(option=>option.value===target)||!['plain','rich'].includes(mode)||!text.trim()||Buffer.byteLength(text)>65536||Buffer.byteLength(title)>128||
+    const {client}=await canaryAccount(cookies,url),form=await request.formData(),field=(name:string)=>{const value=form.get(name);return typeof value==="string"?value:"";};
+    const id=field("publicationId"),category=field("category"),mode=field("mode"),title=field("title"),text=field("text"),alt=field("alt"),caption=field("caption"),header=form.get("header"),allowReply=field("allowReply")==="yes";
+    const keys=[...form.keys()];
+    if(keys.some(key=>!["publicationId","category","mode","title","text","alt","caption","header","allowReply"].includes(key))||new Set(keys).size!==keys.length||
+      !UUID7.test(id)||!CATEGORY.test(category)||!['plain','rich'].includes(mode)||!text.trim()||Buffer.byteLength(text)>65536||Buffer.byteLength(title)>128||
       Buffer.byteLength(alt)>1024||Buffer.byteLength(caption)>1024)
-      return fail(400,{error:"Check the recipient, mode, title, and message text."});
-    const separator=target.indexOf("/"),grantId=target.slice(0,separator),category=target.slice(separator+1);
-    if(!UUID7.test(grantId)||!CATEGORY.test(category))return fail(400,{error:"The selected Grant is invalid."});
+      return fail(400,{error:"Check the category, mode, title, and message text."});
     const hasHeader=header instanceof File&&header.size>0;
     if(mode==="plain"&&(title||hasHeader))return fail(400,{error:"Titles and headers require rich mode."});
     let body:Record<string,unknown>|undefined;
@@ -61,12 +46,22 @@ export const actions={default:async({request,cookies,url})=>{
           blocks:[{_type:"spt.image",asset:"header",alt:alt.trim(),...(caption.trim()?{caption:caption.trim()}: {})},...blocks]};
       } else body={version:1,profile:"spt-2",blocks};
     }
-    const id=messageId(),result=await client.request("/messages",{messageId:id,grantId,category,
-      ...(body?{body}:{text:text.trim()}),...(allowReply?{replyUntil:Math.floor(Date.now()/1000)+7*86400}:{})});
-    if(result.messageId!==id)throw new Error("Provider acknowledged another message");
-    redirect(303,`/compose?message=${id}`);
+    try{
+      const result=publicationStatus(await client.request("/publications",{publicationId:id,category,...(body?{body}:{text:text.trim()}),allowReplies:allowReply}));
+      if(result.publicationId!==id)throw new Error("Provider acknowledged another publication");
+    }catch{
+      // A lost acceptance response must not cause another publication or another audience snapshot.
+      return fail(502,{error:"Publication not confirmed; it may already be queued. Check this original request before trying again.",publicationId:id});
+    }
+    redirect(303,`/compose?publication=${id}`);
   } catch(error){
     if(isRedirect(error))throw error;
-    return fail(502,{error:"The message could not be submitted. Verify the Grant and content, then retry."});
+    return fail(502,{error:"The publication could not be confirmed. Check its original status before retrying."});
   }
+},cancel:async({request,cookies,url})=>{
+  const {client}=await canaryAccount(cookies,url),form=await request.formData(),id=form.get("publicationId");
+  if(typeof id!=="string"||!UUID7.test(id))return fail(400,{error:"Invalid publication ID"});
+  try{const stopped=publicationStatus(await client.request(`/publications/${id}/cancel`,{}));if(stopped.publicationId!==id)throw new Error("Another publication was returned");}
+  catch{return fail(409,{error:"Publication work may be in progress. Refresh its status and retry cancellation.",publicationId:id});}
+  redirect(303,`/compose?publication=${id}`);
 }};

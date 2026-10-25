@@ -13,6 +13,11 @@ and return to the requested screen; QR fragments remain browser-local and do not
 authorize anything automatically. Connection and organization semantics are not
 implemented.
 
+New subscriptions select explicit categories, including General when offered,
+through the normal passkey approval. Uncategorized subscription creation is no
+longer supported; no migration command or conversion UI is needed. See
+[the staged relationship changes](../../docs/subscriptions-and-connections.md).
+
 ## Local signup recovery preview
 
 After building, run `HAIL_GUI_SIGNUP_PREVIEW=true` with the normal GUI environment
@@ -70,9 +75,12 @@ supported separately; post-signup browser recovery import, custody transitions
 and general attachments remain unavailable.
 Verified Sender Profile v2 avatars appear in the inbox and message reader with
 initials as the fallback; avatar bytes are bundled and never loaded remotely.
-The compose route sends plain or structured heading/body messages through an
-active categorized Grant, optionally with one bundled PNG header, and displays
-refreshable delivery status. Rich mode provides selection-based bold, italic,
+The compose route publishes plain or structured updates to all active subscribers
+in a selected category, optionally with one bundled PNG header. General defaults
+when available; there is no individual subscription-recipient picker. The provider
+durably snapshots the audience and exposes refreshable work and delivery status.
+See [category publishing](../../docs/category-publishing.md) for alpha limits,
+cancellation and transfer/rollback boundaries. Rich mode provides selection-based bold, italic,
 code and HTTPS-link controls, plus line-based headings, flat bullet/numbered lists
 and quotes. Formatting shortcuts are documented in the composer; HTML remains
 literal text. The preview uses the same safe body projection and renderer as
