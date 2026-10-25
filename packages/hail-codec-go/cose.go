@@ -24,11 +24,14 @@ type signedProfile struct {
 }
 
 var signedProfiles = map[string]signedProfile{
-	AddressBindingType: {"application/hail-address-binding+cbor", "hail-identity", 16384},
-	SenderProfileType:  {"application/hail-sender-profile+cbor", "hail-messaging", 65536},
-	GrantType:          {"application/hail-grant+cbor", "hail-identity", 262144},
-	EnvelopeType:       {"application/hail-envelope+cbor", "hail-messaging", 16384},
-	DeliveryStatusType: {"application/hail-delivery-status+cbor", "hail-messaging", 16384},
+	AddressBindingType:         {"application/hail-address-binding+cbor", "hail-identity", 16384},
+	SenderProfileType:          {"application/hail-sender-profile+cbor", "hail-messaging", 65536},
+	GrantType:                  {"application/hail-grant+cbor", "hail-identity", 262144},
+	ConnectionInvitationType:   {"application/hail-connection-invitation+cbor", "hail-identity", 16384},
+	ConnectionConfirmationType: {"application/hail-connection-confirmation+cbor", "hail-identity", 16384},
+	ConnectionGrantType:        {"application/hail-connection-grant+cbor", "hail-identity", 16384},
+	EnvelopeType:               {"application/hail-envelope+cbor", "hail-messaging", 16384},
+	DeliveryStatusType:         {"application/hail-delivery-status+cbor", "hail-messaging", 16384},
 }
 
 var coseEncMode cbor.EncMode
@@ -128,6 +131,27 @@ func expectedKeyID(kind string, payload Payload) (string, error) {
 		signer = value.Grantor
 	case Envelope:
 		signer = value.From
+	case ConnectionInvitation:
+		signer = value.From
+	case *ConnectionInvitation:
+		if value == nil {
+			return "", errors.New("nil connection invitation")
+		}
+		signer = value.From
+	case ConnectionConfirmation:
+		signer = value.From
+	case *ConnectionConfirmation:
+		if value == nil {
+			return "", errors.New("nil connection confirmation")
+		}
+		signer = value.From
+	case ConnectionGrant:
+		signer = value.Grantor
+	case *ConnectionGrant:
+		if value == nil {
+			return "", errors.New("nil connection grant")
+		}
+		signer = value.Grantor
 	case *Envelope:
 		if value == nil {
 			return "", errors.New("nil envelope payload")
@@ -153,6 +177,12 @@ func embeddedKeyID(payload Payload) string {
 	case *SenderProfile:
 		return value.KeyID
 	case *Grant:
+		return value.KeyID
+	case *ConnectionInvitation:
+		return value.KeyID
+	case *ConnectionConfirmation:
+		return value.KeyID
+	case *ConnectionGrant:
 		return value.KeyID
 	default:
 		return ""

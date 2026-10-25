@@ -233,6 +233,12 @@ const NESTED_MAPS: ReadonlyArray<{
   readonly path: readonly (string | number)[];
   readonly required: readonly string[];
 }> = [
+  { type: "hail.connection-invitation", path: ["token_hash"], required: ["algorithm","value"] },
+  { type: "hail.connection-confirmation", path: ["invitation_hash"], required: ["algorithm","value"] },
+  { type: "hail.connection-grant", path: ["consent_context"], required: ["grantee_address","address_binding_hash","invitation_hash","confirmation_hash"] },
+  { type: "hail.connection-grant", path: ["consent_context","address_binding_hash"], required: ["algorithm","value"] },
+  { type: "hail.connection-grant", path: ["consent_context","invitation_hash"], required: ["algorithm","value"] },
+  { type: "hail.connection-grant", path: ["consent_context","confirmation_hash"], required: ["algorithm","value"] },
   { type: "hail.sender-profile", path: ["categories", 0], required: ["id", "label"] },
   { type: "hail.grant", path: ["scope", 0], required: ["type", "values"] },
   {
@@ -299,6 +305,9 @@ const CDDL_RULES = {
   "hail.address-binding": "hail-address-binding",
   "hail.sender-profile": "hail-sender-profile",
   "hail.grant": "hail-grant",
+  "hail.connection-invitation": "hail-connection-invitation",
+  "hail.connection-confirmation": "hail-connection-confirmation",
+  "hail.connection-grant": "hail-connection-grant",
   "hail.envelope": "hail-envelope",
   "hail.delivery-status": "hail-delivery-status",
   "hail.body.spt-1": "hail-body-spt-1",
@@ -307,6 +316,9 @@ const CDDL_RULES = {
 } as const satisfies Readonly<Record<HailPayloadType, string>>;
 
 const REQUIRED_KEYS = {
+  "hail.connection-invitation": ["type","version","invitation_id","from","token_hash","issued_at","expires_at","key_id"],
+  "hail.connection-confirmation": ["type","version","confirmation_id","from","to","invitation_id","invitation_hash","issued_at","expires_at","key_id"],
+  "hail.connection-grant": ["type","version","grant_id","connection_id","revision","previous","grantor","grantee","status","issued_at","updated_at","expires_at","consent_context","key_id"],
   "hail.address-binding": [
     "version",
     "type",
@@ -376,9 +388,11 @@ const schemaText = readFileSync(
   "utf8",
 );
 const schema = CDDL.compile(schemaText);
-const manifest = JSON.parse(
+const baseManifest = JSON.parse(
   readFileSync(new URL("../vectors/v0.json", import.meta.url), "utf8"),
 ) as VectorManifest;
+const connections=JSON.parse(readFileSync(new URL("../vectors/connections-draft.json",import.meta.url),"utf8")) as VectorManifest;
+const manifest:VectorManifest={...baseManifest,positive:[...baseManifest.positive,...connections.positive]};
 const positiveByType = new Map<HailPayloadType, PositiveVector>();
 for (const vector of manifest.positive) {
   if (!positiveByType.has(vector.type)) positiveByType.set(vector.type, vector);

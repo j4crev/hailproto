@@ -25,6 +25,9 @@ const policy={provider:"https://provider.example.com",monitorOrigin:"https://mon
 const permissionSigner=await crypto.subtle.generateKey("Ed25519",true,["sign","verify"]),peerDid="did:plc:"+"b".repeat(24),peerAddress="peer@peer.example.com";
 let allowed:HailGrant|null=null,allowedCose="",allowedDigest="",generalAvailable=false;
 const approvals=new Map<string,{action:string;payload:HailGrant;challenge:string;approved:boolean;result:unknown}>();
+const connectionCodes:{id:string;personal:boolean;label:string;expiresAt:number|null;link:string}[]=[],connectionApprovals=new Map<string,any>();
+let personalConnection=false;
+const fixtureConnectionId=uuidV7(),fixtureInvitationId=uuidV7(),fixtureAdmissionToken="K".repeat(43);
 const incomingId="019a15fd-2bd0-7433-8afa-bd0355e0608d";
 const sendingGrantId="019a15fd-2bd0-7433-8afa-bd0355e0608e";
 let sendingGrant:{payload:HailGrant;cose:string;digest:string}|null=null,composed:any=null,composePosts=0;
@@ -53,11 +56,42 @@ function summary(){return {type:"hail.signup",version:1,signupId:setupId,account
   expiresAt:new Date(Date.now()+86400_000).toISOString(),preparation:prepared,enrollmentExpiresAt:new Date(Date.now()+600_000).toISOString()};}
 const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   const path=new URL(request.url).pathname;
+  assert(!request.url.includes(fixtureAdmissionToken),"Connection token leaked into an HTTP URL");
+  assert(!request.headers.get("Referer")?.includes(fixtureAdmissionToken),"Connection token leaked into referrer");
   if(!path.startsWith("/api/")){
     try{return await guiProxy.fetch(request);}
     catch{return new Response("GUI starting",{status:503});}
   }
   const body=await request.text();requests.push({path,body,authorization:request.headers.get("Authorization")??""});const input=body?JSON.parse(body):{};
+  if(path.startsWith("/api/v1/account/connections")){
+    assert(request.headers.get("Cookie")?.includes("hail_session="+sessionToken));
+    const step=path.split("/")[5];
+    if(!step)return json({preview:true,codes:connectionCodes,connections:personalConnection?[{id:fixtureConnectionId,did:peerDid,address:peerAddress,connectedAt:new Date().toISOString()}]:[]});
+    if(step==="review"){assert.equal(input.id,fixtureInvitationId);assert.equal(input.did,peerDid);assert.equal(input.token,fixtureAdmissionToken);
+      return json({id:input.id,did:peerDid,address:peerAddress,expiresAt:null,preview:true});}
+    if(step==="prepare"){
+      const options=await generateAuthenticationOptions({rpID:"localhost",userVerification:"required",allowCredentials:[{id:credential.id}]});
+      const review={...input,...(input.action==="connect"?{address:peerAddress}:{})};delete review.token;
+      const row={requestId:input.requestId,action:input.action,review,expiresAt:new Date(Date.now()+300000).toISOString(),result:null,options};
+      connectionApprovals.set(input.requestId,row);return json(row);
+    }
+    if(step==="commit"){
+      const row=connectionApprovals.get(input.requestId);assert(row);
+      if(!row.result){
+        const verified=await verifyAuthenticationResponse({response:input.response,expectedChallenge:row.options.challenge,expectedOrigin:origin,expectedRPID:"localhost",credential,requireUserVerification:true});
+        assert(verified.verified);credential.counter=verified.authenticationInfo.newCounter;
+        if(row.action==="create"||row.action==="replace"){
+          const old=connectionCodes.findIndex(code=>code.id===row.review.id);if(old>=0)connectionCodes.splice(old,1);
+          const id=uuidV7();connectionCodes.push({id,personal:row.action==="replace"||row.review.personal,label:row.review.label??"Personal code",expiresAt:row.review.expiresAt??null,
+            link:origin+"/connect#"+new URLSearchParams({id,did:did!,token:"M".repeat(43)})});row.result={invitationId:id};
+        }else if(row.action==="revoke"){const index=connectionCodes.findIndex(code=>code.id===row.review.id);assert(index>=0);connectionCodes.splice(index,1);row.result={invitationId:row.review.id,revoked:true};}
+        else{personalConnection=row.action==="connect";row.result={connectionId:fixtureConnectionId,state:personalConnection?"active":"disconnected"};}
+        row.options=null;
+      }
+      return json(row);
+    }
+    return connectionApprovals.has(step)?json(connectionApprovals.get(step)):json({},404);
+  }
   if(path===`/api/v1/account/inbox/${encodeURIComponent(peerDid)}/${incomingId}`||path===`/api/v1/account/inbox/${peerDid}/${incomingId}`)return json(incomingMessage());
   if(path==="/api/v1/account/messages"){
     assert.equal(input.replyTo,incomingId);assert.equal(input.text,"Browser transport reply");assert.equal(replyPosts,0);replyPosts++;
@@ -430,6 +464,39 @@ try{
   assert(await has("Scope: General"));await click("Allow sender with my passkey");
   await wait(async()=>evaluate(`[...document.querySelectorAll('[aria-label="Issued permissions"] article p')].some(p=>p.textContent.startsWith('General · active'))`),"new General subscription saved");
   assert.equal(allowed!.revision,1);assert.deepEqual(allowed!.scope,[{type:"categories",values:["general"]}]);
+  // Separate permanent/expiring codes and real browser passkey confirmation (API fixtures).
+  await cdp("Page.navigate",{url:origin+"/settings/security?connections=1"});await wait(()=>has("Create my personal code"),"personal connection code creation");
+  await click("Create my personal code");await wait(()=>has("Confirm new connection code"),"standing invitation consent");
+  assert(await has("without another approval from you"));assert(await has("No automatic expiry"));
+  await click("Confirm with passkey");await wait(()=>has("Show my QR & link"),"personal code saved");
+  await click("Show my QR & link");await wait(async()=>evaluate(`!!document.querySelector('svg[aria-label="Connection QR code"]')`),"local QR rendering");
+  assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Connection QR overflows viewport");
+  await click("Hide code");await fill("Private label","Conference");
+  await fill("Expires (your local time)","2027-01-15T18:00");await click("Review new link");await wait(()=>has("Confirm new connection code"),"expiring code review");
+  await click("Confirm with passkey");await wait(async()=>connectionCodes.length===2&&await has("Saved. Existing subscriptions are unchanged."),"expiring code saved");
+  assert.equal(connectionCodes.length,2);assert.equal(connectionCodes.filter(code=>code.personal).length,1);
+  assert(connectionCodes.find(code=>!code.personal)!.expiresAt!>0);assert.equal(connectionCodes.find(code=>code.personal)!.expiresAt,null);
+  await click("Replace personal code");await wait(()=>has("Confirm personal code replacement"),"personal replacement review");
+  await click("Confirm with passkey");await wait(()=>has("Saved. Existing subscriptions are unchanged."),"replacement committed");
+  assert.equal(connectionCodes.length,2);
+  await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
+  const invitationLink=origin+"/connect#"+new URLSearchParams({id:fixtureInvitationId,did:peerDid,token:fixtureAdmissionToken});
+  await cdp("Page.navigate",{url:invitationLink});await wait(()=>has("Sign in to review"),"signed-out scanner consent");
+  await wait(async()=>evaluate("location.hash===''"),"admission token removed from URL");
+  await evaluate(`document.querySelector('a[href="/auth/login?next=%2Fconnect"]').click()`);await wait(()=>has("Sign in to Haili"),"scanner login");
+  assert.equal(await evaluate("new URL(location.href).searchParams.get('next')"),"/connect");
+  await click("Sign in with a passkey");await wait(()=>has("Review connection code"),"scanner returns without token in login URL");
+  await click("Review connection code");await wait(()=>has("Review before connecting"),"identity pinned scanner review");
+  assert(await has(peerDid));assert(!personalConnection);
+  await click("Review before connecting");await wait(()=>has("Confirm connection"),"exact connection consent");
+  assert(!personalConnection);await click("Confirm with passkey");await wait(()=>has("Connection saved"),"mutual connection confirmed");
+  await cdp("Page.navigate",{url:origin+"/settings/security?connected=1"});await wait(()=>has("Disconnect"),"connected account visible");
+  await click("Disconnect");await wait(()=>has("Confirm disconnect"),"disconnect review");await click("Confirm with passkey");await wait(()=>has("No connections yet."),"disconnect saved");
+  assert(!personalConnection);assert.equal(allowed!.status,"active");
+  const savedConnectionReview=[...connectionApprovals.values()].find(row=>row.action==="connect")!;
+  await evaluate(`sessionStorage.setItem('hail.connection-approval.v1',${JSON.stringify(savedConnectionReview.requestId)})`);
+  await cdp("Page.navigate",{url:origin+"/connect"});await wait(()=>has("Continue interrupted review"),"old approval status after disconnect");
+  await click("Continue interrupted review");await wait(()=>has("It was not reopened."),"historical success does not masquerade as a live connection");assert(!personalConnection);
   assert.equal(composePosts,1);assert.equal(replyPosts,1);
   for(const req of requests){assert(!req.body.includes(secret),"Recovery secret uploaded");assert(!req.body.includes('"ciphertext"'),"Recovery vault uploaded");}
   assert(requests.filter(r=>r.authorization).every(r=>r.authorization==="Bearer "+setupToken||r.path.endsWith("check-address")));

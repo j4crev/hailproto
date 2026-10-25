@@ -40,12 +40,24 @@ export const SIGNED_PROFILES: Readonly<
     keyRole: "hail-identity",
     maximumRepresentationBytes: 262_144,
   },
+  "hail.connection-invitation": {
+    type: "hail.connection-invitation", contentType: "application/hail-connection-invitation+cbor",
+    signerField: "from", keyRole: "hail-identity", maximumRepresentationBytes: 16_384,
+  },
+  "hail.connection-confirmation": {
+    type: "hail.connection-confirmation", contentType: "application/hail-connection-confirmation+cbor",
+    signerField: "from", keyRole: "hail-identity", maximumRepresentationBytes: 16_384,
+  },
   "hail.envelope": {
     type: "hail.envelope",
     contentType: "application/hail-envelope+cbor",
     signerField: "from",
     keyRole: "hail-messaging",
     maximumRepresentationBytes: 16_384,
+  },
+  "hail.connection-grant": {
+    type: "hail.connection-grant", contentType: "application/hail-connection-grant+cbor",
+    signerField: "grantor", keyRole: "hail-identity", maximumRepresentationBytes: 16_384,
   },
   "hail.delivery-status": {
     type: "hail.delivery-status",

@@ -201,6 +201,11 @@ Scope describes what messages the exact grantee DID may deliver. It does not red
 
 These boundaries are intended to resist pressure to turn `scope` into a general policy language.
 
+The [draft QR-connection consent format](connection-auth.md) separates connection
+intent from this subscription Grant type. Its reference-codec support does not
+enable new selectors, change this type's cardinality, or authorize connection
+traffic through existing Grant/envelope endpoints.
+
 ### Categorized Scope
 
 ```json

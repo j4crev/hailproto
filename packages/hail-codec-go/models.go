@@ -3,14 +3,17 @@ package hailcodec
 import "bytes"
 
 const (
-	AddressBindingType = "hail.address-binding"
-	SenderProfileType  = "hail.sender-profile"
-	GrantType          = "hail.grant"
-	EnvelopeType       = "hail.envelope"
-	DeliveryStatusType = "hail.delivery-status"
-	BodySPT1Type       = "hail.body.spt-1"
-	BodySPT2Type       = "hail.body.spt-2"
-	BodySPT3Type       = "hail.body.spt-3"
+	AddressBindingType         = "hail.address-binding"
+	SenderProfileType          = "hail.sender-profile"
+	GrantType                  = "hail.grant"
+	ConnectionInvitationType   = "hail.connection-invitation"
+	ConnectionConfirmationType = "hail.connection-confirmation"
+	ConnectionGrantType        = "hail.connection-grant"
+	EnvelopeType               = "hail.envelope"
+	DeliveryStatusType         = "hail.delivery-status"
+	BodySPT1Type               = "hail.body.spt-1"
+	BodySPT2Type               = "hail.body.spt-2"
+	BodySPT3Type               = "hail.body.spt-3"
 )
 
 type Payload interface{ PayloadType() string }
@@ -100,6 +103,59 @@ type Grant struct {
 }
 
 func (Grant) PayloadType() string { return GrantType }
+
+type ConnectionInvitation struct {
+	Type         string `cbor:"type"`
+	Version      int64  `cbor:"version"`
+	InvitationID string `cbor:"invitation_id"`
+	From         string `cbor:"from"`
+	TokenHash    Digest `cbor:"token_hash"`
+	IssuedAt     int64  `cbor:"issued_at"`
+	ExpiresAt    *int64 `cbor:"expires_at"`
+	KeyID        string `cbor:"key_id"`
+}
+
+func (ConnectionInvitation) PayloadType() string { return ConnectionInvitationType }
+
+type ConnectionConfirmation struct {
+	Type           string `cbor:"type"`
+	Version        int64  `cbor:"version"`
+	ConfirmationID string `cbor:"confirmation_id"`
+	From           string `cbor:"from"`
+	To             string `cbor:"to"`
+	InvitationID   string `cbor:"invitation_id"`
+	InvitationHash Digest `cbor:"invitation_hash"`
+	IssuedAt       int64  `cbor:"issued_at"`
+	ExpiresAt      int64  `cbor:"expires_at"`
+	KeyID          string `cbor:"key_id"`
+}
+
+func (ConnectionConfirmation) PayloadType() string { return ConnectionConfirmationType }
+
+type ConnectionConsentContext struct {
+	GranteeAddress     string `cbor:"grantee_address"`
+	AddressBindingHash Digest `cbor:"address_binding_hash"`
+	InvitationHash     Digest `cbor:"invitation_hash"`
+	ConfirmationHash   Digest `cbor:"confirmation_hash"`
+}
+type ConnectionGrant struct {
+	Type           string                   `cbor:"type"`
+	Version        int64                    `cbor:"version"`
+	GrantID        string                   `cbor:"grant_id"`
+	ConnectionID   string                   `cbor:"connection_id"`
+	Revision       int64                    `cbor:"revision"`
+	Previous       []byte                   `cbor:"previous"`
+	Grantor        string                   `cbor:"grantor"`
+	Grantee        string                   `cbor:"grantee"`
+	Status         string                   `cbor:"status"`
+	IssuedAt       int64                    `cbor:"issued_at"`
+	UpdatedAt      int64                    `cbor:"updated_at"`
+	ExpiresAt      *int64                   `cbor:"expires_at"`
+	ConsentContext ConnectionConsentContext `cbor:"consent_context"`
+	KeyID          string                   `cbor:"key_id"`
+}
+
+func (ConnectionGrant) PayloadType() string { return ConnectionGrantType }
 
 type EnvelopeAuthorization struct {
 	Type    string `cbor:"type"`
@@ -261,6 +317,29 @@ func clonePayload(payload Payload) Payload {
 		if value.ExpiresAt != nil {
 			expires := *value.ExpiresAt
 			cloned.ExpiresAt = &expires
+		}
+		return &cloned
+	case *ConnectionInvitation:
+		cloned := *value
+		cloned.TokenHash.Value = bytes.Clone(value.TokenHash.Value)
+		if value.ExpiresAt != nil {
+			expiry := *value.ExpiresAt
+			cloned.ExpiresAt = &expiry
+		}
+		return &cloned
+	case *ConnectionConfirmation:
+		cloned := *value
+		cloned.InvitationHash.Value = bytes.Clone(value.InvitationHash.Value)
+		return &cloned
+	case *ConnectionGrant:
+		cloned := *value
+		cloned.Previous = bytes.Clone(value.Previous)
+		cloned.ConsentContext.AddressBindingHash.Value = bytes.Clone(value.ConsentContext.AddressBindingHash.Value)
+		cloned.ConsentContext.InvitationHash.Value = bytes.Clone(value.ConsentContext.InvitationHash.Value)
+		cloned.ConsentContext.ConfirmationHash.Value = bytes.Clone(value.ConsentContext.ConfirmationHash.Value)
+		if value.ExpiresAt != nil {
+			expiry := *value.ExpiresAt
+			cloned.ExpiresAt = &expiry
 		}
 		return &cloned
 	case *Envelope:

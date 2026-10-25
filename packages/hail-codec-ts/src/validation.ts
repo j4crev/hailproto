@@ -364,6 +364,47 @@ function validateGrant(payload: HailRecord): void {
   keyId(payload.key_id, signer, "hail-identity", "$.key_id");
 }
 
+function connectionExpiry(payload:HailRecord,confirmation=false):void {
+  const issued=integer(payload.issued_at,"$.issued_at");
+  if(payload.expires_at!==null){const until=integer(payload.expires_at,"$.expires_at");
+    if(until<=issued||confirmation&&until-issued>300)fail("invalid connection validity window","$.expires_at");
+  }else if(confirmation)fail("confirmation must expire","$.expires_at");
+}
+
+function validateConnectionInvitation(payload:HailRecord):void {
+  exactKeys(payload,["type","version","invitation_id","from","token_hash","issued_at","expires_at","key_id"],[],"$");
+  uuid(payload.invitation_id,"$.invitation_id");
+  const owner=did(payload.from,"$.from");digest(payload.token_hash,"$.token_hash");
+  connectionExpiry(payload);keyId(payload.key_id,owner,"hail-identity","$.key_id");
+}
+
+function validateConnectionConfirmation(payload:HailRecord):void {
+  exactKeys(payload,["type","version","confirmation_id","from","to","invitation_id","invitation_hash","issued_at","expires_at","key_id"],[],"$");
+  uuid(payload.confirmation_id,"$.confirmation_id");uuid(payload.invitation_id,"$.invitation_id");
+  const actor=did(payload.from,"$.from");did(payload.to,"$.to");
+  if(payload.from===payload.to)fail("cannot connect to self","$.to");
+  digest(payload.invitation_hash,"$.invitation_hash");connectionExpiry(payload,true);
+  keyId(payload.key_id,actor,"hail-identity","$.key_id");
+}
+
+function validateConnectionGrant(payload:HailRecord):void {
+  exactKeys(payload,["type","version","grant_id","connection_id","revision","previous","grantor","grantee","status","issued_at","updated_at","expires_at","consent_context","key_id"],[],"$");
+  uuid(payload.grant_id,"$.grant_id");uuid(payload.connection_id,"$.connection_id");
+  const revision=integer(payload.revision,"$.revision",1);
+  if(revision===1){if(payload.previous!==null)fail("initial revision has no predecessor","$.previous");}
+  else bytes(payload.previous,32,"$.previous");
+  const owner=did(payload.grantor,"$.grantor");did(payload.grantee,"$.grantee");
+  if(payload.grantor===payload.grantee)fail("cannot connect to self","$.grantee");
+  if(payload.status!=="active"&&payload.status!=="revoked")fail("unknown connection grant status","$.status");
+  connectionExpiry(payload);
+  if(integer(payload.updated_at,"$.updated_at")<Number(payload.issued_at))fail("must not precede issued_at","$.updated_at");
+  const consent=record(payload.consent_context,"$.consent_context");
+  exactKeys(consent,["grantee_address","address_binding_hash","invitation_hash","confirmation_hash"],[],"$.consent_context");
+  hailAddress(consent.grantee_address,"$.consent_context.grantee_address");
+  for(const field of ["address_binding_hash","invitation_hash","confirmation_hash"])digest(consent[field],`$.consent_context.${field}`);
+  keyId(payload.key_id,owner,"hail-identity","$.key_id");
+}
+
 function validateEnvelope(payload: HailRecord): void {
   exactKeys(
     payload,
@@ -665,6 +706,12 @@ export function validatePayload<T extends HailPayloadType>(
     case "hail.grant":
       validateGrant(payload);
       break;
+    case "hail.connection-invitation":
+      validateConnectionInvitation(payload);break;
+    case "hail.connection-confirmation":
+      validateConnectionConfirmation(payload);break;
+    case "hail.connection-grant":
+      validateConnectionGrant(payload);break;
     case "hail.envelope":
       validateEnvelope(payload);
       break;

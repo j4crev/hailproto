@@ -24,7 +24,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     response.headers.set("cache-control","no-store");
     response.headers.set("referrer-policy","no-referrer");
   }
-  if(event.url.pathname==="/permissions"){
+  if(event.url.pathname==="/permissions"||event.url.pathname==="/connect"||event.url.pathname==="/settings/security"){
     response.headers.set("cache-control","no-store");response.headers.set("referrer-policy","no-referrer");
   }
   return response;

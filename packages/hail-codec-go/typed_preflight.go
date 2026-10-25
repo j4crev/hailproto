@@ -46,6 +46,37 @@ func validateTypedPayload(payload Payload) (string, error) {
 	case Envelope:
 		kind, value = EnvelopeType, reflect.ValueOf(typed)
 		validate = func() error { return preflightEnvelope(&typed) }
+	case ConnectionInvitation:
+		kind, value = ConnectionInvitationType, reflect.ValueOf(typed)
+		validate = func() error { return validatePayloadMap(ConnectionInvitationType, connectionInvitationValue(&typed)) }
+	case *ConnectionInvitation:
+		if typed == nil {
+			return "", errors.New("nil connection invitation")
+		}
+		kind, value = ConnectionInvitationType, reflect.ValueOf(*typed)
+		validate = func() error { return validatePayloadMap(ConnectionInvitationType, connectionInvitationValue(typed)) }
+	case ConnectionConfirmation:
+		kind, value = ConnectionConfirmationType, reflect.ValueOf(typed)
+		validate = func() error {
+			return validatePayloadMap(ConnectionConfirmationType, connectionConfirmationValue(&typed))
+		}
+	case *ConnectionConfirmation:
+		if typed == nil {
+			return "", errors.New("nil connection confirmation")
+		}
+		kind, value = ConnectionConfirmationType, reflect.ValueOf(*typed)
+		validate = func() error {
+			return validatePayloadMap(ConnectionConfirmationType, connectionConfirmationValue(typed))
+		}
+	case ConnectionGrant:
+		kind, value = ConnectionGrantType, reflect.ValueOf(typed)
+		validate = func() error { return validatePayloadMap(ConnectionGrantType, connectionGrantValue(&typed)) }
+	case *ConnectionGrant:
+		if typed == nil {
+			return "", errors.New("nil connection grant")
+		}
+		kind, value = ConnectionGrantType, reflect.ValueOf(*typed)
+		validate = func() error { return validatePayloadMap(ConnectionGrantType, connectionGrantValue(typed)) }
 	case *Envelope:
 		if typed == nil {
 			return "", errors.New("nil envelope payload")

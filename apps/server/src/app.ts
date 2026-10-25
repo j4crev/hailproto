@@ -52,6 +52,8 @@ import type {SenderProfileService} from "./profiles/service.js";
 import type {SenderProfileVerifier} from "./profiles/verifier.js";
 import type {PasskeyAuth} from "./accounts/passkeys.js";
 import {registerPasskeyRoutes} from "./accounts/passkey-routes.js";
+import type {AccountConnections} from "./accounts/connections.js";
+import {registerConnectionRoutes} from "./accounts/connection-routes.js";
 
 export interface ReadinessResult {
   ready: boolean;
@@ -82,7 +84,7 @@ export interface AppDependencies {
   managedMigrationCompletion?:ManagedMigrationCompletion;
   accountApi?: { accounts: AccountApiRepository; grants: GrantRepository; service: GrantService; messaging?:AccountMessaging;
     binding?:AccountBinding;transfer?:AccountTransfer;custodyTransition?:SameProviderCustodyTransition;managedTransfer?:ManagedAccountTransfer;
-    profiles?:SenderProfileService;profileVerifier?:Pick<SenderProfileVerifier,"verify">;publications?:AccountPublications };
+    profiles?:SenderProfileService;profileVerifier?:Pick<SenderProfileVerifier,"verify">;publications?:AccountPublications;connections?:AccountConnections };
   selfServiceOnboarding?: SelfServiceOnboarding;
   signupEmail?:{sql:SQL;client:SignupEmailClient};
   signupMonitor?:SignupMonitorService;
@@ -117,6 +119,7 @@ export function createApp(
   if (dependencies.accountApi) {
     const { accounts, grants, service, messaging, binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,publications } = dependencies.accountApi;
     registerAccountApiRoutes(app, accounts, grants, service, config.publicOrigin,messaging,binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,config.passkeys?.origin,publications);
+    if(dependencies.accountApi.connections)registerConnectionRoutes(app,dependencies.accountApi.connections,accounts,config.passkeys?.origin??config.publicOrigin);
     if(dependencies.passkeys)registerPasskeyRoutes(app,dependencies.passkeys,accounts);
     if(dependencies.passkeys&&dependencies.servingSql)registerPermissionRoutes(app,
       new GrantPermissions(dependencies.servingSql,accounts,grants,service,dependencies.passkeys,config.publicOrigin),accounts,dependencies.passkeys.origin);

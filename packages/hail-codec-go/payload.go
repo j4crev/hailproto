@@ -65,6 +65,12 @@ func DecodePayload(payloadType string, data []byte) (Payload, error) {
 		out = &SenderProfile{}
 	case GrantType:
 		out = &Grant{}
+	case ConnectionInvitationType:
+		out = &ConnectionInvitation{}
+	case ConnectionConfirmationType:
+		out = &ConnectionConfirmation{}
+	case ConnectionGrantType:
+		out = &ConnectionGrant{}
 	case EnvelopeType:
 		out = &Envelope{}
 	case DeliveryStatusType:
@@ -110,6 +116,27 @@ func payloadValue(payload Payload) (map[any]any, string, error) {
 			return nil, "", errors.New("nil grant payload")
 		}
 		return grantValue(value), GrantType, nil
+	case ConnectionInvitation:
+		return connectionInvitationValue(&value), ConnectionInvitationType, nil
+	case *ConnectionInvitation:
+		if value == nil {
+			return nil, "", errors.New("nil connection invitation")
+		}
+		return connectionInvitationValue(value), ConnectionInvitationType, nil
+	case ConnectionConfirmation:
+		return connectionConfirmationValue(&value), ConnectionConfirmationType, nil
+	case *ConnectionConfirmation:
+		if value == nil {
+			return nil, "", errors.New("nil connection confirmation")
+		}
+		return connectionConfirmationValue(value), ConnectionConfirmationType, nil
+	case ConnectionGrant:
+		return connectionGrantValue(&value), ConnectionGrantType, nil
+	case *ConnectionGrant:
+		if value == nil {
+			return nil, "", errors.New("nil connection grant")
+		}
+		return connectionGrantValue(value), ConnectionGrantType, nil
 	case Envelope:
 		return envelopeValue(&value), EnvelopeType, nil
 	case *Envelope:
@@ -540,6 +567,12 @@ func validatePayloadMap(kind string, m map[any]any) error {
 		return validateSenderProfile(m)
 	case GrantType:
 		return validateGrant(m)
+	case ConnectionInvitationType:
+		return validateConnectionInvitation(m)
+	case ConnectionConfirmationType:
+		return validateConnectionConfirmation(m)
+	case ConnectionGrantType:
+		return validateConnectionGrant(m)
 	case EnvelopeType:
 		return validateEnvelope(m)
 	case DeliveryStatusType:

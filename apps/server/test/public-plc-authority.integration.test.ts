@@ -40,6 +40,7 @@ it.skipIf(!process.env.DATABASE_URL)("fresh public reads bind exact accepted env
       JSON.stringify(await db.sql.unsafe(`SELECT to_jsonb(t) AS value FROM ${table} t ORDER BY to_jsonb(t)::text`))));
     const before=await fingerprint(),migrationConnection=await db.sql.reserve();
     try{
+      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());
       await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());
       await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
       await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());

@@ -80,10 +80,25 @@ publications per account. See [the API, worker, proof and rollback boundaries](c
 
 ## Stage 3 — Explicit Connections
 
-The current one-active-Grant-per-directional-pair rule cannot represent independent
-subscription and connection permissions. Revise signed authorization purpose and
-cardinality with codec/schema/conformance coverage before adding connection UI.
-Do not encode connection state as a category or infer it from reciprocal Grants.
+Invitation UX is now decided: QR/link sharing only, no unsolicited request folder.
+A user has a permanent personal QR with no automatic expiry on Security (eventually
+My Account), plus optional expiring sharing codes. The scanner reviews/confirms;
+a valid code's creator needs no second approval. Expiry stops new admission, not
+established relationships. Sharing a public QR must clearly disclose that any
+authenticated holder may connect; replacement/revocation and blocking need controls.
+
+The wire foundation and an opt-in same-provider managed-account preview now implement
+code management on Security, identity-pinned scan/confirm, crossed-review convergence
+and disconnect tombstones. See [draft connection consent](../spec/connection-auth.md).
+Disabled by default and not deployed: direct delivery, explicit blocking, owner-held
+signing, cross-provider admission and portable export remain unfinished. Retained
+preview consent blocks provider/custody transitions rather than losing that history.
+
+The current one-active-subscription-Grant-per-directional-pair rule must not be
+reused to collapse connection permission into a subscription. The draft separates
+connection-specific signed consent and permissions into distinct object families;
+the future store must allow independent relationship lifecycles. Do not encode
+connection state as a category or infer it from reciprocal subscription Grants.
 
 Crossed invitations for the same DID pair and compatible mutual-consent terms
 must converge on one connection. Deduplicate on a canonical pair internally, bind

@@ -75,6 +75,7 @@ import {createPublicManagedRuntime} from "./migration/public-managed-runtime.js"
 import {createIndependentPlcObserver} from "./plc/observers.js";
 import {inspectPlcReaders} from "./plc/diagnostics.js";
 import {SenderProfileService} from "./profiles/service.js";
+import {AccountConnections} from "./accounts/connections.js";
 
 const config = loadConfig();
 const database = new ProviderDatabase(config.databaseUrl);
@@ -289,6 +290,8 @@ const app = createApp(config, schemaRehearsal ? {
     onboarding:new PrivatePocOnboarding(database.sql,plc,new KeyEncryptor(config.keyEncryptionKey),config.plcDirectoryUrl,config.hailServiceBase),
     activation:new ActivationService(onboardingRepository,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver),config.hailServiceBase,"public"),provider:config.publicOrigin,profile:"private-poc" as const}} : {}),
   accountApi: { accounts: new AccountApiRepository(database.sql), grants: grantRepository,
+     ...(process.env.CONNECTION_PREVIEW==="true"&&config.passkeys?{connections:new AccountConnections(database.sql,encryptor,resolver,
+       new PasskeyAuth(database.sql,config.passkeys.rpId,config.passkeys.origin),config.publicOrigin)}:{}),
     ...(managedAuthorization&&managedDelivery&&managedFence&&managedExporter?{managedTransfer:new ManagedAccountTransfer(
       database.sql,managedAuthorization,managedDelivery,config.publicOrigin,{fence:managedFence,snapshots:managedExporter})}:{}),
     ...(process.env.PUBLIC_CUSTODY_TRANSITIONS==="true"?(()=>{

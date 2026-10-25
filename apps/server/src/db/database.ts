@@ -203,6 +203,7 @@ const migrations: readonly Migration[] = [
   { version: 59, name: "grant-approvals", url: new URL("../../migrations/0059_grant_approvals.sql", import.meta.url) },
   { version: 60, name: "provider-role-addresses", url: new URL("../../migrations/0060_provider_role_addresses.sql", import.meta.url) },
   { version: 61, name: "publications", url: new URL("../../migrations/0061_publications.sql", import.meta.url) },
+  { version: 62, name: "connection-preview", url: new URL("../../migrations/0062_connection_preview.sql", import.meta.url) },
 ];
 
 export class ProviderDatabase {

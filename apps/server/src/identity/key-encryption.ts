@@ -85,4 +85,17 @@ export class KeyEncryptor {
       ),
     );
   }
+
+  async encryptConnectionToken(accountId:string,invitationId:string,token:Uint8Array):Promise<EncryptedKeyMaterial>{
+    const nonce=crypto.getRandomValues(new Uint8Array(12));
+    const aad=new TextEncoder().encode(["hail-connection-token","1",accountId,invitationId].join("\0"));
+    const ciphertext=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv:nonce,additionalData:aad,tagLength:128},await this.#key,webCryptoBytes(token)));
+    return {ciphertext,nonce,encryptionVersion:1,kekId:"poc-v1"};
+  }
+
+  async decryptConnectionToken(accountId:string,invitationId:string,material:EncryptedKeyMaterial):Promise<Uint8Array>{
+    if(material.encryptionVersion!==1||material.kekId!=="poc-v1")throw new Error("Unsupported connection token envelope");
+    const aad=new TextEncoder().encode(["hail-connection-token","1",accountId,invitationId].join("\0"));
+    return new Uint8Array(await crypto.subtle.decrypt({name:"AES-GCM",iv:webCryptoBytes(material.nonce),additionalData:aad,tagLength:128},await this.#key,webCryptoBytes(material.ciphertext)));
+  }
 }

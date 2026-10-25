@@ -1,5 +1,6 @@
 <script lang="ts">
   import {startAuthentication,startRegistration} from "@simplewebauthn/browser";
+  import ConnectionCodes from "$lib/ConnectionCodes.svelte";
   let {data}=$props();
   let busy=$state(false),message=$state(""),label=$state("Backup passkey");
   const date=(value:string)=>new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(value));
@@ -54,3 +55,4 @@
     <section class="hail-card grid gap-4 p-5 sm:p-7"><h2 class="m-0 text-xl">Account sessions</h2><p class="m-0 text-sm text-muted">Sign out every browser and device currently using this account, including this one.</p><button class="hail-button-secondary justify-self-start border-danger text-danger" onclick={revokeSessions} disabled={busy||!data.recentlyVerified}>Sign out everywhere</button></section>
   </aside>
 </div>
+<ConnectionCodes />

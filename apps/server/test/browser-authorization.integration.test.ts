@@ -83,6 +83,7 @@ integration("browser authorization code and PKCE",()=>{
     await expect(passkeys.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:generation.redirectUri,code:generation.code,
       verifier:generation.verifier,token:secret("hailp")})).rejects.toMatchObject({status:401});
     const rollback=await db.sql.reserve();try{
+      await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());
       await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());
       await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
       await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());

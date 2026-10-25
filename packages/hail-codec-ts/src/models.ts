@@ -86,6 +86,52 @@ export interface HailGrant {
   key_id: string;
 }
 
+export interface HailConnectionInvitation {
+  type: "hail.connection-invitation";
+  version: 1;
+  invitation_id: string;
+  from: string;
+  token_hash: HailDigest;
+  issued_at: number;
+  expires_at: number | null;
+  key_id: string;
+}
+
+export interface HailConnectionConfirmation {
+  type: "hail.connection-confirmation";
+  version: 1;
+  confirmation_id: string;
+  from: string;
+  to: string;
+  invitation_id: string;
+  invitation_hash: HailDigest;
+  issued_at: number;
+  expires_at: number;
+  key_id: string;
+}
+
+export interface HailConnectionGrant {
+  type: "hail.connection-grant";
+  version: 1;
+  grant_id: string;
+  connection_id: string;
+  revision: number;
+  previous: Uint8Array | null;
+  grantor: string;
+  grantee: string;
+  status: "active" | "revoked";
+  issued_at: number;
+  updated_at: number;
+  expires_at: number | null;
+  consent_context: {
+    grantee_address: string;
+    address_binding_hash: HailDigest;
+    invitation_hash: HailDigest;
+    confirmation_hash: HailDigest;
+  };
+  key_id: string;
+}
+
 export type HailMessageType =
   | "personal"
   | "newsletter"
@@ -250,6 +296,9 @@ export interface HailPayloadByType {
   "hail.address-binding": HailAddressBinding;
   "hail.sender-profile": HailSenderProfile;
   "hail.grant": HailGrant;
+  "hail.connection-invitation": HailConnectionInvitation;
+  "hail.connection-confirmation": HailConnectionConfirmation;
+  "hail.connection-grant": HailConnectionGrant;
   "hail.envelope": HailEnvelope;
   "hail.delivery-status": HailDeliveryStatus;
   "hail.body.spt-1": HailSptBody;

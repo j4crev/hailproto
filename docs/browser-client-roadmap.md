@@ -16,6 +16,22 @@ for migration 61, alpha limits and rollback. Release
 [deployment evidence and proof limits](haili-launch.md). Connections, changed
 reply capabilities and attachments are still separate stages.
 
+## Next — QR-Only Explicit Connections
+
+The operator approved QR/link-only admission with automatic creator-side consent
+after the scanner explicitly confirms. No invitations folder is wanted. Each
+account's personal code has no automatic expiry and will live on Security until
+My Account exists; separate expiring sharing codes are also required. Expiry and
+code replacement stop new admission, not existing connections.
+
+The reference codecs implement purpose-separated invitation, confirmation and connection
+Grant objects. An opt-in same-provider managed-account preview now adds Security code
+management and `/connect` review/confirmation with crossed-scan convergence. See
+[connection consent](../spec/connection-auth.md) for format/proof checks, API limits and
+remaining gates. Disabled by default and not deployed; no direct message authorization,
+owner-controlled/cross-provider flow, explicit block controls or portable export yet.
+Retained preview consent blocks transfer/custody changes pending portability support.
+
 ## Approved Relationship Direction And General Subscriptions
 
 The operator confirmed the live browser release works. Subsequent discussion
