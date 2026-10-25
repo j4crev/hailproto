@@ -1,5 +1,30 @@
 # `haili.app` launch milestone
 
+## Connection Preview Enabled — October 25, 2026 UTC
+
+- The operator explicitly approved enabling the preview with its managed-account,
+  same-provider and portability limits. Release
+  `f042d1e550854c68ad29b77b3c79896244b73d39` enables `CONNECTION_PREVIEW` in the
+  public Haili deployment profile, with an explicit `false` environment override.
+  The application default remains off. No signing, consent or migration guard was
+  relaxed. Refresh Security to load personal and expiring QR/link management.
+- Guarded deployment verified pre-deploy backup
+  `provider/haili-20261025T023114Z.tar.gpg`, SHA-256
+  `a361c3461e3ed339d22dc4c78f2f5520a28af3a5c40e85e8a700c6235e4f96f0`.
+  The initial R2 501 recovered on retry. The cached application image retains config
+  `sha256:96b8dbf5e3d5e282c4f2c5c1be2be30947dbbf9edc26ac407ccf67ba66f510c8`.
+  One startup readiness probe returned 502; the wrapper retry passed.
+- Provider and GUI are healthy; PostgreSQL 18.6 and Caddy kept their uptime. Remote
+  HEAD matches the enablement release. Readiness and `/connect` return 200; Security
+  redirects anonymous visitors to login. Connection API GET and anonymous prepare
+  now return 401 instead of the disabled route's 404; foreign-Origin prepare returns
+  403. These probes created no invitations, approvals or connections. Authenticated
+  live passkey/code use remains operator confirmation, not verified by these probes.
+- Local Compose validation passed for both enabled and explicit-disabled settings.
+  Existing release test evidence remains applicable: this release changes only the
+  deployment gate and runbook. Disabling the preview later does not undo retained
+  consent, unblock transfers/custody transitions or enable connection messaging.
+
 ## Connection Preview Code Deployed, Gate Off — October 25, 2026 UTC
 
 - Release `65097d665e51e42ef6c37afc134e912edac221e6` was committed, pushed and

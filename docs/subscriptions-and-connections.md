@@ -90,7 +90,7 @@ authenticated holder may connect; replacement/revocation and blocking need contr
 The wire foundation and an opt-in same-provider managed-account preview now implement
 code management on Security, identity-pinned scan/confirm, crossed-review convergence
 and disconnect tombstones. See [draft connection consent](../spec/connection-auth.md).
-Code deployed with the preview disabled: direct delivery, explicit blocking, owner-held
+Preview enabled on Haili by operator approval: direct delivery, explicit blocking, owner-held
 signing, cross-provider admission and portable export remain unfinished. Retained
 preview consent blocks provider/custody transitions rather than losing that history.
 

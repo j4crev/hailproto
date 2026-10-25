@@ -28,7 +28,7 @@ The reference codecs implement purpose-separated invitation, confirmation and co
 Grant objects. An opt-in same-provider managed-account preview now adds Security code
 management and `/connect` review/confirmation with crossed-scan convergence. See
 [connection consent](../spec/connection-auth.md) for format/proof checks, API limits and
-remaining gates. Code deployed to Haili with the preview disabled; no direct message authorization,
+remaining gates. Preview enabled on Haili by operator approval; no direct message authorization,
 owner-controlled/cross-provider flow, explicit block controls or portable export yet.
 Retained preview consent blocks transfer/custody changes pending portability support.
 
