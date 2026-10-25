@@ -42,6 +42,8 @@ services:
       DATABASE_URL: postgresql://hail:${DB_PASSWORD:?set DB_PASSWORD}@db:5432/hail
       KEY_ENCRYPTION_KEY: ${KEY_ENCRYPTION_KEY:?set KEY_ENCRYPTION_KEY}
       PASSKEY_AUTH: ${PASSKEY_AUTH:-true}
+      # Operator-approved Haili preview; other deployments may explicitly opt out.
+      CONNECTION_PREVIEW: ${CONNECTION_PREVIEW:-true}
       PASSKEY_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
       PASSKEY_RP_ID: ${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
       THIN_GUI_ORIGIN: http://gui:3000

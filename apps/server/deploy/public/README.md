@@ -48,6 +48,17 @@ for rollback; changing the RP ID invalidates existing provider-local passkeys.
 The provider keeps `/api`, `/hail`, `/.well-known`, and `/health` locally owned
 and proxies only GUI paths to the internal thin-client sidecar.
 
+### Connection preview
+
+This Haili deployment profile enables `CONNECTION_PREVIEW` following operator approval.
+Set `CONNECTION_PREVIEW=false` to opt out; the application itself still defaults off.
+Security offers separate personal and expiring connection QR/link controls for
+managed accounts on this provider. Confirmed consent blocks transfer/custody changes
+even after code revocation or disconnect until portable export is implemented.
+Disabling the preview does not remove that retained consent or its guards.
+Owner-controlled signing, cross-provider handshakes, explicit blocking and connection
+message delivery are not supported yet. See [connection consent](../../../../spec/connection-auth.md).
+
 Initial canary enrollment may temporarily mount a mode-0600 credential. The
 deployed profile must not retain that mount or enable
 `HAIL_GUI_CREDENTIAL_FALLBACK` after a passkey has been tested.
