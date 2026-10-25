@@ -1,5 +1,49 @@
 # `haili.app` launch milestone
 
+## Owner-Controlled And Federated Connections Deployed — October 25, 2026 UTC
+
+- Feature release `65eb48d96402ba408407af1c5d9de3db92387b41` implements local
+  identity-only owner signing, compatible-provider QR handoff, signed admission,
+  canonical crossed-scan reconciliation, durable retries and disconnect propagation.
+  The deployed release is `c4203779a5506b4601c67a3873e2491a22b2f4ca`, which also
+  corrects the low-memory image-build failure described below. Preview remains on.
+- Startup applies additive migrations 63/64 without rewriting existing signed
+  managed consent. New proof/epoch/tombstone history is retained and account/fence
+  guarded. Messaging, explicit block controls and portable export are not included;
+  confirmed connection intent still blocks provider/custody cutover. See
+  [connection consent](../spec/connection-auth.md) and
+  [federation v1](../spec/connection-federation.md).
+- Initial deployment of `65eb48d` failed with SIGKILL/137 during GUI packaging and
+  the guarded wrapper restored `d8cd333` and healthy service. Its verified backup was
+  `provider/haili-20261025T041159Z.tar.gpg`, SHA-256
+  `2304239286c5f61de62a3003be54c7d923daa7ff48b0cbe788f5c1f9a7597c1f`.
+  A local Bun 1.4.0 builder reproduced an OOM kill under a 768 MiB/no-swap cap;
+  Node 24.18 completed the same build under that cap. Only the build stage moved to
+  Node; Bun runtime/dependency installation and asset precompression were retained.
+  The complete packaged image and desktop/mobile browser checks then passed.
+- Successful guarded deployment verified backup
+  `provider/haili-20261025T042043Z.tar.gpg`, SHA-256
+  `9f6fbcdde42e3b730fed9a467e03087217dd2591f56bcbad7a9c0a2f00cd236f`.
+  Both backup uploads recovered from the initial R2 501 using the existing retry.
+  Runtime image config:
+  `sha256:0ec1e59b8df871af6dc2158feeee66653ab1b72f3ac8650216ff5b910299b3fa`.
+  One startup readiness probe returned 502; retry passed.
+- Provider/GUI are healthy and remote HEAD matches `c420377`. PostgreSQL 18.6 and
+  Caddy retained their uptime. Public readiness, login and connection review return
+  200; Security retains its exact local login redirect. Browser connection API reads
+  require authentication (401). All six provider connection endpoints reject empty
+  unsigned input (400); provider RPC refuses foreign browser Origin (403).
+  Startup/PLC diagnostics are healthy and the post-deploy log check contains no
+  federation-worker errors. No live invitation, approval, connection, Grant, credential,
+  or message was created for these probes. An authenticated exchange with an unrelated
+  live provider remains operator verification, not a claim from read-only checks.
+- Release proof: workspace typechecks; 374 codec, 32 GUI, 22 CLI and 163 non-database
+  server tests; Go interoperability; 16 PostgreSQL checks across 12 selected files;
+  desktop/mobile Chromium and complete Docker image build. Independent provider-store
+  tests cover owner-held keys, crossed scans, process restarts, lost committed replies,
+  expiry/revocation races, stale activation/disconnect, forged purposes/epochs,
+  missing consent, account isolation, immutable history, fencing and rollback refusal.
+
 ## Inline Connection QR Controls Deployed — October 25, 2026 UTC
 
 - Release `d8cd333c76466716efceb26c7a3c2136d68adc48` was committed, pushed and
