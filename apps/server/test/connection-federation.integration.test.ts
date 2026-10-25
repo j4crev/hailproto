@@ -1,8 +1,10 @@
 import {createHash,generateKeyPairSync,randomBytes,randomUUID,sign} from "node:crypto";
 import {SQL} from "bun";
 import {Hono} from "hono";
-import {expect,it} from "vitest";
+import {expect,it,vi} from "vitest";
 import {P256Keypair} from "@atproto/crypto";
+import {cidForCbor} from '@atproto/common';
+import {def,didForCreateOp,formatDidDoc,signOperation,validateOperationLog} from "@did-plc/lib";
 import {createWebCryptoSigner,decodeBase64Url,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,signPayload} from "@hailproto/codec";
 import {ProviderDatabase} from "../src/db/database.js";
 import {AccountConnections} from "../src/accounts/connections.js";
@@ -13,7 +15,7 @@ import {PasskeyAuth} from "../src/accounts/passkeys.js";
 import {KeyEncryptor} from "../src/identity/key-encryption.js";
 import {generateAccountKeys} from "../src/identity/keys.js";
 import {importEd25519PrivateKey} from "../src/identity/keys.js";
-import type {HailDidResolver} from "../src/plc/resolver.js";
+import type {HailDidResolver,PlcResolutionEvidence} from "../src/plc/resolver.js";
 import {withFreshServingGenerations} from "../src/db/serving.js";
 import {ConnectionMessagingAuthority} from "../src/accounts/connection-authorization.js";
 import {AccountMessaging} from "../src/accounts/messaging.js";
@@ -36,25 +38,31 @@ import {ProtectedResponseSchedule} from "../src/http/protected-schedule.js";
 import {uuidV7} from "../src/identity/uuid-v7.js";
 import {registerAccountApiRoutes} from "../src/accounts/routes.js";
 import {GrantService} from "../src/grants/service.js";
-import {collectConnectionHistory,connectionHistoryDigest,validateConnectionHistory} from "../src/migration/connection-history.js";
-import {createConnectionHandoverPlan,signConnectionHandover,verifyConnectionHandover} from "../src/migration/connection-handover.js";
+import {collectConnectionHistory,connectionHistoryDigest,validateConnectionHistory,inspectConnectionProof} from "../src/migration/connection-history.js";
+import {createConnectionHandoverPlan,signConnectionHandover,verifyConnectionHandover,connectionHandoverPlanDigest,
+  signConnectionHandoverAbort,verifyConnectionHandoverAbort,type ConnectionHandoverAbort} from "../src/migration/connection-handover.js";
 import {ConnectionHandoverStage} from "../src/migration/connection-handover-stage.js";
 import {TRANSFER_TABLES,TRANSFER_AUTHORITY_TABLES,validateTransferManifest,type TransferManifest} from "../src/migration/transfer.js";
 import {requireConnectionHandoverComplete} from "../src/migration/connection-snapshot.js";
 import {decodeSignedRecord,encodeSignedRecord} from "../src/migration/wire.js";
 import {registerConnectionHandoverRoutes} from "../src/migration/routes.js";
 import {PortablePlcSubmission} from "../src/migration/poc-plc-submission.js";
+import {verifyConnectionHistoryAuthority} from "../src/migration/connection-history-verification.js";
+import {ConnectionReconstruction,reconstructConnections} from '../src/migration/connection-reconstruction.js';
+import {MANAGED_TRANSFER_TABLES,managedHistoryCheckpoint,managedSnapshotSignatureInput,validateManagedTransferManifest,type ManagedTransferManifest} from '../src/migration/managed-snapshot.js';
+import {signConnectionHandoverTransition,verifyConnectionHandoverResult,connectionActivationDigest,type ConnectionHandoverTransition} from '../src/migration/connection-handover.js';
+import {signActivationReceipt} from '../src/migration/activation-receipt.js';
 
 it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner signatures, crossed scans, durable retries and terminal epoch precedence",async()=>{
   const admin=new SQL(process.env.DATABASE_URL!),users=[] as User[],providers=[] as Provider[];
   type User={id:string;did:string;address:string;managed:boolean;keys:Awaited<ReturnType<typeof generateAccountKeys>>;session:AccountApiSession;token:string;
-    assertion:(challenge:string)=>any;provider:Provider};
+    assertion:(challenge:string)=>any;provider:Provider;evidence:PlcResolutionEvidence;recoveryPublicKey:string;recoveryKey:P256Keypair};
   type Provider={schema:string;db:ProviderDatabase;origin:string;app:Hono;service:AccountConnections;accounts:AccountApiRepository;passkeys:PasskeyAuth;encryptor:KeyEncryptor};
-  const evidence={document:{},data:{},log:[]};
   const resolver:HailDidResolver={async resolve(did){const user=users.find(u=>u.did===did);if(!user)throw new Error("Unknown fixture DID");return {did,
-    identityDidKey:user.keys.identityDidKey,messagingDidKey:user.keys.messagingDidKey,serviceBase:user.provider.origin+"/hail",evidence};}};
-  let lostCommit=0,lostDisconnect=0,lostSync=0,holdActive=false,holdClosed=false,loseAdmission=0,lostEnvelope=0,bodyReads=0,coordinatorUnavailable=false;
+    identityDidKey:(user.evidence.data as any).verificationMethods['hail-identity'],messagingDidKey:(user.evidence.data as any).verificationMethods['hail-messaging'],serviceBase:(user.evidence.data as any).services.hail.endpoint,evidence:user.evidence};}};
+  let lostCommit=0,lostDisconnect=0,lostSync=0,holdActive=false,holdClosed=false,loseAdmission=0,lostEnvelope=0,bodyReads=0,coordinatorUnavailable=false,lostFreeze=0,lostAbort=0,lostPostCommit=0,lostCompletion=0;
   const requests:{target:Provider;path:string;wire:Record<string,unknown>;status:number}[]=[],delayed:{target:Provider;wire:Record<string,unknown>}[]=[];
+  let portabilityStage='lifecycle and messaging';
   const network=async(request:Request)=>{
     const url=new URL(request.url),target=providers.find(p=>p.origin===url.origin);if(!target)throw new Error("Unapproved fixture target");
     if(coordinatorUnavailable&&url.pathname.endsWith('/connections/state'))throw new Error('Coordinator temporarily unreachable');
@@ -76,10 +84,14 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     if(response.ok&&path.endsWith("/disconnect")&&lostDisconnect){lostDisconnect--;throw new Error("Lost disconnected reply");}
     if(response.ok&&path.endsWith("/sync")&&lostSync){lostSync--;throw new Error("Lost applied sync reply");}
     if(response.ok&&path.endsWith("/admit")&&loseAdmission){loseAdmission--;throw new Error("Lost durable admission reply");}
+    if(response.ok&&path.endsWith('/handover-freeze')&&lostFreeze){lostFreeze--;throw new Error('Lost durable freeze reply');}
+    if(response.ok&&path.endsWith('/handover-abort')&&lostAbort){lostAbort--;throw new Error('Lost durable abort reply');}
+    if(response.ok&&path.endsWith('/handover-commit')&&lostPostCommit){lostPostCommit--;throw new Error('Lost post-cutover commit reply');}
+    if(response.ok&&path.endsWith('/handover-complete')&&lostCompletion){lostCompletion--;throw new Error('Lost final handover reply');}
     return response;
   };
   try{
-    for(const name of ["first","second"]){
+    for(const name of ["first","second","third"]){
       const schema="federation_"+name+"_"+randomUUID().replaceAll("-","");await admin.unsafe(`CREATE SCHEMA "${schema}"`);
       const url=new URL(process.env.DATABASE_URL!);url.searchParams.set("options",`-csearch_path=${schema}`);
       const db=new ProviderDatabase(url.toString()),origin=`https://${name}.example.com`,encryptor=new KeyEncryptor(encodeBase64Url(randomBytes(32)));
@@ -87,19 +99,29 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
       const remote=new RemoteConnectionReview(db.sql,resolver,network,url=>{if(!providers.some(p=>p.origin===url.origin))throw new Error("Unexpected destination");},origin+"/hail");
       const service=new AccountConnections(db.sql,encryptor,resolver,passkeys,origin,remote);
       const provider={schema,db,origin,encryptor,accounts,passkeys,app,service};providers.push(provider);await db.migrate();
-      const rollback=await db.sql.reserve();try{await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0066_connection_handover_preparations.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());}finally{rollback.release();}
+      const rollback=await db.sql.reserve();try{for(const file of ['0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation'])
+        await rollback.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{rollback.release();}
       await db.migrate();registerConnectionRoutes(app,service,accounts,origin);
     }
     const addUser=async(provider:Provider,letter:string,managed:boolean)=>{
-      const id=randomUUID(),did="did:plc:"+letter.repeat(24),address=letter+"@"+new URL(provider.origin).hostname,keys=await generateAccountKeys(id,provider.encryptor),sql=provider.db.sql;
+      const id=randomUUID(),address=letter+"@"+new URL(provider.origin).hostname,keys=await generateAccountKeys(id,provider.encryptor),sql=provider.db.sql,recovery=await P256Keypair.create();
+      // Real genesis chains, with disjoint DID ranges retaining a<b<c<d so both
+      // provider placements and the canonical-coordinator assertions stay exact.
+      const bounds:Record<string,[string,string]>={a:['','g'],b:['g','m'],c:['m','t'],d:['t','{']};
+      const makeGenesis=()=>signOperation({type:'plc_operation',prev:null,rotationKeys:[recovery.did(),keys.rotationDidKey],
+        verificationMethods:{'hail-identity':keys.identityDidKey,'hail-messaging':keys.messagingDidKey},alsoKnownAs:['https://fixture.example.com/'+randomUUID()],
+        services:{hail:{type:'HailMessaging',endpoint:provider.origin+'/hail'}}},recovery);
+      let genesis=await makeGenesis(),did=await didForCreateOp(genesis);
+      while(did.slice(8)<bounds[letter]![0]||did.slice(8)>=bounds[letter]![1]){genesis=await makeGenesis();did=await didForCreateOp(genesis);}
+      const state=(await validateOperationLog(did,[genesis]))!,evidence:PlcResolutionEvidence={document:formatDidDoc(state),data:state,log:[genesis]};
       await sql`INSERT INTO provider_accounts(id,tenant_id,canonical_address,did,onboarding_state,activated_at,activation_binding_digest,activation_verification_mode)
         VALUES(${id},${randomUUID()},${address},${did},'active',now(),${randomBytes(32)},'public')`;
       for(const key of keys.keys.filter(k=>managed||k.role!=="hail-identity"))await sql`INSERT INTO account_keys(account_id,role,algorithm,public_key,encrypted_private_key,encryption_nonce,encryption_version,kek_id)
         VALUES(${id},${key.role},${key.algorithm},${key.publicKey},${key.ciphertext},${key.nonce},1,'poc-v1')`;
       if(managed)await sql`INSERT INTO managed_custody_evidence(account_id,owner_recovery_public_key,provider_identity_public_key,verification_mode,managed_profile_version)
-        VALUES(${id},${(await P256Keypair.create()).did()},${keys.identityDidKey},'reduced-assurance-alpha-v1','hail-managed-custody-v1')`;
+        VALUES(${id},${recovery.did()},${keys.identityDidKey},'reduced-assurance-alpha-v1','hail-managed-custody-v1')`;
       else await sql`INSERT INTO portable_custody_evidence(account_id,user_recovery_public_key,user_identity_public_key,monitor_origin,monitor_confirmed_at,backup_confirmed_at,monitor_verification_mode)
-        VALUES(${id},${(await P256Keypair.create()).did()},${keys.identityDidKey},'https://monitor.example.com',now(),now(),'poc-local')`;
+        VALUES(${id},${recovery.did()},${keys.identityDidKey},'https://monitor.example.com',now(),now(),'poc-local')`;
       const pair=generateKeyPairSync("ec",{namedCurve:"prime256v1"}),jwk=pair.publicKey.export({format:"jwk"}),credential=encodeBase64Url(randomBytes(32));
       const cose=Buffer.concat([Buffer.from("a5010203262001215820","hex"),Buffer.from(jwk.x!,"base64url"),Buffer.from("225820","hex"),Buffer.from(jwk.y!,"base64url")]);
       await sql`INSERT INTO account_passkeys(credential_id,account_id,serving_generation,public_key,device_type,backed_up,label)
@@ -115,9 +137,9 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
       const binding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:1,did,address,issued_at:n-10,expires_at:n+86400,key_id:did+"#hail-identity"},createWebCryptoSigner(did+"#hail-identity",keys.identityPrivateKey));
       await sql`INSERT INTO address_bindings(id,account_id,canonical_address,did,cose,representation_digest,issued_at,expires_at,selected_at,published_at,hosted_at)
         VALUES(${randomUUID()},${id},${address},${did},${binding},${new Uint8Array(createHash("sha256").update(binding).digest())},${new Date((n-10)*1000)},${new Date((n+86400)*1000)},now(),now(),now())`;
-      const user={id,did,address,managed,keys,session,token:logged.token,assertion,provider};users.push(user);return user;
+      const user={id,did,address,managed,keys,session,token:logged.token,assertion,provider,evidence,recoveryPublicKey:recovery.did(),recoveryKey:recovery};users.push(user);return user;
     };
-    const [first,second]=providers as [Provider,Provider];
+    const [first,second,third]=providers as [Provider,Provider,Provider];
     const a=await addUser(first,"a",false),b=await addUser(second,"b",true),c=await addUser(first,"c",true),d=await addUser(second,"d",false);
     const commit=async(user:User,review:Awaited<ReturnType<AccountConnections["prepare"]>>)=>{
       let external:Uint8Array|undefined;
@@ -129,7 +151,7 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     const create=async(user:User)=>{const p=await user.provider.service.prepare(user.session,{requestId:randomUUID(),action:"create",personal:true,label:"Personal",expiresAt:null});await commit(user,p);return (await user.provider.service.list(user.session)).codes.find(v=>v.personal)!;};
     const code=(link:string)=>Object.fromEntries(new URLSearchParams(new URL(link).hash.slice(1))) as {id:string;did:string;token:string};
     const prepare=(user:User,link:string)=>user.provider.service.prepare(user.session,{requestId:randomUUID(),action:"connect",...code(link)});
-    const forceDue=async()=>{for(const p of providers){await p.db.sql`UPDATE federated_connection_attempts SET next_attempt_at=now() WHERE state='pending'`;await p.db.sql`UPDATE federated_connection_disconnects SET next_attempt_at=now() WHERE result_cose IS NULL`;await p.db.sql`UPDATE federated_connection_outbox SET next_attempt_at=now() WHERE ack_cose IS NULL`;}};
+    const forceDue=async()=>{for(const p of providers)await withFreshServingGenerations(p.db.sql,async()=>{await p.db.sql`UPDATE federated_connection_attempts SET next_attempt_at=now() WHERE state='pending'`;await p.db.sql`UPDATE federated_connection_disconnects SET next_attempt_at=now() WHERE result_cose IS NULL`;await p.db.sql`UPDATE federated_connection_outbox SET next_attempt_at=now() WHERE ack_cose IS NULL`;});};
     const drain=async(rounds=10)=>{for(let i=0;i<rounds;i++){await forceDue();for(const p of providers)await withFreshServingGenerations(p.db.sql,()=>p.service.federation!.workOne());}};
     const active=async(user:User)=>(await user.provider.service.list(user.session)).connections;
     const ac=await create(a),bc=await create(b);
@@ -153,7 +175,7 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     expect(await second.db.sql`SELECT id FROM federated_connection_events`).toHaveLength(0);
     expect(await first.db.sql`SELECT grant_id FROM grant_lineages`).toHaveLength(0);expect(await second.db.sql`SELECT grant_id FROM grant_lineages`).toHaveLength(0);
     expect(await first.db.sql`SELECT role FROM account_keys WHERE account_id=${a.id} AND role='hail-identity'`).toHaveLength(0);
-    expect(requests.filter(r=>r.path.endsWith("/commit"))).toHaveLength(2); // lost reply retries the same committed operation
+    expect(requests.filter(r=>r.path.endsWith("/commit"))).toHaveLength(1); // durable replication recovers the lost committed result
     const committed=requests.find(r=>r.path.endsWith("/commit"))!;
     const duplicate=await Promise.all([1,2].map(()=>committed.target.app.request(committed.target.origin+committed.path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(committed.wire)})));
     expect(duplicate.map(r=>r.status)).toEqual([200,200]);expect((await duplicate[0]!.json() as {control:string}).control).toEqual((await duplicate[1]!.json() as {control:string}).control);
@@ -330,6 +352,13 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     const raceId=(await restarted.status(a.session,race.publicationId,'connections'))!.targets[0]!.messageId;
     expect(await first.db.sql`SELECT message_id FROM delivered_messages WHERE message_id=${raceId}`).toHaveLength(0);
     expect(await first.db.sql`SELECT grant_id FROM grant_lineages`).toHaveLength(0); // independent of subscriptions
+    // The same standing invitation can be used by two different local accounts;
+    // retained authority must not be stolen by a provider-global digest key.
+    const sharedCode=await prepare(c,fresh.link);await commit(c,sharedCode);await drain(6);
+    const sharedProof=(await first.db.sql<{digest:Uint8Array;cose:Uint8Array}[]>`SELECT digest,cose FROM connection_proof_signatures WHERE account_id=${a.id} AND digest IN(
+      SELECT digest FROM connection_proof_signatures WHERE account_id=${c.id})`);
+    expect(sharedProof.length).toBeGreaterThan(0);
+    expect(sharedProof.some(r=>inspectConnectionProof(new Uint8Array(r.cose)).payload.type==='hail.connection-invitation')).toBe(true);
     // Checkpoint collection is read-only and account-local. It does not enable
     // cutover or revoke codes merely because an export is being reviewed.
     const capturedAt=new Date().toISOString(),owner={accountId:a.id,did:a.did,sourceGeneration:1,sourceServiceBase:first.origin+'/hail'};
@@ -341,6 +370,11 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     const checkpoint=await capture(),again=await capture();
     expect(connectionHistoryDigest(again)).toEqual(connectionHistoryDigest(checkpoint));
     expect(validateConnectionHistory(new TextEncoder().encode(JSON.stringify(checkpoint)),owner)).toEqual(checkpoint);
+    await expect(verifyConnectionHistoryAuthority(checkpoint,resolver)).resolves.toBeUndefined();
+    const missingAuthority=structuredClone(checkpoint);
+    missingAuthority.tables.federated_connection_signatures=missingAuthority.tables.federated_connection_signatures.filter(r=>
+      inspectConnectionProof(new Uint8Array(Buffer.from(String(r.cose).slice(2),'hex'))).payload.type==='hail.connection-control');
+    await expect(verifyConnectionHistoryAuthority(missingAuthority,resolver)).rejects.toThrow('Missing retained authority');
     expect(checkpoint.tables.federated_connection_tombstones.map(r=>r.connection_id)).toContain(oldId);
     expect(checkpoint.tables.account_connections.map(r=>r.id)).toContain(localTarget.connectionId);
     expect(checkpoint.tables.connection_message_batches.length).toBeGreaterThan(0);
@@ -355,7 +389,7 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     const transferId=randomUUID(),tables=Object.fromEntries([...TRANSFER_TABLES,...TRANSFER_AUTHORITY_TABLES].map(t=>[t,[] as Record<string,unknown>[]])) as TransferManifest['tables'];
     tables.provider_accounts=[{id:a.id,did:a.did,onboarding_state:'active',activation_verification_mode:'public'}];
     tables.account_keys=a.keys.keys.filter(k=>k.role!=='hail-identity').map(k=>({account_id:a.id,role:k.role,public_key:k.publicKey}));
-    tables.portable_custody_evidence=[{account_id:a.id,user_recovery_public_key:a.keys.rotationDidKey,user_identity_public_key:a.keys.identityDidKey,
+    tables.portable_custody_evidence=[{account_id:a.id,user_recovery_public_key:a.recoveryPublicKey,user_identity_public_key:a.keys.identityDidKey,
       monitor_verification_mode:'poc-local',monitor_origin:'https://monitor.example.com',monitor_public_key:a.keys.messagingDidKey,monitor_confirmed_at:capturedAt,backup_confirmed_at:capturedAt}];
     tables.sent_envelopes=(await first.db.sql<{row:Record<string,unknown>}[]>`SELECT to_jsonb(t) AS row FROM sent_envelopes t WHERE sender_account_id=${a.id}`).map(r=>r.row);
     const manifest:TransferManifest={version:5,transferId,did:a.did,accountId:a.id,sourceServiceBase:first.origin+'/hail',destinationServiceBase:second.origin+'/hail',
@@ -403,13 +437,277 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     }
     expect(await second.db.sql`SELECT * FROM federated_connection_pairs WHERE account_id=${b.id}`).toEqual(pairBefore);
     expect(await second.db.sql`SELECT peer_did FROM connection_handover_preparations WHERE transfer_id=${transferId}`).toHaveLength(2);
+
+    // Peer-side barrier proof, not a claim that source cutover orchestration is
+    // enabled: source/destination freeze signatures attest a fixed export plan.
+    const sharedConnection=(await active(c)).find(r=>r.did===b.did)!,sourceCPrivate=await privateMessaging(c);
+    const exchange=new RemoteConnectionReview(first.db.sql,resolver,network,url=>{if(!providers.some(p=>p.origin===url.origin))throw new Error('Unexpected handover target');},first.origin+'/hail');
+    const freezePlan=async(moving:User,peer:User)=>{
+      const history=await moving.provider.db.sql.begin(async tx=>{await tx`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY`;
+        return collectConnectionHistory(tx as SQL,{accountId:moving.id,did:moving.did,sourceGeneration:1,sourceServiceBase:moving.provider.origin+'/hail'},new Date().toISOString());});
+      const plan=createConnectionHandoverPlan(history,{transferId:randomUUID(),requestId:uuidV7(),peerDid:peer.did,
+        destinationServiceBase:'https://destination.example.com/hail',destinationMessagingKey:d.keys.messagingDidKey,snapshotDigest:new Uint8Array(32).fill(9),issuedAt:Math.floor(Date.now()/1000)});
+      const source=await signConnectionHandover(plan,'source-freeze',await privateMessaging(moving)),destination=await signConnectionHandover(plan,'destination-freeze',destinationPrivate);
+      return {plan,source,wire:{proposal:encodeSignedRecord(source),destinationSignature:encodeBase64Url(destination.signature)},digest:connectionHandoverPlanDigest(source.payloadBytes)};
+    };
+    const abortWire=async(frozen:Awaited<ReturnType<typeof freezePlan>>,moving:User,privateKey:CryptoKey)=>{
+      const payload:ConnectionHandoverAbort={type:'hail.connection-handover-abort',version:1,request_id:uuidV7(),transfer_id:frozen.plan.transfer_id,
+        did:moving.did,peer_did:frozen.plan.peer_did,plan_digest:frozen.digest,issued_at:Math.floor(Date.now()/1000),expires_at:Math.floor(Date.now()/1000)+300};
+      const source=await signConnectionHandoverAbort(payload,'source-abort',privateKey),destination=await signConnectionHandoverAbort(payload,'destination-abort',destinationPrivate);
+      return {payload,wire:{abort:encodeSignedRecord(source),destinationSignature:encodeBase64Url(destination.signature)}};
+    };
+    const frozen=await freezePlan(c,b);
+    // Queue activation while freeze owns the account lock but has not inserted
+    // the barrier yet. The trigger must check the barrier AFTER acquiring that
+    // lock, not observe an empty table and later commit a new active epoch.
+    let entered!:()=>void,unlock!:()=>void;
+    const signingEntered=new Promise<void>(r=>{entered=r;}),continueSigning=new Promise<void>(r=>{unlock=r;});
+    const decrypt=second.encryptor.decrypt.bind(second.encryptor),signingGate=vi.spyOn(second.encryptor,'decrypt').mockImplementation(async(...args)=>{
+      entered();await continueSigning;return decrypt(...args);});
+    lostFreeze=1;const freezeResult=exchange.exchange(b.did,'handover-freeze',frozen.wire).catch(error=>error);
+    let activationResult:Promise<unknown>|undefined;
+    try{
+      await Promise.race([signingEntered,freezeResult.then(()=>{throw new Error('Freeze failed before reaching its signing barrier');})]);
+      const tag='handover_activation_'+randomUUID().replaceAll('-','');
+      activationResult=second.db.sql.unsafe(`/* ${tag} */ UPDATE federated_connection_pairs SET epoch=epoch+2,connection_id=$1 WHERE account_id=$2 AND peer_did=$3`,
+        [uuidV7(),b.id,c.did]).then(()=>null,error=>error);
+      let waiting=false;
+      for(let i=0;i<500&&!waiting;i++){waiting=(await admin<{waiting:boolean}[]>`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE query LIKE ${'%'+tag+'%'} AND wait_event_type='Lock') AS waiting`)[0]!.waiting;
+        if(!waiting)await Bun.sleep(10);}
+      expect(waiting).toBe(true);
+    }finally{unlock();signingGate.mockRestore();}
+    expect(await freezeResult).toMatchObject({message:'Lost durable freeze reply'});
+    expect(await activationResult).toMatchObject({message:'Connection activation is paused for account handover'});
+    const restartedPeer=new AccountConnections(second.db.sql,second.encryptor,resolver,second.passkeys,second.origin,
+      new RemoteConnectionReview(second.db.sql,resolver,network,()=>{},second.origin+'/hail'));
+    const frozenReply=await restartedPeer.federation!.handle('handover-freeze',frozen.wire);
+    expect(frozenReply).toMatchObject({phase:'frozen',cutoverAuthorized:false});
+    expect(await verifyConnectionHandover(decodeSignedRecord(frozenReply.receipt,65536),'peer-freeze',b.keys.messagingDidKey,Math.floor(Date.now()/1000))).toEqual(frozen.plan);
+    const clock=vi.spyOn(Date,'now').mockReturnValue(Date.now()+600000);
+    try{
+      expect(await restartedPeer.federation!.handle('handover-freeze',frozen.wire)).toMatchObject({phase:'frozen'});
+      const expired={...frozen.plan,request_id:uuidV7()},s=await signConnectionHandover(expired,'source-freeze',sourceCPrivate),t=await signConnectionHandover(expired,'destination-freeze',destinationPrivate);
+      await expect(restartedPeer.federation!.handle('handover-freeze',{proposal:encodeSignedRecord(s),destinationSignature:encodeBase64Url(t.signature)})).rejects.toThrow('freshness');
+    }finally{clock.mockRestore();}
+    expect((await second.db.sql<{paused:boolean}[]>`SELECT hail_connection_handover_blocked(${b.did},${c.did}) AS paused`)[0]!.paused).toBe(true);
+    expect((await second.db.sql<{paused:boolean}[]>`SELECT hail_connection_handover_blocked(${b.did},${a.did}) AS paused`)[0]!.paused).toBe(false);
+    await expect(second.db.sql`UPDATE federated_connection_pairs SET epoch=epoch+2,connection_id=${uuidV7()} WHERE account_id=${b.id} AND peer_did=${c.did}`).rejects.toThrow('activation is paused');
+    const held={publicationId:uuidV7(),connections:[sharedConnection.id],text:'Authenticated delivery held during peer handover'};
+    await one.publications.createConnections(c.session,held);await withFreshServingGenerations(first.db.sql,()=>one.publications.workOne());await received();
+    const heldId=(await one.publications.status(c.session,held.publicationId,'connections'))!.targets[0]!.messageId,readsBeforeFreeze=bodyReads;
+    expect((await second.db.sql<{outcome:string}[]>`SELECT outcome FROM received_envelopes WHERE sender_did=${c.did} AND message_id=${heldId}`)[0]!.outcome).toBe('accepted');
+    const heldPayload=inspectSignedPayload('hail.envelope',(await one.envelopes.sent(c.did,heldId))!).payload;
+    await expect(second.db.sql`INSERT INTO delivered_messages(recipient_did,sender_did,message_id,envelope_digest,body_digest,media_type,profile)
+      SELECT ${b.did},${c.did},${heldId},envelope_digest,${heldPayload.body.digest.value},${heldPayload.body.media_type},${heldPayload.body.profile}
+      FROM received_envelopes WHERE sender_did=${c.did} AND message_id=${heldId}`).rejects.toThrow('delivery is paused');
+    expect(await withFreshServingGenerations(second.db.sql,()=>two.worker.processOne())).toBe('on-hold');expect(bodyReads).toBe(readsBeforeFreeze);
+    const release=await abortWire(frozen,c,sourceCPrivate);
+    await expect(restartedPeer.federation!.handle('handover-abort',{...release.wire,destinationSignature:(release.wire.abort as {signature:string}).signature})).rejects.toThrow('purpose');
+    lostAbort=1;await expect(exchange.exchange(b.did,'handover-abort',release.wire)).rejects.toThrow('Lost durable abort');
+    const released=await restartedPeer.federation!.handle('handover-abort',release.wire);
+    expect(released).toMatchObject({phase:'released',cutoverAuthorized:false});
+    expect(await verifyConnectionHandoverAbort(decodeSignedRecord(released.receipt),'peer-release',b.keys.messagingDidKey,Math.floor(Date.now()/1000))).toEqual(release.payload);
+    expect(await restartedPeer.federation!.handle('handover-freeze',frozen.wire)).toMatchObject({phase:'released'});
+    await second.db.sql`UPDATE delivery_work SET next_attempt_at=now() WHERE sender_did=${c.did} AND message_id=${heldId}`;
+    expect(await withFreshServingGenerations(second.db.sql,()=>two.worker.processOne())).toBe('delivered');
+
+    const racingFreeze=await freezePlan(c,b),racing={publicationId:uuidV7(),connections:[sharedConnection.id],text:'Freeze while fetching the body'};
+    await one.publications.createConnections(c.session,racing);await withFreshServingGenerations(first.db.sql,()=>one.publications.workOne());await received();
+    const racingId=(await one.publications.status(c.session,racing.publicationId,'connections'))!.targets[0]!.messageId;
+    expect(await two.authority.live(b.did,c.did,{type:'connection',connection_id:sharedConnection.id,epoch:1})).toBe(true);
+    // Model remote checks which already passed before freeze: final local SQL
+    // authorization must still hold the message instead of delivering/rejecting.
+    const precheckedStore=new DeliveryRepository(second.db.sql,{async live(){return true;}});
+    const handoverRaceWorker=new DeliveryWorker(precheckedStore,{async retrieve(envelope){const result=await two.retriever.retrieve(envelope);
+      await exchange.exchange(b.did,'handover-freeze',racingFreeze.wire);return result;}});
+    expect(await withFreshServingGenerations(second.db.sql,()=>handoverRaceWorker.processOne())).toBe('on-hold');
+    expect(await second.db.sql`SELECT message_id FROM delivered_messages WHERE sender_did=${c.did} AND message_id=${racingId}`).toHaveLength(0);
+    const abortRace=await abortWire(racingFreeze,c,sourceCPrivate);
+    const movePlc=async(base:string)=>{const state=def.documentData.parse(c.evidence.data),log=c.evidence.log.map(op=>def.compatibleOpOrTombstone.parse(op));
+      const next=await signOperation({type:'plc_operation',prev:(await cidForCbor(log.at(-1)!)).toString(),rotationKeys:state.rotationKeys,
+        verificationMethods:state.verificationMethods,alsoKnownAs:state.alsoKnownAs,services:{...state.services,hail:{type:'HailMessaging',endpoint:base}}},c.keys.rotationKey);
+      const updated=[...log,next],data=(await validateOperationLog(c.did,updated))!;c.evidence={document:formatDidDoc(data),data,log:updated};};
+    await movePlc(racingFreeze.plan.destination_service_base);
+    await expect(restartedPeer.federation!.handle('handover-abort',abortRace.wire)).rejects.toThrow('committed or changed source');
+    await movePlc(first.origin+'/hail'); // append a real return operation, never rewind PLC history
+    const closeFrozen=await second.service.prepare(b.session,{requestId:randomUUID(),action:'disconnect',connectionId:sharedConnection.id});await commit(b,closeFrozen);await drain(6);
+    expect((await active(b)).some(r=>r.id===sharedConnection.id)).toBe(false);
+    await exchange.exchange(b.did,'handover-abort',abortRace.wire);
+    const readsAfterDisconnect=bodyReads;await second.db.sql`UPDATE delivery_work SET next_attempt_at=now() WHERE sender_did=${c.did} AND message_id=${racingId}`;
+    expect(await withFreshServingGenerations(second.db.sql,()=>two.worker.processOne())).toBe('failed');expect(bodyReads).toBe(readsAfterDisconnect);
+    expect(await second.db.sql`SELECT connection_id FROM federated_connection_tombstones WHERE account_id=${b.id} AND connection_id=${sharedConnection.id}`).toHaveLength(1);
+
+    const nativeFreeze=await freezePlan(a,c);await first.service.federation!.handle('handover-freeze',nativeFreeze.wire);
+    await expect(first.db.sql`INSERT INTO account_connections(id,account_a,account_b,did_a,did_b,generation_a,generation_b,grant_id_a,grant_id_b,consent_format)
+      VALUES(${uuidV7()},${a.id},${c.id},${a.did},${c.did},1,1,${uuidV7()},${uuidV7()},'joint-v1')`).rejects.toThrow('activation is paused');
+    const releaseNative=await abortWire(nativeFreeze,a,sourcePrivate);await first.service.federation!.handle('handover-abort',releaseNative.wire);
+    await expect(second.db.sql`DELETE FROM connection_handover_barriers WHERE account_id=${b.id}`).rejects.toThrow('cannot be deleted');
+    const barrierRollback=await second.db.sql.reserve();try{await expect(barrierRollback.unsafe(await Bun.file(new URL('../migrations/rollback/0068_connection_handover_barriers.sql',import.meta.url)).text())).rejects.toThrow('Retained connection handover barriers');}finally{await barrierRollback.unsafe('ROLLBACK');barrierRollback.release();}
+    await expect(first.db.sql`DELETE FROM connection_proof_signatures WHERE account_id=${a.id}`).rejects.toThrow('immutable');
+    const proofRollback=await first.db.sql.reserve();try{await expect(proofRollback.unsafe(await Bun.file(new URL('../migrations/rollback/0067_connection_proof_authority.sql',import.meta.url)).text())).rejects.toThrow('Retained connection proof authority');}finally{await proofRollback.unsafe('ROLLBACK');proofRollback.release();}
     await expect(second.db.sql`DELETE FROM connection_handover_preparations WHERE transfer_id=${transferId}`).rejects.toThrow();
     const handoverRollback=await second.db.sql.reserve();try{await expect(handoverRollback.unsafe(await Bun.file(new URL('../migrations/rollback/0066_connection_handover_preparations.sql',import.meta.url)).text())).rejects.toThrow('prevents schema rollback');}finally{await handoverRollback.unsafe('ROLLBACK');handoverRollback.release();}
     const fence=()=>first.db.sql`INSERT INTO provider_migration_fences(did,account_id,transfer_id,destination_service_base,state) VALUES(${a.did},${a.id},${randomUUID()},'https://destination.example.com/hail','fenced')`;
     await expect(fence()).rejects.toThrow("not portable");
-    await expect(first.db.sql`INSERT INTO provider_migration_fences(did,account_id,transfer_id,destination_service_base,state) VALUES(${c.did},${c.id},${randomUUID()},'https://destination.example.com/hail','fenced')`).rejects.toThrow("not portable");
+    await expect(first.db.sql`INSERT INTO provider_migration_fences(did,account_id,transfer_id,destination_service_base,state) VALUES(${c.did},${c.id},${randomUUID()},'https://destination.example.com/hail','fenced')`).rejects.toThrow("requires portable preservation");
     const messageRollback=await first.db.sql.reserve();try{await expect(messageRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text())).rejects.toThrow("Retained connection messages");}finally{await messageRollback.unsafe('ROLLBACK');messageRollback.release();}
     const rollback=await first.db.sql.reserve();try{await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text())).rejects.toThrow("prevents rollback");}finally{await rollback.unsafe("ROLLBACK");rollback.release();}
-  }catch(error){console.error("Federation fixture HTTP outcomes",requests.slice(-12).map(r=>({provider:r.target.origin,path:r.path,status:r.status})));throw error;}
+
+    // Post-cutover component proof: regular account-transfer signature/owner/
+    // monitor ceremonies are covered by the migration fixtures. Here the inert
+    // import boundary is seeded, then real PLC, peer RPC and SQL reconstruction
+    // are exercised, including both coordinator and noncoordinator relationships.
+    const replaceB=await second.service.prepare(b.session,{requestId:randomUUID(),action:'replace',id:fresh.id});await commit(b,replaceB);
+    const beforeMoveCode=(await second.service.list(b.session)).codes.find(v=>v.personal)!,beforeMoveLink=code(beforeMoveCode.link);
+    for(const user of [a,c]){const proposal=await prepare(user,beforeMoveCode.link);await commit(user,proposal);await drain(8);}
+    const ab=(await active(b)).find(v=>v.did===a.did)!,cb=(await active(b)).find(v=>v.did===c.did)!;
+    const oldOutgoing={publicationId:uuidV7(),connections:[ab.id],text:'Readable unchanged after moving the sender'};
+    await two.publications.createConnections(b.session,oldOutgoing);await withFreshServingGenerations(second.db.sql,()=>two.publications.workOne());await received();
+    expect(await withFreshServingGenerations(first.db.sql,()=>one.worker.processOne())).toBe('delivered');
+    const oldMessageId=(await two.publications.status(b.session,oldOutgoing.publicationId,'connections'))!.targets[0]!.messageId,
+      oldEnvelope=(await two.envelopes.sent(b.did,oldMessageId))!;
+    const oldStatus=await one.signer.signCurrent(b.did,oldMessageId),oldPayload=inspectSignedPayload('hail.envelope',oldEnvelope);
+    await two.statuses.receive(encodeBase64Url(new Uint8Array(createHash('sha256').update(oldPayload.payloadBytes).digest())),oldStatus!);
+    const moveHistory=await second.db.sql.begin(async tx=>{await tx`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY`;
+      return collectConnectionHistory(tx as SQL,{accountId:b.id,did:b.did,sourceGeneration:1,sourceServiceBase:second.origin+'/hail'},new Date().toISOString());});
+    expect(moveHistory.tables.account_connections).toHaveLength(0);
+    const movedKeys=await generateAccountKeys(b.id,third.encryptor),movingTransfer=randomUUID(),movingAddress='moved-b@third.example.com';
+    const movedPrivate=async()=>{const k=movedKeys.keys.find(k=>k.role==='hail-messaging')!,raw=await third.encryptor.decrypt(b.id,k.role,k.algorithm,k.publicKey,k);
+      try{return await importEd25519PrivateKey(raw);}finally{raw.fill(0);}};
+    const plannedPrivate=await movedPrivate(),sourceBPrivate=await privateMessaging(b),moveCapturedAt=moveHistory.capturedAt;
+    const moveTables=Object.fromEntries(MANAGED_TRANSFER_TABLES.map(t=>[t,[] as Record<string,unknown>[]])) as ManagedTransferManifest['tables'];
+    const collectRows=async(table:string,where:string,values:unknown[])=>
+      (await second.db.sql.unsafe<{row:Record<string,unknown>}[]>(`SELECT to_jsonb(t) AS row FROM "${table}" t WHERE ${where}`,values)).map(r=>r.row);
+    moveTables.provider_accounts=await collectRows('provider_accounts','id=$1',[b.id]);
+    moveTables.account_keys=b.keys.keys.map(k=>({account_id:b.id,role:k.role,public_key:k.publicKey}));
+    moveTables.managed_custody_evidence=[{account_id:b.id,owner_recovery_public_key:b.recoveryPublicKey,provider_identity_public_key:b.keys.identityDidKey,
+      verification_mode:'poc-local',managed_profile_version:'hail-managed-custody-v1'}];
+    for(const table of ['detached_bodies','body_authorizations','sent_envelopes'] as const)moveTables[table]=await collectRows(table,'sender_account_id=$1',[b.id]);
+    moveTables.sent_delivery_status=await collectRows('sent_delivery_status','sender_did=$1',[b.did]);
+    const moveBase={version:6 as const,transferId:movingTransfer,did:b.did,accountId:b.id,sourceServiceBase:second.origin+'/hail',destinationServiceBase:third.origin+'/hail',
+      ownerRecoveryPublicKey:b.recoveryPublicKey,sourceIdentityPublicKey:b.keys.identityDidKey,destinationRotationPublicKey:movedKeys.rotationDidKey,
+      destinationIdentityPublicKey:movedKeys.identityDidKey,destinationMessagingPublicKey:movedKeys.messagingDidKey,sourceGeneration:1,custodyProfile:'managed' as const,capturedAt:moveCapturedAt,
+      connections:moveHistory,connectionCheckpointDigest:encodeBase64Url(connectionHistoryDigest(moveHistory)),tables:moveTables};
+    const movingManifest:ManagedTransferManifest={...moveBase,historyCheckpointDigest:encodeBase64Url(managedHistoryCheckpoint(moveBase))},movingBytes=new TextEncoder().encode(JSON.stringify(movingManifest)),
+      movingDigest=new Uint8Array(createHash('sha256').update(movingBytes).digest()),binding=await signPayload('hail.address-binding',{type:'hail.address-binding',version:1,did:b.did,address:movingAddress,
+        issued_at:Math.floor(Date.now()/1000),expires_at:Math.floor(Date.now()/1000)+86400,key_id:b.did+'#hail-identity'},createWebCryptoSigner(b.did+'#hail-identity',movedKeys.identityPrivateKey)),
+      bindingDigest=new Uint8Array(createHash('sha256').update(binding).digest()),sourceSnapshotSignature=new Uint8Array(await crypto.subtle.sign('Ed25519',sourceBPrivate,managedSnapshotSignatureInput(movingDigest,6)));
+    validateManagedTransferManifest(movingBytes);
+    await third.db.sql`INSERT INTO pending_migration_imports(transfer_id,did,source_service_base,destination_service_base,manifest_bytes,manifest_digest,source_messaging_public_key,
+      signature,state,verified_plc_document,verified_plc_data,verified_plc_operation_log,destination_address,destination_binding_cose,destination_binding_digest,custody_profile,
+      owner_recovery_public_key,source_identity_public_key,destination_identity_public_key) VALUES(${movingTransfer},${b.did},${movingManifest.sourceServiceBase},${movingManifest.destinationServiceBase},
+      ${movingBytes},${movingDigest},${b.keys.messagingDidKey},${sourceSnapshotSignature},'staged','{}','{}','[]',${movingAddress},${binding},${bindingDigest},'managed',${b.recoveryPublicKey},${b.keys.identityDidKey},${movedKeys.identityDidKey})`;
+    const movedStack=stack(third),reconstruction=new ConnectionReconstruction(third.db.sql,resolver,
+      new RemoteConnectionReview(third.db.sql,resolver,network,()=>{},third.origin+'/hail'),third.origin+'/hail',third.service.federation);
+    const plans=new Map<string,{plan:ReturnType<typeof createConnectionHandoverPlan>;digest:Uint8Array;commit?:Awaited<ReturnType<typeof signConnectionHandoverTransition>>}>();
+    for(const peer of [a,c]){
+      const plan=createConnectionHandoverPlan(moveHistory,{transferId:movingTransfer,requestId:uuidV7(),peerDid:peer.did,destinationServiceBase:third.origin+'/hail',
+        destinationMessagingKey:movedKeys.messagingDidKey,snapshotDigest:movingDigest,issuedAt:Math.floor(Date.now()/1000)}),source=await signConnectionHandover(plan,'source-freeze',sourceBPrivate),
+        destination=await signConnectionHandover(plan,'destination-freeze',plannedPrivate),wire={proposal:encodeSignedRecord(source),destinationSignature:encodeBase64Url(destination.signature)};
+      expect(await reconstruction.acceptFreeze(wire)).toMatchObject({phase:'frozen'});expect(await reconstruction.acceptFreeze(wire)).toMatchObject({phase:'frozen'});
+      plans.set(peer.did,{plan,digest:connectionHandoverPlanDigest(source.payloadBytes)});
+    }
+    const transition=async(peer:User,action:'commit'|'complete',activation?:Awaited<ReturnType<typeof signActivationReceipt>>)=>{
+      const held=plans.get(peer.did)!,payload:ConnectionHandoverTransition={type:'hail.connection-handover-transition',version:1,action,request_id:uuidV7(),transfer_id:movingTransfer,
+        did:b.did,peer_did:peer.did,plan_digest:held.digest,binding_digest:bindingDigest,activation_digest:activation?connectionActivationDigest(activation):null,
+        issued_at:Math.floor(Date.now()/1000),expires_at:Math.floor(Date.now()/1000)+300};return signConnectionHandoverTransition(payload,plannedPrivate);};
+    const premature=await transition(a,'commit');
+    await expect(first.service.federation!.handle('handover-commit',{command:encodeSignedRecord(premature),binding:encodeBase64Url(binding)})).rejects.toThrow('PLC has not authorized');
+    const oldBState=def.documentData.parse(b.evidence.data),bLog=b.evidence.log.map(op=>def.compatibleOpOrTombstone.parse(op)),cutover=await signOperation({type:'plc_operation',prev:(await cidForCbor(bLog.at(-1)!)).toString(),
+      rotationKeys:[b.recoveryPublicKey,movedKeys.rotationDidKey],verificationMethods:{...oldBState.verificationMethods,'hail-identity':movedKeys.identityDidKey,'hail-messaging':movedKeys.messagingDidKey},
+      alsoKnownAs:oldBState.alsoKnownAs,services:{...oldBState.services,hail:{type:'HailMessaging',endpoint:third.origin+'/hail'}}},b.recoveryKey),nextLog=[...bLog,cutover],nextState=(await validateOperationLog(b.did,nextLog))!;
+    b.evidence={document:formatDidDoc(nextState),data:nextState,log:nextLog};
+    const postExchange=new RemoteConnectionReview(third.db.sql,resolver,network,()=>{},third.origin+'/hail');
+    const restartedFirst=new AccountConnections(first.db.sql,first.encryptor,resolver,first.passkeys,first.origin,new RemoteConnectionReview(first.db.sql,resolver,network,()=>{},first.origin+'/hail'));
+    for(const peer of [a,c]){
+      const signed=await transition(peer,'commit');plans.get(peer.did)!.commit=signed;
+      const wire={command:encodeSignedRecord(signed),binding:encodeBase64Url(binding)};
+      if(peer===a){lostPostCommit=1;await expect(postExchange.exchange(peer.did,'handover-commit',wire)).rejects.toThrow('Lost post-cutover');}
+      const reply=await restartedFirst.federation!.handle('handover-commit',wire);
+      expect(reply).toMatchObject({phase:'committed'});
+      expect(await first.service.federation!.handle('handover-commit',wire)).toEqual(reply);
+      const result=await verifyConnectionHandoverResult(decodeSignedRecord(reply.receipt,65536),peer.keys.messagingDidKey);expect(result.phase).toBe('committed');
+      const lateReceipt=peer===a?vi.spyOn(Date,'now').mockReturnValue(Date.now()+360000):null;
+      try{expect(await reconstruction.acceptTransition({command:encodeSignedRecord(signed),receipt:reply.receipt})).toMatchObject({phase:'committed'});}
+      finally{lateReceipt?.mockRestore();}
+      const pair=(await first.db.sql<{connection_id:string;peer_service_base:string}[]>`SELECT connection_id,peer_service_base FROM federated_connection_pairs WHERE account_id=${peer.id} AND peer_did=${b.did}`)[0]!;
+      expect(pair.peer_service_base).toBe(third.origin+'/hail');expect(pair.connection_id).toBe(peer===a?ab.id:cb.id);
+      expect((await first.db.sql<{paused:boolean}[]>`SELECT hail_connection_handover_blocked(${peer.did},${b.did}) AS paused`)[0]!.paused).toBe(true);
+    }
+    const disconnectDuringCommit=await first.service.prepare(a.session,{requestId:randomUUID(),action:'disconnect',connectionId:ab.id});
+    await commit(a,disconnectDuringCommit);await drain(2);
+    await third.db.sql.begin(async tx=>{
+      portabilityStage='base materialization';
+      await tx`SELECT set_config('hail.managed_migration',${b.id},true)`;
+      await tx`INSERT INTO provider_accounts(id,tenant_id,canonical_address,did,onboarding_state,activated_at,activation_binding_digest,activation_verification_mode)
+        VALUES(${b.id},${randomUUID()},${movingAddress},${b.did},'active',now(),${bindingDigest},'public')`;
+      await tx`UPDATE account_serving_generations SET generation=2 WHERE account_id=${b.id}`;
+      await tx`SELECT set_config('hail.admitted_generations',${JSON.stringify({[b.id]:2})},true)`;
+      for(const key of movedKeys.keys)await tx`INSERT INTO account_keys(account_id,role,algorithm,public_key,encrypted_private_key,encryption_nonce,encryption_version,kek_id)
+        VALUES(${b.id},${key.role},${key.algorithm},${key.publicKey},${key.ciphertext},${key.nonce},1,'poc-v1')`;
+      await tx`INSERT INTO managed_custody_evidence(account_id,owner_recovery_public_key,provider_identity_public_key,verification_mode,managed_profile_version)
+        VALUES(${b.id},${b.recoveryPublicKey},${movedKeys.identityDidKey},'poc-local','hail-managed-custody-v1')`;
+      await tx`INSERT INTO address_bindings(id,account_id,canonical_address,did,cose,representation_digest,issued_at,expires_at,selected_at,published_at,hosted_at)
+        VALUES(${uuidV7()},${b.id},${movingAddress},${b.did},${binding},${bindingDigest},now(),now()+interval '1 day',now(),now(),now())`;
+      for(const table of ['detached_bodies','body_authorizations','sent_envelopes','sent_delivery_status'] as const)for(const row of moveTables[table])
+        await tx.unsafe(`INSERT INTO "${table}" SELECT * FROM jsonb_populate_record(NULL::"${table}",($1::text)::jsonb)`,[JSON.stringify(row)]);
+      portabilityStage='connection reconstruction';await reconstructConnections(tx as SQL,movingManifest,2);
+      await tx`UPDATE pending_migration_imports SET state='active',activated_at=now() WHERE transfer_id=${movingTransfer}`;
+    });
+    const oldBToken=b.token;
+    portabilityStage='post reconstruction checks';
+    b.provider=third;b.keys=movedKeys;b.address=movingAddress;
+    expect(await movedStack.envelopes.sent(b.did,oldMessageId)).toEqual(oldEnvelope);
+    expect(await third.db.sql`SELECT id FROM connection_invitations WHERE account_id=${b.id}`).toHaveLength(0);
+    await expect(third.service.exportInvitation(beforeMoveLink)).rejects.toThrow();await expect(second.service.exportInvitation(beforeMoveLink)).rejects.toThrow();
+    await expect(movedStack.authority.live(b.did,a.did,{type:'connection',connection_id:ab.id,epoch:5})).rejects.toThrow('paused');
+    const activation=await signActivationReceipt({type:'hail.portable-migration-activated',version:1,did:b.did,transfer_id:movingTransfer,snapshot_digest:movingDigest,
+      destination_service_base:third.origin+'/hail',destination_messaging_key:movedKeys.messagingDidKey,destination_address:movingAddress,address_binding_digest:bindingDigest,activated_at:Math.floor(Date.now()/1000)},plannedPrivate);
+    for(const peer of [a,c]){
+      portabilityStage='final peer completion';
+      const signed=await transition(peer,'complete',activation),wire={command:encodeSignedRecord(signed),binding:encodeBase64Url(binding),activation:encodeSignedRecord(activation)};
+      if(peer===a){lostCompletion=1;await expect(postExchange.exchange(peer.did,'handover-complete',wire)).rejects.toThrow('Lost final handover');}
+      const reply=await restartedFirst.federation!.handle('handover-complete',wire);
+      expect(reply).toMatchObject({phase:'completed'});expect(await first.service.federation!.handle('handover-complete',wire)).toEqual(reply);
+      expect(await reconstruction.acceptTransition({command:encodeSignedRecord(signed),receipt:reply.receipt,activation:encodeSignedRecord(activation)})).toMatchObject({phase:'completed'});
+    }
+    expect((await third.db.sql<{paused:boolean}[]>`SELECT hail_connection_handover_blocked(${b.did},${a.did}) AS paused`)[0]!.paused).toBe(false);
+    portabilityStage='post completion authority';
+    expect(await movedStack.authority.live(b.did,a.did,{type:'connection',connection_id:ab.id,epoch:5})).toBe(false);
+    expect(await movedStack.authority.live(b.did,c.did,{type:'connection',connection_id:cb.id,epoch:3})).toBe(true);
+    expect(await third.accounts.authenticate(undefined,oldBToken)).toBeNull();
+    const device=generateKeyPairSync('ec',{namedCurve:'prime256v1'}),deviceJwk=device.publicKey.export({format:'jwk'}),deviceId=encodeBase64Url(randomBytes(32)),
+      deviceCose=Buffer.concat([Buffer.from('a5010203262001215820','hex'),Buffer.from(deviceJwk.x!,'base64url'),Buffer.from('225820','hex'),Buffer.from(deviceJwk.y!,'base64url')]);
+    const movedSession=await withFreshServingGenerations(third.db.sql,async()=>{
+    portabilityStage='fresh enrollment';
+    await third.db.sql`INSERT INTO account_passkeys(credential_id,account_id,serving_generation,public_key,device_type,backed_up,label) VALUES(${deviceId},${b.id},2,${deviceCose},'singleDevice',false,'Fresh destination enrollment')`;
+    let newCounter=0;b.assertion=(challenge:string)=>{const client=Buffer.from(JSON.stringify({type:'webauthn.get',challenge,origin:third.origin})),auth=Buffer.alloc(37);
+      createHash('sha256').update(new URL(third.origin).hostname).digest().copy(auth);auth[32]=5;auth.writeUInt32BE(++newCounter,33);
+      return {id:deviceId,rawId:deviceId,type:'public-key',clientExtensionResults:{},response:{clientDataJSON:client.toString('base64url'),authenticatorData:auth.toString('base64url'),
+        signature:sign('sha256',Buffer.concat([auth,createHash('sha256').update(client).digest()]),device.privateKey).toString('base64url'),userHandle:Buffer.from(b.id.replaceAll('-',''),'hex').toString('base64url')}};};
+    const newLogin=await third.passkeys.authenticationOptions(),newLogged=await third.passkeys.authenticate(newLogin.challengeId,b.assertion(newLogin.options.challenge));
+    const session=(await third.accounts.authenticate(undefined,newLogged.token))!;b.session=session;b.token=newLogged.token;
+    expect(session.serving_generation).toBe(2);
+    const newCode=await create(b);expect(newCode.id).not.toBe(beforeMoveCode.id);expect(new URL(newCode.link).origin).toBe(third.origin);
+    return session;
+    });
+    portabilityStage='moved messaging';
+    expect(await movedStack.messaging.sentMessage(movedSession,oldMessageId)).toMatchObject({state:'delivered'});
+    await drain(6);
+    const currentNewCode=(await withFreshServingGenerations(third.db.sql,()=>third.service.list(b.session))).codes.find(v=>v.personal)!;
+    const reconnectAfterMove=await prepare(a,currentNewCode.link);await commit(a,reconnectAfterMove);await drain(8);
+    const abAfterMove=(await active(a)).find(v=>v.did===b.did)!;
+    expect(abAfterMove.id).not.toBe(ab.id);
+    expect(await movedStack.authority.live(b.did,a.did,{type:'connection',connection_id:ab.id,epoch:5})).toBe(false);
+    const afterMove={publicationId:uuidV7(),connections:[abAfterMove.id,cb.id],text:'New provider, standing permission and explicit reconnect'};
+    await withFreshServingGenerations(third.db.sql,()=>movedStack.publications.createConnections(movedSession,afterMove));
+    for(let i=0;i<2;i++)await withFreshServingGenerations(third.db.sql,()=>movedStack.publications.workOne());
+    for(let i=0;i<500&&one.schedule.inFlight;i++)await Bun.sleep(10);
+    expect(await withFreshServingGenerations(first.db.sql,()=>one.worker.processOne())).toBe('delivered');
+    expect(await withFreshServingGenerations(first.db.sql,()=>one.worker.processOne())).toBe('delivered');
+    const afterHistory=await third.db.sql.begin(async tx=>collectConnectionHistory(tx as SQL,{accountId:b.id,did:b.did,sourceGeneration:2,sourceServiceBase:third.origin+'/hail'},new Date().toISOString()));
+    await expect(verifyConnectionHistoryAuthority(afterHistory,resolver)).resolves.toBeUndefined();
+    const reconstructionRollback=await third.db.sql.reserve();try{await expect(reconstructionRollback.unsafe(await Bun.file(new URL('../migrations/rollback/0069_connection_reconstruction.sql',import.meta.url)).text())).rejects.toThrow('Retained connection reconstruction');}finally{await reconstructionRollback.unsafe('ROLLBACK');reconstructionRollback.release();}
+  }catch(error){console.error("Federation fixture stage",portabilityStage,"HTTP outcomes",requests.slice(-12).map(r=>({provider:r.target.origin,path:r.path,status:r.status})));throw error;}
   finally{for(const p of providers){await p.db.close();await admin.unsafe(`DROP SCHEMA "${p.schema}" CASCADE`);}await admin.close();}
 },90000);

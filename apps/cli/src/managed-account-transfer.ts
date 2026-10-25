@@ -8,7 +8,7 @@ import {destinationOrigin} from "./account-transfer.js";
 import {writeState} from "./account-creation.js";
 import {readRecoverySecret} from "./cli/private-input.js";
 import {privateFile,savePrivateBytes} from "./grant-revocation.js";
-import {verifySignature} from "./transfer-cutover.js";
+import {verifySignature,warnConnectionCodeCutover} from "./transfer-cutover.js";
 import {unlockUserVault,type ManagedTransferAddressSelection,type ManagedTransferApproval,type ManagedTransferGrant,type UserVaultFile} from "./vault.js";
 
 interface Wire {payload:string;signature:string}
@@ -300,6 +300,7 @@ export async function signManagedTransferCutover(vaultPath:string,path:string,sn
     current.verificationMethods["hail-messaging"]!==verified.snapshot.sourceMessagingPublicKey||
     current.services.hail?.endpoint!==`${state.provider}/hail`)
     throw new Error("Managed snapshot PLC state differs from the current source roles");
+  warnConnectionCodeCutover(manifest);
   const secret=decodeBase64Url(await recoveryInput());
   try {
     const owner=await unlockUserVault(JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(

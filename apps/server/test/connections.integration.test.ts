@@ -23,7 +23,8 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     assertion:(challenge:string,change?:{origin?:string;flags?:number})=>any}[];
   try{
     await db.migrate();
-    const empty=await db.sql.reserve();try{await empty.unsafe(await Bun.file(new URL("../migrations/rollback/0066_connection_handover_preparations.sql",import.meta.url)).text());await empty.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());await empty.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());await empty.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());await empty.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());}finally{empty.release();}
+    const empty=await db.sql.reserve();try{for(const file of ['0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation','0063_connection_owner_signing','0062_connection_preview'])
+      await empty.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{empty.release();}
     await db.migrate();
     const passkeys=new PasskeyAuth(db.sql,"provider.example.com",origin),accounts=new AccountApiRepository(db.sql);
     for(const [i,name] of ["alice","bob","eve","owner","second-owner"].entries()){
@@ -104,7 +105,8 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     expect(results[0]!.result).toEqual(results[1]!.result);
     const connections=await db.sql<{id:string;grant_a_cose:Uint8Array;grant_b_cose:Uint8Array}[]>`SELECT id,grant_a_cose,grant_b_cose FROM account_connections WHERE state='active'`;
     expect(connections).toHaveLength(1);expect(await db.sql`SELECT grant_id FROM grant_lineages`).toHaveLength(0);
-    const preserve=await db.sql.reserve();try{await preserve.unsafe(await Bun.file(new URL("../migrations/rollback/0066_connection_handover_preparations.sql",import.meta.url)).text());await preserve.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());await preserve.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());await preserve.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());}finally{preserve.release();}
+    const preserve=await db.sql.reserve();try{for(const file of ['0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation','0063_connection_owner_signing'])
+      await preserve.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{preserve.release();}
     await db.migrate();
     expect(await db.sql`SELECT id,grant_a_cose,grant_b_cose FROM account_connections WHERE state='active'`).toEqual(connections);
     expect((await service.list(a.session)).connections).toHaveLength(1);expect((await service.list(e.session)).connections).toHaveLength(0);

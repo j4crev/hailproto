@@ -51,6 +51,9 @@ export async function verifyTransferSnapshot(snapshot:Record<string,unknown>) {
   await verifySignature(`hail-migration-snapshot-v${snapshot.version}`,digest,decodeBase64Url(snapshot.signature),snapshot.sourceMessagingPublicKey);
   return {manifest,digest};
 }
+export function warnConnectionCodeCutover(manifest:Record<string,unknown>):void {
+  if(manifest.connections)console.error('Account cutover invalidates ALL old connection links and QR codes, including the permanent personal code. Existing connections are separate; create fresh codes at the destination.');
+}
 
 export async function signPrivatePocCutover(vaultPath:string,snapshotPath:string,offerRow:Record<string,unknown>,receiptRow:Record<string,unknown>,
   consentPath:string,operationPath:string,bindingPath:string,recoveryInput=readRecoverySecret) {
@@ -60,7 +63,8 @@ try {
   const user = await unlockUserVault(vault, secret);
   if (!vault.did) throw new Error("Cutover needs a vault bound to the original DID");
   const snapshot = data(await privateFile(snapshotPath, 100_000_000));
-  const verified=await verifyTransferSnapshot(snapshot),digest=verified.digest;
+const verified=await verifyTransferSnapshot(snapshot),digest=verified.digest;
+warnConnectionCodeCutover(verified.manifest);
   const manifest = verified.manifest as {
     did: string; transferId: string; sourceServiceBase: string;
     destinationServiceBase: string; destinationRotationPublicKey: string;

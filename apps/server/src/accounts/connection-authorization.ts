@@ -7,8 +7,14 @@ import type {HailDidResolver} from "../plc/resolver.js";
 export type ConnectionMessageAuthorization=Extract<HailEnvelopeAuthorization,{type:"connection"}>;
 export interface ConnectionMessageTarget {connectionId:string;recipientDid:string;epoch:number;address:string;}
 
-export async function connectionMessageAllowed(sql:SQL,owner:string,peer:string,authorization:ConnectionMessageAuthorization,lock=false){
-  return (await sql<{allowed:boolean}[]>`SELECT hail_connection_message_allowed(${owner},${peer},${authorization.connection_id}::uuid,${authorization.epoch}::bigint,${lock}) AS allowed`)[0]?.allowed===true;
+export async function connectionMessageAllowed(sql:SQL,owner:string,peer:string,authorization:ConnectionMessageAuthorization,lock=false,acceptWhilePaused=false){
+  const row=(await sql<{allowed:boolean}[]>`SELECT hail_connection_message_permission(${owner},${peer},${authorization.connection_id}::uuid,${authorization.epoch}::bigint,${lock}) AS allowed`)[0];
+  if(row?.allowed!==true)return false;
+  // This query must follow lock acquisition, not share a SELECT whose expression
+  // evaluation could observe the barrier before waiting for the account lock.
+  if(!acceptWhilePaused&&(await sql<{paused:boolean}[]>`SELECT hail_connection_handover_blocked(${owner},${peer}) AS paused`)[0]?.paused)
+    throw new Error('Connection authorization is paused for account handover');
+  return true;
 }
 
 // The same permission check is used before signing/submission and final delivery.

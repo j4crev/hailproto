@@ -17,7 +17,8 @@ import { signActivationReceipt, type SignedActivationReceipt } from "./activatio
 import {replaceRetiredProjection} from "./return.js";
 import {materializedServingGeneration} from "../db/serving.js";
 import { evidenceHash, requirePublicCutoverEvidence } from "./public-cutover-evidence.js";
-import {requireConnectionHandoverComplete} from "./connection-snapshot.js";
+import {requireConnectionImportPhase,reconstructConnections} from './connection-reconstruction.js';
+import {verifyConnectionHistoryAuthority} from './connection-history-verification.js';
 
 type TableRow = Record<string, unknown>;
 
@@ -57,7 +58,7 @@ export class PortableMigrationActivation {
     if (!row || row.state !== "active" || !row.activated_at) {
       throw new Error("Only an active imported DID may acknowledge destination takeover");
     }
-    requireConnectionHandoverComplete(validateTransferManifest(row.manifest_bytes));
+    await requireConnectionImportPhase(this.sql,validateTransferManifest(row.manifest_bytes),'committed');
     if (this.profile === "public") {
       const operation = (await this.sql<{ signed_plc_operation_bytes: Uint8Array }[]>`
         SELECT signed_plc_operation_bytes FROM pending_migration_imports WHERE transfer_id=${transferId}`)[0];
@@ -105,7 +106,7 @@ export class PortableMigrationActivation {
     const pending = imports[0];
     if (pending?.state === "active") {
       const manifest = validateTransferManifest(pending.manifest_bytes);
-      requireConnectionHandoverComplete(manifest);
+      await requireConnectionImportPhase(this.sql,manifest,'committed');
       const accounts = await this.sql<{ id: string }[]>`
         SELECT id FROM provider_accounts WHERE id = ${manifest.accountId} AND did = ${pending.did}
           AND canonical_address = ${pending.destination_address} AND onboarding_state = 'active'`;
@@ -122,7 +123,8 @@ export class PortableMigrationActivation {
     const assessment = await this.gate.assess(transferId, signedMonitor);
     if (!assessment.eligible) throw new Error("PLC cutover assessment is not eligible");
     const manifest = validateTransferManifest(pending.manifest_bytes);
-    requireConnectionHandoverComplete(manifest);
+    await requireConnectionImportPhase(this.sql,manifest,'committed');
+    if(manifest.connections)await verifyConnectionHistoryAuthority(manifest.connections,this.resolver,this.now());
     if (manifest.tables.portable_custody_evidence[0]?.monitor_verification_mode !==
       (this.profile === "public" ? "independent" : "poc-local")) {
       throw new Error("Cutover evidence does not match the selected PLC trust profile");
@@ -192,6 +194,7 @@ export class PortableMigrationActivation {
         Math.abs(this.now().getTime() - gate[0].last_seen_at.getTime()) > 30_000) {
         throw new Error("Current cutover eligibility was lost before materialization");
       }
+      if(manifest.connections)await tx`SELECT set_config('hail.connection_import_transfer',${transferId},true)`;
       if (this.profile === "public") {
         if (!assessment.evidenceDigest || !Buffer.from(importsLocked[0].manifest_bytes).equals(Buffer.from(pending.manifest_bytes)) ||
           !Buffer.from(importsLocked[0].signed_plc_operation_bytes).equals(Buffer.from(pending.signed_plc_operation_bytes))) {
@@ -242,6 +245,10 @@ export class PortableMigrationActivation {
         activation_binding_digest: `\\x${Buffer.from(address.digest).toString("hex")}`,
         activation_verification_mode: "public", activated_at: this.now().toISOString(),
       });
+      if(manifest.connections){
+        await tx`SELECT set_config('hail.connection_import_generation',${String(materializedGeneration)},true)`;
+        await tx`SELECT set_config('hail.admitted_generations',${JSON.stringify({[manifest.accountId]:materializedGeneration})},true)`;
+      }
       for (const [role, algorithm, publicKey, material] of [
         ["plc-rotation", "p256", prepared.rotationPublicKey, rotation],
         ["hail-messaging", "ed25519", prepared.messagingPublicKey, messaging],
@@ -282,6 +289,8 @@ export class PortableMigrationActivation {
         for (const row of manifest.tables[table]) await insertRow(tx, table, row);
       }
       await this.importEnvelopes(tx, manifest);
+      if(manifest.connections)await reconstructConnections(tx as SQL,manifest,materializedGeneration);
+      await tx`UPDATE connection_invitations SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE account_id=${manifest.accountId} AND serving_generation<>${materializedGeneration} AND revoked_at IS NULL`;
       for (const table of ["reply_capabilities", "delivery_work", "verified_body_provenance",
         "delivered_messages", "delivery_status_payloads", "delivery_status_wrappers",
         "terminal_status_publications", "sent_delivery_status"] as const) {

@@ -7,6 +7,7 @@ import {assertConnectionHandoverSelection,verifyConnectionHandover,type Connecti
 import {validateTransferManifest} from "./transfer.js";
 import {validateManagedTransferManifest} from "./managed-snapshot.js";
 import {decodeSignedRecord} from "./wire.js";
+import {verifyConnectionHistoryAuthority} from "./connection-history-verification.js";
 
 const same=(a:Uint8Array,b:Uint8Array)=>Buffer.from(a).equals(Buffer.from(b));
 export class ConnectionHandoverStage {
@@ -40,6 +41,7 @@ export class ConnectionHandoverStage {
       if(peer.did!==plan.peer_did||peer.serviceBase!==(historicalPair?.peer_service_base??manifest.sourceServiceBase))throw new Error("Handover peer authority differs");
       await requireFreshPublicAuthority(tx as SQL,peer.evidence,{did:peer.did,role:"hail-messaging",key:peer.messagingDidKey,serviceBase:peer.serviceBase},new Date(this.now()*1000));
       await verifyConnectionHandover(ack,"peer-ack",peer.messagingDidKey,this.now());
+      await verifyConnectionHistoryAuthority(manifest.connections,this.resolver,new Date(this.now()*1000));
       const prior=(await tx<{payload_bytes:Uint8Array;source_signature:Uint8Array;destination_signature:Uint8Array;peer_signature:Uint8Array;peer_messaging_public_key:string}[]>`
         SELECT payload_bytes,source_signature,destination_signature,peer_signature,peer_messaging_public_key FROM connection_handover_preparations
         WHERE transfer_id=${plan.transfer_id} AND peer_did=${plan.peer_did} AND request_id=${plan.request_id}`)[0];

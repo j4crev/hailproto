@@ -288,6 +288,8 @@ export class MigrationFenceService {
         throw new Error("Destination activation receipt does not match the fenced snapshot");
       }
       const bytes = encodeDeterministic({ payload: signed.payloadBytes, signature: signed.signature });
+      await tx`SELECT set_config('hail.connection_code_retirement',${transferId},true)`;
+      await tx`UPDATE connection_invitations SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE account_id=${fence.account_id} AND revoked_at IS NULL`;
       await tx`UPDATE account_api_credentials SET revoked_at=COALESCE(revoked_at,clock_timestamp())
         WHERE account_id=${fence.account_id}`;
       if (fence.state === "retired") {

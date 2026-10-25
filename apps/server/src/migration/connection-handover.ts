@@ -1,4 +1,5 @@
 import {decodeDeterministic,encodeDeterministic,type HailValue} from "@hailproto/codec";
+import {createHash} from 'node:crypto';
 import {ed25519PublicKeyFromDidKey} from "../identity/did-key.js";
 import {canonicalizeHailServiceBase} from "../plc/resolver.js";
 import type {SignedHandshake} from "./handshake.js";
@@ -19,7 +20,20 @@ export interface ConnectionHandoverPlan {
   destination_messaging_key:string;source_generation:number;snapshot_digest:Uint8Array;connection_checkpoint_digest:Uint8Array;
   frontier:ConnectionFrontier;issued_at:number;expires_at:number;
 }
-export type HandoverRole="source"|"destination"|"peer-ack";
+export type HandoverRole="source"|"destination"|"peer-ack"|"source-freeze"|"destination-freeze"|"peer-freeze";
+export type HandoverAbortRole='source-abort'|'destination-abort'|'peer-release';
+export interface ConnectionHandoverAbort {
+  type:'hail.connection-handover-abort';version:1;request_id:string;transfer_id:string;did:string;peer_did:string;
+  plan_digest:Uint8Array;issued_at:number;expires_at:number;
+}
+export interface ConnectionHandoverTransition {
+  type:'hail.connection-handover-transition';version:1;action:'commit'|'complete';request_id:string;transfer_id:string;
+  did:string;peer_did:string;plan_digest:Uint8Array;binding_digest:Uint8Array;activation_digest:Uint8Array|null;issued_at:number;expires_at:number;
+}
+export interface ConnectionHandoverResult {
+  type:'hail.connection-handover-result';version:1;phase:'committed'|'completed';transfer_id:string;did:string;peer_did:string;
+  plan_digest:Uint8Array;request_digest:Uint8Array;terminal_ids:string[];issued_at:number;
+}
 const encode=(value:unknown)=>encodeDeterministic(value as HailValue);
 const same=(a:Uint8Array,b:Uint8Array)=>Buffer.from(a).equals(Buffer.from(b));
 const digest=(v:unknown)=>v instanceof Uint8Array&&v.length===32;
@@ -79,9 +93,55 @@ function validatePlan(value:unknown):asserts value is ConnectionHandoverPlan {
   validateFrontier(value.frontier);
   if(!value.frontier.native.length&&value.frontier.federated===null)throw new Error("No retained connection exists for handover");
 }
-function signingInput(role:HandoverRole,payload:Uint8Array):Uint8Array<ArrayBuffer> {
+function signingInput(role:HandoverRole|HandoverAbortRole|'destination-commit'|'destination-complete'|'peer-commit'|'peer-complete',payload:Uint8Array):Uint8Array<ArrayBuffer> {
   const tag=new TextEncoder().encode(`hail.connection-handover.${role}.v1\0`),bytes=new Uint8Array(tag.length+payload.length);
   bytes.set(tag);bytes.set(payload,tag.length);return bytes;
+}
+function validateTransition(value:unknown):asserts value is ConnectionHandoverTransition {
+  fields(value,['type','version','action','request_id','transfer_id','did','peer_did','plan_digest','binding_digest','activation_digest','issued_at','expires_at']);
+  if(value.type!=='hail.connection-handover-transition'||value.version!==1||!['commit','complete'].includes(String(value.action))||
+    !UUID.test(String(value.request_id))||!UUID.test(String(value.transfer_id))||!DID.test(String(value.did))||!DID.test(String(value.peer_did))||value.did===value.peer_did||
+    !digest(value.plan_digest)||!digest(value.binding_digest)||(value.action==='commit'?value.activation_digest!==null:!digest(value.activation_digest))||!integer(value.issued_at,0)||!integer(value.expires_at,0)||
+    Number(value.expires_at)<=Number(value.issued_at)||Number(value.expires_at)-Number(value.issued_at)>300)throw new Error('Invalid connection handover transition');
+}
+export function decodeConnectionHandoverTransition(signed:SignedHandshake):ConnectionHandoverTransition {
+  if(!signed.payloadBytes.length||signed.payloadBytes.length>4096||signed.signature.length!==64)throw new Error('Invalid connection handover transition representation');
+  const value=decodeDeterministic(signed.payloadBytes);validateTransition(value);
+  if(!same(encode(value),signed.payloadBytes))throw new Error('Non-deterministic handover transition');return value;
+}
+export async function signConnectionHandoverTransition(value:ConnectionHandoverTransition,key:CryptoKey):Promise<SignedHandshake>{
+  validateTransition(value);const payloadBytes=encode(value);
+  return {payloadBytes,signature:new Uint8Array(await crypto.subtle.sign('Ed25519',key,signingInput(value.action==='commit'?'destination-commit':'destination-complete',payloadBytes)))};
+}
+export async function verifyConnectionHandoverTransition(signed:SignedHandshake,key:string,now:number):Promise<ConnectionHandoverTransition>{
+  const value=decodeConnectionHandoverTransition(signed);
+  if(value.issued_at>now+300||value.expires_at<=now)throw new Error('Handover transition signature or freshness differs');
+  return verifyConnectionHandoverTransitionSignature(signed,key);
+}
+export async function verifyConnectionHandoverTransitionSignature(signed:SignedHandshake,key:string):Promise<ConnectionHandoverTransition>{
+  const value=decodeConnectionHandoverTransition(signed);
+  if(!await crypto.subtle.verify('Ed25519',await ed25519PublicKeyFromDidKey(key),Uint8Array.from(signed.signature),signingInput(value.action==='commit'?'destination-commit':'destination-complete',signed.payloadBytes)))throw new Error('Handover transition signature differs');return value;
+}
+function validateResult(value:unknown):asserts value is ConnectionHandoverResult {
+  fields(value,['type','version','phase','transfer_id','did','peer_did','plan_digest','request_digest','terminal_ids','issued_at']);
+  if(value.type!=='hail.connection-handover-result'||value.version!==1||!['committed','completed'].includes(String(value.phase))||!UUID.test(String(value.transfer_id))||
+    !DID.test(String(value.did))||!DID.test(String(value.peer_did))||value.did===value.peer_did||!digest(value.plan_digest)||!digest(value.request_digest)||!integer(value.issued_at,0)||
+    !Array.isArray(value.terminal_ids)||value.terminal_ids.length>1000||value.terminal_ids.some(id=>typeof id!=='string'||!UUID.test(id))||
+    new Set(value.terminal_ids).size!==value.terminal_ids.length)throw new Error('Invalid connection handover result');
+}
+export function decodeConnectionHandoverResult(signed:SignedHandshake):ConnectionHandoverResult {
+  if(!signed.payloadBytes.length||signed.payloadBytes.length>65536||signed.signature.length!==64)throw new Error('Invalid handover result representation');
+  const value=decodeDeterministic(signed.payloadBytes);validateResult(value);
+  if(!same(encode(value),signed.payloadBytes))throw new Error('Non-deterministic handover result');return value;
+}
+export async function signConnectionHandoverResult(value:ConnectionHandoverResult,key:CryptoKey):Promise<SignedHandshake>{
+  validateResult(value);const payloadBytes=encode(value);
+  return {payloadBytes,signature:new Uint8Array(await crypto.subtle.sign('Ed25519',key,signingInput(value.phase==='committed'?'peer-commit':'peer-complete',payloadBytes)))};
+}
+export async function verifyConnectionHandoverResult(signed:SignedHandshake,key:string):Promise<ConnectionHandoverResult>{
+  const value=decodeConnectionHandoverResult(signed);
+  if(!await crypto.subtle.verify('Ed25519',await ed25519PublicKeyFromDidKey(key),Uint8Array.from(signed.signature),
+    signingInput(value.phase==='committed'?'peer-commit':'peer-complete',signed.payloadBytes)))throw new Error('Handover peer result signature differs');return value;
 }
 export async function signConnectionHandover(plan:ConnectionHandoverPlan,role:HandoverRole,key:CryptoKey):Promise<SignedHandshake> {
   validatePlan(plan);const payloadBytes=encode(plan);
@@ -89,12 +149,49 @@ export async function signConnectionHandover(plan:ConnectionHandoverPlan,role:Ha
   return {payloadBytes,signature:new Uint8Array(await crypto.subtle.sign("Ed25519",key,signingInput(role,payloadBytes)))};
 }
 export async function verifyConnectionHandover(signed:SignedHandshake,role:HandoverRole,key:string,now:number):Promise<ConnectionHandoverPlan> {
+  const plan=decodeConnectionHandover(signed);
+  if(plan.issued_at>now+300||plan.expires_at<=now)
+    throw new Error("Connection handover signature, purpose or freshness differs");
+  return verifyConnectionHandoverSignature(signed,role,key);
+}
+// Historical receipt verification never admits a new freeze. Callers must still
+// obtain current peer state or use an already-retained immutable result.
+export async function verifyConnectionHandoverSignature(signed:SignedHandshake,role:HandoverRole,key:string):Promise<ConnectionHandoverPlan>{
+  const plan=decodeConnectionHandover(signed);
+  if(!await crypto.subtle.verify('Ed25519',await ed25519PublicKeyFromDidKey(key),Uint8Array.from(signed.signature),signingInput(role,signed.payloadBytes)))throw new Error('Connection handover signature or purpose differs');return plan;
+}
+export function decodeConnectionHandover(signed:SignedHandshake):ConnectionHandoverPlan {
   if(!signed.payloadBytes.length||signed.payloadBytes.length>65536||signed.signature.length!==64)throw new Error("Invalid connection handover representation");
   const plan=decodeDeterministic(signed.payloadBytes);validatePlan(plan);
-  if(!same(encode(plan),signed.payloadBytes)||plan.issued_at>now+300||plan.expires_at<=now||
-    !await crypto.subtle.verify("Ed25519",await ed25519PublicKeyFromDidKey(key),Uint8Array.from(signed.signature),signingInput(role,signed.payloadBytes)))
-    throw new Error("Connection handover signature, purpose or freshness differs");
+  if(!same(encode(plan),signed.payloadBytes))throw new Error('Connection handover payload is not deterministic');
   return plan;
+}
+export const connectionHandoverPlanDigest=(bytes:Uint8Array)=>new Uint8Array(createHash('sha256').update(bytes).digest());
+export const connectionActivationDigest=(signed:SignedHandshake)=>connectionHandoverPlanDigest(encode({payload:signed.payloadBytes,signature:signed.signature}));
+function validateAbort(value:unknown):asserts value is ConnectionHandoverAbort {
+  fields(value,['type','version','request_id','transfer_id','did','peer_did','plan_digest','issued_at','expires_at']);
+  if(value.type!=='hail.connection-handover-abort'||value.version!==1||!UUID.test(String(value.request_id))||!UUID.test(String(value.transfer_id))||
+    !DID.test(String(value.did))||!DID.test(String(value.peer_did))||value.did===value.peer_did||!digest(value.plan_digest)||
+    !integer(value.issued_at,0)||!integer(value.expires_at,0)||Number(value.expires_at)<=Number(value.issued_at)||Number(value.expires_at)-Number(value.issued_at)>300)
+    throw new Error('Invalid connection handover abort');
+}
+export function decodeConnectionHandoverAbort(signed:SignedHandshake):ConnectionHandoverAbort {
+  if(!signed.payloadBytes.length||signed.payloadBytes.length>4096||signed.signature.length!==64)throw new Error('Invalid connection handover abort representation');
+  const payload=decodeDeterministic(signed.payloadBytes);validateAbort(payload);
+  if(!same(encode(payload),signed.payloadBytes))throw new Error('Connection handover abort is not deterministic');return payload;
+}
+export async function signConnectionHandoverAbort(payload:ConnectionHandoverAbort,role:HandoverAbortRole,key:CryptoKey):Promise<SignedHandshake>{
+  validateAbort(payload);const payloadBytes=encode(payload);
+  return {payloadBytes,signature:new Uint8Array(await crypto.subtle.sign('Ed25519',key,signingInput(role,payloadBytes)))};
+}
+export async function verifyConnectionHandoverAbort(signed:SignedHandshake,role:HandoverAbortRole,key:string,now:number):Promise<ConnectionHandoverAbort>{
+  const payload=decodeConnectionHandoverAbort(signed);
+  if(payload.issued_at>now+300||payload.expires_at<=now)throw new Error('Connection handover abort signature, purpose or freshness differs');
+  return verifyConnectionHandoverAbortSignature(signed,role,key);
+}
+export async function verifyConnectionHandoverAbortSignature(signed:SignedHandshake,role:HandoverAbortRole,key:string):Promise<ConnectionHandoverAbort>{
+  const payload=decodeConnectionHandoverAbort(signed);
+  if(!await crypto.subtle.verify('Ed25519',await ed25519PublicKeyFromDidKey(key),Uint8Array.from(signed.signature),signingInput(role,signed.payloadBytes)))throw new Error('Connection handover abort signature or purpose differs');return payload;
 }
 export function assertConnectionHandoverSelection(plan:ConnectionHandoverPlan,expected:{transferId:string;snapshotDigest:Uint8Array;history:ConnectionHistory;
   peerDid:string;destinationServiceBase:string;destinationMessagingKey:string}):void {

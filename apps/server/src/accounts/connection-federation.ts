@@ -6,7 +6,7 @@ import type {ConnectionOwner} from "./connections.js";
 import type {AccountApiSession} from "./repository.js";
 import {ConnectionError} from "./connection-error.js";
 import {RemoteConnectionError,RemoteConnectionReview} from "./connection-review.js";
-import type {HailDidResolver,ResolvedHailDid} from "../plc/resolver.js";
+import type {HailDidResolver,ResolvedHailDid,PlcResolutionEvidence} from "../plc/resolver.js";
 import {requireFreshPublicAuthority} from "../plc/authority.js";
 import {ed25519PublicKeyFromDidKey} from "../identity/did-key.js";
 import {importEd25519PrivateKey} from "../identity/keys.js";
@@ -14,7 +14,10 @@ import type {KeyEncryptor} from "../identity/key-encryption.js";
 import {uuidV7} from "../identity/uuid-v7.js";
 import {OnboardingRepository} from "../onboarding/repository.js";
 import {withServingGeneration} from "../db/serving.js";
-import {connectionFrontier,sameConnectionFrontier,signConnectionHandover,verifyConnectionHandover,type ConnectionHandoverPlan} from "../migration/connection-handover.js";
+import {connectionFrontier,sameConnectionFrontier,signConnectionHandover,verifyConnectionHandover,decodeConnectionHandover,connectionHandoverPlanDigest,
+  decodeConnectionHandoverAbort,signConnectionHandoverAbort,verifyConnectionHandoverAbort} from "../migration/connection-handover.js";
+import {decodeConnectionHandoverTransition,verifyConnectionHandoverTransition,signConnectionHandoverResult,connectionActivationDigest,type ConnectionHandoverResult} from '../migration/connection-handover.js';
+import {verifyActivationReceipt} from '../migration/activation-receipt.js';
 import {decodeSignedRecord,encodeSignedRecord} from "../migration/wire.js";
 
 const hash=(value:Uint8Array)=>new Uint8Array(createHash("sha256").update(value).digest());
@@ -33,6 +36,11 @@ interface Attempt {id:string;account_id:string;pair_id:string;direction:"outboun
 interface Event {id:string;account_id:string;pair_id:string;epoch:number|string;state:"active"|"disconnected";connection_id:string;request_id:string;proof_digest:Uint8Array;created_at:Date;}
 interface Bundle {invitation:Uint8Array;confirmation:Uint8Array;inviterBinding:Uint8Array;scannerBinding:Uint8Array;snapshot:Uint8Array;}
 interface Draft {invitation:Uint8Array;inviterBinding:Uint8Array;scannerBinding:Uint8Array;snapshot:Uint8Array;confirmation:HailConnectionConfirmation;}
+interface Barrier {account_id:string;moving_did:string;transfer_id:string;plan_digest:Uint8Array;plan_bytes:Uint8Array;source_signature:Uint8Array;destination_signature:Uint8Array;
+  peer_signature:Uint8Array;state:'frozen'|'committed'|'completed'|'released';release_payload:Uint8Array|null;release_source_signature:Uint8Array|null;
+  release_destination_signature:Uint8Array|null;release_peer_signature:Uint8Array|null;destination_binding:Uint8Array|null;
+  commit_payload:Uint8Array|null;commit_signature:Uint8Array|null;peer_commit_payload:Uint8Array|null;peer_commit_signature:Uint8Array|null;
+  completion_payload:Uint8Array|null;completion_signature:Uint8Array|null;peer_completion_payload:Uint8Array|null;peer_completion_signature:Uint8Array|null;}
 export interface FederationHooks {
   owner(tx:SQL,id:string):Promise<ConnectionOwner>;
   live(tx:SQL,session:AccountApiSession):Promise<void>;
@@ -53,7 +61,7 @@ export class ConnectionFederation {
     catch{throw new ConnectionError(400,"Invalid connection proof.");}
   }
   private fields(value:Record<string,unknown>,keys:string[]){if(!value||typeof value!=="object"||Array.isArray(value)||Object.keys(value).sort().join(",")!==keys.sort().join(","))throw new ConnectionError(400);}
-  private async verify(bytes:Uint8Array,operation:Control["operation"],fresh=false){
+  private async checkedControl(bytes:Uint8Array,operation:Control["operation"],fresh=false){
     const payload=inspectSignedPayload("hail.connection-control",bytes).payload;
     if(payload.operation!==operation)throw new ConnectionError(400,"Connection control purpose differs.");
     const state=await this.resolver.resolve(payload.from);
@@ -62,7 +70,25 @@ export class ConnectionFederation {
       if(kid!==payload.from+"#hail-messaging")throw new ConnectionError(400);return ed25519PublicKeyFromDidKey(state.messagingDidKey);
     }));
     if(payload.issued_at>now()+300||fresh&&(payload.expires_at===null||payload.expires_at<=now()))throw new ConnectionError(410,"Connection transport approval expired.");
+    return {payload,state};
+  }
+  private async retainProof(tx:SQL,accountId:string,cose:Uint8Array,authority:PlcResolutionEvidence){
+    await tx`INSERT INTO connection_proof_signatures(account_id,digest,cose,authority)
+      VALUES(${accountId},${hash(cose)},${cose},${JSON.stringify(authority)}::jsonb) ON CONFLICT(account_id,digest) DO NOTHING`;
+  }
+  private async verify(bytes:Uint8Array,operation:Control["operation"],fresh=false,tx=this.sql){
+    const {payload,state}=await this.checkedControl(bytes,operation,fresh);
+    if(state.serviceBase!==this.base){
+      const pair=(await tx<{account_id:string}[]>`SELECT account_id FROM federated_connection_pairs
+        WHERE local_did=${payload.to} AND peer_did=${payload.from}`)[0];
+      if(pair)await this.retainProof(tx,pair.account_id,bytes,state.evidence);
+    }
     return payload;
+  }
+  private async retainBundle(tx:SQL,owner:ConnectionOwner,v:Awaited<ReturnType<ConnectionFederation['verifyBundle']>>){
+    await this.retainProof(tx,owner.id,v.b.invitation,v.inviter.evidence);
+    await this.retainProof(tx,owner.id,v.b.confirmation,v.scanner.evidence);
+    await this.retainProof(tx,owner.id,v.b.snapshot,v.coordinator.evidence);
   }
   private async sign(tx:SQL,owner:ConnectionOwner,fields:Omit<Control,"type"|"version"|"from"|"key_id"|"issued_at"|"expires_at">,issued=now()){
     await this.hooks.authority(tx,owner);
@@ -134,7 +160,7 @@ export class ConnectionFederation {
     for(const v of Object.values(b))if(!(v instanceof Uint8Array)||v.length>16384)throw new ConnectionError(400);
     const invitation=inspectSignedPayload("hail.connection-invitation",b.invitation).payload,confirmation=inspectSignedPayload("hail.connection-confirmation",b.confirmation).payload;
     const inviter=await this.resolver.resolve(invitation.from),scanner=await this.resolver.resolve(confirmation.from);
-    if(inviter.did!==invitation.from||scanner.did!==confirmation.from||inviter.serviceBase===scanner.serviceBase||confirmation.to!==invitation.from||
+    if(inviter.did!==invitation.from||scanner.did!==confirmation.from||confirmation.to!==invitation.from||
       confirmation.invitation_id!==invitation.invitation_id||!equal(confirmation.invitation_hash.value,hash(b.invitation)))throw new ConnectionError(400,"Connection consent linkage differs.");
     const verifier=(did:string,key:string)=>createWebCryptoVerifier(async kid=>{if(kid!==did+"#hail-identity")throw new ConnectionError(400);return ed25519PublicKeyFromDidKey(key);});
     await verifySignedPayload("hail.connection-invitation",b.invitation,verifier(inviter.did,inviter.identityDidKey));
@@ -143,11 +169,11 @@ export class ConnectionFederation {
     const sb=(await verifySignedPayload("hail.address-binding",b.scannerBinding,verifier(scanner.did,scanner.identityDidKey))).payload;
     if(ib.did!==inviter.did||sb.did!==scanner.did||invitation.issued_at>now()+300||confirmation.issued_at>now()+300||ib.issued_at>now()+300||sb.issued_at>now()+300||
       fresh&&(confirmation.expires_at<=now()||invitation.expires_at!==null&&invitation.expires_at<=now()||ib.expires_at<=now()||sb.expires_at<=now()))throw new ConnectionError(410,"Connection consent or address proof expired.");
-    const snapshot=await this.verify(b.snapshot,"snapshot");
+    const {payload:snapshot,state:coordinator}=await this.checkedControl(b.snapshot,"snapshot");
     const [small,large]=[inviter.did,scanner.did].sort();
     if(snapshot.from!==small||snapshot.to!==large||snapshot.request_id!==confirmation.confirmation_id||!equal(snapshot.proof_hash.value,EMPTY))throw new ConnectionError(400,"Connection epoch proposal differs.");
     for(const state of [inviter,scanner])await requireFreshPublicAuthority(this.sql,state.evidence,{did:state.did,role:"hail-identity",key:state.identityDidKey,serviceBase:state.serviceBase},new Date());
-    return {b,invitation,confirmation,inviter,scanner,ib,sb,snapshot,proof:hash(bytes)};
+    return {b,invitation,confirmation,inviter,scanner,ib,sb,snapshot,coordinator,proof:hash(bytes)};
   }
   private matches(control:Control,verified:Awaited<ReturnType<ConnectionFederation["verifyBundle"]>>,actor:string){
     const peer=actor===verified.inviter.did?verified.scanner.did:verified.inviter.did;
@@ -182,7 +208,11 @@ export class ConnectionFederation {
 
   async prepare(session:AccountApiSession,input:{id:string;did:string;token:string}){
     await this.hooks.live(this.sql,session);
-    const owner=await this.hooks.owner(this.sql,session.account_id),proof=await this.remote.proof(input);
+    const owner=await this.hooks.owner(this.sql,session.account_id),location=await this.resolver.resolve(input.did);
+    const proof=location.serviceBase===this.base?await (async()=>{
+      const checked=await this.hooks.invitation(this.sql,input),bindingBytes=await this.hooks.binding(this.sql,checked.owner,checked.owner.identity_key);
+      return {admissionSupported:true,invitationBytes:checked.cose,bindingBytes,address:checked.owner.canonical_address,identityKey:checked.owner.identity_key};
+    })():await this.remote.proof(input);
     if(!proof.admissionSupported)throw new ConnectionError(409,"The other provider does not support cross-provider connection admission yet.");
     if(input.did===owner.did)throw new ConnectionError(400);
     const id=uuidV7(),coordinator=[owner.did,input.did].sort()[0]!;
@@ -211,7 +241,7 @@ export class ConnectionFederation {
     if(draft.confirmation.from!==owner.did||draft.confirmation.to!==pair.peer_did||draft.confirmation.expires_at<=now())throw new ConnectionError(410);
     const current=await this.hooks.binding(tx,owner,owner.identity_key);if(!equal(current,draft.scannerBinding))throw new ConnectionError(409,"Your address binding changed after review.");
     const bytes=encoded({...draft,confirmation:signed}),id=draft.confirmation.confirmation_id;
-    await this.verifyBundle(bytes,true);
+    const verified=await this.verifyBundle(bytes,true);await this.retainBundle(tx,owner,verified);
     await tx`INSERT INTO federated_connection_attempts(id,account_id,pair_id,direction,bundle,proof_digest,token_ciphertext,token_nonce,state,expires_at)
       VALUES(${id},${owner.id},${pair.id},'outbound',${bytes},${hash(bytes)},${ciphertext},${nonce},'pending',${new Date(draft.confirmation.expires_at*1000)})`;
     return {attemptId:id,state:"connecting",connectionId:null};
@@ -221,11 +251,14 @@ export class ConnectionFederation {
       AND NOT EXISTS(SELECT 1 FROM federated_connection_tombstones t WHERE t.pair_id=p.id AND t.connection_id=p.connection_id)`)[0]??null;
   }
   async messageState(localDid:string,peerDid:string,connectionId:string,epoch:number){
-    const owner=await this.ownerForDid(localDid),pair=await this.pair(this.sql,owner,peerDid);
-    if(pair.state!=="active"||pair.connection_id!==connectionId||Number(pair.epoch)!==epoch)return false;
-    const snapshot=await this.current(owner,peerDid);
-    if(snapshot.state==="disconnected")await this.transaction(owner,async tx=>this.apply(tx,await this.pairById(tx,pair.id,owner),snapshot));
-    return snapshot.state==="active"&&snapshot.connection_id===connectionId&&snapshot.epoch===epoch;
+    const owner=await this.ownerForDid(localDid);
+    return withServingGeneration(owner.id,Number(owner.generation),async()=>{
+      const pair=await this.pair(this.sql,owner,peerDid);
+      if(pair.state!=="active"||pair.connection_id!==connectionId||Number(pair.epoch)!==epoch)return false;
+      const snapshot=await this.current(owner,peerDid);
+      if(snapshot.state==="disconnected")await this.transaction(owner,async tx=>this.apply(tx,await this.pairById(tx,pair.id,owner),snapshot));
+      return snapshot.state==="active"&&snapshot.connection_id===connectionId&&snapshot.epoch===epoch;
+    });
   }
   async disconnect(tx:SQL,owner:ConnectionOwner,pairId:string,id:string,operationId:string){
     const pair=await this.pairById(tx,pairId,owner);if(pair.connection_id!==id||pair.state!=="active")throw new ConnectionError(409,"The connection is no longer active.");
@@ -258,22 +291,43 @@ export class ConnectionFederation {
       pendingConnections:[...new Map(pending.map(p=>[p.kind+":"+p.peer_did,{id:p.id,did:p.peer_did,address:p.peer_address,kind:p.kind,state:p.state}])).values()]};
   }
 
-  private async prepareHandover(wire:Record<string,unknown>){
+  private barrierResponse(row:Barrier){
+    const receipt=row.state==='frozen'?{payloadBytes:row.plan_bytes,signature:row.peer_signature}:row.state==='released'?{payloadBytes:row.release_payload!,signature:row.release_peer_signature!}:
+      row.state==='committed'?{payloadBytes:row.peer_commit_payload!,signature:row.peer_commit_signature!}:{payloadBytes:row.peer_completion_payload!,signature:row.peer_completion_signature!};
+    return {type:'hail.connection-handover-barrier',version:1,phase:row.state,barrierDigest:encodeBase64Url(row.plan_digest),cutoverAuthorized:false,
+      receipt:encodeSignedRecord({payloadBytes:new Uint8Array(receipt.payloadBytes),signature:new Uint8Array(receipt.signature)})};
+  }
+  private exactBarrier(row:Barrier,proposal:{payloadBytes:Uint8Array;signature:Uint8Array},destination:Uint8Array){
+    if(!equal(row.plan_bytes,proposal.payloadBytes)||!equal(row.source_signature,proposal.signature)||!equal(row.destination_signature,destination))throw new ConnectionError(409,'Handover retry changed its retained exact intent.');
+    return this.barrierResponse(row);
+  }
+  private async prepareHandover(wire:Record<string,unknown>,freeze=false){
     this.fields(wire,["proposal","destinationSignature"]);
-    const proposal=decodeSignedRecord(wire.proposal,65536),untrusted=decodeDeterministic(proposal.payloadBytes) as unknown as ConnectionHandoverPlan;
-    if(!untrusted||typeof untrusted.did!=="string"||!/^did:plc:[a-z2-7]{24}$/.test(untrusted.did))throw new ConnectionError(400);
+    const proposal=decodeSignedRecord(wire.proposal,65536),untrusted=decodeConnectionHandover(proposal),destination=this.bytes(wire.destinationSignature,64);
+    const owner=await this.ownerForDid(untrusted.peer_did),planDigest=connectionHandoverPlanDigest(proposal.payloadBytes);
+    if(freeze){const prior=(await this.sql<Barrier[]>`SELECT * FROM connection_handover_barriers WHERE account_id=${owner.id} AND plan_digest=${planDigest}`)[0];
+      if(prior)return this.exactBarrier(prior,proposal,destination);}
     const source=await this.resolver.resolve(untrusted.did);
+    if(source.did!==untrusted.did)throw new ConnectionError(409,'Handover source identity differs.');
     await requireFreshPublicAuthority(this.sql,source.evidence,{did:source.did,role:"hail-messaging",key:source.messagingDidKey,serviceBase:source.serviceBase},new Date());
-    const plan=await verifyConnectionHandover(proposal,"source",source.messagingDidKey,now());
+    const plan=await verifyConnectionHandover(proposal,freeze?'source-freeze':"source",source.messagingDidKey,now());
     if(plan.source_service_base!==source.serviceBase)throw new ConnectionError(409,"Handover source location differs.");
-    await verifyConnectionHandover({...proposal,signature:this.bytes(wire.destinationSignature,64)},"destination",plan.destination_messaging_key,now());
-    const owner=await this.ownerForDid(plan.peer_did);
+    await verifyConnectionHandover({...proposal,signature:destination},freeze?'destination-freeze':"destination",plan.destination_messaging_key,now());
     return this.transaction(owner,async tx=>{
       await this.hooks.authority(tx,owner);
+      if(freeze){
+        const prior=(await tx<Barrier[]>`SELECT * FROM connection_handover_barriers WHERE account_id=${owner.id} AND plan_digest=${planDigest}`)[0];
+        if(prior)return this.exactBarrier(prior,proposal,destination);
+        if((await tx`SELECT plan_digest FROM connection_handover_barriers WHERE account_id=${owner.id} AND moving_did=${plan.did} AND state IN('frozen','committed')`).length)
+          throw new ConnectionError(409,'A different handover already holds this connection pair.');
+      }
       const native=await tx<Record<string,unknown>[]>`SELECT id,did_a,did_b,state FROM account_connections
         WHERE ${owner.id} IN(account_a,account_b) AND ${plan.did} IN(did_a,did_b)`;
       const pairs=await tx<Record<string,unknown>[]>`SELECT * FROM federated_connection_pairs WHERE account_id=${owner.id} AND peer_did=${plan.did}`;
       if(pairs.length)await this.pair(tx,owner,plan.did); // Existing service-location pins still apply.
+      if(freeze&&(await tx`SELECT o.id FROM federated_connection_outbox o JOIN federated_connection_events e ON e.id=o.event_id
+        JOIN federated_connection_pairs p ON p.id=e.pair_id WHERE o.account_id=${owner.id} AND p.peer_did=${plan.did} AND o.ack_cose IS NULL LIMIT 1`).length)
+        throw new ConnectionError(409,'Finish connection result replication before handover freeze.');
       const tombstones=await tx<Record<string,unknown>[]>`SELECT t.* FROM federated_connection_tombstones t JOIN federated_connection_pairs p ON p.id=t.pair_id
         WHERE t.account_id=${owner.id} AND p.peer_did=${plan.did}`;
       if(!sameConnectionFrontier(plan.frontier,connectionFrontier(owner.did,plan.did,native,pairs,tombstones)))throw new ConnectionError(409,"Connection history changed before handover preparation.");
@@ -281,15 +335,129 @@ export class ConnectionFederation {
       if(resolved.messagingDidKey!==key.publicKey||resolved.serviceBase!==this.base)throw new ConnectionError(409);
       await requireFreshPublicAuthority(tx,resolved.evidence,{did:owner.did,role:"hail-messaging",key:key.publicKey,serviceBase:this.base},new Date());
       const raw=await this.encryptor.decrypt(owner.id,key.role,key.algorithm,key.publicKey,key);
-      try{return {preparation:encodeSignedRecord(await signConnectionHandover(plan,"peer-ack",await importEd25519PrivateKey(raw)))};}
+      try{
+        const signed=await signConnectionHandover(plan,freeze?'peer-freeze':"peer-ack",await importEd25519PrivateKey(raw));
+        if(!freeze)return {preparation:encodeSignedRecord(signed)};
+        if(plan.expires_at<=now())throw new ConnectionError(410,'Handover freeze approval expired before commit.');
+        await requireFreshPublicAuthority(tx,source.evidence,{did:source.did,role:'hail-messaging',key:source.messagingDidKey,serviceBase:source.serviceBase},new Date());
+        const row=(await tx<Barrier[]>`INSERT INTO connection_handover_barriers(account_id,serving_generation,moving_did,transfer_id,plan_digest,plan_bytes,
+          source_signature,destination_signature,source_messaging_key,source_authority,source_service_base,destination_service_base,peer_service_base,peer_signature,peer_messaging_key,peer_authority)
+          VALUES(${owner.id},${owner.generation},${plan.did},${plan.transfer_id},${planDigest},${proposal.payloadBytes},${proposal.signature},${destination},
+            ${source.messagingDidKey},${JSON.stringify(source.evidence)}::jsonb,${plan.source_service_base},${plan.destination_service_base},${this.base},${signed.signature},${key.publicKey},${JSON.stringify(resolved.evidence)}::jsonb) RETURNING *`)[0]!;
+        return this.barrierResponse(row);
+      }
       finally{raw.fill(0);}
     });
   }
 
-  async handle(step:"state"|"admit"|"commit"|"disconnect"|"sync"|"handover",wire:Record<string,unknown>):Promise<Record<string,unknown>>{
+  private async abortHandover(wire:Record<string,unknown>){
+    this.fields(wire,['abort','destinationSignature']);
+    const command=decodeSignedRecord(wire.abort),abort=decodeConnectionHandoverAbort(command),destination=this.bytes(wire.destinationSignature,64),owner=await this.ownerForDid(abort.peer_did);
+    return this.transaction(owner,async tx=>{
+      const row=(await tx<Barrier[]>`SELECT * FROM connection_handover_barriers WHERE account_id=${owner.id} AND plan_digest=${abort.plan_digest} FOR UPDATE`)[0];
+      if(!row)throw new ConnectionError(404);
+      const plan=decodeConnectionHandover({payloadBytes:new Uint8Array(row.plan_bytes),signature:new Uint8Array(row.source_signature)});
+      if(abort.did!==row.moving_did||abort.transfer_id!==row.transfer_id||abort.peer_did!==plan.peer_did)throw new ConnectionError(409,'Abort targets another handover.');
+      if(row.state==='released'){
+        if(!equal(row.release_payload!,command.payloadBytes)||!equal(row.release_source_signature!,command.signature)||!equal(row.release_destination_signature!,destination))
+          throw new ConnectionError(409,'Released handover has another exact abort result.');
+        return this.barrierResponse(row);
+      }
+      if(row.state!=='frozen')throw new ConnectionError(409,'A post-cutover handover cannot be aborted.');
+      const source=await this.resolver.resolve(abort.did);
+      if(source.did!==abort.did||source.serviceBase!==plan.source_service_base)throw new ConnectionError(409,'A committed or changed source cannot release the old handover.');
+      await requireFreshPublicAuthority(tx,source.evidence,{did:abort.did,role:'hail-messaging',key:source.messagingDidKey,serviceBase:source.serviceBase},new Date());
+      await verifyConnectionHandoverAbort(command,'source-abort',source.messagingDidKey,now());
+      await verifyConnectionHandoverAbort({...command,signature:destination},'destination-abort',plan.destination_messaging_key,now());
+      await this.hooks.authority(tx,owner);
+      const key=await new OnboardingRepository(tx).getKey(owner.id,'hail-messaging'),resolved=await this.resolver.resolve(owner.did);
+      if(resolved.messagingDidKey!==key.publicKey||resolved.serviceBase!==this.base)throw new ConnectionError(409);
+      await requireFreshPublicAuthority(tx,resolved.evidence,{did:owner.did,role:'hail-messaging',key:key.publicKey,serviceBase:this.base},new Date());
+      const raw=await this.encryptor.decrypt(owner.id,key.role,key.algorithm,key.publicKey,key);
+      try{
+        const signed=await signConnectionHandoverAbort(abort,'peer-release',await importEd25519PrivateKey(raw));
+        if(abort.expires_at<=now())throw new ConnectionError(410,'Handover abort expired before commit.');
+        const released=(await tx<Barrier[]>`UPDATE connection_handover_barriers SET state='released',release_payload=${command.payloadBytes},
+          release_source_signature=${command.signature},release_source_authority=${JSON.stringify(source.evidence)}::jsonb,release_destination_signature=${destination},release_peer_signature=${signed.signature},
+          release_peer_key=${key.publicKey},release_peer_authority=${JSON.stringify(resolved.evidence)}::jsonb WHERE account_id=${owner.id} AND plan_digest=${abort.plan_digest} RETURNING *`)[0]!;
+        return this.barrierResponse(released);
+      }finally{raw.fill(0);}
+    });
+  }
+
+  private async transitionHandover(wire:Record<string,unknown>,action:'commit'|'complete'){
+    this.fields(wire,action==='commit'?['command','binding']:['command','binding','activation']);
+    const command=decodeSignedRecord(wire.command),request=decodeConnectionHandoverTransition(command),bindingBytes=this.bytes(wire.binding),owner=await this.ownerForDid(request.peer_did);
+    if(request.action!==action||!equal(hash(bindingBytes),request.binding_digest))throw new ConnectionError(400,'Handover transition purpose or binding differs.');
+    const activation=action==='complete'?decodeSignedRecord(wire.activation):null;
+    if(activation&&!equal(connectionActivationDigest(activation),request.activation_digest!))throw new ConnectionError(400,'Handover activation bytes differ.');
+    return this.transaction(owner,async tx=>{
+      const row=(await tx<Barrier[]>`SELECT * FROM connection_handover_barriers WHERE account_id=${owner.id} AND plan_digest=${request.plan_digest} FOR UPDATE`)[0];
+      if(!row||row.state==='released')throw new ConnectionError(409,'No held handover exists for this transition.');
+      const plan=decodeConnectionHandover({payloadBytes:new Uint8Array(row.plan_bytes),signature:new Uint8Array(row.source_signature)});
+      if(request.did!==plan.did||request.peer_did!==plan.peer_did||request.transfer_id!==plan.transfer_id)throw new ConnectionError(409,'Handover transition targets another transfer.');
+      const priorPayload=action==='commit'?row.commit_payload:row.completion_payload,priorSignature=action==='commit'?row.commit_signature:row.completion_signature;
+      if(priorPayload){
+        if(!equal(priorPayload,command.payloadBytes)||!equal(priorSignature!,command.signature)||!equal(row.destination_binding!,bindingBytes))throw new ConnectionError(409,'Handover transition retry changed exact artifacts.');
+        return {phase:action==='commit'?'committed':'completed',currentPhase:row.state,receipt:encodeSignedRecord(action==='commit'?
+          {payloadBytes:new Uint8Array(row.peer_commit_payload!),signature:new Uint8Array(row.peer_commit_signature!)}:
+          {payloadBytes:new Uint8Array(row.peer_completion_payload!),signature:new Uint8Array(row.peer_completion_signature!)})};
+      }
+      if(action==='complete'&&row.state!=='committed'||action==='commit'&&row.state!=='frozen')throw new ConnectionError(409,'Handover transition is out of order.');
+      const moving=await this.resolver.resolve(plan.did);
+      if(moving.did!==plan.did||moving.serviceBase!==plan.destination_service_base||moving.messagingDidKey!==plan.destination_messaging_key)throw new ConnectionError(409,'PLC has not authorized the exact handover destination.');
+      await requireFreshPublicAuthority(tx,moving.evidence,{did:plan.did,role:'hail-messaging',key:plan.destination_messaging_key,serviceBase:plan.destination_service_base},new Date());
+      await verifyConnectionHandoverTransition(command,plan.destination_messaging_key,now());
+      const binding=(await verifySignedPayload('hail.address-binding',bindingBytes,createWebCryptoVerifier(async kid=>{
+        if(kid!==plan.did+'#hail-identity')throw new ConnectionError(400);return ed25519PublicKeyFromDidKey(moving.identityDidKey);
+      }))).payload;
+      if(binding.did!==plan.did||binding.expires_at<=now()||binding.issued_at>now()+300)throw new ConnectionError(410,'Destination binding is stale or belongs to another DID.');
+      if(plan.frontier.native.length)throw new ConnectionError(409,'Native connection reconstruction is not enabled for this handover.');
+      const pair=(await tx<Pair[]>`SELECT * FROM federated_connection_pairs WHERE account_id=${owner.id} AND peer_did=${plan.did}`)[0],base=plan.frontier.federated;
+      if(!pair||!base||pair.connection_id!==base.connectionId||Number(pair.epoch)<base.epoch||Number(pair.epoch)>base.epoch+1||
+        (Number(pair.epoch)>base.epoch&&pair.state!=='disconnected'))throw new ConnectionError(409,'Connection changed beyond the held handover frontier.');
+      const tombstones=await tx<{connection_id:string}[]>`SELECT connection_id FROM federated_connection_tombstones WHERE pair_id=${pair.id}`;
+      const terminalIds=tombstones.map(r=>r.connection_id).sort(),known=new Set([base.connectionId,...base.tombstones.map(t=>t.connectionId)]);
+      if(terminalIds.some(id=>!known.has(id))||base.tombstones.some(t=>!terminalIds.includes(t.connectionId)))throw new ConnectionError(409,'Handover terminal history changed unexpectedly.');
+      if(action==='complete'){
+        const receipt=await verifyActivationReceipt(activation!,plan.destination_messaging_key,now());
+        if(receipt.did!==plan.did||receipt.transfer_id!==plan.transfer_id||receipt.destination_service_base!==plan.destination_service_base||receipt.destination_address!==binding.address||
+          !equal(receipt.snapshot_digest,plan.snapshot_digest)||!equal(receipt.address_binding_digest,request.binding_digest))throw new ConnectionError(409,'Activation receipt does not match the held snapshot and binding.');
+      }
+      await this.hooks.authority(tx,owner);
+      const key=await new OnboardingRepository(tx).getKey(owner.id,'hail-messaging'),self=await this.resolver.resolve(owner.did);
+      if(self.messagingDidKey!==key.publicKey||self.serviceBase!==this.base)throw new ConnectionError(409);
+      await requireFreshPublicAuthority(tx,self.evidence,{did:owner.did,role:'hail-messaging',key:key.publicKey,serviceBase:this.base},new Date());
+      const result:ConnectionHandoverResult={type:'hail.connection-handover-result',version:1,phase:action==='commit'?'committed':'completed',transfer_id:plan.transfer_id,
+        did:plan.did,peer_did:owner.did,plan_digest:request.plan_digest,request_digest:hash(command.payloadBytes),terminal_ids:terminalIds,issued_at:now()};
+      const raw=await this.encryptor.decrypt(owner.id,key.role,key.algorithm,key.publicKey,key);
+      try{
+        const signed=await signConnectionHandoverResult(result,await importEd25519PrivateKey(raw));
+        if(request.expires_at<=now())throw new ConnectionError(410,'Handover transition expired before commit.');
+        if(action==='commit'){
+          if(pair.peer_service_base!==plan.source_service_base)throw new ConnectionError(409,'Peer location no longer matches the held source.');
+          await tx`UPDATE connection_handover_barriers SET state='committed',destination_binding=${bindingBytes},destination_address=${binding.address},commit_payload=${command.payloadBytes},
+            commit_signature=${command.signature},commit_moving_authority=${JSON.stringify(moving.evidence)}::jsonb,peer_commit_payload=${signed.payloadBytes},peer_commit_signature=${signed.signature},peer_commit_key=${key.publicKey},peer_commit_authority=${JSON.stringify(self.evidence)}::jsonb
+            WHERE account_id=${owner.id} AND plan_digest=${request.plan_digest}`;
+          await tx`SELECT set_config('hail.connection_handover_commit',${Buffer.from(request.plan_digest).toString('hex')},true)`;
+          await tx`UPDATE federated_connection_pairs SET peer_address=${binding.address},peer_service_base=${plan.destination_service_base},
+            coordinator_service_base=${owner.did<plan.did?this.base:plan.destination_service_base},updated_at=clock_timestamp() WHERE id=${pair.id}`;
+        }else await tx`UPDATE connection_handover_barriers SET state='completed',completion_payload=${command.payloadBytes},completion_signature=${command.signature},activation_payload=${activation!.payloadBytes},activation_signature=${activation!.signature},
+          peer_completion_payload=${signed.payloadBytes},peer_completion_signature=${signed.signature},peer_completion_key=${key.publicKey},peer_completion_authority=${JSON.stringify(self.evidence)}::jsonb
+          WHERE account_id=${owner.id} AND plan_digest=${request.plan_digest}`;
+        return {phase:result.phase,currentPhase:result.phase,receipt:encodeSignedRecord(signed)};
+      }finally{raw.fill(0);}
+    });
+  }
+
+  async handle(step:"state"|"admit"|"commit"|"disconnect"|"sync"|"handover"|'handover-freeze'|'handover-abort'|'handover-commit'|'handover-complete',wire:Record<string,unknown>):Promise<Record<string,unknown>>{
     // Preparation acknowledges an exact frontier only. It never changes location
     // pins, freezes a peer or authorizes cutover; a later fenced commit is required.
     if(step==="handover")return this.prepareHandover(wire);
+    if(step==='handover-freeze')return this.prepareHandover(wire,true);
+    if(step==='handover-abort')return this.abortHandover(wire);
+    if(step==='handover-commit')return this.transitionHandover(wire,'commit');
+    if(step==='handover-complete')return this.transitionHandover(wire,'complete');
     this.fields(wire,step==="admit"?["control","bundle","token"]:step==="commit"?["control","bundle","admission"]:
       step==="sync"&&wire.bundle!==undefined?["control","bundle","admission"]:["control"]);
     const raw=this.bytes(wire.control),operation={state:"probe",admit:"offer",commit:"connect",disconnect:"disconnect",sync:"snapshot"}[step] as Control["operation"];
@@ -322,8 +490,16 @@ export class ConnectionFederation {
           if(!equal(control.proof_hash.value,proof))throw new ConnectionError(400);
           const attempt=(await tx<Attempt[]>`SELECT * FROM federated_connection_attempts WHERE id=${control.request_id} AND pair_id=${pair.id}`)[0];
           if(!attempt||!equal(attempt.proof_digest,proof))throw new ConnectionError(409,"No local consent exists for this activation.");
-          const v=await this.verifyBundle(bytes,false),admission=await this.verify(admissionBytes,"admission");this.matches(admission,v,v.inviter.did);
-          this.activation(control,v);
+          const prior=attempt.result_cose?inspectSignedPayload('hail.connection-control',new Uint8Array(attempt.result_cose)).payload:null;
+          const alreadyAdopted=prior&&Number(pair.epoch)>=control.epoch&&prior.operation==='snapshot'&&prior.state==='active'&&prior.from===control.from&&prior.to===control.to&&
+            prior.request_id===control.request_id&&prior.connection_id===control.connection_id&&prior.epoch===control.epoch&&equal(prior.proof_hash.value,control.proof_hash.value)&&
+            equal(attempt.bundle,bytes)&&attempt.admission_cose&&equal(attempt.admission_cose,admissionBytes);
+          if(!alreadyAdopted){
+            const v=await this.verifyBundle(bytes,false),admission=await this.verify(admissionBytes,"admission",false,tx);this.matches(admission,v,v.inviter.did);
+            this.activation(control,v);await this.retainBundle(tx,owner,v);
+            await tx`UPDATE federated_connection_attempts SET admission_cose=COALESCE(admission_cose,${admissionBytes}),result_cose=${raw},state='active'
+              WHERE id=${control.request_id} AND pair_id=${pair.id} AND result_cose IS NULL AND state IN('pending','admitted')`;
+          }
         }
         if(current?.state==="disconnected")await this.apply(tx,pair,current);
         if(!current||current.epoch===control.epoch&&current.connection_id===control.connection_id&&current.state===control.state)await this.apply(tx,await this.pairById(tx,pair.id,owner),control);
@@ -356,6 +532,7 @@ export class ConnectionFederation {
         if(existing){if(existing.pair_id!==pair.id||!equal(existing.proof_digest,proof))throw new ConnectionError(409);return {control:encodeBase64Url(existing.admission_cose!)};}
         if(v.confirmation.expires_at<=now()||v.invitation.expires_at!==null&&v.invitation.expires_at<=now())throw new ConnectionError(410);
         const admission=await this.sign(tx,owner,{operation:"admission",to:peer,request_id:control.request_id,connection_id:v.snapshot.connection_id,epoch:v.snapshot.epoch,state:v.snapshot.state,proof_hash:{algorithm:"sha-256",value:proof}});
+        await this.retainBundle(tx,owner,v);
         const rows=await tx`INSERT INTO federated_connection_attempts(id,account_id,pair_id,direction,bundle,proof_digest,admission_cose,state,expires_at)
           SELECT ${control.request_id},${owner.id},${pair.id},'admitted',${bytes},${proof},${admission},'admitted',${new Date(v.confirmation.expires_at*1000)}
           WHERE ${v.confirmation.expires_at}>extract(epoch FROM clock_timestamp())
@@ -369,7 +546,7 @@ export class ConnectionFederation {
   private async event(tx:SQL,pair:Pair,request:Control,state:"active"|"disconnected",connectionId:string,epoch:number){
     const event=(await tx<Event[]>`INSERT INTO federated_connection_events(id,account_id,pair_id,epoch,state,connection_id,request_id,proof_digest)
       VALUES(${uuidV7()},${pair.account_id},${pair.id},${epoch},${state},${connectionId},${request.request_id},${request.proof_hash.value}) RETURNING *`)[0]!;
-    await tx`INSERT INTO federated_connection_outbox(id,account_id,event_id) VALUES(${uuidV7()},${pair.account_id},${event.id})`;
+    if(state==='disconnected')await tx`INSERT INTO federated_connection_outbox(id,account_id,event_id) VALUES(${uuidV7()},${pair.account_id},${event.id})`;
     return event;
   }
   private async coordinatorConnect(owner:ConnectionOwner,peer:string,request:Control,bytes:Uint8Array,admissionBytes:Uint8Array,requestBytes:Uint8Array){
@@ -385,6 +562,7 @@ export class ConnectionFederation {
       const pair=await this.pair(tx,owner,peer,owner.did===v.inviter.did?v.sb.address:v.ib.address);
       const local=(await tx<Attempt[]>`SELECT * FROM federated_connection_attempts WHERE id=${request.request_id} AND account_id=${owner.id} AND pair_id=${pair.id}`)[0];
       if(!local||!equal(local.proof_digest,proof))throw new ConnectionError(409,"Coordinator has no local consent for this pair.");
+      await this.retainBundle(tx,owner,v);
       const raced=(await tx<{event_id:string;proof_digest:Uint8Array}[]>`SELECT * FROM federated_connection_results WHERE id=${request.request_id}`)[0];
       if(raced){if(!equal(raced.proof_digest,proof))throw new ConnectionError(409);const event=(await tx<Event[]>`SELECT * FROM federated_connection_events WHERE id=${raced.event_id}`)[0]!;return this.connectionResponse(tx,owner,peer,request,event,proof);}
       let event:Event;
@@ -401,6 +579,7 @@ export class ConnectionFederation {
       // Each accepted operation gets its own proof-bound response, even when it converges on an earlier event.
       await tx`INSERT INTO federated_connection_results(id,account_id,pair_id,action,request_cose,proof_digest,event_id)
         VALUES(${request.request_id},${owner.id},${pair.id},'connect',${requestBytes},${proof},${event.id})`;
+      await tx`INSERT INTO federated_connection_outbox(id,account_id,event_id,request_id) VALUES(${uuidV7()},${owner.id},${event.id},${request.request_id})`;
       return this.connectionResponse(tx,owner,peer,request,event,proof);
     });
   }
@@ -435,7 +614,7 @@ export class ConnectionFederation {
       locked=(await lock<{locked:boolean}[]>`SELECT pg_try_advisory_lock(684245164) AS locked`)[0]!.locked;if(!locked)return false;
       const d=(await this.sql<{id:string;account_id:string;pair_id:string;connection_id:string;epoch:number|string}[]>`SELECT * FROM federated_connection_disconnects WHERE result_cose IS NULL AND next_attempt_at<=clock_timestamp() ORDER BY attempts,id LIMIT 1`)[0];
       if(d){await this.workDisconnect(d);return true;}
-      const out=(await this.sql<{id:string;event_id:string;account_id:string}[]>`SELECT * FROM federated_connection_outbox WHERE ack_cose IS NULL AND next_attempt_at<=clock_timestamp() ORDER BY attempts,id LIMIT 1`)[0];
+      const out=(await this.sql<{id:string;event_id:string;account_id:string;request_id:string|null}[]>`SELECT * FROM federated_connection_outbox WHERE ack_cose IS NULL AND next_attempt_at<=clock_timestamp() ORDER BY attempts,id LIMIT 1`)[0];
       if(out){await this.workOutbox(out);return true;}
       const attempt=(await this.sql<Attempt[]>`SELECT * FROM federated_connection_attempts WHERE direction='outbound' AND state='pending' AND next_attempt_at<=clock_timestamp() ORDER BY attempts,id LIMIT 1`)[0];
       if(!attempt)return false;await this.workAttempt(attempt);return true;
@@ -443,7 +622,7 @@ export class ConnectionFederation {
   }
   private async defer(table:"federated_connection_attempts"|"federated_connection_disconnects"|"federated_connection_outbox",id:string){
     // Table names are a closed internal union, never wire input.
-    await this.sql.unsafe(`UPDATE ${table} SET attempts=attempts+1,next_attempt_at=clock_timestamp()+make_interval(secs=>LEAST(3600,power(2,LEAST(attempts+1,12))::integer)) WHERE id=$1`,[id]);
+    await this.sql.begin(tx=>tx.unsafe(`UPDATE ${table} SET attempts=attempts+1,next_attempt_at=clock_timestamp()+make_interval(secs=>LEAST(3600,power(2,LEAST(attempts+1,12))::integer)) WHERE id=$1`,[id]));
   }
   private async workAttempt(attempt:Attempt){
     const owner=await this.hooks.owner(this.sql,attempt.account_id),pair=await this.pairById(this.sql,attempt.pair_id,owner);
@@ -488,10 +667,12 @@ export class ConnectionFederation {
       await this.transaction(owner,async tx=>{await this.apply(tx,await this.pairById(tx,pair.id,owner),snapshot);await tx`UPDATE federated_connection_disconnects SET result_cose=${bytes} WHERE id=${d.id} AND result_cose IS NULL`;});
     }catch{await this.defer("federated_connection_disconnects",d.id);}
   }
-  private async workOutbox(job:{id:string;event_id:string;account_id:string}){
+  private async workOutbox(job:{id:string;event_id:string;account_id:string;request_id:string|null}){
     const owner=await this.hooks.owner(this.sql,job.account_id),original=(await this.sql<Event[]>`SELECT * FROM federated_connection_events WHERE id=${job.event_id}`)[0]!,pair=await this.pairById(this.sql,original.pair_id,owner);
-    const event=Number(pair.epoch)>Number(original.epoch)?(await this.sql<Event[]>`SELECT * FROM federated_connection_events WHERE pair_id=${pair.id} AND epoch=${pair.epoch}`)[0]!:original;
+    let event=job.request_id===null&&Number(pair.epoch)>Number(original.epoch)?(await this.sql<Event[]>`SELECT * FROM federated_connection_events WHERE pair_id=${pair.id} AND epoch=${pair.epoch}`)[0]!:original;
     try{
+      if(job.request_id){const intent=(await this.sql<Attempt[]>`SELECT * FROM federated_connection_attempts WHERE id=${job.request_id} AND account_id=${owner.id} AND pair_id=${pair.id}`)[0];
+        if(!intent)throw new ConnectionError(409,'Replication lost its retained consent intent');event={...event,request_id:job.request_id,proof_digest:intent.proof_digest};}
       const request={request_id:event.request_id,proof_hash:{algorithm:"sha-256",value:event.proof_digest}} as Control;
       const snapshot=await this.transaction(owner,tx=>this.snapshot(tx,owner,pair.peer_did,request,event));
       const wire:Record<string,unknown>={control:encodeBase64Url(snapshot)};

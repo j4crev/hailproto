@@ -102,6 +102,9 @@ intact; no guard is removed until snapshot/import and peer handover prove that.
 
 The local implementation embeds the shared version-1 connection-history checkpoint
 in portable v5 / managed v6 snapshots, retains it inertly on import, and verifies
-source/destination/peer handover preparations. Live handover commit and historical
-authority verification remain gated; see [portability progress](../spec/connection-portability.md).
+source/destination/peer handover preparations. Import/handover staging verifies
+historical consent and control signatures against retained canonical PLC history.
+Unsupported pre-launch records should be explicitly cleaned up rather than given
+a legacy reconciliation layer; see the [development policy](../README.md#pre-launch-development-policy--developers-and-agents).
+Live handover commit remains gated; see [portability progress](../spec/connection-portability.md).
 Connection-bearing account cutover is still blocked.

@@ -21,6 +21,21 @@ import { boundedTransferBody, parseInvitationWire, parseFinalRequestWire,
 import { parseManagedInvitationWire } from "./wire.js";
 import {clientAddress} from "../http/rate-limit.js";
 import type {ConnectionHandoverStage} from "./connection-handover-stage.js";
+import type {ConnectionReconstruction} from './connection-reconstruction.js';
+
+export function registerConnectionReconstructionRoutes(app:Hono,reconstruction:ConnectionReconstruction,rateLimit?:TransferRateLimit):void {
+  app.post('/hail/transfers/connection-progress/:phase',async context=>{
+    context.header('Cache-Control','no-store');context.header('Referrer-Policy','no-referrer');
+    if(context.req.header('Authorization')||context.req.header('Cookie')||context.req.header('Origin'))return context.body(null,403);
+    if(rateLimit&&!await rateLimit.admit('request',clientAddress(context.req.raw)))return context.body(null,429);
+    if(context.req.header('Content-Type')!==TRANSFER_MEDIA_TYPE||context.req.header('Content-Encoding'))return context.body(null,415);
+    const phase=context.req.param('phase');if(!['freeze','transition'].includes(phase))return context.body(null,404);
+    try{
+      const input=parseJsonWithoutDuplicateKeys(new TextDecoder('utf-8',{fatal:true}).decode(await boundedTransferBody(context.req.raw.body,context.req.header('Content-Length')??null,200000)));
+      return context.json(phase==='freeze'?await reconstruction.acceptFreeze(input):await reconstruction.acceptTransition(input),200,{'Content-Type':TRANSFER_MEDIA_TYPE});
+    }catch{return context.body(null,400);}
+  });
+}
 
 export function registerConnectionHandoverRoutes(app:Hono,stage:Pick<ConnectionHandoverStage,"accept">,rateLimit?:TransferRateLimit):void {
   app.post("/hail/transfers/connection-handovers",async context=>{

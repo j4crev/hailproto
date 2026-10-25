@@ -106,7 +106,7 @@ export class EnvelopeRepository {
   }
 
   async candidate(authorization: HailEnvelope["authorization"], from: string, to: string): Promise<boolean> {
-    if(authorization.type==="connection")return connectionMessageAllowed(this.sql,to,from,authorization);
+    if(authorization.type==="connection")return connectionMessageAllowed(this.sql,to,from,authorization,false,true);
     if (authorization.type === "reply") {
       const rows = await this.sql<{ original_message_id: string }[]>`
         SELECT original_message_id FROM reply_capabilities
@@ -127,7 +127,7 @@ export class EnvelopeRepository {
     if(payload.authorization.type==="connection")return this.sql.begin(async tx=>{
       signal?.throwIfAborted();
       if(!(await tx`SELECT id FROM provider_accounts WHERE id=${localAccountId} AND did=${payload.to}`).length)return "unauthorized";
-      const permitted=await connectionMessageAllowed(tx as SQL,payload.to,payload.from,payload.authorization as Extract<HailEnvelope["authorization"],{type:"connection"}>,true);
+      const permitted=await connectionMessageAllowed(tx as SQL,payload.to,payload.from,payload.authorization as Extract<HailEnvelope["authorization"],{type:"connection"}>,true,true);
       const previous=await this.previousOutcome(tx as SQL,payload,payloadDigest);if(previous)return previous;
       const now=Number((await tx<{instant:string}[]>`SELECT extract(epoch FROM clock_timestamp()) AS instant`)[0]!.instant);
       const deadline=Math.min(payload.expires_at+300,payload.body.available_until,payload.body.access.expires_at);

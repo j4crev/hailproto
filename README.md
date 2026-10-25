@@ -6,6 +6,35 @@ Unlike email, knowing someone's address is not enough. A sender needs permission
 
 Hail is designed for independent providers, portable `did:plc` identities, rich and safe messages, and inexpensive spam rejection.
 
+## Pre-launch development policy — developers and agents
+
+**Build the intended system, not compatibility layers for our test data.** Hail
+is pre-launch, with only a few test accounts and the founder's `j4@haili.app`.
+Public hosting and the "public alpha" label below do not imply stable APIs,
+protocol formats, database schemas, or backward-compatibility guarantees.
+
+- Prefer a clean breaking change over legacy adapters, dual implementations,
+  old-format readers, or reconciliation machinery whose only purpose is keeping
+  these pre-launch records usable. Do not add permanent technical debt for them.
+- Deleting/resetting obsolete application records and recreating test connections
+  is an acceptable migration strategy. Identify the affected records and what is
+  lost, keep related data consistent, and back up hosted data before cleanup.
+  If the destructive scope is unclear, ask; this is not permission for an
+  unspecified database wipe or deletion of keys or recovery material. External
+  PLC identity history is not resettable application data.
+- Keep security and correctness for the **current** design: signature checks,
+  account isolation, disconnect/replay protection, and portable history created
+  under the new design are still requirements. Reject or explicitly clean up
+  unsupported old data rather than pretending it satisfies those requirements.
+- Document breaking changes and the required cleanup/upgrade steps. Remove
+  superseded compatibility code and tests rather than maintaining them forever.
+- Revisit this policy explicitly before real external users or independent
+  providers depend on a stable release; do not assume that commitment exists yet.
+
+For the current portability work, this means **no legacy-proof reconciliation
+subsystem solely to rescue existing test relationships**. Unsupported records can
+be explicitly cleaned up and those relationships recreated under the new design.
+
 ## Core Principles
 
 - Recipients control who may deliver messages.
@@ -17,6 +46,9 @@ Hail is designed for independent providers, portable `did:plc` identities, rich 
 - The protocol should remain approachable to hobbyists and independent implementers.
 
 ## Status
+
+For current connection messaging and account-move progress, see the short
+[messaging and portability checklist](docs/portability-status.md).
 
 Hail is a working **public alpha**. Three HTTPS TypeScript providers resolve
 portable identities directly from `plc.directory`. The independently hosted

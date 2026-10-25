@@ -5,7 +5,9 @@ import {expect,it} from "vitest";
 import {uuidV7} from "../src/identity/uuid-v7.js";
 import {CONNECTION_HISTORY_COLUMNS,connectionHistoryDigest,validateConnectionHistory,type ConnectionHistory} from "../src/migration/connection-history.js";
 import {validateSnapshotConnections,requireConnectionHandoverComplete} from "../src/migration/connection-snapshot.js";
-import {assertConnectionHandoverSelection,createConnectionHandoverPlan,signConnectionHandover,verifyConnectionHandover} from "../src/migration/connection-handover.js";
+import {assertConnectionHandoverSelection,createConnectionHandoverPlan,signConnectionHandover,verifyConnectionHandover,
+  connectionHandoverPlanDigest,signConnectionHandoverAbort,verifyConnectionHandoverAbort,type ConnectionHandoverAbort,
+  signConnectionHandoverTransition,verifyConnectionHandoverTransition,signConnectionHandoverResult,verifyConnectionHandoverResult,type ConnectionHandoverTransition} from "../src/migration/connection-handover.js";
 
 const did="did:plc:"+"a".repeat(24),peer="did:plc:"+"b".repeat(24),accountId=randomUUID();
 const owner={accountId,did,sourceGeneration:1,sourceServiceBase:"https://source.example/hail"};
@@ -16,7 +18,7 @@ const row=(table:keyof ConnectionHistory["tables"],values:Record<string,unknown>
   ...Object.fromEntries(CONNECTION_HISTORY_COLUMNS[table].split(" ").map(k=>[k,null])),...values,
 });
 function empty():ConnectionHistory {
-  return {type:"hail.connection-history",version:1,...owner,capturedAt:"2026-10-25T00:00:00.000Z",sharePolicy:"invalidate-at-cutover",
+  return {type:"hail.connection-history",version:2,...owner,capturedAt:"2026-10-25T00:00:00.000Z",sharePolicy:"invalidate-at-cutover",
     tables:Object.fromEntries(Object.keys(CONNECTION_HISTORY_COLUMNS).map(t=>[t,[] as Record<string,unknown>[]])) as ConnectionHistory["tables"]};
 }
 async function native(){
@@ -141,10 +143,41 @@ it("requires separate source, destination and peer signature purposes on the exa
     signed.signature[0]!^=1;
     await expect(verifyConnectionHandover(signed,role,publicKey,101)).rejects.toThrow('signature');
   }
+  const freeze=await signConnectionHandover(plan,'source-freeze',keys.privateKey);
+  await expect(verifyConnectionHandover(freeze,'source-freeze',publicKey,101)).resolves.toEqual(plan);
+  await expect(verifyConnectionHandover(freeze,'source',publicKey,101)).rejects.toThrow('purpose');
+  const abort:ConnectionHandoverAbort={type:'hail.connection-handover-abort',version:1,request_id:uuidV7(),transfer_id:plan.transfer_id,did:plan.did,peer_did:plan.peer_did,
+    plan_digest:connectionHandoverPlanDigest(freeze.payloadBytes),issued_at:1000,expires_at:1300};
+  for(const role of ['source-abort','destination-abort','peer-release'] as const){
+    const signed=await signConnectionHandoverAbort(abort,role,keys.privateKey);
+    await expect(verifyConnectionHandoverAbort(signed,role,publicKey,1001)).resolves.toEqual(abort);
+    await expect(verifyConnectionHandoverAbort(signed,role==='source-abort'?'destination-abort':'source-abort',publicKey,1001)).rejects.toThrow('purpose');
+    await expect(verifyConnectionHandoverAbort(signed,role,publicKey,1300)).rejects.toThrow('freshness');
+  }
+  const command:ConnectionHandoverTransition={type:'hail.connection-handover-transition',version:1,action:'commit',request_id:uuidV7(),transfer_id:plan.transfer_id,did:plan.did,
+    peer_did:plan.peer_did,plan_digest:abort.plan_digest,binding_digest:new Uint8Array(32),activation_digest:null,issued_at:1000,expires_at:1300};
+  const committed=await signConnectionHandoverTransition(command,keys.privateKey);
+  await expect(verifyConnectionHandoverTransition(committed,publicKey,1001)).resolves.toEqual(command);
+  await expect(verifyConnectionHandoverTransition(committed,publicKey,1300)).rejects.toThrow('freshness');
+  const status={type:'hail.connection-handover-result' as const,version:1 as const,phase:'committed' as const,transfer_id:plan.transfer_id,did:plan.did,peer_did:plan.peer_did,
+    plan_digest:abort.plan_digest,request_digest:hash(committed.payloadBytes),terminal_ids:[],issued_at:1001};
+  const result=await signConnectionHandoverResult(status,keys.privateKey);
+  await expect(verifyConnectionHandoverResult(result,publicKey)).resolves.toEqual(status);
+  const changed=structuredClone(result);changed.signature[0]!^=1;
+  await expect(verifyConnectionHandoverResult(changed,publicKey)).rejects.toThrow('signature');
   expect(()=>assertConnectionHandoverSelection(plan,selection)).not.toThrow();
   expect(()=>assertConnectionHandoverSelection({...plan,transfer_id:randomUUID()},selection)).toThrow('exact staged snapshot');
   expect(()=>assertConnectionHandoverSelection({...plan,snapshot_digest:hash(new Uint8Array([1]))},selection)).toThrow('exact staged snapshot');
   expect(()=>assertConnectionHandoverSelection({...plan,destination_messaging_key:'did:key:zOther'},selection)).toThrow('exact staged snapshot');
-  const changed=structuredClone(plan);changed.frontier.native[0]!.state='disconnected';
-  expect(()=>assertConnectionHandoverSelection(changed,selection)).toThrow('exact staged snapshot');
+  const changedPlan=structuredClone(plan);changedPlan.frontier.native[0]!.state='disconnected';
+  expect(()=>assertConnectionHandoverSelection(changedPlan,selection)).toThrow('exact staged snapshot');
+});
+
+it('hashes account history beyond the single-envelope codec budget without dropping rows',()=>{
+  const history=empty(),intent=hex(encodeDeterministic({action:'create',personal:true,label:'x'.repeat(80)}));
+  history.tables.connection_approvals=Array.from({length:1000},()=>row('connection_approvals',{id:uuidV7(),account_id:accountId,serving_generation:1,
+    action:'create',expires_at:history.capturedAt,intent_bytes:intent}));
+  const bytes=encode(history);expect(bytes.length).toBeGreaterThan(262144);
+  expect(validateConnectionHistory(bytes,owner).tables.connection_approvals).toHaveLength(1000);
+  expect(connectionHistoryDigest(history)).toHaveLength(32);
 });

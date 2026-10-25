@@ -20,6 +20,7 @@ import {validateReturningEvidence} from "./return.js";
 import { PUBLIC_EVIDENCE_LIMITS } from "../plc/read-evidence.js";
 import {collectConnectionHistory,connectionHistoryDigest,type ConnectionHistory} from "./connection-history.js";
 import {validateSnapshotConnections} from "./connection-snapshot.js";
+import {verifyConnectionHistoryAuthority} from "./connection-history-verification.js";
 import {encodeBase64Url} from "@hailproto/codec";
 
 const context = (version: 2 | 3 | 5) => new TextEncoder().encode(`hail-migration-snapshot-v${version}\0`);
@@ -468,6 +469,7 @@ export class MigrationTransferService {
       rotationPublicKey: manifest.destinationRotationPublicKey,
       messagingPublicKey: manifest.destinationMessagingPublicKey,
     });
+    if(manifest.connections)await verifyConnectionHistoryAuthority(manifest.connections,this.resolver);
     await this.sql.begin(async (tx) => {
       const reservation = await tx<{ canonical_address: string; state: string }[]>`
         SELECT canonical_address, state FROM transfer_address_reservations

@@ -11,7 +11,7 @@ import {ed25519PublicKeyFromDidKey} from "../identity/did-key.js";
 export class RemoteConnectionReview {
   constructor(private readonly sql:SQL,private readonly resolver:HailDidResolver,private readonly fetch:DiscoveryFetch,
     private readonly validateTarget:NetworkTargetValidator,private readonly localBase:string){}
-  async exchange(did:string,step:"invitations/review"|"state"|"admit"|"commit"|"disconnect"|"sync",input:unknown){
+  async exchange(did:string,step:"invitations/review"|"state"|"admit"|"commit"|"disconnect"|"sync"|"handover"|"handover-freeze"|"handover-abort"|"handover-commit"|"handover-complete",input:unknown){
     const state=await this.resolver.resolve(did),base=canonicalizeHailServiceBase(state.serviceBase);
     if(state.did!==did||base===this.localBase)throw new Error("Remote provider differs from current authority");
     await requireFreshPublicAuthority(this.sql,state.evidence,{did,serviceBase:base},new Date());

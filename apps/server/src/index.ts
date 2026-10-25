@@ -79,6 +79,7 @@ import {AccountConnections} from "./accounts/connections.js";
 import {RemoteConnectionReview} from "./accounts/connection-review.js";
 import {ConnectionMessagingAuthority} from "./accounts/connection-authorization.js";
 import {ConnectionHandoverStage} from "./migration/connection-handover-stage.js";
+import {ConnectionReconstruction} from './migration/connection-reconstruction.js';
 
 const config = loadConfig();
 const database = new ProviderDatabase(config.databaseUrl);
@@ -363,6 +364,7 @@ const app = createApp(config, schemaRehearsal ? {
     managedMigrationCompletion:managedCompletion}:{}),
   ...(transferCompletion?{transferCompletion}:{}),
   ...(connections?{connectionHandoverStage:new ConnectionHandoverStage(database.sql,resolver,config.hailServiceBase)}:{}),
+  ...(connections?{connectionReconstruction:new ConnectionReconstruction(database.sql,resolver,new RemoteConnectionReview(database.sql,resolver,transport.fetch,transport.validateTarget,config.hailServiceBase),config.hailServiceBase,connections.federation!)}:{}),
   checkReadiness,
 });
 

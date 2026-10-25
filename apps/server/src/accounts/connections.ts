@@ -221,7 +221,9 @@ export class AccountConnections {
     if(prior){const row=await this.approval(this.sql,session,requestId);if(!same(row.request_digest,requestDigest))throw new ConnectionError(409);return this.summary(session,row);}
     let invitation:Invitation|undefined,peerId:string|undefined;
     let remoteDraft:Awaited<ReturnType<ConnectionFederation["prepare"]>>|undefined,remotePair:Awaited<ReturnType<ConnectionFederation["active"]>>=null;
-    if(action==="connect"&&typeof input.id==="string"&&UUID.test(input.id)&&!(await this.sql`SELECT id FROM connection_invitations WHERE id=${input.id}`).length){
+    if(action==="connect"&&typeof input.id==="string"&&UUID.test(input.id)&&(
+      !(await this.sql`SELECT id FROM connection_invitations WHERE id=${input.id}`).length||
+      (typeof input.did==='string'&&(await this.sql`SELECT id FROM federated_connection_pairs WHERE account_id=${session.account_id} AND peer_did=${input.did}`).length>0))){
       if(!this.federation)throw new ConnectionError(409,"Cross-provider connections are not configured on this provider.");
       remoteDraft=await this.federation.prepare(session,{id:input.id,did:input.did as string,token:input.token as string});
     }else if(["connect","replace","revoke"].includes(action))invitation=await this.invitation(this.sql,input.id);

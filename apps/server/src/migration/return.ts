@@ -177,6 +177,7 @@ export async function replaceRetiredProjection(tx:SQL,manifest:TransferManifest)
   // Incoming import lifecycle records are retained separately before any later return recycles their slots.
   await clearRetiredImportSlots(tx,account);
   await tx`SELECT set_config('hail.returning_account',${account},true)`;
+  if(manifest.connections)await tx`SELECT set_config('hail.connection_import_generation',${String(Number(retired.generation)+1)},true)`;
   await tx`UPDATE account_serving_generations SET generation=generation+1 WHERE account_id=${account}`;
   const generation=Number(retired.generation)+1;
   const contexts=await tx<{value:string}[]>`SELECT current_setting('hail.admitted_generations',true) AS value`;

@@ -208,6 +208,9 @@ const migrations: readonly Migration[] = [
   { version: 64, name: "connection-federation", url: new URL("../../migrations/0064_connection_federation.sql", import.meta.url) },
   { version: 65, name: "connection-messages", url: new URL("../../migrations/0065_connection_messages.sql", import.meta.url) },
   { version: 66, name: "connection-handover-preparations", url: new URL("../../migrations/0066_connection_handover_preparations.sql", import.meta.url) },
+  { version: 67, name: "connection-proof-authority", url: new URL("../../migrations/0067_connection_proof_authority.sql", import.meta.url) },
+  { version: 68, name: "connection-handover-barriers", url: new URL("../../migrations/0068_connection_handover_barriers.sql", import.meta.url) },
+  { version: 69, name: "connection-reconstruction", url: new URL("../../migrations/0069_connection_reconstruction.sql", import.meta.url) },
 ];
 
 export class ProviderDatabase {

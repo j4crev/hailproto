@@ -21,7 +21,8 @@ import {replaceRetiredManagedProjection} from "./return.js";
 import type {PortableCutoverGate} from "./cutover-gate.js";
 import type {SignedMonitorAttestation} from "./monitor-attestation.js";
 import {requirePublicCutoverEvidence} from "./public-cutover-evidence.js";
-import {requireConnectionHandoverComplete} from "./connection-snapshot.js";
+import {requireConnectionImportPhase,reconstructConnections} from './connection-reconstruction.js';
+import {verifyConnectionHistoryAuthority} from './connection-history-verification.js';
 
 type Row=Record<string,unknown>;
 const sha=(value:Uint8Array)=>new Uint8Array(createHash("sha256").update(value).digest());
@@ -57,7 +58,7 @@ export class ManagedMigrationActivation {
         signed_plc_operation_bytes,activated_at FROM pending_migration_imports WHERE transfer_id=${transferId}`)[0];
     if(!row||row.state!=="active"||!row.activated_at)throw new Error("Only an active managed import may acknowledge destination takeover");
     const manifest=validateManagedTransferManifest(row.manifest_bytes);
-    requireConnectionHandoverComplete(manifest);
+    await requireConnectionImportPhase(this.sql,manifest,'committed');
     if(this.verificationMode==="strict-public-v1")await requirePublicCutoverEvidence(this.sql,{transferId,did:row.did,
       manifestDigest:row.manifest_digest,operationBytes:row.signed_plc_operation_bytes,activatedAt:row.activated_at});
     if(manifest.transferId!==transferId||manifest.did!==row.did||manifest.destinationServiceBase!==this.serviceBase||
@@ -106,7 +107,8 @@ export class ManagedMigrationActivation {
     }
     if(!pending||pending.state!=="staged"||pending.custody_profile!=="managed")throw new Error("No inactive managed import to materialize");
     const manifest=validateManagedTransferManifest(pending.manifest_bytes);
-    requireConnectionHandoverComplete(manifest);
+    await requireConnectionImportPhase(this.sql,manifest,'committed');
+    if(manifest.connections)await verifyConnectionHistoryAuthority(manifest.connections,this.resolver,this.now());
     if(manifest.transferId!==transferId||manifest.did!==pending.did||manifest.destinationServiceBase!==this.serviceBase||
       !same(sha(pending.manifest_bytes),pending.manifest_digest))throw new Error("Managed import differs from its retained snapshot");
     const assessment=this.gate?await this.gate.assess(transferId,signedMonitor):undefined;
@@ -159,6 +161,7 @@ export class ManagedMigrationActivation {
         !same(locked.signed_plc_operation_bytes,pending.signed_plc_operation_bytes)||target?.state!=="staged"||
         !reservation?.reserved_account_id||reservation.canonical_address!==pending.destination_address||reservation.state!=="submitted")
         throw new Error("Managed staging authority changed before materialization");
+      if(manifest.connections)await tx`SELECT set_config('hail.connection_import_transfer',${transferId},true)`;
       reservedId=reservation.reserved_account_id;
       if(this.verificationMode==="strict-public-v1") {
         const evidence=await requirePublicCutoverEvidence(tx,{transferId,did:manifest.did,manifestDigest:pending.manifest_digest,
@@ -214,6 +217,8 @@ export class ManagedMigrationActivation {
       await this.importGrants(tx,manifest,identityKey,resolved.evidence,activatedAt,returning);
       for(const table of ["detached_bodies","body_authorizations"] as const)for(const row of manifest.tables[table])await insert(tx,table,row);
       await this.importEnvelopes(tx,manifest);
+      if(manifest.connections)await reconstructConnections(tx as SQL,manifest,generation);
+      await tx`UPDATE connection_invitations SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE account_id=${manifest.accountId} AND serving_generation<>${generation} AND revoked_at IS NULL`;
       for(const table of ["reply_capabilities","delivery_work","verified_body_provenance","delivered_messages",
         "delivery_status_payloads","delivery_status_wrappers","terminal_status_publications","sent_delivery_status"] as const)
         for(const row of manifest.tables[table])await insert(tx,table,row);

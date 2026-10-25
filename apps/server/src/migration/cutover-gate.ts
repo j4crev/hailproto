@@ -15,7 +15,7 @@ import type { HailValue } from "@hailproto/codec";
 import { PLC_READ_EVIDENCE_POLICY_VERSION } from "../identity/managed-profile.js";
 import {withAbort} from "../plc/client.js";
 import type {PlcDirectoryClient} from "../plc/client.js";
-import {requireConnectionHandoverComplete} from "./connection-snapshot.js";
+import {requireConnectionImportPhase} from './connection-reconstruction.js';
 
 export interface CutoverAssessment {
   eligible: boolean;
@@ -48,7 +48,7 @@ export class PortableCutoverGate {
       throw new Error("Cutover requires a staged inactive user-signed PLC update");
     }
     const manifest = this.managedMonitor ? validateManagedTransferManifest(pending.manifest_bytes) : validateTransferManifest(pending.manifest_bytes);
-    requireConnectionHandoverComplete(manifest);
+    await requireConnectionImportPhase(this.sql,manifest,'committed');
     const signedOperation = def.operation.parse(parseJsonWithoutDuplicateKeys(
       new TextDecoder("utf-8", { fatal: true }).decode(pending.signed_plc_operation_bytes)));
     const expectedCid = (await cidForCbor(signedOperation)).toString();

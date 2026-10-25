@@ -51,7 +51,7 @@ it("stages a public portable transfer before requiring monitor evidence",async()
 });
 
 it("retains v5 history at staging without submitting PLC or activating before handover",async()=>{
-  const history:ConnectionHistory={type:'hail.connection-history',version:1,accountId:manifest.accountId,did:manifest.did,sourceGeneration:1,
+  const history:ConnectionHistory={type:'hail.connection-history',version:2,accountId:manifest.accountId,did:manifest.did,sourceGeneration:1,
     sourceServiceBase:manifest.sourceServiceBase,capturedAt:manifest.capturedAt,sharePolicy:'invalidate-at-cutover',
     tables:Object.fromEntries(Object.keys(CONNECTION_HISTORY_COLUMNS).map(t=>[t,[] as Record<string,unknown>[]])) as ConnectionHistory['tables']};
   history.tables.connection_approvals.push({...Object.fromEntries(CONNECTION_HISTORY_COLUMNS.connection_approvals.split(' ').map(k=>[k,null])),

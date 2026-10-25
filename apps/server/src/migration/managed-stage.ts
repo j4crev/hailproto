@@ -13,6 +13,7 @@ import { managedHandshakeDigest, verifyManagedOwnerHandshake, verifyManagedProvi
 import { managedSnapshotSignatureInput, validateManagedTransferManifest,
   type SignedManagedTransferSnapshot } from "./managed-snapshot.js";
 import { PreparedMigrationTarget, type PreparedTargetKeys } from "./target-keys.js";
+import {verifyConnectionHistoryAuthority} from "./connection-history-verification.js";
 
 const sha256 = (bytes: Uint8Array) => new Uint8Array(createHash("sha256").update(bytes).digest());
 const same = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.from(b));
@@ -149,6 +150,7 @@ export class ManagedMigrationStageService {
     const operationDigest = await this.validateOperation(operationBytes, manifest, approval.previous_operation_cid,
       approval.operation_cid, resolved.evidence.data as DocumentData, resolved.evidence.log);
     await this.target.assertOwnership(prepared);
+    if(manifest.connections)await verifyConnectionHistoryAuthority(manifest.connections,this.resolver);
     const destinationBinding = await this.target.createManagedDestinationBinding(prepared,
       approval.destination_address, approval.issued_at);
     const bindingDigest = sha256(destinationBinding);

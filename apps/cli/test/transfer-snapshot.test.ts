@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { encodeBase64Url } from "@hailproto/codec";
 import { base58btc } from "multiformats/bases/base58";
-import { expect, it } from "vitest";
-import { verifyTransferSnapshot } from "../src/transfer-cutover.js";
+import { expect, it, vi } from "vitest";
+import { verifyTransferSnapshot,warnConnectionCodeCutover } from "../src/transfer-cutover.js";
 
 it("verifies v2, v3 and connection-history v5 snapshots under distinct signature domains", async () => {
   const keys = await crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"]);
@@ -28,4 +28,10 @@ it("verifies v2, v3 and connection-history v5 snapshots under distinct signature
   const mismatched = await snapshot(2);
   mismatched.version = 3;
   await expect(verifyTransferSnapshot(mismatched)).rejects.toThrow("versions differ");
+});
+
+it('warns about permanent code invalidation before signing a connection-history cutover',()=>{
+  const warning=vi.spyOn(console,'error').mockImplementation(()=>{});
+  try{warnConnectionCodeCutover({connections:{}});expect(warning).toHaveBeenCalledWith(expect.stringContaining('including the permanent personal code'));
+    warnConnectionCodeCutover({version:3});expect(warning).toHaveBeenCalledOnce();}finally{warning.mockRestore();}
 });
