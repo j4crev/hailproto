@@ -7,6 +7,7 @@ import type {ManagedMigrationPlcSubmission} from "./managed-plc-submission.js";
 import type {ManagedMigrationActivation} from "./managed-activation.js";
 import type {SignedManagedTransferSnapshot} from "./managed-snapshot.js";
 import {decodeSignedRecord,encodeSignedRecord} from "./wire.js";
+import {connectionHandoverPending} from "./connection-snapshot.js";
 
 const canonical=(value:string)=>{const bytes=decodeBase64Url(value);if(encodeBase64Url(bytes)!==value)throw new Error("Non-canonical transfer bytes");return bytes;};
 
@@ -25,7 +26,7 @@ export class ManagedMigrationCompletion {
     const container=input.snapshot;
     if(!container||typeof container!=="object"||Array.isArray(container)||Object.keys(container).sort().join(",")!==
       "digest,manifest,signature,sourceMessagingPublicKey,type,version"||!("type" in container)||container.type!=="hail.managed-migration-transfer"||
-      !("version" in container)||container.version!==4||!("manifest" in container)||typeof container.manifest!=="string"||
+      !("version" in container)||![4,6].includes(container.version as number)||!("manifest" in container)||typeof container.manifest!=="string"||
       !("digest" in container)||typeof container.digest!=="string"||!("signature" in container)||typeof container.signature!=="string"||
       !("sourceMessagingPublicKey" in container)||typeof container.sourceMessagingPublicKey!=="string")
       throw new Error("Invalid managed snapshot container");
@@ -35,8 +36,11 @@ export class ManagedMigrationCompletion {
       throw new Error("Managed snapshot exceeds its limits");
     const approval=decodeSignedRecord(input.approval),operationBytes=canonical(input.operation);
     const manifest=await this.stage.stage(snapshot,approval,operationBytes);
+    if(manifest.version!==container.version)throw new Error("Snapshot container and manifest versions differ");
     const operation=def.operation.parse(parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(operationBytes)));
     const operationCid=(await cidForCbor(operation)).toString();
+    if(connectionHandoverPending(manifest))return {type:"hailp.managed-transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
+      transferId:manifest.transferId,operationCid,phase:"awaiting-connection-handover"};
     if(await this.plc.submit(manifest.transferId)!==operationCid)throw new Error("Configured PLC retained another operation");
     if(this.publicProfile&&!monitor)return {type:"hailp.managed-transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
       transferId:manifest.transferId,operationCid,phase:"awaiting-monitor"};

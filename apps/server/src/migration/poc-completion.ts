@@ -8,6 +8,7 @@ import { decodeSignedRecord,encodeSignedRecord } from "./wire.js";
 import type { PortablePlcSubmission } from "./poc-plc-submission.js";
 import type { PortableAddressPublication } from "./poc-address-publication.js";
 import type { PortableMigrationActivation } from "./activation.js";
+import {connectionHandoverPending} from "./connection-snapshot.js";
 
 export class PortableTransferCompletion {
   constructor(private readonly sql:SQL,private readonly imports:Pick<MigrationTransferService,"stageImport">,
@@ -21,7 +22,7 @@ export class PortableTransferCompletion {
     const row=input as Record<string,unknown>,snapshot=row.snapshot as Record<string,unknown>;
     const monitor=this.profile==="public"&&"monitor" in row?decodeSignedRecord(row.monitor):undefined;
     if(!snapshot||typeof snapshot!=="object"||Object.keys(snapshot).sort().join(",")!=="digest,manifest,signature,sourceMessagingPublicKey,type,version"||
-      snapshot.type!=="hail.portable-migration-transfer"||![2,3].includes(snapshot.version as number)||typeof snapshot.sourceMessagingPublicKey!=="string")throw new Error("Invalid source snapshot");
+      snapshot.type!=="hail.portable-migration-transfer"||![2,3,5].includes(snapshot.version as number)||typeof snapshot.sourceMessagingPublicKey!=="string")throw new Error("Invalid source snapshot");
     const decode=(value:unknown,max:number)=>{if(typeof value!=="string")throw new Error("Invalid transfer bytes");const bytes=decodeBase64Url(value);
       if(!bytes.length||bytes.length>max||encodeBase64Url(bytes)!==value)throw new Error("Transfer bytes exceed limit or are not canonical");return bytes;};
     const bytes=decode(snapshot.manifest,67108864),digest=decode(snapshot.digest,32),signature=decode(snapshot.signature,64);
@@ -42,6 +43,8 @@ export class PortableTransferCompletion {
         !same(prior.user_consent_signature,consent.signature)||!same(prior.signed_plc_operation_bytes,operation)||!same(prior.destination_binding_cose,binding))throw new Error("Completion conflicts with retained signed artifacts");
     }else await this.imports.stageImport({bytes,digest,signature,sourceMessagingPublicKey:snapshot.sourceMessagingPublicKey},consent,operation,binding);
     const operationCid=(await cidForCbor(def.operation.parse(parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(operation))))).toString();
+    if(connectionHandoverPending(manifest))return {type:"hailp.transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
+      transferId:manifest.transferId,operationCid,phase:"awaiting-connection-handover"};
     if(prior?.state!=="active") {
       if(await this.submission.submit(manifest.transferId)!==operationCid)throw new Error("Configured PLC retained another operation");
       if(this.profile==="public"&&!monitor)return {type:"hailp.transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,

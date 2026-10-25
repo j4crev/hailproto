@@ -8,7 +8,7 @@ export const MAX_TRANSFER_WIRE_BYTES = 16_384;
 export function encodeSignedRecord(signed: SignedHandshake): { payload: string; signature: string } {
   return { payload: encodeBase64Url(signed.payloadBytes), signature: encodeBase64Url(signed.signature) };
 }
-export function decodeSignedRecord(value: unknown): SignedHandshake {
+export function decodeSignedRecord(value: unknown,maxPayloadBytes=4096): SignedHandshake {
   if (!value || typeof value !== "object" || Array.isArray(value) ||
     Object.keys(value).length !== 2 || !("payload" in value) || !("signature" in value) ||
     typeof value.payload !== "string" || typeof value.signature !== "string") {
@@ -16,7 +16,7 @@ export function decodeSignedRecord(value: unknown): SignedHandshake {
   }
   const payloadBytes = decodeBase64Url(value.payload);
   const signature = decodeBase64Url(value.signature);
-  if (payloadBytes.length < 1 || payloadBytes.length > 4096 || signature.length !== 64) {
+  if (payloadBytes.length < 1 || payloadBytes.length > maxPayloadBytes || signature.length !== 64) {
     throw new Error("Signed transfer record exceeds its limit");
   }
   return { payloadBytes, signature };

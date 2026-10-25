@@ -14,6 +14,8 @@ import type {KeyEncryptor} from "../identity/key-encryption.js";
 import {uuidV7} from "../identity/uuid-v7.js";
 import {OnboardingRepository} from "../onboarding/repository.js";
 import {withServingGeneration} from "../db/serving.js";
+import {connectionFrontier,sameConnectionFrontier,signConnectionHandover,verifyConnectionHandover,type ConnectionHandoverPlan} from "../migration/connection-handover.js";
+import {decodeSignedRecord,encodeSignedRecord} from "../migration/wire.js";
 
 const hash=(value:Uint8Array)=>new Uint8Array(createHash("sha256").update(value).digest());
 const digest=(value:Uint8Array)=>({algorithm:"sha-256" as const,value:hash(value)});
@@ -256,7 +258,38 @@ export class ConnectionFederation {
       pendingConnections:[...new Map(pending.map(p=>[p.kind+":"+p.peer_did,{id:p.id,did:p.peer_did,address:p.peer_address,kind:p.kind,state:p.state}])).values()]};
   }
 
-  async handle(step:"state"|"admit"|"commit"|"disconnect"|"sync",wire:Record<string,unknown>):Promise<Record<string,unknown>>{
+  private async prepareHandover(wire:Record<string,unknown>){
+    this.fields(wire,["proposal","destinationSignature"]);
+    const proposal=decodeSignedRecord(wire.proposal,65536),untrusted=decodeDeterministic(proposal.payloadBytes) as unknown as ConnectionHandoverPlan;
+    if(!untrusted||typeof untrusted.did!=="string"||!/^did:plc:[a-z2-7]{24}$/.test(untrusted.did))throw new ConnectionError(400);
+    const source=await this.resolver.resolve(untrusted.did);
+    await requireFreshPublicAuthority(this.sql,source.evidence,{did:source.did,role:"hail-messaging",key:source.messagingDidKey,serviceBase:source.serviceBase},new Date());
+    const plan=await verifyConnectionHandover(proposal,"source",source.messagingDidKey,now());
+    if(plan.source_service_base!==source.serviceBase)throw new ConnectionError(409,"Handover source location differs.");
+    await verifyConnectionHandover({...proposal,signature:this.bytes(wire.destinationSignature,64)},"destination",plan.destination_messaging_key,now());
+    const owner=await this.ownerForDid(plan.peer_did);
+    return this.transaction(owner,async tx=>{
+      await this.hooks.authority(tx,owner);
+      const native=await tx<Record<string,unknown>[]>`SELECT id,did_a,did_b,state FROM account_connections
+        WHERE ${owner.id} IN(account_a,account_b) AND ${plan.did} IN(did_a,did_b)`;
+      const pairs=await tx<Record<string,unknown>[]>`SELECT * FROM federated_connection_pairs WHERE account_id=${owner.id} AND peer_did=${plan.did}`;
+      if(pairs.length)await this.pair(tx,owner,plan.did); // Existing service-location pins still apply.
+      const tombstones=await tx<Record<string,unknown>[]>`SELECT t.* FROM federated_connection_tombstones t JOIN federated_connection_pairs p ON p.id=t.pair_id
+        WHERE t.account_id=${owner.id} AND p.peer_did=${plan.did}`;
+      if(!sameConnectionFrontier(plan.frontier,connectionFrontier(owner.did,plan.did,native,pairs,tombstones)))throw new ConnectionError(409,"Connection history changed before handover preparation.");
+      const key=await new OnboardingRepository(tx).getKey(owner.id,"hail-messaging"),resolved=await this.resolver.resolve(owner.did);
+      if(resolved.messagingDidKey!==key.publicKey||resolved.serviceBase!==this.base)throw new ConnectionError(409);
+      await requireFreshPublicAuthority(tx,resolved.evidence,{did:owner.did,role:"hail-messaging",key:key.publicKey,serviceBase:this.base},new Date());
+      const raw=await this.encryptor.decrypt(owner.id,key.role,key.algorithm,key.publicKey,key);
+      try{return {preparation:encodeSignedRecord(await signConnectionHandover(plan,"peer-ack",await importEd25519PrivateKey(raw)))};}
+      finally{raw.fill(0);}
+    });
+  }
+
+  async handle(step:"state"|"admit"|"commit"|"disconnect"|"sync"|"handover",wire:Record<string,unknown>):Promise<Record<string,unknown>>{
+    // Preparation acknowledges an exact frontier only. It never changes location
+    // pins, freezes a peer or authorizes cutover; a later fenced commit is required.
+    if(step==="handover")return this.prepareHandover(wire);
     this.fields(wire,step==="admit"?["control","bundle","token"]:step==="commit"?["control","bundle","admission"]:
       step==="sync"&&wire.bundle!==undefined?["control","bundle","admission"]:["control"]);
     const raw=this.bytes(wire.control),operation={state:"probe",admit:"offer",commit:"connect",disconnect:"disconnect",sync:"snapshot"}[step] as Control["operation"];

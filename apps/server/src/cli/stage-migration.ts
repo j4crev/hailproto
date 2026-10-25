@@ -24,7 +24,7 @@ if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) ||
   throw new Error("Invalid migration import container");
 }
 const envelope = parsed as Record<string, unknown>;
-if (envelope.type !== "hail.portable-migration-transfer" || ![2,3].includes(envelope.version as number) ||
+if (envelope.type !== "hail.portable-migration-transfer" || ![2,3,5].includes(envelope.version as number) ||
   !["manifest", "digest", "signature", "sourceMessagingPublicKey"].every((key) => typeof envelope[key] === "string")) {
   throw new Error("Unsupported migration import container");
 }

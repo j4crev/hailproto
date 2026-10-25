@@ -740,7 +740,7 @@ integration("fenced transfer and concurrent cutover", () => {
     expect(manifest.did).toBe(did);
     expect(manifest.custodyProfile).toBe("portable");
     expect(manifest.tables.account_keys).toHaveLength(2);
-    expect(manifest.version).toBe(3);
+    expect(manifest.version).toBe(5);
     expect(manifest.tables.public_plc_resolution_evidence).toHaveLength(1);
     expect(manifest.tables.public_signing_authority_evidence).toHaveLength(1);
     expect(manifest.tables.public_grant_authority_evidence).toHaveLength(1);
@@ -777,6 +777,7 @@ integration("fenced transfer and concurrent cutover", () => {
     expect(()=>validateTransferManifest(new TextEncoder().encode(JSON.stringify(damagedHistory))))
       .toThrow("missing or unreferenced resolution evidence");
     const legacy=JSON.parse(new TextDecoder().decode(snapshot.bytes));legacy.version=2;
+    delete legacy.connections;delete legacy.connectionCheckpointDigest;delete legacy.sourceGeneration;
     for(const table of ["public_plc_resolution_evidence","public_envelope_authority_evidence",
       "public_grant_authority_evidence","public_signing_authority_evidence"])delete legacy.tables[table];
     expect(validateTransferManifest(new TextEncoder().encode(JSON.stringify(legacy))).version).toBe(2);
@@ -994,19 +995,23 @@ integration("fenced transfer and concurrent cutover", () => {
     }}],()=>new Date(cutoverClock),providerOperators,undefined,canonical);
     try {await expect(pausedImport.assess(fence.transferId,await report())).rejects.toThrow("import changed");}
     finally{await target.sql`UPDATE pending_migration_imports SET manifest_bytes=${originalManifest} WHERE transfer_id=${fence.transferId}`;}
+    const beforeInvalidMonitor=await target.sql`SELECT evidence_digest FROM public_cutover_evidence WHERE transfer_id=${fence.transferId} ORDER BY evidence_digest`;
     const legacy = await signMonitorAttestation({ type: "hail.plc-monitor-attestation", version: 1, did,
       transfer_id: fence.transferId, operation_cid: operationCid, monitor_origin: "https://monitor.example.com",
       coverage_since: first - 3600, observed_at: Math.floor(cutoverClock / 1000) }, monitorPrivateKey);
-    await expect(targetGate.assess(fence.transferId, legacy)).rejects.toThrow("bootstrap v2");
+    await expect(targetGate.assess(fence.transferId, legacy)).rejects.toThrow("reviewed bootstrap");
     const wrongBootstrap = await signMonitorAttestation({ type: "hail.plc-monitor-attestation", version: 2, did,
       transfer_id: fence.transferId, operation_cid: operationCid, monitor_origin: "https://monitor.example.com",
       coverage_since: first - 3600, observed_at: Math.floor(cutoverClock / 1000), export_sequence: 2,
       bootstrap_cid: (await cidForCbor(genesisOperation)).toString(), bootstrap_state_digest: encodeBase64Url(new Uint8Array(32)) }, monitorPrivateKey);
-    await expect(targetGate.assess(fence.transferId, wrongBootstrap)).rejects.toThrow("bootstrap checkpoint");
+    const bootstrapFailure=await targetGate.assess(fence.transferId,wrongBootstrap).catch(error=>error);
+    expect(bootstrapFailure).toBeInstanceOf(AggregateError);
+    expect(bootstrapFailure.errors).toHaveLength(witnesses.length);
+    for(const error of bootstrapFailure.errors)expect(error.message).toContain("bootstrap checkpoint");
     const badMonitor = await report();
     badMonitor.signature[0] = badMonitor.signature[0]! ^ 1;
     await expect(targetGate.assess(fence.transferId, badMonitor)).rejects.toThrow("signature is invalid");
-    expect(await target.sql`SELECT evidence_digest FROM public_cutover_evidence WHERE transfer_id=${fence.transferId}`).toHaveLength(2);
+    expect(await target.sql`SELECT evidence_digest FROM public_cutover_evidence WHERE transfer_id=${fence.transferId} ORDER BY evidence_digest`).toEqual(beforeInvalidMonitor);
   });
 
   it("preserves a sender's existing copy of the same Grant when providers become collocated", async () => {

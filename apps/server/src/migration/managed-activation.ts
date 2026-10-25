@@ -21,6 +21,7 @@ import {replaceRetiredManagedProjection} from "./return.js";
 import type {PortableCutoverGate} from "./cutover-gate.js";
 import type {SignedMonitorAttestation} from "./monitor-attestation.js";
 import {requirePublicCutoverEvidence} from "./public-cutover-evidence.js";
+import {requireConnectionHandoverComplete} from "./connection-snapshot.js";
 
 type Row=Record<string,unknown>;
 const sha=(value:Uint8Array)=>new Uint8Array(createHash("sha256").update(value).digest());
@@ -56,6 +57,7 @@ export class ManagedMigrationActivation {
         signed_plc_operation_bytes,activated_at FROM pending_migration_imports WHERE transfer_id=${transferId}`)[0];
     if(!row||row.state!=="active"||!row.activated_at)throw new Error("Only an active managed import may acknowledge destination takeover");
     const manifest=validateManagedTransferManifest(row.manifest_bytes);
+    requireConnectionHandoverComplete(manifest);
     if(this.verificationMode==="strict-public-v1")await requirePublicCutoverEvidence(this.sql,{transferId,did:row.did,
       manifestDigest:row.manifest_digest,operationBytes:row.signed_plc_operation_bytes,activatedAt:row.activated_at});
     if(manifest.transferId!==transferId||manifest.did!==row.did||manifest.destinationServiceBase!==this.serviceBase||
@@ -104,6 +106,7 @@ export class ManagedMigrationActivation {
     }
     if(!pending||pending.state!=="staged"||pending.custody_profile!=="managed")throw new Error("No inactive managed import to materialize");
     const manifest=validateManagedTransferManifest(pending.manifest_bytes);
+    requireConnectionHandoverComplete(manifest);
     if(manifest.transferId!==transferId||manifest.did!==pending.did||manifest.destinationServiceBase!==this.serviceBase||
       !same(sha(pending.manifest_bytes),pending.manifest_digest))throw new Error("Managed import differs from its retained snapshot");
     const assessment=this.gate?await this.gate.assess(transferId,signedMonitor):undefined;

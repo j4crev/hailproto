@@ -228,15 +228,15 @@ async function parseManagedSnapshot(value:unknown,label:string) {
   if(!value||typeof value!=="object"||Array.isArray(value))throw new Error(label);
   const snapshot=value as Record<string,unknown>;
   if(Object.keys(snapshot).sort().join(",")!=="digest,manifest,signature,sourceMessagingPublicKey,type,version"||
-    snapshot.type!=="hail.managed-migration-transfer"||snapshot.version!==4||typeof snapshot.manifest!=="string"||
+    snapshot.type!=="hail.managed-migration-transfer"||![4,6].includes(snapshot.version as number)||typeof snapshot.manifest!=="string"||
     typeof snapshot.digest!=="string"||typeof snapshot.signature!=="string"||typeof snapshot.sourceMessagingPublicKey!=="string")
     throw new Error(label);
   const bytes=decodeBase64Url(snapshot.manifest),hash=sha(bytes);
   if(bytes.length>67_108_864||!equal(hash,decodeBase64Url(snapshot.digest))||decodeBase64Url(snapshot.signature).length!==64)
     throw new Error("Managed snapshot digest, signature or size is invalid");
-  await verifySignature("hail-migration-snapshot-v4",hash,decodeBase64Url(snapshot.signature),snapshot.sourceMessagingPublicKey);
+  await verifySignature(`hail-migration-snapshot-v${snapshot.version}`,hash,decodeBase64Url(snapshot.signature),snapshot.sourceMessagingPublicKey);
   const manifest=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as Record<string,any>;
-  if(manifest.version!==4||manifest.custodyProfile!=="managed")throw new Error("Managed snapshot manifest is invalid");
+  if(manifest.version!==snapshot.version||manifest.custodyProfile!=="managed")throw new Error("Managed snapshot manifest is invalid");
   return {snapshot,manifest,hash};
 }
 
@@ -315,7 +315,7 @@ export async function signManagedTransferCutover(vaultPath:string,path:string,sn
       destination_rotation_key:offer.destination_rotation_key,destination_identity_key:offer.destination_identity_key,
       destination_messaging_key:offer.destination_messaging_key,grant_digest:sha(decodeBase64Url(state.grant!.payload)),
       offer_digest:sha(decodeBase64Url(state.offer!.payload)),selection_digest:sha(decodeBase64Url(state.selection!.payload)),
-      snapshot_version:4,snapshot_digest:verified.hash,history_checkpoint_digest:decodeBase64Url(manifest.historyCheckpointDigest),
+      snapshot_version:manifest.version as 4|6,snapshot_digest:verified.hash,history_checkpoint_digest:decodeBase64Url(manifest.historyCheckpointDigest),
       source_generation:manifest.sourceGeneration,previous_operation_cid:evidence.operation_cid,operation_cid:cutover.cid,
       issued_at:now,expires_at:now+900};
     const signed=await owner.signManagedTransferOwnerIntent(approval,cutover.operation),approvalWire={payload:encodeBase64Url(signed.payloadBytes),
@@ -365,8 +365,9 @@ export async function completeManagedTransfer(path:string,snapshotPath:string,tr
     operation:encodeBase64Url(operationBytes),...(monitor?{monitor}:{})},transport);
   if(!result||result.type!=="hailp.managed-transfer-completion"||result.version!==1||result.did!==state.did||
     result.accountId!==state.accountId||result.transferId!==offer.transfer_id||result.operationCid!==cutover.operationCid||
-    !["active",...(publicProfile?["awaiting-monitor"]:[])].includes(result.phase as string))
+    !["active","awaiting-connection-handover",...(publicProfile?["awaiting-monitor"]:[])].includes(result.phase as string))
     throw new Error("Destination did not confirm the exact managed transfer");
+  if(result.phase==="awaiting-connection-handover")return {did:state.did,transferId:offer.transfer_id,operationCid:cutover.operationCid,phase:result.phase,pending:true,handoverRequired:true,stateFile:path};
   if(result.phase==="awaiting-monitor")return {did:state.did,transferId:offer.transfer_id,operationCid:cutover.operationCid,
     phase:"awaiting-monitor",pending:true,monitorRequired:true,stateFile:path};
   if(result.generation!==verified.manifest.sourceGeneration+1)throw new Error("Destination generation differs from retained artifacts");

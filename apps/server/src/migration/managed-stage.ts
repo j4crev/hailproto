@@ -70,7 +70,7 @@ export class ManagedMigrationStageService {
       plc.rotationKeys[0] !== manifest.ownerRecoveryPublicKey ||
       resolved.messagingDidKey !== snapshot.sourceMessagingPublicKey ||
       !await crypto.subtle.verify("Ed25519", await ed25519PublicKeyFromDidKey(snapshot.sourceMessagingPublicKey),
-        Uint8Array.from(snapshot.signature), managedSnapshotSignatureInput(snapshotDigest))) {
+        Uint8Array.from(snapshot.signature), managedSnapshotSignatureInput(snapshotDigest,manifest.version))) {
       throw new Error("Current strict PLC state does not authenticate the managed snapshot");
     }
     const approval = await verifyManagedOwnerHandshake(approvalSigned,
@@ -140,7 +140,7 @@ export class ManagedMigrationStageService {
       approval.destination_identity_key !== manifest.destinationIdentityPublicKey ||
       approval.destination_messaging_key !== manifest.destinationMessagingPublicKey ||
       !same(approval.grant_digest, grantDigest) || !same(approval.offer_digest, offerDigest) ||
-      !same(approval.selection_digest, selectionDigest) || approval.snapshot_version !== 4 ||
+      !same(approval.selection_digest, selectionDigest) || approval.snapshot_version !== manifest.version ||
       !same(approval.snapshot_digest, snapshotDigest) ||
       !same(approval.history_checkpoint_digest, decodeBase64Url(manifest.historyCheckpointDigest)) ||
       approval.source_generation !== manifest.sourceGeneration) {

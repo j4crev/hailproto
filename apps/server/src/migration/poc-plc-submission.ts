@@ -6,6 +6,7 @@ import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
 import { assertPrivatePocRegistry } from "./poc-profile.js";
 import { validateTransferManifest } from "./transfer.js";
 import { verifyPortableMigrationConsent } from "./consent.js";
+import {requireConnectionHandoverComplete} from "./connection-snapshot.js";
 
 export class PortablePlcSubmission {
   constructor(private readonly sql: SQL, private readonly plc: PlcDirectoryClient,
@@ -25,6 +26,7 @@ export class PortablePlcSubmission {
     const row = rows[0];
     if (!row || row.state !== "staged") throw new Error("PLC write requires an inactive staged import");
     const manifest = validateTransferManifest(row.manifest_bytes);
+    requireConnectionHandoverComplete(manifest);
     if (manifest.did !== row.did || manifest.transferId !== transferId ||
       manifest.tables.portable_custody_evidence[0]?.monitor_verification_mode !==
         (this.profile==="public"?"independent":"poc-local")) {

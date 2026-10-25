@@ -14,7 +14,8 @@ import type { DeliveryStatusSigner } from "./delivery/status.js";
 import { registerDeliveryStatusRoutes } from "./delivery/status-routes.js";
 import type { DeliveryStatusReceiver } from "./delivery/status-receiver.js";
 import { ProtectedResponseSchedule } from "./http/protected-schedule.js";
-import { registerManagedTransferRoutes,registerTransferRoutes } from "./migration/routes.js";
+import { registerManagedTransferRoutes,registerTransferRoutes,registerConnectionHandoverRoutes } from "./migration/routes.js";
+import type {ConnectionHandoverStage} from "./migration/connection-handover-stage.js";
 import type { TransferInvitationReceiver } from "./migration/invitation-receiver.js";
 import type { TransferAddressReservation } from "./migration/address-selection.js";
 import type { TransferFinalRequestPublisher } from "./migration/final-request-publisher.js";
@@ -77,6 +78,7 @@ export interface AppDependencies {
   transferCancellation?: TransferCancellationService;
   transferCancellationReceiver?: TransferCancellationReceiver;
   transferCompletion?:PortableTransferCompletion;
+  connectionHandoverStage?:ConnectionHandoverStage;
   managedTransferInvitationReceiver?:ManagedTransferInvitationReceiver;
   managedTransferAddressReservation?:ManagedTransferAddressReservation;
   managedTransferFencePublisher?:ManagedTransferFencePublisher;
@@ -143,6 +145,7 @@ export function createApp(
     dependencies.transferAddressReservation, dependencies.migrationFence, dependencies.transferFinalRequestPublisher,
     dependencies.transferGrantSubmission, dependencies.transferRateLimit,
     dependencies.transferCancellation, dependencies.transferCancellationReceiver,dependencies.transferCompletion);
+  if(dependencies.connectionHandoverStage)registerConnectionHandoverRoutes(app,dependencies.connectionHandoverStage,dependencies.transferRateLimit);
   if(dependencies.managedTransferInvitationReceiver||dependencies.managedTransferAddressReservation||
     dependencies.managedTransferFencePublisher||dependencies.managedMigrationFence)registerManagedTransferRoutes(app,
     dependencies.managedTransferInvitationReceiver,dependencies.transferRateLimit,

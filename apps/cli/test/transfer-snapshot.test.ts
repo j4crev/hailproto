@@ -4,13 +4,13 @@ import { base58btc } from "multiformats/bases/base58";
 import { expect, it } from "vitest";
 import { verifyTransferSnapshot } from "../src/transfer-cutover.js";
 
-it("verifies retained v2 and new v3 snapshots under distinct signature domains", async () => {
+it("verifies v2, v3 and connection-history v5 snapshots under distinct signature domains", async () => {
   const keys = await crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"]);
   const raw = new Uint8Array(34);
   raw.set([0xed, 0x01]);
   raw.set(new Uint8Array(await crypto.subtle.exportKey("raw", keys.publicKey)), 2);
   const sourceMessagingPublicKey = `did:key:${base58btc.encode(raw)}`;
-  const snapshot = async (version: 2 | 3) => {
+  const snapshot = async (version: 2 | 3 | 5) => {
     const manifest = new TextEncoder().encode(JSON.stringify({ version }));
     const digest = new Uint8Array(createHash("sha256").update(manifest).digest());
     const prefix = new TextEncoder().encode(`hail-migration-snapshot-v${version}\0`);
@@ -24,6 +24,7 @@ it("verifies retained v2 and new v3 snapshots under distinct signature domains",
   };
   expect((await verifyTransferSnapshot(await snapshot(2))).manifest.version).toBe(2);
   expect((await verifyTransferSnapshot(await snapshot(3))).manifest.version).toBe(3);
+  expect((await verifyTransferSnapshot(await snapshot(5))).manifest.version).toBe(5);
   const mismatched = await snapshot(2);
   mismatched.version = 3;
   await expect(verifyTransferSnapshot(mismatched)).rejects.toThrow("versions differ");

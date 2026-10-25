@@ -36,6 +36,14 @@ import {ProtectedResponseSchedule} from "../src/http/protected-schedule.js";
 import {uuidV7} from "../src/identity/uuid-v7.js";
 import {registerAccountApiRoutes} from "../src/accounts/routes.js";
 import {GrantService} from "../src/grants/service.js";
+import {collectConnectionHistory,connectionHistoryDigest,validateConnectionHistory} from "../src/migration/connection-history.js";
+import {createConnectionHandoverPlan,signConnectionHandover,verifyConnectionHandover} from "../src/migration/connection-handover.js";
+import {ConnectionHandoverStage} from "../src/migration/connection-handover-stage.js";
+import {TRANSFER_TABLES,TRANSFER_AUTHORITY_TABLES,validateTransferManifest,type TransferManifest} from "../src/migration/transfer.js";
+import {requireConnectionHandoverComplete} from "../src/migration/connection-snapshot.js";
+import {decodeSignedRecord,encodeSignedRecord} from "../src/migration/wire.js";
+import {registerConnectionHandoverRoutes} from "../src/migration/routes.js";
+import {PortablePlcSubmission} from "../src/migration/poc-plc-submission.js";
 
 it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner signatures, crossed scans, durable retries and terminal epoch precedence",async()=>{
   const admin=new SQL(process.env.DATABASE_URL!),users=[] as User[],providers=[] as Provider[];
@@ -79,7 +87,7 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
       const remote=new RemoteConnectionReview(db.sql,resolver,network,url=>{if(!providers.some(p=>p.origin===url.origin))throw new Error("Unexpected destination");},origin+"/hail");
       const service=new AccountConnections(db.sql,encryptor,resolver,passkeys,origin,remote);
       const provider={schema,db,origin,encryptor,accounts,passkeys,app,service};providers.push(provider);await db.migrate();
-      const rollback=await db.sql.reserve();try{await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());}finally{rollback.release();}
+      const rollback=await db.sql.reserve();try{await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0066_connection_handover_preparations.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());}finally{rollback.release();}
       await db.migrate();registerConnectionRoutes(app,service,accounts,origin);
     }
     const addUser=async(provider:Provider,letter:string,managed:boolean)=>{
@@ -322,6 +330,81 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     const raceId=(await restarted.status(a.session,race.publicationId,'connections'))!.targets[0]!.messageId;
     expect(await first.db.sql`SELECT message_id FROM delivered_messages WHERE message_id=${raceId}`).toHaveLength(0);
     expect(await first.db.sql`SELECT grant_id FROM grant_lineages`).toHaveLength(0); // independent of subscriptions
+    // Checkpoint collection is read-only and account-local. It does not enable
+    // cutover or revoke codes merely because an export is being reviewed.
+    const capturedAt=new Date().toISOString(),owner={accountId:a.id,did:a.did,sourceGeneration:1,sourceServiceBase:first.origin+'/hail'};
+    const invitationsBefore=await first.db.sql`SELECT * FROM connection_invitations WHERE account_id=${a.id} ORDER BY id`;
+    const capture=()=>first.db.sql.begin(async tx=>{
+      await tx`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY`;
+      return collectConnectionHistory(tx as SQL,owner,capturedAt);
+    });
+    const checkpoint=await capture(),again=await capture();
+    expect(connectionHistoryDigest(again)).toEqual(connectionHistoryDigest(checkpoint));
+    expect(validateConnectionHistory(new TextEncoder().encode(JSON.stringify(checkpoint)),owner)).toEqual(checkpoint);
+    expect(checkpoint.tables.federated_connection_tombstones.map(r=>r.connection_id)).toContain(oldId);
+    expect(checkpoint.tables.account_connections.map(r=>r.id)).toContain(localTarget.connectionId);
+    expect(checkpoint.tables.connection_message_batches.length).toBeGreaterThan(0);
+    expect(checkpoint.tables.connection_message_targets.some(r=>r.state==='cancelled')).toBe(true);
+    expect(checkpoint.tables.federated_connection_attempts.every(r=>r.account_id===a.id&&!("token_ciphertext" in r))).toBe(true);
+    expect(checkpoint.tables.connection_approvals.every(r=>r.account_id===a.id&&!("session_id" in r)&&!("credential_id" in r))).toBe(true);
+    expect(await first.db.sql`SELECT * FROM connection_invitations WHERE account_id=${a.id} ORDER BY id`).toEqual(invitationsBefore);
+    await expect(first.db.sql.begin(tx=>collectConnectionHistory(tx as SQL,{...owner,did:c.did},capturedAt))).rejects.toThrow('source ownership changed');
+    await expect(second.db.sql.begin(tx=>collectConnectionHistory(tx as SQL,{accountId:d.id,did:d.did,sourceGeneration:1,sourceServiceBase:second.origin+'/hail'},capturedAt))).rejects.toThrow('unfinished');
+    // Seed the trusted inert-import boundary for handover staging. Actual transfer
+    // signature/owner/PLC staging is exercised by the separate migration fixtures.
+    const transferId=randomUUID(),tables=Object.fromEntries([...TRANSFER_TABLES,...TRANSFER_AUTHORITY_TABLES].map(t=>[t,[] as Record<string,unknown>[]])) as TransferManifest['tables'];
+    tables.provider_accounts=[{id:a.id,did:a.did,onboarding_state:'active',activation_verification_mode:'public'}];
+    tables.account_keys=a.keys.keys.filter(k=>k.role!=='hail-identity').map(k=>({account_id:a.id,role:k.role,public_key:k.publicKey}));
+    tables.portable_custody_evidence=[{account_id:a.id,user_recovery_public_key:a.keys.rotationDidKey,user_identity_public_key:a.keys.identityDidKey,
+      monitor_verification_mode:'poc-local',monitor_origin:'https://monitor.example.com',monitor_public_key:a.keys.messagingDidKey,monitor_confirmed_at:capturedAt,backup_confirmed_at:capturedAt}];
+    tables.sent_envelopes=(await first.db.sql<{row:Record<string,unknown>}[]>`SELECT to_jsonb(t) AS row FROM sent_envelopes t WHERE sender_account_id=${a.id}`).map(r=>r.row);
+    const manifest:TransferManifest={version:5,transferId,did:a.did,accountId:a.id,sourceServiceBase:first.origin+'/hail',destinationServiceBase:second.origin+'/hail',
+      destinationRotationPublicKey:d.keys.rotationDidKey,destinationMessagingPublicKey:d.keys.messagingDidKey,custodyProfile:'portable',capturedAt,sourceGeneration:1,
+      connections:checkpoint,connectionCheckpointDigest:encodeBase64Url(connectionHistoryDigest(checkpoint)),tables};
+    const manifestBytes=new TextEncoder().encode(JSON.stringify(manifest)),snapshotDigest=new Uint8Array(createHash('sha256').update(manifestBytes).digest());
+    expect(validateTransferManifest(manifestBytes).connections).toEqual(checkpoint);
+    expect(()=>requireConnectionHandoverComplete(manifest)).toThrow('staged only');
+    await second.db.sql`INSERT INTO pending_migration_imports(transfer_id,did,source_service_base,destination_service_base,manifest_bytes,manifest_digest,
+      source_messaging_public_key,signature,state,verified_plc_document,verified_plc_data,verified_plc_operation_log) VALUES(${transferId},${a.did},${manifest.sourceServiceBase},
+      ${manifest.destinationServiceBase},${manifestBytes},${snapshotDigest},${a.keys.messagingDidKey},${new Uint8Array(64)},'staged','{}','{}','[]')`;
+    let plcCalls=0;const forbiddenPlc=async()=>{plcCalls++;throw new Error('Must not reach PLC before handover commit');};
+    await expect(new PortablePlcSubmission(second.db.sql,{getOperationLog:forbiddenPlc,sendOperation:forbiddenPlc} as never,'https://plc.directory',manifest.destinationServiceBase).submit(transferId)).rejects.toThrow('staged only');
+    expect(plcCalls).toBe(0);
+    const privateMessaging=async(user:User)=>{const k=user.keys.keys.find(k=>k.role==='hail-messaging')!,raw=await user.provider.encryptor.decrypt(user.id,k.role,k.algorithm,k.publicKey,k);
+      try{return await importEd25519PrivateKey(raw);}finally{raw.fill(0);}};
+    const [sourcePrivate,destinationPrivate]=await Promise.all([privateMessaging(a),privateMessaging(d)]);
+    const handoverStage=new ConnectionHandoverStage(second.db.sql,resolver,manifest.destinationServiceBase);
+    const handoverApp=new Hono();registerConnectionHandoverRoutes(handoverApp,handoverStage);
+    const pairBefore=await second.db.sql`SELECT * FROM federated_connection_pairs WHERE account_id=${b.id}`;
+    for(const peer of [b,c]){
+      const plan=createConnectionHandoverPlan(checkpoint,{transferId,requestId:uuidV7(),peerDid:peer.did,destinationServiceBase:manifest.destinationServiceBase,
+        destinationMessagingKey:manifest.destinationMessagingPublicKey,snapshotDigest,issuedAt:Math.floor(Date.now()/1000)});
+      const proposal=await signConnectionHandover(plan,'source',sourcePrivate),destination=await signConnectionHandover(plan,'destination',destinationPrivate);
+      const wire={proposal:encodeSignedRecord(proposal),destinationSignature:encodeBase64Url(destination.signature)};
+      const reply=await peer.provider.app.request(peer.provider.origin+'/hail/connections/handover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(wire)});
+      expect(reply.status).toBe(200);const ack=decodeSignedRecord((await reply.json()).preparation,65536);
+      expect(await verifyConnectionHandover(ack,'peer-ack',peer.keys.messagingDidKey,Math.floor(Date.now()/1000))).toEqual(plan);
+      const staged={...wire,preparation:encodeSignedRecord(ack)};
+      const accept=()=>handoverApp.request(second.origin+'/hail/transfers/connection-handovers',{method:'POST',headers:{'Content-Type':'application/hail-transfer+json'},body:JSON.stringify(staged)});
+      expect(await (await accept()).json()).toMatchObject({phase:'prepared',cutoverAuthorized:false,peerDid:peer.did});
+      expect((await accept()).status).toBe(200); // exact durable retry
+      await expect(handoverStage.accept({...staged,destinationSignature:encodeBase64Url(proposal.signature)})).rejects.toThrow('purpose');
+      const changed={...plan,snapshot_digest:new Uint8Array(32)};
+      const substituted=await signConnectionHandover(changed,'source',sourcePrivate),subDestination=await signConnectionHandover(changed,'destination',destinationPrivate);
+      await expect(handoverStage.accept({proposal:encodeSignedRecord(substituted),destinationSignature:encodeBase64Url(subDestination.signature),preparation:encodeSignedRecord(ack)})).rejects.toThrow('bytes differ');
+      const stale={...plan,frontier:{...plan.frontier,native:plan.frontier.native.map(n=>({...n,state:'active' as const}))}};
+      if(peer===b)stale.frontier.federated={...plan.frontier.federated!,epoch:plan.frontier.federated!.epoch+1};
+      // Both providers sign the altered frontier; the peer must still refuse it.
+      if(peer===b){const s=await signConnectionHandover(stale,'source',sourcePrivate),t=await signConnectionHandover(stale,'destination',destinationPrivate);
+        expect((await peer.provider.app.request(peer.provider.origin+'/hail/connections/handover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({proposal:encodeSignedRecord(s),destinationSignature:encodeBase64Url(t.signature)})})).status).toBe(409);}
+      if(peer===b){const missing=structuredClone(plan);missing.frontier.federated!.tombstones=missing.frontier.federated!.tombstones.filter(t=>t.connectionId!==oldId);
+        const s=await signConnectionHandover(missing,'source',sourcePrivate),t=await signConnectionHandover(missing,'destination',destinationPrivate);
+        expect((await peer.provider.app.request(peer.provider.origin+'/hail/connections/handover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({proposal:encodeSignedRecord(s),destinationSignature:encodeBase64Url(t.signature)})})).status).toBe(409);}
+    }
+    expect(await second.db.sql`SELECT * FROM federated_connection_pairs WHERE account_id=${b.id}`).toEqual(pairBefore);
+    expect(await second.db.sql`SELECT peer_did FROM connection_handover_preparations WHERE transfer_id=${transferId}`).toHaveLength(2);
+    await expect(second.db.sql`DELETE FROM connection_handover_preparations WHERE transfer_id=${transferId}`).rejects.toThrow();
+    const handoverRollback=await second.db.sql.reserve();try{await expect(handoverRollback.unsafe(await Bun.file(new URL('../migrations/rollback/0066_connection_handover_preparations.sql',import.meta.url)).text())).rejects.toThrow('prevents schema rollback');}finally{await handoverRollback.unsafe('ROLLBACK');handoverRollback.release();}
     const fence=()=>first.db.sql`INSERT INTO provider_migration_fences(did,account_id,transfer_id,destination_service_base,state) VALUES(${a.did},${a.id},${randomUUID()},'https://destination.example.com/hail','fenced')`;
     await expect(fence()).rejects.toThrow("not portable");
     await expect(first.db.sql`INSERT INTO provider_migration_fences(did,account_id,transfer_id,destination_service_base,state) VALUES(${c.did},${c.id},${randomUUID()},'https://destination.example.com/hail','fenced')`).rejects.toThrow("not portable");

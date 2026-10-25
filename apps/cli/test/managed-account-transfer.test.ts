@@ -12,7 +12,7 @@ import {completeManagedTransfer,exportManagedTransferSnapshot,managedTransferOff
   selectManagedTransferAddress,signManagedTransferCutover} from "../src/managed-account-transfer.js";
 import {createUserVault} from "../src/vault.js";
 
-it.each(["poc-local","strict-public-v1"])("orchestrates exact-retry managed owner authorization and completion (%s)",async profile=>{
+it.each(["poc-local","strict-public-v1"].flatMap(profile=>[4,6].map(snapshotVersion=>({profile,snapshotVersion}))))("orchestrates exact-retry managed owner authorization and completion ($profile, snapshot v$snapshotVersion)",async({profile,snapshotVersion})=>{
   const generated=await createUserVault(),directory=await mkdtemp(join(tmpdir(),"hail-managed-transfer-"));
   const did=`did:plc:${"a".repeat(24)}`,vault={...generated.vault,did},vaultPath=join(directory,"vault.json"),statePath=join(directory,"state.json");
   await writeFile(vaultPath,JSON.stringify(vault),{mode:0o600});
@@ -73,7 +73,7 @@ it.each(["poc-local","strict-public-v1"])("orchestrates exact-retry managed owne
     account.migrationState="fenced";
     const previousCid=(await cidForCbor({fixture:"managed-source"})).toString(),currentState={did,rotationKeys:[vault.recovery.publicDidKey,sourceRotation.did()],
       verificationMethods:{"hail-identity":sourceIdentity.did,"hail-messaging":sourceMessaging.did},alsoKnownAs:[],
-      services:{hail:{type:"HailMessaging",endpoint:"https://source.example.com/hail"}}},manifest={version:4,custodyProfile:"managed",did,
+      services:{hail:{type:"HailMessaging",endpoint:"https://source.example.com/hail"}}},manifest={version:snapshotVersion,custodyProfile:"managed",did,
       accountId:account.accountId,transferId:(decodeDeterministic(decodeBase64Url(offer.payload)) as Record<string,any>).transfer_id,
       sourceServiceBase:"https://source.example.com/hail",destinationServiceBase:"https://target.example.com/hail",
       ownerRecoveryPublicKey:vault.recovery.publicDidKey,sourceIdentityPublicKey:sourceIdentity.did,
@@ -84,15 +84,17 @@ it.each(["poc-local","strict-public-v1"])("orchestrates exact-retry managed owne
         account_keys:[{role:"plc-rotation",public_key:sourceRotation.did()}],
         plc_operation_evidence:[{operation_cid:previousCid,expected_state:currentState}]}};
     const manifestBytes=new TextEncoder().encode(JSON.stringify(manifest)),snapshotDigest=hash(manifestBytes),
-      snapshotInput=new Uint8Array("hail-migration-snapshot-v4\0".length+32);
-    snapshotInput.set(new TextEncoder().encode("hail-migration-snapshot-v4\0"));snapshotInput.set(snapshotDigest,"hail-migration-snapshot-v4\0".length);
-    snapshot={type:"hail.managed-migration-transfer",version:4,manifest:encodeBase64Url(manifestBytes),digest:encodeBase64Url(snapshotDigest),
+      snapshotTag=new TextEncoder().encode(`hail-migration-snapshot-v${snapshotVersion}\0`),snapshotInput=new Uint8Array(snapshotTag.length+32);
+    snapshotInput.set(snapshotTag);snapshotInput.set(snapshotDigest,snapshotTag.length);
+    snapshot={type:"hail.managed-migration-transfer",version:snapshotVersion,manifest:encodeBase64Url(manifestBytes),digest:encodeBase64Url(snapshotDigest),
       signature:encodeBase64Url(new Uint8Array(await crypto.subtle.sign("Ed25519",sourceMessaging.pair.privateKey,snapshotInput))),
       sourceMessagingPublicKey:sourceMessaging.did};
     const snapshotPath=join(directory,"snapshot.json"),operationPath=join(directory,"operation.json"),approvalPath=join(directory,"approval.json");
     expect(await exportManagedTransferSnapshot(client,statePath,snapshotPath)).toMatchObject({state:"exported",snapshotFile:snapshotPath});
     const cutover=await signManagedTransferCutover(vaultPath,statePath,snapshotPath,operationPath,approvalPath,secret);
     expect(cutover).toMatchObject({operationFile:operationPath,approvalFile:approvalPath});
+    const approvalWire=JSON.parse(await readFile(approvalPath,'utf8'));
+    expect((decodeDeterministic(decodeBase64Url(approvalWire.payload)) as Record<string,HailValue>).snapshot_version).toBe(snapshotVersion);
     let completionAttempts=0,retirementAttempts=0,signedReceipt:Awaited<ReturnType<typeof sign>>|undefined;
     const completionBodies:string[]=[],retirementBodies:string[]=[];
     const finishTransport=(async(url:string,init:RequestInit)=>{

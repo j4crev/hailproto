@@ -59,7 +59,7 @@ export interface ManagedTransferApproval {
   owner_recovery_key: string; source_identity_key: string; destination_rotation_key: string;
   destination_identity_key: string; destination_messaging_key: string;
   grant_digest: Uint8Array; offer_digest: Uint8Array; selection_digest: Uint8Array;
-  snapshot_version: 4; snapshot_digest: Uint8Array; history_checkpoint_digest: Uint8Array;
+  snapshot_version: 4 | 6; snapshot_digest: Uint8Array; history_checkpoint_digest: Uint8Array;
   source_generation: number; previous_operation_cid: string; operation_cid: string;
   issued_at: number; expires_at: number;
 }
@@ -167,7 +167,7 @@ function validate<K extends ManagedHandshakeKind>(value: unknown, kind: K): Extr
     const keys = [item.owner_recovery_key, item.source_identity_key, item.destination_rotation_key,
       item.destination_identity_key, item.destination_messaging_key];
     if (!keys.every(didKey) || new Set(keys).size !== keys.length || !digest(item.offer_digest) ||
-      !digest(item.selection_digest) || item.snapshot_version !== 4 || !digest(item.snapshot_digest) ||
+      !digest(item.selection_digest) || ![4,6].includes(item.snapshot_version as number) || !digest(item.snapshot_digest) ||
       !digest(item.history_checkpoint_digest) || !Number.isSafeInteger(item.source_generation) ||
       (item.source_generation as number) < 1 || typeof item.destination_address !== "string" ||
       canonicalizeHailAddress(item.destination_address) !== item.destination_address ||

@@ -254,9 +254,9 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
       destinationMessagingPublicKey:offer.destination_messaging_key,state:"fenced"});
     const manifest=validateManagedTransferManifest(exported.bytes);
     const apiExport=await call("/api/v1/account/transfers/managed/export","POST",JSON.stringify({transferId:offer.transfer_id}));
-    expect(apiExport.status).toBe(200);expect(await apiExport.json()).toMatchObject({type:"hail.managed-migration-transfer",version:4,
+    expect(apiExport.status).toBe(200);expect(await apiExport.json()).toMatchObject({type:"hail.managed-migration-transfer",version:6,
       manifest:encodeBase64Url(exported.bytes),digest:encodeBase64Url(exported.digest),signature:encodeBase64Url(exported.signature)});
-    expect(manifest).toMatchObject({version:4,custodyProfile:"managed",did,sourceGeneration:1,
+    expect(manifest).toMatchObject({version:6,custodyProfile:"managed",did,sourceGeneration:1,
       ownerRecoveryPublicKey:owner.did(),sourceIdentityPublicKey:keys.identityDidKey,
       destinationIdentityPublicKey:offer.destination_identity_key});
     expect(manifest.tables.managed_custody_evidence[0]?.managed_profile_version).toBe("hail-managed-custody-v1");
@@ -293,7 +293,7 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
     expect(()=>validateManagedTransferManifest(new TextEncoder().encode(JSON.stringify(tampered))))
       .toThrow(/history checkpoint/);
     expect(await crypto.subtle.verify("Ed25519",await ed25519PublicKeyFromDidKey(exported.sourceMessagingPublicKey),
-      Uint8Array.from(exported.signature),managedSnapshotSignatureInput(exported.digest))).toBe(true);
+      Uint8Array.from(exported.signature),managedSnapshotSignatureInput(exported.digest,manifest.version))).toBe(true);
     const exportRetry=await exporter.exportFenced({did,accountId,transferId:offer.transfer_id,destinationServiceBase:targetBase,
       ownerRecoveryPublicKey:owner.did(),sourceIdentityPublicKey:keys.identityDidKey,
       destinationIdentityPublicKey:offer.destination_identity_key,
@@ -312,7 +312,7 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
       source_identity_key:keys.identityDidKey,destination_rotation_key:offer.destination_rotation_key,
       destination_identity_key:offer.destination_identity_key,destination_messaging_key:offer.destination_messaging_key,
       grant_digest:managedHandshakeDigest(signed.payloadBytes),offer_digest:managedHandshakeDigest(offerSigned.payloadBytes),
-      selection_digest:managedHandshakeDigest(selectionSigned.payloadBytes),snapshot_version:4,
+      selection_digest:managedHandshakeDigest(selectionSigned.payloadBytes),snapshot_version:manifest.version,
       snapshot_digest:exported.digest,history_checkpoint_digest:decodeBase64Url(manifest.historyCheckpointDigest),
       source_generation:manifest.sourceGeneration,previous_operation_cid:genesisCid,operation_cid:cutoverCid,
       issued_at:now,expires_at:now+900};
@@ -446,7 +446,7 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
       expect(await target.sql`SELECT 1 FROM provider_accounts WHERE id=${accountId}`).toHaveLength(0);
     }
     const completionApp=new Hono();registerManagedTransferRoutes(completionApp,undefined,undefined,undefined,undefined,undefined,completion);
-    const completionBody=JSON.stringify({snapshot:{type:"hail.managed-migration-transfer",version:4,
+    const completionBody=JSON.stringify({snapshot:{type:"hail.managed-migration-transfer",version:manifest.version,
       manifest:encodeBase64Url(exported.bytes),digest:encodeBase64Url(exported.digest),signature:encodeBase64Url(exported.signature),
       sourceMessagingPublicKey:exported.sourceMessagingPublicKey},approval:{payload:encodeBase64Url(approvalSigned.payloadBytes),
        signature:encodeBase64Url(approvalSigned.signature)},operation:encodeBase64Url(cutoverBytes),...(publicRuntime?{monitor:{
@@ -593,7 +593,7 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
       destination_rotation_key:returnKeys.rotationPublicKey,destination_identity_key:returnKeys.identityPublicKey!,
       destination_messaging_key:returnKeys.messagingPublicKey,grant_digest:managedHandshakeDigest(returnGrant.payloadBytes),
       offer_digest:managedHandshakeDigest(returnOfferSigned.payloadBytes),selection_digest:managedHandshakeDigest(returnSelection.payloadBytes),
-      snapshot_version:4,snapshot_digest:returnExport.digest,history_checkpoint_digest:decodeBase64Url(returnManifest.historyCheckpointDigest),
+      snapshot_version:returnManifest.version,snapshot_digest:returnExport.digest,history_checkpoint_digest:decodeBase64Url(returnManifest.historyCheckpointDigest),
       source_generation:2,previous_operation_cid:cutoverCid,operation_cid:returnCid,issued_at:returnNow,expires_at:returnNow+900};
     const returnApprovalBytes=encodeManagedHandshake(returnApprovalValue),returnApproval={payloadBytes:returnApprovalBytes,
       signature:await owner.sign(managedHandshakeSignatureInput(returnApprovalValue.type,returnApprovalBytes))};

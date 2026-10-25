@@ -99,3 +99,9 @@ promise forwarding/old-link continuity. The user creates fresh identity-authoriz
 codes at the destination after activation. Preparing/reviewing a move alone should
 not invalidate codes. Existing connections and disconnect/replay protection remain
 intact; no guard is removed until snapshot/import and peer handover prove that.
+
+The local implementation embeds the shared version-1 connection-history checkpoint
+in portable v5 / managed v6 snapshots, retains it inertly on import, and verifies
+source/destination/peer handover preparations. Live handover commit and historical
+authority verification remain gated; see [portability progress](../spec/connection-portability.md).
+Connection-bearing account cutover is still blocked.

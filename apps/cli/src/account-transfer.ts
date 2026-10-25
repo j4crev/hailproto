@@ -206,7 +206,7 @@ async function retainedSelection(state:State) {
   return {offer,selection,reservation};
 }
 function snapshotMatches(manifest:Record<string,unknown>,state:State,offer:Record<string,any>) {
-  if(![2,3].includes(manifest.version as number)||manifest.custodyProfile!=="portable"||manifest.did!==state.did||manifest.accountId!==state.accountId||manifest.transferId!==offer.transfer_id||
+  if(![2,3,5].includes(manifest.version as number)||manifest.custodyProfile!=="portable"||manifest.did!==state.did||manifest.accountId!==state.accountId||manifest.transferId!==offer.transfer_id||
     manifest.sourceServiceBase!==`${state.provider}/hail`||manifest.destinationServiceBase!==`${state.destination}/hail`||
     manifest.destinationRotationPublicKey!==offer.destination_rotation_key||manifest.destinationMessagingPublicKey!==offer.destination_messaging_key)throw new Error("Snapshot differs from the retained account/Offer");
 }
@@ -266,7 +266,8 @@ export async function completeAccountTransfer(path:string,snapshotPath:string,tr
     ...(monitor?{monitor}:{})},transport);
   const result=response.record as Record<string,unknown>;
   if(!result||result.type!=="hailp.transfer-completion"||result.version!==1||result.did!==state.did||result.accountId!==state.accountId||result.transferId!==offer.transfer_id||
-    result.operationCid!==operationCid||!["awaiting-monitor","active"].includes(result.phase as string))throw new Error("Destination did not confirm the retained exact transfer");
+    result.operationCid!==operationCid||!["awaiting-monitor","awaiting-connection-handover","active"].includes(result.phase as string))throw new Error("Destination did not confirm the retained exact transfer");
+  if(result.phase==="awaiting-connection-handover")return {did:state.did,transferId:offer.transfer_id,operationCid,phase:result.phase,pending:true,handoverRequired:true,stateFile:path};
   if(result.phase==="awaiting-monitor")return {did:state.did,transferId:offer.transfer_id,operationCid,phase:"awaiting-monitor",pending:true,
     monitorRequired:true,stateFile:path};
   const receipt=record(result.receipt),receiptBytes=decodeBase64Url(receipt.payload);

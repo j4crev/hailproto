@@ -41,7 +41,7 @@ export async function verifySignature(kind: string, payload: Uint8Array,
 
 export async function verifyTransferSnapshot(snapshot:Record<string,unknown>) {
   if(!snapshot||typeof snapshot!=="object"||Array.isArray(snapshot)||Object.keys(snapshot).sort().join(",")!=="digest,manifest,signature,sourceMessagingPublicKey,type,version"||
-    snapshot.type!=="hail.portable-migration-transfer"||![2,3].includes(snapshot.version as number)||typeof snapshot.manifest!=="string"||typeof snapshot.digest!=="string"||
+    snapshot.type!=="hail.portable-migration-transfer"||![2,3,5].includes(snapshot.version as number)||typeof snapshot.manifest!=="string"||typeof snapshot.digest!=="string"||
     typeof snapshot.signature!=="string"||typeof snapshot.sourceMessagingPublicKey!=="string")throw new Error("Source did not supply a signed portable snapshot");
   const manifestBytes=decodeBase64Url(snapshot.manifest),digest=new Uint8Array(createHash("sha256").update(manifestBytes).digest());
   if(manifestBytes.length>67108864||decodeBase64Url(snapshot.digest).length!==32||decodeBase64Url(snapshot.signature).length!==64||

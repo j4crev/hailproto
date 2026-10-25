@@ -207,6 +207,7 @@ const migrations: readonly Migration[] = [
   { version: 63, name: "connection-owner-signing", url: new URL("../../migrations/0063_connection_owner_signing.sql", import.meta.url) },
   { version: 64, name: "connection-federation", url: new URL("../../migrations/0064_connection_federation.sql", import.meta.url) },
   { version: 65, name: "connection-messages", url: new URL("../../migrations/0065_connection_messages.sql", import.meta.url) },
+  { version: 66, name: "connection-handover-preparations", url: new URL("../../migrations/0066_connection_handover_preparations.sql", import.meta.url) },
 ];
 
 export class ProviderDatabase {

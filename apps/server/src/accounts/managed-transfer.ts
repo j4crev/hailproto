@@ -88,8 +88,8 @@ export class ManagedAccountTransfer {
     if(!fence||fence.accountId!==session.account_id||fence.transferId!==input.transferId||
       !["fenced","exported"].includes(fence.state))throw new AccountTransferError(409,"Matching managed source fence was not found");
     const snapshot=await this.exports.snapshots.exportFenced(fence);
-    validateManagedTransferManifest(snapshot.bytes);
-    return {type:"hail.managed-migration-transfer",version:4,manifest:encodeBase64Url(snapshot.bytes),
+    const manifest=validateManagedTransferManifest(snapshot.bytes);
+    return {type:"hail.managed-migration-transfer",version:manifest.version,manifest:encodeBase64Url(snapshot.bytes),
       digest:encodeBase64Url(snapshot.digest),signature:encodeBase64Url(snapshot.signature),
       sourceMessagingPublicKey:snapshot.sourceMessagingPublicKey};
   }

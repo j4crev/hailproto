@@ -72,7 +72,7 @@ export interface ManagedTransferApproval {
   type:"hail.managed-transfer-approval";version:1;did:string;nonce:string;transfer_id:string;
   source_service_base:string;destination_service_base:string;destination_address:string;owner_recovery_key:string;
   source_identity_key:string;destination_rotation_key:string;destination_identity_key:string;destination_messaging_key:string;
-  grant_digest:Uint8Array;offer_digest:Uint8Array;selection_digest:Uint8Array;snapshot_version:4;
+  grant_digest:Uint8Array;offer_digest:Uint8Array;selection_digest:Uint8Array;snapshot_version:4|6;
   snapshot_digest:Uint8Array;history_checkpoint_digest:Uint8Array;source_generation:number;
   previous_operation_cid:string;operation_cid:string;issued_at:number;expires_at:number;
 }
@@ -211,7 +211,7 @@ export class UnlockedUserVault {
       const keys=[value.owner_recovery_key,value.source_identity_key,value.destination_rotation_key,
         value.destination_identity_key,value.destination_messaging_key];
       if(value.owner_recovery_key!==this.vault.recovery.publicDidKey||new Set(keys).size!==keys.length||
-        value.selection_digest.length!==32||value.snapshot_version!==4||value.snapshot_digest.length!==32||
+        value.selection_digest.length!==32||![4,6].includes(value.snapshot_version)||value.snapshot_digest.length!==32||
         value.history_checkpoint_digest.length!==32||!Number.isSafeInteger(value.source_generation)||value.source_generation<1||
         !value.previous_operation_cid||!value.operation_cid||value.previous_operation_cid===value.operation_cid)
         throw new Error("Managed transfer approval must bind the exact v4 cutover and current owner");

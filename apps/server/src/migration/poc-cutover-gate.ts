@@ -7,6 +7,7 @@ import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
 import type { IndependentPlcObserver, CutoverAssessment } from "./cutover-gate.js";
 import { validateTransferManifest } from "./transfer.js";
 import { assertPrivatePocRegistry } from "./poc-profile.js";
+import {requireConnectionHandoverComplete} from "./connection-snapshot.js";
 
 // This checks one canonical *private* PLC log for a POC, not two independent
 // public mirrors or an independently operated monitor. Never use it for a
@@ -29,6 +30,7 @@ export class PrivatePocCutoverGate {
       throw new Error("Private POC cutover requires an inactive staged user-signed operation");
     }
     const manifest = validateTransferManifest(staged.manifest_bytes);
+    requireConnectionHandoverComplete(manifest);
     const custody = manifest.tables.portable_custody_evidence[0]!;
     if (custody.monitor_verification_mode !== "poc-local" || manifest.did !== staged.did ||
       manifest.destinationServiceBase !== this.destinationBase) {

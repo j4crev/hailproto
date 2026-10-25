@@ -17,6 +17,7 @@ import { signActivationReceipt, type SignedActivationReceipt } from "./activatio
 import {replaceRetiredProjection} from "./return.js";
 import {materializedServingGeneration} from "../db/serving.js";
 import { evidenceHash, requirePublicCutoverEvidence } from "./public-cutover-evidence.js";
+import {requireConnectionHandoverComplete} from "./connection-snapshot.js";
 
 type TableRow = Record<string, unknown>;
 
@@ -47,15 +48,16 @@ export class PortableMigrationActivation {
   ) {}
 
   async issueReceipt(transferId: string): Promise<SignedActivationReceipt> {
-    const rows = await this.sql<{ state: string; did: string; manifest_digest: Uint8Array;
+    const rows = await this.sql<{ state: string; did: string; manifest_digest: Uint8Array;manifest_bytes:Uint8Array;
       destination_address: string; destination_binding_digest: Uint8Array; activated_at: Date }[]>`
-      SELECT state, did, manifest_digest, destination_address, destination_binding_digest, activated_at
+      SELECT state, did, manifest_digest,manifest_bytes, destination_address, destination_binding_digest, activated_at
       FROM pending_migration_imports WHERE transfer_id = ${transferId}
     `;
     const row = rows[0];
     if (!row || row.state !== "active" || !row.activated_at) {
       throw new Error("Only an active imported DID may acknowledge destination takeover");
     }
+    requireConnectionHandoverComplete(validateTransferManifest(row.manifest_bytes));
     if (this.profile === "public") {
       const operation = (await this.sql<{ signed_plc_operation_bytes: Uint8Array }[]>`
         SELECT signed_plc_operation_bytes FROM pending_migration_imports WHERE transfer_id=${transferId}`)[0];
@@ -103,6 +105,7 @@ export class PortableMigrationActivation {
     const pending = imports[0];
     if (pending?.state === "active") {
       const manifest = validateTransferManifest(pending.manifest_bytes);
+      requireConnectionHandoverComplete(manifest);
       const accounts = await this.sql<{ id: string }[]>`
         SELECT id FROM provider_accounts WHERE id = ${manifest.accountId} AND did = ${pending.did}
           AND canonical_address = ${pending.destination_address} AND onboarding_state = 'active'`;
@@ -119,6 +122,7 @@ export class PortableMigrationActivation {
     const assessment = await this.gate.assess(transferId, signedMonitor);
     if (!assessment.eligible) throw new Error("PLC cutover assessment is not eligible");
     const manifest = validateTransferManifest(pending.manifest_bytes);
+    requireConnectionHandoverComplete(manifest);
     if (manifest.tables.portable_custody_evidence[0]?.monitor_verification_mode !==
       (this.profile === "public" ? "independent" : "poc-local")) {
       throw new Error("Cutover evidence does not match the selected PLC trust profile");
