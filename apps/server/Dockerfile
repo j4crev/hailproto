@@ -7,7 +7,9 @@ COPY vendor/did-method-plc/packages/lib ./packages/lib
 RUN pnpm install --filter @did-plc/lib... --frozen-lockfile
 RUN pnpm --filter @did-plc/lib exec tsc --build tsconfig.build.json --force
 
-FROM oven/bun:1.4.0 AS build
+# Vite/adapter packaging stays within small-builder memory under Node; runtime remains Bun.
+FROM node:24.18-bookworm-slim AS build
+COPY --from=oven/bun:1.4.0 /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /workspace/hailproto
 COPY package.json bun.lock tsconfig.json ./
 COPY apps/server/package.json ./apps/server/package.json
