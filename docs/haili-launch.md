@@ -1,5 +1,42 @@
 # `haili.app` launch milestone
 
+## Category Publishing Deployed — October 25, 2026 UTC
+
+- Release `15607d57c76dbfba1c4c7a5985cda4e4a8dc07a2` was committed, pushed and
+  deployed through the existing guarded provider wrapper. It installs migration
+  61 and the publication worker, replaces the browser subscription-recipient
+  picker with category publishing, and rejects new uncategorized subscription
+  authoring. No Grant database wipe, profile conversion or connection inference
+  was performed. Connections, attachments and new reply semantics remain absent.
+- The wrapper verified encrypted pre-deploy backup
+  `provider/haili-20261025T003914Z.tar.gpg`, SHA-256
+  `f2c209b025a08a4c726d02498c49e77222638b4878a39bf3d4255f92521e393d`.
+  The initial R2 upload returned 501 and the existing retry succeeded before
+  checkout/build. Runtime image config:
+  `sha256:398be4fb691db1a19b74ff23a208e337f9c0d44452c3e4054d78f780909fd82a`.
+- Provider and GUI were recreated and are healthy. One readiness attempt returned
+  502 during startup; the wrapper retry passed. PostgreSQL remains 18.6 with
+  unchanged uptime, and Caddy was not restarted. The remote checkout is clean at
+  the exact release. Startup was observed and the first post-deploy provider-log
+  check contained no errors or publication-worker failures.
+- Public readiness, homepage, login and invited signup return 200; recovery
+  preview remains gated at 404. Private screens retain their exact local 303
+  sign-in destinations, and anonymous publication API reads return 401.
+  Authenticated read-only checks from two existing Haili accounts returned
+  category audiences of two and three subscribers respectively, the expected
+  100-recipient cap, and empty publication histories. Successful history reads
+  exercise the newly installed outbox tables. No live publication, message,
+  invitation, credential or Grant was created for verification.
+- Matching local proof was retained: build/type checks, 29 GUI tests, desktop and
+  mobile-width Chromium flows, denied-network recovery crypto, and 24 PostgreSQL
+  checks across publication, authorization and migration preservation/rollback.
+  A production signed-in publishing ceremony remains operator confirmation, not
+  a claim established by read-only deployment checks. Refresh pre-release
+  composer tabs before use; the new form uses an explicit publishing action.
+- Once a publication has been accepted, preserve its tables and finish/cancel
+  pending work before code rollback. Do not drop the cutover guard or erase
+  queued intent to force rollback. See [category publishing](category-publishing.md).
+
 ## Onboarding And Rich Composer Deployed — October 24, 2026 UTC
 
 - Release `2a8f2e5798c60ad74cdde06419aa1b23b0e1da36` includes the teal signup,

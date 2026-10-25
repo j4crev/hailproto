@@ -6,13 +6,15 @@ production changes. Proposed mechanisms below require separate design and review
 
 ## Follow-Up — Durable Category Publishing
 
-The next local stage replaces the browser's individual subscription-recipient
+The deployed publishing stage replaces the browser's individual subscription-recipient
 picker with category publishing. General is the default when available. A durable
 audience snapshot, stable IDs, retries, cancellation, per-subscriber outcomes and
 separate delivery counts are implemented. Pending work blocks provider cutover
 until it finishes or is cancelled/expired. See [category publishing](category-publishing.md)
-for migration 61, alpha limits and rollback. This work has not been deployed;
-connections, changed reply capabilities and attachments are still separate stages.
+for migration 61, alpha limits and rollback. Release
+`15607d57c76dbfba1c4c7a5985cda4e4a8dc07a2` is live on `haili.app`; see
+[deployment evidence and proof limits](haili-launch.md). Connections, changed
+reply capabilities and attachments are still separate stages.
 
 ## Approved Relationship Direction And General Subscriptions
 
@@ -22,12 +24,12 @@ or message selected connections. General replaces legacy uncategorized
 subscriptions in the controlled alpha; it must not stand in for connection
 authorization. See [the staged implementation](subscriptions-and-connections.md).
 
-The operator rejected special migration tooling. The first local stage simply
+The operator rejected special migration tooling. The first stage simply
 uses explicit named categories, including General, and removes uncategorized
 subscription authoring from CLI/web and the shared provider service. Existing
 signed history remains readable/revocable. No database wipe was performed; the
 accessible account inventories contained no uncategorized Grants. Category-wide
-publishing follows in the local checkpoint above; connections, new reply semantics
+publishing follows in the deployed checkpoint above; connections, new reply semantics
 and attachments remain later stages.
 
 ## Follow-Up — Rich Authoring With Existing Safe Portable Text

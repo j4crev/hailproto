@@ -1,6 +1,9 @@
 # Category Publishing — Controlled Alpha
 
-Status: Local implementation and verification; not deployed by this work.
+Status: Deployed to `haili.app` as `15607d57c76dbfba1c4c7a5985cda4e4a8dc07a2`
+on October 25, 2026 UTC. Deployment/read-only verification is recorded in
+[Haili launch](haili-launch.md); authenticated live publishing still needs operator
+confirmation.
 
 ## User Flow
 

@@ -1,7 +1,8 @@
 # Subscriptions, Connections And Publishing
 
-Status: Approved product direction; staged implementation. October 24, 2026.
-This is not a declaration that future authorization formats or features are live.
+Status: Approved product direction; staged implementation. Stages 1–2 deployed
+to `haili.app` on October 25, 2026 UTC; see [deployment evidence](haili-launch.md).
+Future connection authorization, reply changes and attachments are not live.
 
 ## Agreed Product Model
 
@@ -20,7 +21,7 @@ This is not a declaration that future authorization formats or features are live
   sender-chosen correspondence label. A receiver cannot prove that every other
   subscriber received a publication or infer the semantic intent of arbitrary text.
 
-## Stage 1 — Named Subscription Categories (Implemented Locally)
+## Stage 1 — Named Subscription Categories (Implemented)
 
 The operator chose a simpler controlled-alpha transition: no special migration
 command or conversion UI. General is an ordinary offered category:
@@ -65,7 +66,7 @@ If additional legacy Grants exist, inspect their delivery dependencies before an
 cleanup; ordinary revocation remains available. Do not truncate unrelated tables
 or erase account/recovery state merely to remove a subscription option.
 
-## Stage 2 — Category Publishing (Implemented Locally)
+## Stage 2 — Category Publishing (Implemented)
 
 The browser now chooses a category, with General defaulted when available, rather
 than subscription recipients. The provider stores an immutable audience snapshot
