@@ -21,8 +21,8 @@
 {#if !data.configured}
   <section class="hail-card mx-auto mt-8 flex max-w-[620px] flex-col items-start gap-5 p-8 sm:p-12">
     <p class="m-0 text-xs font-bold tracking-[.12em] text-brand uppercase">Welcome to Haili</p>
-    <h1 class="m-0 text-[clamp(30px,5vw,46px)] leading-tight tracking-[-.04em]">A little more signal.<br />A lot more say.</h1>
-    <p class="m-0 leading-relaxed text-muted">Your subscriptions and messages, from senders you choose. Sign in to open your inbox.</p>
+    <h1 class="m-0 text-[clamp(30px,5vw,46px)] leading-tight tracking-[-.04em]">Your inbox.<br />Your permission.</h1>
+    <p class="m-0 leading-relaxed text-muted">Choose who can reach you, and what they can send.</p>
     <a class="hail-button" href="/auth/login">Sign in with a passkey <span aria-hidden="true">→</span></a>
     <p class="m-0 text-xs text-muted">Haili is currently an invitation-only alpha.</p>
   </section>
@@ -38,7 +38,6 @@
   </section>
 
   <section class="mb-5 flex flex-wrap items-center justify-between gap-3 border-0 border-b border-solid border-line pb-4" aria-label="Inbox preferences">
-    <div class="flex flex-col gap-1"><strong class="text-sm">{data.view==='connections'?'Connection messages':'Message feed'}</strong><small class="text-xs text-muted">Bundled images never contact the sender.</small></div>
     <label class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold text-muted"><input class="size-4 accent-brand" type="checkbox" checked={showHeaders} onchange={toggleHeaders} disabled={!preferencesReady} /> Show headers</label>
   </section>
 

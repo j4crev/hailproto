@@ -17,7 +17,7 @@
 
 <svelte:head>
   <title>Haili · Your Hail inbox</title>
-  <meta name="description" content="Your subscriptions and correspondence, on your terms. Powered by Hail." />
+  <meta name="description" content="Your subscriptions and messages, on your terms. Powered by Hail." />
 </svelte:head>
 
 <!-- CSP is document-scoped: leave recovery/signup with a full load so their

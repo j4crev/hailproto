@@ -26,9 +26,7 @@
 <section class="hail-card mx-auto mt-8 flex max-w-[560px] flex-col items-start gap-5 p-8 sm:p-12">
   <p class="hail-eyebrow">Welcome back</p>
   <h1 class="hail-title">Sign in to Haili</h1>
-  <p class="m-0 text-muted">Use a passkey saved on this device, another device, or a security key.</p>
-  {#if data.returnTo!=="/"}<p class="m-0 rounded-xl bg-brand-soft p-3 text-sm text-brand-strong">Sign in to continue to your inbox screen. No pending action will be performed automatically.</p>{/if}
+  {#if data.returnTo!=="/"}<p class="m-0 rounded-xl bg-brand-soft p-3 text-sm text-brand-strong">Sign in to continue to your inbox. No pending action will be performed automatically.</p>{/if}
   <button class="hail-button" onclick={login} disabled={busy||!ready}>{busy?"Waiting for your passkey…":"Sign in with a passkey"}</button>
   {#if message}<p class="hail-error" role="alert">{message}</p>{/if}
-  <p class="m-0 text-xs text-muted">Passkeys give you access to your account. Keep your owner recovery kit separate.</p>
 </section>
