@@ -1,5 +1,6 @@
 import {mkdtemp,writeFile,readFile,rm} from "node:fs/promises";
 import {join} from "node:path";
+import {tmpdir} from "node:os";
 import {expect,it,vi} from "vitest";
 import {encodeBase64Url,toDiagnosticJson,inspectSignedPayload,type HailConnectionInvitation} from "@hailproto/codec";
 import {createUserVault,unlockUserVault} from "../src/vault.js";
@@ -9,7 +10,7 @@ const input=vi.hoisted(()=>({secret:""}));
 vi.mock("../src/cli/private-input.js",()=>({readRecoverySecret:async()=>input.secret}));
 
 it("signs exact offline connection consent with identity only, preserves retries and rejects provider/purpose substitution",async()=>{
-  const dir=await mkdtemp("/tmp/opencode/hail-connection-signing-"),generated=await createUserVault(),log=vi.spyOn(console,"error").mockImplementation(()=>{});
+  const dir=await mkdtemp(join(tmpdir(),"hail-connection-signing-")),generated=await createUserVault(),log=vi.spyOn(console,"error").mockImplementation(()=>{});
   try{
     const vault=structuredClone(generated.vault);vault.did="did:plc:"+"a".repeat(24);vault.recovery.ciphertext="AA";
     await expect(unlockUserVault(vault,generated.recoverySecret)).rejects.toThrow();
