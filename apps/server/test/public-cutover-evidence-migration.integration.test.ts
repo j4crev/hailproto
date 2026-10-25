@@ -12,6 +12,8 @@ it.skipIf(!process.env.DATABASE_URL)("migration 40 preserves legacy rows/auth an
   const rollback = async () => {
     const connection = await db.sql.reserve();
     try {
+      if((await connection`SELECT version FROM schema_migrations WHERE version=64`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());
+      if((await connection`SELECT version FROM schema_migrations WHERE version=63`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=62`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=61`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=60`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
@@ -72,7 +74,9 @@ it.skipIf(!process.env.DATABASE_URL)("migration 40 preserves legacy rows/auth an
            'public_plc_resolution_evidence','public_envelope_authority_evidence','public_grant_authority_evidence','public_signing_authority_evidence',
            'public_onboarding_preparations','public_onboarding_evidence','custody_transition_preparations','custody_transition_grant_successors','provider_reserved_names','provider_role_claims',
             'account_passkeys','account_passkey_challenges','account_passkey_sessions','account_passkey_enrollment_capabilities','account_browser_authorizations','account_signup_ceremonies','account_grant_approvals',
-             'account_publications','publication_targets','connection_invitations','connection_approvals','account_connections') ORDER BY table_name`;
+             'account_publications','publication_targets','connection_invitations','connection_approvals','account_connections',
+             'federated_connection_pairs','federated_connection_attempts','federated_connection_events','federated_connection_results',
+             'federated_connection_tombstones','federated_connection_disconnects','federated_connection_outbox','federated_connection_signatures') ORDER BY table_name`;
       return Promise.all(tables.map(async ({table_name}) => {
         const keys = added[table_name] ?? [];
         const row = keys.length

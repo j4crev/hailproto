@@ -8,15 +8,19 @@
   const qr=$derived(shown?senderQr(shown):null);
   const personal=$derived(list?.codes.find(code=>code.personal));
   async function load(){list=await connectionRequest();}
-  onMount(()=>{void load().catch(error=>{if(!(error instanceof ConnectionRequestError&&[403,404].includes(error.status)))message="Connection codes could not be loaded. Retry without creating a new code.";});});
+  onMount(()=>{
+    void load().catch(error=>{if(!(error instanceof ConnectionRequestError&&[403,404].includes(error.status)))message="Connection codes could not be loaded. Retry without creating a new code.";});
+    const timer=setInterval(()=>{if(!busy&&list?.pendingConnections?.some(p=>!["expired","conflict"].includes(p.state)))void load().catch(()=>{message="Synchronization status is unavailable. Your saved request will keep retrying.";});},3000);
+    return()=>clearInterval(timer);
+  });
   async function run(action:()=>Promise<void>){if(busy)return;busy=true;message="";try{await action();}catch(error){message=error instanceof Error?error.message:"Connection request failed.";}finally{busy=false;}}
   async function prepare(input:Record<string,unknown>){
     if(!draft)draft={requestId:crypto.randomUUID(),...input};
     prepared=connectApproval(await connectionRequest("prepare",draft));sessionStorage.setItem(CONNECTION_APPROVAL,prepared.requestId);
   }
   async function check(){const id=sessionStorage.getItem(CONNECTION_APPROVAL);if(!id){message="No interrupted review in this tab.";return;}
-    prepared=connectApproval(await connectionRequest(id));if(prepared.result)await done();}
-  async function done(){prepared=null;draft=null;shown=null;await load();message="Saved. Existing subscriptions are unchanged.";}
+    prepared=connectApproval(await connectionRequest(id));if(prepared.result)await done(prepared.result);}
+  async function done(result?:NonNullable<ConnectApproval["result"]>){if(result?.state!=="connecting")sessionStorage.removeItem(CONNECTION_APPROVAL);prepared=null;draft=null;shown=null;await load();message=result?.state==="connecting"?"Connection approval saved. Synchronizing with the other provider.":result?.state==="expired"||result?.state==="conflict"?"The connection attempt expired or its reviewed state changed. Review a current code before trying again.":"Saved. Existing subscriptions are unchanged.";}
   function cancel(){prepared=null;draft=null;sessionStorage.removeItem(CONNECTION_APPROVAL);}
 </script>
 {#snippet shareCode(link:string,id:string)}
@@ -24,11 +28,11 @@
 {/snippet}
 {#if list}
   <section class="mt-8 grid gap-5" aria-label="Connection codes">
-    <header class="grid gap-2"><p class="hail-eyebrow">Personal connections · preview</p><h2 class="m-0 text-2xl">Connect with me</h2><p class="m-0 text-sm text-muted">Managed accounts on this provider only. No invitations inbox, no subscriptions, and no direct connection messaging yet. Transfer is unavailable while retained preview consent needs portability support.</p></header>
+    <header class="grid gap-2"><p class="hail-eyebrow">Personal connections · preview</p><h2 class="m-0 text-2xl">Connect with me</h2><p class="m-0 text-sm text-muted">Connect here or through another compatible Hail provider. Owner-controlled accounts sign consent locally with their identity key. No invitations inbox, no subscriptions, and no direct connection messaging yet. Transfer is unavailable while retained preview consent needs portability support.</p></header>
     {#if message}<p class="hail-error" role="status">{message}</p>{/if}
     {#if prepared}<ConnectionApproval approval={prepared} oncomplete={done} oncancel={cancel} />
     {:else}
-      <section class="hail-card grid min-w-0 gap-4 p-5" aria-label="Your personal code"><h3 class="m-0 text-xl">Your personal code</h3><p class="m-0 text-sm text-muted">No automatic expiry. Replace it if shared unintentionally. Anyone signed in here who holds it can connect without another approval.</p>
+      <section class="hail-card grid min-w-0 gap-4 p-5" aria-label="Your personal code"><h3 class="m-0 text-xl">Your personal code</h3><p class="m-0 text-sm text-muted">No automatic expiry. Replace it if shared unintentionally. Anyone using a compatible Hail provider who holds it can connect without another approval.</p>
         {#if personal}<div class="flex flex-wrap gap-2"><button class="hail-button" aria-expanded={shown===personal.link} aria-controls={`connection-code-${personal.id}`} onclick={()=>shown=shown===personal.link?null:personal.link}>{shown===personal.link?"Hide QR & link":"Show my QR & link"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"replace",id:personal.id}))}>Replace personal code</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"revoke",id:personal.id}))}>Revoke</button></div>
           {#if shown===personal.link}{@render shareCode(personal.link,personal.id)}{/if}
         {:else}<button class="hail-button justify-self-start" disabled={busy} onclick={()=>run(()=>prepare({action:"create",personal:true,label:"Personal code",expiresAt:null}))}>Create my personal code</button>{/if}
@@ -47,5 +51,6 @@
     <section class="grid gap-4" aria-label="Your connections"><h3 class="m-0 text-xl">Your connections</h3>{#if !list.connections.length}<p class="m-0 text-sm text-muted">No connections yet. Share a code or scan someone else's.</p>{/if}
       {#each list.connections as connection}<article class="hail-card grid min-w-0 gap-3 p-5"><strong class="[overflow-wrap:anywhere]">{connection.address}</strong><code class="text-xs [overflow-wrap:anywhere]">{connection.did}</code><button class="hail-button-secondary justify-self-start" disabled={busy||prepared!==null} onclick={()=>run(()=>prepare({action:"disconnect",connectionId:connection.id}))}>Disconnect</button></article>{/each}
     </section>
+    {#if list.pendingConnections?.length}<section class="grid gap-3" aria-label="Connection synchronization"><h3 class="m-0 text-xl">Synchronizing with other providers</h3>{#each list.pendingConnections as pending}<article class="hail-card grid min-w-0 gap-2 p-5"><strong class="[overflow-wrap:anywhere]">{pending.address}</strong><p class="m-0 text-sm text-muted">{pending.state==="expired"?"This connection attempt expired. Open a current code to review and try again.":pending.state==="conflict"?"This attempt could not be confirmed because the reviewed identity or relationship changed. Review a current code before trying again.":pending.kind==="disconnect"?"Disconnected here. Notifying the other provider; automatic retries continue if it is offline.":pending.state==="active"?"Connected here. Updating the other provider's view; automatic retries continue if it is offline.":"Your connection approval is saved. Awaiting verified confirmation from both providers; no additional acceptance is needed."}</p></article>{/each}</section>{/if}
   </section>
 {:else if message}<section class="mt-8 grid gap-4" aria-label="Connection codes unavailable"><p class="hail-error" role="status">{message}</p><button class="hail-button-secondary justify-self-start" disabled={busy} onclick={()=>run(load)}>Retry loading connection codes</button></section>{/if}

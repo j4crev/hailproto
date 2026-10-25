@@ -5,7 +5,7 @@ import { P256Keypair, parseDidKey, P256_JWT_ALG, SECP256K1_JWT_ALG } from "@atpr
 import { assureValidSig, def, didForCreateOp, signOperation, type DocumentData, type Operation, type UnsignedOperation } from "@did-plc/lib";
 import { isIP } from "node:net";
 import { createWebCryptoSigner, encodeDeterministic, signPayload,
-  type HailAddressBinding, type HailGrant, type HailValue } from "@hailproto/codec";
+  type HailAddressBinding, type HailGrant, type HailConnectionInvitation,type HailConnectionConfirmation,type HailValue } from "@hailproto/codec";
 import * as dagCbor from "@ipld/dag-cbor";
 import { base58btc } from "multiformats/bases/base58";
 import { accountAccessInput, type AccountAccessChallenge } from "./account-access-proof.js";
@@ -106,6 +106,12 @@ function signUserBinding(vault: UserVaultFile, identity: CryptoKey, payload: Hai
   return signPayload("hail.address-binding", payload, createWebCryptoSigner(payload.key_id, identity));
 }
 
+async function signConnectionConsent(vault:UserVaultFile,identity:CryptoKey,payload:HailConnectionInvitation|HailConnectionConfirmation){
+  if(!vault.did||payload.from!==vault.did||payload.key_id!==vault.did+"#hail-identity"||
+    !["hail.connection-invitation","hail.connection-confirmation"].includes(payload.type))throw new Error("Connection signer DID or purpose is not the user vault");
+  return signPayload(payload.type,payload,createWebCryptoSigner(payload.key_id,identity));
+}
+
 async function signTransferIntent(vault:UserVaultFile,key:CryptoKey,value:UserTransferGrant|UserTransferCancellation|UserTransferAddressSelection,kind:typeof value.type) {
   if(!vault.did||value.did!==vault.did||value.type!==kind||value.version!==1||!Number.isSafeInteger(value.issued_at)||!Number.isSafeInteger(value.expires_at)||
     value.expires_at<=value.issued_at||value.expires_at-value.issued_at>3600)throw new Error("Transfer intent must name this DID and one short-lived approval");
@@ -119,11 +125,12 @@ async function signTransferIntent(vault:UserVaultFile,key:CryptoKey,value:UserTr
 }
 
 export async function unlockUserIdentity(vault: UserVaultFile, secret: Uint8Array):
-  Promise<Pick<UnlockedUserVault, "vault" | "signGrant" | "signAddressBinding" | "signTransferGrant" | "signTransferCancellation" | "signTransferAddressSelection"> & { signAccountAccess(challenge: AccountAccessChallenge): Promise<Uint8Array> }> {
+  Promise<Pick<UnlockedUserVault, "vault" | "signGrant" | "signAddressBinding" | "signConnectionConsent" | "signTransferGrant" | "signTransferCancellation" | "signTransferAddressSelection"> & { signAccountAccess(challenge: AccountAccessChallenge): Promise<Uint8Array> }> {
   validateVault(vault);
   const identity = await unlockIdentityKey(vault, await cipher(secret));
   return { vault, signGrant: async payload => signUserGrant(vault, identity, payload),
     signAddressBinding: async payload => signUserBinding(vault, identity, payload),
+    signConnectionConsent:async payload=>signConnectionConsent(vault,identity,payload),
     signTransferGrant:async payload=>signTransferIntent(vault,identity,payload,"hail.transfer-grant"),
     signTransferCancellation:async payload=>signTransferIntent(vault,identity,payload,"hail.transfer-cancellation"),
     signTransferAddressSelection:async payload=>signTransferIntent(vault,identity,payload,"hail.transfer-address-selection"),
@@ -342,6 +349,10 @@ export class UnlockedUserVault {
 
   async signGrant(payload: HailGrant): Promise<Uint8Array> {
     return signUserGrant(this.vault, this.identity, payload);
+  }
+
+  async signConnectionConsent(payload:HailConnectionInvitation|HailConnectionConfirmation):Promise<Uint8Array>{
+    return signConnectionConsent(this.vault,this.identity,payload);
   }
 
   async signTransferGrant(grant: UserTransferGrant): Promise<{

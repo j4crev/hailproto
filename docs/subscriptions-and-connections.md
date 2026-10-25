@@ -87,12 +87,20 @@ a valid code's creator needs no second approval. Expiry stops new admission, not
 established relationships. Sharing a public QR must clearly disclose that any
 authenticated holder may connect; replacement/revocation and blocking need controls.
 
-The wire foundation and an opt-in same-provider managed-account preview now implement
+The initial wire foundation and opt-in same-provider managed-account preview implemented
 code management on Security, identity-pinned scan/confirm, crossed-review convergence
 and disconnect tombstones. See [draft connection consent](../spec/connection-auth.md).
-Preview enabled on Haili by operator approval: direct delivery, explicit blocking, owner-held
-signing, cross-provider admission and portable export remain unfinished. Retained
+That preview was enabled on Haili by operator approval. Retained
 preview consent blocks provider/custody transitions rather than losing that history.
+
+The expanded release implements owner-controlled signing via an exact proposal →
+local identity-only CLI signature → browser COSE upload flow. Owner-held keys are
+never uploaded, and old managed Grants are preserved. PLC-pinned home-provider handoff,
+durable cross-provider admission, crossed-scan epoch reconciliation and signed
+disconnect propagation are implemented with replay/partition/restart proof across
+independent stores. See [connection consent](../spec/connection-auth.md) and
+[federation v1](../spec/connection-federation.md) for migrations 63/64 and lifecycle
+boundaries. Connection messaging, explicit blocking and portable export remain separate.
 
 The current one-active-subscription-Grant-per-directional-pair rule must not be
 reused to collapse connection permission into a subscription. The draft separates

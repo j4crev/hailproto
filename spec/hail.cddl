@@ -14,6 +14,7 @@ start =
   hail-connection-invitation /
   hail-connection-confirmation /
   hail-connection-grant /
+  hail-connection-control /
   hail-envelope /
   hail-delivery-status /
   hail-body-spt-1 /
@@ -153,6 +154,22 @@ hail-envelope = {
   "expires_at": timestamp,
   "body": body-descriptor,
   "reply": reply-permission
+}
+
+hail-connection-control = {
+  "type": "hail.connection-control",
+  "version": 1,
+  "operation": "probe" / "offer" / "connect" / "disconnect" / "snapshot" / "admission" / "ack",
+  "from": did,
+  "to": did,
+  "request_id": uuidv7,
+  "connection_id": null / uuidv7,
+  "epoch": hail-uint,
+  "state": "empty" / "active" / "disconnected",
+  "proof_hash": digest,
+  "issued_at": timestamp,
+  "expires_at": null / timestamp,
+  "key_id": did-url
 }
 
 hail-connection-grant = {

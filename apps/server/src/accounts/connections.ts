@@ -2,7 +2,7 @@ import {createHash,randomBytes,timingSafeEqual} from "node:crypto";
 import type {SQL} from "bun";
 import type {AuthenticationResponseJSON} from "@simplewebauthn/server";
 import {createWebCryptoSigner,createWebCryptoVerifier,decodeBase64Url,decodeDeterministic,encodeBase64Url,
-  encodeDeterministic,signPayload,verifySignedPayload,type HailConnectionConfirmation,
+  encodeDeterministic,toDiagnosticJson,signPayload,verifySignedPayload,type HailConnectionConfirmation,
   type HailConnectionGrant,type HailConnectionInvitation,type HailPayloadByType,type HailSignedPayloadType} from "@hailproto/codec";
 import {OnboardingRepository} from "../onboarding/repository.js";
 import type {HailDidResolver} from "../plc/resolver.js";
@@ -14,6 +14,10 @@ import {uuidV7} from "../identity/uuid-v7.js";
 import {withServingGeneration} from "../db/serving.js";
 import type {AccountApiSession} from "./repository.js";
 import type {PasskeyAuth} from "./passkeys.js";
+import type {RemoteConnectionReview} from "./connection-review.js";
+import {ConnectionFederation} from "./connection-federation.js";
+import {ConnectionError} from "./connection-error.js";
+export {ConnectionError} from "./connection-error.js";
 
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 const DID=/^did:plc:[a-z2-7]{24}$/;
@@ -21,52 +25,83 @@ const hash=(bytes:Uint8Array)=>new Uint8Array(createHash("sha256").update(bytes)
 const digest=(bytes:Uint8Array)=>({algorithm:"sha-256" as const,value:hash(bytes)});
 const same=(a:Uint8Array,b:Uint8Array)=>a.length===b.length&&timingSafeEqual(a,b);
 const now=()=>Math.floor(Date.now()/1000);
-export class ConnectionError extends Error {constructor(readonly status:number,message="Connection not changed. Check the original approval before retrying."){super(message);}}
-interface Owner {id:string;did:string;canonical_address:string;generation:number|string;}
+export interface ConnectionOwner {id:string;did:string;canonical_address:string;generation:number|string;managed:boolean;identity_key:string;}
+type Owner=ConnectionOwner;
 interface Invitation {id:string;account_id:string;serving_generation:number|string;did:string;personal:boolean;label:string;
-  token_hash:Uint8Array;ciphertext:Uint8Array;nonce:Uint8Array;cose:Uint8Array;signing_key:string;expires_at:number|string|null;revoked_at:Date|null;}
+  token_hash:Uint8Array;ciphertext:Uint8Array;nonce:Uint8Array;cose:Uint8Array;signing_key:string;expires_at:number|string|null;revoked_at:Date|null;created_at:Date;}
 interface Connection {id:string;account_a:string;account_b:string;did_a:string;did_b:string;generation_a:number|string;generation_b:number|string;
-  grant_id_a:string;grant_id_b:string;state:"pending"|"active"|"disconnected"|"expired";pending_until:Date;ended_at:Date|null;}
+  grant_id_a:string;grant_id_b:string;consent_format:"grants-v1"|"joint-v1";state:"pending"|"active"|"disconnected"|"expired";pending_until:Date;ended_at:Date|null;}
 interface Approval {id:string;action:string;connection_id:string|null;invitation_id:string|null;request_digest:Uint8Array;intent_bytes:Uint8Array;
-  actor_key:string;peer_key:string|null;actor_binding:Uint8Array|null;peer_binding:Uint8Array|null;challenge:string;expires_at:Date;result:unknown;}
+  actor_key:string;peer_key:string|null;actor_binding:Uint8Array|null;peer_binding:Uint8Array|null;challenge:string;expires_at:Date;result:unknown;
+  owner_payload:Uint8Array|null;token_ciphertext:Uint8Array|null;token_nonce:Uint8Array|null;
+  federated_pair_id:string|null;remote_bundle:Uint8Array|null;remote_token_ciphertext:Uint8Array|null;remote_token_nonce:Uint8Array|null;}
 
 // Provider-local preview only: deliberately separate from subscription Grant and envelope stores.
 export class AccountConnections {
+  readonly federation?:ConnectionFederation;
   constructor(private readonly sql:SQL,private readonly encryptor:KeyEncryptor,private readonly resolver:HailDidResolver,
-    private readonly passkeys:Pick<PasskeyAuth,"actionOptions"|"approveAction">,private readonly origin:string){}
+    private readonly passkeys:Pick<PasskeyAuth,"actionOptions"|"approveAction">,private readonly origin:string,private readonly remote?:RemoteConnectionReview){
+    if(remote)this.federation=new ConnectionFederation(sql,encryptor,resolver,remote,origin+"/hail",{
+      owner:(tx,id)=>this.owner(tx,id),live:(tx,session)=>this.live(tx,session),authority:(tx,owner,key)=>this.authority(tx,owner,key),
+      binding:(tx,owner,key)=>this.binding(tx,owner,key),invitation:async(tx,input)=>{
+        const row=await this.invitation(tx,input.id),owner=await this.checkInvitation(tx,row,input.token,input.did);
+        return {owner,cose:new Uint8Array(row.cose),createdAt:row.created_at};
+      },
+    });
+  }
 
   private async live(tx:SQL,session:AccountApiSession){
-    if(!session.passkey_credential_id)throw new ConnectionError(403,"Use your managed account's passkey session.");
+    if(!session.passkey_credential_id)throw new ConnectionError(403,"Use your account's passkey session.");
     const rows=await tx`SELECT s.id FROM account_passkey_sessions s JOIN provider_accounts a ON a.id=s.account_id
-      JOIN managed_custody_evidence m ON m.account_id=a.id JOIN account_serving_generations g ON g.account_id=a.id
+      JOIN account_serving_generations g ON g.account_id=a.id
       JOIN account_passkeys k ON k.credential_id=s.credential_id AND k.account_id=a.id
       WHERE s.id=${session.credential_id} AND a.id=${session.account_id} AND a.did=${session.did}
         AND a.onboarding_state='active' AND a.activation_verification_mode='public' AND s.serving_generation=g.generation
         AND g.generation=${session.serving_generation??1} AND k.serving_generation=g.generation AND k.revoked_at IS NULL
         AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND s.last_seen_at>clock_timestamp()-interval '30 minutes'
         AND s.credential_id=${session.passkey_credential_id}`;
-    if(!rows.length)throw new ConnectionError(403,"Current managed account access is required.");
+    if(!rows.length)throw new ConnectionError(403,"Current account access is required.");
+    await this.owner(tx,session.account_id);
     await tx`SELECT hail_assert_unfenced_account(${session.account_id}::uuid)`;
   }
   private async owner(tx:SQL,id:string){
-    const row=(await tx<Owner[]>`SELECT a.id,a.did,a.canonical_address,g.generation FROM provider_accounts a
-      JOIN managed_custody_evidence m ON m.account_id=a.id JOIN account_serving_generations g ON g.account_id=a.id
-      WHERE a.id=${id} AND a.onboarding_state='active' AND a.activation_verification_mode='public'`)[0];
-    if(!row)throw new ConnectionError(409,"This preview requires two active managed accounts on this provider.");return row;
+    const row=(await tx<Owner[]>`SELECT a.id,a.did,a.canonical_address,g.generation,m.account_id IS NOT NULL AS managed,
+      COALESCE(m.provider_identity_public_key,p.user_identity_public_key) AS identity_key FROM provider_accounts a
+      JOIN account_serving_generations g ON g.account_id=a.id
+      LEFT JOIN managed_custody_evidence m ON m.account_id=a.id LEFT JOIN portable_custody_evidence p ON p.account_id=a.id
+      WHERE a.id=${id} AND a.onboarding_state='active' AND a.activation_verification_mode='public'
+        AND ((m.account_id IS NOT NULL AND p.account_id IS NULL) OR (p.account_id IS NOT NULL AND m.account_id IS NULL
+          AND NOT EXISTS(SELECT 1 FROM account_keys WHERE account_id=a.id AND role='hail-identity')))`)[0];
+    if(!row)throw new ConnectionError(409,"This preview requires active managed or owner-controlled accounts on this provider.");return row;
   }
   private async authority(tx:SQL,owner:Owner,expected?:string){
     await tx`SELECT hail_assert_unfenced_account(${owner.id}::uuid)`;
-    const resolved=await this.resolver.resolve(owner.did),key=await new OnboardingRepository(tx).getKey(owner.id,"hail-identity");
-    if(resolved.did!==owner.did||resolved.serviceBase!==this.origin+"/hail"||resolved.identityDidKey!==key.publicKey||expected&&expected!==key.publicKey)
+    const resolved=await this.resolver.resolve(owner.did),key=owner.managed?await new OnboardingRepository(tx).getKey(owner.id,"hail-identity"):null;
+    if(resolved.did!==owner.did||resolved.serviceBase!==this.origin+"/hail"||resolved.identityDidKey!==owner.identity_key||
+      key&&key.publicKey!==owner.identity_key||expected&&expected!==owner.identity_key)
       throw new ConnectionError(409,"Identity signing authority changed. Review a current code.");
-    await requireFreshPublicAuthority(tx,resolved.evidence,{did:owner.did,role:"hail-identity",key:key.publicKey,serviceBase:this.origin+"/hail"},new Date());
+    await requireFreshPublicAuthority(tx,resolved.evidence,{did:owner.did,role:"hail-identity",key:owner.identity_key,serviceBase:this.origin+"/hail"},new Date());
     return {key,resolved};
   }
   private async sign<T extends HailSignedPayloadType>(tx:SQL,owner:Owner,type:T,payload:HailPayloadByType[T],expected:string){
     const {key,resolved}=await this.authority(tx,owner,expected);
+    if(!key)throw new ConnectionError(403,"Your identity key must sign this consent locally; the provider cannot substitute its own key.");
     const raw=await this.encryptor.decrypt(owner.id,key.role,key.algorithm,key.publicKey,key);
     try{return {cose:await signPayload(type,payload,createWebCryptoSigner(owner.did+"#hail-identity",await importEd25519PrivateKey(raw))),evidence:resolved.evidence};}
     finally{raw.fill(0);}
+  }
+  private async signedConsent<T extends "hail.connection-invitation"|"hail.connection-confirmation">(
+    tx:SQL,owner:Owner,type:T,payload:HailPayloadByType[T],key:string,external?:Uint8Array){
+    if(owner.managed){if(external)throw new ConnectionError(400,"Managed consent does not accept an external identity signature.");return this.sign(tx,owner,type,payload,key);}
+    if(!external||external.length>16384)throw new ConnectionError(403,"Sign the downloaded consent with your local identity key, then upload the signed COSE file.");
+    const {resolved}=await this.authority(tx,owner,key);
+    try{
+      const checked=await verifySignedPayload(type,external,createWebCryptoVerifier(async kid=>{
+        if(kid!==owner.did+"#hail-identity")throw new Error("Wrong consent signer");return ed25519PublicKeyFromDidKey(key);
+      }));
+      if(!same(encodeDeterministic(checked.payload as never),encodeDeterministic(payload as never)))throw new Error("Consent changed");
+    }catch{throw new ConnectionError(400,"The signature must cover this exact reviewed consent using the current identity key.");}
+    return {cose:external,evidence:resolved.evidence};
   }
   private async binding(tx:SQL,owner:Owner,key:string){
     const row=(await tx<{cose:Uint8Array}[]>`SELECT cose FROM address_bindings WHERE account_id=${owner.id} AND did=${owner.did}
@@ -119,21 +154,38 @@ export class AccountConnections {
         a.canonical_address AS address,c.activated_at FROM account_connections c JOIN provider_accounts a
         ON a.id=CASE WHEN c.account_a=${session.account_id} THEN c.account_b ELSE c.account_a END
         WHERE ${session.account_id} IN (c.account_a,c.account_b) AND c.state='active' ORDER BY c.id DESC LIMIT 100`;
+      const federated=this.federation?await this.federation.list(session.account_id):{connections:[],pendingConnections:[]};
       return {preview:true,codes:await Promise.all(codes.map(async row=>{
         const token=await this.encryptor.decryptConnectionToken(row.account_id,row.id,{ciphertext:row.ciphertext,nonce:row.nonce,encryptionVersion:1,kekId:"poc-v1"});
         try{return {id:row.id,personal:row.personal,label:row.label,expiresAt:row.expires_at===null?null:Number(row.expires_at),
           link:this.origin+"/connect#"+new URLSearchParams({id:row.id,did:row.did,token:encodeBase64Url(token)}).toString()};}finally{token.fill(0);}
-      })),connections:connections.map(row=>({id:row.id,did:row.did,address:row.address,connectedAt:row.activated_at.toISOString()}))};
+      })),connections:[...connections.map(row=>({id:row.id,did:row.did,address:row.address,connectedAt:row.activated_at.toISOString()})),...federated.connections],pendingConnections:federated.pendingConnections};
     });
   }
   async review(session:AccountApiSession,input:Record<string,unknown>){
     this.keys(input,["id","did","token"]);
+    await this.live(this.sql,session);
+    if(this.remote&&typeof input.id==="string"&&UUID.test(input.id)&&typeof input.did==="string"&&DID.test(input.did)&&typeof input.token==="string"&&
+      !(await this.sql`SELECT id FROM connection_invitations WHERE id=${input.id}`).length){
+      if(input.did===session.did)throw new ConnectionError(400,"This is your own identity.");
+      try{return await this.remote.review(input as {id:string;did:string;token:string});}
+      catch{throw new ConnectionError(409,"The remote code could not be verified. It may be expired, revoked, or from a provider without connection review support.");}
+    }
     const row=await this.invitation(this.sql,input.id);
     return this.pairTransaction(session,row.account_id,async tx=>{
       const current=await this.invitation(tx,row.id),owner=await this.checkInvitation(tx,current,input.token,input.did);
       if(owner.id===session.account_id)throw new ConnectionError(400,"This is your own connection code.");
       return {id:row.id,did:owner.did,address:owner.canonical_address,expiresAt:current.expires_at===null?null:Number(current.expires_at),preview:true};
     });
+  }
+  async exportInvitation(input:Record<string,unknown>){
+    this.keys(input,["id","did","token"]);
+    const row=await this.invitation(this.sql,input.id),owner=await this.owner(this.sql,row.account_id);
+    return withServingGeneration(owner.id,Number(owner.generation),()=>this.sql.begin(async tx=>{
+      await tx`SELECT id FROM provider_accounts WHERE id=${owner.id} FOR UPDATE`;
+      const current=await this.invitation(tx,row.id),checked=await this.checkInvitation(tx,current,input.token,input.did);
+      return {type:"hail.connection-review",version:1,invitation:encodeBase64Url(current.cose),binding:encodeBase64Url(await this.binding(tx,checked,current.signing_key)),...(this.federation?{federation:1}:{})};
+    }));
   }
   private keys(input:Record<string,unknown>,keys:string[]){
     if(Object.keys(input).length!==keys.length||Object.keys(input).some(key=>!keys.includes(key)))throw new ConnectionError(400,"Invalid connection request.");
@@ -146,7 +198,11 @@ export class AccountConnections {
   private async summary(session:AccountApiSession,row:Approval){
     const intent=decodeDeterministic(new Uint8Array(row.intent_bytes)) as Record<string,unknown>;
     const {token,confirmation,...review}=intent; // Expose review fields, not admission secrets or internal proof bytes.
-    return {requestId:row.id,action:row.action,review,expiresAt:row.expires_at.toISOString(),result:typeof row.result==="string"?JSON.parse(row.result):row.result,
+    const payload=row.owner_payload?decodeDeterministic(new Uint8Array(row.owner_payload)) as unknown as HailConnectionInvitation|HailConnectionConfirmation:null;
+    let result=typeof row.result==="string"?JSON.parse(row.result):row.result;
+    if(result&&typeof result==="object"&&"attemptId" in result&&typeof result.attemptId==="string"&&this.federation)result=await this.federation.result(session.account_id,result.attemptId);
+    return {requestId:row.id,action:row.action,review,expiresAt:row.expires_at.toISOString(),result,
+      ownerSigning:payload?{type:"hailp.connection-signing",version:1,provider:this.origin,requestId:row.id,expiresAt:row.expires_at.toISOString(),payload:toDiagnosticJson(payload.type,payload)}:null,
       options:row.result||row.expires_at.getTime()<=Date.now()?null:await this.passkeys.actionOptions(session,row.challenge)};
   }
   async status(session:AccountApiSession,id:string){
@@ -164,17 +220,23 @@ export class AccountConnections {
     const prior=(await this.sql`SELECT id FROM connection_approvals WHERE id=${requestId}`)[0];
     if(prior){const row=await this.approval(this.sql,session,requestId);if(!same(row.request_digest,requestDigest))throw new ConnectionError(409);return this.summary(session,row);}
     let invitation:Invitation|undefined,peerId:string|undefined;
-    if(["connect","replace","revoke"].includes(action))invitation=await this.invitation(this.sql,input.id);
-    if(action==="connect")peerId=invitation!.account_id;
+    let remoteDraft:Awaited<ReturnType<ConnectionFederation["prepare"]>>|undefined,remotePair:Awaited<ReturnType<ConnectionFederation["active"]>>=null;
+    if(action==="connect"&&typeof input.id==="string"&&UUID.test(input.id)&&!(await this.sql`SELECT id FROM connection_invitations WHERE id=${input.id}`).length){
+      if(!this.federation)throw new ConnectionError(409,"Cross-provider connections are not configured on this provider.");
+      remoteDraft=await this.federation.prepare(session,{id:input.id,did:input.did as string,token:input.token as string});
+    }else if(["connect","replace","revoke"].includes(action))invitation=await this.invitation(this.sql,input.id);
+    if(action==="connect"&&!remoteDraft)peerId=invitation!.account_id;
     if(action==="disconnect"){
       if(typeof input.connectionId!=="string"||!UUID.test(input.connectionId))throw new ConnectionError(400);
       const c=(await this.sql<Connection[]>`SELECT * FROM account_connections WHERE id=${input.connectionId} AND ${session.account_id} IN (account_a,account_b)`)[0];
-      if(!c)throw new ConnectionError(404);peerId=c.account_a===session.account_id?c.account_b:c.account_a;
+      if(!c){remotePair=await this.federation?.active(session,input.connectionId)??null;if(!remotePair)throw new ConnectionError(404);}
+      else peerId=c.account_a===session.account_id?c.account_b:c.account_a;
     }
     const saved=await this.pairTransaction(session,peerId,async tx=>{
       if((await tx`SELECT id FROM connection_approvals WHERE account_id=${session.account_id} AND expires_at>clock_timestamp() AND result IS NULL`).length>=20)
         throw new ConnectionError(429,"Too many pending reviews. Wait five minutes.");
-      const actor=await this.owner(tx,session.account_id),authority=await this.authority(tx,actor);
+      const actor=await this.owner(tx,session.account_id);await this.authority(tx,actor);
+      let ownerPayload:Uint8Array|null=null,pendingToken:{ciphertext:Uint8Array;nonce:Uint8Array}|null=null;
       let connection:Connection|undefined,peerKey:string|null=null,actorBinding:Uint8Array|null=null,peerBinding:Uint8Array|null=null;
       let intent:Record<string,unknown>={...input};
       if(action==="create"){
@@ -184,11 +246,15 @@ export class AccountConnections {
       }else if(action==="replace"||action==="revoke"){
         invitation=await this.invitation(tx,input.id);
         if(invitation.account_id!==session.account_id||action==="replace"&&!invitation.personal)throw new ConnectionError(404);
+      }else if(action==="connect"&&remoteDraft){
+        peerKey=remoteDraft.peerKey;actorBinding=remoteDraft.actorBinding;peerBinding=remoteDraft.peerBinding;
+        intent={action,id:input.id,did:input.did,address:remoteDraft.address,confirmation:remoteDraft.confirmation,remote:true};
+        if(!actor.managed)ownerPayload=encodeDeterministic(remoteDraft.confirmation as never);
       }else if(action==="connect"){
         invitation=await this.invitation(tx,input.id);const peer=await this.checkInvitation(tx,invitation,input.token,input.did);
         if(peer.id===actor.id)throw new ConnectionError(400,"You cannot connect to yourself.");
-        const peerAuthority=await this.authority(tx,peer);peerKey=peerAuthority.key.publicKey;
-        actorBinding=await this.binding(tx,actor,authority.key.publicKey);peerBinding=await this.binding(tx,peer,peerKey);
+        await this.authority(tx,peer);peerKey=peer.identity_key;
+        actorBinding=await this.binding(tx,actor,actor.identity_key);peerBinding=await this.binding(tx,peer,peerKey);
         const [a,b]=actor.did<peer.did?[actor,peer]:[peer,actor];
         // A disconnected epoch invalidates every earlier invitation, including permanent codes.
         const old=await tx`SELECT id FROM account_connections WHERE did_a=${a.did} AND did_b=${b.did} AND state='disconnected'
@@ -201,20 +267,35 @@ export class AccountConnections {
             (${a.id} IN (account_a,account_b) OR ${b.id} IN (account_a,account_b)) AND (state='active' OR state='pending' AND pending_until>clock_timestamp())
             GROUP BY CASE WHEN ${a.id} IN (account_a,account_b) THEN ${a.id}::uuid ELSE ${b.id}::uuid END`;
           if(counts.some(row=>Number(row.count)>=100))throw new ConnectionError(429,"The connection preview supports up to 100 current connections per account.");
-          connection=(await tx<Connection[]>`INSERT INTO account_connections(id,account_a,account_b,did_a,did_b,generation_a,generation_b,grant_id_a,grant_id_b)
-            VALUES(${uuidV7()},${a.id},${b.id},${a.did},${b.did},${a.generation},${b.generation},${uuidV7()},${uuidV7()}) RETURNING *`)[0]!;
+          connection=(await tx<Connection[]>`INSERT INTO account_connections(id,account_a,account_b,did_a,did_b,generation_a,generation_b,grant_id_a,grant_id_b,consent_format)
+            VALUES(${uuidV7()},${a.id},${b.id},${a.did},${b.did},${a.generation},${b.generation},${uuidV7()},${uuidV7()},${a.managed&&b.managed?"grants-v1":"joint-v1"}) RETURNING *`)[0]!;
         }
         const issued=now();
         intent={action,id:invitation.id,did:peer.did,address:peer.canonical_address,confirmation:{type:"hail.connection-confirmation",version:1,
           confirmation_id:uuidV7(),from:actor.did,to:peer.did,invitation_id:invitation.id,invitation_hash:digest(new Uint8Array(invitation.cose)),
           issued_at:issued,expires_at:issued+300,key_id:actor.did+"#hail-identity"} satisfies HailConnectionConfirmation};
+        if(!actor.managed)ownerPayload=encodeDeterministic(intent.confirmation as never);
       }else if(action==="disconnect"){
-        connection=(await tx<Connection[]>`SELECT * FROM account_connections WHERE id=${input.connectionId as string} AND ${session.account_id} IN (account_a,account_b)`)[0];
-        if(!connection||connection.state!=="active")throw new ConnectionError(409,"This connection is no longer active.");
+        if(remotePair)intent={...input,remote:true,operationId:uuidV7()};
+        else{
+          connection=(await tx<Connection[]>`SELECT * FROM account_connections WHERE id=${input.connectionId as string} AND ${session.account_id} IN (account_a,account_b)`)[0];
+          if(!connection||connection.state!=="active")throw new ConnectionError(409,"This connection is no longer active.");
+        }
+      }
+      if(!actor.managed&&(action==="create"||action==="replace")){
+        if(action==="replace"&&invitation!.revoked_at)throw new ConnectionError(409,"Personal code already changed. Refresh the list.");
+        const invitationId=uuidV7(),token=new Uint8Array(randomBytes(32));
+        try{
+          const payload:HailConnectionInvitation={type:"hail.connection-invitation",version:1,invitation_id:invitationId,from:actor.did,
+            token_hash:digest(token),issued_at:now(),expires_at:action==="replace"?null:input.expiresAt as number|null,key_id:actor.did+"#hail-identity"};
+          ownerPayload=encodeDeterministic(payload as never);
+          pendingToken=await this.encryptor.encryptConnectionToken(actor.id,invitationId,token);
+        }finally{token.fill(0);}
       }
       await tx`INSERT INTO connection_approvals(id,account_id,session_id,serving_generation,action,connection_id,invitation_id,request_digest,intent_bytes,
-        actor_key,peer_key,actor_binding,peer_binding,challenge) VALUES(${requestId},${session.account_id},${session.credential_id},${session.serving_generation??1},${action},
-        ${connection?.id??null},${invitation?.id??null},${requestDigest},${encodeDeterministic(intent as never)},${authority.key.publicKey},${peerKey},${actorBinding},${peerBinding},${encodeBase64Url(randomBytes(32))})
+        actor_key,peer_key,actor_binding,peer_binding,challenge,owner_payload,token_ciphertext,token_nonce,federated_pair_id,remote_bundle,remote_token_ciphertext,remote_token_nonce) VALUES(${requestId},${session.account_id},${session.credential_id},${session.serving_generation??1},${action},
+        ${connection?.id??null},${invitation?.id??null},${requestDigest},${encodeDeterministic(intent as never)},${actor.identity_key},${peerKey},${actorBinding},${peerBinding},${encodeBase64Url(randomBytes(32))},${ownerPayload},${pendingToken?.ciphertext??null},${pendingToken?.nonce??null},
+        ${remoteDraft?.pairId??remotePair?.id??null},${remoteDraft?.bytes??null},${remoteDraft?.ciphertext??null},${remoteDraft?.nonce??null})
         ON CONFLICT(id) DO NOTHING`;
       const row=await this.approval(tx,session,requestId);if(!same(row.request_digest,requestDigest))throw new ConnectionError(409);
       return row;
@@ -222,7 +303,7 @@ export class AccountConnections {
     return this.summary(session,saved);
   }
 
-  async commit(session:AccountApiSession,id:string,response?:AuthenticationResponseJSON){
+  async commit(session:AccountApiSession,id:string,response?:AuthenticationResponseJSON,external?:Uint8Array){
     if(!UUID.test(id))throw new ConnectionError(400);await this.live(this.sql,session);
     const initial=await this.approval(this.sql,session,id);
     if(initial.result)return this.summary(session,initial);
@@ -234,9 +315,19 @@ export class AccountConnections {
       if(!response)throw new ConnectionError(403,"Confirm this exact action with your passkey.");
       const intent=decodeDeterministic(new Uint8Array(row.intent_bytes)) as Record<string,unknown>;
       const actor=await this.owner(tx,session.account_id);await this.authority(tx,actor,row.actor_key);
+      if(Boolean(row.owner_payload)!==Boolean(external))throw new ConnectionError(403,row.owner_payload?"This action also needs your locally signed consent file.":"This action does not accept an external consent file.");
+      const ownerConfirmation=row.owner_payload&&row.action==="connect"?await this.signedConsent(tx,actor,"hail.connection-confirmation",
+        decodeDeterministic(new Uint8Array(row.owner_payload)) as unknown as HailConnectionConfirmation,row.actor_key,external):null;
       const credential=await this.passkeys.approveAction(tx,session,row.challenge,response);
       let result:Record<string,unknown>;
-      if(row.action==="create"||row.action==="replace"){
+      if(row.federated_pair_id){
+        if(!this.federation)throw new ConnectionError(409,"Cross-provider connection handling is unavailable.");
+        if(row.action==="disconnect")result=await this.federation.disconnect(tx,actor,row.federated_pair_id,intent.connectionId as string,intent.operationId as string);
+        else{
+          const confirmed=ownerConfirmation??await this.signedConsent(tx,actor,"hail.connection-confirmation",intent.confirmation as unknown as HailConnectionConfirmation,row.actor_key,external);
+          result=await this.federation.enqueue(tx,actor,row.federated_pair_id,new Uint8Array(row.remote_bundle!),new Uint8Array(row.remote_token_ciphertext!),new Uint8Array(row.remote_token_nonce!),confirmed.cose);
+        }
+      }else if(row.action==="create"||row.action==="replace"){
         let personal=Boolean(intent.personal),label=String(intent.label),expiresAt=intent.expiresAt as number|null;
         if(row.action==="replace"){
           const old=await this.invitation(tx,row.invitation_id);
@@ -250,11 +341,13 @@ export class AccountConnections {
         if(personal&&(await tx`SELECT id FROM connection_invitations WHERE account_id=${actor.id} AND personal AND revoked_at IS NULL`).length)
           throw new ConnectionError(409,"A personal code already exists. Replace it instead.");
         if(!personal&&Number(expiresAt)<=now())throw new ConnectionError(410,"Chosen expiration has already passed.");
-        const invitationId=uuidV7(),token=new Uint8Array(randomBytes(32));
+        const proposal=row.owner_payload?decodeDeterministic(new Uint8Array(row.owner_payload)) as unknown as HailConnectionInvitation:null;
+        const invitationId=proposal?.invitation_id??uuidV7(),token=proposal?
+          await this.encryptor.decryptConnectionToken(actor.id,invitationId,{ciphertext:row.token_ciphertext!,nonce:row.token_nonce!,encryptionVersion:1,kekId:"poc-v1"}):new Uint8Array(randomBytes(32));
         try{
-          const payload:HailConnectionInvitation={type:"hail.connection-invitation",version:1,invitation_id:invitationId,from:actor.did,
+          const payload:HailConnectionInvitation=proposal??{type:"hail.connection-invitation",version:1,invitation_id:invitationId,from:actor.did,
             token_hash:digest(token),issued_at:now(),expires_at:expiresAt,key_id:actor.did+"#hail-identity"};
-          const signed=await this.sign(tx,actor,"hail.connection-invitation",payload,row.actor_key);
+          const signed=await this.signedConsent(tx,actor,"hail.connection-invitation",payload,row.actor_key,external);
           const encrypted=await this.encryptor.encryptConnectionToken(actor.id,invitationId,token);
           await tx`INSERT INTO connection_invitations(id,account_id,serving_generation,did,personal,label,request_id,request_digest,token_hash,ciphertext,nonce,cose,signing_key,signing_evidence,expires_at)
             VALUES(${invitationId},${actor.id},${actor.generation},${actor.did},${personal},${label},${id},${row.request_digest},${hash(token)},
@@ -284,13 +377,15 @@ export class AccountConnections {
             if(confirmation.expires_at<=now()||!same(confirmation.invitation_hash.value,hash(new Uint8Array(invitation.cose))))throw new ConnectionError(410);
             const actorBinding=await this.binding(tx,actor,row.actor_key),peerBinding=await this.binding(tx,peer,row.peer_key!);
             if(!same(actorBinding,row.actor_binding!)||!same(peerBinding,row.peer_binding!))throw new ConnectionError(409,"Address evidence changed. Review again.");
-            const confirmed=await this.sign(tx,actor,"hail.connection-confirmation",confirmation,row.actor_key);
+            const confirmed=ownerConfirmation??await this.signedConsent(tx,actor,"hail.connection-confirmation",confirmation,row.actor_key,external);
             const grant=(owner:Owner,grantee:Owner,binding:Uint8Array):HailConnectionGrant=>({type:"hail.connection-grant",version:1,
               grant_id:owner.id===c.account_a?c.grant_id_a:c.grant_id_b,connection_id:c.id,revision:1,previous:null,grantor:owner.did,grantee:grantee.did,
               status:"active",issued_at:now(),updated_at:now(),expires_at:null,key_id:owner.did+"#hail-identity",consent_context:{grantee_address:grantee.canonical_address,
                 address_binding_hash:digest(binding),invitation_hash:digest(new Uint8Array(invitation.cose)),confirmation_hash:digest(confirmed.cose)}});
-            const actorGrant=await this.sign(tx,actor,"hail.connection-grant",grant(actor,peer,peerBinding),row.actor_key);
-            const peerGrant=await this.sign(tx,peer,"hail.connection-grant",grant(peer,actor,actorBinding),row.peer_key!);
+            const actorGrant=c.consent_format==="joint-v1"?{cose:null,evidence:(await this.authority(tx,actor,row.actor_key)).resolved.evidence}:
+              await this.sign(tx,actor,"hail.connection-grant",grant(actor,peer,peerBinding),row.actor_key);
+            const peerGrant=c.consent_format==="joint-v1"?{cose:null,evidence:(await this.authority(tx,peer,row.peer_key!)).resolved.evidence}:
+              await this.sign(tx,peer,"hail.connection-grant",grant(peer,actor,actorBinding),row.peer_key!);
             const a=actor.id===c.account_a?actorGrant:peerGrant,b=actor.id===c.account_b?actorGrant:peerGrant;
             const activated=await tx`UPDATE account_connections SET state='active',activated_at=clock_timestamp(),invitation_cose=${invitation.cose},confirmation_cose=${confirmed.cose},
               grant_a_cose=${a.cose},grant_b_cose=${b.cose},evidence_a=${JSON.stringify(a.evidence)}::jsonb,evidence_b=${JSON.stringify(b.evidence)}::jsonb

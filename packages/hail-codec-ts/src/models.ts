@@ -132,6 +132,22 @@ export interface HailConnectionGrant {
   key_id: string;
 }
 
+export interface HailConnectionControl {
+  type:"hail.connection-control";
+  version:1;
+  operation:"probe"|"offer"|"connect"|"disconnect"|"snapshot"|"admission"|"ack";
+  from:string;
+  to:string;
+  request_id:string;
+  connection_id:string|null;
+  epoch:number;
+  state:"empty"|"active"|"disconnected";
+  proof_hash:HailDigest;
+  issued_at:number;
+  expires_at:number|null;
+  key_id:string;
+}
+
 export type HailMessageType =
   | "personal"
   | "newsletter"
@@ -299,6 +315,7 @@ export interface HailPayloadByType {
   "hail.connection-invitation": HailConnectionInvitation;
   "hail.connection-confirmation": HailConnectionConfirmation;
   "hail.connection-grant": HailConnectionGrant;
+  "hail.connection-control": HailConnectionControl;
   "hail.envelope": HailEnvelope;
   "hail.delivery-status": HailDeliveryStatus;
   "hail.body.spt-1": HailSptBody;

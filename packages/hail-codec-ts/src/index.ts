@@ -27,6 +27,7 @@ export type {
   HailConnectionInvitation,
   HailConnectionConfirmation,
   HailConnectionGrant,
+  HailConnectionControl,
   HailCancellationReason,
   HailDeliveryState,
   HailDeliveryReason,

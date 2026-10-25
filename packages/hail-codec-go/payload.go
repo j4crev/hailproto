@@ -71,6 +71,8 @@ func DecodePayload(payloadType string, data []byte) (Payload, error) {
 		out = &ConnectionConfirmation{}
 	case ConnectionGrantType:
 		out = &ConnectionGrant{}
+	case ConnectionControlType:
+		out = &ConnectionControl{}
 	case EnvelopeType:
 		out = &Envelope{}
 	case DeliveryStatusType:
@@ -137,6 +139,13 @@ func payloadValue(payload Payload) (map[any]any, string, error) {
 			return nil, "", errors.New("nil connection grant")
 		}
 		return connectionGrantValue(value), ConnectionGrantType, nil
+	case ConnectionControl:
+		return connectionControlValue(&value), ConnectionControlType, nil
+	case *ConnectionControl:
+		if value == nil {
+			return nil, "", errors.New("nil connection control")
+		}
+		return connectionControlValue(value), ConnectionControlType, nil
 	case Envelope:
 		return envelopeValue(&value), EnvelopeType, nil
 	case *Envelope:
@@ -573,6 +582,8 @@ func validatePayloadMap(kind string, m map[any]any) error {
 		return validateConnectionConfirmation(m)
 	case ConnectionGrantType:
 		return validateConnectionGrant(m)
+	case ConnectionControlType:
+		return validateConnectionControl(m)
 	case EnvelopeType:
 		return validateEnvelope(m)
 	case DeliveryStatusType:

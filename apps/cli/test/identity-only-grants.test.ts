@@ -31,7 +31,7 @@ it("creates, retries and revokes Grants without decrypting recovery, while full 
         publicDidKey: other.vault.identity.publicDidKey } }, generated.recoverySecret)).rejects.toThrow();
     } finally { other.recoverySecret.fill(0); }
     const signer = await unlockUserIdentity(vault, generated.recoverySecret);
-    expect(Object.keys(signer)).toEqual(["vault", "signGrant", "signAddressBinding", "signTransferGrant", "signTransferCancellation", "signTransferAddressSelection", "signAccountAccess"]);
+    expect(Object.keys(signer)).toEqual(["vault", "signGrant", "signAddressBinding", "signConnectionConsent", "signTransferGrant", "signTransferCancellation", "signTransferAddressSelection", "signAccountAccess"]);
     const now = Math.floor(Date.now() / 1000);
     const hash = { algorithm: "sha-256" as const, value: new Uint8Array(32) };
     const grant: HailGrant = { type: "hail.grant", version: 1,

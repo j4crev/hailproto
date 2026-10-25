@@ -1,4 +1,97 @@
-# QR Connection Consent — Opt-In Provider-Local Preview
+# QR Connection Consent — Preview
+
+## Owner-Controlled Consent And Cross-Provider Connections
+
+This release adds owner-controlled identity signing and the complete cross-provider
+connection lifecycle: admission, crossed-scan convergence, durable retries and signed
+disconnect propagation. It does not enable message delivery or portable account export.
+See [federation v1](connection-federation.md) for wire/state rules and the deployment
+receipts in [Haili launch](../docs/haili-launch.md) for live rollout status.
+
+### Owner-Controlled Signing
+
+Owner-controlled accounts use the same browser passkey session and exact-action
+review, without granting bearer credentials access to connection management. Creating
+or replacing a code freezes its full invitation payload and an encrypted random
+admission token in the approval record. Connecting freezes the scanner's complete
+confirmation. The browser downloads `hailp.connection-signing` JSON with the provider,
+request ID, approval deadline and diagnostic payload; it never downloads a private key.
+
+The user reviews and signs locally:
+
+```sh
+hailp connection sign proposal.json --provider https://your-provider.example \
+  --vault /private/vault.json --output /private/consent.cose
+```
+
+The CLI asserts the provider, purpose, signer DID and current approval window,
+unlocks only the identity key and preserves exact output on retry. The browser rejects
+ordinary JSON/vault files and mismatched payloads locally before upload. The provider
+then verifies the full signed COSE object against the immutable proposal and current
+PLC identity key, in addition to the exact-action passkey assertion. Neither the
+vault encryption secret nor a recovery key is uploaded or used as consent authority.
+Code revocation and disconnect remain provider-local administrative restrictions,
+approved with a passkey; they do not mint new identity-signed permission.
+
+For new pairs involving an owner-controlled account, the identity-signed standing
+invitation and identity-signed scanner confirmation are retained as `joint-v1` consent.
+The inviter's identity key need not be online again for each redemption. The provider
+does **not** forge two per-redemption identity Grants or install an owner key. Selected
+signed address bindings and current authority evidence remain pinned during admission.
+Existing `grants-v1` connections and their signed bytes are preserved unchanged;
+managed/managed pairs retain their existing path. Neither format is accepted by v0
+subscription or envelope authorization endpoints.
+
+Migration 63 adds bounded immutable owner proposals/encrypted pending tokens and an
+explicit consent format. Joint active rows must retain both proof objects and both
+authority evidence records, without substituted Grants. Its rollback preserves old
+managed data and refuses any retained owner proposal or joint epoch. The existing
+transfer/custody guards continue to cover confirmed consent and tombstones.
+
+### Cross-Provider Review And Admission
+
+`POST /hail/connections/invitations/review` accepts only exact ID/DID/token input,
+with bounded JSON, source rate limits and no browser cookies, bearer credentials or
+Origin header. A current token holder receives only:
+
+```json
+{"type":"hail.connection-review","version":1,"invitation":"<COSE base64url>","binding":"<COSE base64url>","federation":1}
+```
+
+The source checks current invitation validity, custody, selected address binding,
+identity authority, serving generation and fences before returning that proof.
+No approval, inbox request or connection is created. There is no CORS credential bridge.
+
+From `/connect`, a person may explicitly choose their trusted home provider's HTTPS
+origin. The admission code stays in the destination URL fragment, not a query/login
+parameter. Their home provider resolves the inviter's **current PLC service**, uses
+the existing DNS-pinned public HTTPS transport, refuses redirects/encoded or oversized
+responses and verifies the invitation, token hash and address binding under the current
+identity key. It never forwards the person's session or API credentials.
+
+A successful remote review returns `admissionSupported:true` only when the other
+provider advertises lifecycle support. Review alone does not connect anyone.
+Read-only proof is not an admission receipt and must not later be treated as evidence
+that a revoked invitation was redeemed. Older providers without lifecycle support
+return a review-only result or fail closed.
+
+### Federated Lifecycle
+
+The smaller DID's provider serializes canonical epochs. Both providers verify the
+identity-signed invitation/confirmation plus exact provider admission controls;
+signed receipts and durable outboxes converge on one connection ID. Terminal
+tombstones and epoch-bound consent reject replay across disconnect/reconnect.
+Current-state checks distinguish historical successful requests from live authority.
+See [federation v1](connection-federation.md), including migration 64 and retry rules.
+Portable export, explicit block controls and message delivery remain separate gates.
+
+Local checks exercise managed/owner and owner/owner combinations without provider-held
+owner identity keys, exact consent/signature rejection, offline identity-only CLI
+signing, old managed-data migration preservation and rollback refusal. Remote review
+checks cross an HTTP handler boundary using real signed source proof; Chromium checks
+exercise proposal download, local vault-file refusal and signed-file submission.
+
+## Original Managed Preview (Preserved)
 
 Status: Draft wire format and opt-in managed-account preview (`CONNECTION_PREVIEW=true`).
 Preview enabled on Haili by explicit operator approval October 25, 2026. The application
@@ -120,8 +213,9 @@ are unchanged.
 
 ## Still Required Before General Availability
 
-1. Owner-controlled signing and cross-provider admission/reconciliation. A passkey
-   login does not confer identity-signing authority; no global transaction is assumed.
+1. Independent provider/operator live ceremonies beyond the local two-provider proof.
+   Owner signing and federated admission/reconciliation are implemented above; passkeys
+   still do not confer identity-signing authority and no global transaction is assumed.
 2. Explicit persistent block/unblock controls in addition to the implemented disconnect
    tombstones; future message/redemption paths must respect blocks independently.
 3. Connection-aware envelope acceptance, delivery-time authorization and feed versus

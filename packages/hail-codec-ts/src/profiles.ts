@@ -59,6 +59,10 @@ export const SIGNED_PROFILES: Readonly<
     type: "hail.connection-grant", contentType: "application/hail-connection-grant+cbor",
     signerField: "grantor", keyRole: "hail-identity", maximumRepresentationBytes: 16_384,
   },
+  "hail.connection-control": {
+    type:"hail.connection-control",contentType:"application/hail-connection-control+cbor",
+    signerField:"from",keyRole:"hail-messaging",maximumRepresentationBytes:16_384,
+  },
   "hail.delivery-status": {
     type: "hail.delivery-status",
     contentType: "application/hail-delivery-status+cbor",

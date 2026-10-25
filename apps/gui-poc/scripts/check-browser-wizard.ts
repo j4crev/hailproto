@@ -1,6 +1,6 @@
 // Built GUI + Chromium + virtual WebAuthn; local API fixtures, no public writes or mail.
 import {strict as assert} from "node:assert";
-import {mkdtemp,readFile,readdir,rm} from "node:fs/promises";
+import {mkdtemp,readFile,readdir,writeFile,rm} from "node:fs/promises";
 import {join} from "node:path";
 import {createRequire} from "node:module";
 import {createSignupBackup} from "../src/lib/signup-recovery.js";
@@ -26,7 +26,7 @@ const permissionSigner=await crypto.subtle.generateKey("Ed25519",true,["sign","v
 let allowed:HailGrant|null=null,allowedCose="",allowedDigest="",generalAvailable=false;
 const approvals=new Map<string,{action:string;payload:HailGrant;challenge:string;approved:boolean;result:unknown}>();
 const connectionCodes:{id:string;personal:boolean;label:string;expiresAt:number|null;link:string}[]=[],connectionApprovals=new Map<string,any>();
-let personalConnection=false;
+let personalConnection=false,ownerConnectionSigning=false,federatedConnecting=false,federationPolls=0;
 const fixtureConnectionId=uuidV7(),fixtureInvitationId=uuidV7(),fixtureAdmissionToken="K".repeat(43);
 const incomingId="019a15fd-2bd0-7433-8afa-bd0355e0608d";
 const sendingGrantId="019a15fd-2bd0-7433-8afa-bd0355e0608e";
@@ -66,13 +66,21 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   if(path.startsWith("/api/v1/account/connections")){
     assert(request.headers.get("Cookie")?.includes("hail_session="+sessionToken));
     const step=path.split("/")[5];
-    if(!step)return json({preview:true,codes:connectionCodes,connections:personalConnection?[{id:fixtureConnectionId,did:peerDid,address:peerAddress,connectedAt:new Date().toISOString()}]:[]});
+    const advanceFederation=()=>{if(federatedConnecting&&[...connectionApprovals.values()].some(row=>row.result?.state==='connecting')&&++federationPolls>=3){personalConnection=true;for(const row of connectionApprovals.values())if(row.result?.state==='connecting')row.result={connectionId:fixtureConnectionId,attemptId:row.requestId,state:'active'};}};
+    if(!step){advanceFederation();return json({preview:true,codes:connectionCodes,connections:personalConnection?[{id:fixtureConnectionId,did:peerDid,address:peerAddress,connectedAt:new Date().toISOString(),remote:federatedConnecting}]:[],
+      pendingConnections:federatedConnecting&&!personalConnection&&[...connectionApprovals.values()].some(row=>row.result?.state==='connecting')?[{id:fixtureConnectionId,did:peerDid,address:peerAddress,kind:'connect',state:'pending'}]:[]});}
     if(step==="review"){assert.equal(input.id,fixtureInvitationId);assert.equal(input.did,peerDid);assert.equal(input.token,fixtureAdmissionToken);
       return json({id:input.id,did:peerDid,address:peerAddress,expiresAt:null,preview:true});}
     if(step==="prepare"){
       const options=await generateAuthenticationOptions({rpID:"localhost",userVerification:"required",allowCredentials:[{id:credential.id}]});
       const review={...input,...(input.action==="connect"?{address:peerAddress}:{})};delete review.token;
       const row={requestId:input.requestId,action:input.action,review,expiresAt:new Date(Date.now()+300000).toISOString(),result:null,options};
+      if(ownerConnectionSigning&&input.action==="create"){
+        const tokenBytes=new Uint8Array(Buffer.from("M".repeat(43),"base64url"));
+        const payload={type:"hail.connection-invitation" as const,version:1 as const,invitation_id:uuidV7(),from:did!,
+          token_hash:{algorithm:"sha-256" as const,value:new Uint8Array(await crypto.subtle.digest("SHA-256",tokenBytes))},issued_at:Math.floor(Date.now()/1000),expires_at:input.expiresAt,key_id:did!+"#hail-identity"};
+        Object.assign(row,{ownerSigning:{type:"hailp.connection-signing",version:1,provider:origin,requestId:row.requestId,expiresAt:row.expiresAt,payload:toDiagnosticJson(payload.type,payload)}});
+      }
       connectionApprovals.set(input.requestId,row);return json(row);
     }
     if(step==="commit"){
@@ -85,11 +93,12 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
           const id=uuidV7();connectionCodes.push({id,personal:row.action==="replace"||row.review.personal,label:row.review.label??"Personal code",expiresAt:row.review.expiresAt??null,
             link:origin+"/connect#"+new URLSearchParams({id,did:did!,token:"M".repeat(43)})});row.result={invitationId:id};
         }else if(row.action==="revoke"){const index=connectionCodes.findIndex(code=>code.id===row.review.id);assert(index>=0);connectionCodes.splice(index,1);row.result={invitationId:row.review.id,revoked:true};}
-        else{personalConnection=row.action==="connect";row.result={connectionId:fixtureConnectionId,state:personalConnection?"active":"disconnected"};}
+        else{personalConnection=row.action==="connect"&&!federatedConnecting;row.result=row.action==="connect"&&federatedConnecting?{connectionId:null,attemptId:row.requestId,state:'connecting'}:{connectionId:fixtureConnectionId,state:personalConnection?"active":"disconnected"};}
         row.options=null;
       }
       return json(row);
     }
+    if(connectionApprovals.get(step)?.result?.state==='connecting')advanceFederation();
     return connectionApprovals.has(step)?json(connectionApprovals.get(step)):json({},404);
   }
   if(path===`/api/v1/account/inbox/${encodeURIComponent(peerDid)}/${incomingId}`||path===`/api/v1/account/inbox/${peerDid}/${incomingId}`)return json(incomingMessage());
@@ -503,6 +512,31 @@ try{
   await evaluate(`sessionStorage.setItem('hail.connection-approval.v1',${JSON.stringify(savedConnectionReview.requestId)})`);
   await cdp("Page.navigate",{url:origin+"/connect"});await wait(()=>has("Continue interrupted review"),"old approval status after disconnect");
   await click("Continue interrupted review");await wait(()=>has("It was not reopened."),"historical success does not masquerade as a live connection");assert(!personalConnection);
+  federatedConnecting=true;federationPolls=0;
+  await cdp("Page.navigate",{url:invitationLink});await wait(()=>has("Review connection code"),"federated scanner review");
+  await click("Review connection code");await wait(()=>has("Review before connecting"),"federated consent review");
+  await click("Review before connecting");await wait(()=>has("Confirm connection"),"federated passkey consent");await click("Confirm with passkey");
+  await wait(()=>has("Connecting across providers."),"durable cross-provider pending state");assert(!personalConnection);
+  await cdp("Page.navigate",{url:origin+"/settings/security?federation-pending=1"});await wait(()=>has("Synchronizing with other providers"),"pending work discoverable after closing scanner page");
+  await wait(()=>has("Disconnect"),"automatic federation status polling discovers completed connection");assert(personalConnection);
+  await click("Disconnect");await wait(()=>has("Confirm disconnect"),"federated disconnect consent");await click("Confirm with passkey");await wait(()=>has("No connections yet."),"federated disconnect visible");
+  federatedConnecting=false;
+  ownerConnectionSigning=true;
+  await cdp("Page.navigate",{url:origin+"/settings/security?owner-signing=1"});await wait(()=>has("Create an expiring connect link"),"owner-signing code form");
+  await fill("Private label","Owner identity proof");await fill("Expires (your local time)","2027-01-15T18:00");await click("Review new link");
+  await wait(()=>has("Sign with your own identity key"),"owner consent requires local signature");
+  const ownerRow=[...connectionApprovals.values()].find(row=>row.ownerSigning)!;
+  await click("Download consent proposal");await wait(async()=>{try{return (await readdir(work)).includes(`hail-connection-${ownerRow.requestId}.json`);}catch{return false;}},"owner proposal download");
+  const downloaded=JSON.parse(await readFile(join(work,`hail-connection-${ownerRow.requestId}.json`),"utf8"));assert.deepEqual(downloaded,JSON.parse(JSON.stringify(ownerRow.ownerSigning)));
+  const wrongUpload=join(work,"not-consent.json");await writeFile(wrongUpload,JSON.stringify({type:"hailp.user-vault",ciphertext:"must-stay-local"}));
+  await upload("Signed consent file",wrongUpload);await wait(()=>has("not a vault or backup"),"browser rejects a vault before uploading");
+  assert(!requests.some(r=>r.body.includes("must-stay-local")));
+  const ownerPayload=fromDiagnosticJson("hail.connection-invitation",downloaded.payload);
+  const ownerCose=await signPayload("hail.connection-invitation",ownerPayload,createWebCryptoSigner(ownerPayload.key_id,permissionSigner.privateKey));
+  const ownerPath=join(work,"owner-consent.cose");await writeFile(ownerPath,ownerCose);
+  await upload("Signed consent file",ownerPath);await wait(()=>has("Signed file ready."),"browser accepts exact signed consent file");
+  const originalCodes=connectionCodes.length;await click("Confirm with passkey");await wait(async()=>connectionCodes.length===originalCodes+1&&await has("Saved. Existing subscriptions are unchanged."),"owner signed file and passkey submission");
+  assert.equal(JSON.parse(requests.filter(r=>r.path==="/api/v1/account/connections/commit").at(-1)!.body).cose,encodeBase64Url(ownerCose));
   assert.equal(composePosts,1);assert.equal(replyPosts,1);
   for(const req of requests){assert(!req.body.includes(secret),"Recovery secret uploaded");assert(!req.body.includes('"ciphertext"'),"Recovery vault uploaded");}
   assert(requests.filter(r=>r.authorization).every(r=>r.authorization==="Bearer "+setupToken||r.path.endsWith("check-address")));

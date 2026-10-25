@@ -83,6 +83,15 @@ func validateTypedPayload(payload Payload) (string, error) {
 		}
 		kind, value = EnvelopeType, reflect.ValueOf(*typed)
 		validate = func() error { return preflightEnvelope(typed) }
+	case ConnectionControl:
+		kind, value = ConnectionControlType, reflect.ValueOf(typed)
+		validate = func() error { return validatePayloadMap(ConnectionControlType, connectionControlValue(&typed)) }
+	case *ConnectionControl:
+		if typed == nil {
+			return "", errors.New("nil connection control")
+		}
+		kind, value = ConnectionControlType, reflect.ValueOf(*typed)
+		validate = func() error { return validatePayloadMap(ConnectionControlType, connectionControlValue(typed)) }
 	case DeliveryStatus:
 		kind, value = DeliveryStatusType, reflect.ValueOf(typed)
 		validate = func() error { return preflightDelivery(&typed) }

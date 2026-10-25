@@ -32,6 +32,16 @@ remaining gates. Preview enabled on Haili by operator approval; no direct messag
 owner-controlled/cross-provider flow, explicit block controls or portable export yet.
 Retained preview consent blocks transfer/custody changes pending portability support.
 
+The expanded release lets owner-controlled accounts download exact invitation or
+confirmation proposals, sign with `hailp connection sign` locally, then upload only
+the COSE consent file before passkey confirmation. Ordinary vault files are rejected
+locally before any upload. Cross-provider codes can be explicitly opened on the home
+provider, reviewed and confirmed. Durable Connecting state, background admission,
+canonical epoch reconciliation and signed disconnect propagation survive tab closure
+and provider outages. Security shows pending synchronization/recent failed attempts;
+old receipts do not masquerade as live connections. See
+[federation v1](../spec/connection-federation.md). Messaging/export remain separate.
+
 ## Approved Relationship Direction And General Subscriptions
 
 The operator confirmed the live browser release works. Subsequent discussion

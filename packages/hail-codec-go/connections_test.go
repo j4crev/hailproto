@@ -18,7 +18,7 @@ func TestDraftConnectionVectors(t *testing.T) {
 	if err = json.Unmarshal(raw, &vectors); err != nil {
 		t.Fatal(err)
 	}
-	if vectors.Format != "hail-connection-draft-vectors-1" || len(vectors.Positive) != 6 || len(vectors.NegativePayload) != 11 {
+	if vectors.Format != "hail-connection-draft-vectors-1" || len(vectors.Positive) != 15 || len(vectors.NegativePayload) != 18 {
 		t.Fatal("unexpected connection vectors")
 	}
 	keys := map[string]testKeyVector{}
@@ -51,6 +51,8 @@ func TestDraftConnectionVectors(t *testing.T) {
 				kid = p.KeyID
 			case *ConnectionGrant:
 				kid = p.KeyID
+			case *ConnectionControl:
+				kid = p.KeyID
 			default:
 				t.Fatal("unexpected model")
 			}
@@ -74,6 +76,14 @@ func TestDraftConnectionVectors(t *testing.T) {
 			switch p := inspected.Payload().(type) {
 			case *ConnectionInvitation:
 				p.TokenHash.Value[0] ^= 1
+				if p.ExpiresAt != nil {
+					*p.ExpiresAt = 0
+				}
+			case *ConnectionControl:
+				p.ProofHash.Value[0] ^= 1
+				if p.ConnectionID != nil {
+					*p.ConnectionID = "changed"
+				}
 				if p.ExpiresAt != nil {
 					*p.ExpiresAt = 0
 				}

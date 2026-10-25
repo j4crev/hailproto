@@ -2,6 +2,86 @@ package hailcodec
 
 import "errors"
 
+func connectionControlValue(v *ConnectionControl) map[any]any {
+	var expiry, id any
+	if v.ExpiresAt != nil {
+		expiry = *v.ExpiresAt
+	}
+	if v.ConnectionID != nil {
+		id = *v.ConnectionID
+	}
+	return map[any]any{"type": v.Type, "version": v.Version, "operation": v.Operation, "from": v.From, "to": v.To, "request_id": v.RequestID,
+		"connection_id": id, "epoch": v.Epoch, "state": v.State, "proof_hash": digestValue(v.ProofHash), "issued_at": v.IssuedAt, "expires_at": expiry, "key_id": v.KeyID}
+}
+func validateConnectionControl(m map[any]any) error {
+	if e := exact(m, []string{"type", "version", "operation", "from", "to", "request_id", "connection_id", "epoch", "state", "proof_hash", "issued_at", "expires_at", "key_id"}, nil, "$"); e != nil {
+		return e
+	}
+	actor, e := did(m["from"], "$.from")
+	if e != nil {
+		return e
+	}
+	peer, e := did(m["to"], "$.to")
+	if e != nil {
+		return e
+	}
+	if actor == peer {
+		return errors.New("distinct parties required")
+	}
+	if e = uuid(m["request_id"], "$.request_id"); e != nil {
+		return e
+	}
+	epoch, e := intValue(m["epoch"], "$.epoch", 0)
+	if e != nil {
+		return e
+	}
+	op, e := textValue(m["operation"], "$.operation")
+	if e != nil {
+		return e
+	}
+	receipt := false
+	switch op {
+	case "probe", "offer", "connect", "disconnect":
+	case "snapshot", "admission", "ack":
+		receipt = true
+	default:
+		return errors.New("unknown connection operation")
+	}
+	state, e := textValue(m["state"], "$.state")
+	if e != nil {
+		return e
+	}
+	switch state {
+	case "empty":
+		if m["connection_id"] != nil || epoch != 0 {
+			return errors.New("empty pair has no epoch")
+		}
+	case "active", "disconnected":
+		if epoch < 1 {
+			return errors.New("connection epoch must be positive")
+		}
+		if e = uuid(m["connection_id"], "$.connection_id"); e != nil {
+			return e
+		}
+	default:
+		return errors.New("unknown connection state")
+	}
+	if e = digest(m["proof_hash"], "$.proof_hash"); e != nil {
+		return e
+	}
+	if _, e = intValue(m["issued_at"], "$.issued_at", 0); e != nil {
+		return e
+	}
+	if receipt {
+		if m["expires_at"] != nil {
+			return errors.New("durable receipts do not expire")
+		}
+	} else if e = connectionExpiry(m, true); e != nil {
+		return e
+	}
+	return keyID(m["key_id"], actor, "hail-messaging", "$.key_id")
+}
+
 func connectionInvitationValue(v *ConnectionInvitation) map[any]any {
 	var expiry any
 	if v.ExpiresAt != nil {

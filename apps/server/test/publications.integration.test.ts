@@ -30,7 +30,7 @@ it.skipIf(!process.env.DATABASE_URL)("snapshots category audiences, resumes exac
   const users=[] as {id:string;did:string;address:string;keys:Awaited<ReturnType<typeof generateAccountKeys>>}[];
   try{
     await db.migrate();
-    const rollback=await db.sql.reserve();try{await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());}finally{rollback.release();}
+    const rollback=await db.sql.reserve();try{await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());}finally{rollback.release();}
     await db.migrate();
     for(const [i,name] of ["publisher","alice","bob","sales-only","late"].entries()){
       const id=randomUUID(),did="did:plc:"+String.fromCharCode(97+i).repeat(24),keys=await generateAccountKeys(id,encryptor),address=name+"@publisher.example.com";

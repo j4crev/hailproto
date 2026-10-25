@@ -9,6 +9,7 @@ const (
 	ConnectionInvitationType   = "hail.connection-invitation"
 	ConnectionConfirmationType = "hail.connection-confirmation"
 	ConnectionGrantType        = "hail.connection-grant"
+	ConnectionControlType      = "hail.connection-control"
 	EnvelopeType               = "hail.envelope"
 	DeliveryStatusType         = "hail.delivery-status"
 	BodySPT1Type               = "hail.body.spt-1"
@@ -156,6 +157,24 @@ type ConnectionGrant struct {
 }
 
 func (ConnectionGrant) PayloadType() string { return ConnectionGrantType }
+
+type ConnectionControl struct {
+	Type         string  `cbor:"type"`
+	Version      int64   `cbor:"version"`
+	Operation    string  `cbor:"operation"`
+	From         string  `cbor:"from"`
+	To           string  `cbor:"to"`
+	RequestID    string  `cbor:"request_id"`
+	ConnectionID *string `cbor:"connection_id"`
+	Epoch        int64   `cbor:"epoch"`
+	State        string  `cbor:"state"`
+	ProofHash    Digest  `cbor:"proof_hash"`
+	IssuedAt     int64   `cbor:"issued_at"`
+	ExpiresAt    *int64  `cbor:"expires_at"`
+	KeyID        string  `cbor:"key_id"`
+}
+
+func (ConnectionControl) PayloadType() string { return ConnectionControlType }
 
 type EnvelopeAuthorization struct {
 	Type    string `cbor:"type"`
@@ -337,6 +356,18 @@ func clonePayload(payload Payload) Payload {
 		cloned.ConsentContext.AddressBindingHash.Value = bytes.Clone(value.ConsentContext.AddressBindingHash.Value)
 		cloned.ConsentContext.InvitationHash.Value = bytes.Clone(value.ConsentContext.InvitationHash.Value)
 		cloned.ConsentContext.ConfirmationHash.Value = bytes.Clone(value.ConsentContext.ConfirmationHash.Value)
+		if value.ExpiresAt != nil {
+			expiry := *value.ExpiresAt
+			cloned.ExpiresAt = &expiry
+		}
+		return &cloned
+	case *ConnectionControl:
+		cloned := *value
+		cloned.ProofHash.Value = bytes.Clone(value.ProofHash.Value)
+		if value.ConnectionID != nil {
+			id := *value.ConnectionID
+			cloned.ConnectionID = &id
+		}
 		if value.ExpiresAt != nil {
 			expiry := *value.ExpiresAt
 			cloned.ExpiresAt = &expiry

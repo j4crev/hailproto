@@ -387,6 +387,24 @@ function validateConnectionConfirmation(payload:HailRecord):void {
   keyId(payload.key_id,actor,"hail-identity","$.key_id");
 }
 
+function validateConnectionControl(payload:HailRecord):void {
+  exactKeys(payload,["type","version","operation","from","to","request_id","connection_id","epoch","state","proof_hash","issued_at","expires_at","key_id"],[],"$");
+  const actor=did(payload.from,"$.from");did(payload.to,"$.to");
+  if(payload.from===payload.to)fail("distinct parties required","$.to");
+  uuid(payload.request_id,"$.request_id");integer(payload.epoch,"$.epoch");
+  if(!["probe","offer","connect","disconnect","snapshot","admission","ack"].includes(String(payload.operation)))fail("unknown operation","$.operation");
+  if(!["empty","active","disconnected"].includes(String(payload.state)))fail("unknown state","$.state");
+  if(payload.state==="empty"){
+    if(payload.connection_id!==null||payload.epoch!==0)fail("empty pair has no epoch","$.connection_id");
+  }else{uuid(payload.connection_id,"$.connection_id");integer(payload.epoch,"$.epoch",1);}
+  digest(payload.proof_hash,"$.proof_hash");
+  const receipt=["snapshot","admission","ack"].includes(String(payload.operation));
+  integer(payload.issued_at,"$.issued_at");
+  if(receipt){if(payload.expires_at!==null)fail("durable receipts do not expire","$.expires_at");}
+  else connectionExpiry(payload,true);
+  keyId(payload.key_id,actor,"hail-messaging","$.key_id");
+}
+
 function validateConnectionGrant(payload:HailRecord):void {
   exactKeys(payload,["type","version","grant_id","connection_id","revision","previous","grantor","grantee","status","issued_at","updated_at","expires_at","consent_context","key_id"],[],"$");
   uuid(payload.grant_id,"$.grant_id");uuid(payload.connection_id,"$.connection_id");
@@ -712,6 +730,8 @@ export function validatePayload<T extends HailPayloadType>(
       validateConnectionConfirmation(payload);break;
     case "hail.connection-grant":
       validateConnectionGrant(payload);break;
+    case "hail.connection-control":
+      validateConnectionControl(payload);break;
     case "hail.envelope":
       validateEnvelope(payload);
       break;

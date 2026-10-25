@@ -25,6 +25,7 @@ import { transitionToManaged,transitionToOwner } from "../custody-transition.js"
 import {completeManagedTransfer,exportManagedTransferSnapshot,managedTransferOffer,managedTransferStatus,
   selectManagedTransferAddress,signManagedTransferCutover} from "../managed-account-transfer.js";
 import {createProfile,showProfile,updateProfile} from "../sender-profile.js";
+import {signConnectionProposal} from "../connection-signing.js";
 
 try {
   const parsed = parseCommand(Bun.argv.slice(2));
@@ -37,7 +38,9 @@ try {
     const wait = values.wait === undefined ? undefined : boundedInteger(values.wait, "wait", 300, 1);
     const interval = boundedInteger(values.interval, "interval", 30, 2);
     const [group, command, argument] = positionals;
-    if(group==="vault") {
+    if(group==="connection"&&command==="sign") {
+      printResult(await signConnectionProposal(values.vault!,argument!,values.output!,values.provider!));
+    }else if(group==="vault") {
       if(command==="create") {
       const generated=await createUserVault();
       try {await savePrivateBytes(values["recovery-file"]!,new TextEncoder().encode(encodeBase64Url(generated.recoverySecret)+"\n"));

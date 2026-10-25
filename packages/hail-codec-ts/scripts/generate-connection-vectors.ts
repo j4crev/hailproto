@@ -2,18 +2,18 @@
 import {createHash,createPrivateKey,createPublicKey,sign} from "node:crypto";
 import {writeFile} from "node:fs/promises";
 import {encodeDeterministic,encodePayload,signPayload,toDiagnosticJson,expectedKeyId,type HailConnectionInvitation,
-  type HailConnectionConfirmation,type HailConnectionGrant,type HailPayloadByType,type HailSignedPayloadType,type HailValue} from "../src/index.js";
+  type HailConnectionConfirmation,type HailConnectionGrant,type HailConnectionControl,type HailPayloadByType,type HailSignedPayloadType,type HailValue} from "../src/index.js";
 
 const owner="did:plc:"+"a".repeat(24),peer="did:plc:"+"b".repeat(24),issued=1787851200;
 const id=(suffix:string)=>"01954144-8097-7a9d-a7a8-ef29a823ea"+suffix;
 const hash=(bytes:Uint8Array)=>new Uint8Array(createHash("sha256").update(bytes).digest());
 const digest=(bytes:Uint8Array)=>({algorithm:"sha-256" as const,value:hash(bytes)});
 const hex=(bytes:Uint8Array)=>Buffer.from(bytes).toString("hex");
-const keys=[owner,peer].map((did,index)=>{
-  const seed=Uint8Array.from({length:32},(_,i)=>i+index*96);
+const keys=[{did:owner,role:"identity",start:0},{did:peer,role:"identity",start:96},{did:owner,role:"messaging",start:32},{did:peer,role:"messaging",start:128}].map(({did,role,start})=>{
+  const seed=Uint8Array.from({length:32},(_,i)=>i+start);
   const privateKey=createPrivateKey({format:"der",type:"pkcs8",key:Buffer.concat([Buffer.from("302e020100300506032b657004220420","hex"),seed])});
   const publicBytes=createPublicKey(privateKey).export({format:"der",type:"spki"}).subarray(-32);
-  return {key_id:did+"#hail-identity",seed_hex:hex(seed),public_key_hex:hex(publicBytes),privateKey};
+  return {key_id:did+"#hail-"+role,seed_hex:hex(seed),public_key_hex:hex(publicBytes),privateKey};
 });
 const positive:Record<string,unknown>[]=[],negative:Record<string,unknown>[]=[];
 async function add<T extends HailSignedPayloadType>(name:string,type:T,payload:HailPayloadByType[T]){
@@ -47,6 +47,22 @@ const ownerBinding=await signPayload("hail.address-binding",{type:"hail.address-
 await add("connection-reciprocal-grant",grant.type,{...grant,grant_id:id("f6"),grantor:peer,grantee:owner,key_id:peer+"#hail-identity",
   consent_context:{...grant.consent_context,grantee_address:"owner@example.com",address_binding_hash:digest(ownerBinding)}});
 await add("connection-grant-revocation",grant.type,{...grant,revision:2,previous:hash(grantBytes),status:"revoked",updated_at:issued+3});
+const control:HailConnectionControl={type:"hail.connection-control",version:1,operation:"probe",from:owner,to:peer,request_id:id("f7"),
+  connection_id:null,epoch:0,state:"empty",proof_hash:digest(new Uint8Array()),issued_at:issued,expires_at:issued+300,key_id:owner+"#hail-messaging"};
+for(const operation of ["probe","offer","connect"] as const)await add("connection-control-"+operation,control.type,{...control,operation});
+await add("connection-control-disconnect",control.type,{...control,operation:"disconnect",state:"active",epoch:1,connection_id:grant.connection_id});
+await add("connection-control-empty-snapshot",control.type,{...control,operation:"snapshot",expires_at:null});
+await add("connection-control-active-snapshot",control.type,{...control,operation:"snapshot",expires_at:null,state:"active",epoch:1,connection_id:grant.connection_id});
+await add("connection-control-closed-snapshot",control.type,{...control,operation:"snapshot",expires_at:null,state:"disconnected",epoch:2,connection_id:grant.connection_id});
+await add("connection-control-admission",control.type,{...control,operation:"admission",expires_at:null});
+await add("connection-control-ack",control.type,{...control,operation:"ack",expires_at:null,state:"active",epoch:1,connection_id:grant.connection_id});
+bad("connection-control-identity-role",control.type,{...control,key_id:owner+"#hail-identity"});
+bad("connection-control-unknown-purpose",control.type,{...control,operation:"publish"});
+bad("connection-control-empty-id",control.type,{...control,connection_id:grant.connection_id});
+bad("connection-control-active-no-id",control.type,{...control,state:"active",epoch:1});
+bad("connection-control-request-must-expire",control.type,{...control,expires_at:null});
+bad("connection-control-durable-receipt",control.type,{...control,operation:"snapshot"});
+bad("connection-control-not-subscription",control.type,{...control,scope:[{type:"categories",values:["general"]}]});
 bad("connection-invitation-secret-forbidden",invitation.type,{...invitation,token:new Uint8Array(32)});
 bad("connection-invitation-invalid-expiry",invitation.type,{...invitation,expires_at:issued});
 bad("connection-invitation-unknown-version",invitation.type,{...invitation,version:2});

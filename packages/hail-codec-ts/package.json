@@ -12,6 +12,10 @@
       "import": "./dist/index.js"
     },
     "./vectors/v0.json": "./vectors/v0.json",
+    "./cbor": {
+      "types": "./dist/cbor.d.ts",
+      "import": "./dist/cbor.js"
+    },
     "./base64url": {
       "types": "./dist/base64url.d.ts",
       "import": "./dist/base64url.js"

@@ -76,6 +76,7 @@ import {createIndependentPlcObserver} from "./plc/observers.js";
 import {inspectPlcReaders} from "./plc/diagnostics.js";
 import {SenderProfileService} from "./profiles/service.js";
 import {AccountConnections} from "./accounts/connections.js";
+import {RemoteConnectionReview} from "./accounts/connection-review.js";
 
 const config = loadConfig();
 const database = new ProviderDatabase(config.databaseUrl);
@@ -91,6 +92,9 @@ const messaging=new AccountMessaging(database.sql,new BodyRepository(database.sq
   (sender,id)=>submitEnvelope(sender,id,new EnvelopeRepository(database.sql),resolver,
     new DeliveryStatusReceiver(database.sql,onboardingRepository,resolver,config.hailServiceBase),transport));
 const publications=new AccountPublications(database.sql,messaging);
+const connections=process.env.CONNECTION_PREVIEW==="true"&&config.passkeys?new AccountConnections(database.sql,encryptor,resolver,
+  new PasskeyAuth(database.sql,config.passkeys.rpId,config.passkeys.origin),config.publicOrigin,
+  new RemoteConnectionReview(database.sql,resolver,transport.fetch,transport.validateTarget,config.hailServiceBase)):undefined;
 const grantPublisher = new GrantPublisher(
   grantRepository,
   resolver,
@@ -192,6 +196,14 @@ setInterval(async()=>{
   finally{fanoutRunning=false;}
 },5_000);
 
+let connectionRunning=false;
+if(connections?.federation)setInterval(async()=>{
+  if(connectionRunning)return;connectionRunning=true;
+  try{await withFreshServingGenerations(database.sql,()=>connections.federation!.workOne());}
+  catch(error){console.error(JSON.stringify({level:"error",message:"connection federation worker failed",error:error instanceof Error?error.message:"unknown error"}));}
+  finally{connectionRunning=false;}
+},1_000);
+
 let cleanupRunning = false;
 setInterval(async () => {
   if (cleanupRunning) return;
@@ -290,8 +302,7 @@ const app = createApp(config, schemaRehearsal ? {
     onboarding:new PrivatePocOnboarding(database.sql,plc,new KeyEncryptor(config.keyEncryptionKey),config.plcDirectoryUrl,config.hailServiceBase),
     activation:new ActivationService(onboardingRepository,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver),config.hailServiceBase,"public"),provider:config.publicOrigin,profile:"private-poc" as const}} : {}),
   accountApi: { accounts: new AccountApiRepository(database.sql), grants: grantRepository,
-     ...(process.env.CONNECTION_PREVIEW==="true"&&config.passkeys?{connections:new AccountConnections(database.sql,encryptor,resolver,
-       new PasskeyAuth(database.sql,config.passkeys.rpId,config.passkeys.origin),config.publicOrigin)}:{}),
+     ...(connections?{connections}:{}),
     ...(managedAuthorization&&managedDelivery&&managedFence&&managedExporter?{managedTransfer:new ManagedAccountTransfer(
       database.sql,managedAuthorization,managedDelivery,config.publicOrigin,{fence:managedFence,snapshots:managedExporter})}:{}),
     ...(process.env.PUBLIC_CUSTODY_TRANSITIONS==="true"?(()=>{

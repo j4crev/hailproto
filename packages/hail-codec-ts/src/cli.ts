@@ -18,6 +18,7 @@ const PAYLOAD_TYPES = new Set<HailPayloadType>([
   "hail.connection-invitation",
   "hail.connection-confirmation",
   "hail.connection-grant",
+  "hail.connection-control",
   "hail.envelope",
   "hail.delivery-status",
   "hail.body.spt-1",

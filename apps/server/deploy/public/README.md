@@ -56,8 +56,13 @@ Security offers separate personal and expiring connection QR/link controls for
 managed accounts on this provider. Confirmed consent blocks transfer/custody changes
 even after code revocation or disconnect until portable export is implemented.
 Disabling the preview does not remove that retained consent or its guards.
-Owner-controlled signing, cross-provider handshakes, explicit blocking and connection
-message delivery are not supported yet. See [connection consent](../../../../spec/connection-auth.md).
+Owner-controlled signing and cross-provider admission/reconciliation/disconnect are
+implemented; the other provider must support the same handshake. The one-second
+durable worker retries unfinished work after restarts. Security shows synchronization
+and recent failures, not an invitation inbox. Explicit blocking, connection message
+delivery and portable export are not included. Existing transfer restrictions remain
+in force. See [connection consent](../../../../spec/connection-auth.md) and
+[federation v1](../../../../spec/connection-federation.md) for wire and rollback rules.
 
 Initial canary enrollment may temporarily mount a mode-0600 credential. The
 deployed profile must not retain that mount or enable

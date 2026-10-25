@@ -308,6 +308,7 @@ const CDDL_RULES = {
   "hail.connection-invitation": "hail-connection-invitation",
   "hail.connection-confirmation": "hail-connection-confirmation",
   "hail.connection-grant": "hail-connection-grant",
+  "hail.connection-control": "hail-connection-control",
   "hail.envelope": "hail-envelope",
   "hail.delivery-status": "hail-delivery-status",
   "hail.body.spt-1": "hail-body-spt-1",
@@ -316,6 +317,7 @@ const CDDL_RULES = {
 } as const satisfies Readonly<Record<HailPayloadType, string>>;
 
 const REQUIRED_KEYS = {
+  "hail.connection-control": ["type","version","operation","from","to","request_id","connection_id","epoch","state","proof_hash","issued_at","expires_at","key_id"],
   "hail.connection-invitation": ["type","version","invitation_id","from","token_hash","issued_at","expires_at","key_id"],
   "hail.connection-confirmation": ["type","version","confirmation_id","from","to","invitation_id","invitation_hash","issued_at","expires_at","key_id"],
   "hail.connection-grant": ["type","version","grant_id","connection_id","revision","previous","grantor","grantee","status","issued_at","updated_at","expires_at","consent_context","key_id"],
