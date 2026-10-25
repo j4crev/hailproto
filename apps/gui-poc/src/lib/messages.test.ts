@@ -36,6 +36,16 @@ describe("message projections", () => {
       .toMatchObject({next:null,messages:[{state:"on-hold",reason:"sender-rate-limited",retryAt:10}]});
   });
 
+  it("keeps connection authority separate from subscription categories and one-time replies",()=>{
+    const item={messageId:"m",sender:"s",recipient:"r",deliveredAt:"now",category:null,kind:"connection",reply:{allowed:false},replyAvailable:false,
+      connection:{id:"01954144-8097-7a9d-a7a8-ef29a823eaf1",epoch:1,active:true},
+      body:{version:1,profile:"spt-1",blocks:[{_type:"block",style:"normal",children:[{_type:"span",text:"Personal",marks:[]}],markDefs:[]}]}};
+    expect(parseMessage(item)).toMatchObject({kind:"connection",connection:{active:true,epoch:1},replyAvailable:false});
+    expect(()=>parseMessage({...item,category:"general"})).toThrow("cannot carry");
+    expect(()=>parseMessage({...item,reply:{allowed:true,until:123},replyAvailable:true})).toThrow("cannot carry");
+    expect(()=>parseMessage({...item,connection:{...item.connection,id:"javascript:alert(1)"}})).toThrow("Invalid message connection");
+  });
+
   it("rejects a body the POC cannot render safely", () => {
     expect(() => parseMessage({ body: { version: 1, profile: "spt-4", blocks: [] } })).toThrow("Unsupported message body");
     expect(()=>parseMessage({messageId:"m",sender:"s",recipient:"r",deliveredAt:"now",category:null,reply:{allowed:true},

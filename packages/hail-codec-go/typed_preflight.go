@@ -267,7 +267,7 @@ func preflightGrant(v *Grant) error {
 }
 
 func preflightEnvelope(v *Envelope) error {
-	if v.Type != EnvelopeType || v.Version != 1 {
+	if v.Type != EnvelopeType || v.Version != 1 && v.Version != 2 {
 		return errors.New("invalid envelope type or version")
 	}
 	if err := uuid(v.MessageID, "$.message_id"); err != nil {
@@ -280,12 +280,16 @@ func preflightEnvelope(v *Envelope) error {
 		return err
 	}
 	if v.Authorization.Type == "grant" {
-		if v.Authorization.ReplyTo != "" || uuid(v.Authorization.GrantID, "$.authorization.grant_id") != nil {
+		if v.Version != 1 || v.Authorization.ConnectionID != "" || v.Authorization.Epoch != 0 || v.Authorization.ReplyTo != "" || uuid(v.Authorization.GrantID, "$.authorization.grant_id") != nil {
 			return errors.New("invalid grant authorization")
 		}
 	} else if v.Authorization.Type == "reply" {
-		if v.Authorization.GrantID != "" || v.Category != "" || uuid(v.Authorization.ReplyTo, "$.authorization.reply_to") != nil {
+		if v.Version != 1 || v.Authorization.ConnectionID != "" || v.Authorization.Epoch != 0 || v.Authorization.GrantID != "" || v.Category != "" || uuid(v.Authorization.ReplyTo, "$.authorization.reply_to") != nil {
 			return errors.New("invalid reply authorization")
+		}
+	} else if v.Authorization.Type == "connection" {
+		if v.Version != 2 || v.Authorization.GrantID != "" || v.Authorization.ReplyTo != "" || v.Category != "" || v.Authorization.Epoch < 1 || uuid(v.Authorization.ConnectionID, "$.authorization.connection_id") != nil || v.Reply.Allowed {
+			return errors.New("invalid connection authorization")
 		}
 	} else {
 		return errors.New("invalid authorization type")

@@ -42,6 +42,14 @@ and provider outages. Security shows pending synchronization/recent failed attem
 old receipts do not masquerade as live connections. See
 [federation v1](../spec/connection-federation.md). Messaging/export remain separate.
 
+Next, undeployed messaging slice: Compose reuses its editor/preview and outbound worker
+for selected connection recipients; the same Envelope v2 extension supplies explicit
+connection ID/epoch authorization. Conversations reuse the inbox/reader and do not
+consume reply allowances. See [connection messaging](connection-messaging.md).
+Portable export is still guarded. Its approved migration UX invalidates old share
+links/QRs with a pre-cutover warning, then creates new destination codes rather than
+preserving old-link continuity.
+
 ## Approved Relationship Direction And General Subscriptions
 
 The operator confirmed the live browser release works. Subsequent discussion

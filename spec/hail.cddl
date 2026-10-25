@@ -141,7 +141,9 @@ hail-connection-confirmation = {
   "key_id": did-url
 }
 
-hail-envelope = {
+hail-envelope = hail-envelope-v1 / hail-envelope-v2
+
+hail-envelope-v1 = {
   "type": "hail.envelope",
   "version": 1,
   "message_id": uuidv7,
@@ -154,6 +156,20 @@ hail-envelope = {
   "expires_at": timestamp,
   "body": body-descriptor,
   "reply": reply-permission
+}
+
+hail-envelope-v2 = {
+  "type": "hail.envelope",
+  "version": 2,
+  "message_id": uuidv7,
+  "from": did,
+  "to": did,
+  "authorization": {"type": "connection", "connection_id": uuidv7, "epoch": hail-positive},
+  ? "message_type": message-type,
+  "created_at": timestamp,
+  "expires_at": timestamp,
+  "body": body-descriptor,
+  "reply": {"allowed": false}
 }
 
 hail-connection-control = {

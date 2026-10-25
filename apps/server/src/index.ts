@@ -77,6 +77,7 @@ import {inspectPlcReaders} from "./plc/diagnostics.js";
 import {SenderProfileService} from "./profiles/service.js";
 import {AccountConnections} from "./accounts/connections.js";
 import {RemoteConnectionReview} from "./accounts/connection-review.js";
+import {ConnectionMessagingAuthority} from "./accounts/connection-authorization.js";
 
 const config = loadConfig();
 const database = new ProviderDatabase(config.databaseUrl);
@@ -87,14 +88,15 @@ const grantRepository = new GrantRepository(database.sql);
 const transport = new SafeHttpsTransport();
 const profileVerifier = new SenderProfileVerifier(resolver, transport.fetch, transport.validateTarget, undefined, onboardingRepository);
 const encryptor=new KeyEncryptor(config.keyEncryptionKey);
-const messaging=new AccountMessaging(database.sql,new BodyRepository(database.sql),new EnvelopeRepository(database.sql),
-  new EnvelopeService(onboardingRepository,grantRepository,new EnvelopeRepository(database.sql),encryptor,resolver,config.hailServiceBase),
-  (sender,id)=>submitEnvelope(sender,id,new EnvelopeRepository(database.sql),resolver,
-    new DeliveryStatusReceiver(database.sql,onboardingRepository,resolver,config.hailServiceBase),transport));
-const publications=new AccountPublications(database.sql,messaging);
 const connections=process.env.CONNECTION_PREVIEW==="true"&&config.passkeys?new AccountConnections(database.sql,encryptor,resolver,
   new PasskeyAuth(database.sql,config.passkeys.rpId,config.passkeys.origin),config.publicOrigin,
   new RemoteConnectionReview(database.sql,resolver,transport.fetch,transport.validateTarget,config.hailServiceBase)):undefined;
+const connectionAuthority=new ConnectionMessagingAuthority(database.sql,resolver,config.hailServiceBase,connections?.federation);
+const messaging=new AccountMessaging(database.sql,new BodyRepository(database.sql),new EnvelopeRepository(database.sql),
+  new EnvelopeService(onboardingRepository,grantRepository,new EnvelopeRepository(database.sql),encryptor,resolver,config.hailServiceBase,undefined,connectionAuthority),
+  (sender,id)=>submitEnvelope(sender,id,new EnvelopeRepository(database.sql),resolver,
+    new DeliveryStatusReceiver(database.sql,onboardingRepository,resolver,config.hailServiceBase),transport,connectionAuthority));
+const publications=new AccountPublications(database.sql,messaging,connectionAuthority);
 const grantPublisher = new GrantPublisher(
   grantRepository,
   resolver,
@@ -102,7 +104,7 @@ const grantPublisher = new GrantPublisher(
   transport.validateTarget,
 );
 const deliveryWorker = new DeliveryWorker(
-  new DeliveryRepository(database.sql),
+  new DeliveryRepository(database.sql,connectionAuthority),
   new BodyRetriever(resolver, transport.fetchBody, transport.validateTarget),
 );
 const statusSigner = new DeliveryStatusSigner(database.sql, onboardingRepository,

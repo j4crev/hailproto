@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { inspectSignedPayload, type HailCancellationReason, type HailEnvelope, type HailFailureReason, type HailHoldReason } from "@hailproto/codec";
 import type { SQL } from "bun";
 import { bodyDigest, validateBodyBytes } from "../bodies/service.js";
+import {connectionMessageAllowed,type ConnectionMessagingAuthority} from "../accounts/connection-authorization.js";
 
 export interface DeliveryClaim {
   senderDid: string;
@@ -24,7 +25,13 @@ export function deliveryDeadline(envelope: HailEnvelope): number {
 }
 
 export class DeliveryRepository {
-  constructor(private readonly sql: SQL) {}
+  constructor(private readonly sql: SQL,private readonly connections?:Pick<ConnectionMessagingAuthority,"live">) {}
+
+  async authorizeConnection(claim:DeliveryClaim){
+    if(claim.envelope.authorization.type!=="connection")return true;
+    if(!this.connections)throw new Error("Connection authorization is unavailable");
+    return this.connections.live(claim.envelope.to,claim.envelope.from,claim.envelope.authorization);
+  }
 
   async claimDue(leaseSeconds = 60): Promise<DeliveryClaim | null> {
     const leaseToken = randomUUID();
@@ -57,13 +64,14 @@ export class DeliveryRepository {
     });
   }
 
-  async deliver(claim: DeliveryClaim, bytes: Uint8Array): Promise<"delivered" | "expired" | "lost-lease"> {
+  async deliver(claim: DeliveryClaim, bytes: Uint8Array): Promise<"delivered" | "expired" | "lost-lease"|"unauthorized"> {
     const envelope = claim.envelope;
     if (bytes.length !== envelope.body.size ||
       !Buffer.from(bodyDigest(bytes)).equals(Buffer.from(envelope.body.digest.value))) {
       throw new Error("Body does not match the accepted envelope");
     }
     validateBodyBytes(bytes,envelope.body.profile);
+    const authorized=await this.authorizeConnection(claim);
     return this.sql.begin(async (tx) => {
       const current = await this.lockClaim(tx, claim);
       if (!current) return "lost-lease" as const;
@@ -71,6 +79,9 @@ export class DeliveryRepository {
       if (now > deliveryDeadline(envelope)) {
         await this.finish(tx, claim, "failed", "delivery-expired");
         return "expired" as const;
+      }
+      if(envelope.authorization.type==="connection"&&(!authorized||!await connectionMessageAllowed(tx as SQL,envelope.to,envelope.from,envelope.authorization,true))){
+        await this.finish(tx as SQL,claim,"failed","receiver-policy-rejected");return "unauthorized" as const;
       }
       await tx`
         INSERT INTO verified_body_provenance

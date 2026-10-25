@@ -5,12 +5,16 @@ import type { SafeHttpsTransport } from "../discovery/safe-fetch.js";
 import type { HailDidResolver } from "../plc/resolver.js";
 import type { EnvelopeRepository } from "./repository.js";
 import type { DeliveryStatusReceiver } from "../delivery/status-receiver.js";
+import type {ConnectionMessagingAuthority} from "../accounts/connection-authorization.js";
+import {EnvelopeAuthorizationError} from "./service.js";
 
 export async function submitEnvelope(sender:string,id:string,repository:EnvelopeRepository,resolver:HailDidResolver,
-  receiver:DeliveryStatusReceiver,transport:Pick<SafeHttpsTransport,"fetch"|"validateTarget">) {
+  receiver:DeliveryStatusReceiver,transport:Pick<SafeHttpsTransport,"fetch"|"validateTarget">,connections?:Pick<ConnectionMessagingAuthority,"live">) {
   const bytes=await repository.sent(sender,id);if(!bytes)throw new Error("Sent envelope is not stored");
   const inspected=inspectSignedPayload("hail.envelope",bytes);
   if(inspected.payload.from!==sender||inspected.payload.message_id!==id)throw new Error("Stored envelope does not match sender/message");
+  if(inspected.payload.authorization.type==="connection"&&(!connections||!await connections.live(sender,inspected.payload.to,inspected.payload.authorization)))
+    throw new EnvelopeAuthorizationError("This exact connection is no longer active");
   const destination=await resolver.resolve(inspected.payload.to);
   const url=new URL(`${destination.serviceBase}/envelopes`);await transport.validateTarget(url);
   const response=await transport.fetch(new Request(url,{method:"POST",body:Uint8Array.from(bytes),redirect:"manual",

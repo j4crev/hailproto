@@ -12,6 +12,7 @@ it.skipIf(!process.env.DATABASE_URL)("migration 40 preserves legacy rows/auth an
   const rollback = async () => {
     const connection = await db.sql.reserve();
     try {
+      if((await connection`SELECT version FROM schema_migrations WHERE version=65`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=64`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=63`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());
       if((await connection`SELECT version FROM schema_migrations WHERE version=62`).length)await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());
@@ -62,6 +63,8 @@ it.skipIf(!process.env.DATABASE_URL)("migration 40 preserves legacy rows/auth an
       VALUES(${transfer},${did},'bafkreifixture',now(),now(),'["https://reader.example.com"]',${digest},'eligible','public')`;
     const fingerprint = async () => {
       const added: Record<string, string[]> = {
+        sent_envelopes:["connection_id","connection_epoch"],
+        received_envelopes:["connection_id","connection_epoch"],
         account_access_challenges: ["enrollment_capability_id"],
         prepared_migration_target_keys: ["custody_profile", "identity_public_key", "identity_private_ciphertext", "identity_nonce"],
         provider_transfer_authorizations: ["custody_profile", "owner_recovery_public_key"],
@@ -76,7 +79,8 @@ it.skipIf(!process.env.DATABASE_URL)("migration 40 preserves legacy rows/auth an
             'account_passkeys','account_passkey_challenges','account_passkey_sessions','account_passkey_enrollment_capabilities','account_browser_authorizations','account_signup_ceremonies','account_grant_approvals',
              'account_publications','publication_targets','connection_invitations','connection_approvals','account_connections',
              'federated_connection_pairs','federated_connection_attempts','federated_connection_events','federated_connection_results',
-             'federated_connection_tombstones','federated_connection_disconnects','federated_connection_outbox','federated_connection_signatures') ORDER BY table_name`;
+             'federated_connection_tombstones','federated_connection_disconnects','federated_connection_outbox','federated_connection_signatures',
+             'connection_message_batches','connection_message_targets') ORDER BY table_name`;
       return Promise.all(tables.map(async ({table_name}) => {
         const keys = added[table_name] ?? [];
         const row = keys.length

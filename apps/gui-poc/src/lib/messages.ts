@@ -55,6 +55,8 @@ export function parseSent(value: unknown): SentItem[] {
 }
 
 export interface MessageView extends InboxItem {
+  kind?:"connection";
+  connection?:{id:string;epoch:number;active:boolean};
   senderAddress:string|null;
   recipient: string;
   category: string | null;
@@ -157,7 +159,17 @@ export function parseMessage(value: unknown): MessageView {
     if(reply.allowed===true&&Number.isSafeInteger(reply.until)&&Number(reply.until)>0)replyUntil=Number(reply.until);
     else if(reply.allowed!==false||reply.until!==undefined)throw new Error("Unsupported reply invitation");}
   const content=parseBody(body);
+  if(message.kind!==undefined&&message.kind!=="subscription"&&message.kind!=="connection")throw new Error("Unsupported message kind");
+  if(message.kind==="connection"&&(message.category!==null||replyUntil!==null||message.replyAvailable===true))throw new Error("Connection messages cannot carry subscription or independent reply authority");
+  let connection:MessageView["connection"];
+  if(message.connection!==undefined&&message.connection!==null){
+    const item=object(message.connection,"connection authorization");
+    if(message.kind!=="connection"||typeof item.id!=="string"||!/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(item.id)||
+      !Number.isSafeInteger(item.epoch)||Number(item.epoch)<1||typeof item.active!=="boolean")throw new Error("Invalid message connection");
+    connection={id:item.id,epoch:Number(item.epoch),active:item.active};
+  }
   return {
+    ...(message.kind==="connection"?{kind:"connection" as const}:{}),...(connection?{connection}:{}),
     messageId: text(message.messageId, "message ID"),
     sender: text(message.sender, "sender"),
     senderAddress:message.senderAddress===null||message.senderAddress===undefined?null:text(message.senderAddress,"sender address"),

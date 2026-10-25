@@ -447,12 +447,19 @@ function validateEnvelope(payload: HailRecord): void {
   const authorization = record(payload.authorization, "$.authorization");
   const authorizationType = text(authorization.type, "$.authorization.type");
   if (authorizationType === "grant") {
+    if(payload.version!==1)fail("subscription authorization uses envelope version 1","$.version");
     exactKeys(authorization, ["type", "grant_id"], [], "$.authorization");
     uuid(authorization.grant_id, "$.authorization.grant_id");
   } else if (authorizationType === "reply") {
+    if(payload.version!==1)fail("reply authorization uses envelope version 1","$.version");
     exactKeys(authorization, ["type", "reply_to"], [], "$.authorization");
     uuid(authorization.reply_to, "$.authorization.reply_to");
     if (payload.category !== undefined) fail("must be absent for replies", "$.category");
+  } else if(authorizationType==="connection"){
+    if(payload.version!==2)fail("connection authorization requires envelope version 2","$.version");
+    exactKeys(authorization,["type","connection_id","epoch"],[],"$.authorization");
+    uuid(authorization.connection_id,"$.authorization.connection_id");integer(authorization.epoch,"$.authorization.epoch",1);
+    if(payload.category!==undefined)fail("connections do not use subscription categories","$.category");
   } else {
     fail("unknown authorization type", "$.authorization.type");
   }
@@ -492,6 +499,7 @@ function validateEnvelope(payload: HailRecord): void {
   }
   const reply = record(payload.reply, "$.reply");
   const allowed = boolean(reply.allowed, "$.reply.allowed");
+  if(authorizationType==="connection"&&allowed)fail("connection messages do not issue independent reply capabilities","$.reply.allowed");
   exactKeys(reply, ["allowed", ...(allowed ? ["until"] : [])], [], "$.reply");
   if (allowed && integer(reply.until, "$.reply.until") <= createdAt) {
     fail("must be after created_at", "$.reply.until");
@@ -712,7 +720,7 @@ export function validatePayload<T extends HailPayloadType>(
     return;
   }
   if (payload.type !== expectedType) fail(`must equal ${expectedType}`, "$.type");
-  if (expectedType !== "hail.sender-profile" && payload.version !== 1) fail("must equal integer 1", "$.version");
+  if (expectedType !== "hail.sender-profile" && !(expectedType==="hail.envelope"&&payload.version===2) && payload.version !== 1) fail("must equal integer 1", "$.version");
 
   switch (expectedType) {
     case "hail.address-binding":

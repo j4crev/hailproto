@@ -5,7 +5,7 @@
 </script>
 
 <svelte:head><title>Message · Haili</title></svelte:head>
-<a class="hail-back" href="/">← Message feed</a>
+<a class="hail-back" href={data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.kind==='connection'?'Conversations':'Message feed'}</a>
 <h1 class="sr-only">Received message</h1>
 <article class="hail-card overflow-hidden">
   <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line p-5 sm:px-7">
@@ -18,7 +18,7 @@
       {#if data.message.senderAddress}<small class="font-mono text-xs text-muted [overflow-wrap:anywhere]">{data.message.sender}</small>{/if}
       </div>
     </div>
-    {#if data.message.category}<mark class="max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{data.message.category==='general'?'General':data.message.category}</mark>{/if}
+    {#if data.message.kind==='connection'}<mark class="rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong">Connection</mark>{:else if data.message.category}<mark class="max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{data.message.category==='general'?'General':data.message.category}</mark>{/if}
   </header>
   <div class="min-h-[220px] px-5 py-8 font-serif text-[18px] leading-[1.7] [overflow-wrap:anywhere] sm:px-7">
     <RichText blocks={data.message.blocks} header={data.message.header} />
@@ -28,7 +28,9 @@
     <details><summary class="cursor-pointer py-2">Message ID</summary><code class="[overflow-wrap:anywhere]">{data.message.messageId}</code></details>
   </footer>
 </article>
-{#if data.canReply}
+{#if data.message.connection?.active}<a class="hail-button mt-6" href={`/compose?audience=connections&connection=${data.message.connection.id}`}>Message this connection →</a>
+{:else if data.message.kind==='connection'}<p class="mt-5 rounded-xl bg-warning-soft p-4 text-sm text-warning">This connection is no longer active. Existing delivered messages remain readable.</p>
+{:else if data.canReply}
   <form class="hail-card mt-6 grid gap-4 p-5 sm:p-7" method="POST" action="?/reply">
     <label class="hail-field">Reply<textarea class="resize-y" name="text" rows="5" maxlength="65536" required></textarea></label>
     <p class="m-0 text-xs text-muted">This invitation currently allows one reply before {new Date(data.message.replyUntil!*1000).toLocaleString()}.</p>

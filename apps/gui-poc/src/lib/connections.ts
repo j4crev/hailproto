@@ -12,6 +12,13 @@ export interface ConnectApproval {requestId:string;action:string;review:Record<s
 export interface ConnectionList {preview:true;codes:{id:string;personal:boolean;label:string;expiresAt:number|null;link:string}[];
   connections:{id:string;did:string;address:string;connectedAt:string;remote?:boolean}[];
   pendingConnections?:{id:string;did:string;address:string;kind:"connect"|"disconnect";state:string}[];}
+export interface ConnectionMessageTarget {connectionId:string;recipientDid:string;epoch:number;address:string;}
+export function connectionMessageTargets(value:any):{maxRecipients:number;connections:ConnectionMessageTarget[]}{
+  if(!value||!Number.isSafeInteger(value.maxRecipients)||value.maxRecipients<1||value.maxRecipients>100||!Array.isArray(value.connections)||value.connections.length>201||
+    value.connections.some((row:any)=>!row||!UUID.test(row.connectionId)||!DID.test(row.recipientDid)||!Number.isSafeInteger(row.epoch)||row.epoch<1||typeof row.address!=="string"||row.address.length>254)||
+    new Set(value.connections.map((row:any)=>row.connectionId)).size!==value.connections.length)throw new Error("Invalid connection message recipients.");
+  return value;
+}
 export class ConnectionRequestError extends Error {constructor(readonly status:number,message:string){super(message);}}
 export function signedConnectionFile(bytes:Uint8Array,proposal:NonNullable<ConnectApproval["ownerSigning"]>){
   // Inspect locally before upload: an accidentally selected vault/secret must never leave the browser.

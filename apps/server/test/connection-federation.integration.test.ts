@@ -15,6 +15,27 @@ import {generateAccountKeys} from "../src/identity/keys.js";
 import {importEd25519PrivateKey} from "../src/identity/keys.js";
 import type {HailDidResolver} from "../src/plc/resolver.js";
 import {withFreshServingGenerations} from "../src/db/serving.js";
+import {ConnectionMessagingAuthority} from "../src/accounts/connection-authorization.js";
+import {AccountMessaging} from "../src/accounts/messaging.js";
+import {AccountPublications} from "../src/accounts/publications.js";
+import {OnboardingRepository} from "../src/onboarding/repository.js";
+import {GrantRepository} from "../src/grants/repository.js";
+import {BodyRepository} from "../src/bodies/repository.js";
+import {registerBodyRoutes} from "../src/bodies/routes.js";
+import {EnvelopeRepository} from "../src/envelopes/repository.js";
+import {EnvelopeService} from "../src/envelopes/service.js";
+import {EnvelopeReceiver} from "../src/envelopes/receiver.js";
+import {registerEnvelopeRoutes} from "../src/envelopes/routes.js";
+import {submitEnvelope} from "../src/envelopes/submission.js";
+import {DeliveryRepository} from "../src/delivery/repository.js";
+import {DeliveryWorker} from "../src/delivery/worker.js";
+import {BodyRetriever} from "../src/delivery/retriever.js";
+import {DeliveryStatusSigner} from "../src/delivery/status.js";
+import {DeliveryStatusReceiver} from "../src/delivery/status-receiver.js";
+import {ProtectedResponseSchedule} from "../src/http/protected-schedule.js";
+import {uuidV7} from "../src/identity/uuid-v7.js";
+import {registerAccountApiRoutes} from "../src/accounts/routes.js";
+import {GrantService} from "../src/grants/service.js";
 
 it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner signatures, crossed scans, durable retries and terminal epoch precedence",async()=>{
   const admin=new SQL(process.env.DATABASE_URL!),users=[] as User[],providers=[] as Provider[];
@@ -24,10 +45,17 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
   const evidence={document:{},data:{},log:[]};
   const resolver:HailDidResolver={async resolve(did){const user=users.find(u=>u.did===did);if(!user)throw new Error("Unknown fixture DID");return {did,
     identityDidKey:user.keys.identityDidKey,messagingDidKey:user.keys.messagingDidKey,serviceBase:user.provider.origin+"/hail",evidence};}};
-  let lostCommit=0,lostDisconnect=0,lostSync=0,holdActive=false,holdClosed=false,loseAdmission=0;
+  let lostCommit=0,lostDisconnect=0,lostSync=0,holdActive=false,holdClosed=false,loseAdmission=0,lostEnvelope=0,bodyReads=0,coordinatorUnavailable=false;
   const requests:{target:Provider;path:string;wire:Record<string,unknown>;status:number}[]=[],delayed:{target:Provider;wire:Record<string,unknown>}[]=[];
   const network=async(request:Request)=>{
     const url=new URL(request.url),target=providers.find(p=>p.origin===url.origin);if(!target)throw new Error("Unapproved fixture target");
+    if(coordinatorUnavailable&&url.pathname.endsWith('/connections/state'))throw new Error('Coordinator temporarily unreachable');
+    if(url.pathname.endsWith('/envelopes')||url.pathname.includes('/bodies/')){
+      if(url.pathname.includes('/bodies/'))bodyReads++;
+      const response=await withFreshServingGenerations(target.db.sql,()=>target.app.request(request));
+      if(response.ok&&url.pathname.endsWith('/envelopes')&&lostEnvelope){lostEnvelope--;throw new Error("Lost persisted envelope response");}
+      return response;
+    }
     expect(request.headers.has("cookie")).toBe(false);expect(request.headers.has("authorization")).toBe(false);expect(request.headers.has("origin")).toBe(false);
     const wire=JSON.parse(await request.clone().text()),path=url.pathname;
     if(path.endsWith("/sync")){
@@ -51,7 +79,7 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
       const remote=new RemoteConnectionReview(db.sql,resolver,network,url=>{if(!providers.some(p=>p.origin===url.origin))throw new Error("Unexpected destination");},origin+"/hail");
       const service=new AccountConnections(db.sql,encryptor,resolver,passkeys,origin,remote);
       const provider={schema,db,origin,encryptor,accounts,passkeys,app,service};providers.push(provider);await db.migrate();
-      const rollback=await db.sql.reserve();try{await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());}finally{rollback.release();}
+      const rollback=await db.sql.reserve();try{await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());}finally{rollback.release();}
       await db.migrate();registerConnectionRoutes(app,service,accounts,origin);
     }
     const addUser=async(provider:Provider,letter:string,managed:boolean)=>{
@@ -184,9 +212,120 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     expect((await active(b))[0]!.id).toBe(newId);
     await expect(first.service.status(c.session,ap.requestId)).rejects.toMatchObject({status:404});
     await expect(first.db.sql`UPDATE federated_connection_attempts SET bundle=${new Uint8Array([1])} WHERE account_id=${a.id}`).rejects.toThrow("cannot be replaced");
+    await expect(first.db.sql`INSERT INTO provider_migration_fences(did,account_id,transfer_id,destination_service_base,state) VALUES(${c.did},${c.id},${randomUUID()},'https://destination.example.com/hail','fenced')`).rejects.toThrow("Federated connection consent is not portable");
+    // Connection messaging reuses the actual envelope/body/status/delivery stack.
+    const stack=(p:Provider)=>{
+      p.app=new Hono();registerConnectionRoutes(p.app,p.service,p.accounts,p.origin);
+      const sql=p.db.sql,accounts=new OnboardingRepository(sql),bodies=new BodyRepository(sql),envelopes=new EnvelopeRepository(sql),authority=new ConnectionMessagingAuthority(sql,resolver,p.origin+'/hail',p.service.federation);
+      const validate=(url:URL)=>{if(!providers.some(p=>p.origin===url.origin))throw new Error("Unexpected message destination");};
+      const statuses=new DeliveryStatusReceiver(sql,accounts,resolver,p.origin+'/hail'),signer=new DeliveryStatusSigner(sql,accounts,p.encryptor,resolver,p.origin+'/hail');
+      const service=new EnvelopeService(accounts,new GrantRepository(sql),envelopes,p.encryptor,resolver,p.origin+'/hail',undefined,authority);
+      const messaging=new AccountMessaging(sql,bodies,envelopes,service,(sender,id)=>submitEnvelope(sender,id,envelopes,resolver,statuses,{fetch:network,validateTarget:validate},authority));
+      const publications=new AccountPublications(sql,messaging,authority),delivery=new DeliveryRepository(sql,authority),retriever=new BodyRetriever(resolver,network,validate);
+      const schedule=new ProtectedResponseSchedule({minimumResponseMs:1,processingDeadlineMs:10000,maxInFlight:32});
+      const grants=new GrantRepository(sql),grantService=new GrantService(accounts,grants,p.encryptor,resolver,{async verify(){throw new Error('No fixture subscription discovery');}},{async verify(){throw new Error('No fixture publisher profile');}},p.origin+'/hail');
+      registerAccountApiRoutes(p.app,p.accounts,grants,grantService,p.origin,messaging,undefined,undefined,undefined,undefined,undefined,undefined,p.origin,publications);
+      registerBodyRoutes(p.app,bodies);
+      registerEnvelopeRoutes(p.app,new EnvelopeReceiver(accounts,envelopes,resolver,p.origin+'/hail'),undefined,schedule);
+      return {accounts,bodies,envelopes,authority,service,messaging,publications,delivery,retriever,worker:new DeliveryWorker(delivery,retriever),statuses,signer,schedule};
+    };
+    const one=stack(first),two=stack(second);
+    const received=async()=>{for(let i=0;i<500&&(one.schedule.inFlight||two.schedule.inFlight);i++)await Bun.sleep(10);expect(one.schedule.inFlight+two.schedule.inFlight).toBe(0);};
+    const api=(user:User,path:string,input?:unknown,headers:Record<string,string>={})=>user.provider.app.request(user.provider.origin+'/api/v1/account/'+path,{method:input===undefined?'GET':'POST',
+      headers:{Cookie:'hail_session='+user.token,Origin:user.provider.origin,'Content-Type':'application/json',...headers},...(input===undefined?{}:{body:JSON.stringify(input)})});
+    const native=await prepare(c,ac.link);await commit(c,native);
+    const targets=(await one.publications.connectionTargets(a.session)).connections,localTarget=targets.find(t=>t.recipientDid===c.did)!,remoteTarget=targets.find(t=>t.recipientDid===b.did)!;
+    expect(localTarget.epoch).toBe(1);expect(remoteTarget.connectionId).toBe(newId);
+    const direct={publicationId:uuidV7(),connections:[localTarget.connectionId,remoteTarget.connectionId],text:'Private connection message to two people'};
+    expect((await first.app.request(first.origin+'/api/v1/account/connection-messages/targets')).status).toBe(401);
+    expect((await api(a,'connection-messages',direct,{Origin:'https://foreign.example'})).status).toBe(403);
+    const readOnly=await first.accounts.issue(a.address,false,undefined,['messages:read']);
+    expect((await api(a,'connection-messages/targets',undefined,{Authorization:'Bearer '+readOnly.token})).status).toBe(403);
+    expect((await api(a,'connection-messages',direct,{Authorization:'Bearer '+readOnly.token})).status).toBe(403);
+    const admitted=await api(a,'connection-messages',direct);expect(admitted.status).toBe(202);expect((await admitted.json() as {total:number}).total).toBe(2);
+    expect((await api(c,'connection-messages/'+direct.publicationId)).status).toBe(404);
+    expect((await api(a,'publications/'+direct.publicationId)).status).toBe(404);
+    expect((await api(a,'connection-messages',{...direct,publicationId:uuidV7(),category:'general'})).status).toBe(400);
+    expect((await api(a,'connection-messages',{...direct,publicationId:uuidV7(),allowReplies:true})).status).toBe(400);
+    expect((await api(a,'connection-messages',{...direct,publicationId:uuidV7(),connections:[localTarget.connectionId,localTarget.connectionId]})).status).toBe(400);
+    expect((await one.publications.recent(a.session)).publications).toHaveLength(0); // not a subscription publication
+    expect((await one.publications.recent(a.session,'connections')).publications).toHaveLength(1);
+    lostEnvelope=1;await withFreshServingGenerations(first.db.sql,()=>one.publications.workOne());
+    const materialized=await first.db.sql<{message_id:string;envelope_cose:Uint8Array}[]>`SELECT message_id,envelope_cose FROM sent_envelopes WHERE authorization_type='connection'`;
+    expect(materialized).toHaveLength(1);
+    await first.db.sql`UPDATE connection_message_targets SET next_attempt_at=now() WHERE state='pending'`;
+    const restarted=new AccountPublications(first.db.sql,one.messaging,one.authority);
+    await withFreshServingGenerations(first.db.sql,()=>restarted.workOne());await withFreshServingGenerations(first.db.sql,()=>restarted.workOne());
+    expect(await one.envelopes.sent(a.did,materialized[0]!.message_id)).toEqual(new Uint8Array(materialized[0]!.envelope_cose));
+    const completed=(await restarted.status(a.session,direct.publicationId,'connections'))!;expect(completed.counts.submitted).toBe(2);
+    const copies=await first.db.sql<{envelope_cose:Uint8Array}[]>`SELECT envelope_cose FROM sent_envelopes WHERE message_id IN(
+      SELECT message_id FROM connection_message_targets WHERE publication_id=${direct.publicationId})`;
+    const payloads=copies.map(row=>inspectSignedPayload('hail.envelope',new Uint8Array(row.envelope_cose)).payload);
+    expect(payloads.every(p=>p.version===2&&p.authorization.type==='connection'&&!p.reply.allowed&&p.category===undefined)).toBe(true);
+    expect(Buffer.from(payloads[0]!.body.digest.value)).toEqual(Buffer.from(payloads[1]!.body.digest.value));
+    expect(Buffer.from(payloads[0]!.body.access.token)).not.toEqual(Buffer.from(payloads[1]!.body.access.token));
+    await received();
+    expect(await withFreshServingGenerations(first.db.sql,()=>one.worker.processOne())).toBe('delivered');
+    coordinatorUnavailable=true;const beforeOfflineRead=bodyReads;
+    expect(await withFreshServingGenerations(second.db.sql,()=>two.worker.processOne())).toBe('on-hold');expect(bodyReads).toBe(beforeOfflineRead);
+    coordinatorUnavailable=false;await second.db.sql`UPDATE delivery_work SET next_attempt_at=now() WHERE state='on-hold'`;
+    expect(await withFreshServingGenerations(second.db.sql,()=>two.worker.processOne())).toBe('delivered');
+    for(const target of completed.targets){
+      const recipient=target.recipient===b.did?two:one,signed=await recipient.signer.signCurrent(a.did,target.messageId);expect(signed).not.toBeNull();
+      const sent=inspectSignedPayload('hail.envelope',(await one.envelopes.sent(a.did,target.messageId))!),path=encodeBase64Url(new Uint8Array(createHash('sha256').update(sent.payloadBytes).digest()));
+      expect(await one.statuses.receive(path,signed!)).toBe('acknowledged');
+    }
+    expect((await restarted.status(a.session,direct.publicationId,'connections'))!.delivery.delivered).toBe(2);
+    expect((await two.messaging.inboxFeed(b.session,null,'subscriptions')).messages).toHaveLength(0);
+    expect((await two.messaging.inboxFeed(b.session,null,'connections')).messages).toHaveLength(1);
+    const sentToB=completed.targets.find(t=>t.recipient===b.did)!;
+    expect(await two.messaging.read(b.session,a.did,sentToB.messageId)).toMatchObject({kind:'connection',replyAvailable:false,senderAddress:a.address});
+    expect(await second.db.sql`SELECT original_message_id FROM reply_capabilities`).toHaveLength(0);
+    const stopped={publicationId:uuidV7(),connections:direct.connections,text:'Cancel before materialization'};
+    await restarted.createConnections(a.session,stopped);
+    await expect(first.db.sql`UPDATE connection_message_batches SET body_bytes=${new Uint8Array([1])} WHERE id=${stopped.publicationId}`).rejects.toThrow('cannot be replaced');
+    await expect(first.db.sql`UPDATE connection_message_targets SET recipient_did=${d.did} WHERE publication_id=${stopped.publicationId}`).rejects.toThrow('cannot be replaced');
+    expect(await restarted.cancel(c.session,stopped.publicationId,'connections')).toBeNull();
+    expect((await restarted.cancel(a.session,stopped.publicationId,'connections'))!.counts.cancelled).toBe(2);
+    await expect(restarted.createConnections(c.session,{...direct,publicationId:uuidV7()})).rejects.toMatchObject({status:409});
+    await expect(restarted.createConnections(a.session,{...direct,text:'changed'})).rejects.toMatchObject({status:409});
+    const queued={publicationId:uuidV7(),connections:[remoteTarget.connectionId],text:'Queued before receiver disconnect'};
+    await restarted.createConnections(a.session,queued);await withFreshServingGenerations(first.db.sql,()=>restarted.workOne());
+    await received();
+    const endRemote=await second.service.prepare(b.session,{requestId:randomUUID(),action:'disconnect',connectionId:newId});await commit(b,endRemote);
+    const readsBefore=bodyReads;
+    expect(await withFreshServingGenerations(second.db.sql,()=>two.worker.processOne())).toBe('failed');expect(bodyReads).toBe(readsBefore);
+    const queuedId=(await restarted.status(a.session,queued.publicationId,'connections'))!.targets[0]!.messageId;
+    const failedReceipt=await two.signer.signCurrent(a.did,queuedId),queuedBytes=(await one.envelopes.sent(a.did,queuedId))!;
+    const queuedDigest=encodeBase64Url(new Uint8Array(createHash('sha256').update(inspectSignedPayload('hail.envelope',queuedBytes).payloadBytes).digest()));
+    expect(await one.statuses.receive(queuedDigest,failedReceipt!)).toBe('acknowledged');
+    expect(await one.messaging.sentMessage(a.session,queuedId)).toMatchObject({state:'failed',reason:'receiver-policy-rejected'});
+    expect((await two.messaging.inboxFeed(b.session,null,'connections')).messages).toHaveLength(1);
+    await drain(6);
+    await expect(one.messaging.submit(a.did,(await restarted.status(a.session,queued.publicationId,'connections'))!.targets[0]!.messageId)).rejects.toMatchObject({status:409});
+    const oldLocal={publicationId:uuidV7(),connections:[localTarget.connectionId],text:'Never retarget an old batch after reconnect'};
+    await restarted.createConnections(a.session,oldLocal);
+    const endNative=await first.service.prepare(c.session,{requestId:randomUUID(),action:'disconnect',connectionId:localTarget.connectionId});await commit(c,endNative);
+    const refresh=await first.service.prepare(a.session,{requestId:randomUUID(),action:'replace',id:ac.id});await commit(a,refresh);
+    const refreshed=(await first.service.list(a.session)).codes.find(code=>code.personal)!;
+    const nativeAgain=await prepare(c,refreshed.link);await commit(c,nativeAgain);
+    await withFreshServingGenerations(first.db.sql,()=>restarted.workOne());
+    expect((await restarted.status(a.session,oldLocal.publicationId,'connections'))!.counts.blocked).toBe(1);
+    const currentLocal=(await one.publications.connectionTargets(a.session)).connections.find(t=>t.recipientDid===c.did)!;
+    expect(currentLocal.connectionId).not.toBe(localTarget.connectionId);
+    const race={publicationId:uuidV7(),connections:[currentLocal.connectionId],text:'Disconnect while the body is being retrieved'};
+    await restarted.createConnections(a.session,race);await withFreshServingGenerations(first.db.sql,()=>restarted.workOne());
+    await received();
+    const raceWorker=new DeliveryWorker(one.delivery,{async retrieve(envelope){const result=await one.retriever.retrieve(envelope);
+      const end=await first.service.prepare(c.session,{requestId:randomUUID(),action:'disconnect',connectionId:currentLocal.connectionId});await commit(c,end);return result;}});
+    expect(await withFreshServingGenerations(first.db.sql,()=>raceWorker.processOne())).toBe('failed');
+    const raceId=(await restarted.status(a.session,race.publicationId,'connections'))!.targets[0]!.messageId;
+    expect(await first.db.sql`SELECT message_id FROM delivered_messages WHERE message_id=${raceId}`).toHaveLength(0);
+    expect(await first.db.sql`SELECT grant_id FROM grant_lineages`).toHaveLength(0); // independent of subscriptions
     const fence=()=>first.db.sql`INSERT INTO provider_migration_fences(did,account_id,transfer_id,destination_service_base,state) VALUES(${a.did},${a.id},${randomUUID()},'https://destination.example.com/hail','fenced')`;
     await expect(fence()).rejects.toThrow("not portable");
-    await expect(first.db.sql`INSERT INTO provider_migration_fences(did,account_id,transfer_id,destination_service_base,state) VALUES(${c.did},${c.id},${randomUUID()},'https://destination.example.com/hail','fenced')`).rejects.toThrow("Federated connection consent is not portable");
+    await expect(first.db.sql`INSERT INTO provider_migration_fences(did,account_id,transfer_id,destination_service_base,state) VALUES(${c.did},${c.id},${randomUUID()},'https://destination.example.com/hail','fenced')`).rejects.toThrow("not portable");
+    const messageRollback=await first.db.sql.reserve();try{await expect(messageRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text())).rejects.toThrow("Retained connection messages");}finally{await messageRollback.unsafe('ROLLBACK');messageRollback.release();}
     const rollback=await first.db.sql.reserve();try{await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text())).rejects.toThrow("prevents rollback");}finally{await rollback.unsafe("ROLLBACK");rollback.release();}
   }catch(error){console.error("Federation fixture HTTP outcomes",requests.slice(-12).map(r=>({provider:r.target.origin,path:r.path,status:r.status})));throw error;}
   finally{for(const p of providers){await p.db.close();await admin.unsafe(`DROP SCHEMA "${p.schema}" CASCADE`);}await admin.close();}

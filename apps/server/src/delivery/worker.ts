@@ -4,7 +4,7 @@ import type { BodyRetriever, RetrievalResult } from "./retriever.js";
 
 export class DeliveryWorker {
   constructor(
-    private readonly store: Pick<DeliveryRepository, "claimDue" | "deliver" | "fail" | "hold">,
+    private readonly store: Pick<DeliveryRepository, "claimDue" | "deliver" | "fail" | "hold"> & Partial<Pick<DeliveryRepository,"authorizeConnection">>,
     private readonly retriever: Pick<BodyRetriever, "retrieve">,
     private readonly now: () => Date = () => new Date(),
     private readonly random: () => number = Math.random,
@@ -17,6 +17,12 @@ export class DeliveryWorker {
     if (this.now().getTime() / 1000 > deadline) {
       await this.store.fail(claim, "delivery-expired");
       return "failed";
+    }
+    if(claim.envelope.authorization.type==="connection"){
+      try{
+        if(!this.store.authorizeConnection)throw new Error("Connection verification unavailable");
+        if(!await this.store.authorizeConnection(claim)){await this.store.fail(claim,"receiver-policy-rejected");return "failed";}
+      }catch{await this.store.hold(claim,"receiver-resource-constrained",this.nextAttempt(claim,null));return "on-hold";}
     }
     let result: RetrievalResult;
     try { result = await this.retriever.retrieve(claim.envelope); }

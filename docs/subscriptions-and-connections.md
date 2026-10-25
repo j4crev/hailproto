@@ -102,6 +102,18 @@ independent stores. See [connection consent](../spec/connection-auth.md) and
 [federation v1](../spec/connection-federation.md) for migrations 63/64 and lifecycle
 boundaries. Connection messaging, explicit blocking and portable export remain separate.
 
+Connection messaging is implemented in the next **undeployed** slice using the
+same Envelope/body/delivery/outbox/composer mechanisms, with a version-2 connection
+authorization selector rather than a new message protocol. It supports selected
+individual connections, private multi-send copies and separate conversation views.
+See [connection messaging](connection-messaging.md).
+
+Portable-export policy is now explicit: committing a provider move invalidates all
+old shareable links/QR codes, including the never-expiring personal code. Warn the
+user before cutover and create new codes at the destination; do not promise forwarding
+or port active share tokens. Existing connections and terminal/replay history must
+still be preserved. Transfer guards remain until that separate migration work is proven.
+
 The current one-active-subscription-Grant-per-directional-pair rule must not be
 reused to collapse connection permission into a subscription. The draft separates
 connection-specific signed consent and permissions into distinct object families;

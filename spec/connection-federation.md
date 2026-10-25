@@ -3,7 +3,9 @@
 This completes connection admission/reconciliation/disconnect across compatible
 providers, for managed and owner-controlled identities. It does **not** authorize
 message delivery, change subscriptions, implement block/unblock, or make the retained
-connection history portable. Those remain separate gates. See
+connection history portable. Those remain separate gates. The separate connection
+messaging implementation uses version-2 Envelopes and this coordinator's current
+state; see [messaging](../docs/connection-messaging.md). See
 [connection consent](connection-auth.md) for the local identity-signing flow.
 
 ## Authority And Wire

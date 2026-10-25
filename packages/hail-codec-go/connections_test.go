@@ -18,7 +18,7 @@ func TestDraftConnectionVectors(t *testing.T) {
 	if err = json.Unmarshal(raw, &vectors); err != nil {
 		t.Fatal(err)
 	}
-	if vectors.Format != "hail-connection-draft-vectors-1" || len(vectors.Positive) != 15 || len(vectors.NegativePayload) != 18 {
+	if vectors.Format != "hail-connection-draft-vectors-1" || len(vectors.Positive) != 16 || len(vectors.NegativePayload) != 24 {
 		t.Fatal("unexpected connection vectors")
 	}
 	keys := map[string]testKeyVector{}
@@ -53,6 +53,8 @@ func TestDraftConnectionVectors(t *testing.T) {
 				kid = p.KeyID
 			case *ConnectionControl:
 				kid = p.KeyID
+			case *Envelope:
+				kid = p.From + "#hail-messaging"
 			default:
 				t.Fatal("unexpected model")
 			}
@@ -66,7 +68,7 @@ func TestDraftConnectionVectors(t *testing.T) {
 			if _, err = InspectSignedPayload(GrantType, signed); err == nil {
 				t.Fatal("connection authority accepted as subscription")
 			}
-			if _, err = InspectSignedPayload(EnvelopeType, signed); err == nil {
+			if _, err = InspectSignedPayload(EnvelopeType, signed); err == nil && vector.Type != EnvelopeType {
 				t.Fatal("connection authority accepted as message")
 			}
 			inspected, err := InspectSignedPayload(vector.Type, signed)

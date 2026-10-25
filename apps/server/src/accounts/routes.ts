@@ -71,24 +71,29 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
       const query = new URL(context.req.url).searchParams;
       if (query.size && action !== "list" && action !== "inbox" && action !== "sent" && action !== "credential") return problem(400);
       const method = context.req.method;
-      if(action?.startsWith("publication-")){
-        const required=action==="publication-audiences"?"grants:read":action==="publication-status"||action==="publication-create"&&method==="GET"?"messages:read":"messages:write";
+      if(action?.startsWith("publication-")||action?.startsWith("connection-message-")){
+        const kind=action.startsWith("connection-message-")?"connections":"category",operation=kind==="connections"?action.slice("connection-message-".length):action.slice("publication-".length);
+        const required=operation==="audiences"?"grants:read":operation==="targets"||operation==="status"||operation==="create"&&method==="GET"?"messages:read":"messages:write";
         if(!session.scopes.includes(required))return problem(403);
         if(!publications)return problem(503);
-        if(action==="publication-create"&&method==="GET")return context.json(await publications.recent(session));
-        if(action==="publication-audiences"||action==="publication-status"){
+        if(operation==="create"&&method==="GET")return context.json(await publications.recent(session,kind));
+        if(operation==="audiences"||operation==="targets"||operation==="status"){
           if(method!=="GET")return problem(405);
-          if(action==="publication-audiences")return context.json(await publications.audiences(session));
-          const found=await publications.status(session,grantId!);return found?context.json(found):problem(404);
+          if(operation==="audiences")return context.json(await publications.audiences(session));
+          if(operation==="targets"){
+            if(!session.passkey_credential_id)return problem(403); // Existing message-read bearers do not gain a new contact inventory.
+            return context.json(await publications.connectionTargets(session));
+          }
+          const found=await publications.status(session,grantId!,kind);return found?context.json(found):problem(404);
         }
         if(method!=="POST")return problem(405);if(session.migration_state)return problem(409);
         if(context.req.header("Content-Type")!=="application/json"||context.req.header("Content-Encoding")!==undefined)return problem(415);
         const bytes=await accountRequestBytes(context.req.raw);if(!bytes)return problem(413);
         let input:unknown;try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}catch{return problem(400);}
         if(!input||typeof input!=="object"||Array.isArray(input))return problem(400);
-        if(action==="publication-create")return context.json(await publications.create(session,input as Record<string,unknown>),202);
+        if(operation==="create")return context.json(kind==="connections"?await publications.createConnections(session,input as Record<string,unknown>):await publications.create(session,input as Record<string,unknown>),202);
         if(Object.keys(input).length)return problem(400);
-        const found=await publications.cancel(session,grantId!);return found?context.json(found):problem(404);
+        const found=await publications.cancel(session,grantId!,kind);return found?context.json(found):problem(404);
       }
       if(action==="sender-profile"){
         if(!session.scopes.includes("messages:read"))return problem(403);
@@ -258,9 +263,9 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           const found=await messaging.sentMessage(session,grantId!);return found?context.json(found):problem(404);
         }
         if(action==="inbox") {
-          if([...query.keys()].some(k=>!["after","include"].includes(k))||query.getAll("after").length>1||query.getAll("include").length>1||
-            ![null,"body"].includes(query.get("include")))return problem(400);
-          return context.json(query.get("include")==="body"?await messaging.inboxFeed(session,query.get("after")):await messaging.inbox(session,query.get("after")));
+          if([...query.keys()].some(k=>!["after","include","kind"].includes(k))||query.getAll("after").length>1||query.getAll("include").length>1||query.getAll("kind").length>1||
+            ![null,"body"].includes(query.get("include"))||![null,"subscriptions","connections"].includes(query.get("kind"))||query.has("kind")&&query.get("include")!=="body")return problem(400);
+          return context.json(query.get("include")==="body"?await messaging.inboxFeed(session,query.get("after"),query.get("kind") as "subscriptions"|"connections"|null??"all"):await messaging.inbox(session,query.get("after")));
         }
         const found=action==="read"?await messaging.read(session,context.req.param("sender")!,grantId!):await messaging.status(session,grantId!);
         return found?context.json(found):problem(404);
@@ -397,6 +402,10 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/publications",context=>handle(context,null,"publication-create"));
   app.all("/api/v1/account/publications/:publicationId/cancel",context=>handle(context,context.req.param("publicationId"),"publication-cancel"));
   app.all("/api/v1/account/publications/:publicationId",context=>handle(context,context.req.param("publicationId"),"publication-status"));
+  app.all("/api/v1/account/connection-messages/targets",context=>handle(context,null,"connection-message-targets"));
+  app.all("/api/v1/account/connection-messages",context=>handle(context,null,"connection-message-create"));
+  app.all("/api/v1/account/connection-messages/:publicationId/cancel",context=>handle(context,context.req.param("publicationId"),"connection-message-cancel"));
+  app.all("/api/v1/account/connection-messages/:publicationId",context=>handle(context,context.req.param("publicationId"),"connection-message-status"));
   app.all("/api/v1/account/inbox",context=>handle(context,null,"inbox"));
   app.all("/api/v1/account/inbox/:sender/:messageId",context=>handle(context,context.req.param("messageId"),"read"));
   app.all("/api/v1/account/messages/:messageId/submit",context=>handle(context,context.req.param("messageId"),"resubmit"));

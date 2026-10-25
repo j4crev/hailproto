@@ -177,9 +177,11 @@ type ConnectionControl struct {
 func (ConnectionControl) PayloadType() string { return ConnectionControlType }
 
 type EnvelopeAuthorization struct {
-	Type    string `cbor:"type"`
-	GrantID string `cbor:"grant_id,omitempty"`
-	ReplyTo string `cbor:"reply_to,omitempty"`
+	Type         string `cbor:"type"`
+	GrantID      string `cbor:"grant_id,omitempty"`
+	ReplyTo      string `cbor:"reply_to,omitempty"`
+	ConnectionID string `cbor:"connection_id,omitempty"`
+	Epoch        int64  `cbor:"epoch,omitempty"`
 }
 
 type BearerAccess struct {

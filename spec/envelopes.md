@@ -4,6 +4,13 @@ Status: Draft
 
 This document defines the Hail Envelope v0 payload, authorization modes, signature representation, validation rules, and replay behavior.
 
+The existing version-1 Grant/reply profile remains unchanged. Version 2 adds only
+the connection authorization defined below; it uses the **same** Envelope object,
+COSE content type, messaging key, body descriptor, submission, replay and delivery
+status mechanisms. Older version-1 implementations reject it rather than treating
+it as a category, Grant or reply. Implementation/rollout details are in
+[connection messaging](../docs/connection-messaging.md).
+
 A Hail Envelope is a compact, single-recipient, signed object. It authenticates the metadata needed to authorize delivery and retrieve an immutable detached Hail Body. It does not contain the body or an arbitrary body URL.
 
 Detached body publication and retrieval are defined in [bodies.md](bodies.md). Grant authorization is defined in [grants.md](grants.md). DID key roles and service discovery are defined in [did-profile.md](did-profile.md). HTTPS submission outcomes, disclosure, and retry behavior are defined in [http-binding.md](http-binding.md).
@@ -14,7 +21,7 @@ Detached body publication and retrieval are defined in [bodies.md](bodies.md). G
 - One envelope authorizes exactly one message delivery.
 - Every semantic envelope field is covered by the sender's signature.
 - The sender signs with its currently authorized `#hail-messaging` key.
-- An envelope uses exactly one authorization mode: an active Hail Grant or a reply capability established by an earlier envelope.
+- An envelope uses exactly one authorization mode: version 1 selects a Hail Grant or an earlier reply capability; version 2 selects an explicit active connection epoch.
 - The body exists before envelope submission and is identified by its signed digest and metadata.
 - The body endpoint is derived from the authenticated sender DID service, never supplied by the envelope.
 - The tuple `(from, message_id)` is the delivery and idempotency key.
@@ -89,7 +96,9 @@ This identifies the signed object and provides protocol-level domain separation.
 
 ### `version`
 
-Required. The integer `1`.
+Required. The integer `1` for Grant/reply delivery, or `2` for connection delivery.
+Version 2 cannot carry Grant/reply authorization; version 1 cannot carry connection
+authorization. This is a compatibility boundary, not an alternative message format.
 
 The version selects the payload schema, field semantics, deterministic encoding, and validation rules. It is not a message revision number; envelopes are immutable.
 
@@ -176,6 +185,38 @@ Required. The closed descriptor defined in [Body Descriptor](#body-descriptor).
 Required. The closed reply-permission object defined in [Reply Permission](#reply-permission).
 
 ## Authorization
+
+### Connection Authorization (Version 2)
+
+The authorization is a closed map:
+
+```json
+{"type":"connection","connection_id":"<UUIDv7>","epoch":1}
+```
+
+The positive integer epoch and connection ID must identify the exact active
+relationship between the signed `from` and `to` DIDs. Same-provider relationships
+use epoch 1 with a fresh ID per connection lifetime; federated relationships use
+the canonical coordinator epoch. A disconnected or superseded lifetime must not be
+substituted with a newer connection to the same DID.
+
+`category` must be absent and `reply` must be `{"allowed":false}`. Standing
+connection permission is not a subscription selector or an independent reply
+capability. Response messages use the same active connection authorization.
+
+Sender signing/submission rechecks the exact permission. Recipient acceptance
+serializes its current local consent/tombstone check with local disconnect and
+retains the ordinary signed envelope and delivery work. For federated delivery,
+the recipient verifies a fresh nonce-bound current coordinator snapshot before
+body retrieval and again before final delivery. Unavailable authority means
+`on-hold`, not permission to trust stale active state. Local permission is rechecked
+at the final transactional disconnect barrier. Rejection uses existing delivery
+policy reasons; no new status or transport format is introduced.
+
+A delivery that passed its final remote check before a remote disconnect can
+complete; no global cross-provider transaction or recall is implied. Delivered
+messages remain readable. Previously issued body capabilities retain their signed
+availability/expiry semantics; disconnect does not make already shared content secret.
 
 ### Grant Authorization
 

@@ -7,6 +7,7 @@ import type { EnvelopeRepository } from "../envelopes/repository.js";
 import { EnvelopeAuthorizationError,type EnvelopeService } from "../envelopes/service.js";
 import { UserGrantError } from "../grants/service.js";
 import type { AccountApiSession } from "./repository.js";
+import {connectionMessageAllowed} from "./connection-authorization.js";
 
 const ID=/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const DID=/^did:plc:[a-z2-7]{24}$/;
@@ -37,22 +38,36 @@ function statusDetails(bytes:Uint8Array|null) {
 }
 export class AccountMessaging {
   constructor(private readonly sql:SQL,private readonly bodies:BodyRepository,private readonly envelopes:EnvelopeRepository,
-    private readonly service:EnvelopeService,readonly submit:(sender:string,id:string)=>Promise<object>){}
+    private readonly service:EnvelopeService,private readonly submitEnvelope:(sender:string,id:string)=>Promise<object>){}
+  async submit(sender:string,id:string){
+    try{return await this.submitEnvelope(sender,id);}catch(error){if(error instanceof EnvelopeAuthorizationError)throw new UserGrantError(409,error.message);throw error;}
+  }
+  private async connectionAddress(accountId:string,peer:string,id:string){
+    const row=(await this.sql<{address:string}[]>`SELECT a.canonical_address AS address FROM account_connections c JOIN provider_accounts a
+      ON a.id=CASE WHEN c.account_a=${accountId} THEN c.account_b ELSE c.account_a END
+      WHERE c.id=${id} AND ${accountId} IN(c.account_a,c.account_b) AND a.did=${peer}
+      UNION ALL SELECT peer_address FROM federated_connection_pairs WHERE account_id=${accountId} AND peer_did=${peer} LIMIT 1`)[0];
+    return row?.address??null;
+  }
 
   async send(session:Pick<AccountApiSession,"did">,input:Record<string,unknown>) {
     const hasText=typeof input.text==="string",hasBody=Boolean(input.body)&&typeof input.body==="object"&&!Array.isArray(input.body);
-    if(Object.keys(input).some(k=>!["messageId","text","body","grantId","category","replyTo","replyUntil"].includes(k))||
+    if(Object.keys(input).some(k=>!["messageId","text","body","grantId","category","replyTo","replyUntil","connectionId","connectionEpoch","recipientDid"].includes(k))||
       typeof input.messageId!=="string"||!ID.test(input.messageId)||hasText===hasBody||
-      (hasText&&Buffer.byteLength(input.text as string)>65536)||((typeof input.grantId==="string") === (typeof input.replyTo==="string"))||
+      (hasText&&Buffer.byteLength(input.text as string)>65536)||[input.grantId,input.replyTo,input.connectionId].filter(v=>typeof v==="string").length!==1||
       (input.grantId!==undefined&&(!ID.test(input.grantId as string)||typeof input.category!=="string"))||
       (input.replyTo!==undefined&&(!ID.test(input.replyTo as string)||input.category!==undefined))||
+      (input.connectionId!==undefined&&(!ID.test(input.connectionId as string)||typeof input.recipientDid!=="string"||!DID.test(input.recipientDid)||
+        !Number.isSafeInteger(input.connectionEpoch)||Number(input.connectionEpoch)<1||input.category!==undefined||input.replyUntil!==undefined&&input.replyUntil!==null))||
+      (input.connectionId===undefined&&(input.recipientDid!==undefined||input.connectionEpoch!==undefined))||
       (input.replyUntil!==undefined&&input.replyUntil!==null&&!Number.isSafeInteger(input.replyUntil)))throw new UserGrantError(400,"Invalid send request");
     const body=outboundBody(input);
     const digest=new Uint8Array(createHash("sha256").update(body).digest());
     let stored=await this.envelopes.sent(session.did,input.messageId);
     if(!stored){
       await this.bodies.publish(session.did,body);
-      try{await (input.replyTo ? this.service.createReply(session.did,input.replyTo as string,encodeBase64Url(digest),input.replyUntil as number|null|undefined,input.messageId):
+      try{await (input.connectionId?this.service.createConnection(session.did,input.recipientDid as string,input.connectionId as string,Number(input.connectionEpoch),encodeBase64Url(digest),input.messageId):
+        input.replyTo ? this.service.createReply(session.did,input.replyTo as string,encodeBase64Url(digest),input.replyUntil as number|null|undefined,input.messageId):
         this.service.create(session.did,input.grantId as string,encodeBase64Url(digest),input.category as string,input.replyUntil as number|null|undefined,input.messageId));}
       catch(error){stored=await this.envelopes.sent(session.did,input.messageId);if(!stored){
         if(error instanceof EnvelopeAuthorizationError)throw new UserGrantError(409,error.message);throw error;}}
@@ -60,7 +75,8 @@ export class AccountMessaging {
     }
     const payload=inspectSignedPayload("hail.envelope",stored!).payload;
     if(!Buffer.from(payload.body.digest.value).equals(Buffer.from(digest))||
-      (input.replyTo ? payload.authorization.type!=="reply"||payload.authorization.reply_to!==input.replyTo :
+      (input.connectionId?payload.authorization.type!=="connection"||payload.authorization.connection_id!==input.connectionId||payload.authorization.epoch!==input.connectionEpoch||payload.to!==input.recipientDid:
+       input.replyTo ? payload.authorization.type!=="reply"||payload.authorization.reply_to!==input.replyTo :
         payload.authorization.type!=="grant"||payload.authorization.grant_id!==input.grantId||payload.category!==(input.category||undefined))||
       (input.replyUntil===undefined||input.replyUntil===null ? payload.reply.allowed : !payload.reply.allowed||payload.reply.until!==input.replyUntil))throw new UserGrantError(409,"Message ID has another request");
     return this.submit(session.did,input.messageId);
@@ -78,7 +94,7 @@ export class AccountMessaging {
       next:rows.length>50?Buffer.from(JSON.stringify({id:rows[49]!.message_id,sender:rows[49]!.sender_did})).toString("base64url"):null};
   }
 
-  async inboxFeed(session:AccountApiSession,after:string|null) {
+  async inboxFeed(session:AccountApiSession,after:string|null,channel:"all"|"subscriptions"|"connections"="all") {
     let cursor:{id:string;sender:string}|null=null;
     if(after){try{cursor=JSON.parse(Buffer.from(after,"base64url").toString("utf8"));}catch{throw new UserGrantError(400,"Invalid cursor");}
       if(!cursor||!ID.test(cursor.id)||!DID.test(cursor.sender))throw new UserGrantError(400,"Invalid cursor");}
@@ -94,12 +110,13 @@ export class AccountMessaging {
         WHERE lineage.local_account_id=${session.account_id} AND lineage.local_role='grantor'
           AND lineage.grantee_did=message.sender_did ORDER BY consent.revision DESC LIMIT 1
       ) presentation ON true
-      WHERE message.recipient_did=${session.did}
+       WHERE message.recipient_did=${session.did}
+         AND (${channel}='all' OR (${channel}='connections')=(envelope.authorization_type='connection'))
         AND (${after}::text IS NULL OR (message.message_id,message.sender_did)<(${cursor?.id??null}::uuid,${cursor?.sender??null}::text))
       ORDER BY message.message_id DESC,message.sender_did DESC LIMIT ${PAGE_SIZE+1}`;
-    return {messages:rows.slice(0,PAGE_SIZE).map(row=>{const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
-      return {messageId:row.message_id,sender:row.sender_did,senderAddress:row.sender_address,recipient:session.did,
-        category:envelope.category??null,deliveredAt:row.delivered_at.toISOString(),body:bodyDocument(row.body_bytes)};}),
+    return {messages:await Promise.all(rows.slice(0,PAGE_SIZE).map(async row=>{const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
+      return {messageId:row.message_id,sender:row.sender_did,senderAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,row.sender_did,envelope.authorization.connection_id):row.sender_address,recipient:session.did,
+        category:envelope.category??null,kind:envelope.authorization.type==="connection"?"connection":"subscription",deliveredAt:row.delivered_at.toISOString(),body:bodyDocument(row.body_bytes)};})),
       next:rows.length>PAGE_SIZE?Buffer.from(JSON.stringify({id:rows[PAGE_SIZE-1]!.message_id,
         sender:rows[PAGE_SIZE-1]!.sender_did})).toString("base64url"):null};
   }
@@ -133,9 +150,9 @@ export class AccountMessaging {
       ) presentation ON true
       WHERE envelope.sender_did=${session.did} AND (${after}::uuid IS NULL OR envelope.message_id<${after}::uuid)
       ORDER BY envelope.message_id DESC LIMIT ${PAGE_SIZE+1}`;
-    return {messages:rows.slice(0,PAGE_SIZE).map(row=>{const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
-      return {messageId:row.message_id,sender:session.did,recipient:row.recipient_did,recipientAddress:row.recipient_address,
-        createdAt:row.created_at.toISOString(),category:envelope.category??null,...statusDetails(row.payload_bytes),body:bodyDocument(row.body_bytes)};}),
+    return {messages:await Promise.all(rows.slice(0,PAGE_SIZE).map(async row=>{const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
+      return {messageId:row.message_id,sender:session.did,recipient:row.recipient_did,recipientAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,row.recipient_did,envelope.authorization.connection_id):row.recipient_address,
+        createdAt:row.created_at.toISOString(),category:envelope.category??null,kind:envelope.authorization.type==="connection"?"connection":"subscription",...statusDetails(row.payload_bytes),body:bodyDocument(row.body_bytes)};})),
       next:rows.length>PAGE_SIZE?rows[PAGE_SIZE-1]!.message_id:null};
   }
 
@@ -156,8 +173,8 @@ export class AccountMessaging {
       WHERE envelope.sender_did=${session.did} AND envelope.message_id=${id}`;
     if(!rows[0])return null;
     const row=rows[0],envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
-    return {messageId:id,sender:session.did,recipient:row.recipient_did,recipientAddress:row.recipient_address,
-      createdAt:row.created_at.toISOString(),category:envelope.category??null,...statusDetails(row.payload_bytes),body:bodyDocument(row.body_bytes)};
+    return {messageId:id,sender:session.did,recipient:row.recipient_did,recipientAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,row.recipient_did,envelope.authorization.connection_id):row.recipient_address,
+      createdAt:row.created_at.toISOString(),category:envelope.category??null,kind:envelope.authorization.type==="connection"?"connection":"subscription",...statusDetails(row.payload_bytes),body:bodyDocument(row.body_bytes)};
   }
 
   async read(session:AccountApiSession,sender:string,id:string) {
@@ -180,7 +197,10 @@ export class AccountMessaging {
       WHERE message.recipient_did=${session.did} AND message.sender_did=${sender} AND message.message_id=${id}`;
     if(!rows[0])return null;
     const envelope=inspectSignedPayload("hail.envelope",rows[0].envelope_cose).payload;
-    return {messageId:id,sender,senderAddress:rows[0].sender_address,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
+    const connection=envelope.authorization.type==="connection"?{id:envelope.authorization.connection_id,epoch:envelope.authorization.epoch,
+      active:await connectionMessageAllowed(this.sql,session.did,sender,envelope.authorization)}:null;
+    return {messageId:id,sender,senderAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,sender,envelope.authorization.connection_id):rows[0].sender_address,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
+      kind:connection?"connection":"subscription",connection,
       replyAvailable:envelope.reply.allowed&&envelope.reply.until+300>=Math.floor(Date.now()/1000)&&rows[0].reply_unused,
       deliveredAt:rows[0].delivered_at.toISOString(),body:bodyDocument(rows[0].body_bytes)};
   }

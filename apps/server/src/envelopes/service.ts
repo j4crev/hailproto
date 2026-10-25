@@ -12,6 +12,7 @@ import { uuidV7 } from "../identity/uuid-v7.js";
 import type { AccountKeyRecord, AccountRecord } from "../onboarding/repository.js";
 import type { HailDidResolver } from "../plc/resolver.js";
 import type { EnvelopeRepository } from "./repository.js";
+import type {ConnectionMessagingAuthority} from "../accounts/connection-authorization.js";
 
 export interface SenderAccounts {
   getAccountByDid(did: string): Promise<AccountRecord | null>;
@@ -36,6 +37,7 @@ export class EnvelopeService {
     private readonly resolver: HailDidResolver,
     private readonly serviceBase: string,
     private readonly now: () => number = () => Math.floor(Date.now() / 1000),
+    private readonly connections?:Pick<ConnectionMessagingAuthority,"live">,
   ) {}
 
   async create(senderDid: string, grantId: string, digestText: string, category: string,
@@ -63,6 +65,12 @@ export class EnvelopeService {
       digestText, undefined, replyUntil,messageId);
   }
 
+  async createConnection(senderDid:string,recipientDid:string,connectionId:string,epoch:number,digestText:string,messageId?:string):Promise<CreatedEnvelope>{
+    const authorization={type:"connection" as const,connection_id:connectionId,epoch};
+    if(!this.connections||!await this.connections.live(senderDid,recipientDid,authorization))throw new EnvelopeAuthorizationError("This exact connection is no longer active");
+    return this.createSigned(senderDid,recipientDid,authorization,digestText,undefined,null,messageId);
+  }
+
   private async createSigned(senderDid: string, recipientDid: string,
     authorization: HailEnvelope["authorization"], digestText: string,
     category: string | undefined, replyUntil: number | null, messageId?:string): Promise<CreatedEnvelope> {
@@ -86,7 +94,7 @@ export class EnvelopeService {
     }
     const availableUntil = now + 31 * 86400;
     const payload: HailEnvelope = {
-      type: "hail.envelope", version: 1, message_id: messageId ?? uuidV7(now * 1000),
+      type: "hail.envelope", version: authorization.type==="connection"?2:1, message_id: messageId ?? uuidV7(now * 1000),
       from: senderDid, to: recipientDid, authorization,
       ...(category !== undefined ? { category } : {}),
       created_at: now, expires_at: now + 7 * 86400,

@@ -21,7 +21,7 @@ it("loads a new alpha account's empty inbox through the real session account cli
     expect(result).toMatchObject({configured:true,account:{monitorVerificationMode:"reduced-assurance-alpha-v1",custodyProfile:"managed"},messages:[],next:null});
     expect(cookies.delete).not.toHaveBeenCalled();
     expect(request).toHaveBeenCalledTimes(2);
-    expect(request).toHaveBeenLastCalledWith(provider+"/api/v1/account/inbox?include=body",expect.objectContaining({headers:expect.objectContaining({Cookie:`hail_session=${token}`})}));
+    expect(request).toHaveBeenLastCalledWith(provider+"/api/v1/account/inbox?include=body&kind=subscriptions",expect.objectContaining({headers:expect.objectContaining({Cookie:`hail_session=${token}`})}));
   }finally{vi.unstubAllGlobals();}
 });
 

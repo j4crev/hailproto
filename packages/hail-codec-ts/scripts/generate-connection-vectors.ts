@@ -1,6 +1,7 @@
 // Public deterministic fixture keys only; never use these keys for an account.
 import {createHash,createPrivateKey,createPublicKey,sign} from "node:crypto";
 import {writeFile} from "node:fs/promises";
+import {envelope as legacyEnvelope} from "../test/fixtures.js";
 import {encodeDeterministic,encodePayload,signPayload,toDiagnosticJson,expectedKeyId,type HailConnectionInvitation,
   type HailConnectionConfirmation,type HailConnectionGrant,type HailConnectionControl,type HailPayloadByType,type HailSignedPayloadType,type HailValue} from "../src/index.js";
 
@@ -19,7 +20,7 @@ const positive:Record<string,unknown>[]=[],negative:Record<string,unknown>[]=[];
 async function add<T extends HailSignedPayloadType>(name:string,type:T,payload:HailPayloadByType[T]){
   const bytes=encodePayload(type,payload),key=keys.find(key=>key.key_id===expectedKeyId(type,payload))!;
   const cose=await signPayload(type,payload,{keyId:key.key_id,async sign(bytes){return new Uint8Array(sign(null,bytes,key.privateKey));}});
-  positive.push({id:name,type,diagnostic:toDiagnosticJson(type,payload),payload_hex:hex(bytes),payload_sha256_hex:hex(hash(bytes)),
+  positive.push({id:name,type,diagnostic:toDiagnosticJson(type,payload,false),payload_hex:hex(bytes),payload_sha256_hex:hex(hash(bytes)),
     cose_sign1_hex:hex(cose),representation_sha256_hex:hex(hash(cose))});return cose;
 }
 function bad(name:string,type:HailSignedPayloadType,payload:unknown){
@@ -63,6 +64,15 @@ bad("connection-control-active-no-id",control.type,{...control,state:"active",ep
 bad("connection-control-request-must-expire",control.type,{...control,expires_at:null});
 bad("connection-control-durable-receipt",control.type,{...control,operation:"snapshot"});
 bad("connection-control-not-subscription",control.type,{...control,scope:[{type:"categories",values:["general"]}]});
+const {category:legacyCategory,...withoutCategory}=legacyEnvelope;
+const connectionEnvelope={...withoutCategory,version:2 as const,message_id:id("f8"),authorization:{type:"connection" as const,connection_id:grant.connection_id,epoch:1},reply:{allowed:false as const}};
+await add("connection-message-envelope-v2","hail.envelope",connectionEnvelope);
+bad("connection-message-requires-v2","hail.envelope",{...connectionEnvelope,version:1});
+bad("connection-message-no-categories","hail.envelope",{...connectionEnvelope,category:"general"});
+bad("connection-message-no-independent-replies","hail.envelope",{...connectionEnvelope,reply:{allowed:true,until:connectionEnvelope.created_at+86400}});
+bad("connection-message-positive-epoch","hail.envelope",{...connectionEnvelope,authorization:{...connectionEnvelope.authorization,epoch:0}});
+bad("connection-message-exact-party-scope","hail.envelope",{...connectionEnvelope,authorization:{...connectionEnvelope.authorization,grant_id:grant.grant_id}});
+bad("connection-message-v2-not-grant","hail.envelope",{...connectionEnvelope,authorization:legacyEnvelope.authorization});
 bad("connection-invitation-secret-forbidden",invitation.type,{...invitation,token:new Uint8Array(32)});
 bad("connection-invitation-invalid-expiry",invitation.type,{...invitation,expires_at:issued});
 bad("connection-invitation-unknown-version",invitation.type,{...invitation,version:2});

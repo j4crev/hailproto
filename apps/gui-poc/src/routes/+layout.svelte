@@ -4,13 +4,14 @@
   let { children } = $props();
   const navigation = [
     {href: "/", label: "Feed", path: "M4 5h16v14H4z M4 9h16 M8 13h8 M8 16h5"},
+    {href: "/?view=connections", label: "Conversations", path: "M4 4h16v12H9l-5 4z M8 8h8 M8 12h5"},
     {href: "/sent", label: "Sent", path: "m3 11 18-8-8 18-3-8-7-2Z M10 13 21 3"},
     {href: "/permissions", label: "Allowed senders", path: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M17 8l2 2 3-3"},
     {href: "/settings/security", label: "Security", path: "m12 3 8 4v5c0 5-8 9-8 9s-8-4-8-9V7l8-4Z m-4 9 3 3 5-5"}
   ];
   let focused = $derived(!page.data.hasAccountSession || page.url.pathname.startsWith("/auth/") || page.url.pathname.startsWith("/signup"));
-  const active = (href: string) => href === "/"
-    ? page.url.pathname === "/" || page.url.pathname.startsWith("/message/")
+  const active = (href: string) => href === "/?view=connections"?(page.url.pathname==="/"||page.url.pathname.startsWith("/message/"))&&page.url.searchParams.get("view")==="connections":href === "/"
+    ? (page.url.pathname === "/" || page.url.pathname.startsWith("/message/"))&&page.url.searchParams.get("view")!=="connections"
     : page.url.pathname === href || page.url.pathname.startsWith(href + "/");
 </script>
 
@@ -67,7 +68,7 @@
   @media (max-width: 900px) {
     .app-shell { padding-left: 0; }
     .sidebar { position: static; width: auto; padding: 20px 24px 12px; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; border-right: 0; border-bottom: 1px solid var(--color-line); }
-    nav { display: flex; width: 100%; gap: 4px; overflow-x: auto; padding: 4px; }
+    nav { display: flex; flex-wrap: wrap; width: 100%; gap: 4px; overflow-x: auto; padding: 4px; }
     nav a { flex-shrink: 0; padding: 10px; font-size: 13px; gap: 7px; }
     .sidebar-note { display: none; }
     main { padding: 28px 24px 64px; }

@@ -43,7 +43,7 @@
   <header class="grid gap-3"><p class="hail-eyebrow">Personal connections</p><h1 class="hail-title">Connect with someone</h1><p class="m-0 text-sm text-muted">Review the identity before confirming. A connection is separate from a subscription.</p></header>
   {#if message}<p class="hail-error" role="alert">{message}</p>{/if}
   {#if pendingRequest}<p class="hail-card p-5 text-sm" role="status">Connecting across providers. Your saved request is retried automatically, even if you close this tab. You can also check synchronization on <a href="/settings/security">Security</a>.</p>{/if}
-  {#if connected}<section class="hail-card grid gap-4 p-5"><h2 class="m-0 text-xl">Connection saved</h2><p class="m-0 text-sm">You can see it on Security. Direct connection messaging is not enabled in this preview.</p><a class="hail-button justify-self-start" href="/settings/security">View connections</a></section>
+  {#if connected}<section class="hail-card grid gap-4 p-5"><h2 class="m-0 text-xl">Connection saved</h2><p class="m-0 text-sm">You can see it on Security and choose it in Compose for personal messages. Subscriptions are unchanged.</p><a class="hail-button justify-self-start" href="/settings/security">View connections</a></section>
   {:else if !data.signedIn}<section class="hail-card grid gap-4 p-5"><p class="m-0 text-sm">Sign in to this provider to review this code. It grants no account access. Your code stays in this tab, not the login URL.</p><a class="hail-button justify-self-start" href="/auth/login?next=%2Fconnect">Sign in to review</a></section>
   {:else if prepared}<ConnectionApproval approval={prepared} oncomplete={done} oncancel={cancel} />
   {:else}
@@ -52,7 +52,7 @@
       {:else}<p class="m-0 text-sm">Scan a connection QR or open a shared connect link to begin.</p>{/if}
       {#if review}<h2 class="m-0 text-xl [overflow-wrap:anywhere]">{review.address}</h2><code class="text-xs [overflow-wrap:anywhere]">{review.did}</code><p class="m-0 text-sm">{review.expiresAt===null?"No automatic code expiry":`Code expires ${new Date(review.expiresAt*1000).toLocaleString()}`}. Check this identity with the person you intended.</p>
         {#if review.admissionSupported===false}<p class="m-0 text-sm">This provider verified the other provider's signed invitation and identity. Cross-provider connection activation is not enabled yet. You are not connected; no request or permission was created.</p>
-        {:else}<p class="m-0 text-sm">Your confirmation connects both accounts without another approval from them. Cross-provider verification may take time and is retried automatically. Owner-controlled accounts sign consent locally. No direct messaging yet.</p><button class="hail-button justify-self-start" disabled={busy||pendingRequest!==null} onclick={()=>run(prepare)}>Review before connecting</button>{/if}
+        {:else}<p class="m-0 text-sm">Your confirmation connects both accounts for personal messages without another approval from them. Cross-provider verification may take time and is retried automatically. Owner-controlled accounts sign consent locally. Subscriptions are independent.</p><button class="hail-button justify-self-start" disabled={busy||pendingRequest!==null} onclick={()=>run(prepare)}>Review before connecting</button>{/if}
       {/if}
       <button class="hail-button-secondary justify-self-start" disabled={busy||!ready} onclick={()=>run(check)}>Continue interrupted review</button>
     </section>

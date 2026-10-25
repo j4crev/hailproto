@@ -32,6 +32,14 @@ const incomingId="019a15fd-2bd0-7433-8afa-bd0355e0608d";
 const sendingGrantId="019a15fd-2bd0-7433-8afa-bd0355e0608e";
 let sendingGrant:{payload:HailGrant;cose:string;digest:string}|null=null,composed:any=null,composePosts=0;
 let publicationIntent:any=null,publicationReads=0,publicationCreated=0,composedOther:any=null;
+let connectionMessageIntent:any=null,connectionMessageReads=0,connectionIncoming=false,loseConnectionAcceptance=true;
+const connectionSent:any[]=[],otherConnectionId=uuidV7(),connectionIncomingId=uuidV7();
+const otherConnectionDid='did:plc:'+'c'.repeat(24);
+const connectionMessageResult=()=>({publicationId:connectionMessageIntent.publicationId,kind:'connections',category:null,total:connectionSent.length,
+  state:connectionMessageReads>=2?'finished':'publishing',counts:{pending:connectionMessageReads>=2?0:connectionSent.length,submitted:connectionMessageReads>=2?connectionSent.length:0,blocked:0,cancelled:0,expired:0,indeterminate:0},
+  delivery:{accepted:0,delivered:connectionMessageReads>=2?connectionSent.length:0,'on-hold':0,failed:0,cancelled:0,indeterminate:0},
+  targets:connectionSent.map(message=>({messageId:message.messageId,recipient:message.recipient,state:connectionMessageReads>=2?'submitted':'pending',delivery:connectionMessageReads>=2?'delivered':null})),
+  createdAt:new Date().toISOString(),expiresAt:new Date(Date.now()+86400000).toISOString()});
 const publicationResult=()=>({publicationId:publicationIntent.publicationId,category:publicationIntent.category,total:2,state:publicationReads>=2?"finished":"publishing",
   counts:{pending:publicationReads>=2?0:2,submitted:publicationReads>=2?2:0,blocked:0,cancelled:0,expired:0,indeterminate:0},
   delivery:{accepted:0,delivered:publicationReads>=2?1:0,"on-hold":0,failed:0,cancelled:0,indeterminate:publicationReads>=2?1:0},
@@ -39,6 +47,8 @@ const publicationResult=()=>({publicationId:publicationIntent.publicationId,cate
   createdAt:new Date(publicationCreated).toISOString(),expiresAt:new Date(publicationCreated+86400000).toISOString()});
 let incoming=false,replyPosts=0,replied:any=null,recentlyVerified=false,guiProxy:ReturnType<typeof createApp>;
 const textBody=(text:string)=>({version:1,profile:"spt-1",blocks:[{_type:"block",_key:"b1",style:"normal",markDefs:[],children:[{_type:"span",_key:"s1",text,marks:[]}]}]});
+const connectionReply=()=>({messageId:connectionIncomingId,sender:peerDid,senderAddress:peerAddress,recipient:did,category:null,kind:'connection',
+  deliveredAt:new Date().toISOString(),body:textBody('A personal connection reply'),reply:{allowed:false},replyAvailable:false,connection:{id:fixtureConnectionId,epoch:1,active:personalConnection}});
 const headerPng=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
 const incomingMessage=()=>({messageId:incomingId,sender:peerDid,senderAddress:peerAddress,recipient:did,category:"updates",deliveredAt:new Date().toISOString(),
   body:{...textBody("One-time reply browser transport test"),profile:"spt-3",assets:{version:1,assets:[{id:"hero",role:"header",media_type:"image/png",loading:"bundled",
@@ -63,6 +73,21 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     catch{return new Response("GUI starting",{status:503});}
   }
   const body=await request.text();requests.push({path,body,authorization:request.headers.get("Authorization")??""});const input=body?JSON.parse(body):{};
+  if(path==='/api/v1/account/connection-messages/targets')return json({maxRecipients:100,connections:personalConnection?[
+    {connectionId:fixtureConnectionId,recipientDid:peerDid,epoch:1,address:peerAddress},{connectionId:otherConnectionId,recipientDid:otherConnectionDid,epoch:1,address:'other@peer.example.com'}]:[]});
+  if(path==='/api/v1/account/connection-messages'){
+    if(request.method==='GET')return json({publications:connectionMessageIntent?[{publicationId:connectionMessageIntent.publicationId,category:null,createdAt:new Date().toISOString(),pending:connectionMessageReads<2}]:[]});
+    assert(personalConnection);assert.deepEqual(Object.keys(input).sort(),['connections','publicationId','text']);
+    assert.deepEqual([...input.connections].sort(),[fixtureConnectionId,otherConnectionId].sort());
+    if(connectionMessageIntent){assert.deepEqual(input,connectionMessageIntent);return json(connectionMessageResult(),202);}
+    connectionMessageIntent=input;
+    for(const [recipient,address] of [[peerDid,peerAddress],[otherConnectionDid,'other@peer.example.com']])connectionSent.push({messageId:uuidV7(),sender:did,recipient,recipientAddress:address,
+      category:null,kind:'connection',createdAt:new Date().toISOString(),state:'delivered',revision:2,reason:null,retryAt:null,body:textBody(input.text)});
+    if(loseConnectionAcceptance){loseConnectionAcceptance=false;return json({error:'Simulated lost acceptance response'},503);}
+    return json(connectionMessageResult(),202);
+  }
+  if(connectionMessageIntent&&path===`/api/v1/account/connection-messages/${connectionMessageIntent.publicationId}`){connectionMessageReads++;return json(connectionMessageResult());}
+  if(connectionIncoming&&(path===`/api/v1/account/inbox/${encodeURIComponent(peerDid)}/${connectionIncomingId}`||path===`/api/v1/account/inbox/${peerDid}/${connectionIncomingId}`))return json(connectionReply());
   if(path.startsWith("/api/v1/account/connections")){
     assert(request.headers.get("Cookie")?.includes("hail_session="+sessionToken));
     const step=path.split("/")[5];
@@ -123,8 +148,8 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   }
   if(publicationIntent&&path===`/api/v1/account/publications/${publicationIntent.publicationId}`){publicationReads++;return json(publicationResult());}
   if(path===`/api/v1/account/messages/${composed?.messageId}`&&composed)return json({messageId:composed.messageId,state:composed.state,revision:composed.revision});
-  for(const message of [replied,composed,composedOther])if(message&&path===`/api/v1/account/sent/${message.messageId}`)return json(message);
-  if(path==="/api/v1/account/sent")return json({messages:[composed,composedOther,replied].filter(Boolean),next:null});
+  for(const message of [replied,composed,composedOther,...connectionSent])if(message&&path===`/api/v1/account/sent/${message.messageId}`)return json(message);
+  if(path==="/api/v1/account/sent")return json({messages:[...connectionSent,composed,composedOther,replied].filter(Boolean),next:null});
   if(path==="/api/v1/auth/passkeys")return json({recentlyVerified,passkeys:[{credentialId:credential.id,label:"Primary passkey",deviceType:"multiDevice",backedUp:true,
     current:true,createdAt:new Date().toISOString(),lastUsedAt:null}]});
   if(path.startsWith("/api/v1/account/permissions/")){
@@ -163,7 +188,8 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   if(path==="/api/v1/account"||path==="/api/v1/account/inbox"){
     if(!request.headers.get("Cookie")?.includes("hail_session="+sessionToken))return json({},401);
     assert(retired,"Inbox must use the completed account's session");
-    return json(path.endsWith("/inbox")?{messages:incoming?[incomingMessage()]:[],next:incoming&&!new URL(request.url).searchParams.has("after")?"older-page":null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
+    const query=new URL(request.url).searchParams,personal=query.get('kind')==='connections';
+    return json(path.endsWith("/inbox")?{messages:personal?(connectionIncoming?[connectionReply()]:[]):incoming?[incomingMessage()]:[],next:!personal&&incoming&&!query.has("after")?"older-page":null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
       address:prepared.address,did,migrationState:null,custodyProfile:"managed",monitorVerificationMode:"reduced-assurance-alpha-v1",managedProfileVersion:"hail-managed-custody-v1",
       identityPublicKey:prepared.userIdentityKey,ownerRecoveryPublicKey:prepared.userRecoveryKey,scopes:["account:read","grants:read","messages:read","messages:write"]});
   }
@@ -245,12 +271,12 @@ try{
   await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("A little more signal."),"signed-out feed");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Signed-out feed overflows viewport");
   assert.equal(await evaluate(`!!document.querySelector('nav[aria-label="Main navigation"]') || !!document.querySelector('a[href="/compose"]')`),false,"Public home must not show private folders or compose");
-  const privatePaths=["/permissions","/settings/security","/sent?after=older","/compose",`/sent/${incomingId}`,`/message/${encodeURIComponent(peerDid)}/${incomingId}`];
+  const privatePaths=["/permissions","/settings/security","/sent?after=older","/compose","/?view=connections",`/sent/${incomingId}`,`/message/${encodeURIComponent(peerDid)}/${incomingId}`];
   for(const path of privatePaths){
     const response=await fetch(origin+path,{redirect:"manual"});assert.equal(response.status,303);
     assert.equal(new URL(response.headers.get("location")!,origin).searchParams.get("next"),path);
     assert.equal(response.headers.get("cache-control"),"no-store");
-    const dataUrl=new URL(origin+path);dataUrl.pathname+="/__data.json";
+    const dataUrl=new URL(origin+path);dataUrl.pathname=dataUrl.pathname.replace(/\/$/,"")+"/__data.json";
     const routeData=await (await fetch(dataUrl)).json();assert.equal(routeData.type,"redirect");
     assert.equal(new URL(routeData.location,origin).searchParams.get("next"),path,"Client-side loads must use the same login destination");
     await cdp("Page.navigate",{url:origin+path});
@@ -505,9 +531,25 @@ try{
   assert(await has(peerDid));assert(!personalConnection);
   await click("Review before connecting");await wait(()=>has("Confirm connection"),"exact connection consent");
   assert(!personalConnection);await click("Confirm with passkey");await wait(()=>has("Connection saved"),"mutual connection confirmed");
+  await cdp('Page.navigate',{url:origin+'/compose?audience=connections'});await wait(()=>has('Message connections'),'connection composer uses existing editor');
+  await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]').length===2`),'connection recipient picker');
+  assert(!await evaluate(`!!document.querySelector('select[name="category"]')||!!document.querySelector('input[name="allowReply"]')`));
+  await evaluate(`document.querySelectorAll('input[name="connection"]').forEach(e=>e.click());document.querySelector('input[value="plain"]').click()`);
+  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Personal message to chosen connections';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);await click('Send to connections →');
+  await wait(()=>has('Message batch not confirmed'),'ambiguous connection acceptance retains the original intent');
+  assert(await evaluate(`document.querySelector('textarea[name=text]').value==='Personal message to chosen connections'&&document.querySelectorAll('input[name="connection"]:checked').length===2`),'Connection retry must retain body and recipients');
+  await click('Send to connections →');await wait(()=>has('Selected connections'),'connection batch queued');await click('Refresh status');await wait(()=>has('Message batch finished'),'connection outbox completion');
+  assert.equal(connectionSent.length,2);assert.equal(composePosts,1);assert.deepEqual(allowed!.scope,[{type:'categories',values:['general']}]);
+  connectionIncoming=true;
+  await cdp('Page.navigate',{url:origin+'/?view=connections'});await wait(()=>has('A personal connection reply'),'connection message uses existing reader preview');
+  assert(!await has('One-time reply browser transport test'));
+  await evaluate(`document.querySelector('a[href*="${connectionIncomingId}"]').click()`);await wait(()=>has('Message this connection →'),'standing connection response action');
+  assert(!await evaluate(`!!document.querySelector('form[action="?/reply"]')`));
+  await evaluate(`document.querySelector('a[href*="audience=connections&connection="]').click()`);await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]:checked').length===1`),'connection response preselects the same active connection');
   await cdp("Page.navigate",{url:origin+"/settings/security?connected=1"});await wait(()=>has("Disconnect"),"connected account visible");
   await click("Disconnect");await wait(()=>has("Confirm disconnect"),"disconnect review");await click("Confirm with passkey");await wait(()=>has("No connections yet."),"disconnect saved");
   assert(!personalConnection);assert.equal(allowed!.status,"active");
+  await cdp('Page.navigate',{url:origin+`/message/${encodeURIComponent(peerDid)}/${connectionIncomingId}`});await wait(()=>has('This connection is no longer active.'),'disconnected historical messages remain readable without a standing send action');
   const savedConnectionReview=[...connectionApprovals.values()].find(row=>row.action==="connect")!;
   await evaluate(`sessionStorage.setItem('hail.connection-approval.v1',${JSON.stringify(savedConnectionReview.requestId)})`);
   await cdp("Page.navigate",{url:origin+"/connect"});await wait(()=>has("Continue interrupted review"),"old approval status after disconnect");

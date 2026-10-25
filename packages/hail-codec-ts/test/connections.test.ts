@@ -28,7 +28,7 @@ for(const vector of manifest.positive)it(`round-trips and signs draft connection
   expect(signed).toEqual(bytes(vector.cose_sign1_hex));expect(Buffer.from(hash(signed)).toString("hex")).toBe(vector.representation_sha256_hex);
   expect((await verifySignedPayload(vector.type,signed,verifier)).payload).toEqual(payload);
   expect(()=>inspectSignedPayload("hail.grant",signed)).toThrow();
-  expect(()=>inspectSignedPayload("hail.envelope",signed)).toThrow();
+  if(vector.type!=="hail.envelope")expect(()=>inspectSignedPayload("hail.envelope",signed)).toThrow();
 });
 for(const vector of manifest.negative_payload)it(`rejects malformed connection authority: ${vector.id}`,()=>{
   expect(()=>decodePayload(vector.type,bytes(vector.hex))).toThrow();

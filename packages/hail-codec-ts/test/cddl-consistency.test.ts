@@ -108,7 +108,8 @@ type ExpectedMessageType =
   | "calendar-event";
 type ExpectedAuthorization =
   | { type: "grant"; grant_id: string }
-  | { type: "reply"; reply_to: string };
+  | { type: "reply"; reply_to: string }
+  | {type:"connection";connection_id:string;epoch:number};
 type ExpectedBodyDescriptor = {
   digest: ExpectedDigest;
   size: number;
@@ -120,7 +121,7 @@ type ExpectedBodyDescriptor = {
 type ExpectedReply = { allowed: false } | { allowed: true; until: number };
 type ExpectedEnvelope = {
   type: "hail.envelope";
-  version: 1;
+  version: 1|2;
   message_id: string;
   from: string;
   to: string;

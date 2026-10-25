@@ -218,6 +218,13 @@ export class ConnectionFederation {
     return (await this.sql<Pair[]>`SELECT p.* FROM federated_connection_pairs p WHERE account_id=${session.account_id} AND connection_id=${id} AND state='active'
       AND NOT EXISTS(SELECT 1 FROM federated_connection_tombstones t WHERE t.pair_id=p.id AND t.connection_id=p.connection_id)`)[0]??null;
   }
+  async messageState(localDid:string,peerDid:string,connectionId:string,epoch:number){
+    const owner=await this.ownerForDid(localDid),pair=await this.pair(this.sql,owner,peerDid);
+    if(pair.state!=="active"||pair.connection_id!==connectionId||Number(pair.epoch)!==epoch)return false;
+    const snapshot=await this.current(owner,peerDid);
+    if(snapshot.state==="disconnected")await this.transaction(owner,async tx=>this.apply(tx,await this.pairById(tx,pair.id,owner),snapshot));
+    return snapshot.state==="active"&&snapshot.connection_id===connectionId&&snapshot.epoch===epoch;
+  }
   async disconnect(tx:SQL,owner:ConnectionOwner,pairId:string,id:string,operationId:string){
     const pair=await this.pairById(tx,pairId,owner);if(pair.connection_id!==id||pair.state!=="active")throw new ConnectionError(409,"The connection is no longer active.");
     await tx`INSERT INTO federated_connection_tombstones(account_id,pair_id,connection_id,epoch) VALUES(${owner.id},${pair.id},${id},${pair.epoch}) ON CONFLICT DO NOTHING`;

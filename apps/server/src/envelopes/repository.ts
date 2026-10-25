@@ -4,6 +4,8 @@ import type { SQL } from "bun";
 import type { PlcResolutionEvidence } from "../plc/resolver.js";
 import { retainPublicEnvelopeAuthority } from "../plc/envelope-authority.js";
 import { validateBodyBytes, type BodyProfile } from "../bodies/service.js";
+import {connectionMessageAllowed} from "../accounts/connection-authorization.js";
+import {EnvelopeAuthorizationError} from "./service.js";
 
 export interface PublishedBodyInfo { size: number; senderAccountId: string; profile: BodyProfile; }
 export interface EnvelopeDecision {
@@ -63,6 +65,8 @@ export class EnvelopeRepository {
     const tokenHash = createHash("sha256").update(payload.body.access.token).digest();
     const envelopeDigest = createHash("sha256").update(inspected.payloadBytes).digest();
     await this.sql.begin(async (tx) => {
+      if(payload.authorization.type==="connection"&&!await connectionMessageAllowed(tx as SQL,payload.from,payload.to,payload.authorization,true))
+        throw new EnvelopeAuthorizationError("Connection ended before envelope persistence");
       const accounts = await tx<{ id: string }[]>`
         SELECT id FROM provider_accounts WHERE id = ${accountId} AND did = ${payload.from}
           AND onboarding_state = 'active' AND activation_verification_mode = 'public' FOR UPDATE
@@ -76,9 +80,10 @@ export class EnvelopeRepository {
       if (!body || body.size !== payload.body.size) throw new Error("Signed body is not published");
       await tx`
         INSERT INTO sent_envelopes (sender_did, message_id, recipient_did, grant_id,
-          reply_to_message_id, authorization_type, envelope_cose, envelope_digest, body_digest, sender_account_id)
+          reply_to_message_id, authorization_type, envelope_cose, envelope_digest, body_digest, sender_account_id,connection_id,connection_epoch)
         VALUES (${payload.from}, ${payload.message_id}, ${payload.to}, ${grantId}, ${replyTo},
-          ${payload.authorization.type}, ${representation}, ${envelopeDigest}, ${payload.body.digest.value}, ${accountId})
+          ${payload.authorization.type}, ${representation}, ${envelopeDigest}, ${payload.body.digest.value}, ${accountId},
+          ${payload.authorization.type==="connection"?payload.authorization.connection_id:null},${payload.authorization.type==="connection"?payload.authorization.epoch:null})
       `;
       if (payload.reply.allowed) {
         await tx`
@@ -101,6 +106,7 @@ export class EnvelopeRepository {
   }
 
   async candidate(authorization: HailEnvelope["authorization"], from: string, to: string): Promise<boolean> {
+    if(authorization.type==="connection")return connectionMessageAllowed(this.sql,to,from,authorization);
     if (authorization.type === "reply") {
       const rows = await this.sql<{ original_message_id: string }[]>`
         SELECT original_message_id FROM reply_capabilities
@@ -118,6 +124,17 @@ export class EnvelopeRepository {
 
   async accept(input: EnvelopeDecision, signal?: AbortSignal): Promise<EnvelopeOutcome> {
     const { payload, localAccountId, payloadDigest } = input;
+    if(payload.authorization.type==="connection")return this.sql.begin(async tx=>{
+      signal?.throwIfAborted();
+      if(!(await tx`SELECT id FROM provider_accounts WHERE id=${localAccountId} AND did=${payload.to}`).length)return "unauthorized";
+      const permitted=await connectionMessageAllowed(tx as SQL,payload.to,payload.from,payload.authorization as Extract<HailEnvelope["authorization"],{type:"connection"}>,true);
+      const previous=await this.previousOutcome(tx as SQL,payload,payloadDigest);if(previous)return previous;
+      const now=Number((await tx<{instant:string}[]>`SELECT extract(epoch FROM clock_timestamp()) AS instant`)[0]!.instant);
+      const deadline=Math.min(payload.expires_at+300,payload.body.available_until,payload.body.access.expires_at);
+      const outcome=now>deadline?"message-expired":permitted?"accepted":"unauthorized";
+      const inserted=await this.insertReceived(tx as SQL,input,null,null,outcome,now);
+      return inserted?outcome:(await this.previousOutcome(tx as SQL,payload,payloadDigest))??"conflict";
+    });
     if (payload.authorization.type === "reply") {
       const replyTo = payload.authorization.reply_to;
       return this.sql.begin(async (tx): Promise<EnvelopeOutcome> => {
@@ -212,13 +229,14 @@ export class EnvelopeRepository {
           (sender_did, message_id, recipient_did, grant_id, reply_to_message_id,
            authorization_type, local_account_id, envelope_cose,
            envelope_digest, payload_digest, signing_public_key, signing_plc_document,
-           signing_plc_data, signing_plc_operation_log, outcome, accepted_at)
+            signing_plc_data, signing_plc_operation_log, outcome, accepted_at,connection_id,connection_epoch)
         VALUES (${payload.from}, ${payload.message_id}, ${payload.to}, ${grantId}, ${replyTo},
           ${payload.authorization.type},
           ${localAccountId}, ${representation}, ${envelopeDigest}, ${payloadDigest}, ${signingPublicKey},
           ${JSON.stringify(evidence.document)}::jsonb, ${JSON.stringify(evidence.data)}::jsonb,
           ${JSON.stringify(evidence.log)}::jsonb, ${outcome},
-          ${outcome === "accepted" ? new Date(now * 1000) : null})
+           ${outcome === "accepted" ? new Date(now * 1000) : null},
+           ${payload.authorization.type==="connection"?payload.authorization.connection_id:null},${payload.authorization.type==="connection"?payload.authorization.epoch:null})
         ON CONFLICT (sender_did, message_id) DO NOTHING
         RETURNING payload_digest
       `;
