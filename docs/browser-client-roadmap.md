@@ -42,7 +42,7 @@ and provider outages. Security shows pending synchronization/recent failed attem
 old receipts do not masquerade as live connections. See
 [federation v1](../spec/connection-federation.md). Messaging/export remain separate.
 
-Next, undeployed messaging slice: Compose reuses its editor/preview and outbound worker
+Messaging slice deployed on Haili October 25, 2026: Compose reuses its editor/preview and outbound worker
 for selected connection recipients; the same Envelope v2 extension supplies explicit
 connection ID/epoch authorization. Conversations reuse the inbox/reader and do not
 consume reply allowances. See [connection messaging](connection-messaging.md).

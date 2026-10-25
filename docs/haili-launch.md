@@ -1,5 +1,46 @@
 # `haili.app` launch milestone
 
+## Connection Messaging Deployed — October 25, 2026 UTC
+
+- Release `3391d824d5f01a176e2c246b6c05abb5de7e679b` was committed, pushed and
+  deployed through the guarded backup/build/readiness wrapper. Migration 65 adds
+  explicit connection authorization metadata and private durable recipient batches.
+  Existing signed envelopes, body transport, delivery/status machinery and outbound
+  worker are reused; only connection messages select envelope version 2. Version-1
+  subscription/reply semantics and old signed vectors remain unchanged.
+- Compose now supports selected individual connections, including private multi-send
+  copies; Conversations reuses the inbox/reader separately from subscription Feed.
+  Sender retries preserve exact message IDs, bodies and recipients. Delivery checks
+  current connection state before retrieval/final delivery and holds when a required
+  coordinator is unavailable. Disconnect does not recall already delivered content.
+  See [connection messaging](connection-messaging.md) for precise race/rollback limits.
+- Verified pre-deploy backup: `provider/haili-20261025T130044Z.tar.gpg`, SHA-256
+  `0457c081c218137a3af2c13f5d4abec45e6b6bff8fe41d20f35b9075bf033d43`.
+  The first R2 upload returned 501; the existing retry succeeded before checkout/build.
+  Runtime image config:
+  `sha256:beb22c2ec27d592727a29ad84ab266dee6757d3f2d9dc0e2ed85fa188ba488bc`.
+  One startup readiness attempt returned 502, then retry passed. The Node build-stage
+  memory fix was retained; production runtime remains Bun.
+- Provider/GUI are healthy and remote HEAD matches the exact release. PostgreSQL
+  18.6 and Caddy retained their uptime. Public readiness, login and connection review
+  return 200; Conversations and connection Compose retain no-store exact local login
+  redirects. Anonymous connection-message target/history reads and batch creation
+  return 401, as do existing publication reads. Startup/PLC diagnostics are healthy
+  and the post-deploy logs contain no worker failures. No live invitation, connection,
+  message, batch, credential or Grant was created for these deployment probes;
+  authenticated live sending remains operator confirmation.
+- Local proof: workspace typechecks, 382 codec tests, Go interoperability, 33 GUI
+  tests, 22 CLI tests, 163 non-database server tests, build, desktop/mobile Chromium,
+  and 25 PostgreSQL checks across 14 passing selected files. One additional selected
+  integration file and 16 cases were environment-gated/skipped, not claimed as passed.
+  Two-provider checks exercise real envelopes/bodies/statuses, mixed native/federated
+  sends, duplicate/restart handling, offline authority, cancellation, immutable private
+  recipients, reconnect fencing, body-retrieval disconnect races and retained rollback.
+- Portable export remains unfinished and blocked. Its approved policy invalidates
+  old share links/QRs with a pre-cutover warning and creates fresh destination codes;
+  it does not promise forwarding or active-token continuity. No transfer guard was
+  removed and no account migration or database wipe occurred in this release.
+
 ## Owner-Controlled And Federated Connections Deployed — October 25, 2026 UTC
 
 - Feature release `65eb48d96402ba408407af1c5d9de3db92387b41` implements local

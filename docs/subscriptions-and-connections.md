@@ -102,7 +102,7 @@ independent stores. See [connection consent](../spec/connection-auth.md) and
 [federation v1](../spec/connection-federation.md) for migrations 63/64 and lifecycle
 boundaries. Connection messaging, explicit blocking and portable export remain separate.
 
-Connection messaging is implemented in the next **undeployed** slice using the
+Connection messaging was deployed on Haili October 25, 2026 using the
 same Envelope/body/delivery/outbox/composer mechanisms, with a version-2 connection
 authorization selector rather than a new message protocol. It supports selected
 individual connections, private multi-send copies and separate conversation views.

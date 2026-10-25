@@ -1,4 +1,7 @@
-# Connection Messaging — Implemented Slice, Not Deployed
+# Connection Messaging — Deployed Preview
+
+Deployed on Haili October 25, 2026 as `3391d82`; see
+[deployment receipts](haili-launch.md) for backup and verification boundaries.
 
 This slice reuses the signed Envelope, immutable detached bodies, body-token
 retrieval, delivery/status pipeline, rich composer, reader and bounded outbound
