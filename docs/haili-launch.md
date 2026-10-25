@@ -1,5 +1,39 @@
 # `haili.app` launch milestone
 
+## Connection Preview Code Deployed, Gate Off — October 25, 2026 UTC
+
+- Release `65097d665e51e42ef6c37afc134e912edac221e6` was committed, pushed and
+  deployed through the guarded provider wrapper. Startup includes additive
+  migration 62. The release carries separate signed connection consent, Security
+  code management and `/connect` review, but **does not enable the preview**.
+  The connection API returns 404; personal/expiring code management remains hidden.
+- The wrapper verified encrypted pre-deploy backup
+  `provider/haili-20261025T022541Z.tar.gpg`, SHA-256
+  `64a8180f60546e6e6023a99a5b744f8b541fb4a7663ded90033b1e5bdac8a106`.
+  The first R2 upload returned 501 and the existing retry succeeded before build.
+  Runtime image config:
+  `sha256:96b8dbf5e3d5e282c4f2c5c1be2be30947dbbf9edc26ac407ccf67ba66f510c8`.
+- Provider and GUI were recreated and are healthy. PostgreSQL remains 18.6 with
+  unchanged uptime; Caddy was not restarted. The remote checkout is clean at the
+  exact release. Startup and PLC diagnostics are healthy; the post-deploy provider
+  log check contains no errors.
+- External readiness, homepage, login and `/connect` return 200. The connection
+  review page is no-store/no-referrer and prompts anonymous visitors to sign in.
+  Security, Compose and Allowed Senders retain no-store 303 login redirects with
+  exact local return paths. Anonymous publication API reads still return 401.
+  No live account, invitation, connection, Grant, credential or message was created
+  for deployment verification; authenticated live connection use remains untested.
+- Local release proof: workspace typechecks, 335 codec tests, 31 GUI tests,
+  21 CLI tests, 163 non-database server tests, Go codec tests, 15 PostgreSQL checks
+  across 11 selected integration files, GUI build and desktop/mobile Chromium
+  fixture flows with real virtual-authenticator assertions.
+- Preview enablement is a separate operator decision. It supports managed accounts
+  on the same provider only, without direct connection messaging or explicit block
+  controls. Confirmed preview consent blocks transfer/custody transitions even after
+  revocation/disconnect until portable export exists. Retain migration 62 tables on
+  code rollback; schema rollback refuses retained intent. See
+  [connection consent](../spec/connection-auth.md).
+
 ## Category Publishing Deployed — October 25, 2026 UTC
 
 - Release `15607d57c76dbfba1c4c7a5985cda4e4a8dc07a2` was committed, pushed and

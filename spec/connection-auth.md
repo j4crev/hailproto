@@ -1,7 +1,7 @@
 # QR Connection Consent — Opt-In Provider-Local Preview
 
 Status: Draft wire format and opt-in managed-account preview (`CONNECTION_PREVIEW=true`).
-Disabled by default; not deployed. Security now supports personal-code creation/replacement,
+Code deployed to Haili October 25, 2026; preview remains disabled. Security supports personal-code creation/replacement,
 separate expiring links/QRs and revocation. `/connect` supports authenticated review and
 explicit passkey confirmation. Neither these objects nor the preview store authorize
 message delivery. A valid signature alone must not make a connection active.
