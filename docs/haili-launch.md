@@ -1,5 +1,23 @@
 # `haili.app` launch milestone
 
+## Inline Connection QR Controls Deployed — October 25, 2026 UTC
+
+- Release `d8cd333c76466716efceb26c7a3c2136d68adc48` was committed, pushed and
+  deployed through the guarded wrapper. Personal and expiring QR/link panels now
+  expand inside their own cards, with the same button toggling Show/Hide.
+  Preview enablement, authorization and database schemas are unchanged.
+- Verified pre-deploy backup: `provider/haili-20261025T024405Z.tar.gpg`, SHA-256
+  `ad17f6d01a5ccb67fd4dd2dd2256ddb5b8e643aac4c0661b738b6776554ceea8`.
+  The first R2 upload returned 501; the existing retry succeeded before build.
+  Image config: `sha256:046a6fd2cb4ae6c0cf27a020079340ad56c6ca7603ee12a5aabea2f359389cd5`.
+- Provider/GUI are healthy; PostgreSQL and Caddy were not restarted. Public
+  readiness, login and connection review return 200; Security retains its login
+  redirect, and the enabled connection API requires authentication (401).
+  Startup logs are healthy. No live consent was created for verification.
+- Local checks passed: 31 GUI tests, typecheck without warnings, build and
+  desktop/mobile Chromium regression checks for inline location, repeated toggling
+  and switching between personal and expiring codes.
+
 ## Connection Preview Enabled — October 25, 2026 UTC
 
 - The operator explicitly approved enabling the preview with its managed-account,
