@@ -26,7 +26,7 @@
   async function prepare(){if(!code||!review)return;if(!draft)draft={requestId:crypto.randomUUID(),action:"connect",...code};
     prepared=connectApproval(await connectionRequest("prepare",draft));sessionStorage.setItem(CONNECTION_APPROVAL,prepared.requestId);}
   async function done(result:NonNullable<ConnectApproval["result"]>){
-    if(result.state==="connecting"){pendingRequest=prepared?.requestId??sessionStorage.getItem(CONNECTION_APPROVAL);prepared=null;message="Your approval is saved. Synchronizing with the other provider.";return;}
+    if(result.state==="connecting"){pendingRequest=prepared?.requestId??sessionStorage.getItem(CONNECTION_APPROVAL);prepared=null;message="Your approval is saved. Synchronizing the connection.";return;}
     pendingRequest=null;
     if(result.state==="expired"||result.state==="conflict"){prepared=null;draft=null;review=null;sessionStorage.removeItem(CONNECTION_APPROVAL);message="This attempt expired or its reviewed identity/connection state changed. Review a current code before trying again.";return;}
     const current=await connectionRequest();

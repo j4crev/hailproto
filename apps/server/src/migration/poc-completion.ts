@@ -9,12 +9,13 @@ import type { PortablePlcSubmission } from "./poc-plc-submission.js";
 import type { PortableAddressPublication } from "./poc-address-publication.js";
 import type { PortableMigrationActivation } from "./activation.js";
 import {connectionHandoverPending} from "./connection-snapshot.js";
+import type {ConnectionTransferOrchestration} from './connection-orchestration.js';
 
 export class PortableTransferCompletion {
   constructor(private readonly sql:SQL,private readonly imports:Pick<MigrationTransferService,"stageImport">,
     private readonly submission:Pick<PortablePlcSubmission,"submit">,private readonly publication:Pick<PortableAddressPublication,"publish">,
     private readonly activation:Pick<PortableMigrationActivation,"activate"|"issueReceipt">,private readonly serviceBase:string,
-    private readonly profile:"public"|"private-poc"="public"){}
+    private readonly profile:"public"|"private-poc"="public",private readonly connections?:Pick<ConnectionTransferOrchestration,'freeze'|'commit'|'finish'>){}
 
   async complete(input:unknown) {
     if(!input||typeof input!=="object"||Array.isArray(input)||Object.keys(input).sort().join(",")!==
@@ -43,15 +44,19 @@ export class PortableTransferCompletion {
         !same(prior.user_consent_signature,consent.signature)||!same(prior.signed_plc_operation_bytes,operation)||!same(prior.destination_binding_cose,binding))throw new Error("Completion conflicts with retained signed artifacts");
     }else await this.imports.stageImport({bytes,digest,signature,sourceMessagingPublicKey:snapshot.sourceMessagingPublicKey},consent,operation,binding);
     const operationCid=(await cidForCbor(def.operation.parse(parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(operation))))).toString();
-    if(connectionHandoverPending(manifest))return {type:"hailp.transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
+    const movingConnections=connectionHandoverPending(manifest);
+    if(movingConnections&&!this.connections)return {type:"hailp.transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
       transferId:manifest.transferId,operationCid,phase:"awaiting-connection-handover"};
     if(prior?.state!=="active") {
+      if(movingConnections)await this.connections!.freeze(manifest.transferId);
       if(await this.submission.submit(manifest.transferId)!==operationCid)throw new Error("Configured PLC retained another operation");
+      if(movingConnections)await this.connections!.commit(manifest.transferId);
       if(this.profile==="public"&&!monitor)return {type:"hailp.transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
         transferId:manifest.transferId,operationCid,phase:"awaiting-monitor"};
       await this.publication.publish(manifest.transferId,monitor);
     }
     const activated=await this.activation.activate(manifest.transferId,monitor),receipt=await this.activation.issueReceipt(manifest.transferId);
+    if(movingConnections)await this.connections!.finish(manifest.transferId,receipt);
     return {type:"hailp.transfer-completion",version:1,did:activated.did,accountId:activated.accountId,transferId:manifest.transferId,
       operationCid,phase:"active",receipt:encodeSignedRecord(receipt)};
   }
@@ -60,5 +65,5 @@ export class PortableTransferCompletion {
 export class PrivatePocTransferCompletion extends PortableTransferCompletion {
   constructor(sql:SQL,imports:Pick<MigrationTransferService,"stageImport">,submission:Pick<PortablePlcSubmission,"submit">,
     publication:Pick<PortableAddressPublication,"publish">,activation:Pick<PortableMigrationActivation,"activate"|"issueReceipt">,
-    serviceBase:string) {super(sql,imports,submission,publication,activation,serviceBase,"private-poc");}
+    serviceBase:string,connections?:Pick<ConnectionTransferOrchestration,'freeze'|'commit'|'finish'>) {super(sql,imports,submission,publication,activation,serviceBase,"private-poc",connections);}
 }

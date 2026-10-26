@@ -211,6 +211,8 @@ const migrations: readonly Migration[] = [
   { version: 67, name: "connection-proof-authority", url: new URL("../../migrations/0067_connection_proof_authority.sql", import.meta.url) },
   { version: 68, name: "connection-handover-barriers", url: new URL("../../migrations/0068_connection_handover_barriers.sql", import.meta.url) },
   { version: 69, name: "connection-reconstruction", url: new URL("../../migrations/0069_connection_reconstruction.sql", import.meta.url) },
+  { version: 70, name: "unified-connections", url: new URL("../../migrations/0070_unified_connections.sql", import.meta.url) },
+  { version: 71, name: "connection-transfer-orchestration", url: new URL("../../migrations/0071_connection_transfer_orchestration.sql", import.meta.url) },
 ];
 
 export class ProviderDatabase {

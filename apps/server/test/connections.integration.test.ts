@@ -23,7 +23,7 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     assertion:(challenge:string,change?:{origin?:string;flags?:number})=>any}[];
   try{
     await db.migrate();
-    const empty=await db.sql.reserve();try{for(const file of ['0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation','0063_connection_owner_signing','0062_connection_preview'])
+    const empty=await db.sql.reserve();try{for(const file of ['0071_connection_transfer_orchestration','0070_unified_connections','0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation','0063_connection_owner_signing','0062_connection_preview'])
       await empty.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{empty.release();}
     await db.migrate();
     const passkeys=new PasskeyAuth(db.sql,"provider.example.com",origin),accounts=new AccountApiRepository(db.sql);
@@ -57,6 +57,18 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
       users.push({id,did,address,keys,credential,token:signedIn.token,session,assertion});
     }
     const [a,b,e,o,p]=users as [typeof users[number],typeof users[number],typeof users[number],typeof users[number],typeof users[number]];
+    // Upgrade preserves obsolete bytes without authorizing them or allowing an
+    // old writer/replayed invitation to recreate the relationship in either model.
+    const beforeUnified=await db.sql.reserve();try{for(const file of ['0071_connection_transfer_orchestration','0070_unified_connections'])await beforeUnified.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{beforeUnified.release();}
+    const obsoleteId=randomUUID();
+    await db.sql`INSERT INTO account_connections(id,account_a,account_b,did_a,did_b,generation_a,generation_b,grant_id_a,grant_id_b,consent_format)
+      VALUES(${obsoleteId},${e.id},${p.id},${e.did},${p.did},1,1,${randomUUID()},${randomUUID()},'joint-v1')`;
+    const obsolete=await db.sql`SELECT * FROM account_connections WHERE id=${obsoleteId}`;
+    await db.migrate();
+    expect(await db.sql`SELECT * FROM account_connections WHERE id=${obsoleteId}`).toEqual(obsolete);
+    await expect(db.sql`UPDATE account_connections SET pending_until=now() WHERE id=${obsoleteId}`).rejects.toThrow('Obsolete local connection');
+    await expect(db.sql`INSERT INTO federated_connection_pairs(id,account_id,serving_generation,local_did,peer_did,peer_address,peer_service_base,coordinator_service_base)
+      VALUES(${randomUUID()},${e.id},1,${e.did},${p.did},${p.address},${origin+'/hail'},${origin+'/hail'})`).rejects.toThrow('Obsolete local connection history blocks this pair');
     let wrongService=false;
     const resolver:HailDidResolver={async resolve(did){const u=users.find(u=>u.did===did)!;return {did,identityDidKey:u.keys.identityDidKey,messagingDidKey:u.keys.messagingDidKey,
       serviceBase:wrongService?"https://other.example.com/hail":origin+"/hail",evidence:{document:{},data:{},log:[]}};}};
@@ -94,6 +106,7 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     const expiring=await create(a,false),bobCode=await create(b,true);
     expect(expiring.id).not.toBe(personal.id);expect((await service.list(a.session)).codes).toHaveLength(2);
     const scan=(link:string)=>Object.fromEntries(new URLSearchParams(new URL(link).hash.slice(1))) as {id:string;did:string;token:string};
+    const drain=async()=>{for(let i=0;i<30&&await service.federation.workOne();i++);};
     const invitation=scan(expiring.link),opposite=scan(bobCode.link);
     await expect(service.review(b.session,{...invitation,token:encodeBase64Url(randomBytes(32))})).rejects.toMatchObject({status:410});
     await expect(service.review(b.session,{...invitation,did:e.did})).rejects.toMatchObject({status:409});
@@ -102,37 +115,37 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     const crossed=await Promise.all([service.prepare(b.session,{requestId:randomUUID(),action:"connect",...invitation}),service.prepare(a.session,{requestId:randomUUID(),action:"connect",...opposite})]);
     const uncommitted=await service.prepare(b.session,{requestId:randomUUID(),action:"connect",...invitation});
     const results=await Promise.all([service.commit(b.session,crossed[0]!.requestId,b.assertion(crossed[0]!.options!.challenge)),service.commit(a.session,crossed[1]!.requestId,a.assertion(crossed[1]!.options!.challenge))]);
-    expect(results[0]!.result).toEqual(results[1]!.result);
-    const connections=await db.sql<{id:string;grant_a_cose:Uint8Array;grant_b_cose:Uint8Array}[]>`SELECT id,grant_a_cose,grant_b_cose FROM account_connections WHERE state='active'`;
+    expect(results.every(r=>(r.result as {state:string}).state==='connecting')).toBe(true);
+    await drain();
+    const connections=await db.sql<{id:string}[]>`SELECT DISTINCT connection_id AS id FROM federated_connection_pairs WHERE state='active'`;
     expect(connections).toHaveLength(1);expect(await db.sql`SELECT grant_id FROM grant_lineages`).toHaveLength(0);
-    const preserve=await db.sql.reserve();try{for(const file of ['0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation','0063_connection_owner_signing'])
-      await preserve.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{preserve.release();}
-    await db.migrate();
-    expect(await db.sql`SELECT id,grant_a_cose,grant_b_cose FROM account_connections WHERE state='active'`).toEqual(connections);
+    expect(await db.sql`SELECT id FROM account_connections WHERE id<>${obsoleteId}`).toHaveLength(0);
+    const preserve=await db.sql.reserve();try{await expect(preserve.unsafe(await Bun.file(new URL('../migrations/rollback/0070_unified_connections.sql',import.meta.url)).text())).rejects.toThrow('Retained unified local connections');}finally{await preserve.unsafe('ROLLBACK');preserve.release();}
     expect((await service.list(a.session)).connections).toHaveLength(1);expect((await service.list(e.session)).connections).toHaveLength(0);
-    for(const row of [connections[0]!.grant_a_cose,connections[0]!.grant_b_cose]){
-      const p=inspectSignedPayload("hail.connection-grant",new Uint8Array(row)).payload,owner=users.find(u=>u.did===p.grantor)!;
-      expect(p.connection_id).toBe(connections[0]!.id);expect(p.expires_at).toBeNull();
-      await verifySignedPayload("hail.connection-grant",new Uint8Array(row),createWebCryptoVerifier(async()=>ed25519PublicKeyFromDidKey(owner.keys.identityDidKey)));
-      expect(()=>inspectSignedPayload("hail.grant",new Uint8Array(row))).toThrow();
-    }
+    const copies=await db.sql<{id:string;count:number}[]>`SELECT id,count(*)::integer AS count FROM federated_connection_attempts GROUP BY id`;
+    expect(copies).toHaveLength(2);expect(copies.every(r=>r.count===2)).toBe(true);
     const revoke=await service.prepare(a.session,{requestId:randomUUID(),action:"revoke",id:expiring.id});
     await service.commit(a.session,revoke.requestId,a.assertion(revoke.options!.challenge));
     await expect(service.review(e.session,invitation)).rejects.toMatchObject({status:410});
     expect((await service.list(a.session)).connections).toHaveLength(1); // Admission revocation does not end connections.
     const disconnect=await service.prepare(b.session,{requestId:randomUUID(),action:"disconnect",connectionId:connections[0]!.id});
     await service.commit(b.session,disconnect.requestId,b.assertion(disconnect.options!.challenge));
-    await expect(service.commit(b.session,uncommitted.requestId,b.assertion(uncommitted.options!.challenge))).rejects.toMatchObject({status:410});
+    expect((await db.sql<{allowed:boolean}[]>`SELECT hail_connection_message_permission(${a.did},${b.did},${connections[0]!.id},1) AS allowed`)[0]!.allowed).toBe(false);
+    expect((await db.sql<{allowed:boolean}[]>`SELECT hail_connection_message_permission(${b.did},${a.did},${connections[0]!.id},1) AS allowed`)[0]!.allowed).toBe(false);
+    await service.commit(b.session,uncommitted.requestId,b.assertion(uncommitted.options!.challenge));await drain();
     expect((await service.list(a.session)).connections).toHaveLength(0);
-    expect((await service.commit(b.session,crossed[0]!.requestId)).result).toEqual(results[0]!.result);
-    await expect(service.prepare(b.session,{requestId:randomUUID(),action:"connect",...scan(personal.link)})).rejects.toMatchObject({status:409});
-    await expect(db.sql`UPDATE account_connections SET state='active' WHERE id=${connections[0]!.id}`).rejects.toThrow("cannot be replaced");
+    expect((await service.commit(b.session,crossed[0]!.requestId)).result).toMatchObject({connectionId:connections[0]!.id});
+    const stale=await service.prepare(b.session,{requestId:randomUUID(),action:'connect',...scan(personal.link)});
+    await service.commit(b.session,stale.requestId,b.assertion(stale.options!.challenge));await drain();
+    expect((await service.status(b.session,stale.requestId)).result).toMatchObject({state:'conflict'});
+    await expect(db.sql`UPDATE federated_connection_pairs SET state='active' WHERE account_id=${a.id} AND peer_did=${b.did}`).rejects.toThrow("cannot be reopened");
     const replace=await service.prepare(a.session,{requestId:randomUUID(),action:"replace",id:personal.id});
     await service.commit(a.session,replace.requestId,a.assertion(replace.options!.challenge));
     await expect(service.review(e.session,scan(personal.link))).rejects.toMatchObject({status:410});
     const next=(await service.list(a.session)).codes.find(code=>code.personal)!;expect(next.id).not.toBe(personal.id);
     const reconnect=await service.prepare(b.session,{requestId:randomUUID(),action:"connect",...scan(next.link)});
     await service.commit(b.session,reconnect.requestId,b.assertion(reconnect.options!.challenge));
+    await drain();
     expect((await service.list(a.session)).connections).toHaveLength(1);
     // Owner-held inviter is offline after creating its standing signed invitation.
     const ownerCode=await create(o,true),ownerScan=scan(ownerCode.link);
@@ -154,14 +167,19 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     const changedConsent=await signPayload("hail.connection-confirmation",{...confirmation,expires_at:confirmation.expires_at-1},createWebCryptoSigner(confirmation.key_id,p.keys.identityPrivateKey));
     await expect(service.commit(p.session,ownAttempt.requestId,p.assertion(ownAttempt.options!.challenge),changedConsent)).rejects.toMatchObject({status:400});
     await service.commit(p.session,ownAttempt.requestId,p.assertion(ownAttempt.options!.challenge),valid);
+    await drain();
     expect((await service.list(o.session)).connections).toHaveLength(2);
-    expect(await db.sql`SELECT id FROM account_connections WHERE consent_format='joint-v1' AND state='active' AND grant_a_cose IS NULL AND grant_b_cose IS NULL`).toHaveLength(2);
-    await expect(db.sql`UPDATE account_connections SET consent_format='grants-v1' WHERE id=${(await service.list(p.session)).connections[0]!.id}`).rejects.toThrow("cannot be replaced");
+    expect(await db.sql`SELECT id FROM federated_connection_pairs WHERE peer_did=${o.did} AND state='active'`).toHaveLength(2);
+    await expect(db.sql`UPDATE federated_connection_pairs SET peer_did=${a.did} WHERE account_id=${p.id}`).rejects.toThrow("cannot be replaced");
     const ownerDisconnect=await service.prepare(p.session,{requestId:randomUUID(),action:"disconnect",connectionId:(await service.list(p.session)).connections[0]!.id});
     expect(ownerDisconnect.ownerSigning).toBeNull();await service.commit(p.session,ownerDisconnect.requestId,p.assertion(ownerDisconnect.options!.challenge));
-    await expect(service.prepare(p.session,{requestId:randomUUID(),action:"connect",...ownerScan})).rejects.toMatchObject({status:409});
+    await drain();
+    const staleOwner=await service.prepare(p.session,{requestId:randomUUID(),action:'connect',...ownerScan});
+    await service.commit(p.session,staleOwner.requestId,p.assertion(staleOwner.options!.challenge),await signedOwner(p,staleOwner));await drain();
+    expect((await service.status(p.session,staleOwner.requestId)).result).toMatchObject({state:'conflict'});
     const ownerToManaged=await service.prepare(o.session,{requestId:randomUUID(),action:"connect",...scan(bobCode.link)});
     await service.commit(o.session,ownerToManaged.requestId,o.assertion(ownerToManaged.options!.challenge),await signedOwner(o,ownerToManaged));
+    await drain();
     expect((await service.list(o.session)).connections.some(c=>c.did===b.did)).toBe(true);
     const ownerReplace=await service.prepare(o.session,{requestId:randomUUID(),action:"replace",id:ownerCode.id});
     await service.commit(o.session,ownerReplace.requestId,o.assertion(ownerReplace.options!.challenge),await signedOwner(o,ownerReplace));
@@ -170,7 +188,7 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     // Two-provider review boundary: destination fetches only the PLC-resolved source endpoint.
     const targets:string[]=[];
     const remote=new RemoteConnectionReview(db.sql,resolver,async request=>app.request(request),url=>{targets.push(url.toString());},"https://destination.example.com/hail");
-    expect(await remote.review(currentOwnerScan)).toMatchObject({address:o.address,did:o.did,admissionSupported:false});
+    expect(await remote.review(currentOwnerScan)).toMatchObject({address:o.address,did:o.did,admissionSupported:true});
     expect(targets).toEqual([origin+"/hail/connections/invitations/review"]);
     const exported=await service.exportInvitation(currentOwnerScan);
     const changed=exported.binding.slice(0,-1)+(exported.binding.endsWith("A")?"B":"A");

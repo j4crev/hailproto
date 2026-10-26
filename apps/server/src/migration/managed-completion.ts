@@ -8,6 +8,7 @@ import type {ManagedMigrationActivation} from "./managed-activation.js";
 import type {SignedManagedTransferSnapshot} from "./managed-snapshot.js";
 import {decodeSignedRecord,encodeSignedRecord} from "./wire.js";
 import {connectionHandoverPending} from "./connection-snapshot.js";
+import type {ConnectionTransferOrchestration} from './connection-orchestration.js';
 
 const canonical=(value:string)=>{const bytes=decodeBase64Url(value);if(encodeBase64Url(bytes)!==value)throw new Error("Non-canonical transfer bytes");return bytes;};
 
@@ -15,7 +16,7 @@ export class ManagedMigrationCompletion {
   constructor(private readonly stage:Pick<ManagedMigrationStageService,"stage">,
     private readonly plc:Pick<ManagedMigrationPlcSubmission,"submit">,
     private readonly activation:Pick<ManagedMigrationActivation,"activate"|"issueReceipt">,
-    private readonly publicProfile=false) {}
+    private readonly publicProfile=false,private readonly connections?:Pick<ConnectionTransferOrchestration,'freeze'|'commit'|'finish'>) {}
 
   async complete(input:unknown) {
     if(!input||typeof input!=="object"||Array.isArray(input)||
@@ -39,12 +40,16 @@ export class ManagedMigrationCompletion {
     if(manifest.version!==container.version)throw new Error("Snapshot container and manifest versions differ");
     const operation=def.operation.parse(parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(operationBytes)));
     const operationCid=(await cidForCbor(operation)).toString();
-    if(connectionHandoverPending(manifest))return {type:"hailp.managed-transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
+    const movingConnections=connectionHandoverPending(manifest);
+    if(movingConnections&&!this.connections)return {type:"hailp.managed-transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
       transferId:manifest.transferId,operationCid,phase:"awaiting-connection-handover"};
+    if(movingConnections)await this.connections!.freeze(manifest.transferId);
     if(await this.plc.submit(manifest.transferId)!==operationCid)throw new Error("Configured PLC retained another operation");
+    if(movingConnections)await this.connections!.commit(manifest.transferId);
     if(this.publicProfile&&!monitor)return {type:"hailp.managed-transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
       transferId:manifest.transferId,operationCid,phase:"awaiting-monitor"};
     const active=await this.activation.activate(manifest.transferId,monitor),receipt=await this.activation.issueReceipt(manifest.transferId);
+    if(movingConnections)await this.connections!.finish(manifest.transferId,receipt);
     return {type:"hailp.managed-transfer-completion",version:1,did:active.did,accountId:active.accountId,
       transferId:manifest.transferId,generation:active.generation,operationCid,phase:"active",receipt:encodeSignedRecord(receipt)};
   }

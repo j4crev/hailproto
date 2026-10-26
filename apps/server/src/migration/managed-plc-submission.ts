@@ -9,7 +9,7 @@ import type {PlcDirectoryClient} from "../plc/client.js";
 import type {HailDidResolver} from "../plc/resolver.js";
 import {verifyManagedOwnerHandshake} from "./managed-handshake.js";
 import {validateManagedTransferManifest} from "./managed-snapshot.js";
-import {requireConnectionHandoverComplete} from "./connection-snapshot.js";
+import {requireConnectionImportPhase} from './connection-reconstruction.js';
 
 const same=(a:Uint8Array,b:Uint8Array)=>Buffer.from(a).equals(Buffer.from(b));
 
@@ -21,14 +21,14 @@ export class ManagedMigrationPlcSubmission {
     return this.sql.begin(async tx=>{
       const row=(await tx<{did:string;state:string;custody_profile:string;manifest_bytes:Uint8Array;
         signed_plc_operation_bytes:Uint8Array;user_consent_payload:Uint8Array;user_consent_signature:Uint8Array;
-        owner_recovery_public_key:string;destination_identity_public_key:string}[]>`
+        owner_recovery_public_key:string;destination_identity_public_key:string;connection_cancellation_payload:Uint8Array|null}[]>`
         SELECT did,state,custody_profile,manifest_bytes,signed_plc_operation_bytes,user_consent_payload,
-          user_consent_signature,owner_recovery_public_key,destination_identity_public_key
+          user_consent_signature,owner_recovery_public_key,destination_identity_public_key,connection_cancellation_payload
         FROM pending_migration_imports WHERE transfer_id=${transferId} FOR UPDATE`)[0];
-      if(!row||!["staged","active"].includes(row.state)||row.custody_profile!=="managed")
+      if(!row||!["staged","active"].includes(row.state)||row.custody_profile!=="managed"||row.connection_cancellation_payload)
         throw new Error("Managed PLC write requires the retained staged or active import");
       const manifest=validateManagedTransferManifest(row.manifest_bytes);
-      requireConnectionHandoverComplete(manifest);
+      await requireConnectionImportPhase(tx as SQL,manifest,'frozen');
       if(manifest.transferId!==transferId||manifest.did!==row.did||manifest.destinationServiceBase!==this.destinationServiceBase||
         manifest.ownerRecoveryPublicKey!==row.owner_recovery_public_key||
         manifest.destinationIdentityPublicKey!==row.destination_identity_public_key)
@@ -50,6 +50,8 @@ export class ManagedMigrationPlcSubmission {
         throw new Error("Managed PLC operation differs from the retained owner approval");
       let log=await this.plc.getOperationLog(row.did),last=log.at(-1),current=last?(await cidForCbor(last)).toString():null;
       if(current!==expectedCid) {
+        const now=Math.floor(Date.now()/1000);
+        if(approval.issued_at>now+300||approval.expires_at<=now)throw new Error('Managed owner approval expired before PLC cutover');
         if(current!==operation.prev||!await validateOperationLog(row.did,[...log,operation]))
           throw new Error("PLC history advanced beyond the approved managed predecessor");
         try {await this.plc.sendOperation(row.did,operation as Operation);}

@@ -31,13 +31,14 @@ export const CONNECTION_HISTORY_COLUMNS={
   connection_message_targets:"account_id publication_id connection_id connection_epoch recipient_did message_id state attempts next_attempt_at",
   public_plc_resolution_evidence:"evidence_digest did operation_cid verified_at bundle_bytes",
   connection_handover_barriers:"account_id serving_generation moving_did transfer_id plan_digest plan_bytes source_signature destination_signature source_messaging_key source_authority source_service_base destination_service_base peer_service_base peer_signature peer_messaging_key peer_authority state destination_binding destination_address commit_payload commit_signature commit_moving_authority peer_commit_payload peer_commit_signature peer_commit_key peer_commit_authority completion_payload completion_signature activation_payload activation_signature peer_completion_payload peer_completion_signature peer_completion_key peer_completion_authority release_payload release_source_signature release_source_authority release_destination_signature release_peer_signature release_peer_key release_peer_authority created_at",
-  connection_import_handovers:"transfer_id account_id peer_did plan_digest plan_bytes source_signature destination_signature destination_binding source_messaging_key source_authority peer_freeze_signature peer_freeze_key peer_freeze_authority state commit_payload commit_signature commit_moving_authority peer_commit_payload peer_commit_signature peer_commit_key peer_commit_authority completion_payload completion_signature activation_payload activation_signature peer_completion_payload peer_completion_signature peer_completion_key peer_completion_authority",
+  connection_import_handovers:"transfer_id account_id peer_did plan_digest plan_bytes source_signature destination_signature destination_binding source_messaging_key source_authority peer_freeze_signature peer_freeze_key peer_freeze_authority state commit_payload commit_signature commit_moving_authority peer_commit_payload peer_commit_signature peer_commit_key peer_commit_authority completion_payload completion_signature activation_payload activation_signature peer_completion_payload peer_completion_signature peer_completion_key peer_completion_authority release_payload release_source_signature release_source_authority release_destination_signature release_peer_signature release_peer_key release_peer_authority",
+  connection_transfer_aborts:"account_id transfer_id cancellation_payload cancellation_signature destination_signature owner_key managed_owner source_authority archive",
 } as const;
 type Table=keyof typeof CONNECTION_HISTORY_COLUMNS;
 type Row=Record<string,unknown>;
 export interface ConnectionHistoryOwner {accountId:string;did:string;sourceGeneration:number;sourceServiceBase:string;}
 export interface ConnectionHistory extends ConnectionHistoryOwner {
-  type:"hail.connection-history";version:2;capturedAt:string;
+  type:"hail.connection-history";version:3;capturedAt:string;
   // Source observations only. These rows are never inserted into live invitation
   // or approval tables; committed cutover must invalidate every source share code.
   sharePolicy:"invalidate-at-cutover";
@@ -66,7 +67,8 @@ function evidenceRows(tables:ConnectionHistory["tables"]):unknown[] {
     ...tables.account_connections.flatMap(r=>[r.evidence_a,r.evidence_b]),
     ...tables.federated_connection_signatures.map(r=>r.authority),
     ...tables.connection_handover_barriers.flatMap(r=>[r.source_authority,r.peer_authority,r.commit_moving_authority,r.peer_commit_authority,r.peer_completion_authority,r.release_source_authority,r.release_peer_authority]),
-    ...tables.connection_import_handovers.flatMap(r=>[r.source_authority,r.peer_freeze_authority,r.commit_moving_authority,r.peer_commit_authority,r.peer_completion_authority])].filter(v=>v!==null&&v!==undefined);
+    ...tables.connection_import_handovers.flatMap(r=>[r.source_authority,r.peer_freeze_authority,r.commit_moving_authority,r.peer_commit_authority,r.peer_completion_authority,r.release_source_authority,r.release_peer_authority]),
+    ...tables.connection_transfer_aborts.flatMap(r=>[r.source_authority,...((r.archive as {releases?:{authority:unknown}[]})?.releases??[]).map(p=>p.authority)])].filter(v=>v!==null&&v!==undefined);
 }
 function authorityDigest(value:unknown):string|undefined {
   const evidence=(typeof value==="string"?parseJsonWithoutDuplicateKeys(value):value) as {verification?:{digest?:unknown;profile?:unknown}};
@@ -86,7 +88,7 @@ export function validateConnectionHistory(input:Uint8Array,owner:ConnectionHisto
   const history=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(input)) as ConnectionHistory;
   const fields=["type","version","accountId","did","sourceGeneration","sourceServiceBase","capturedAt","sharePolicy","tables"];
   if(!history||typeof history!=="object"||Array.isArray(history)||Object.keys(history).length!==fields.length||fields.some(k=>!Object.hasOwn(history,k))||
-    history.type!=="hail.connection-history"||history.version!==2||history.sharePolicy!=="invalidate-at-cutover"||
+    history.type!=="hail.connection-history"||history.version!==3||history.sharePolicy!=="invalidate-at-cutover"||
     !UUID.test(history.accountId)||!DID.test(history.did)||!Number.isSafeInteger(history.sourceGeneration)||history.sourceGeneration<1||
     history.accountId!==owner.accountId||history.did!==owner.did||history.sourceGeneration!==owner.sourceGeneration||history.sourceServiceBase!==owner.sourceServiceBase||
     canonicalizeHailServiceBase(history.sourceServiceBase)!==history.sourceServiceBase||typeof history.capturedAt!=="string"||!Number.isFinite(Date.parse(history.capturedAt))||
@@ -101,7 +103,7 @@ export function validateConnectionHistory(input:Uint8Array,owner:ConnectionHisto
       if("serving_generation" in row&&integer(row.serving_generation,1)>owner.sourceGeneration)return fail("contains a future generation");
       if("id" in row&&(typeof row.id!=="string"||!UUID.test(row.id)))return fail("contains invalid row identity");
     }
-    if(table!=="connection_message_targets"&&table!=="federated_connection_tombstones"&&table!=='connection_import_handovers')unique(tables[table],r=>r.id??r.digest??r.evidence_digest??r.plan_digest);
+    if(table!=="connection_message_targets"&&table!=="federated_connection_tombstones"&&table!=='connection_import_handovers')unique(tables[table],r=>r.id??r.digest??r.evidence_digest??r.plan_digest??r.transfer_id);
   }
   const invitations=unique(tables.connection_invitations,r=>r.id);
   for(const row of invitations.values()){
@@ -206,7 +208,7 @@ export function validateConnectionHistory(input:Uint8Array,owner:ConnectionHisto
   if(references.size!==authority.size||[...references].some(d=>!authority.has(d)))return fail("lost historical public authority evidence");
   for(const row of authority.values())if(!same(hash(bytes(row.bundle_bytes,PUBLIC_EVIDENCE_LIMITS.maximumBytes)),bytes(row.evidence_digest,32)))return fail("authority evidence digest differs");
   unique(tables.connection_import_handovers,r=>r.transfer_id+':'+r.peer_did);
-  if(tables.connection_import_handovers.some(r=>r.state!=='completed')||tables.connection_handover_barriers.some(r=>!['released','completed'].includes(String(r.state))))return fail('has an unfinished handover journal');
+  if(tables.connection_import_handovers.some(r=>!['released','completed'].includes(String(r.state)))||tables.connection_handover_barriers.some(r=>!['released','completed'].includes(String(r.state))))return fail('has an unfinished handover journal');
   return history;
 }
 
@@ -227,7 +229,7 @@ export async function collectConnectionHistory(tx:SQL,owner:ConnectionHistoryOwn
     const projection=columns.map(c=>`'${c}',t."${c}"`).join(",");
     // Identifiers/projections are internal constants, never manifest input.
     const where=table==="account_connections"?"$1::uuid IN(t.account_a,t.account_b)":"t.account_id=$1::uuid";
-    const order=table==='connection_handover_barriers'?'t.plan_digest':table==='connection_import_handovers'?'t.transfer_id,t.peer_did':
+    const order=table==='connection_handover_barriers'?'t.plan_digest':table==='connection_import_handovers'?'t.transfer_id,t.peer_did':table==='connection_transfer_aborts'?'t.transfer_id':
       columns.map(c=>`t."${c}"`).filter(c=>c.endsWith('"id"')||c.endsWith('"connection_id"')||c.endsWith('"recipient_did"')||c.endsWith('"digest"')).join(',');
     const rows=await tx.unsafe<{row:Row}[]>(`SELECT jsonb_build_object(${projection}) AS row FROM "${table}" t WHERE ${where} ORDER BY ${order}`,[owner.accountId]);
     tables[table]=rows.map(r=>r.row);
@@ -243,10 +245,10 @@ export async function collectConnectionHistory(tx:SQL,owner:ConnectionHistoryOwn
   // over its older projection; old signed proofs and control receipts remain.
   const archives=await tx<{history_bytes:Uint8Array}[]>`SELECT history_bytes FROM connection_history_archives WHERE account_id=${owner.accountId} ORDER BY transfer_id`;
   const identity=(table:Table,r:Row)=>table==='federated_connection_tombstones'?r.pair_id+':'+r.connection_id:
-    table==='connection_message_targets'?r.publication_id+':'+r.recipient_did:table==='connection_import_handovers'?r.transfer_id+':'+r.peer_did:r.id??r.digest??r.evidence_digest??r.plan_digest;
+    table==='connection_message_targets'?r.publication_id+':'+r.recipient_did:table==='connection_import_handovers'?r.transfer_id+':'+r.peer_did:r.id??r.digest??r.evidence_digest??r.plan_digest??r.transfer_id;
   for(const archived of archives){
     const prior=parseJsonWithoutDuplicateKeys(new TextDecoder('utf-8',{fatal:true}).decode(archived.history_bytes)) as ConnectionHistory;
-    if(prior.type!=='hail.connection-history'||prior.version!==2||prior.accountId!==owner.accountId||prior.did!==owner.did)throw new Error('Archived connection history belongs to another account or format');
+    if(prior.type!=='hail.connection-history'||prior.version!==3||prior.accountId!==owner.accountId||prior.did!==owner.did)throw new Error('Archived connection history belongs to another account or format');
     for(const table of Object.keys(CONNECTION_HISTORY_COLUMNS) as Table[]){
       const known=new Set((tables[table]??[]).map(r=>identity(table,r)));
       for(const row of prior.tables[table])if(!known.has(identity(table,row))){(tables[table]??=[]).push(row);known.add(identity(table,row));}
@@ -260,6 +262,6 @@ export async function collectConnectionHistory(tx:SQL,owner:ConnectionHistoryOwn
       'verified_at',verified_at,'bundle_bytes',bundle_bytes) AS row FROM public_plc_resolution_evidence WHERE evidence_digest=${bytes(digest,32)}`;
     if(!rows[0])return fail("lost historical public authority evidence");tables.public_plc_resolution_evidence.push(rows[0].row);
   }
-  const history:ConnectionHistory={type:"hail.connection-history",version:2,...owner,capturedAt,sharePolicy:"invalidate-at-cutover",tables};
+  const history:ConnectionHistory={type:"hail.connection-history",version:3,...owner,capturedAt,sharePolicy:"invalidate-at-cutover",tables};
   return validateConnectionHistory(new TextEncoder().encode(JSON.stringify(history)),owner);
 }

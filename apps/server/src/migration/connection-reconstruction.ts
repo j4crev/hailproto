@@ -14,6 +14,7 @@ import {connectionHistoryDigest,type ConnectionHistory} from './connection-histo
 import {verifyConnectionHistoryAuthority} from './connection-history-verification.js';
 import {assertConnectionHandoverSelection,decodeConnectionHandover,decodeConnectionHandoverTransition,verifyConnectionHandoverSignature,
   verifyConnectionHandoverTransitionSignature,verifyConnectionHandoverResult,connectionHandoverPlanDigest,connectionActivationDigest,decodeConnectionHandoverResult} from './connection-handover.js';
+import {decodeConnectionHandoverAbort,verifyConnectionHandoverAbortSignature} from './connection-handover.js';
 import {verifyActivationReceipt} from './activation-receipt.js';
 
 type Row=Record<string,unknown>;
@@ -40,6 +41,7 @@ async function pending(sql:SQL,id:string,base:string){
 }
 export async function requireConnectionImportPhase(sql:SQL,manifest:Manifest,phase:'frozen'|'committed'|'completed'):Promise<void>{
   if(!manifest.connections)return;
+  if((await sql`SELECT 1 FROM pending_migration_imports WHERE transfer_id=${manifest.transferId} AND connection_cancellation_payload IS NOT NULL`).length)throw new Error('Connection transfer cancellation is irreversible');
   if(manifest.connections.sourceGeneration>=Number.MAX_SAFE_INTEGER)throw new Error('Connection serving generation is exhausted');
   const peers=connectionHandoverPeers(manifest.connections);if(!peers.length)return;
   const staged=(await sql<{manifest_bytes:Uint8Array;manifest_digest:Uint8Array;custody_profile:string}[]>`SELECT manifest_bytes,manifest_digest,custody_profile FROM pending_migration_imports WHERE transfer_id=${manifest.transferId}`)[0];
@@ -146,6 +148,45 @@ export class ConnectionReconstruction {
       return {phase:request.action==='commit'?'committed':'completed'};
     });
   }
+  async acceptAbort(input:unknown){
+    exactFields(input,['abort','destinationSignature','receipt','proposal','freezeDestinationSignature','freezeReceipt']);
+    const source=decodeSignedRecord(input.abort),abort=decodeConnectionHandoverAbort(source),destination=decodeSignedRecord({payload:encodeBase64Url(source.payloadBytes),signature:input.destinationSignature}),
+      receipt=decodeSignedRecord(input.receipt);
+    if(!same(source.payloadBytes,receipt.payloadBytes))throw new Error('Peer release changed the abort bytes');
+    return this.sql.begin(async tx=>{
+      const {manifest,row,history}=await pending(tx as SQL,abort.transfer_id,this.base);
+      const job=(await tx<Row[]>`SELECT * FROM connection_import_handovers WHERE account_id=${manifest.accountId} AND transfer_id=${manifest.transferId} AND peer_did=${abort.peer_did} FOR UPDATE`)[0];
+      const proposal=decodeSignedRecord(input.proposal,65536),plan=decodeConnectionHandover(proposal),freezeDestination=decodeSignedRecord({payload:encodeBase64Url(proposal.payloadBytes),signature:input.freezeDestinationSignature},65536),frozen=decodeSignedRecord(input.freezeReceipt,65536);
+      if(abort.did!==manifest.did||!same(connectionHandoverPlanDigest(proposal.payloadBytes),abort.plan_digest)||job&&!same(job.plan_digest as Uint8Array,abort.plan_digest)||!same(frozen.payloadBytes,proposal.payloadBytes)||!connectionHandoverPeers(history).includes(abort.peer_did))throw new Error('Abort belongs to another import');
+      assertConnectionHandoverSelection(plan,{transferId:manifest.transferId,snapshotDigest:new Uint8Array(row.manifest_digest),history,peerDid:abort.peer_did,destinationServiceBase:this.base,destinationMessagingKey:manifest.destinationMessagingPublicKey});
+      if(job?.state==='released'){
+        if(!same(job.release_payload as Uint8Array,source.payloadBytes)||!same(job.release_source_signature as Uint8Array,source.signature)||!same(job.release_destination_signature as Uint8Array,destination.signature)||!same(job.release_peer_signature as Uint8Array,receipt.signature))throw new Error('Release retry changed exact artifacts');return {phase:'released'};
+      }
+      if(job&&job.state!=='frozen'||!(await tx`SELECT 1 FROM pending_migration_imports WHERE transfer_id=${manifest.transferId} AND state='staged' AND connection_cancellation_payload IS NOT NULL`).length)throw new Error('Only an irreversibly cancelling import may release a freeze');
+      const current=await this.resolver.resolve(manifest.did),peer=await this.resolver.resolve(abort.peer_did);
+      if(current.serviceBase!==manifest.sourceServiceBase)throw new Error('PLC cutover prevents abort import');
+      await requireFreshPublicAuthority(tx as SQL,current.evidence,{did:manifest.did,role:'hail-messaging',key:current.messagingDidKey,serviceBase:current.serviceBase},new Date());
+      await requireFreshPublicAuthority(tx as SQL,peer.evidence,{did:peer.did,role:'hail-messaging',key:peer.messagingDidKey,serviceBase:peer.serviceBase},new Date());
+      await verifyConnectionHandoverAbortSignature(source,'source-abort',current.messagingDidKey);
+      await verifyConnectionHandoverAbortSignature(destination,'destination-abort',manifest.destinationMessagingPublicKey);
+      await verifyConnectionHandoverAbortSignature(receipt,'peer-release',peer.messagingDidKey);
+      if(!job){
+        await verifyConnectionHandoverSignature(proposal,'source-freeze',current.messagingDidKey);
+        await verifyConnectionHandoverSignature(freezeDestination,'destination-freeze',manifest.destinationMessagingPublicKey);
+        await verifyConnectionHandoverSignature(frozen,'peer-freeze',peer.messagingDidKey);
+        await tx`INSERT INTO connection_import_handovers(transfer_id,account_id,peer_did,plan_digest,plan_bytes,source_signature,destination_signature,destination_binding,source_messaging_key,source_authority,
+          peer_freeze_signature,peer_freeze_key,peer_freeze_authority,state,release_payload,release_source_signature,release_source_authority,release_destination_signature,release_peer_signature,release_peer_key,release_peer_authority)
+          VALUES(${manifest.transferId},${manifest.accountId},${peer.did},${abort.plan_digest},${proposal.payloadBytes},${proposal.signature},${freezeDestination.signature},${row.destination_binding_cose},${current.messagingDidKey},${JSON.stringify(current.evidence)}::jsonb,
+            ${frozen.signature},${peer.messagingDidKey},${JSON.stringify(peer.evidence)}::jsonb,'released',${source.payloadBytes},${source.signature},${JSON.stringify(current.evidence)}::jsonb,
+            ${destination.signature},${receipt.signature},${peer.messagingDidKey},${JSON.stringify(peer.evidence)}::jsonb)`;
+        return {phase:'released'};
+      }
+      await tx`UPDATE connection_import_handovers SET state='released',release_payload=${source.payloadBytes},release_source_signature=${source.signature},release_source_authority=${JSON.stringify(current.evidence)}::jsonb,
+        release_destination_signature=${destination.signature},release_peer_signature=${receipt.signature},release_peer_key=${peer.messagingDidKey},release_peer_authority=${JSON.stringify(peer.evidence)}::jsonb
+        WHERE account_id=${manifest.accountId} AND transfer_id=${manifest.transferId} AND peer_did=${peer.did}`;
+      return {phase:'released'};
+    });
+  }
 }
 
 export async function applyConnectionTerminals(sql:SQL,accountId:string,peerDid:string,ids:string[]):Promise<void>{
@@ -169,10 +210,10 @@ export async function reconstructConnections(sql:SQL,manifest:Manifest,generatio
   if(account?.did!==manifest.did||Number(account.generation)!==generation)throw new Error('Connection reconstruction has another account owner');
   await sql`SELECT set_config('hail.connection_import_transfer',${manifest.transferId},true)`;
   await sql`SELECT set_config('hail.connection_import_generation',${String(generation)},true)`;
-  const keys:Record<string,string[]>={public_plc_resolution_evidence:['evidence_digest'],federated_connection_pairs:['id'],federated_connection_attempts:['id'],
+  const keys:Record<string,string[]>={public_plc_resolution_evidence:['evidence_digest'],federated_connection_pairs:['id'],federated_connection_attempts:['account_id','id'],
     federated_connection_events:['id'],federated_connection_results:['id'],federated_connection_tombstones:['pair_id','connection_id'],federated_connection_disconnects:['id'],
     federated_connection_outbox:['id'],connection_proof_signatures:['account_id','digest'],connection_handover_barriers:['account_id','plan_digest'],
-    connection_import_handovers:['account_id','transfer_id','peer_did'],connection_message_batches:['account_id','id'],connection_message_targets:['account_id','publication_id','recipient_did']};
+    connection_import_handovers:['account_id','transfer_id','peer_did'],connection_transfer_aborts:['account_id','transfer_id'],connection_message_batches:['account_id','id'],connection_message_targets:['account_id','publication_id','recipient_did']};
   const normalized=(name:string,value:unknown)=>name.endsWith('_at')&&typeof value==='string'&&/^\d{4}-\d\d-\d\dT/.test(value)&&Number.isFinite(Date.parse(value))?new Date(value).toISOString():value;
   const insert=async(table:string,row:Row)=>{
     const inserted=await sql.unsafe(`INSERT INTO "${table}" SELECT * FROM jsonb_populate_record(NULL::"${table}",($1::text)::jsonb) ON CONFLICT DO NOTHING RETURNING 1`,[JSON.stringify(row)]);
@@ -199,6 +240,7 @@ export async function reconstructConnections(sql:SQL,manifest:Manifest,generatio
   for(const row of history.tables.federated_connection_signatures)await insert('connection_proof_signatures',row);
   for(const row of history.tables.connection_handover_barriers)await insert('connection_handover_barriers',row);
   for(const row of history.tables.connection_import_handovers)await insert('connection_import_handovers',row);
+  for(const row of history.tables.connection_transfer_aborts)await insert('connection_transfer_aborts',row);
   for(const batch of history.tables.connection_message_batches){
     const prior=(await sql<{request_digest:Uint8Array;manifest:Uint8Array;body_bytes:Uint8Array}[]>`SELECT request_digest,manifest,body_bytes FROM connection_message_batches WHERE account_id=${manifest.accountId} AND id=${batch.id}`)[0];
     if(prior){if(!same(prior.request_digest,pg(batch.request_digest))||!same(prior.manifest,pg(batch.manifest))||!same(prior.body_bytes,pg(batch.body_bytes)))throw new Error('Reconstruction conflicts with immutable batch intent');await insert('connection_message_batches',batch);continue;}

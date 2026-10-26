@@ -200,6 +200,7 @@ export class MigrationFenceService {
         reservation_bytes = ${signedReservation.payloadBytes},
         reservation_signature = ${signedReservation.signature}
         WHERE did = ${did} AND consumed_transfer_id IS NULL`;
+      await tx`SELECT set_config('hail.connection_source_fence',${transferId},true)`;
       const inserted = await tx<FenceRow[]>`
         INSERT INTO provider_migration_fences
           (did, account_id, transfer_id, destination_service_base,

@@ -14,6 +14,11 @@ import {inspectConnectionProof,type ConnectionHistory} from './connection-histor
 import {decodeConnectionHandover,verifyConnectionHandoverSignature,verifyConnectionHandoverAbortSignature,verifyConnectionHandoverTransitionSignature,
   verifyConnectionHandoverResult,connectionHandoverPlanDigest,connectionActivationDigest} from './connection-handover.js';
 import {verifyActivationReceipt} from './activation-receipt.js';
+import {verifyConnectionCancellation} from './connection-cancellation.js';
+import {decodeSignedRecord} from './wire.js';
+import {managedSnapshotSignatureInput} from './managed-snapshot.js';
+import {transferSnapshotSignatureInput} from './transfer.js';
+import {assertConnectionHandoverSelection,decodeConnectionHandoverAbort} from './connection-handover.js';
 
 const hash=(bytes:Uint8Array)=>new Uint8Array(createHash('sha256').update(bytes).digest());
 const hex=(bytes:Uint8Array)=>'\\x'+Buffer.from(bytes).toString('hex');
@@ -134,7 +139,7 @@ export async function verifyConnectionHistoryAuthority(history:ConnectionHistory
     const ib=await signed('hail.address-binding',b.inviterBinding!,ledger.get(hex(hash(b.invitation!)))!.authority);
     const sb=await signed('hail.address-binding',b.scannerBinding!,ledger.get(hex(hash(b.confirmation!)))!.authority);
     const snapshot=(await retained('hail.connection-control',b.snapshot!)).payload,[small,large]=[invitation.from,confirmation.from].sort();
-    if(ib.payload.did!==invitation.from||sb.payload.did!==confirmation.from||inviter.state.services.hail?.endpoint===scanner.state.services.hail?.endpoint||
+    if(ib.payload.did!==invitation.from||sb.payload.did!==confirmation.from||
       snapshot.operation!=='snapshot'||snapshot.from!==small||snapshot.to!==large||snapshot.request_id!==confirmation.confirmation_id||!same(snapshot.proof_hash.value,emptyHash)||
       attempt.direction==='outbound'&&confirmation.from!==history.did||attempt.direction==='admitted'&&invitation.from!==history.did)
       throw new Error('Historical connection consent has the wrong participants or reviewed epoch');
@@ -171,6 +176,30 @@ export async function verifyConnectionHistoryAuthority(history:ConnectionHistory
   }
   const record=(row:Record<string,unknown>,payload:string,signature:string,max=65536)=>({payloadBytes:bytes(row[payload],max),signature:bytes(row[signature],64)});
   const messaging=async(raw:unknown,did:string)=>{const state=await authority(raw,did),key=state.verificationMethods['hail-messaging'];if(typeof key!=='string')throw new Error('Historical handover messaging role is missing');return {state,key};};
+  for(const row of history.tables.connection_transfer_aborts){
+    const source=await messaging(row.source_authority,history.did),cancelSigned=record(row,'cancellation_payload','cancellation_signature',4096),
+      cancel=await verifyConnectionCancellation(cancelSigned,String(row.owner_key),'owner-cancel',row.managed_owner===true),archive=row.archive as Record<string,any>,exported=archive?.export;
+    if(cancel.did!==history.did||cancel.transfer_id!==row.transfer_id||canonicalizeHailServiceBase(source.state.services.hail!.endpoint)!==cancel.source_service_base||
+      row.owner_key!==(row.managed_owner?source.state.rotationKeys[0]:source.state.verificationMethods['hail-identity']))throw new Error('Historical cancellation has another owner');
+    const snapshot=bytes(exported?.manifest_bytes,67108864),digest=hash(snapshot),m=parseJsonWithoutDuplicateKeys(new TextDecoder('utf-8',{fatal:true}).decode(snapshot)) as any;
+    if(!same(digest,cancel.snapshot_digest)||!same(digest,bytes(exported.manifest_digest,32))||m.did!==history.did||m.accountId!==history.accountId||m.transferId!==row.transfer_id||
+      m.sourceServiceBase!==cancel.source_service_base||m.destinationServiceBase!==cancel.destination_service_base||m.destinationMessagingPublicKey!==archive.destinationKey||exported.source_messaging_public_key!==source.key||
+      ![5,6].includes(m.version)||!await crypto.subtle.verify('Ed25519',await ed25519PublicKeyFromDidKey(source.key),Uint8Array.from(bytes(exported.signature,64)),
+        m.version===6?managedSnapshotSignatureInput(digest,6):transferSnapshotSignatureInput(digest,5)))throw new Error('Historical cancellation lost its exact source snapshot');
+    await verifyConnectionCancellation({...cancelSigned,signature:bytes(row.destination_signature,64)},m.destinationMessagingPublicKey,'destination-cancelled');
+    const peers=new Set<string>(m.connections?.tables.federated_connection_pairs.filter((p:any)=>p.state!=='empty').map((p:any)=>p.peer_did)??[]),seen=new Set<string>();
+    if(!Array.isArray(archive.releases)||archive.releases.length!==peers.size)throw new Error('Historical cancellation lost peer releases');
+    for(const release of archive.releases){
+      const signed=decodeSignedRecord(release.proposal,65536),plan=decodeConnectionHandover(signed),receipt=decodeSignedRecord(release.receipt),abort=decodeConnectionHandoverAbort(receipt);
+      if(seen.has(plan.peer_did)||!peers.has(plan.peer_did))throw new Error('Historical cancellation has another peer');seen.add(plan.peer_did);
+      assertConnectionHandoverSelection(plan,{transferId:m.transferId,snapshotDigest:digest,history:m.connections,peerDid:plan.peer_did,destinationServiceBase:m.destinationServiceBase,destinationMessagingKey:m.destinationMessagingPublicKey});
+      await verifyConnectionHandoverSignature(signed,'source-freeze',source.key);
+      await verifyConnectionHandoverSignature(decodeSignedRecord({payload:release.proposal.payload,signature:release.destinationSignature},65536),'destination-freeze',m.destinationMessagingPublicKey);
+      const peer=await messaging(release.authority,plan.peer_did);
+      if(peer.key!==release.key||abort.did!==m.did||abort.peer_did!==plan.peer_did||abort.transfer_id!==m.transferId||!same(abort.plan_digest,connectionHandoverPlanDigest(signed.payloadBytes)))throw new Error('Historical cancellation peer release differs');
+      await verifyConnectionHandoverAbortSignature(receipt,'peer-release',peer.key);
+    }
+  }
   for(const [rows,peerSide] of [[history.tables.connection_handover_barriers,true],[history.tables.connection_import_handovers,false]] as const)for(const row of rows){
     const source=record(row,'plan_bytes','source_signature'),plan=decodeConnectionHandover(source),planDigest=connectionHandoverPlanDigest(source.payloadBytes);
     if(hex(planDigest)!==row.plan_digest||plan.transfer_id!==row.transfer_id||(peerSide?plan.peer_did!==history.did||plan.did!==row.moving_did:plan.did!==history.did||plan.peer_did!==row.peer_did))throw new Error('Historical handover journal has another account or plan');

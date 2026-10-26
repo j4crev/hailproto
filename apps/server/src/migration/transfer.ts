@@ -82,6 +82,7 @@ function signatureInput(hash: Uint8Array, version: 2 | 3 | 5): Uint8Array<ArrayB
   message.set(hash, prefix.length);
   return message;
 }
+export {signatureInput as transferSnapshotSignatureInput};
 
 function decodeHex(value: unknown, label: string): Uint8Array {
   if (typeof value !== "string" || !/^\\x(?:[0-9a-f]{2})+$/i.test(value)) {

@@ -4,10 +4,10 @@ Connections must move through the existing portable/managed account-transfer
 snapshot, staged import and fenced cutover. There is no separate downloadable
 backup format, automatic link forwarding, or new connection permission.
 
-## Implemented Snapshot/Staging Path (Not Enabled For Connection Cutover)
+## Implemented Snapshot/Staging Path (Not Deployed)
 
 `apps/server/src/migration/connection-history.ts` implements the shared
-`hail.connection-history` version-2 checkpoint domain. New exports embed it in
+`hail.connection-history` version-3 checkpoint domain. New exports embed it in
 portable snapshot **v5** and managed snapshot **v6**, with a deterministic
 `connectionCheckpointDigest`. Both carry the source serving generation. Snapshot
 signatures use distinct `hail-migration-snapshot-v5\0` / `v6\0` domains; managed
@@ -15,19 +15,18 @@ owner approval names the exact snapshot version and its history checkpoint also
 binds the connection digest. Legacy portable v2/v3 and managed v4 snapshots retain
 their original verification/signature domains. Old receivers reject new versions.
 
-Existing source fence/generation/custody guards are unchanged: accounts with
-retained connection consent still cannot begin a provider move. Accounts without
-connection history can use the new snapshots through existing completion paths.
+Source fences now admit drained, supported history only through the existing
+authenticated transfer request. Custody transitions and obsolete native records
+remain blocked. Accounts without connection history retain their existing paths.
 Import staging validates and retains the complete checkpoint in the exact signed
 manifest bytes, without inserting its rows into live connection/approval tables.
 Connection-authorized envelopes require a connection-history snapshot version
 (the envelope itself remains v2); submitted batch targets must retain their exact
 sent envelope. History cannot silently be dropped by relabeling an extended
-snapshot as an older version. Nonempty connection history returns
-`awaiting-connection-handover` before PLC submission, and direct submission and
-activation paths require retained peer commits before materialization. Source
-fencing and PLC submission still refuse connection-bearing moves. CLI completion retains pending state
-instead of treating this phase as takeover or reporting an active destination.
+snapshot as an older version. Without the configured orchestrator, nonempty history
+returns `awaiting-connection-handover`. With it, PLC submission requires every peer
+freeze; materialization requires every peer commit. CLI completion retains pending
+state rather than reporting takeover before completion.
 
 The collector takes the existing export transaction, exact source account/DID,
 serving generation, service base and capture time. Export integration must fence
@@ -195,20 +194,20 @@ continue while frozen, and abort never revives them. Replaying the original free
 after release returns the terminal released result rather than freezing again.
 These contexts all use the existing `hail.connection-handover.<role>.v1\0` prefix.
 
-Automatic source orchestration remains unfinished. Checkpoint v2 preserves
+Checkpoint v3 preserves
 released/completed journals and their original scoped signatures and authority;
-unfinished journals fail collection. Source cutover/custody guards remain until
-subsequent-move preservation is proven. Schema rollback refuses any journal rows;
+unfinished journals fail collection. Authenticated source fencing checks drainage
+and refuses obsolete records. Custody transitions stay blocked. Schema rollback refuses retained journal rows;
 code rollback must retain the table and the SQL pause/activation protections.
-No source transfer guard has been removed, and no hosted records have been reset.
+No hosted records have been reset.
 
-## Federated Commit And Reconstruction Components (Not End-To-End Enabled)
+## Shared Commit And Reconstruction Components
 
 Migration 69 adds destination handover progress and immutable history archives.
 `POST /hail/transfers/connection-progress/freeze` binds the dual-signed freeze to
 the exact staged snapshot and prepared destination messaging key, contacts the
-peer and retains its durable receipt. This consumes signatures; it does not yet
-issue them from an authenticated source export or prepared destination key.
+peer and retains its durable receipt. Orchestration issues these proofs only
+against the authenticated fenced export and exact prepared destination key.
 
 After PLC designates that exact destination service and messaging key,
 `POST /hail/connections/handover-commit` accepts a `destination-commit` signature
@@ -238,22 +237,23 @@ including crossed requests sharing one canonical event. Freeze refuses unresolve
 replication. This avoids leaving a valid consent attempt permanently pending when
 replication recovered a lost commit reply.
 
-The three-provider fixture seeds ordinary authenticated import/base-account
-materialization boundaries, performs a real PLC key/location change and exercises
-peer RPC, reconstruction, lost commit/completion replies, disconnect during hold,
-reconnect, historical reads and new messaging. It does **not** prove source
-orchestration, actual connection-bearing account completion, native conversion,
-simultaneous moves or returning imports with previously retained journals.
+The fixture retains seeded component checks for precise race injection, and now
+also runs real managed and owner-controlled account-transfer ceremonies. Those
+perform source fencing/export, owner-approved PLC submission, peer RPC, activation,
+release and retirement without seeding those trust boundaries. Managed recovery
+enrolls a fresh passkey and sends a message; historical signed envelopes remain exact.
+Connection-bearing returning-account and strict-public rehearsals remain separate
+rollout checks. There is no native conversion adapter.
 
 CLI cutover signing warns that all old codes, including permanent personal codes,
 stop working. Source retirement revokes invitation rows; changed PLC authority
 already prevents the old provider from serving them. Destination materialization
-does not import tokens and revokes prior-generation codes. Cancellation and exact
-invalidation timing still need proof through the complete account-transfer flow.
+does not import tokens and revokes prior-generation codes. Real cancellation checks
+preserve the original source codes; completed transfer checks confirm their revocation.
 
 ### Pre-launch Cleanup Boundary — No Cleanup Executed
 
-Checkpoint v1 and records lacking required retained signing evidence are not
+Checkpoints v1/v2 and records lacking required retained signing evidence are not
 silently upgraded. Native `account_connections` currently cannot reconstruct at
 the destination. Keep these moves blocked; do not invent past signatures or PLC
 roles to rescue test relationships. Before an explicitly approved reset, inventory
@@ -264,23 +264,22 @@ accounts, keys and recovery material are outside any implicit cleanup scope.
 Relationships removed by an approved reset must be recreated through fresh consent.
 No reset script or hosted data deletion is authorized by this document.
 
-## Remaining Activation Gates
+## Invariants And Remaining Rollout Gates
 
 1. Define the breaking cleanup/upgrade boundary for unsupported pre-launch data;
    do not add legacy-proof reconciliation. Reverify supported history's authority
    at final commit; a successful staging pass is not an evergreen authorization
    after PLC recovery or changed peer state.
-2. Reconstruct live projections from the inert staged history only after commit.
+2. Live projections reconstruct from inert staged history only after commit.
    Account isolation, duplicate IDs, conflicting bytes and return migrations must
    be checked before any live authority is granted. Existing session/passkey
    approvals do not carry authority to the destination.
-3. Wire source-side preparation/freeze orchestration and implement post-PLC pair
-   checkpoint commit, peer location updates and final release. Carry terminal
+3. Orchestration now drives source freeze, post-PLC pair checkpoint commit,
+   location updates and final release. Carry terminal
    changes learned while frozen into destination activation and preserve the
    complete freeze/release journal on later moves. A moved coordinator continues the
-   exact epoch/event/result history; it must not synthesize an empty pair. Convert
-   native pairs becoming remote without changing IDs, message epoch 1, either
-   consent format, or prior disconnect/reconnect history. Frozen peers/coordinators
+   exact epoch/event/result history; it must not synthesize an empty pair. Placement
+   changes do not change IDs, epochs, signed consent or disconnect/reconnect history. Frozen peers/coordinators
    must hold delivery during unavailable or ambiguous authority.
 4. Warn explicitly before cutover that **all old QR codes and share links stop
    working, including the permanent personal code**. Invalidate them only at the
@@ -303,8 +302,8 @@ secret-field rejection, terminal-state preservation, altered authority bundles a
 immutable private batch audiences. The existing independent-provider PostgreSQL
 integration additionally captures real native/federated/message history twice,
 compares checkpoint digests, checks source invitations are unchanged, rejects
-foreign ownership and unfinished consent, and confirms cutover remains blocked.
-The extended fixture also obtains real native/federated peer preparations, rejects
+foreign ownership and unfinished consent, and confirms unauthorized cutover remains blocked.
+The extended fixture also obtains real local/remote peer preparations, rejects
 wrong-purpose destination signatures and changed frontiers, retains exact retries
 at the inert import boundary, and proves graph state is unchanged. Ordinary
 portable/managed migration fixtures exercise new snapshot signing, staging,
@@ -313,10 +312,126 @@ Historical-authority unit checks use real PLC chains and cover key rotation,
 forged signatures, wrong signing roles, noncanonical recovery branches,
 `grants-v1` preservation, missing public bundles and tampered witness/operation
 bytes. The independent-provider fixture now also uses real PLC genesis chains,
-shares one remote code across two local accounts, verifies complete native and
-federated history at handover staging, and refuses missing peer proof authority.
+shares one code across two local accounts, verifies complete shared-model history
+at handover staging, and refuses missing peer proof authority.
 The barrier checks cover explicit freeze/abort purpose separation, durable lost
 freeze/abort replies, fresh service instances, transport expiry without auto-release,
 peer-scoped holds, accepted-but-held envelopes, freeze during body retrieval,
 native/federated activation refusal, changed-PLC abort refusal, disconnect during
 freeze, terminal replay and retained-journal rollback refusal.
+
+## Unified Model Upgrade Boundary
+
+Migration 70 makes the existing signed coordinator model the only live connection
+model. Both colocated accounts retain account-owned consent attempts, identified
+by `(account_id,id)`, and their own pair projection. Local control exchanges call
+the same verified handlers in-process; remote exchanges use the existing protected
+transport. No second local consent format or local-to-federated conversion is
+created. Historical `federated_connection_*` names are retained deliberately.
+Historical verification permits two distinct DIDs' signing authorities to have
+the same service endpoint; it still verifies each exact identity/messaging role.
+
+The component fixture now includes a colocated relationship whose coordinator
+moves away. Its existing ID and epoch survive reconstruction, and post-move
+messaging delivers through the existing envelope stack. This remains component
+proof, not authorization to remove source account-transfer guards.
+
+Existing `account_connections` rows are unchanged and quarantined: native writers
+fail, native rows never authorize messaging, and any matching DID pair is blocked
+from unified creation/update. This includes disconnected/expired rows, so an old
+invitation cannot silently bypass retained disconnect history. Old approvals tied
+to these rows cannot resume. Old binaries fail closed on native writes; do not run
+an old binary as the serving implementation for a unified local relationship.
+Schema rollback refuses retained local projections or duplicate per-account
+request IDs, rather than deleting data to restore the old global primary key.
+
+**No cleanup has run.** Before deployment to affected accounts, an operator must
+approve exact account/pair IDs and an inventory of their dependent
+`connection_approvals.connection_id`, connection-message targets/envelopes and
+retained transfer snapshots. Back up and verify hosted data first. Any approved
+relationship reset must revoke old codes for the affected participants and cancel
+old unfinished approvals before removing the obsolete relationship's live slot;
+fresh codes and fresh consent recreate it. Do not delete messages, signed history,
+accounts, keys or recovery material implicitly, bypass retention triggers, or
+drop the old table globally. If retained references prevent the proposed scoped
+reset, stop and agree on an archival plan rather than disabling consistency checks.
+
+## Source And Destination Orchestration
+
+Migration 71 permits supported, drained connection history through the normal
+authenticated source fence. The same transaction must already have retained the
+verified final transfer request and its destination keys. Direct unapproved
+fencing, unfinished consent/disconnect/replication/message work, obsolete native
+rows and unresolved peer holds still fail. Existing account-row fences prevent
+in-flight source work from committing after cutover admission; managed exports
+also retain their existing worker-drain check.
+
+`ConnectionTransferOrchestration` is shared by portable and managed completion.
+It persists destination commands before RPC, obtains source signatures on the exact
+fenced export, freezes every peer, submits only the existing owner-signed PLC
+operation, commits peer pins, activates the account, imports final terminal
+overlays and releases holds, then authenticates source retirement. Target signing
+uses only the exact prepared messaging key; owner identity/recovery secrets are
+never accepted by these endpoints. Source signature issuance is deterministic and
+cannot authorize another snapshot, account, peer frontier or destination key.
+
+`POST /hail/transfers/connection-source/{freeze,abort,release,retire}` is bounded,
+rate-limited, credential-free transfer ingress. Destinations derive this source
+route from the authenticated snapshot, not the post-cutover PLC destination or
+caller-supplied URLs. Peer routes remain PLC-resolved; local peers call the same
+verified handlers in-process. Requests reject redirects and unexpected encodings.
+Complete requests resume exact retained commands after lost replies or restart.
+An explicit 410 with no retained peer result permits compare-and-swap renewal of
+that expired command; concurrent retries cannot replace each other's newer intent.
+No timer restores service or releases a hold.
+
+### Authenticated Cancellation After Export
+
+`POST /hail/transfers/connection-cancellations` at the destination accepts a signed
+deterministic-CBOR record in the ordinary signed transfer wire representation:
+
+```
+{type:"hail.connection-transfer-cancellation",version:1,did,transfer_id,
+ snapshot_digest,source_service_base,destination_service_base,issued_at,expires_at}
+```
+
+`snapshot_digest` is the 32-byte exact signed snapshot digest; times are integer
+Unix seconds with at most a one-hour window. A portable owner signs with their
+local identity key; a managed owner uses their recovery key. The signature input
+is `hail.connection-transfer.owner-cancel.v1\0` followed by the exact CBOR bytes.
+This is distinct from cutover approval and from the earlier pre-fence cancellation
+format. It must be freshly admitted; accepted exact retries remain resumable.
+
+Cancellation first commits an irreversible marker under the import-row lock shared
+with PLC submission, while PLC still names the source. It then obtains fresh dual
+abort signatures for every potentially issued freeze. A peer may atomically
+acknowledge-and-release an unobserved plan without creating a new active hold.
+This administrative terminal write is permitted for a fenced peer too, so
+simultaneous moves can unwind rather than deadlock. If new journal evidence reaches
+an already-exported source, that export cannot initiate further freezes: cancel
+and export again to preserve the added history.
+
+The destination invalidates the import only after retaining every peer release,
+then signs the same cancellation bytes under
+`hail.connection-transfer.destination-cancelled.v1\0`. The source verifies the
+owner signature, destination invalidation attestation, exact snapshot selection,
+all peer releases and unchanged source PLC authority. It archives the original
+fence, signed export and transfer authorization before releasing their reusable
+live slots. The destination archives reservation/invitation metadata, retires its
+prepared keys and records the cancelled nonce. Replaying the cancelled grant or
+completion cannot reopen the transfer. Codes, keys, accounts, messages, connection
+IDs/epochs and original signed history are not reset by cancellation.
+
+Checkpoint v3 carries released import journals and immutable source cancellation
+archives, including their signing evidence. Old checkpoint versions are rejected
+explicitly, not reconciled. Schema rollback refuses retained orchestration,
+cancellation or v3 import/export state. Code rollback must retain those records
+and their pause/retirement protections. Archives are bounded by the existing
+64 MiB checkpoint ceiling; oversized histories fail rather than losing proofs.
+
+Full-flow private fixtures prove managed and owner-controlled moves, lost freeze,
+abort, commit and PLC replies, cancellation followed by a fresh transfer, code
+preservation/revocation, historical bytes, managed passkey recovery and resumed
+messaging. Existing strict-public account-transfer fixtures still pass; a public
+strict-authority connection-bearing rehearsal and unrelated-provider exchange are
+not claimed by these private-directory tests.

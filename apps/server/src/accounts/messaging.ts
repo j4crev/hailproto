@@ -43,10 +43,7 @@ export class AccountMessaging {
     try{return await this.submitEnvelope(sender,id);}catch(error){if(error instanceof EnvelopeAuthorizationError)throw new UserGrantError(409,error.message);throw error;}
   }
   private async connectionAddress(accountId:string,peer:string,id:string){
-    const row=(await this.sql<{address:string}[]>`SELECT a.canonical_address AS address FROM account_connections c JOIN provider_accounts a
-      ON a.id=CASE WHEN c.account_a=${accountId} THEN c.account_b ELSE c.account_a END
-      WHERE c.id=${id} AND ${accountId} IN(c.account_a,c.account_b) AND a.did=${peer}
-      UNION ALL SELECT peer_address FROM federated_connection_pairs WHERE account_id=${accountId} AND peer_did=${peer} LIMIT 1`)[0];
+    const row=(await this.sql<{address:string}[]>`SELECT peer_address AS address FROM federated_connection_pairs WHERE account_id=${accountId} AND peer_did=${peer} LIMIT 1`)[0];
     return row?.address??null;
   }
 

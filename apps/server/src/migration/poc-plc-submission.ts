@@ -6,7 +6,7 @@ import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
 import { assertPrivatePocRegistry } from "./poc-profile.js";
 import { validateTransferManifest } from "./transfer.js";
 import { verifyPortableMigrationConsent } from "./consent.js";
-import {requireConnectionHandoverComplete} from "./connection-snapshot.js";
+import {requireConnectionImportPhase} from './connection-reconstruction.js';
 
 export class PortablePlcSubmission {
   constructor(private readonly sql: SQL, private readonly plc: PlcDirectoryClient,
@@ -20,13 +20,13 @@ export class PortablePlcSubmission {
     // The import-row lock serializes invalidation/activation with this bounded PLC request.
     return this.sql.begin(async tx=>{
     const rows = await tx<{ did: string; state: string; manifest_bytes: Uint8Array;
-      signed_plc_operation_bytes: Uint8Array;user_consent_payload:Uint8Array;user_consent_signature:Uint8Array;user_identity_public_key:string }[]>`
-      SELECT did, state, manifest_bytes, signed_plc_operation_bytes,user_consent_payload,user_consent_signature,user_identity_public_key
+      signed_plc_operation_bytes: Uint8Array;user_consent_payload:Uint8Array;user_consent_signature:Uint8Array;user_identity_public_key:string;connection_cancellation_payload:Uint8Array|null }[]>`
+      SELECT did, state, manifest_bytes, signed_plc_operation_bytes,user_consent_payload,user_consent_signature,user_identity_public_key,connection_cancellation_payload
       FROM pending_migration_imports WHERE transfer_id = ${transferId} FOR UPDATE`;
     const row = rows[0];
-    if (!row || row.state !== "staged") throw new Error("PLC write requires an inactive staged import");
+    if (!row || row.state !== "staged"||row.connection_cancellation_payload) throw new Error("PLC write requires an inactive staged import without cancellation");
     const manifest = validateTransferManifest(row.manifest_bytes);
-    requireConnectionHandoverComplete(manifest);
+    await requireConnectionImportPhase(tx as SQL,manifest,'frozen');
     if (manifest.did !== row.did || manifest.transferId !== transferId ||
       manifest.tables.portable_custody_evidence[0]?.monitor_verification_mode !==
         (this.profile==="public"?"independent":"poc-local")) {

@@ -80,6 +80,7 @@ import {RemoteConnectionReview} from "./accounts/connection-review.js";
 import {ConnectionMessagingAuthority} from "./accounts/connection-authorization.js";
 import {ConnectionHandoverStage} from "./migration/connection-handover-stage.js";
 import {ConnectionReconstruction} from './migration/connection-reconstruction.js';
+import {ConnectionTransferOrchestration} from './migration/connection-orchestration.js';
 
 const config = loadConfig();
 const database = new ProviderDatabase(config.databaseUrl);
@@ -94,6 +95,7 @@ const connections=process.env.CONNECTION_PREVIEW==="true"&&config.passkeys?new A
   new PasskeyAuth(database.sql,config.passkeys.rpId,config.passkeys.origin),config.publicOrigin,
   new RemoteConnectionReview(database.sql,resolver,transport.fetch,transport.validateTarget,config.hailServiceBase)):undefined;
 const connectionAuthority=new ConnectionMessagingAuthority(database.sql,resolver,config.hailServiceBase,connections?.federation);
+const connectionOrchestration=connections?new ConnectionTransferOrchestration(database.sql,encryptor,resolver,config.hailServiceBase,transport.fetch,transport.validateTarget,connections.federation):undefined;
 const messaging=new AccountMessaging(database.sql,new BodyRepository(database.sql),new EnvelopeRepository(database.sql),
   new EnvelopeService(onboardingRepository,grantRepository,new EnvelopeRepository(database.sql),encryptor,resolver,config.hailServiceBase,undefined,connectionAuthority),
   (sender,id)=>submitEnvelope(sender,id,new EnvelopeRepository(database.sql),resolver,
@@ -134,7 +136,7 @@ if (schemaRehearsal && (config.plcDirectoryUrl !== "http://plc:2582" ||
 await database.migrate();
 
 const publicManaged=createPublicManagedRuntime(config,database.sql,plc,onboardingRepository,encryptor,transport,
-  new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver));
+  new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver),undefined,connectionOrchestration);
 const managedTargetKeys=publicManaged?.targetKeys??targetKeys;
 const managedResolver=publicManaged?.resolver??(config.pocManagedTransfer?new PrivatePocManagedResolver(resolver):undefined);
 const managedAuthorization=publicManaged?.authorization??(managedResolver?new ManagedTransferAuthorization(database.sql,managedResolver,
@@ -152,7 +154,7 @@ const managedActivation=publicManaged?.activation??(managedResolver?new ManagedM
    config.plcDirectoryUrl,"poc-local"):undefined);
 const managedCompletion=publicManaged?.completion??(managedResolver&&managedActivation?new ManagedMigrationCompletion(
   new ManagedMigrationStageService(database.sql,managedResolver,targetKeys,config.hailServiceBase,undefined,"poc-local"),
-   new ManagedMigrationPlcSubmission(database.sql,plc,managedResolver,config.hailServiceBase),managedActivation):undefined);
+    new ManagedMigrationPlcSubmission(database.sql,plc,managedResolver,config.hailServiceBase),managedActivation,false,connectionOrchestration):undefined);
 const transferWorker = new TransferDeliveryWorker(database.sql, invitationDelivery, finalTransferPublisher,
   managedDelivery,managedFencePublisher);
 
@@ -269,7 +271,7 @@ if(!schemaRehearsal&&publicManaged) {
     new PortableAddressPublication(database.sql,publicResolver,gate,config.plcDirectoryUrl,config.hailServiceBase),
     new PortableMigrationActivation(database.sql,encryptor,publicResolver,gate,
       new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,publicResolver),
-      config.hailServiceBase,config.plcDirectoryUrl),config.hailServiceBase);
+       config.hailServiceBase,config.plcDirectoryUrl),config.hailServiceBase,'public',connectionOrchestration);
 } else if(!schemaRehearsal&&process.env.POC_SELF_SERVICE_TRANSFER==="true") {
   const encryptor=new KeyEncryptor(config.keyEncryptionKey),gate=new PrivatePocCutoverGate(database.sql,
     {origin:config.plcDirectoryUrl,resolver,audit:did=>plc.getAuditableLog(did)},config.plcDirectoryUrl,config.hailServiceBase);
@@ -277,7 +279,7 @@ if(!schemaRehearsal&&publicManaged) {
     new PrivatePocPlcSubmission(database.sql,plc,config.plcDirectoryUrl,config.hailServiceBase),
     new PrivatePocAddressPublication(database.sql,resolver,gate,config.plcDirectoryUrl,config.hailServiceBase),
     new PortableMigrationActivation(database.sql,encryptor,resolver,gate,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver),
-      config.hailServiceBase,config.plcDirectoryUrl,undefined,"private-poc",process.env.POC_SELF_SERVICE_RETURN==="true"),config.hailServiceBase);
+       config.hailServiceBase,config.plcDirectoryUrl,undefined,"private-poc",process.env.POC_SELF_SERVICE_RETURN==="true"),config.hailServiceBase,connectionOrchestration);
 }
 const app = createApp(config, schemaRehearsal ? {
   discoveryStore: onboardingRepository,
@@ -365,6 +367,7 @@ const app = createApp(config, schemaRehearsal ? {
   ...(transferCompletion?{transferCompletion}:{}),
   ...(connections?{connectionHandoverStage:new ConnectionHandoverStage(database.sql,resolver,config.hailServiceBase)}:{}),
   ...(connections?{connectionReconstruction:new ConnectionReconstruction(database.sql,resolver,new RemoteConnectionReview(database.sql,resolver,transport.fetch,transport.validateTarget,config.hailServiceBase),config.hailServiceBase,connections.federation!)}:{}),
+  ...(connectionOrchestration?{connectionOrchestration}:{}),
   checkReadiness,
 });
 

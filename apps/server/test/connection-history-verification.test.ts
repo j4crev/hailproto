@@ -38,7 +38,7 @@ const row=(table:keyof ConnectionHistory['tables'],fields:Record<string,unknown>
 async function fixture(){
   const actors=await Promise.all([actor(),actor()]);actors.sort((a,b)=>a.did.localeCompare(b.did));const [a,b]=actors as [Actor,Actor];
   const owner={accountId:a.id,did:a.did,sourceGeneration:1,sourceServiceBase:'https://source.example/hail'};
-  const history:ConnectionHistory={type:'hail.connection-history',version:2,...owner,capturedAt:new Date(150000).toISOString(),sharePolicy:'invalidate-at-cutover',
+  const history:ConnectionHistory={type:'hail.connection-history',version:3,...owner,capturedAt:new Date(150000).toISOString(),sharePolicy:'invalidate-at-cutover',
     tables:Object.fromEntries(Object.keys(CONNECTION_HISTORY_COLUMNS).map(t=>[t,[] as Record<string,unknown>[]])) as ConnectionHistory['tables']};
   const invitation=await signPayload('hail.connection-invitation',{type:'hail.connection-invitation',version:1,from:a.did,key_id:a.did+'#hail-identity',invitation_id:uuidV7(),
     token_hash:{algorithm:'sha-256',value:hash(new Uint8Array(32))},issued_at:100,expires_at:null},createWebCryptoSigner(a.did+'#hail-identity',a.identity.privateKey));

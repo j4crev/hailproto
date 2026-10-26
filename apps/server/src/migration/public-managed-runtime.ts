@@ -18,10 +18,11 @@ import {ManagedMigrationStageService} from "./managed-stage.js";
 import {ManagedMigrationPlcSubmission} from "./managed-plc-submission.js";
 import {ManagedMigrationActivation} from "./managed-activation.js";
 import {ManagedMigrationCompletion} from "./managed-completion.js";
+import type {ConnectionTransferOrchestration} from './connection-orchestration.js';
 
 export function createPublicManagedRuntime(config:AppConfig,sql:SQL,plc:PlcDirectoryClient,
   repository:OnboardingRepository,encryptor:KeyEncryptor,transport:Pick<SafeHttpsTransport,"fetch"|"validateTarget">,
-  verifier:AddressVerificationService,readers?:readonly IndependentPlcObserver[]) {
+  verifier:AddressVerificationService,readers?:readonly IndependentPlcObserver[],connections?:ConnectionTransferOrchestration) {
   if(!config.publicManagedTransfer)return undefined;
   if(config.nodeEnv!=="production"||config.plcDirectoryUrl!=="https://plc.directory"||
     config.publicPlcAuthority?.profile!=="strict-public-v1"||config.pocManagedTransfer)
@@ -43,5 +44,5 @@ export function createPublicManagedRuntime(config:AppConfig,sql:SQL,plc:PlcDirec
     fence:new ManagedMigrationFenceService(sql,resolver,config.hailServiceBase),
     exporter:new ManagedMigrationExportService(sql,repository,encryptor,resolver,config.hailServiceBase),
     completion:new ManagedMigrationCompletion(new ManagedMigrationStageService(sql,resolver,targetKeys,config.hailServiceBase),
-      new ManagedMigrationPlcSubmission(sql,plc,resolver,config.hailServiceBase),activation,true)};
+       new ManagedMigrationPlcSubmission(sql,plc,resolver,config.hailServiceBase),activation,true,connections)};
 }

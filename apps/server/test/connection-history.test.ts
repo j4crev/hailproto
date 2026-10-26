@@ -2,6 +2,8 @@ import {createHash,randomUUID} from "node:crypto";
 import {createWebCryptoSigner,encodeBase64Url,encodeDeterministic,signPayload,type HailValue} from "@hailproto/codec";
 import {base58btc} from "multiformats/bases/base58";
 import {expect,it} from "vitest";
+import {P256Keypair} from '@atproto/crypto';
+import {connectionCancellationInput,decodeConnectionCancellation,verifyConnectionCancellation} from '../src/migration/connection-cancellation.js';
 import {uuidV7} from "../src/identity/uuid-v7.js";
 import {CONNECTION_HISTORY_COLUMNS,connectionHistoryDigest,validateConnectionHistory,type ConnectionHistory} from "../src/migration/connection-history.js";
 import {validateSnapshotConnections,requireConnectionHandoverComplete} from "../src/migration/connection-snapshot.js";
@@ -17,8 +19,20 @@ const encode=(v:unknown)=>new TextEncoder().encode(JSON.stringify(v));
 const row=(table:keyof ConnectionHistory["tables"],values:Record<string,unknown>)=>({
   ...Object.fromEntries(CONNECTION_HISTORY_COLUMNS[table].split(" ").map(k=>[k,null])),...values,
 });
+it('binds owner cancellation to its exact purpose for both custody keys',async()=>{
+  const value={type:'hail.connection-transfer-cancellation',version:1,did,transfer_id:randomUUID(),snapshot_digest:new Uint8Array(32),
+    source_service_base:'https://source.example/hail',destination_service_base:'https://target.example/hail',issued_at:1000,expires_at:1300},payloadBytes=encodeDeterministic(value),
+    ownerKey=await P256Keypair.create(),managed={payloadBytes,signature:await ownerKey.sign(connectionCancellationInput('owner-cancel',payloadBytes))};
+  expect(await verifyConnectionCancellation(managed,ownerKey.did(),'owner-cancel',true)).toEqual(value);
+  await expect(verifyConnectionCancellation(managed,ownerKey.did(),'destination-cancelled',true)).rejects.toThrow('signature');
+  const keys=await crypto.subtle.generateKey('Ed25519',true,['sign','verify']),publicKey='did:key:'+base58btc.encode(new Uint8Array([0xed,1,...new Uint8Array(await crypto.subtle.exportKey('raw',keys.publicKey))])),
+    portable={payloadBytes,signature:new Uint8Array(await crypto.subtle.sign('Ed25519',keys.privateKey,connectionCancellationInput('owner-cancel',payloadBytes)))};
+  expect(await verifyConnectionCancellation(portable,publicKey,'owner-cancel')).toEqual(value);
+  await expect(verifyConnectionCancellation(portable,publicKey,'destination-cancelled')).rejects.toThrow('signature');
+  expect(()=>decodeConnectionCancellation({...portable,payloadBytes:encodeDeterministic({...value,expires_at:5000})})).toThrow('Invalid connection cancellation');
+});
 function empty():ConnectionHistory {
-  return {type:"hail.connection-history",version:2,...owner,capturedAt:"2026-10-25T00:00:00.000Z",sharePolicy:"invalidate-at-cutover",
+  return {type:"hail.connection-history",version:3,...owner,capturedAt:"2026-10-25T00:00:00.000Z",sharePolicy:"invalidate-at-cutover",
     tables:Object.fromEntries(Object.keys(CONNECTION_HISTORY_COLUMNS).map(t=>[t,[] as Record<string,unknown>[]])) as ConnectionHistory["tables"]};
 }
 async function native(){

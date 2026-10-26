@@ -13,7 +13,7 @@ import type { ManagedTransferAddressReservation } from "./managed-address-select
 import type { ManagedTransferFencePublisher } from "./managed-fence-publisher.js";
 import type { ManagedMigrationFenceService } from "./managed-fence.js";
 import type {ManagedMigrationCompletion} from "./managed-completion.js";
-import { decodeDeterministic } from "@hailproto/codec";
+import { decodeDeterministic,encodeBase64Url } from "@hailproto/codec";
 import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
 import { boundedTransferBody, parseInvitationWire, parseFinalRequestWire,
   parseRequestWire, parseCancellationWire, requestWire,
@@ -22,6 +22,31 @@ import { parseManagedInvitationWire } from "./wire.js";
 import {clientAddress} from "../http/rate-limit.js";
 import type {ConnectionHandoverStage} from "./connection-handover-stage.js";
 import type {ConnectionReconstruction} from './connection-reconstruction.js';
+import type {ConnectionTransferOrchestration} from './connection-orchestration.js';
+
+export function registerConnectionSourceRoutes(app:Hono,source:ConnectionTransferOrchestration,rateLimit?:TransferRateLimit):void {
+  app.post('/hail/transfers/connection-source/:phase',async c=>{
+    c.header('Cache-Control','no-store');c.header('Referrer-Policy','no-referrer');
+    if(c.req.header('Authorization')||c.req.header('Cookie')||c.req.header('Origin'))return c.body(null,403);
+    if(rateLimit&&!await rateLimit.admit('request',clientAddress(c.req.raw)))return c.body(null,429);
+    if(c.req.header('Content-Type')!==TRANSFER_MEDIA_TYPE||c.req.header('Content-Encoding'))return c.body(null,415);
+    const phase=c.req.param('phase');if(!['freeze','retire','abort','release'].includes(phase))return c.body(null,404);
+    try{
+      const input=parseJsonWithoutDuplicateKeys(new TextDecoder('utf-8',{fatal:true}).decode(await boundedTransferBody(c.req.raw.body,c.req.header('Content-Length')??null,phase==='release'?12000000:200000)));
+      return c.json(phase==='freeze'?await source.sourceFreeze(input):phase==='abort'?await source.sourceAbort(input):phase==='release'?await source.sourceRelease(input):await source.sourceRetire(input),200,{'Content-Type':TRANSFER_MEDIA_TYPE});
+    }catch{return c.body(null,400);}
+  });
+  app.post('/hail/transfers/connection-cancellations',async c=>{
+    c.header('Cache-Control','no-store');c.header('Referrer-Policy','no-referrer');
+    if(c.req.header('Authorization')||c.req.header('Cookie')||c.req.header('Origin'))return c.body(null,403);
+    if(rateLimit&&!await rateLimit.admit('request',clientAddress(c.req.raw)))return c.body(null,429);
+    if(c.req.header('Content-Type')!==TRANSFER_MEDIA_TYPE||c.req.header('Content-Encoding'))return c.body(null,415);
+    try{
+      const signed=parseRequestWire(await boundedTransferBody(c.req.raw.body,c.req.header('Content-Length')??null,8192));
+      return c.json(await source.abort({payload:encodeBase64Url(signed.payloadBytes),signature:encodeBase64Url(signed.signature)}),200,{'Content-Type':TRANSFER_MEDIA_TYPE});
+    }catch{return c.body(null,400);}
+  });
+}
 
 export function registerConnectionReconstructionRoutes(app:Hono,reconstruction:ConnectionReconstruction,rateLimit?:TransferRateLimit):void {
   app.post('/hail/transfers/connection-progress/:phase',async context=>{

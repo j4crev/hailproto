@@ -77,7 +77,7 @@ restoring messaging service rather than rewriting messages into subscription Gra
 
 Checks cover TypeScript/Go signed-byte agreement and rejection of v1-connection,
 v2-Grant, category and independent-reply substitutions. Independent provider-store
-tests use real envelope/body/status handlers for mixed native/federated multi-send,
+tests use real envelope/body/status handlers for mixed local/remote multi-send,
 private tokens, duplicate reception, restart recovery, missing authority/on-hold,
 disconnect before retrieval/during retrieval, immutable recipients, cross-account
 refusal, cancellation, fresh reconnect and historical readability.
@@ -100,11 +100,34 @@ codes at the destination after activation. Preparing/reviewing a move alone shou
 not invalidate codes. Existing connections and disconnect/replay protection remain
 intact; no guard is removed until snapshot/import and peer handover prove that.
 
-The local implementation embeds the shared version-1 connection-history checkpoint
+The local implementation embeds the shared version-3 connection-history checkpoint
 in portable v5 / managed v6 snapshots, retains it inertly on import, and verifies
 source/destination/peer handover preparations. Import/handover staging verifies
 historical consent and control signatures against retained canonical PLC history.
 Unsupported pre-launch records should be explicitly cleaned up rather than given
 a legacy reconciliation layer; see the [development policy](../README.md#pre-launch-development-policy--developers-and-agents).
-Live handover commit remains gated; see [portability progress](../spec/connection-portability.md).
-Connection-bearing account cutover is still blocked.
+Both completion paths orchestrate supported connection-bearing moves locally;
+missing orchestration, obsolete records and undrained work fail closed. Public
+rollout verification remains; see [portability progress](../spec/connection-portability.md).
+
+## One Connection Model (Local Implementation, Not Deployed)
+
+Same-provider and cross-provider connections now use the same signed invitation,
+confirmation, admission, coordinator event, per-account projection and terminal
+tombstones. Same-provider control calls stay in-process; they do not make loopback
+HTTP requests or require the inviter to approve again. Both placements use the
+existing durable worker and expose `connecting` until their projections converge.
+The lexicographically smaller DID remains coordinator regardless of placement.
+
+The historical `federated_connection_*` table/class names remain to avoid a
+cosmetic schema/protocol rename. They hold **all new connections**, not a second
+remote-only implementation. Migration 70 scopes consent-attempt IDs by account so
+both local participants can retain the same request independently. SQL permission
+checks honor either local participant's disconnect immediately, before replication.
+
+`account_connections` is retired: no new writes or message authority. Existing
+rows remain unchanged, and their DID pairs cannot be reused in the unified model
+until an explicitly scoped cleanup is approved. They are not converted into
+invented federation receipts. Historical snapshot validation preserves original
+bytes only; it cannot reactivate those records. See the
+[cleanup boundary](../spec/connection-portability.md#unified-model-upgrade-boundary).
