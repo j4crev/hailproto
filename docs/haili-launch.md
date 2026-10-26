@@ -1,5 +1,47 @@
 # `haili.app` launch milestone
 
+## Unified Connections And Transfer Orchestration Deployed — October 26, 2026 UTC
+
+- Release `d622ab30ae9bdbf4c12f7f94de491d39971aaeb8` was committed, pushed and
+  deployed through `hail-provider-ops deploy`. GitHub
+  [CI 40249994822](https://github.com/j4crev/hailproto/actions/runs/40249994822)
+  passed. Startup applies migrations 66–71: retained connection-history authority,
+  durable holds, one live local/remote model and authenticated transfer orchestration.
+- Guarded pre-deploy backup: `provider/haili-20261026T003753Z.tar.gpg`, SHA-256
+  `c82172e51b57bd831e0f27cf1f60f5f6c98564687aac1c90bcfece1af3f707fc`.
+  The initial R2 501 recovered on the existing retry before checkout/build.
+  Its encrypted object was downloaded, checksum-verified, authenticated and restored
+  off-host; candidate migrations reached schema 71 while preserving all 80 existing
+  data tables' original rows/columns. All 14 account and 6 prepared-transfer key
+  pairs decrypted and matched their public keys. No production workers ran in the
+  clone. No obsolete native records were present, and no cleanup was required.
+  The earlier preflight backup `provider/haili-20261026T003354Z.tar.gpg`, SHA-256
+  `40585d29bf525c96dd97bf4941898024967453051c0dec8f881f7a1598be15c8`, passed
+  the same checks before deployment. Safe proofs are retained off-host under
+  `ops/pg18-rehearsal/provider-connection-orchestration{,-deploy-backup}-proof.json`.
+- Runtime image config:
+  `sha256:3c87bac21ad195152e5cb33b06dffdf9ca21116e02793adf79d6e2e814e6dd52`.
+  Provider and GUI were recreated and are healthy; PostgreSQL 18.6 and Caddy
+  retained uptime. The first readiness attempt returned 502; the guarded retry
+  passed. Remote HEAD matches the release and its checkout is clean. Existing
+  public-managed/self-service feature flags and the Node-build/Bun-runtime split
+  were retained; no host configuration or operational privileges changed.
+- External readiness, `/auth/login` and `/connect` return 200. Anonymous connection
+  and message-target reads return 401. All four source-orchestration operations
+  and cancellation reject empty unsigned requests with 400; foreign browser Origin
+  is refused with 403. Protected responses retain no-store. Startup/PLC diagnostics
+  are healthy and the post-deploy provider log contains no worker failures.
+- Local proof includes workspace typechecks/tests, server build, both real
+  connection-bearing custody-profile moves, managed passkey recovery and resumed
+  messaging, loss/restart/cancellation checks, and the existing 18 portable fence/
+  return cases. A concurrent verification run hit a 10-second fixture setup timeout;
+  its isolated rerun passed all 16 fence cases. No valid hosted consent, message,
+  credential, account transfer or cleanup was performed for deployment probes.
+  Public strict-authority connection-bearing, unrelated-provider and focused
+  returning-account rehearsals remain explicit rollout checks, not claims from
+  these read-only/rejected-request probes. See the
+  [current portability checklist](portability-status.md).
+
 ## Connection Messaging Deployed — October 25, 2026 UTC
 
 - Release `3391d824d5f01a176e2c246b6c05abb5de7e679b` was committed, pushed and

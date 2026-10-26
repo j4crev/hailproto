@@ -4,7 +4,7 @@ Connections must move through the existing portable/managed account-transfer
 snapshot, staged import and fenced cutover. There is no separate downloadable
 backup format, automatic link forwarding, or new connection permission.
 
-## Implemented Snapshot/Staging Path (Not Deployed)
+## Implemented Snapshot/Staging Path (Deployed October 26, 2026)
 
 `apps/server/src/migration/connection-history.ts` implements the shared
 `hail.connection-history` version-3 checkpoint domain. New exports embed it in

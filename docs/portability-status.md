@@ -4,7 +4,11 @@
 
 - [x] Connection messaging: Compose → Connections and Conversations on `haili.app`.
 
-## Implemented locally, not deployed
+## Deployed implementation — October 26, 2026
+
+Release `d622ab3`; backup, migration-preservation and public smoke-check receipts
+are in [the deployment log](haili-launch.md). End-to-end transfer proofs below use
+disposable local fixtures, not hosted account moves.
 
 - [x] Connection-history checkpoints in account-transfer snapshots and inert import staging.
 - [x] Signed source/destination/peer handover preparation.
@@ -27,9 +31,9 @@
 - [ ] Focused connection-bearing returning-account rehearsal; existing connection-free return tests remain a regression gate.
 - [ ] Public strict-authority connection-bearing rehearsal and unrelated-provider interoperability; private-fixture proof is not production finality.
 - [ ] Scoped breaking cleanup/upgrade instructions for unsupported pre-launch records.
-- [ ] Commit, CI, push and guarded deployment when requested.
+- [x] Commit, CI, push and guarded deployment, with off-host backup/migration proof.
 
-New-model connection transfers are wired locally when orchestration is configured.
+New-model connection transfers are wired when orchestration is configured.
 Missing orchestration returns `awaiting-connection-handover`; obsolete records and
 undrained work remain blocked. **Messaging itself is already live.**
 The fixture now distinguishes seeded component checks from real account-transfer

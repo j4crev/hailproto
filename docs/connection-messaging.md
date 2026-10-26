@@ -106,11 +106,11 @@ source/destination/peer handover preparations. Import/handover staging verifies
 historical consent and control signatures against retained canonical PLC history.
 Unsupported pre-launch records should be explicitly cleaned up rather than given
 a legacy reconciliation layer; see the [development policy](../README.md#pre-launch-development-policy--developers-and-agents).
-Both completion paths orchestrate supported connection-bearing moves locally;
+Both deployed completion paths orchestrate supported connection-bearing moves;
 missing orchestration, obsolete records and undrained work fail closed. Public
 rollout verification remains; see [portability progress](../spec/connection-portability.md).
 
-## One Connection Model (Local Implementation, Not Deployed)
+## One Connection Model (Deployed October 26, 2026)
 
 Same-provider and cross-provider connections now use the same signed invitation,
 confirmation, admission, coordinator event, per-account projection and terminal
