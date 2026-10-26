@@ -183,7 +183,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     }
     if(approvals.has(step))return json(actionSummary(step));
   }
-  if(path==="/api/v1/account/grants")return json({grants:[...(allowed?[{grantId:allowed.grant_id,localRole:"grantor",status:allowed.status}]:[]),...(sendingGrant?[{grantId:sendingGrantId,localRole:"grantee",status:"active",expiresAt:sendingGrant.payload.expires_at}]:[])],next:null});
+  if(path==="/api/v1/account/grants")return json({grants:[...(allowed?[{grantId:allowed.grant_id,localRole:"grantor",grantee:allowed.grantee,status:allowed.status}]:[]),...(sendingGrant?[{grantId:sendingGrantId,localRole:"grantee",status:"active",expiresAt:sendingGrant.payload.expires_at}]:[])],next:null});
   if(path===`/api/v1/account/grants/${sendingGrantId}`&&sendingGrant)return json({type:"hailp.grant",version:1,cose:sendingGrant.cose,digest:sendingGrant.digest,localRole:"grantee"});
   if(path.startsWith("/api/v1/account/grants/")&&allowed)return json({type:"hailp.grant",version:1,cose:allowedCose,digest:allowedDigest,localRole:"grantor"});
   if(path==="/api/v1/account/profile"){
@@ -275,6 +275,12 @@ try{
   const evaluate=async(expression:string)=>{const result=await cdp("Runtime.evaluate",{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw new Error("Browser evaluation failed: "+(result.exceptionDetails.exception?.description??result.exceptionDetails.text));return result.result.value;};
   const has=async(text:string)=>evaluate(`document.body?.innerText.includes(${JSON.stringify(text)})??false`);
   const styles=async(selector:string,properties:string[])=>evaluate(`(()=>{const style=getComputedStyle(document.querySelector(${JSON.stringify(selector)}));return ${JSON.stringify(properties)}.map(property=>style[property]);})()`);
+  const selectedAudience=async(label:string)=>{
+    await evaluate('document.activeElement?.blur()');
+    assert.equal(await evaluate(`document.querySelector('[aria-label="Compose audience"] [aria-current="page"]').textContent`),label);
+    assert.deepEqual(await styles('[aria-label="Compose audience"] [aria-current="page"]',["backgroundColor","color"]),["rgb(15, 118, 110)","rgb(255, 255, 255)"]);
+    assert.deepEqual(await styles('[aria-label="Compose audience"] a:not([aria-current])',["backgroundColor"]),["rgb(255, 255, 255)"]);
+  };
   const screenshot=async(name:string)=>{if(!process.env.HAIL_WIZARD_SCREENSHOTS)return;await mkdir(process.env.HAIL_WIZARD_SCREENSHOTS,{recursive:true});const shot=await cdp("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});await writeFile(join(process.env.HAIL_WIZARD_SCREENSHOTS,`${process.env.HAIL_WIZARD_MOBILE==='true'?'mobile':'desktop'}-${name}.png`),Buffer.from(shot.data,"base64"));};
   const escape=async()=>{await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});};
   const pointer=async(x:number,y:number)=>{await cdp("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,x,y});await cdp("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,x,y});};
@@ -497,10 +503,23 @@ try{
   await click("Review permission");await wait(()=>has("Confirm allowed sender"),"exact permission review");
   assert.deepEqual(await styles('[aria-label="Permission confirmation"]',["borderTopWidth","borderTopColor"]),["2px","rgb(15, 118, 110)"]);
   assert.equal(allowed,null);assert(await has("alice@provider.example.com"));
-  await click("Allow sender with my passkey");await wait(()=>has("Review revocation"),"passkey-approved permission saved");
-  assert.equal(allowed!.status,"active");await click("Review revocation");await wait(()=>has("Confirm revocation"),"revocation review");
-  await click("Revoke sender with my passkey");await wait(()=>has("revoked"),"passkey-confirmed revocation");
-  assert.equal(allowed!.status,"revoked");
+  await click("Allow sender with my passkey");await wait(()=>has("Unsubscribe"),"passkey-approved permission saved");
+  assert.equal(allowed!.status,"active");await click("Unsubscribe");await wait(()=>has("Confirm unsubscribe"),"subscription unsubscribe review");
+  await click("Cancel review");assert.equal(allowed!.status,"active","Cancel leaves subscription active");
+  await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("Unsubscribe"),"Inbox reader offers unsubscribe");
+  const beforeReaderReview=approvals.size;
+  await click("Unsubscribe");await wait(()=>has("Unsubscribe with my passkey"),"reader unsubscribe confirmation");
+  assert.equal(allowed!.status,"active","Opening review does not unsubscribe");
+  assert.equal(approvals.size,beforeReaderReview+1);
+  assert(await has("updates"));assert(await has("Your past messages and connections will stay."));
+  await click("Cancel");assert.equal(allowed!.status,"active");
+  await click("Unsubscribe");await wait(()=>has("Unsubscribe with my passkey"),"reader review after cancellation");
+  await narrowLayouts();await screenshot("unsubscribe-review");
+  await click("Unsubscribe with my passkey");await wait(()=>has("Unsubscribed from"),"passkey-confirmed unsubscribe inside reader");
+  assert.equal(allowed!.status,"revoked");assert(await has("One-time reply browser transport test"),"Unsubscribe retains message content");
+  await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("You have no active subscription to this sender."),"reader reflects unsubscribed sender on reload");
+  assert(await evaluate(`![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Unsubscribe')`));
+  await cdp("Page.navigate",{url:origin+"/permissions"});await wait(()=>has("Unsubscribed"),"Subscriptions uses unsubscribe terminology");
   assert(!await has("Share your sender QR"),"Subscription page does not show publishing tools");
   await cdp("Page.navigate",{url:origin+"/categories"});await wait(()=>has("Create sender profile with passkey"),"first sender profile setup");
   await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"profile editor ready");
@@ -534,6 +553,7 @@ try{
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Opening a QR must not prepare or approve a permission");
   await click("Review sender");await wait(()=>has("Test sender"),"QR and typed address share the same review");
   await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>has("Publish an update"),"publisher styling");
+  await selectedAudience("Subscribers");
   assert.deepEqual(await styles("form[enctype] label",["display","fontWeight"]),["grid","600"]);
   assert.deepEqual(await styles("fieldset label",["display","gap"]),["flex","8px"]);
   assert.deepEqual(await styles("fieldset input",["width"]),["13px"]);
@@ -642,6 +662,7 @@ try{
   await click("Review before connecting");await wait(()=>has("Confirm connection"),"exact connection consent");
   assert(!personalConnection);await click("Confirm with passkey");await wait(()=>has("Connection saved"),"mutual connection confirmed");
   await cdp('Page.navigate',{url:origin+'/compose?audience=connections'});await wait(()=>has('Message connections'),'connection composer uses existing editor');
+  await selectedAudience("Connections");
   await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]').length===2`),'connection recipient picker');
   assert(!await evaluate(`!!document.querySelector('select[name="category"]')||!!document.querySelector('input[name="allowReply"]')`));
   await evaluate(`document.querySelectorAll('input[name="connection"]').forEach(e=>e.click());document.querySelector('input[value="plain"]').click()`);
@@ -654,6 +675,7 @@ try{
   await cdp('Page.navigate',{url:origin+'/?view=connections'});await wait(()=>has('A personal connection reply'),'connection message uses existing reader preview');
   assert(!await has('One-time reply browser transport test'));
   await evaluate(`document.querySelector('a[href*="${connectionIncomingId}"]').click()`);await wait(()=>has('Message this connection →'),'standing connection response action');
+  assert(await evaluate(`!document.querySelector('[aria-label="Sender subscription"]')`),"Connection messages never offer unsubscribe");
   assert(!await evaluate(`!!document.querySelector('form[action="?/reply"]')`));
   await evaluate(`document.querySelector('a[href*="audience=connections&connection="]').click()`);await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]:checked').length===1`),'connection response preselects the same active connection');
   await cdp("Page.navigate",{url:origin+"/connections?connected=1"});await wait(()=>has("Disconnect"),"connected account visible");

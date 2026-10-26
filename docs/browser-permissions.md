@@ -113,3 +113,23 @@ For `j4@haili.app`, enter `canary-prov@haili.app`, select its offered `updates`
 category and expiry, and confirm with the existing passkey. This permits the
 canary to send to j4, not the other way around. Do not create this live permission
 from an operator credential merely to pre-populate the GUI test.
+
+## Unsubscribe from an Inbox message
+
+Managed accounts can unsubscribe inside an opened subscription message. The
+reader resolves the current active subscription by verified sender DID, including
+later pages of the account's Grants, rather than using the message's display
+address or assuming its historical authorization is still current. Connection
+messages do not offer this action. Owner-controlled accounts retain their signer
+workflow.
+
+Unsubscribe opens an explicit review of the sender and all categories covered by
+that subscription. The existing exact-action passkey approval and durable revoke
+operation perform the change; opening or cancelling the review does not do so.
+Retries and status checks retain the original request ID. A failed subscription
+lookup leaves the message readable and reports that subscription status is
+unavailable rather than claiming the user is unsubscribed.
+
+The UI calls this **Unsubscribe** and **Unsubscribed**; wire actions/status remain
+`revoke`/`revoked`. Delivered messages remain readable, and connections are
+unchanged. Message deletion and bulk Inbox unsubscribe are not implemented.

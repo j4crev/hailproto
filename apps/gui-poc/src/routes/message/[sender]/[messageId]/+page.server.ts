@@ -1,14 +1,20 @@
 import { canaryAccount, senderAvatars } from "$lib/server/canary.js";
+import {senderSubscription} from "$lib/server/subscription.js";
 import { messageId } from "$lib/server/message-id.js";
 import { parseMessage } from "$lib/messages.js";
 import { error,fail,isRedirect,redirect } from "@sveltejs/kit";
 
 export async function load({ params,cookies,url }) {
-  const { client } = await canaryAccount(cookies,url);
+  const { account, client } = await canaryAccount(cookies,url);
   const result = await client.request(`/inbox/${encodeURIComponent(params.sender)}/${encodeURIComponent(params.messageId)}`);
   try {
     const message=parseMessage(result);
-    return {message,canReply:message.replyAvailable,
+    let subscription: Awaited<ReturnType<typeof senderSubscription>> = null, subscriptionUnavailable = false;
+    if (message.kind !== "connection" && account.custodyProfile === "managed") {
+      try {subscription = await senderSubscription(client, account.did, message.sender);}
+      catch {subscriptionUnavailable = true;}
+    }
+    return {message,account,subscription,subscriptionUnavailable,canReply:message.replyAvailable,
       avatar:(await senderAvatars(client,new Set([message.sender]))).get(message.sender)??null};
   } catch {
     error(502, "The provider returned a message this GUI cannot safely render");
