@@ -6,9 +6,10 @@
 
 ## Deployed implementation — October 26, 2026
 
-Release `d622ab3`; backup, migration-preservation and public smoke-check receipts
-are in [the deployment log](haili-launch.md). End-to-end transfer proofs below use
-disposable local fixtures, not hosted account moves.
+Haili release `6e50f8e` / schema 72; backup, migration-preservation and public
+smoke-check receipts are in [the deployment log](haili-launch.md). The component
+proofs below use disposable fixtures; the separate completed strict-public hosted
+rehearsals are recorded under rollout verification.
 
 - [x] Connection-history checkpoints in account-transfer snapshots and inert import staging.
 - [x] Signed source/destination/peer handover preparation.
@@ -32,7 +33,7 @@ disposable local fixtures, not hosted account moves.
 - [ ] Unrelated-provider interoperability; the two public rehearsal providers share operator infrastructure.
 - [ ] Scoped breaking cleanup/upgrade instructions for unsupported pre-launch records.
 - [x] Commit, CI, push and guarded deployment, with off-host backup/migration proof.
-- [x] Upgrade `hailproto.app` and `hailproto.dev` with public transfer/monitor configuration; rehearsal backends now run `c7ec5c4` / schema 72; see [provider receipts](hailproto-providers-operations.md). Haili remains `d622ab3` / schema 71.
+- [x] Upgrade `hailproto.app` and `hailproto.dev` with public transfer/monitor configuration; rehearsal backends run `c7ec5c4` / schema 72; see [provider receipts](hailproto-providers-operations.md). Haili now runs the combined backend/frontend release `6e50f8e` / schema 72.
 
 New-model connection transfers are wired when orchestration is configured.
 Missing orchestration returns `awaiting-connection-handover`; obsolete records and

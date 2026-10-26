@@ -1,5 +1,45 @@
 # `haili.app` launch milestone
 
+## Public Return Fixes And New Frontend Deployed — October 26, 2026 UTC
+
+- Operator-approved combined release `6e50f8ed051f5c6d9caf22b1434d188c773774a9`
+  was pushed and deployed through `hail-provider-ops deploy`. It includes the
+  backend fixes proven by both custody profiles' strict-public app → dev → app
+  rehearsals and the new frontend navigation/account controls. See
+  [rehearsal receipts](hailproto-providers-operations.md).
+  [CI 40315873333](https://github.com/j4crev/hailproto/actions/runs/40315873333)
+  passed. GUI typecheck had no errors/warnings; all 33 GUI tests, production build
+  and desktop/mobile Chromium wizard checks passed using local API fixtures.
+- Fresh preflight backup `provider/haili-20261026T113317Z.tar.gpg`, SHA-256
+  `96cbf3b9d2e02dfa26845c9552d8ee0e9a3a388839ef03352b906459ae017239`,
+  restored off-host and migrated to schema 72 with all 87 existing data tables'
+  original rows/columns preserved. All 14 account and 6 prepared-transfer key
+  pairs decrypted and matched their public keys; no obsolete native records
+  were present and no cleanup was performed.
+- The guarded deployment's own backup also passed the same restoration checks:
+  `provider/haili-20261026T113536Z.tar.gpg`, SHA-256
+  `356e41bfdcbf6eaa39cc7fd965fbbc39a6052b4adfb69992bb169f7469f09501`.
+  The existing R2 retry recovered from initial 501 responses. Runtime image config:
+  `sha256:5c1f420b7631fd719a8f66e0a23d4e8af261dcaa0ae3cba9c93c27e2f0654a0f`.
+  Provider and GUI were recreated and are healthy. PostgreSQL 18.6 and Caddy
+  retained uptime; one initial readiness 502 recovered through the guarded retry.
+  Remote HEAD matches the exact release and its checkout is clean.
+- Public readiness, homepage, login and connection review return 200. The new
+  homepage is served; Account, Settings, Security, Connections, Compose and Sent
+  preserve no-store 303 login redirects with exact local return paths. Anonymous
+  connection and message-target API reads return 401. The existing public account
+  address binding verifies against current PLC authority. Startup/PLC diagnostics
+  are healthy and the checked provider logs contain no worker failures. These
+  deployment probes created no live account, consent, credential or message.
+- Post-deploy backup `provider/haili-20261026T113844Z.tar.gpg`, SHA-256
+  `6cceff8f2564779c4d6ee1e32cc6a1377a397ca20f21a6665a5b66384feff78c`,
+  restored off-host with schema **already 72 before running application migrations**,
+  all 87 existing data tables preserved and all 20 retained operational key pairs
+  verified. Safe receipts under `ops/pg18-rehearsal/`:
+  `provider-combined-release-haili-20261026T113844Z-runtime-proof.json` and
+  `provider-combined-release-public-proof.json`. Feature flags, host privileges,
+  monitor configuration and rehearsal providers were not changed by this rollout.
+
 ## Unified Connections And Transfer Orchestration Deployed — October 26, 2026 UTC
 
 - Release `d622ab30ae9bdbf4c12f7f94de491d39971aaeb8` was committed, pushed and
