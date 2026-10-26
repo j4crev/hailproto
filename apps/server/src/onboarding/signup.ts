@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import type { SQL } from "bun";
 import type { Hono } from "hono";
 import { getCookie } from "hono/cookie";
-import { assureValidSig, def, type Operation } from "@did-plc/lib";
+import { assureValidSig, def, didForCreateOp, type Operation } from "@did-plc/lib";
 import { encode as encodeDagCbor } from "@ipld/dag-cbor";
 import { parseDidKey, P256_JWT_ALG, SECP256K1_JWT_ALG } from "@atproto/crypto";
 import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
@@ -23,6 +23,7 @@ const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/,TOKEN=/^hailp_[A-Za-z
 const equal=(a:Uint8Array,b:Uint8Array)=>a.length===b.length&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
 interface SignupRequest {address:string;recoveryKey:string;identityKey:string;enrollmentHash:string;invitationDigest:string;}
 interface SignupRow {
+  recovery_package:boolean;recovery_operation_digest:Uint8Array|null;backup_confirmed_at:Date|null;publication_started_at:Date|null;
   id:string;token_hash:Uint8Array;enrollment_hash:Uint8Array;request_digest:Uint8Array;request:SignupRequest|string;
   account_id:string|null;account_generation:number|string|null;preparation:PublicOnboardingPreparation|string|null;expires_at:Date;
   operation_bytes:Uint8Array|null;monitor_payload:Uint8Array|null;monitor_signature:Uint8Array|null;
@@ -50,8 +51,8 @@ export class SignupCoordinator {
   private async prepareAccount(row:SignupRow):Promise<SignupRow>{
     if(row.account_id)return row;
     const request=decoded(row.request);
-    const prepared=await this.onboarding.prepare(request.address,request.recoveryKey,request.identityKey,true,"managed",
-      this.policy.monitorOrigin,this.policy.monitorPublicKey,row.token_hash,true);
+    const prepared=await this.onboarding.prepare(request.address,request.recoveryKey,request.identityKey,!row.recovery_package,"managed",
+      this.policy.monitorOrigin,this.policy.monitorPublicKey,row.token_hash,true,row.recovery_package);
     await this.sql`UPDATE account_signup_ceremonies c SET account_id=${prepared.accountId},account_generation=g.generation,
       preparation=(${JSON.stringify(prepared)}::text)::jsonb FROM account_serving_generations g
       WHERE c.id=${row.id} AND g.account_id=${prepared.accountId} AND g.generation=1 AND c.account_id IS NULL
@@ -81,7 +82,7 @@ export class SignupCoordinator {
       typeof input.signupId!=="string"||!UUID.test(input.signupId)||!TOKEN.test(token)||
       typeof input.address!=="string"||typeof input.recoveryKey!=="string"||input.recoveryKey.length>256||
       typeof input.identityKey!=="string"||input.identityKey.length>256||typeof input.enrollmentHash!=="string"||
-      typeof input.invitation!=="string"||input.invitation.length>2048||input.backupVerified!==true||input.managedAccepted!==true||input.alphaMonitoringAccepted!==true)
+      typeof input.invitation!=="string"||input.invitation.length>2048||typeof input.backupVerified!=="boolean"||input.managedAccepted!==true||input.alphaMonitoringAccepted!==true)
       throw new SignupError(400,"Explicit custody, recovery backup and reduced-assurance consent are required");
     try{
       if(![P256_JWT_ALG,SECP256K1_JWT_ALG].includes(parseDidKey(input.recoveryKey).jwtAlg))throw new Error();
@@ -100,13 +101,13 @@ export class SignupCoordinator {
         if((await tx`SELECT id FROM account_api_credentials WHERE token_hash IN (${signupHash},${enrollmentHash})`).length||
           (await tx`SELECT id FROM account_passkey_enrollment_capabilities WHERE token_hash IN (${signupHash},${enrollmentHash})`).length)
           throw new SignupError(409,"Existing account credentials cannot be used as setup authority");
-        await tx`INSERT INTO account_signup_ceremonies(id,invitation_id,token_hash,enrollment_hash,request_digest,request)
-          VALUES(${input.signupId as string},${invitationId},${signupHash},${enrollmentHash},${digest},(${JSON.stringify(request)}::text)::jsonb)
+        await tx`INSERT INTO account_signup_ceremonies(id,invitation_id,token_hash,enrollment_hash,request_digest,request,recovery_package)
+          VALUES(${input.signupId as string},${invitationId},${signupHash},${enrollmentHash},${digest},(${JSON.stringify(request)}::text)::jsonb,${!input.backupVerified})
           ON CONFLICT (id) DO NOTHING`;
       });
     }
     let row=await this.row(input.signupId,token);
-    if(!equal(row.request_digest,digest))throw new SignupError(409,"Signup retry differs from its original intent");
+    if(row.recovery_package !== !input.backupVerified || !equal(row.request_digest,digest))throw new SignupError(409,"Signup retry differs from its original intent");
     row=await this.prepareAccount(row);
     return this.summary(row);
   }
@@ -115,12 +116,50 @@ export class SignupCoordinator {
   private async summary(row:SignupRow){
     const account=row.account_id?await new OnboardingRepository(this.sql).getAccount(row.account_id):null;
     const hasPasskey=row.account_id&&(await this.sql`SELECT credential_id FROM account_passkeys WHERE account_id=${row.account_id}`).length>0;
-    const state=row.completed_at?"complete":row.enrolled_at||hasPasskey?"sign-in-required":account?.state==="active"?
+    const state=row.recovery_package&&!row.backup_confirmed_at?"recovery-required":row.completed_at?"complete":row.enrolled_at||hasPasskey?"sign-in-required":account?.state==="active"?
       row.enrollment_expires_at&&row.enrollment_expires_at.getTime()<=Date.now()?"enrollment-expired":"passkey-enrollment":
-      row.operation_bytes?"awaiting-monitor":row.preparation?"prepared":"preparing";
-    return {type:"hail.signup",version:1,signupId:row.id,accountId:row.account_id,did:account?.did??null,address:account?.canonicalAddress??decoded(row.request).address,
+      (row.recovery_package?row.publication_started_at:row.operation_bytes)?"awaiting-monitor":row.preparation?"prepared":"preparing";
+    const operation=row.operation_bytes?JSON.parse(new TextDecoder().decode(row.operation_bytes)) as Operation:null;
+    return {type:"hail.signup",version:1,signupId:row.id,accountId:row.account_id,operation,did:account?.did??(operation?await didForCreateOp(operation):null),address:account?.canonicalAddress??decoded(row.request).address,
       state,expiresAt:row.expires_at.toISOString(),preparation:row.preparation?decoded(row.preparation):null,
       enrollmentExpiresAt:row.enrollment_expires_at?.toISOString()??null};
+  }
+
+  private async validateOperation(row:SignupRow, input:unknown):Promise<Operation> {
+    let operation:Operation;
+    try{
+      operation=def.operation.strict().parse(input);const prepared=decoded(row.preparation!);
+      const {sig,...unsigned}=operation;
+      if(!isDeepStrictEqual(unsigned,{type:"plc_operation",prev:null,rotationKeys:[prepared.userRecoveryKey,prepared.providerRotationKey],
+        verificationMethods:{"hail-identity":prepared.userIdentityKey,"hail-messaging":prepared.providerMessagingKey},
+        alsoKnownAs:[],services:{hail:{type:"HailMessaging",endpoint:prepared.sourceServiceBase}}})||encodeDagCbor(operation).length>7500)throw new Error();
+      await assureValidSig([prepared.userRecoveryKey],operation);
+    }catch{throw new SignupError(400,"Use the exact prepared genesis with a valid owner signature");}
+    return operation;
+  }
+
+  async verifyBackup(id:string,token:string,input:Record<string,unknown>){
+    if(Object.keys(input).length!==2||input.backupVerified!==true||typeof input.operationDigest!=="string"||
+      !/^[A-Za-z0-9_-]{43}$/.test(input.operationDigest))throw new SignupError(400,"Verify the saved recovery package first");
+    const digest=decodeBase64Url(input.operationDigest,32),row=await this.row(id,token);
+    if(!row.recovery_package)throw new SignupError(409,"Continue the original signup format");
+    if(!row.account_id||!row.preparation)throw new SignupError(409,"Finish the original provisional preparation first");
+    await this.sql.begin(async tx=>{
+      // The ceremony lock serializes verification and makes lost responses safe to retry.
+      await tx`SELECT id FROM account_signup_ceremonies WHERE id=${id} FOR UPDATE`;
+      const retained=await this.row(id,token,tx as SQL);
+      if(retained.recovery_operation_digest&&!equal(retained.recovery_operation_digest,digest))throw new SignupError(409,"The saved package belongs to another identity");
+      if(retained.backup_confirmed_at)return;
+      await tx`UPDATE account_signup_ceremonies SET backup_confirmed_at=clock_timestamp(),recovery_operation_digest=${digest} WHERE id=${id}`;
+      const promoted=await tx`INSERT INTO public_onboarding_preparations
+        (account_id,owner_recovery_public_key,owner_identity_public_key,provider_rotation_public_key,provider_messaging_public_key,
+         monitor_origin,monitor_public_key,custody_profile,managed_profile_version,backup_confirmed_at,signup_token_hash,monitor_assurance)
+        SELECT account_id,owner_recovery_public_key,owner_identity_public_key,provider_rotation_public_key,provider_messaging_public_key,
+         monitor_origin,monitor_public_key,custody_profile,managed_profile_version,clock_timestamp(),signup_token_hash,monitor_assurance
+        FROM public_onboarding_drafts WHERE account_id=${retained.account_id} RETURNING account_id`;
+      if(promoted.length!==1)throw new SignupError(409,"Original provisional preparation is unavailable");
+    });
+    return this.status(id,token);
   }
 
   async advance(id:string,token:string,input:Record<string,unknown>){
@@ -134,26 +173,22 @@ export class SignupCoordinator {
       locked=(await connection<{locked:boolean}[]>`SELECT pg_try_advisory_lock(684245160) AS locked`)[0]!.locked;
       if(!locked)throw new SignupError(202,"Another signup step is running; retry with the same state");
       row=await this.row(id,token,connection as SQL);row=await this.prepareAccount(row);
+      if(row.recovery_package&&!row.backup_confirmed_at)throw new SignupError(409,"Verify the saved recovery package before publication");
       const epoch=randomUUID();
       const admitted=await connection`UPDATE account_signup_ceremonies SET activation_epoch=${epoch}
         WHERE id=${id} AND completed_at IS NULL AND expires_at>clock_timestamp() RETURNING id`;
       if(!admitted.length)throw new SignupError(410);
       if(input.operation!==undefined){
-        let operation:Operation;
-        try{
-          operation=def.operation.strict().parse(input.operation);const prepared=decoded(row.preparation!);
-          const {sig,...unsigned}=operation;
-          if(!isDeepStrictEqual(unsigned,{type:"plc_operation",prev:null,rotationKeys:[prepared.userRecoveryKey,prepared.providerRotationKey],
-            verificationMethods:{"hail-identity":prepared.userIdentityKey,"hail-messaging":prepared.providerMessagingKey},
-            alsoKnownAs:[],services:{hail:{type:"HailMessaging",endpoint:prepared.sourceServiceBase}}})||encodeDagCbor(operation).length>7500)throw new Error();
-          await assureValidSig([prepared.userRecoveryKey],operation);
-        }catch{throw new SignupError(400,"Use the exact prepared genesis with a valid owner signature");}
-        const bytes=new TextEncoder().encode(JSON.stringify(operation));
+        const operation=await this.validateOperation(row,input.operation);
+        const bytes=new TextEncoder().encode(JSON.stringify(row.recovery_package?input.operation:operation));
+        if(row.recovery_package&&(!row.recovery_operation_digest||!equal(new Uint8Array(createHash("sha256").update(bytes).digest()),row.recovery_operation_digest)))
+          throw new SignupError(409,"Publish only the identity in the verified recovery package");
         if(bytes.length>16384)throw new SignupError(400);
         if(row.operation_bytes&&!equal(row.operation_bytes,bytes))throw new SignupError(409,"Retain the original signed genesis; do not generate another identity");
         if(!row.operation_bytes){await connection`UPDATE account_signup_ceremonies SET operation_bytes=${bytes} WHERE id=${id}`;row.operation_bytes=bytes;}
       }
       if(!row.operation_bytes)return this.summary(row);
+      await connection`UPDATE account_signup_ceremonies SET publication_started_at=COALESCE(publication_started_at,clock_timestamp()) WHERE id=${id}`;
       const repository=new OnboardingRepository(this.sql);
       let account=await repository.getAccount(row.account_id!);
       if(account.state!=="active"){
@@ -264,6 +299,7 @@ export function registerSignupRoutes(app:Hono,signup:SignupCoordinator,accounts:
       if(!input||typeof input!=="object"||Array.isArray(input))throw new SignupError(400);
       if(id==="check-address"&&!step)return context.json(await signup.checkAddress(input));
       if(!id&&!step)return context.json(await signup.prepare(input,token));
+      if(id&&step==="verify-backup")return context.json(await signup.verifyBackup(id,token,input));
       if(id&&step==="advance"){
         const result=await signup.advance(id,token,input);
         const pending=result.state==="awaiting-monitor";

@@ -29,7 +29,7 @@ import type { PlcDirectoryClient } from "../src/plc/client.js";
 import { PlcHailDidResolver } from "../src/plc/resolver.js";
 import { VerifiedPublicPlcResolver } from "../src/plc/public-resolver.js";
 
-it.skipIf(!process.env.DATABASE_URL)("automates verified-email monitored signup across provider, monitor and receiver without private artifacts or CLI exchanges", async () => {
+it.skipIf(!process.env.DATABASE_URL).each([false,true])("automates monitored signup (single package: %s) with restart and terminal authority", async (packageFlow) => {
   const admin = new SQL(process.env.DATABASE_URL!), suffix = randomUUID().replaceAll("-", ""), providerSchema = `signup_provider_${suffix}`, monitorSchema = `signup_monitor_${suffix}`;
   await admin.unsafe(`CREATE SCHEMA "${providerSchema}"`); await admin.unsafe(`CREATE SCHEMA "${monitorSchema}"`);
   const databaseUrl = (schema: string) => { const url = new URL(process.env.DATABASE_URL!); url.searchParams.set("options", `-csearch_path=${schema}`); return url.toString(); };
@@ -176,14 +176,14 @@ it.skipIf(!process.env.DATABASE_URL)("automates verified-email monitored signup 
       const accounts=new AccountApiRepository(db.sql),signupApp=new Hono();
       // Forward through a stable route while replacing the controller to simulate restart.
       registerSignupRoutes(signupApp,{prepare:(...args)=>coordinator.prepare(...args),status:(...args)=>coordinator.status(...args),
-        checkAddress:(...args)=>coordinator.checkAddress(...args),advance:(...args)=>coordinator.advance(...args),complete:(...args)=>coordinator.complete(...args)} as SignupCoordinator,accounts,providerOrigin);
+        verifyBackup:(...args)=>coordinator.verifyBackup(...args),checkAddress:(...args)=>coordinator.checkAddress(...args),advance:(...args)=>coordinator.advance(...args),complete:(...args)=>coordinator.complete(...args)} as SignupCoordinator,accounts,providerOrigin);
       registerSignupEmailRoutes(signupApp,db.sql,email,providerOrigin);
       const call=(path:string,body?:unknown,cookie?:string)=>signupApp.request(`${providerOrigin}/api/v1/${path}`,{
         method:body===undefined?"GET":"POST",headers:{Origin:providerOrigin,"Content-Type":"application/json",Authorization:`Bearer ${setupToken}`,
           ...(cookie?{Cookie:`hail_session=${cookie}`}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})});
       const request={signupId:id,address:`browser-${suffix}@provider.example.com`,recoveryKey:browserVault.vault.recovery.publicDidKey,
         identityKey:browserVault.vault.identity.publicDidKey,enrollmentHash:encodeBase64Url(createHash("sha256").update(enrollmentToken).digest()),
-        invitation:invite,backupVerified:true,managedAccepted:true,alphaMonitoringAccepted:true};
+        invitation:invite,backupVerified:!packageFlow,managedAccepted:true,alphaMonitoringAccepted:true};
       expect(await coordinator.checkAddress({address:request.address,invitation:invite})).toEqual({address:request.address,available:true});
       await expect(coordinator.checkAddress({address:request.address,invitation:"invalid"})).rejects.toMatchObject({status:403});
       await expect(coordinator.checkAddress({address:"elsewhere@other.example",invitation:invite})).rejects.toMatchObject({status:400});
@@ -191,15 +191,45 @@ it.skipIf(!process.env.DATABASE_URL)("automates verified-email monitored signup 
       expect(await coordinator.checkAddress({address:request.address,invitation:invite})).toEqual({address:request.address,available:false});
       const setup=await created.json() as {accountId:string;state:string;expiresAt:string;preparation:typeof prepared};
       expect((await signupApp.request(`${providerOrigin}/api/v1/signup/${id}`,{headers:{Authorization:`Bearer ${setupToken}`}})).status).toBe(200);
-      expect(setup.state).toBe("prepared");expect((await call("signup",request)).status).toBe(200);
+      expect(setup.state).toBe(packageFlow?"recovery-required":"prepared");expect((await call("signup",request)).status).toBe(200);
       expect((await call("signup",{...request,address:`other-${suffix}@provider.example.com`})).status).toBe(409);
       expect((await call("signup",{...request,signupId:randomUUID()})).status).toBe(409); // Single-use invitation.
-      expect((await call(`signup/${id}/advance`,{operation:genesis.operation,enrollmentToken})).status).toBe(400);
+      expect((await call(`signup/${id}/advance`,{operation:genesis.operation,enrollmentToken})).status).toBe(packageFlow?409:400);
       expect((await db.sql<{operation_bytes:Uint8Array|null}[]>`SELECT operation_bytes FROM account_signup_ceremonies WHERE id=${id}`)[0]!.operation_bytes).toBeNull();
       const browserOwner=await unlockUserVault(browserVault.vault,browserVault.recoverySecret),p=setup.preparation;
       const signed=await browserOwner.signManagedGenesis({type:"plc_operation",prev:null,rotationKeys:[p.userRecoveryKey,p.providerRotationKey],
         verificationMethods:{"hail-identity":p.userIdentityKey,"hail-messaging":p.providerMessagingKey},alsoKnownAs:[],
         services:{hail:{type:"HailMessaging",endpoint:serviceBase}}});
+      const operationDigest=encodeBase64Url(createHash("sha256").update(JSON.stringify(signed.operation)).digest());
+      if(packageFlow){
+        expect(await db.sql`SELECT account_id FROM public_onboarding_preparations WHERE account_id=${setup.accountId}`).toHaveLength(0);
+        // Direct/older registration paths cannot publish a draft either.
+        await expect(onboarding.register(setup.accountId,new TextEncoder().encode(JSON.stringify(signed.operation)),new Uint8Array())).rejects.toThrow("preparation does not exist");
+        expect(logs.has(signed.did)).toBe(false);
+        await expect(db.sql`INSERT INTO public_onboarding_preparations
+          SELECT account_id,owner_recovery_public_key,owner_identity_public_key,provider_rotation_public_key,provider_messaging_public_key,
+          monitor_origin,monitor_public_key,custody_profile,clock_timestamp(),signup_token_hash,initial_binding_cose,created_at,
+          managed_profile_version,monitor_assurance FROM public_onboarding_drafts WHERE account_id=${setup.accountId}`).rejects.toThrow("Verify the recovery package");
+        await expect(coordinator.verifyBackup(id,setupToken,{operationDigest,backupVerified:false})).rejects.toMatchObject({status:400});
+        await expect(coordinator.verifyBackup(id,setupToken,{operationDigest:"invalid",backupVerified:true})).rejects.toMatchObject({status:400});
+        expect((await call(`signup/${id}/verify-backup`,{operationDigest,backupVerified:true})).status).toBe(200);
+        coordinator=new SignupCoordinator(db.sql,onboarding,monitoring,providerOrigin,policy,inviteKey);
+        expect((await coordinator.verifyBackup(id,setupToken,{operationDigest,backupVerified:true})).state).toBe("prepared");
+        expect(logs.has(signed.did)).toBe(false); // Verification is never publication.
+        expect((await coordinator.status(id,setupToken)).operation).toBeNull();
+        await expect(coordinator.verifyBackup(id,setupToken,{operationDigest:encodeBase64Url(randomBytes(32)),backupVerified:true})).rejects.toMatchObject({status:409});
+        const otherSignature=await browserOwner.signManagedGenesis({type:"plc_operation",prev:null,rotationKeys:[p.userRecoveryKey,p.providerRotationKey],
+          verificationMethods:{"hail-identity":p.userIdentityKey,"hail-messaging":p.providerMessagingKey},alsoKnownAs:[],services:{hail:{type:"HailMessaging",endpoint:serviceBase}}});
+        const {sig,...unsigned}=signed.operation;
+        await expect(coordinator.advance(id,setupToken,{enrollmentToken,operation:{sig,...unsigned}})).rejects.toMatchObject({status:409});
+        await expect(db.sql`UPDATE account_signup_ceremonies SET operation_bytes=${new TextEncoder().encode(JSON.stringify({sig,...unsigned}))} WHERE id=${id}`).rejects.toThrow();
+        // Mutating otherwise valid fields fails exact intent/commitment checks.
+        await expect(coordinator.advance(id,setupToken,{enrollmentToken,operation:{...otherSignature.operation,alsoKnownAs:["https://different.example"]}})).rejects.toMatchObject({status:400});
+        await expect(coordinator.prepare({...request,backupVerified:true},setupToken)).rejects.toMatchObject({status:409});
+        const backup=(await db.sql`SELECT backup_confirmed_at FROM account_signup_ceremonies WHERE id=${id}`)[0];
+        expect(backup.backup_confirmed_at).toBeInstanceOf(Date);
+        await expect(db.sql`UPDATE account_signup_ceremonies SET backup_confirmed_at=NULL WHERE id=${id}`).rejects.toThrow();
+      }
       const lock=await db.sql.reserve();try{
         await lock`SELECT pg_advisory_lock(684245160)`;
         await expect(coordinator.advance(id,setupToken,{operation:signed.operation,enrollmentToken})).rejects.toMatchObject({status:202});
@@ -211,6 +241,7 @@ it.skipIf(!process.env.DATABASE_URL)("automates verified-email monitored signup 
       onboarding.register=async(...args)=>{const result=await originalRegister(...args);if(loseRegistration){loseRegistration=false;throw new Error("Lost retained registration response");}return result;};
       expect((await call(`signup/${id}/advance`,{operation:signed.operation,enrollmentToken})).status).toBe(503);
       coordinator=new SignupCoordinator(db.sql,onboarding,monitoring,providerOrigin,policy,inviteKey);
+      expect((await coordinator.status(id,setupToken)).operation).toEqual(signed.operation);
       expect((await call(`signup/${id}/advance`,{enrollmentToken})).status).toBe(202);
       await monitor.poll();expect(await notifier.sendOne()).toBe("sent");
       const originalActivate=onboarding.activate.bind(onboarding);let loseActivation=true,oldEpoch:string|undefined;
@@ -277,6 +308,13 @@ it.skipIf(!process.env.DATABASE_URL)("automates verified-email monitored signup 
       expect((await db.sql<{signup_token_hash:Uint8Array|null}[]>`SELECT signup_token_hash FROM public_onboarding_preparations WHERE account_id=${setup.accountId}`)[0]!.signup_token_hash).toBeNull();
       await expect(db.sql`UPDATE account_signup_ceremonies SET completed_at=NULL,completed_by=NULL WHERE id=${id}`).rejects.toThrow("cannot be replaced");
       const rollback=await db.sql.reserve();try{
+        if(packageFlow){
+          await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0073_signup_recovery_package.sql",import.meta.url)).text())).rejects.toThrow("rollback would discard");
+        } else {
+          const files=new Bun.Glob("*.sql");
+          const directory=new URL("../migrations/rollback/",import.meta.url).pathname;
+          const names=Array.from(files.scanSync(directory)).filter(name=>Number(name.slice(0,4))>65).sort().reverse();
+          for(const name of names)await rollback.unsafe(await Bun.file(directory+name).text());
         await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());
         await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());
         await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());
@@ -285,6 +323,7 @@ it.skipIf(!process.env.DATABASE_URL)("automates verified-email monitored signup 
         await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
         await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());
         await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0058_signup_ceremonies.sql",import.meta.url)).text())).rejects.toThrow("prevent rollback");
+        }
        }finally{await rollback.unsafe("ROLLBACK");rollback.release();}
        await db.migrate();
        const generationVault=await createUserVault();try{

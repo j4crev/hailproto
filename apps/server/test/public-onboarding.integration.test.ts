@@ -162,6 +162,9 @@ it.skipIf(!process.env.DATABASE_URL)("public owner/managed onboarding seals owne
           .rejects.toThrow("strict managed account authority");
         const connection = await db.sql.reserve();
         try {
+          const directory=new URL("../migrations/rollback/",import.meta.url).pathname;
+          const names=Array.from(new Bun.Glob("*.sql").scanSync(directory)).filter(name=>Number(name.slice(0,4))>65).sort().reverse();
+          for(const name of names)await connection.unsafe(await Bun.file(directory+name).text());
           await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql", import.meta.url)).text());
           await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql", import.meta.url)).text());
           await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql", import.meta.url)).text());

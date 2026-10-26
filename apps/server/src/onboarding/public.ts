@@ -72,13 +72,14 @@ export class PublicOnboarding {
 
   async prepare(addressInput: string, recovery: string, identity: string, backupChecked: boolean,
     profile: "owner-controlled" | "managed", monitorOrigin: string, monitorPublicKey: string,
-    signupHash?: Uint8Array, alphaMonitoringAccepted = false): Promise<PublicOnboardingPreparation> {
+    signupHash?: Uint8Array, alphaMonitoringAccepted = false, provisional = false): Promise<PublicOnboardingPreparation> {
+    if (provisional && (backupChecked || !this.alphaMonitoring || !signupHash)) throw new Error("Provisional setup requires an unverified invited alpha ceremony");
     const assurance = this.alphaMonitoring?.profile ?? "independent";
     if (this.alphaMonitoring ? profile !== "managed" || !alphaMonitoringAccepted ||
       monitorOrigin !== this.alphaMonitoring.monitorOrigin || monitorPublicKey !== this.alphaMonitoring.monitorPublicKey : alphaMonitoringAccepted) {
       throw new Error("Alpha onboarding requires explicit managed custody, reduced-assurance consent and the pinned monitor");
     }
-    if (!backupChecked || !recovery.startsWith("did:key:z") || !identity.startsWith("did:key:z") || recovery === identity) {
+    if ((!backupChecked && !(provisional && this.alphaMonitoring && signupHash)) || !recovery.startsWith("did:key:z") || !identity.startsWith("did:key:z") || recovery === identity) {
       throw new Error("Public onboarding needs a verified backup and distinct recovery/identity public keys");
     }
     await Promise.all([ed25519PublicKeyFromDidKey(identity), ed25519PublicKeyFromDidKey(monitorPublicKey)]);
@@ -91,9 +92,10 @@ export class PublicOnboarding {
     if (address.slice(address.indexOf("@") + 1) !== new URL(this.serviceBase).hostname) {
       throw new Error("Public onboarding address must belong to the provider domain");
     }
+    const preparationTable = provisional ? "public_onboarding_drafts" : "public_onboarding_preparations";
     const prior = await this.sql<(PreparationRow & { canonical_address: string; onboarding_state: string })[]>`
       SELECT preparation.*, account.canonical_address, account.onboarding_state
-      FROM provider_accounts account JOIN public_onboarding_preparations preparation ON preparation.account_id = account.id
+      FROM provider_accounts account JOIN ${this.sql.unsafe(preparationTable)} preparation ON preparation.account_id = account.id
       WHERE account.canonical_address = ${address}`;
     if (prior[0]) {
       const row = prior[0];
@@ -118,12 +120,12 @@ export class PublicOnboarding {
           encryption_nonce, encryption_version, kek_id) VALUES (${accountId}, ${key.role}, ${key.algorithm}, ${key.publicKey},
           ${key.ciphertext}, ${key.nonce}, ${key.encryptionVersion}, ${key.kekId})`;
       }
-      await tx`INSERT INTO public_onboarding_preparations (account_id, owner_recovery_public_key,
+      await tx`INSERT INTO ${tx.unsafe(preparationTable)} (account_id, owner_recovery_public_key,
         owner_identity_public_key, provider_rotation_public_key, provider_messaging_public_key,
          monitor_origin, monitor_public_key, custody_profile, managed_profile_version, backup_confirmed_at, signup_token_hash, monitor_assurance)
         VALUES (${accountId}, ${recovery}, ${identity}, ${generated.rotationDidKey}, ${generated.messagingDidKey},
           ${monitorOrigin}, ${monitorPublicKey}, ${profile}, ${profile === "managed" ? MANAGED_CUSTODY_PROFILE_VERSION : null},
-           clock_timestamp(), ${signupHash ?? null}, ${assurance})`;
+           CASE WHEN ${provisional} THEN NULL ELSE clock_timestamp() END, ${signupHash ?? null}, ${assurance})`;
     });
     return { accountId, address, userRecoveryKey: recovery, userIdentityKey: identity,
       providerRotationKey: generated.rotationDidKey, providerMessagingKey: generated.messagingDidKey,
