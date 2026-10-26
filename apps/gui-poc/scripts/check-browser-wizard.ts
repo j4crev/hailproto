@@ -17,7 +17,8 @@ const provider=await createSignupBackup(),messaging=await createSignupBackup();
 let gui:ReturnType<typeof Bun.spawn>|undefined,chrome:ReturnType<typeof Bun.spawn>|undefined,socket:WebSocket|undefined;
 let passed=false,logoutAttempts=0;
 let ownProfile:any=null,profileWrites=0,profileVerificationMismatch=false;
-let prepared:any=null,state="prepared",operation:any=null,enrolled=false,retired=false,authenticated=false,challenge="",credential:any;
+let recoveryVerified=false,emailVerified=false,verifiedDigest="";
+let prepared:any=null,state="recovery-required",operation:any=null,enrolled=false,retired=false,authenticated=false,challenge="",credential:any;
 let did:string|null=null;const sessionToken="hails_"+"A".repeat(43);
 let setupId="",setupToken="",enrollmentToken="",secret="",invitation="fixture-invitation",publicationAttempts=0,prepareCalls=0;
 const browserErrors:string[]=[];
@@ -215,19 +216,24 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   }
   if(path==="/api/v1/signup/check-address")return json({address:input.address,available:true});
   if(path==="/api/v1/signup"){
-    prepareCalls++;setupId=input.signupId;setupToken=request.headers.get("Authorization")!.slice(7);
+    assert.equal(input.backupVerified,false);prepareCalls++;setupId=input.signupId;setupToken=request.headers.get("Authorization")!.slice(7);
     prepared={accountId:crypto.randomUUID(),address:input.address,userRecoveryKey:input.recoveryKey,userIdentityKey:provider.vault.identity.publicDidKey,
       providerRotationKey:provider.vault.recovery.publicDidKey,providerMessagingKey:messaging.vault.identity.publicDidKey,sourceServiceBase:policy.provider+"/hail",
       custodyProfile:"managed",managedProfileVersion:"hail-managed-custody-v1",monitorAssurance:"reduced-assurance-alpha-v1",monitorOrigin:policy.monitorOrigin,monitorPublicKey:policy.monitorKey};
     return json(summary());
   }
+  if(path===`/api/v1/signup/${setupId}/verify-backup`){
+    assert.equal(input.backupVerified,true);assert.equal(input.operation,undefined);assert.equal(input.operationDigest.length,43);verifiedDigest=input.operationDigest;
+    recoveryVerified=true;state="prepared";return json(summary());
+  }
   if(path===`/api/v1/signup/${setupId}`)return retired?json({},403):json(summary());
-  if(path==="/api/v1/signup-email/start")return json({verified:false,expiresAt:Date.now()+600_000});
-  if(path==="/api/v1/signup-email/verify"){assert.equal(input.code,"12345678");return json({verified:true,expiresAt:Date.now()+600_000});}
+  if(path==="/api/v1/signup-email/start")return json({verified:emailVerified,expiresAt:Date.now()+600_000});
+  if(path==="/api/v1/signup-email/verify"){assert.equal(input.code,"12345678");emailVerified=true;return json({verified:true,expiresAt:Date.now()+600_000});}
   if(path===`/api/v1/signup/${setupId}/advance`){
-    publicationAttempts++;enrollmentToken=input.enrollmentToken;
+    assert(recoveryVerified&&emailVerified);publicationAttempts++;enrollmentToken=input.enrollmentToken;
     if(input.operation){await assureValidSig([prepared.userRecoveryKey],input.operation);if(operation)assert.deepEqual(input.operation,operation);operation=input.operation;}
     assert(operation,"Expected retained signed genesis");
+    assert.equal(encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(JSON.stringify(operation))))),verifiedDigest);
     did=await didForCreateOp(operation);
     assert((await cidForCbor(operation)).toString().startsWith("b"));
     state=publicationAttempts===1?"awaiting-monitor":"passkey-enrollment";
@@ -297,7 +303,7 @@ try{
       assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),`Page overflows at ${width}px`);
     }
   };
-  const noPrematureSignIn=async()=>assert(await evaluate(`![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Sign in with a created passkey and finish setup')`),"Sign-in offered before confirmed passkey enrollment");
+  const noPrematureSignIn=async()=>assert(await evaluate(`![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Sign in and finish')`),"Sign-in offered before confirmed passkey enrollment");
   const click=async(text:string)=>{await wait(async()=>evaluate(`!![...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled)`),"button: "+text);
     await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled).click()`);};
   const fill=async(label:string,value:string)=>evaluate(`(()=>{const e=[...document.querySelectorAll('label')].find(l=>l.textContent.startsWith(${JSON.stringify(label)})).querySelector('input');e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
@@ -338,62 +344,51 @@ try{
   await cdp("Page.navigate",{url:origin+"/signup/recovery"});await wait(()=>has("Recovery setup preview"),"local recovery preview presentation");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Recovery preview overflows viewport");
   await cdp("Page.navigate",{url:origin+"/signup#invitation="+invitation});
-  await wait(()=>has("Start with an invitation"),"signup render");
-  await wait(async()=>evaluate(`location.hash==='' && document.querySelector('input[maxlength="2048"]')?.value==='fixture-invitation'`) ,"signup hydration");
-  assert.equal(await evaluate(`document.querySelector('[aria-label="Signup steps"] [aria-current=step]').textContent.trim()`),"1Invitation");
-  assert.deepEqual(await styles("body",["backgroundColor","margin"]),["rgb(247, 248, 245)","0px"]);
+  await wait(()=>has("Choose your Hail address"),"signup render");
+  await wait(async()=>evaluate(`location.hash==='' && document.querySelector('input[maxlength="2048"]')?.value==='fixture-invitation'`),"signup hydration");
+  assert.equal(await evaluate(`document.querySelector('[aria-label="Signup steps"] [aria-current=step]').textContent.trim()`),"Your address");
   assert.equal(await evaluate("document.querySelector('nav[aria-label=\"Main navigation\"]')===null"),true,"Signup keeps a focused shell");
-  assert.deepEqual(await styles("main > section",["display","gap","paddingTop","borderRadius"]),
-    ["flex","20px",process.env.HAIL_WIZARD_MOBILE==="true"?"18px":"28px","18px"]);
-  assert.deepEqual(await styles("input[type=password]",["borderTopWidth","borderTopStyle","borderRadius"]),["1px","solid","6px"]);
-  await fill("Your Hail address","alice");await fill("External security-alert email","alice@example.net");
+  await fill("Your Hail address","alice");await fill("Security email","alice@example.net");await click("Continue");
+  await wait(()=>has("How your account is protected"),"protection step");await screenshot("signup-protection");
   await evaluate(`document.querySelector('input[type=checkbox]').click()`);
-  await click("Create recovery kit locally");await wait(()=>has("Save and verify recovery"),"local key generation");
-  assert.equal(await evaluate(`document.querySelector('[aria-label="Signup steps"] [aria-current=step]').textContent.trim()`),"2Recovery kit");
+  await click("Set up recovery");await wait(()=>has("Download recovery kit"),"local generation and provisional preparation");
+  assert.equal(publicationAttempts,0);assert.equal(prepareCalls,1);
   secret=await evaluate("document.querySelector('[data-recovery-secret]').textContent");assert.equal(secret.length,43);
-  assert.deepEqual(await styles("[data-recovery-secret]",["userSelect","overflowWrap"]),["all","anywhere"]);
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Recovery screen overflows viewport");
-  await click("Save encrypted recovery backup");
-  await wait(async()=>{try{return (await readdir(work)).includes("hail-recovery.vault.json");}catch{return false;}},"vault download");
+  await click("Download recovery kit");
+  const packagePath=join(work,"hail-recovery-package.json");
+  await wait(async()=>{try{return (await readdir(work)).includes("hail-recovery-package.json");}catch{return false;}},"single recovery download");
+  const kit=JSON.parse(await readFile(packagePath,"utf8"));assert(/^did:plc:[a-z2-7]{24}$/.test(kit.vault.did));
   await evaluate(`document.querySelector('input[type=checkbox]').click()`);
-  await upload("Reopen the saved recovery backup",join(work,"hail-recovery.vault.json"));
-  await fill("Secret from your separate copy","A".repeat(43));await click("Verify saved recovery kit");
-  await wait(()=>has("could not finish"),"wrong-secret refusal");assert.equal(prepareCalls,0);
-  await fill("Secret from your separate copy",secret);await click("Verify saved recovery kit");await wait(()=>has("Save encrypted setup file"),"kit verification");
-  await click("Save encrypted setup file");await click("Check and reserve this address");await wait(()=>has("Verify external security alerts"),"address reservation");
-  await click("Send code / check verification");await wait(()=>has("Check your external inbox"),"email start");
-  await fill("Eight-digit code","12345678");await click("Verify email");await wait(()=>has("Review and sign your exact identity"),"email verification");
-  await fill("Recovery secret (used locally once to sign)",secret);await click("Sign this identity locally");await wait(()=>has("Save encrypted signed setup file"),"genesis signing");
-  await click("Save account recovery backup");await noPrematureSignIn();
-  assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Identity screen overflows viewport");
-  await click("Save encrypted signed setup file");
-  const checkpoint=await evaluate("localStorage.getItem('hail.pending-signup.v1')");let signedFile="";
-  await wait(async()=>{for(const name of await readdir(work))if(name.startsWith("hail-pending-setup")&&name.endsWith(".json")&&await readFile(join(work,name),"utf8")===checkpoint){signedFile=name;return true;}return false;},"signed setup download");
-  // Simulate storage eviction: reopen the actual downloaded signed file.
+  await click("I’ve saved both");await wait(()=>has("Check your saved recovery kit"),"verify screen");
+  assert.equal(await evaluate("document.querySelector('[data-recovery-secret]')===null"),true,"Generated secret is no longer shown during verification");
+  // Reload before verification: use the original downloaded kit, with no second save.
+  await cdp("Page.reload");await wait(()=>has("Encrypted setup was found"),"unverified setup resume");
+  await fill("Saved recovery secret",secret);await click("Continue setup");await wait(()=>has("Check your saved recovery kit"),"resume at verification");
+  await screenshot("signup-verify");
+  await upload("Saved recovery kit",packagePath);
+  await fill("Saved recovery secret","A".repeat(43));await click("Verify and continue");
+  await wait(()=>has("could not finish"),"wrong-secret refusal");assert(!recoveryVerified);assert.equal(publicationAttempts,0);
+  await fill("Saved recovery secret",secret);await click("Verify and continue");await wait(()=>has("Verify your security email"),"kit verification and automatic email");
+  await fill("Eight-digit code","12345678");await click("Verify email");await wait(()=>has("Ready to create your account"),"email verification");
+  assert.equal(publicationAttempts,0,"Explicit publication confirmation is required");
   const stored=await evaluate("localStorage.getItem('hail.pending-signup.v1')");assert(!stored.includes(secret)&&!stored.includes(setupToken));
-  await evaluate("localStorage.clear()");
-  await cdp("Page.reload");await wait(()=>has("Start with an invitation"),"clean-browser file resume");
-  await evaluate(`[...document.querySelectorAll('details')].find(d=>d.querySelector('summary')?.textContent==='Continue an interrupted setup').open=true`);
-  await upload("Pending setup file",join(work,signedFile));
-  await fill("Separate recovery secret",secret);await click("Continue setup");await wait(()=>has("Publish and activate this identity"),"resume exact genesis");
-  await click("Publish and activate this identity");await wait(()=>has("awaiting-monitor"),"monitor wait");
-  await noPrematureSignIn();
-  // A reload must not create another account/identity while monitoring is pending.
+  // A clean browser can reopen the one downloaded package before publication.
+  await evaluate("localStorage.clear()");await cdp("Page.reload");await wait(()=>has("Choose your Hail address"),"clean browser");
+  await click("Continue an interrupted setup");await upload("Recovery kit or pending setup file",packagePath);
+  await fill("Saved recovery secret",secret);await click("Continue setup");await wait(()=>has("Ready to create your account"),"resume original identity");
+  await click("Create my account");await wait(()=>has("Checking progress automatically"),"monitor wait");await noPrematureSignIn();
   await cdp("Page.reload");await wait(()=>has("Encrypted setup was found"),"monitor resume");
-  await fill("Separate recovery secret",secret);await click("Continue setup");await wait(()=>has("Retry activation with original state"),"pending monitor state");
-  await click("Retry activation with original state");await wait(()=>has("Create your passkey"),"activation");
+  await fill("Saved recovery secret",secret);await click("Continue setup");await wait(()=>has("Create your passkey"),"automatic activation after resume");
   await noPrematureSignIn();assert(!requests.some(r=>r.path.includes("authentication")),"Authentication requested before enrollment");
-  await click("Check passkey registration status");await wait(()=>has("Passkey registration is not confirmed"),"unenrolled status check");await noPrematureSignIn();
-  await click("Create passkey");await wait(()=>has("sign-in-required"),"real WebAuthn registration");
+  await click("Already created it? Check status");await noPrematureSignIn();
+  await click("Create passkey");await wait(()=>has("Try your new passkey"),"real WebAuthn registration");
   await cdp("Page.reload");await wait(()=>has("Encrypted setup was found"),"post-passkey resume");
-  await fill("Separate recovery secret",secret);await click("Continue setup");await wait(()=>has("sign-in-required"),"retained passkey state");
-  await click("Save account recovery backup");
-  await click("Sign in with a created passkey and finish setup");await wait(()=>has("Your account is ready"),"fresh passkey login and retirement");
-  assert.equal(await evaluate(`document.querySelector('[aria-label="Signup steps"] [aria-current=step]').textContent.trim()`),"4Ready");
+  await fill("Saved recovery secret",secret);await click("Continue setup");await wait(()=>has("Try your new passkey"),"retained passkey state");
+  await click("Sign in and finish");await wait(()=>has("Your account is ready"),"fresh passkey login and retirement");
   assert(retired&&authenticated&&enrolled);assert.equal(prepareCalls,1);assert.equal(publicationAttempts,2);
   assert.equal(await evaluate("localStorage.getItem('hail.pending-signup.v1')"),null);
-  await wait(async()=> (await readdir(work)).includes("hail-account-recovery.vault.json"),"final identity-bound backup");
-  const finalBackup=JSON.parse(await readFile(join(work,"hail-account-recovery.vault.json"),"utf8"));assert(/^did:plc:[a-z2-7]{24}$/.test(finalBackup.did));
+  assert.equal((await readdir(work)).filter(name=>name.endsWith(".json")).length,1,"Only one package download is required");
   await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your inbox').click()`);
   await wait(()=>has("No messages yet"),"completed alpha account inbox");
   assert(await evaluate(`document.querySelector('.account-popover').textContent.includes("alice@provider.example.com")`));

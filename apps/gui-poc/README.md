@@ -19,6 +19,50 @@ through the normal passkey approval. Uncategorized subscription creation is no
 longer supported; no migration command or conversion UI is needed. See
 [the staged relationship changes](../../docs/subscriptions-and-connections.md).
 
+## Invited signup
+
+`/signup` presents one screen at a time: address and security email, protection
+terms, recovery save/verification, email verification, explicit publication, and
+passkey creation/sign-in. Progress checks run automatically while activation is
+pending, respecting retry delays and pausing after twelve attempts or a terminal
+error. The user can resume with the same identity; retries never create new keys.
+
+New signups download **one** `hail-recovery-package.json` and keep its random
+secret separately. The package contains a DID-bound v1 vault, its exact signed
+genesis, and encrypted temporary setup authority. Reopening the actual saved
+package and entering the separately saved secret verifies it before publication.
+Verification sends only a hash commitment; the publishable signature stays local
+until the user confirms account creation. It remains the recovery backup after signup; no final replacement download is
+needed. The browser never sends the secret or private keys to the provider.
+
+Install provider migration 73 and the updated backend before deploying this UI.
+Unverified preparations live in a separate draft table; only explicit backup
+verification promotes them to registerable preparations. A database gate also
+blocks older writers from promoting unverified new-format ceremonies. Existing
+v1 pending setup files and legacy API signup remain supported. Resume retrieves
+any exact operation already retained by the server before attempting to sign.
+
+Encrypted browser state is a convenience, not the independent backup. A reload
+before verification reopens at file verification; a cleared/new browser can use
+the downloaded package. Before the first download, loss of both browser state
+and secret requires provider assistance for the provisional reservation. Setup
+capabilities still expire after 24 hours, and issued passkey enrollment after ten
+minutes; these time limits do not expire the recovery keys. No automatic deletion
+or reuse of expired reservations is introduced. Browser recovery of an already
+completed account remains outside this signup flow.
+
+The updated CLI can verify the package and extract its existing v1 vault offline
+with `hailp vault import --file <package> --vault <output> --expected-did <did>`.
+See the CLI README for private-file permissions. Recovery does not depend on
+valid setup tokens or a reachable provider. During rollback, retain schema 73
+and use compatible code; its down migration refuses to discard any new-format
+ceremony or provisional draft.
+
+`test:wizard` checks a single download, wrong-secret refusal, reload before
+verification, clean-browser package resume, monitoring interruption, real virtual
+WebAuthn enrollment/sign-in, and setup retirement. Run with
+`HAIL_WIZARD_MOBILE=true` for mobile-width Chromium coverage.
+
 ## Local signup recovery preview
 
 After building, run `HAIL_GUI_SIGNUP_PREVIEW=true` with the normal GUI environment

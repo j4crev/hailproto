@@ -1,5 +1,15 @@
 # Public Authentication And Consumer Signup
 
+Implementation update: the invited signup refactor now uses focused wizard screens
+and one recovery package. Provider schema 73 separates provisional preparation
+from verified backup evidence; the UI saves and verifies a final identity-bound
+package before explicit publication. Existing pending files are supported, and
+`hailp vault import` extracts a compatible v1 vault offline. See
+[invited signup](../apps/gui-poc/README.md#invited-signup) for rollout order,
+interruption behavior, expiry limits and rollback. This is a local implementation
+update, not a production deployment or a broader recovery-platform validation.
+
+
 Status: product plan, not implementation approval or a change to protocol requirements.
 
 ## Implementation Progress

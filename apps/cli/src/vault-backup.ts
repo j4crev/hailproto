@@ -1,3 +1,4 @@
+import { extractRecoveryVault } from "./recovery-package.js";
 import { unlink, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 import { privateFile, savePrivateBytes } from "./grant-revocation.js";
@@ -7,7 +8,9 @@ async function verified(bytes: Uint8Array, secret: Uint8Array, expectedDid?: str
   if (expectedDid !== undefined && expectedDid !== null && !/^did:plc:[a-z2-7]{24}$/.test(expectedDid)) {
     throw new Error("Expected DID must be a canonical PLC DID or unbound");
   }
-  const vault = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as UserVaultFile;
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  const input = JSON.parse(text);
+  const vault = input?.type === "hail.recovery-package" ? await extractRecoveryVault(text, secret) : input as UserVaultFile;
   const user = await unlockUserVault(vault, secret);
   if (expectedDid !== undefined && user.vault.did !== expectedDid) throw new Error("Vault does not match the reviewed DID");
   return { verified: true, did: vault.did, recoveryPublicKey: vault.recovery.publicDidKey,
@@ -15,11 +18,14 @@ async function verified(bytes: Uint8Array, secret: Uint8Array, expectedDid?: str
 }
 
 export async function verifyVaultFile(path: string, secret: Uint8Array, expectedDid?: string | null) {
-  return verified(await privateFile(path, 16_384), secret, expectedDid);
+  return verified(await privateFile(path, 98_304), secret, expectedDid);
 }
 
 export async function copyVerifiedVault(source: string, output: string, secret: Uint8Array, expectedDid?: string | null) {
-  const bytes = await privateFile(source, 16_384);
+  const sourceBytes = await privateFile(source, 98_304);
+  const text = new TextDecoder("utf-8", {fatal:true}).decode(sourceBytes);
+  const bytes = JSON.parse(text)?.type === "hail.recovery-package" ?
+    new TextEncoder().encode(JSON.stringify(await extractRecoveryVault(text, secret))) : sourceBytes;
   const result = await verified(bytes, secret, expectedDid);
   const parent = await stat(dirname(output));
   if (!parent.isDirectory() || (parent.mode & 0o077) !== 0) throw new Error("Vault destination directory must be private mode 0700");

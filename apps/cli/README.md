@@ -140,3 +140,25 @@ monitor independence, recovery, hardware-backed key storage, or a standardized
 cross-provider client API. See the [roadmap](docs/cli-roadmap.md) for
 the remaining production gates and the repository root for normative protocol
 specifications.
+
+## Browser recovery packages
+
+Invited browser signup saves `hail-recovery-package.json`. Keep its secret
+separately. The package contains the existing encrypted v1 owner vault with its
+DID, the exact signed genesis, and encrypted temporary signup state. Expiration
+or retirement of that temporary authority does not expire the recovery keys.
+
+To use the package with existing owner-recovery commands, copy it into a private
+folder (mode `0700`) and restrict the file to mode `0600`, then run:
+
+```sh
+hailp vault verify --vault /private/hail-recovery-package.json --expected-did did:plc:YOUR_DID
+hailp vault import --file /private/hail-recovery-package.json --vault /private/owner.vault.json --expected-did did:plc:YOUR_DID
+```
+
+Enter the separate recovery secret at the hidden prompt. Verification checks the
+owner signature, derived DID and encrypted keys offline. Import extracts a normal
+v1 vault without overwriting an existing output. Use that extracted vault for
+`account passkey-recover` or the other existing recovery commands. This does not
+publish the signed identity, contact the provider, or activate an unfinished
+account. Older plain v1 vault files continue to work unchanged.
