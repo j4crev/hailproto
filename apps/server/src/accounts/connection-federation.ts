@@ -79,8 +79,11 @@ export class ConnectionFederation {
   }
   private async verify(bytes:Uint8Array,operation:Control["operation"],fresh=false,tx=this.sql){
     const {payload,state}=await this.checkedControl(bytes,operation,fresh);
-    const pair=(await tx<{account_id:string}[]>`SELECT account_id FROM federated_connection_pairs
-      WHERE local_did=${payload.to} AND peer_did=${payload.from}`)[0];
+    const pair=(await tx<{account_id:string}[]>`SELECT p.account_id FROM federated_connection_pairs p
+      JOIN provider_accounts a ON a.id=p.account_id AND a.did=p.local_did
+      JOIN account_serving_generations g ON g.account_id=a.id AND g.generation=p.serving_generation
+      WHERE p.local_did=${payload.to} AND p.peer_did=${payload.from} AND a.onboarding_state='active' AND a.activation_verification_mode='public'
+        AND NOT EXISTS(SELECT 1 FROM provider_migration_fences f WHERE f.account_id=a.id)`)[0];
     if(pair)await this.retainProof(tx,pair.account_id,bytes,state.evidence);
     return payload;
   }

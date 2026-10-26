@@ -213,6 +213,7 @@ const migrations: readonly Migration[] = [
   { version: 69, name: "connection-reconstruction", url: new URL("../../migrations/0069_connection_reconstruction.sql", import.meta.url) },
   { version: 70, name: "unified-connections", url: new URL("../../migrations/0070_unified_connections.sql", import.meta.url) },
   { version: 71, name: "connection-transfer-orchestration", url: new URL("../../migrations/0071_connection_transfer_orchestration.sql", import.meta.url) },
+  { version: 72, name: "retired-connection-peers", url: new URL("../../migrations/0072_retired_connection_peers.sql", import.meta.url) },
 ];
 
 export class ProviderDatabase {

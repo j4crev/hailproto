@@ -23,7 +23,7 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     assertion:(challenge:string,change?:{origin?:string;flags?:number})=>any}[];
   try{
     await db.migrate();
-    const empty=await db.sql.reserve();try{for(const file of ['0071_connection_transfer_orchestration','0070_unified_connections','0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation','0063_connection_owner_signing','0062_connection_preview'])
+    const empty=await db.sql.reserve();try{for(const file of ['0072_retired_connection_peers','0071_connection_transfer_orchestration','0070_unified_connections','0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation','0063_connection_owner_signing','0062_connection_preview'])
       await empty.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{empty.release();}
     await db.migrate();
     const passkeys=new PasskeyAuth(db.sql,"provider.example.com",origin),accounts=new AccountApiRepository(db.sql);
@@ -59,7 +59,7 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     const [a,b,e,o,p]=users as [typeof users[number],typeof users[number],typeof users[number],typeof users[number],typeof users[number]];
     // Upgrade preserves obsolete bytes without authorizing them or allowing an
     // old writer/replayed invitation to recreate the relationship in either model.
-    const beforeUnified=await db.sql.reserve();try{for(const file of ['0071_connection_transfer_orchestration','0070_unified_connections'])await beforeUnified.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{beforeUnified.release();}
+    const beforeUnified=await db.sql.reserve();try{for(const file of ['0072_retired_connection_peers','0071_connection_transfer_orchestration','0070_unified_connections'])await beforeUnified.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{beforeUnified.release();}
     const obsoleteId=randomUUID();
     await db.sql`INSERT INTO account_connections(id,account_a,account_b,did_a,did_b,generation_a,generation_b,grant_id_a,grant_id_b,consent_format)
       VALUES(${obsoleteId},${e.id},${p.id},${e.did},${p.did},1,1,${randomUUID()},${randomUUID()},'joint-v1')`;
