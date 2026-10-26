@@ -44,7 +44,11 @@ It gives the exact order: generate/back up a local vault → extract its public
 recovery `did:key` → authorize the reserved name → complete monitored CLI signup
 → enroll a passkey → grant operator access → log in at `/admin`. The `did:key`
 is generated locally; it is not something you need to know in advance. The
-provider and monitor console handoffs are explicitly marked.
+guide defines your deployment values, uses absolute local CLI paths, and includes
+complete public-file upload, monitor enrollment, attestation download and final
+operator-grant commands. Each block identifies the machine where it runs.
+Successful passkey login alone is not sufficient: the final operator grant is
+required before `/admin` stops returning 403.
 
 Any existing active local account with a passkey can instead receive the explicit
 grant; a separate admin account is a recommendation, not a protocol requirement.
