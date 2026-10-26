@@ -327,11 +327,12 @@ try{
     const routeData=await (await fetch(dataUrl)).json();assert.equal(routeData.type,"redirect");
     assert.equal(new URL(routeData.location,origin).searchParams.get("next"),path,"Client-side loads must use the same login destination");
     await cdp("Page.navigate",{url:origin+path});
-    await wait(async()=>evaluate(`location.pathname==='/auth/login' && new URL(location.href).searchParams.get('next')===${JSON.stringify(path)}`),"anonymous screen uses shared login: "+path);
-    assert(await has("Sign in to Haili"));
+    await wait(async()=>evaluate(`location.pathname==='/' && new URL(location.href).searchParams.get('next')===${JSON.stringify(path)}`),"anonymous screen uses shared login: "+path);
+    assert(await has("Your permission."));
   }
   assert(!requests.some(r=>r.path==="/api/v1/account"),"Anonymous screens must not request account data");
-  await cdp("Page.navigate",{url:origin+"/auth/login"});await wait(()=>has("Sign in to Hail"),"passkey login screen");
+  await cdp("Page.navigate",{url:origin+"/auth/login"});await wait(()=>has("Your permission."),"legacy login redirects to homepage");
+  assert.equal(await evaluate("location.pathname"),"/");
   assert.equal(await evaluate("document.querySelector('nav[aria-label=\"Main navigation\"]')===null"),true,"Login keeps a focused shell");
   await cdp("Page.navigate",{url:origin+"/auth/recover#token=hailp_"+"C".repeat(43)});
   await wait(async()=>evaluate(`location.hash==='' && document.querySelector('button')?.disabled===false`),"owner-authorized enrollment consumes its fragment locally");
@@ -394,6 +395,11 @@ try{
   assert(await evaluate(`document.querySelector('.account-popover').textContent.includes("alice@provider.example.com")`));
   assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Inbox");
   assert(!await has("Account details"),"Account metadata must not clutter the feed");
+  await cdp("Page.navigate",{url:origin+"/?next=%2F"});
+  await wait(()=>has("Your permission."),"existing sessions can sign in again on homepage");
+  assert(await evaluate(`!document.querySelector('nav[aria-label="Main navigation"]')`),"Fresh sign-in uses the public shell");
+  await click("Sign in with a passkey");await wait(()=>has("No messages yet"),"fresh homepage sign-in returns to inbox");
+
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Empty feed overflows viewport");
   if(process.env.HAIL_WIZARD_MOBILE!=="true")assert(await evaluate("document.querySelector('.sidebar').getBoundingClientRect().right<=document.querySelector('main').getBoundingClientRect().left"),"Desktop sidebar overlaps content");
   else {
@@ -597,7 +603,7 @@ try{
   const qrFragment=new URLSearchParams({sender:peerAddress,did:peerDid}).toString();
   await cdp("Network.setCookie",{name:"hail_session",value:"hails_"+"B".repeat(43),url:origin,httpOnly:true,sameSite:"Lax"});
   await cdp("Page.navigate",{url:origin+"/permissions#"+qrFragment});
-  await wait(async()=>evaluate(`location.pathname==='/auth/login' && new URL(location.href).searchParams.get('next')==='/permissions' && location.hash===${JSON.stringify("#"+qrFragment)}`),"expired-session login preserves QR identity pin");
+  await wait(async()=>evaluate(`location.pathname==='/' && new URL(location.href).searchParams.get('next')==='/permissions' && location.hash===${JSON.stringify("#"+qrFragment)}`),"expired-session login preserves QR identity pin");
   const cookies=await cdp("Network.getCookies",{urls:[origin]});assert(!cookies.cookies.some((cookie:any)=>cookie.name==="hail_session"),"Expired cookie must be cleared");
   await click("Sign in with a passkey");await wait(()=>has("QR identity pin:"),"shared passkey login returns to QR review");
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
@@ -606,7 +612,7 @@ try{
   for(const [path,text] of [["/sent?after=older","Sent messages"],["/compose","Send a hail"],["/settings/security","Passkeys & security"]]){
     await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
     await cdp("Page.navigate",{url:origin+path});
-    await wait(async()=>evaluate(`location.pathname==='/auth/login' && new URL(location.href).searchParams.get('next')===${JSON.stringify(path)}`),"folder login: "+path);
+    await wait(async()=>evaluate(`location.pathname==='/' && new URL(location.href).searchParams.get('next')===${JSON.stringify(path)}`),"folder login: "+path);
     await click("Sign in with a passkey");
     await wait(async()=>evaluate(`location.pathname+location.search===${JSON.stringify(path)} && document.body.innerText.includes(${JSON.stringify(text)})`),"resume folder: "+path);
     assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),path+" overflows viewport");
@@ -664,7 +670,7 @@ try{
   const invitationLink=origin+"/connect#"+new URLSearchParams({id:fixtureInvitationId,did:peerDid,token:fixtureAdmissionToken});
   await cdp("Page.navigate",{url:invitationLink});await wait(()=>has("Sign in to review"),"signed-out scanner consent");
   await wait(async()=>evaluate("location.hash===''"),"admission token removed from URL");
-  await evaluate(`document.querySelector('a[href="/auth/login?next=%2Fconnect"]').click()`);await wait(()=>has("Sign in to Haili"),"scanner login");
+  await evaluate(`document.querySelector('a[href="/?next=%2Fconnect"]').click()`);await wait(()=>has("Your permission."),"scanner login");
   assert.equal(await evaluate("new URL(location.href).searchParams.get('next')"),"/connect");
   await click("Sign in with a passkey");await wait(()=>has("Review connection code"),"scanner returns without token in login URL");
   await click("Review connection code");await wait(()=>has("Review before connecting"),"identity pinned scanner review");

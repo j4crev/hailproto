@@ -9,7 +9,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   const response = await resolve(event);
   response.headers.set("cache-control","no-store");
   // Native same-origin POSTs need a non-null Origin for SvelteKit's CSRF check.
-  response.headers.set("referrer-policy",event.url.pathname.startsWith("/auth/")?"no-referrer":"same-origin");
+  response.headers.set("referrer-policy",(event.url.pathname.startsWith("/auth/") || (event.url.pathname === "/" && event.url.searchParams.has("next")))?"no-referrer":"same-origin");
   if (event.url.pathname === "/signup/recovery") {
     // Additional policy intersects SvelteKit's nonce-bearing policy. No API calls
     // or form submissions are needed while preview recovery material is unlocked.

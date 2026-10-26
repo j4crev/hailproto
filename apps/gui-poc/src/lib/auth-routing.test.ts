@@ -4,7 +4,8 @@ vi.mock("$env/dynamic/private",()=>({env:{}}));
 import {isAccountPath,loginPath,returnPath} from "./auth-routing.js";
 import {handle} from "../hooks.server.js";
 import {load as layout} from "../routes/+layout.server.js";
-import {load as login} from "../routes/auth/login/+page.server.js";
+import {load as home} from "../routes/+page.server.js";
+import {load as legacyLogin} from "../routes/auth/login/+page.server.js";
 
 it("uses one sign-in destination for every anonymous private screen and action",async()=>{
   const cookies={get:()=>undefined},resolve=vi.fn();
@@ -16,7 +17,8 @@ it("uses one sign-in destination for every anonymous private screen and action",
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe(loginPath(url));
       expect(response.headers.get("cache-control")).toBe("no-store");
-      expect(login({url:new URL(loginPath(url),url)} as never)).toEqual({returnTo:path+search});
+      expect(new URL(loginPath(url),url).pathname).toBe("/");
+      expect(new URL(loginPath(url),url).searchParams.get("next")).toBe(path+search);
     }
   }
   expect(resolve).not.toHaveBeenCalled();
@@ -30,4 +32,20 @@ it("allows only local inbox return paths, including public QR fragments",()=>{
     expect(returnPath(value)).toBe("/");
   for(const value of ["/admin","/categories","/account","/settings","/connections","/","/sent?after=page","/permissions#sender=a%40example.com&did=did%3Aplc%3Aa","/compose","/settings/security"])
     expect(returnPath(value)).toBe(value);
+});
+
+it("redirects old sign-in links to the homepage with a validated destination",()=>{
+  for(const [next,expected] of [["/admin","/admin"],["/connect?token=secret","/connect"],["https://evil.example","/"],["/auth/login","/"]]){
+    expect(()=>legacyLogin({url:new URL("https://provider.example/auth/login?next="+encodeURIComponent(next))} as never))
+      .toThrow(expect.objectContaining({status:303,location:"/?next="+encodeURIComponent(expected)}));
+  }
+});
+
+it("shows homepage sign-in for validated return paths even with an existing session",async()=>{
+  for(const token of [undefined,"existing-session"]){
+    for(const [next,expected] of [["/admin","/admin"],["/connect?token=secret","/connect"],["https://evil.example","/"]]){
+      const url=new URL("https://provider.example/?next="+encodeURIComponent(next));
+      await expect(home({url,cookies:{get:()=>token}} as never)).resolves.toEqual({configured:false,returnTo:expected});
+    }
+  }
 });

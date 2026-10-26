@@ -9,8 +9,9 @@ The [browser-client roadmap](../../docs/browser-client-roadmap.md) tracks its
 incremental productization. The responsive teal client now covers the feed,
 composer, message readers, Sent, sender permissions, Account, Settings and security. The public home
 does not show private folders. Private links consistently lead to passkey sign-in
-and return to the requested screen. The homepage also signs in directly with a
-passkey; QR fragments remain browser-local and do not
+and return to the requested screen. The homepage is the shared passkey sign-in screen, including fresh sign-in
+for existing sessions. Validated `next` destinations return users to the requested
+screen; old `/auth/login` links redirect to the homepage. QR fragments remain browser-local and do not
 authorize anything automatically. Connection codes and existing connections live at `/connections`, separate from
 passkey security. Organization semantics are not implemented.
 
@@ -105,7 +106,7 @@ HAIL_GUI_API_ORIGIN=http://localhost:3000 HAIL_GUI_ORIGIN=http://localhost:5173 
 The HTTP commands above support GUI development after an account already has a
 passkey. Initial owner-authorized enrollment requires an HTTPS provider/GUI origin;
 use the enrollment link issued by account creation or `hailp account
-passkey-recover` in that environment, then sign in at `/auth/login`. The legacy
+passkey-recover` in that environment, then sign in from the homepage. The legacy
 `/auth/enroll/*` bootstrap credential proxy is disabled; setting
 `HAIL_GUI_CREDENTIAL_FILE` does not enable passkey enrollment.
 Production serves the GUI and reverse-proxies `/api` on one HTTPS origin, normally

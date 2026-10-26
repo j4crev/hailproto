@@ -39,7 +39,7 @@
     {#if pending&&!busy}<button class="hail-button-secondary" onclick={()=>{pending=null;email="";message="The previous invitation may still be delivered. A new request creates a separate invitation.";}}>Start another invitation</button>{/if}
     {#if message}<p role="status">{message}</p>{/if}
     {#if inviteUrl}<label for="invite-link">Private invitation link</label><textarea id="invite-link" readonly value={inviteUrl} rows="3"></textarea><button class="hail-button-secondary" onclick={copy}>{copied?"Copied":"Copy link"}</button>{/if}
-    <p class="hint">Creating invitations requires a passkey login within the last ten minutes. <a href="/auth/login?next=%2Fadmin">Sign in again</a></p>
+    <p class="hint">Creating invitations requires a passkey login within the last ten minutes. <a href="/?next=%2Fadmin">Sign in again</a></p>
   </section>
   <section class="hail-card panel" aria-labelledby="recent-invitations">
     <h2 id="recent-invitations">Recent invitations</h2><p class="hint">Latest 100 invitations created through this dashboard. “Accepted” means signup has started.</p>

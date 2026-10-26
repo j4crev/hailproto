@@ -238,12 +238,12 @@
       {:else if screen==="expired"}
         <p>The passkey setup window expired. Keep your recovery kit and contact the provider to continue with this identity. Starting over would create a different identity.</p>
         <button class="hail-button-secondary" disabled={busy||now<retryAt} onclick={()=>run(checkEnrollment)}>Check passkey status</button>
-        <a href="/auth/login">Sign in with an existing passkey</a>
+        <a href="/?next=%2F">Sign in with an existing passkey</a>
       {:else if screen==="resume"}
         <p>{cached?"Encrypted setup was found in this browser. Enter your recovery secret, or choose your saved kit.":"Open your recovery kit and enter its separate secret to continue."} Older pending setup files are also accepted.</p>
         <form onsubmit={e=>{e.preventDefault();void run(restore);}}><label>Recovery kit or pending setup file<input type="file" required={!cached} accept=".json,application/json" onchange={e=>file=e.currentTarget.files?.[0]??null} /></label><label>Saved recovery secret<input type="password" required bind:value={enteredSecret} autocomplete="off" spellcheck="false" maxlength="43" /></label><button class="hail-button" disabled={busy||now<retryAt}>Continue setup</button></form>
         <p>Setup access lasts 24 hours. After that, keep your kit and contact the provider. This screen resumes signup; it does not recover an existing account.</p>
-        <a href="/auth/login">Already finished? Sign in</a>
+        <a href="/?next=%2F">Already finished? Sign in</a>
         {#if !cached}<button class="text-link" onclick={()=>go("address")}>Back</button>{/if}
       {:else if screen==="done"}
         <p>Keep your recovery kit and secret separately. Your temporary setup access has been retired.</p><a class="hail-button" href="/">Open your inbox</a>

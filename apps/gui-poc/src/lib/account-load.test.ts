@@ -48,7 +48,7 @@ it("redirects an expired permission session to the shared login and preserves it
   const cookies={get:()=>token,delete:vi.fn()};
   try{
     await expect(loadPermissions({url:new URL(provider+"/permissions?after=page"),cookies,setHeaders:vi.fn()} as never))
-      .rejects.toMatchObject({status:303,location:"/auth/login?next=%2Fpermissions%3Fafter%3Dpage"});
+      .rejects.toMatchObject({status:303,location:"/?next=%2Fpermissions%3Fafter%3Dpage"});
     expect(cookies.delete).toHaveBeenCalledWith("hail_session",{path:"/"});
   }finally{vi.unstubAllGlobals();}
 });

@@ -15,7 +15,7 @@
     {href: "/connections", label: "Connections", icon: "user"},
     {href: "/categories", label: "Categories", icon: "feed"}
   ];
-  let focused = $derived(!page.data.hasAccountSession || page.url.pathname.startsWith("/auth/") || page.url.pathname.startsWith("/signup"));
+  let focused = $derived(!page.data.hasAccountSession || (page.url.pathname === "/" && page.url.searchParams.has("next")) || page.url.pathname.startsWith("/auth/") || page.url.pathname.startsWith("/signup"));
   let address = $derived(page.data.account?.address ?? "Your account");
   const active = (href: string) => href === "/" || href === "/?view=connections"
     ? (page.url.pathname === "/" || page.url.pathname.startsWith("/message/")) &&

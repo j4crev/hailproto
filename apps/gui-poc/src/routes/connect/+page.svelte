@@ -63,7 +63,7 @@
   {#if message}<p class="hail-error" role="alert">{message}</p>{/if}
   {#if pendingRequest}<p class="hail-card p-5 text-sm" role="status">Connecting across providers. Your saved request is retried automatically, even if you close this tab. Check synchronization in Connections.</p>{/if}
   {#if connected}<section class="hail-card grid gap-4 p-5"><h2 class="m-0 text-xl">Connection saved</h2><p class="m-0 text-sm">Find it in Connections or choose it in Compose to send a personal message. Subscriptions are unchanged.</p></section>
-  {:else if !data.signedIn}<section class="hail-card grid gap-4 p-5"><p class="m-0 text-sm">Sign in to this provider to review this code. It grants no account access. Your code stays in this tab, not the login URL.</p><a class="hail-button justify-self-start" href="/auth/login?next=%2Fconnect">Sign in to review</a></section>
+  {:else if !data.signedIn}<section class="hail-card grid gap-4 p-5"><p class="m-0 text-sm">Sign in to this provider to review this code. It grants no account access. Your code stays in this tab, not the login URL.</p><a class="hail-button justify-self-start" href="/?next=%2Fconnect">Sign in to review</a></section>
   {:else if recoveryNeeded}
       {#if busy}<p class="text-sm text-muted" role="status">Checking your connection change…</p>
       {:else}<button class="hail-button-secondary justify-self-start" onclick={()=>run(check)}>Try again</button>{/if}

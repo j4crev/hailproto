@@ -15,7 +15,7 @@
     <div class="welcome-copy">
       <h1>Your inbox.<br /><span>Your permission.</span></h1>
       <p class="welcome-description">Messages from people you choose. Updates on topics you want. With Haili, someone knowing your address isn’t enough to reach your inbox.</p>
-      <div class="welcome-signin"><PasskeySignIn /><p>Already have an invitation? Use your signup link.</p></div>
+      <div class="welcome-signin"><PasskeySignIn returnTo={data.returnTo} /><p>Already have an invitation? Use your signup link.</p></div>
     </div>
     <aside class="subscription-example" aria-labelledby="subscription-example-title">
       <h2 id="subscription-example-title">A little more selective.</h2>

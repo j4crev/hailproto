@@ -12,5 +12,5 @@ export function returnPath(value: string | null): string {
 }
 
 export function loginPath(url?: URL): string {
-  return "/auth/login?next=" + encodeURIComponent(returnPath(url ? url.pathname + url.search : "/"));
+  return "/?next=" + encodeURIComponent(returnPath(url ? url.pathname + url.search : "/"));
 }

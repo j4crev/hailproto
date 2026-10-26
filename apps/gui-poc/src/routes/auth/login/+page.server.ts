@@ -1,5 +1,6 @@
+import {redirect} from "@sveltejs/kit";
 import {returnPath} from "$lib/auth-routing.js";
 
 export function load({url}) {
-  return {returnTo: returnPath(url.searchParams.get("next"))};
+  redirect(303,"/?next=" + encodeURIComponent(returnPath(url.searchParams.get("next"))));
 }
