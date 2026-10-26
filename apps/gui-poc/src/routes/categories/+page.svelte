@@ -6,7 +6,7 @@
   let {data} = $props();
   let name = $state(untrack(() => data.definition.display_name));
   let description = $state(untrack(() => data.definition.description ?? ""));
-  let categories = $state<(Category & {persistedId?: string})[]>(untrack(() => data.definition.categories.map(category => ({...category, persistedId: data.revision ? category.id : undefined}))));
+  let categories = $state<(Category & {persistedId?: string})[]>(untrack(() => data.definition.categories.filter(category => category.id !== "general").map(category => ({...category, persistedId: data.revision ? category.id : undefined}))));
   let busy = $state(false), ready = $state(false), message = $state(""), conflict = $state(false), showQr = $state(false), copied = $state("");
   const share = $derived(senderLink(data.origin, data.account.address, data.account.did));
   const qr = $derived(showQr && share ? senderQr(share) : null);
@@ -56,19 +56,24 @@
       <label class="hail-field">Description (optional)<input bind:value={description} maxlength="1024" /></label>
       <section class="grid min-w-0 gap-4" aria-label="Publishing categories">
         <h2 class="m-0 text-lg">Your categories</h2>
+        <div class="grid gap-2 rounded-xl border border-solid border-line bg-canvas p-4" aria-label="General category">
+          <div class="flex items-center justify-between gap-3"><strong>General</strong><span class="text-xs text-muted">Built-in · Fixed</span></div>
+          <p class="m-0 text-sm text-muted">For people subscribed to General. Does not include other categories.</p>
+          {#if data.revision && !data.definition.categories.some(category => category.id === 'general')}<p class="m-0 text-xs text-muted">Added to your profile when you save.</p>{/if}
+        </div>
         {#each categories as category, index}
           <div class="grid min-w-0 gap-4 rounded-xl border border-solid border-line p-4">
             <div class="flex items-center justify-between gap-3"><strong class="text-sm">Category {index + 1}</strong><button class="hail-button-secondary text-danger" type="button" onclick={() => {categories = categories.filter((_, i) => i !== index);}} aria-label={`Remove category ${index + 1}`}>Remove</button></div>
             <div class="grid items-start gap-4 sm:grid-cols-2">
             <label class="hail-field">Category name<input bind:value={category.label} maxlength="128" required placeholder="News, events, or new releases" /></label>
-            <label class="hail-field">Category ID<input bind:value={category.id} readonly={!!category.persistedId} maxlength="64" pattern={"[a-z0-9][a-z0-9._\\-]{0,63}"} required placeholder="news" /><span class="text-xs font-normal text-muted">{category.persistedId ? 'This ID stays fixed for existing subscriptions.' : 'A permanent ID, such as news or events. Use lowercase letters, numbers, dots, hyphens or underscores.'}</span></label>
+            <label class="hail-field">Category ID<input bind:value={category.id} readonly={!!category.persistedId} maxlength="64" pattern={"(?!general$)[a-z0-9][a-z0-9._\\-]{0,63}"} required placeholder="news" /><span class="text-xs font-normal text-muted">{category.persistedId ? 'This ID stays fixed for existing subscriptions.' : 'A permanent ID, such as news or events. Use lowercase letters, numbers, dots, hyphens or underscores. General is reserved.'}</span></label>
             </div>
             <label class="hail-field">Category description (optional)<input bind:value={category.description} maxlength="1024" /></label>
           </div>
         {/each}
-        {#if !categories.length}<p class="m-0 text-sm text-muted">No categories. Add one so people can subscribe.</p>{/if}
-        <button class="hail-button-secondary justify-self-start" type="button" disabled={categories.length >= 100} onclick={() => {categories = [...categories, {id: '', label: ''}];}}>Add category</button>
-        <p class="m-0 text-xs text-muted">Removing a category does not revoke existing subscriptions.</p>
+        {#if !categories.length}<p class="m-0 text-sm text-muted">Add custom categories for specific topics.</p>{/if}
+        <button class="hail-button-secondary justify-self-start" type="button" disabled={categories.length >= 99} onclick={() => {categories = [...categories, {id: '', label: ''}];}}>Add category</button>
+        <p class="m-0 text-xs text-muted">Removing a custom category does not revoke existing subscriptions.</p>
       </section>
       <button class="hail-button justify-self-start" disabled={conflict}>{busy ? 'Saving…' : data.revision ? 'Save changes with passkey' : 'Create sender profile with passkey'}</button>
     </fieldset>

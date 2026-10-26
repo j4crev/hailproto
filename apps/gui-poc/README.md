@@ -125,6 +125,9 @@ Subscriptions retains `/permissions` so existing sender links and QR codes keep
 working. It manages incoming subscriptions only. `/categories` is the publishing
 home: create a Sender Profile, edit its public name and description, add or remove
 categories, and share a sender QR or subscription link after the profile exists.
+General is built-in and fixed (ID `general`, label `General`, no description).
+Browser saves add or normalize it without changing existing subscriptions; up to
+99 custom categories remain editable. API clients retain optional General.
 Published category IDs stay fixed; category removal does not revoke old Grants.
 Existing profile versions, avatars, and legacy uncategorized settings are retained.
 

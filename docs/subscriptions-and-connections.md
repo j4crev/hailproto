@@ -21,6 +21,19 @@ Future connection authorization, reply changes and attachments are not live.
   sender-chosen correspondence label. A receiver cannot prove that every other
   subscriber received a publication or infer the semantic intent of arbitrary text.
 
+## Haili Built-in General Category
+
+Haili's browser editor always includes General, with fixed ID `general`, label
+`General`, and no editable description. It cannot be renamed or removed. Up to
+99 custom categories can accompany it. Browser profile saves enforce this rule.
+Existing profiles gain or normalize General on their next explicit browser save;
+loading the editor performs no write and existing Grants remain unchanged.
+General only reaches its explicitly authorized subscribers, never all categories.
+
+This is a Haili product rule, not a protocol requirement: profiles managed through
+API credentials with `account:write` may still omit General. The historical
+"ordinary offered category" decision below describes the protocol representation.
+
 ## Stage 1 — Named Subscription Categories (Implemented)
 
 The operator chose a simpler controlled-alpha transition: no special migration

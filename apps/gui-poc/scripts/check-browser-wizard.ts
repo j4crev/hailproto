@@ -505,6 +505,7 @@ try{
   await cdp("Page.navigate",{url:origin+"/categories"});await wait(()=>has("Create sender profile with passkey"),"first sender profile setup");
   await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"profile editor ready");
   assert(!await has("Show my sender QR"),"QR is offered only after publishing a profile");
+  assert(await evaluate(`!!document.querySelector('[aria-label="General category"]') && !document.querySelector('[aria-label="General category"] input, [aria-label="General category"] button')`),"General is built-in with no edit or remove controls");
   await fill("Sender name","Alice's updates");
   profileVerificationMismatch=true;await click("Create sender profile with passkey");
   await wait(()=>has("You verified a different account."),"profile draft cannot be saved to a different passkey account");
@@ -514,12 +515,12 @@ try{
   assert.equal(profileWrites,1);assert.deepEqual(ownProfile.profile.categories.map((c:any)=>({id:c.id,label:c.label})),[{id:"general",label:"General"}]);
   await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"saved profile editor ready");
   await click("Add category");
-  await evaluate(`(()=>{const fields=document.querySelectorAll('[aria-label="Publishing categories"] input');for(const [index,value] of [[3,'News'],[4,'news']]){fields[index].value=value;fields[index].dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+  await evaluate(`(()=>{const fields=document.querySelectorAll('[aria-label="Publishing categories"] input');for(const [index,value] of [[0,'News'],[1,'news']]){fields[index].value=value;fields[index].dispatchEvent(new Event('input',{bubbles:true}));}})()`);
   await click("Save changes with passkey");await wait(async()=>profileWrites===2&&await has("Show my sender QR"),"category addition saved");
   await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"updated category editor ready");
   assert.deepEqual(ownProfile.profile.categories.map((c:any)=>c.id),['general','news']);
-  assert(await evaluate(`Array.from(document.querySelectorAll('[aria-label="Publishing categories"] input[readonly]')).map(i=>i.value).join(',')==='general,news'`),"Published category IDs stay stable");
-  await evaluate(`document.querySelector('[aria-label="Remove category 2"]').click()`);
+  assert(await evaluate(`Array.from(document.querySelectorAll('[aria-label="Publishing categories"] input[readonly]')).map(i=>i.value).join(',')==='news'`),"Published category IDs stay stable");
+  await evaluate(`document.querySelector('[aria-label="Remove category 1"]').click()`);
   await click("Save changes with passkey");await wait(async()=>profileWrites===3&&await has("Show my sender QR"),"category removal saved");
   await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"removed category editor ready");
   assert.deepEqual(ownProfile.profile.categories.map((c:any)=>c.id),['general']);

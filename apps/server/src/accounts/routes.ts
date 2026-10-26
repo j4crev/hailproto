@@ -237,6 +237,12 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
             !Number.isSafeInteger(input.expectedRevision)||Number(input.expectedRevision)<0)throw new Error("Invalid profile request");
           definition=parseSenderProfileDefinition(input.definition);
         }catch{return problem(400);}
+        // Haili browser publishing keeps General fixed; protocol/API clients
+        // with account:write retain support for arbitrary offered categories.
+        if(!session.scopes.includes("account:write")){
+          const general=definition.categories.filter(category=>category.id==="general");
+          if(general.length!==1||general[0]!.label!=="General"||general[0]!.description!==undefined)return problem(400);
+        }
         const saved=await profiles.createOrReuse(session.canonical_address,definition,Number(input.expectedRevision));
         return context.json({type:"hailp.sender-profile",version:1,revision:saved.revision,
           digest:encodeBase64Url(saved.digest),cose:encodeBase64Url(saved.cose),

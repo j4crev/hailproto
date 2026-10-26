@@ -67,6 +67,11 @@ it("limits browser profile writes to fresh same-origin passkey sessions without 
   expect((await save()).status).toBe(403);
   session.passkey_credential_id="passkey";
   expect((await save({Authorization:"Bearer read-only","Content-Type":"application/json"})).status).toBe(403);
+  for(const categories of [[],[{id:"general",label:"Renamed"}],[{id:"general",label:"General",description:"Changed"}],
+    [{id:"general",label:"General"},{id:"general",label:"General"}]]){
+    const invalid={expectedRevision:0,definition:{display_name:"Alice",offers_uncategorized:false,categories}};
+    expect((await app.request("/api/v1/account/profile",{method:"POST",headers,body:JSON.stringify(invalid)})).status).toBe(400);
+  }
   expect(profiles.createOrReuse).not.toHaveBeenCalled();
   expect((await save()).status).toBe(200);
   expect(profiles.createOrReuse).toHaveBeenCalledTimes(1);
