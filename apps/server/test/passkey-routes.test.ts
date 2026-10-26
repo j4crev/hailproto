@@ -70,6 +70,29 @@ describe("passkey routes",()=>{
     expect(response.headers.get("Set-Cookie")).toContain("hail_session=; Max-Age=0");
   });
 
+  it("revokes only selected sessions and keeps the cookie unless this session is selected",async()=>{
+    for(const id of ["00000000-0000-4000-8000-000000000003","00000000-0000-4000-8000-000000000002"]){
+      const {app,service}=fixture();
+      const response=await app.request("/api/v1/auth/passkeys/sessions/revoke",{method:"POST",
+        headers:{Origin:origin,"Content-Type":"application/json",Cookie:`hail_session=${token}`},
+        body:JSON.stringify({sessionIds:[id]})});
+      expect(response.status).toBe(200);
+      expect(service.revokeSessions).toHaveBeenCalledWith(expect.any(Object),[id]);
+      expect(response.headers.has("Set-Cookie")).toBe(id.endsWith("2"));
+    }
+  });
+
+  it("rejects malformed selections without falling back to signing out everywhere",async()=>{
+    for(const value of [{sessionIds:[]},{sessionIds:["invalid"]},{sessionIds:null},{}, {sessionIds:[2]}]){
+      const {app,service}=fixture();
+      const response=await app.request("/api/v1/auth/passkeys/sessions/revoke",{method:"POST",
+        headers:{Origin:origin,"Content-Type":"application/json"},body:JSON.stringify(value)});
+      expect(response.status).toBe(400);
+      expect(service.revokeSessions).not.toHaveBeenCalled();
+      expect(response.headers.has("Set-Cookie")).toBe(false);
+    }
+  });
+
   it("allows CLI prepare/exchange without an Origin but protects browser approval with the pinned origin",async()=>{
     const {app,service}=fixture(),json={"Content-Type":"application/json"};
     expect((await app.request("/api/v1/auth/authorization/prepare",{method:"POST",headers:json,body:"{}"})).status).toBe(200);

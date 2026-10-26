@@ -251,7 +251,14 @@ export class PasskeyAuth {
       SELECT credential_id,label,device_type,backed_up,created_at,last_used_at FROM account_passkeys
       WHERE account_id=${session.account_id} AND serving_generation=${session.serving_generation??1} AND revoked_at IS NULL
       ORDER BY created_at,credential_id`;
-    return {recentlyVerified:session.scopes.includes("credentials:write")||Boolean(session.passkey_verified_at&&
+    const sessions=await this.sql<{id:string;label:string;created_at:Date;last_seen_at:Date}[]>`
+      SELECT s.id,p.label,s.created_at,s.last_seen_at FROM account_passkey_sessions s
+      JOIN account_passkeys p ON p.credential_id=s.credential_id AND p.revoked_at IS NULL
+      WHERE s.account_id=${session.account_id} AND s.serving_generation=${session.serving_generation??1}
+        AND s.revoked_at IS NULL AND s.expires_at>now() AND s.last_seen_at>now()-interval '30 minutes'
+      ORDER BY s.created_at DESC,s.id`;
+    return {sessions:sessions.map(row=>({id:row.id,label:row.label,createdAt:row.created_at.toISOString(),
+      lastSeenAt:row.last_seen_at.toISOString(),current:row.id===session.credential_id})),recentlyVerified:session.scopes.includes("credentials:write")||Boolean(session.passkey_verified_at&&
       session.passkey_verified_at.getTime()>Date.now()-5*60_000),passkeys:rows.map(row=>({credentialId:row.credential_id,label:row.label,
       deviceType:row.device_type,backedUp:row.backed_up,createdAt:row.created_at.toISOString(),
       lastUsedAt:row.last_used_at?.toISOString()??null,current:row.credential_id===session.passkey_credential_id}))};
@@ -279,10 +286,18 @@ export class PasskeyAuth {
     return {revoked:true};
   }
 
-  async revokeSessions(session:AccountApiSession){
+  async revokeSessions(session:AccountApiSession,sessionIds?:string[]){
     this.management(session);
-    await this.sql`UPDATE account_passkey_sessions SET revoked_at=COALESCE(revoked_at,now())
-      WHERE account_id=${session.account_id} AND serving_generation=${session.serving_generation??1} AND revoked_at IS NULL`;
+    if(sessionIds!==undefined&&(!Array.isArray(sessionIds)||!sessionIds.length||
+      sessionIds.some(id=>typeof id!=="string"||!UUID.test(id))))throw new PasskeyError(400);
+    if(sessionIds){
+      await this.sql`UPDATE account_passkey_sessions SET revoked_at=COALESCE(revoked_at,now())
+        WHERE account_id=${session.account_id} AND serving_generation=${session.serving_generation??1}
+          AND id IN ${this.sql(sessionIds)} AND revoked_at IS NULL`;
+    }else{
+      await this.sql`UPDATE account_passkey_sessions SET revoked_at=COALESCE(revoked_at,now())
+        WHERE account_id=${session.account_id} AND serving_generation=${session.serving_generation??1} AND revoked_at IS NULL`;
+    }
     return {revoked:true};
   }
 

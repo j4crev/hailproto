@@ -26,6 +26,17 @@ integration("passkey session migration",()=>{
       expect(authenticated.canonical_address).toBe("before@example.com");expect(authenticated.passkey_credential_id).toBe(credential);
       const passkeys=new PasskeyAuth(db.sql,"example.com","https://example.com");
       expect((await passkeys.list(authenticated)).passkeys).toHaveLength(2);
+      expect((await passkeys.list(authenticated)).sessions).toEqual([expect.objectContaining({id:sessionId,current:true,label:"Primary"})]);
+      const secondId=randomUUID(),secondToken=`hails_${encodeBase64Url(randomBytes(32))}`;
+      await db.sql`INSERT INTO account_passkey_sessions(id,token_hash,account_id,credential_id,serving_generation,scopes,expires_at)
+        VALUES(${secondId},${tokenHash(secondToken)},${account},${credential},1,
+        '["account:read","grants:read","messages:read","messages:write"]',now()+interval '12 hours')`;
+      expect((await passkeys.list(authenticated)).sessions).toHaveLength(2);
+      await passkeys.revokeSessions(authenticated,[secondId]);
+      expect(await accounts.authenticate(undefined,secondToken)).toBeNull();
+      expect(await accounts.authenticate(undefined,token)).not.toBeNull();
+      expect((await passkeys.list(authenticated)).sessions.map(item=>item.id)).toEqual([sessionId]);
+      await db.sql`DELETE FROM account_passkey_sessions WHERE id=${secondId}`;
       await passkeys.rename(authenticated,otherCredential,"Hardware key");await passkeys.revoke(authenticated,otherCredential);
       expect((await passkeys.list(authenticated)).passkeys.map(key=>key.label)).toEqual(["Primary"]);
       await db.sql`UPDATE provider_accounts SET canonical_address='after@example.com' WHERE id=${account}`;
@@ -41,6 +52,11 @@ integration("passkey session migration",()=>{
         await rollback.unsafe("ROLLBACK");
       }finally{rollback.release();}
       const browserRollback=await db.sql.reserve();try{
+        for(const file of ["0072_retired_connection_peers.sql","0071_connection_transfer_orchestration.sql",
+          "0070_unified_connections.sql","0069_connection_reconstruction.sql","0068_connection_handover_barriers.sql",
+          "0067_connection_proof_authority.sql","0066_connection_handover_preparations.sql"]){
+          await browserRollback.unsafe(await Bun.file(new URL(`../migrations/rollback/${file}`,import.meta.url)).text());
+        }
         await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());
         await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());
         await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());

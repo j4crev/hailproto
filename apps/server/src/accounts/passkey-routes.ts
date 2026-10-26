@@ -12,7 +12,7 @@ const COOKIE="hail_session";
 const OPERATIONS:Record<string,string>={
   "/api/v1/auth/passkeys/registration/options":"passkey.registration-options","/api/v1/auth/passkeys/registration":"passkey.registration",
   "/api/v1/auth/passkeys":"passkey.list","/api/v1/auth/passkeys/manage":"passkey.manage",
-  "/api/v1/auth/passkeys/sessions/revoke":"session.revoke-all","/api/v1/auth/passkeys/recovery/options":"passkey.recovery-options",
+  "/api/v1/auth/passkeys/sessions/revoke":"session.revoke","/api/v1/auth/passkeys/recovery/options":"passkey.recovery-options",
   "/api/v1/auth/passkeys/recovery":"passkey.recovery","/api/v1/auth/passkeys/authentication/options":"passkey.authentication-options",
   "/api/v1/auth/passkeys/authentication":"passkey.authentication","/api/v1/auth/authorization/prepare":"authorization.prepare",
   "/api/v1/auth/authorization/details":"authorization.details","/api/v1/auth/authorization/complete":"authorization.complete",
@@ -79,8 +79,16 @@ export function registerPasskeyRoutes(app:Hono,passkeys:PasskeyAuth,accounts:Acc
   app.post("/api/v1/auth/passkeys/sessions/revoke",context=>run(context,async()=>{
     const session=await accounts.authenticate(context.req.header("Authorization"),getCookie(context,COOKIE));
     if(!session)throw new PasskeyError(401);
-    const result=await passkeys.revokeSessions(session);
-    deleteCookie(context,COOKIE,{secure:passkeys.origin.startsWith("https://"),path:"/"});
+    let sessionIds:string[]|undefined;
+    if(context.req.raw.body!==null){
+      const value=await input(context.req.raw);
+      if(Object.keys(value).length!==1||!Array.isArray(value.sessionIds)||!value.sessionIds.length||
+        value.sessionIds.some(id=>typeof id!=="string"||!UUID.test(id)))throw new PasskeyError(400);
+      sessionIds=value.sessionIds as string[];
+    }
+    const result=await passkeys.revokeSessions(session,sessionIds);
+    if(!sessionIds||sessionIds.includes(session.credential_id))
+      deleteCookie(context,COOKIE,{secure:passkeys.origin.startsWith("https://"),path:"/"});
     return result;
   }));
   app.post("/api/v1/auth/authorization/prepare",context=>run(context,async()=>passkeys.prepareAuthorization(await input(context.req.raw))));

@@ -151,7 +151,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   if(path===`/api/v1/account/messages/${composed?.messageId}`&&composed)return json({messageId:composed.messageId,state:composed.state,revision:composed.revision});
   for(const message of [replied,composed,composedOther,...connectionSent])if(message&&path===`/api/v1/account/sent/${message.messageId}`)return json(message);
   if(path==="/api/v1/account/sent")return json({messages:[...connectionSent,composed,composedOther,replied].filter(Boolean),next:null});
-  if(path==="/api/v1/auth/passkeys")return json({recentlyVerified,passkeys:[{credentialId:credential.id,label:"Primary passkey",deviceType:"multiDevice",backedUp:true,
+  if(path==="/api/v1/auth/passkeys")return json({recentlyVerified,sessions:[],passkeys:[{credentialId:credential.id,label:"Primary passkey",deviceType:"multiDevice",backedUp:true,
     current:true,createdAt:new Date().toISOString(),lastUsedAt:null}]});
   if(path.startsWith("/api/v1/account/permissions/")){
     assert(request.headers.get("Cookie")?.includes("hail_session="+sessionToken));
@@ -507,6 +507,7 @@ try{
   assert.equal(allowed!.status,"active");await click("Unsubscribe");await wait(()=>has("Confirm unsubscribe"),"subscription unsubscribe review");
   await click("Cancel review");assert.equal(allowed!.status,"active","Cancel leaves subscription active");
   await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("Unsubscribe"),"Inbox reader offers unsubscribe");
+  assert(await evaluate(`(()=>{const action=document.querySelector('article > header [aria-label="Sender subscription"] button');const category=document.querySelector('article > header mark');return !!action&&!!category&&action.getBoundingClientRect().top>=category.getBoundingClientRect().bottom;})()`),"Unsubscribe sits in the message header below its category");
   const beforeReaderReview=approvals.size;
   await click("Unsubscribe");await wait(()=>has("Unsubscribe with my passkey"),"reader unsubscribe confirmation");
   assert.equal(allowed!.status,"active","Opening review does not unsubscribe");
