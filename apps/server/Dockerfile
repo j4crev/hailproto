@@ -46,6 +46,7 @@ COPY --from=dependencies /workspace/hailproto/apps/gui-poc/node_modules /workspa
 COPY --from=build /workspace/hailproto/apps/gui-poc/build /workspace/hailproto/apps/gui-poc/build
 COPY apps/server/src ./src
 COPY apps/server/migrations ./migrations
+RUN test -f src/cli/authorize-provider-role.ts && test -f src/cli/provider-operator.ts
 USER bun
 EXPOSE 3000
 CMD ["bun", "src/index.ts"]
