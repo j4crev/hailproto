@@ -1,6 +1,6 @@
 import type {SentItem} from "./messages.js";
 
-export const deliveryIcon=(state:SentItem["state"])=>state==="accepted"?"✓":state==="delivered"?"✉":state==="on-hold"?"…":state==="indeterminate"?"?":"!";
+export const deliveryIcon=(state:SentItem["state"])=>state==="accepted"?"✓":state==="delivered"?"✓✓":state==="on-hold"?"…":state==="indeterminate"?"?":"!";
 
 const words=(reason:string|null)=>reason?.replaceAll("-"," ")??"unspecified reason";
 

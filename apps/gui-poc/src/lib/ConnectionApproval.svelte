@@ -1,7 +1,8 @@
 <script lang="ts">
   import {startAuthentication} from "@simplewebauthn/browser";
-  import {connectApproval,connectionRequest,signedConnectionFile,CONNECTION_APPROVAL,type ConnectApproval} from "$lib/connections.js";
-  let {approval,oncomplete,oncancel}:{approval:ConnectApproval;oncomplete:(result:NonNullable<ConnectApproval["result"]>)=>void|Promise<void>;oncancel:()=>void}=$props();
+  import {connectApproval,connectionRequest,recoverConnection,ConnectionRequestError,signedConnectionFile,type ConnectApproval} from "$lib/connections.js";
+  let {approval,oncomplete,oncancel}:{approval:ConnectApproval;oncomplete:(result:NonNullable<ConnectApproval["result"]>)=>void|Promise<void>;oncancel:(message?:string)=>void}=$props();
+  let recoveryNeeded=$state(false);
   let busy=$state(false),message=$state(""),signedConsent=$state<string|null>(null);
   function download(){
     if(!approval.ownerSigning)return;
@@ -16,20 +17,39 @@
       signedConsent=signedConnectionFile(new Uint8Array(await file.arrayBuffer()),approval.ownerSigning);
     }catch(error){message=error instanceof Error?error.message:"Unable to read the signed consent.";}
   }
-  async function run(commit:boolean){
-    busy=true;message="";
-    try{
-      let next=connectApproval(await connectionRequest(approval.requestId));
-      if(commit&&!next.result){if(!next.options)throw new Error("This approval expired. Cancel and review again.");
-        if(next.ownerSigning&&!signedConsent)throw new Error("Sign the downloaded consent locally and upload its COSE file first. Do not upload your vault or secret.");
-        const response=await startAuthentication({optionsJSON:next.options});
-        next=connectApproval(await connectionRequest("commit",{requestId:next.requestId,response,...(next.ownerSigning?{cose:signedConsent}:{})}));}
-      approval=next;
-      if(next.result){if(next.result.state!=="connecting")sessionStorage.removeItem(CONNECTION_APPROVAL);await oncomplete(next.result);}
-      else message="Not committed. This exact review still needs passkey confirmation.";
-    }catch(error){message=error instanceof Error?error.message:"Connection not confirmed. Check this approval before retrying.";}
-    finally{busy=false;}
+  async function accept(next:ConnectApproval){
+    approval=next;recoveryNeeded=false;
+    if(next.result){
+      try{await oncomplete(next.result);}catch{recoveryNeeded=true;message="Your change was saved, but the updated connections couldn’t be loaded. Please try again.";}
+    }else message="Review the details and confirm to finish.";
   }
+  function recoveryFailed(error:unknown){
+    if(error instanceof ConnectionRequestError&&[404,410].includes(error.status)){
+      oncancel("This review is no longer available. Check your connections before starting again.");
+    }else {recoveryNeeded=true;message="We couldn’t confirm whether your connection change was saved.";}
+  }
+  async function recover(){
+    try{await accept(await recoverConnection(approval.requestId));}catch(error){recoveryFailed(error);}
+  }
+  async function run(commit:boolean){
+    if(busy)return;busy=true;message="";
+    try{
+      if(!commit){await recover();return;}
+      let next:ConnectApproval;
+      try{next=await recoverConnection(approval.requestId);}catch(error){recoveryFailed(error);return;}
+      if(next.result){await accept(next);return;}
+      approval=next;
+      if(next.ownerSigning&&!signedConsent){message="Sign the downloaded consent locally and upload its COSE file first. Do not upload your vault or secret.";return;}
+      let response;
+      try{response=await startAuthentication({optionsJSON:next.options!});}
+      catch{message="Passkey confirmation wasn’t completed. You can try again or cancel.";return;}
+      try{next=connectApproval(await connectionRequest("commit",{requestId:next.requestId,response,...(next.ownerSigning?{cose:signedConsent}:{})}));
+        if(!next.result)throw new Error("Connection change was not confirmed.");
+      }catch{await recover();return;}
+      await accept(next);
+    }finally{busy=false;}
+  }
+
 </script>
 <section class="hail-card grid gap-4 border-2 border-brand p-5" aria-label="Connection action confirmation">
   <h2 class="m-0 text-xl">Confirm {approval.action==="create"?"new connection code":approval.action==="replace"?"personal code replacement":approval.action==="revoke"?"code revocation":approval.action==="disconnect"?"disconnect":"connection"}</h2>
@@ -49,5 +69,9 @@
   </div>{/if}
   <p class="m-0 text-sm text-muted">Preview limitation: retained consent cannot yet be exported. Using this preview blocks provider transfers and custody changes, even after revoking codes or disconnecting, until portability support is implemented.</p>
   {#if message}<p class="hail-error" role="status">{message}</p>{/if}
-  <div class="flex flex-wrap gap-2"><button class="hail-button" disabled={busy} onclick={()=>run(true)}>Confirm with passkey</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(false)}>Check original status</button><button class="hail-button-secondary" disabled={busy} onclick={oncancel}>Cancel review</button></div>
+  {#if busy}<p class="m-0 text-sm text-muted" role="status">Updating your connections…</p>{/if}
+  <div class="flex flex-wrap gap-2">
+    {#if recoveryNeeded}<button class="hail-button" disabled={busy} onclick={()=>run(false)}>Try again</button>
+    {:else}<button class="hail-button" disabled={busy} onclick={()=>run(true)}>Confirm</button><button class="hail-button-secondary" disabled={busy} onclick={()=>oncancel()}>Cancel</button>{/if}
+  </div>
 </section>

@@ -27,6 +27,7 @@ const permissionSigner=await crypto.subtle.generateKey("Ed25519",true,["sign","v
 let allowed:HailGrant|null=null,allowedCose="",allowedDigest="",generalAvailable=false;
 const approvals=new Map<string,{action:string;payload:HailGrant;challenge:string;approved:boolean;result:unknown}>();
 const connectionCodes:{id:string;personal:boolean;label:string;expiresAt:number|null;link:string}[]=[],connectionApprovals=new Map<string,any>();
+let connectionCommitLost=false,connectionStatusUnavailable=false;
 let personalConnection=false,ownerConnectionSigning=false,federatedConnecting=false,federationPolls=0;
 const fixtureConnectionId=uuidV7(),fixtureInvitationId=uuidV7(),fixtureAdmissionToken="K".repeat(43);
 const incomingId="019a15fd-2bd0-7433-8afa-bd0355e0608d";
@@ -92,7 +93,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   if(path.startsWith("/api/v1/account/connections")){
     assert(request.headers.get("Cookie")?.includes("hail_session="+sessionToken));
     const step=path.split("/")[5];
-    const advanceFederation=()=>{if(federatedConnecting&&[...connectionApprovals.values()].some(row=>row.result?.state==='connecting')&&++federationPolls>=3){personalConnection=true;for(const row of connectionApprovals.values())if(row.result?.state==='connecting')row.result={connectionId:fixtureConnectionId,attemptId:row.requestId,state:'active'};}};
+    const advanceFederation=()=>{if(federatedConnecting&&[...connectionApprovals.values()].some(row=>row.result?.state==='connecting')&&++federationPolls>=6){personalConnection=true;for(const row of connectionApprovals.values())if(row.result?.state==='connecting')row.result={connectionId:fixtureConnectionId,attemptId:row.requestId,state:'active'};}};
     if(!step){advanceFederation();return json({preview:true,codes:connectionCodes,connections:personalConnection?[{id:fixtureConnectionId,did:peerDid,address:peerAddress,connectedAt:new Date().toISOString(),remote:federatedConnecting}]:[],
       pendingConnections:federatedConnecting&&!personalConnection&&[...connectionApprovals.values()].some(row=>row.result?.state==='connecting')?[{id:fixtureConnectionId,did:peerDid,address:peerAddress,kind:'connect',state:'pending'}]:[]});}
     if(step==="review"){assert.equal(input.id,fixtureInvitationId);assert.equal(input.did,peerDid);assert.equal(input.token,fixtureAdmissionToken);
@@ -122,8 +123,10 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
         else{personalConnection=row.action==="connect"&&!federatedConnecting;row.result=row.action==="connect"&&federatedConnecting?{connectionId:null,attemptId:row.requestId,state:'connecting'}:{connectionId:fixtureConnectionId,state:personalConnection?"active":"disconnected"};}
         row.options=null;
       }
+      if(connectionCommitLost){connectionCommitLost=false;connectionStatusUnavailable=true;return json({},503);}
       return json(row);
     }
+    if(connectionStatusUnavailable){connectionStatusUnavailable=false;return json({},503);}
     if(connectionApprovals.get(step)?.result?.state==='connecting')advanceFederation();
     return connectionApprovals.has(step)?json(connectionApprovals.get(step)):json({},404);
   }
@@ -505,7 +508,7 @@ try{
   assert.equal(allowed,null);assert(await has("alice@provider.example.com"));
   await click("Allow sender with my passkey");await wait(()=>has("Unsubscribe"),"passkey-approved permission saved");
   assert.equal(allowed!.status,"active");await click("Unsubscribe");await wait(()=>has("Confirm unsubscribe"),"subscription unsubscribe review");
-  await click("Cancel review");assert.equal(allowed!.status,"active","Cancel leaves subscription active");
+  await click("Cancel");assert.equal(allowed!.status,"active","Cancel leaves subscription active");
   await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("Unsubscribe"),"Inbox reader offers unsubscribe");
   assert(await evaluate(`(()=>{const action=document.querySelector('article > header [aria-label="Sender subscription"] button');const category=document.querySelector('article > header mark');return !!action&&!!category&&action.getBoundingClientRect().top>=category.getBoundingClientRect().bottom;})()`),"Unsubscribe sits in the message header below its category");
   const beforeReaderReview=approvals.size;
@@ -553,7 +556,7 @@ try{
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Opening a QR must not prepare or approve a permission");
   await click("Review sender");await wait(()=>has("Test sender"),"QR and typed address share the same review");
-  await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>has("Publish an update"),"publisher styling");
+  await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>has("Send a hail"),"publisher styling");
   await selectedAudience("Subscribers");
   assert.deepEqual(await styles("form[enctype] label",["display","fontWeight"]),["grid","600"]);
   assert.deepEqual(await styles("fieldset label",["display","gap"]),["flex","8px"]);
@@ -605,7 +608,7 @@ try{
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Signing in through a QR must not approve or prepare it");
   // Verify each ordinary folder resumes after login, including its query string.
-  for(const [path,text] of [["/sent?after=older","Sent messages"],["/compose","Publish an update"],["/settings/security","Passkeys & security"]]){
+  for(const [path,text] of [["/sent?after=older","Sent messages"],["/compose","Send a hail"],["/settings/security","Passkeys & security"]]){
     await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
     await cdp("Page.navigate",{url:origin+path});
     await wait(async()=>evaluate(`location.pathname==='/auth/login' && new URL(location.href).searchParams.get('next')===${JSON.stringify(path)}`),"folder login: "+path);
@@ -634,7 +637,18 @@ try{
   await cdp("Page.navigate",{url:origin+"/connections?connections=1"});await wait(()=>has("Create my personal code"),"personal connection code creation");
   await click("Create my personal code");await wait(()=>has("Confirm new connection code"),"standing invitation consent");
   assert(await has("without another approval from you"));assert(await has("No automatic expiry"));
-  await click("Confirm with passkey");await wait(()=>has("Show my QR & link"),"personal code saved");
+  assert(!await has("Continue interrupted review"));assert(!await has("Check original status"));
+  const pendingCodeReview=await evaluate(`sessionStorage.getItem('hail.connection-approval.v1')`);
+  const connectionCommitsBefore=requests.filter(r=>r.path==="/api/v1/account/connections/commit").length;
+  await cdp("Page.reload");await wait(()=>has("Confirm new connection code"),"pending code review restored automatically");
+  assert.equal(await evaluate(`sessionStorage.getItem('hail.connection-approval.v1')`),pendingCodeReview);
+  assert.equal(requests.filter(r=>r.path==="/api/v1/account/connections/commit").length,connectionCommitsBefore,"Restoring a review must not authorize it");
+  connectionCommitLost=true;
+  await click("Confirm");await wait(()=>has("We couldn’t confirm whether your connection change was saved."),"uncertain save exposes retry");
+  assert.equal(connectionCodes.length,1);
+  assert(!await evaluate(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Cancel')`),"Uncertain save cannot be discarded");
+  await click("Try again");await wait(()=>has("Show my QR & link"),"saved result recovered without another passkey");
+  assert.equal(requests.filter(r=>r.path==="/api/v1/account/connections/commit").length,connectionCommitsBefore+1,"Recovery must not repeat the saved action");
   await click("Show my QR & link");await wait(async()=>evaluate(`!!document.querySelector('svg[aria-label="Connection QR code"]')`),"local QR rendering");
   assert(await evaluate(`(()=>{const card=document.querySelector('[aria-label="Your personal code"]'),button=[...card.querySelectorAll('button')].find(b=>b.textContent==='Hide QR & link');return !!card.querySelector('svg[aria-label="Connection QR code"]')&&button?.getAttribute('aria-expanded')==='true'&&card.contains(document.getElementById(button.getAttribute('aria-controls')));})()`),"Personal QR and its toggle must stay in the personal card");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Connection QR overflows viewport");
@@ -642,14 +656,14 @@ try{
   await click("Show my QR & link");await wait(()=>has("Hide QR & link"),"same button reopens personal QR");await click("Hide QR & link");
   await fill("Private label","Conference");
   await fill("Expires (your local time)","2027-01-15T18:00");await click("Review new link");await wait(()=>has("Confirm new connection code"),"expiring code review");
-  await click("Confirm with passkey");await wait(async()=>connectionCodes.length===2&&await has("Saved. Existing subscriptions are unchanged."),"expiring code saved");
+  await click("Confirm");await wait(async()=>connectionCodes.length===2&&await has("Saved. Existing subscriptions are unchanged."),"expiring code saved");
   assert.equal(connectionCodes.length,2);assert.equal(connectionCodes.filter(code=>code.personal).length,1);
   assert(connectionCodes.find(code=>!code.personal)!.expiresAt!>0);assert.equal(connectionCodes.find(code=>code.personal)!.expiresAt,null);
   await click("Show QR & link");await wait(async()=>evaluate(`!!document.querySelector('article svg[aria-label="Connection QR code"]')`),"expiring QR stays in its own card");
   await click("Show my QR & link");await wait(async()=>evaluate(`!!document.querySelector('[aria-label="Your personal code"] svg')&&!document.querySelector('article svg[aria-label="Connection QR code"]')`),"switching codes moves the inline panel to the selected card");
   await click("Hide QR & link");
   await click("Replace personal code");await wait(()=>has("Confirm personal code replacement"),"personal replacement review");
-  await click("Confirm with passkey");await wait(()=>has("Saved. Existing subscriptions are unchanged."),"replacement committed");
+  await click("Confirm");await wait(()=>has("Saved. Existing subscriptions are unchanged."),"replacement committed");
   assert.equal(connectionCodes.length,2);
   await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
   const invitationLink=origin+"/connect#"+new URLSearchParams({id:fixtureInvitationId,did:peerDid,token:fixtureAdmissionToken});
@@ -661,16 +675,16 @@ try{
   await click("Review connection code");await wait(()=>has("Review before connecting"),"identity pinned scanner review");
   assert(await has(peerDid));assert(!personalConnection);
   await click("Review before connecting");await wait(()=>has("Confirm connection"),"exact connection consent");
-  assert(!personalConnection);await click("Confirm with passkey");await wait(()=>has("Connection saved"),"mutual connection confirmed");
-  await cdp('Page.navigate',{url:origin+'/compose?audience=connections'});await wait(()=>has('Message connections'),'connection composer uses existing editor');
+  assert(!personalConnection);await click("Confirm");await wait(()=>has("Connection saved"),"mutual connection confirmed");
+  await cdp('Page.navigate',{url:origin+'/compose?audience=connections'});await wait(()=>has('Send a message'),'connection composer uses existing editor');
   await selectedAudience("Connections");
   await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]').length===2`),'connection recipient picker');
   assert(!await evaluate(`!!document.querySelector('select[name="category"]')||!!document.querySelector('input[name="allowReply"]')`));
   await evaluate(`document.querySelectorAll('input[name="connection"]').forEach(e=>e.click());document.querySelector('input[value="plain"]').click()`);
-  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Personal message to chosen connections';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);await click('Send to connections →');
+  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Personal message to chosen connections';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);await click('Send →');
   await wait(()=>has('Message batch not confirmed'),'ambiguous connection acceptance retains the original intent');
   assert(await evaluate(`document.querySelector('textarea[name=text]').value==='Personal message to chosen connections'&&document.querySelectorAll('input[name="connection"]:checked').length===2`),'Connection retry must retain body and recipients');
-  await click('Send to connections →');await wait(()=>has('Selected connections'),'connection batch queued');await click('Refresh status');await wait(()=>has('Message batch finished'),'connection outbox completion');
+  await click('Send →');await wait(()=>has('Selected connections'),'connection batch queued');await click('Refresh status');await wait(()=>has('Message batch finished'),'connection outbox completion');
   assert.equal(connectionSent.length,2);assert.equal(composePosts,1);assert.deepEqual(allowed!.scope,[{type:'categories',values:['general']}]);
   connectionIncoming=true;
   await cdp('Page.navigate',{url:origin+'/?view=connections'});await wait(()=>has('A personal connection reply'),'connection message uses existing reader preview');
@@ -680,21 +694,20 @@ try{
   assert(!await evaluate(`!!document.querySelector('form[action="?/reply"]')`));
   await evaluate(`document.querySelector('a[href*="audience=connections&connection="]').click()`);await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]:checked').length===1`),'connection response preselects the same active connection');
   await cdp("Page.navigate",{url:origin+"/connections?connected=1"});await wait(()=>has("Disconnect"),"connected account visible");
-  await click("Disconnect");await wait(()=>has("Confirm disconnect"),"disconnect review");await click("Confirm with passkey");await wait(()=>has("No connections yet."),"disconnect saved");
+  await click("Disconnect");await wait(()=>has("Confirm disconnect"),"disconnect review");await click("Confirm");await wait(()=>has("No connections yet."),"disconnect saved");
   assert(!personalConnection);assert.equal(allowed!.status,"active");
   await cdp('Page.navigate',{url:origin+`/message/${encodeURIComponent(peerDid)}/${connectionIncomingId}`});await wait(()=>has('This connection is no longer active.'),'disconnected historical messages remain readable without a standing send action');
   const savedConnectionReview=[...connectionApprovals.values()].find(row=>row.action==="connect")!;
   await evaluate(`sessionStorage.setItem('hail.connection-approval.v1',${JSON.stringify(savedConnectionReview.requestId)})`);
-  await cdp("Page.navigate",{url:origin+"/connect"});await wait(()=>has("Continue interrupted review"),"old approval status after disconnect");
-  await click("Continue interrupted review");await wait(()=>has("It was not reopened."),"historical success does not masquerade as a live connection");assert(!personalConnection);
+  await cdp("Page.navigate",{url:origin+"/connect"});await wait(()=>has("It was not reopened."),"historical success does not masquerade as a live connection");assert(!personalConnection);
   federatedConnecting=true;federationPolls=0;
   await cdp("Page.navigate",{url:invitationLink});await wait(()=>has("Review connection code"),"federated scanner review");
   await click("Review connection code");await wait(()=>has("Review before connecting"),"federated consent review");
-  await click("Review before connecting");await wait(()=>has("Confirm connection"),"federated passkey consent");await click("Confirm with passkey");
+  await click("Review before connecting");await wait(()=>has("Confirm connection"),"federated passkey consent");await click("Confirm");
   await wait(()=>has("Connecting across providers."),"durable cross-provider pending state");assert(!personalConnection);
   await cdp("Page.navigate",{url:origin+"/connections?federation-pending=1"});await wait(()=>has("Synchronizing with other providers"),"pending work discoverable after closing scanner page");
   await wait(()=>has("Disconnect"),"automatic federation status polling discovers completed connection");assert(personalConnection);
-  await click("Disconnect");await wait(()=>has("Confirm disconnect"),"federated disconnect consent");await click("Confirm with passkey");await wait(()=>has("No connections yet."),"federated disconnect visible");
+  await click("Disconnect");await wait(()=>has("Confirm disconnect"),"federated disconnect consent");await click("Confirm");await wait(()=>has("No connections yet."),"federated disconnect visible");
   federatedConnecting=false;
   ownerConnectionSigning=true;
   await cdp("Page.navigate",{url:origin+"/connections?owner-signing=1"});await wait(()=>has("Create an expiring connect link"),"owner-signing code form");
@@ -710,7 +723,7 @@ try{
   const ownerCose=await signPayload("hail.connection-invitation",ownerPayload,createWebCryptoSigner(ownerPayload.key_id,permissionSigner.privateKey));
   const ownerPath=join(work,"owner-consent.cose");await writeFile(ownerPath,ownerCose);
   await upload("Signed consent file",ownerPath);await wait(()=>has("Signed file ready."),"browser accepts exact signed consent file");
-  const originalCodes=connectionCodes.length;await click("Confirm with passkey");await wait(async()=>connectionCodes.length===originalCodes+1&&await has("Saved. Existing subscriptions are unchanged."),"owner signed file and passkey submission");
+  const originalCodes=connectionCodes.length;await click("Confirm");await wait(async()=>connectionCodes.length===originalCodes+1&&await has("Saved. Existing subscriptions are unchanged."),"owner signed file and passkey submission");
   assert.equal(JSON.parse(requests.filter(r=>r.path==="/api/v1/account/connections/commit").at(-1)!.body).cose,encodeBase64Url(ownerCose));
   assert.equal(composePosts,1);assert.equal(replyPosts,1);
   for(const req of requests){assert(!req.body.includes(secret),"Recovery secret uploaded");assert(!req.body.includes('"ciphertext"'),"Recovery vault uploaded");}

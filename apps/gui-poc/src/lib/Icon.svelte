@@ -1,6 +1,7 @@
 <script lang="ts">
   let {name, size = 20}: {name: string; size?: number} = $props();
   const paths: Record<string, string> = {
+    'double-check': 'M18 6 7 17l-5-5 M22 6 11 17l-3-3',
     feed: 'M4 5h16v14H4z M4 9h16 M8 13h8 M8 16h5',
     chat: 'M4 4h16v12H9l-5 4z M8 8h8 M8 12h5',
     sent: 'm3 11 18-8-8 18-3-8-7-2Z M10 13 21 3',

@@ -1,5 +1,5 @@
-import {expect,it} from "vitest";
-import {connectionCode,connectionHomeLink,connectApproval,signedConnectionFile,type ConnectApproval} from "./connections.js";
+import {expect,it,vi} from "vitest";
+import {recoverConnection,connectionCode,connectionHomeLink,connectApproval,signedConnectionFile,type ConnectApproval} from "./connections.js";
 import {encodeDeterministic} from "@hailproto/codec/cbor";
 import {encodeBase64Url} from "@hailproto/codec/base64url";
 import {returnPath} from "./auth-routing.js";
@@ -33,4 +33,24 @@ it("validates resumable exact-action reviews without treating an expired review 
   expect(()=>connectApproval({...review,options:null})).toThrow();
   expect(connectApproval({...review,options:null,expiresAt:new Date(0).toISOString()}).result).toBeNull();
   expect(()=>connectApproval({...review,action:"subscribe"})).toThrow();
+});
+
+const recoveryId="01954144-8097-7a9d-a7a8-ef29a823eaf1";
+const unfinished={requestId:recoveryId,action:"create",review:{label:"Personal code"},expiresAt:new Date(Date.now()+300000).toISOString(),result:null,options:{challenge:"consent"}};
+it.each([null,{invitationId:recoveryId},{state:"connecting",attemptId:recoveryId}])("recovers connection status without submitting consent: %j",async result=>{
+  const request=vi.fn(async()=>Response.json({...unfinished,result}));vi.stubGlobal("fetch",request);
+  try{expect((await recoverConnection(recoveryId)).result).toEqual(result);expect(request).toHaveBeenCalledOnce();expect(request).toHaveBeenCalledWith(`/api/v1/account/connections/${recoveryId}`,expect.objectContaining({method:"GET"}));}
+  finally{vi.unstubAllGlobals();}
+});
+it("retires expired reviews but preserves completed results past review expiry",async()=>{
+  vi.stubGlobal("fetch",async()=>Response.json({...unfinished,expiresAt:new Date(0).toISOString(),options:null}));
+  try{
+    await expect(recoverConnection(recoveryId)).rejects.toMatchObject({status:410});
+    vi.stubGlobal("fetch",async()=>Response.json({...unfinished,expiresAt:new Date(0).toISOString(),options:null,result:{invitationId:recoveryId}}));
+    expect((await recoverConnection(recoveryId)).result).toEqual({invitationId:recoveryId});
+  }finally{vi.unstubAllGlobals();}
+});
+it.each([404,503])("preserves recovery failure %s without retry loops",async status=>{
+  const request=vi.fn(async()=>Response.json({}, {status}));vi.stubGlobal("fetch",request);
+  try{await expect(recoverConnection(recoveryId)).rejects.toMatchObject({status});expect(request).toHaveBeenCalledOnce();}finally{vi.unstubAllGlobals();}
 });

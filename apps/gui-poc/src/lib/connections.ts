@@ -56,6 +56,14 @@ export function connectApproval(value:any):ConnectApproval {
     throw new Error("The provider returned an invalid owner-signing proposal.");
   return value;
 }
+// Connection consent and its result are atomic. Recovery only reads status;
+// an unfinished review still needs explicit passkey (and any owner) consent.
+export async function recoverConnection(requestId:string):Promise<ConnectApproval>{
+  const next=connectApproval(await connectionRequest(requestId));
+  if(next.requestId!==requestId)throw new Error("Connection review mismatch.");
+  if(!next.result&&Date.parse(next.expiresAt)<=Date.now())throw new ConnectionRequestError(410,"This review expired. Start again when you’re ready.");
+  return next;
+}
 export async function connectionRequest(step="",body?:unknown){
   if(!["","prepare","commit","review"].includes(step)&&!UUID.test(step))throw new Error("Invalid connection action.");
   const response=await fetch("/api/v1/account/connections"+(step?"/"+step:""),{method:body===undefined?"GET":"POST",
@@ -66,6 +74,6 @@ export async function connectionRequest(step="",body?:unknown){
   while(true){const next=await reader.read();if(next.done)break;size+=next.value.length;if(size>131072){await reader.cancel();throw new Error("Connection response too large.");}chunks.push(next.value);}
   const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
   let value;try{value=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}catch{throw new ConnectionRequestError(response.status,"Connection preview is unavailable on this provider.");}
-  if(!response.ok)throw new ConnectionRequestError(response.status,typeof value?.error==="string"?value.error:"Connection request failed. Check the original approval before retrying.");
+  if(!response.ok)throw new ConnectionRequestError(response.status,typeof value?.error==="string"?value.error:"Connection request failed. Please try again.");
   return value;
 }
