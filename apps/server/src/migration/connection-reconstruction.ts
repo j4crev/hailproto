@@ -7,6 +7,7 @@ import {requireFreshPublicAuthority} from '../plc/authority.js';
 import type {RemoteConnectionReview} from '../accounts/connection-review.js';
 import type {ConnectionFederation} from '../accounts/connection-federation.js';
 import {PLC_READ_EVIDENCE_POLICY_VERSION} from '../identity/managed-profile.js';
+import {parseJsonWithoutDuplicateKeys} from '../discovery/strict-json.js';
 import {uuidV7} from '../identity/uuid-v7.js';
 import {decodeSignedRecord} from './wire.js';
 import {validateTransferManifest} from './transfer.js';
@@ -215,7 +216,20 @@ export async function reconstructConnections(sql:SQL,manifest:Manifest,generatio
     federated_connection_events:['id'],federated_connection_results:['id'],federated_connection_tombstones:['pair_id','connection_id'],federated_connection_disconnects:['id'],
     federated_connection_outbox:['id'],connection_proof_signatures:['account_id','digest'],connection_handover_barriers:['account_id','plan_digest'],
     connection_import_handovers:['account_id','transfer_id','peer_did'],connection_transfer_aborts:['account_id','transfer_id'],connection_message_batches:['account_id','id'],connection_message_targets:['account_id','publication_id','recipient_did']};
-  const normalized=(name:string,value:unknown)=>name.endsWith('_at')&&typeof value==='string'&&/^\d{4}-\d\d-\d\dT/.test(value)&&Number.isFinite(Date.parse(value))?new Date(value).toISOString():value;
+  const normalized=(name:string,value:unknown):unknown=>{
+    if(name==='authority'){
+      const authority=(typeof value==='string'?parseJsonWithoutDuplicateKeys(value):value) as Record<string,unknown>,ref=authority?.verification as Record<string,unknown>|undefined;
+      // The caller has verified the incoming bundle. Keep the original proof row;
+      // distinct read receipts remain in public evidence and the immutable import
+      // archive. Only observation digest/time may differ, never signer state/log.
+      if(ref?.profile==='strict-public-v1'){
+        const {digest,verifiedAt,...selection}=ref;
+        return {...authority,verification:selection};
+      }
+      return authority;
+    }
+    return name.endsWith('_at')&&typeof value==='string'&&/^\d{4}-\d\d-\d\dT/.test(value)&&Number.isFinite(Date.parse(value))?new Date(value).toISOString():value;
+  };
   const insert=async(table:string,row:Row)=>{
     const inserted=await sql.unsafe(`INSERT INTO "${table}" SELECT * FROM jsonb_populate_record(NULL::"${table}",($1::text)::jsonb) ON CONFLICT DO NOTHING RETURNING 1`,[JSON.stringify(row)]);
     if(inserted.length)return;
