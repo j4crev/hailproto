@@ -29,8 +29,8 @@
   </section>
   <section class="welcome-benefits" aria-label="Why use Haili">
     <div><h2>Permission comes first.</h2><p>Senders need your approval before they can deliver messages. Having your address doesn’t give them a way in.</p></div>
-    <div><h2>Choose the topics.<br />Not just the sender.</h2><p>Subscribe to the categories a sender offers, so saying yes to one kind of update doesn’t mean saying yes to all of them.</p></div>
-    <div><h2>Your yes isn’t forever.</h2><p>Revoke a subscription’s permission to stop new messages under it. You don’t have to wait for the sender to remove you.</p></div>
+    <div><h2>Choose the topics. Not just the sender.</h2><p>Subscribe to the categories a sender offers; so saying yes to one kind of update doesn’t mean saying yes to all of them.</p></div>
+    <div><h2>Your yes isn’t forever.</h2><p>Revoke a sender’s permission to stop new messages under it. You don’t have to wait for the sender to remove you.</p></div>
   </section>
   <p class="welcome-footer">Built on Hail, an open messaging protocol. Haili is currently an invitation-only alpha.</p>
 {:else}
