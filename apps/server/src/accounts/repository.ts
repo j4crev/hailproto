@@ -129,7 +129,8 @@ export class AccountApiRepository {
       FROM managed_custody_evidence WHERE account_id=${session.account_id}`;
     const profile = managed[0] && identity ? "managed" : custody[0] && !identity ? "owner-controlled" : !custody[0] && identity && rotation ?
       "custodial-poc" : "unknown";
-    return { type: "hailp.account", version: 1, provider, accountId: session.account_id,
+    const operator=await this.sql`SELECT op.account_id FROM provider_operators op JOIN account_serving_generations g ON g.account_id=op.account_id AND g.generation=op.serving_generation WHERE op.account_id=${session.account_id}`;
+    return { providerOperator:operator.length>0, type: "hailp.account", version: 1, provider, accountId: session.account_id,
       did: session.did, address: session.canonical_address, migrationState: session.migration_state,
       custodyProfile: profile, monitorVerificationMode: managed[0]?.verification_mode ?? custody[0]?.monitor_verification_mode ?? null,
       managedProfileVersion: managed[0]?.managed_profile_version ?? null,

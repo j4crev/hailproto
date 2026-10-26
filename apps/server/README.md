@@ -24,7 +24,56 @@ destructive transfer/recovery rehearsals.
 Original private Alice/Bob identities remain historical POC fixtures. The public
 canaries are real `plc.directory` identities and must not be reused as production users.
 
-## hailp Account API
+## Provider administration
+
+### Provider operator dashboard
+
+Migration 74 adds explicit, provider-local operator grants and invitation history.
+Sign in with a passkey and open `/admin` (also linked from the sidebar for
+operators). Create a private signup link or enter an email address to send it.
+The latest 100 dashboard invitations show email-service acceptance, signup
+admission, completion and expiry. Email acceptance does not prove inbox delivery.
+Invitations remain seven-day, single-use bearer capabilities: the recipient
+address is a delivery destination, not an identity restriction.
+
+Use `admin@your-domain` for administration and keep `ops` for operational mail.
+No address automatically receives privileges.
+
+**Starting from nothing? Follow [First provider administrator: vault to dashboard](../../docs/provider-admin-setup.md).**
+It gives the exact order: generate/back up a local vault → extract its public
+recovery `did:key` → authorize the reserved name → complete monitored CLI signup
+→ enroll a passkey → grant operator access → log in at `/admin`. The `did:key`
+is generated locally; it is not something you need to know in advance. The
+provider and monitor console handoffs are explicitly marked.
+
+Any existing active local account with a passkey can instead receive the explicit
+grant; a separate admin account is a recommendation, not a protocol requirement.
+Remove access with `bun src/cli/provider-operator.ts revoke admin@your-domain`.
+Revocation is checked on each request. Account movement/generation changes require
+an explicit new grant; operator authority is not portable. Existing invitations
+remain valid until consumed or expired, including after operator revocation.
+
+The API is `GET/POST /api/v1/operator/invitations`. It requires the trusted browser
+Origin and a passkey session cookie, never an account API bearer. POST additionally
+requires login within ten minutes and JSON `{id: <UUID>, email: <address or null>}`.
+Keep the same ID and email when retrying. Creation is capped at 100 invitations
+per hour; requests are limited to 30 per operator per minute. Invitation bearers
+are reconstructed for creation responses, not stored in invitation history or
+logged. Rotating the signing key invalidates outstanding unadmitted invitations.
+
+Enable the existing public alpha signup, passkeys, GUI and signup email service.
+Deploy the updated email Worker before using email invitations; its authenticated
+`/signup-email/invite` endpoint uses the existing `SIGNUP_EMAIL_TOKEN`, sender and
+pinned `SIGNUP_ORIGIN` (which must equal the browser/passkey origin). Other server
+implementers can supply that same small email-service contract. No new email
+vendor or client-visible service credential is required.
+
+The Worker deduplicates requests and limits each destination to five invitations
+per hour and the service to 100 per hour. An ambiguous send failure stays
+unconfirmed and is not automatically sent again. Check with the recipient before
+creating another invitation. History has no bearer-retrieval or revocation UI in
+this initial slice. Rollback removes migration 74's operator grants and invitation
+history; take a backup first. It does not invalidate already issued signed links.
 
 ### Reserved provider addresses
 
@@ -51,12 +100,12 @@ Upgrades preserve existing accounts and warn about occupied role names for manua
 ownership review; they never take over or rename an account. Reservation does not
 configure email forwarding. Keep an off-provider email path for outage alerts.
 
-Migration 32 adds the first authenticated account-management slice used by
-`hailp` in [`../cli`](../cli). It is separate from federation and supports
-existing active accounts, account details, current signed Grant retrieval and
-user-signed Grant creation/revocation import. It reuses the existing Grant
-service and transactional publication outbox. The October 9 rollout deployed
-the extended migration-33 slice.
+## hailp Account API
+
+Migration 32 adds the authenticated account-management slice used by
+`hailp` in [`../cli`](../cli). It is separate from provider administration and
+federation. The credential commands below are an API reference, not additional
+steps required after completing the administrator setup guide.
 
 ### Bootstrap credentials (provider operator)
 

@@ -5,11 +5,11 @@ import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
 function signature(payload: string, key: string) {
   return createHmac("sha256", decodeBase64Url(key,32)).update(`hail.signup.invitation.v1\0${payload}`).digest();
 }
-export function createSignupInvitation(origin: string, key: string, now = Math.floor(Date.now()/1000)) {
+export function createSignupInvitation(origin: string, key: string, now = Math.floor(Date.now()/1000), id: string = randomUUID()) {
   const url=new URL(origin);
   if(url.protocol!=="https:"||url.origin!==origin)throw new Error("Invitation requires a canonical HTTPS provider origin");
   const payload=encodeBase64Url(new TextEncoder().encode(JSON.stringify({type:"hail.signup.invitation",version:1,
-    id:randomUUID(),provider:origin,issuedAt:now,expiresAt:now+7*86400})));
+    id,provider:origin,issuedAt:now,expiresAt:now+7*86400})));
   return `${payload}.${encodeBase64Url(signature(payload,key))}`;
 }
 export function verifySignupInvitation(token: string, origin: string, key: string, now = Math.floor(Date.now()/1000)): string {

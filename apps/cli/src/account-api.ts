@@ -160,7 +160,7 @@ export class AccountApiClient {
       }
       credential = { credentialId: metadata.credentialId, expiresAt: metadata.expiresAt };
     }
-    return { provider: this.provider, accountId: result.accountId, did: result.did, address: result.address,
+    return { providerOperator:result.providerOperator===true, provider: this.provider, accountId: result.accountId, did: result.did, address: result.address,
       migrationState: result.migrationState, custodyProfile: result.custodyProfile, scopes: result.scopes,
       monitorVerificationMode: result.monitorVerificationMode, identityPublicKey: result.identityPublicKey,
       ownerRecoveryPublicKey: result.ownerRecoveryPublicKey, managedProfileVersion: result.managedProfileVersion ?? null, credential };

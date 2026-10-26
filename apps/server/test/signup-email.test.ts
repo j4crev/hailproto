@@ -68,3 +68,13 @@ it("rejects unsafe Worker configuration before sending anything", () => {
     expect(() => new SignupEmailClient({ origin, token })).toThrow();
   expect(() => new SignupEmailClient({ origin: "https://alerts.example.com", token: "bad" })).toThrow();
 });
+
+it("sends invitations through the private email service and requires explicit acceptance",async()=>{
+  const f=fixture(),input={id:crypto.randomUUID(),email:"person@example.com",url:"https://haili.app/signup#invitation=test",expiresAt:1234};
+  f.transport.mockResolvedValue(new Response(null,{status:204}));
+  await f.client.invite(input);
+  expect(f.transport.mock.calls[0]).toEqual(["https://alerts.plcmonitor.us/signup-email/invite",expect.objectContaining({
+    method:"POST",redirect:"error",body:JSON.stringify(input),headers:{"Content-Type":"application/json",Authorization:`Bearer ${f.secret}`}})]);
+  f.transport.mockResolvedValue(Response.json({error:"private upstream detail"},{status:503}));
+  await expect(f.client.invite(input)).rejects.toThrow("Signup email request refused");
+});

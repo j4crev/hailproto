@@ -44,6 +44,7 @@
 {#snippet links()}
   <a class="hail-button compose-button" href="/compose" aria-current={page.url.pathname === "/compose" ? "page" : undefined}><Icon name="plus" />Compose</a>
   <div class="nav-group"><p class="nav-label">Your space</p><nav aria-label="Main navigation">{#each navigation as item}<a href={item.href} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} />{item.label}{#if active(item.href)}<span class="active-dot" aria-hidden="true"></span>{/if}</a>{/each}</nav></div>
+  {#if page.data.account?.providerOperator}<a class="hail-button-secondary" href="/admin">Provider administration</a>{/if}
   <div class="nav-bottom"><span class="alpha-label">Haili alpha <span>·</span> Powered by Hail</span></div>
 {/snippet}
 <!-- Full navigation prevents signup/recovery CSP from leaking into the app. -->

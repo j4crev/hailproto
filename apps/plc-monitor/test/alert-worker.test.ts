@@ -243,3 +243,22 @@ it("never substitutes operator fallback or its deduplication receipt for a consu
   expect((await send((await cidForCbor({wrong:true})).toString())).status).toBe(409);
   expect((await send(operationCid)).status).toBe(204);
 });
+
+it("sends provider invitations only through authenticated pinned-origin requests and deduplicates retries",async()=>{
+  const send=vi.fn(async(_message:EmailMessage)=>({messageId:"test"}));
+  const env:any={EMAIL:{send},SIGNUP_SENDER:"invites@example.com",SIGNUP_ORIGIN:"https://example.com",SIGNUP_EMAIL_TOKEN:"A".repeat(43)};
+  env.ALERT_DEDUPLICATOR=deduplicator(env);
+  const input={id:crypto.randomUUID(),email:"invitee@example.com",url:"https://example.com/signup#invitation=payload.signature",expiresAt:Math.floor(Date.now()/1000)+604800};
+  const request=(body=input,token="A".repeat(43))=>worker.fetch(new Request("https://email.example/signup-email/invite",{method:"POST",
+    headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify(body)}),env);
+  expect((await request(input,"wrong")).status).toBe(401);
+  expect((await request({...input,url:"https://evil.example/signup#invitation=payload.signature"})).status).toBe(400);
+  expect((await request()).status).toBe(204);expect((await request()).status).toBe(204);expect(send).toHaveBeenCalledTimes(1);
+  expect(send.mock.calls[0]![0]).toMatchObject({to:input.email,subject:"You're invited to Hail"});
+  expect(send.mock.calls[0]![0].text).toContain(input.url);
+  expect((await request({...input,email:"other@example.com"})).status).toBe(409);
+  send.mockRejectedValueOnce(new Error("ambiguous email failure"));
+  const second={...input,id:crypto.randomUUID()};
+  expect((await request(second)).status).toBe(503);expect((await request(second)).status).toBe(503);
+  expect(send).toHaveBeenCalledTimes(2);
+});

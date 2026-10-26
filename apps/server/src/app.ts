@@ -1,3 +1,5 @@
+import {registerOperatorRoutes} from "./operator/routes.js";
+import {OperatorInvitations} from "./operator/invitations.js";
 import { Hono } from "hono";
 import type { AppConfig } from "./config.js";
 import { registerDiscoveryRoutes } from "./discovery/routes.js";
@@ -127,6 +129,9 @@ export function createApp(
     registerAccountApiRoutes(app, accounts, grants, service, config.publicOrigin,messaging,binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,config.passkeys?.origin,publications);
     if(dependencies.accountApi.connections)registerConnectionRoutes(app,dependencies.accountApi.connections,accounts,config.passkeys?.origin??config.publicOrigin);
     if(dependencies.passkeys)registerPasskeyRoutes(app,dependencies.passkeys,accounts);
+    if(dependencies.passkeys&&dependencies.signup&&dependencies.signupEmail&&config.alphaSignup)
+      registerOperatorRoutes(app,accounts,new OperatorInvitations(dependencies.signupEmail.sql,config.publicOrigin,
+        dependencies.passkeys.origin,config.alphaSignup.invitationKey,dependencies.signupEmail.client),dependencies.passkeys.origin);
     if(dependencies.passkeys&&dependencies.servingSql)registerPermissionRoutes(app,
       new GrantPermissions(dependencies.servingSql,accounts,grants,service,dependencies.passkeys,config.publicOrigin),accounts,dependencies.passkeys.origin);
   }

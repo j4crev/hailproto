@@ -27,7 +27,7 @@ export interface Recipient {
 interface Rate { count: number; expiresAt: number; }
 const hour = 3_600_000, codeLifetime = 10 * 60_000, verifiedLifetime = 24 * hour;
 const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
-export const signupEmailPaths = new Set(["/signup-email", "/signup-email/verify", "/signup-email/bind"]);
+export const signupEmailPaths = new Set(["/signup-email", "/signup-email/verify", "/signup-email/bind", "/signup-email/invite"]);
 const reply = (value: unknown, status = 200, retry?: number) => Response.json(value, { status,
   headers: { "Cache-Control": "no-store", ...(retry ? { "Retry-After": String(retry) } : {}) } });
 
@@ -56,6 +56,7 @@ export async function sendEmail(env: Pick<EmailEnvironment, "EMAIL">, message: O
 }
 
 export async function signupEmail(path: string, input: unknown, storage: DurableStorage, env: EmailEnvironment): Promise<Response> {
+  if(path==="/signup-email/invite")return sendSignupInvitation(input,storage,env);
   if (!input || typeof input !== "object" || Array.isArray(input)) return reply({ error: "Invalid signup email request" }, 400);
   const row = input as Record<string, unknown>, fields = path === "/signup-email" ? ["signupId", "signupHash", "email", "resend"] :
     path === "/signup-email/verify" ? ["signupId", "signupHash", "code"] : ["signupId", "signupHash", "did", "operationCid"];
@@ -142,7 +143,7 @@ export async function pruneSignupEmail(storage: DurableStorage): Promise<void> {
   const now = Date.now();
   let pending = false;
   // ponytail: one existing coordination object, partition by signup/DID if alpha volume makes these scans expensive.
-  for (const prefix of ["signup:", "email-rate:"])
+  for (const prefix of ["signup:", "email-rate:", "invitation:"])
     for (const [key, value] of await storage.list<{ expiresAt: number; state?: string }>({ prefix })) {
       if (value.state === "bound") continue;
       if (value.expiresAt <= now) await storage.transaction(async tx => {
@@ -153,4 +154,44 @@ export async function pruneSignupEmail(storage: DurableStorage): Promise<void> {
       else pending = true;
     }
   if (pending) await storage.setAlarm(now + hour);
+}
+
+// The provider supplies a signed bearer, while this service pins the destination
+// origin and message template. It cannot be used to send arbitrary email content.
+async function sendSignupInvitation(input:unknown,storage:DurableStorage,env:EmailEnvironment):Promise<Response>{
+  if(!input||typeof input!=="object"||Array.isArray(input))return reply({error:"Invalid invitation"},400);
+  const row=input as Record<string,unknown>,email=emailAddress(row.email),now=Date.now();
+  if(Object.keys(row).sort().join(',')!=="email,expiresAt,id,url"||typeof row.id!=="string"||!uuid.test(row.id)||!email||
+    typeof row.url!=="string"||row.url.length>3000||typeof row.expiresAt!=="number"||!Number.isSafeInteger(row.expiresAt)||
+    row.expiresAt*1000<=now||row.expiresAt*1000>now+7*86400_000+300_000)return reply({error:"Invalid invitation"},400);
+  let url:URL;
+  try{
+    url=new URL(row.url);
+    if(url.protocol!=="https:"||url.origin!==env.SIGNUP_ORIGIN||url.pathname!=="/signup"||url.search||url.username||url.password||
+      !/^#invitation=[A-Za-z0-9_.%-]+$/.test(url.hash))throw new Error();
+  }catch{return reply({error:"Invalid invitation URL"},400);}
+  const digest=await hash(JSON.stringify({email,url:row.url,expiresAt:row.expiresAt})),key=`invitation:${row.id}`;
+  type InvitationRecord={digest:string;state:"sending"|"sent";expiresAt:number};
+  const result=await storage.transaction(async tx=>{
+    const prior=await tx.get<InvitationRecord>(key);
+    if(prior)return prior.digest!==digest?409:prior.state==="sent"?204:503;
+    const mailboxKey=`email-rate:invite:${await hash(email.toLowerCase())}`;
+    const mailbox=await tx.get<Rate>(mailboxKey),global=await tx.get<Rate>("email-rate:invite-global");
+    if(mailbox&&mailbox.expiresAt>now&&mailbox.count>=5||global&&global.expiresAt>now&&global.count>=100)return 429;
+    for(const [rateKey,priorRate] of [[mailboxKey,mailbox],["email-rate:invite-global",global]] as const)
+      await tx.put(rateKey,priorRate&&priorRate.expiresAt>now?{...priorRate,count:priorRate.count+1}:{count:1,expiresAt:now+hour});
+    await tx.put(key,{digest,state:"sending",expiresAt:(row.expiresAt as number)*1000} satisfies InvitationRecord);
+    return 0;
+  });
+  if(!(await storage.getAlarm()))await storage.setAlarm(now+hour);
+  if(result)return new Response(null,{status:result,headers:{"Cache-Control":"no-store"}});
+  try{
+    await sendEmail(env,{to:email,from:env.SIGNUP_SENDER,subject:"You're invited to Hail",
+      text:`You've been invited to create an account at ${url.origin}.\n\n${url.href}\n\nThis single-use invitation expires ${new Date(row.expiresAt*1000).toISOString()}. Keep the link private. It allows signup only, not access to an existing account.\n\nIf you weren't expecting this invitation, you can ignore it.`});
+    await storage.put(key,{digest,state:"sent",expiresAt:row.expiresAt*1000} satisfies InvitationRecord);
+    return new Response(null,{status:204,headers:{"Cache-Control":"no-store"}});
+  }catch{
+    // An email API failure can be ambiguous. Do not send a second copy on retry.
+    return reply({error:"Invitation delivery unconfirmed"},503);
+  }
 }

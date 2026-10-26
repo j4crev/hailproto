@@ -164,3 +164,19 @@ only heartbeats and state transitions consume writes.
 The provider backup job posts to `/backup-heartbeat` only after an encrypted R2
 upload is downloaded and its digest matches. Missing backup heartbeats alert
 after 26 hours.
+
+### Provider invitation delivery
+
+The provider operator dashboard calls `POST /signup-email/invite` with the existing
+`SIGNUP_EMAIL_TOKEN` bearer and JSON `{id,email,url,expiresAt}`. `expiresAt` is Unix
+seconds, at most seven days away. The Worker accepts only the configured HTTPS
+`SIGNUP_ORIGIN` with `/signup#invitation=...`; it uses `SIGNUP_SENDER` and a fixed
+plain-text template. Return `204` means email-service acceptance, not inbox delivery.
+
+The invitation ID and content digest deduplicate successful retries and reject
+changed recipients or links. In-progress or ambiguous failed sends remain `503`
+until expiry to prevent duplicate sends; check with the recipient before issuing
+a fresh invitation. Pending records expire with the invitation. Rate limits are
+five per destination per hour and 100 total per hour. Deploy this Worker version
+before enabling dashboard email sends. No public signup-email route proxies this
+operator-only operation.

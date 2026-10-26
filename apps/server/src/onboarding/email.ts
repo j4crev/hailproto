@@ -41,6 +41,15 @@ export class SignupEmailClient {
     if (url.protocol !== "https:" || url.origin !== config.origin) throw new Error("Signup email requires a canonical HTTPS Worker origin");
     decodeBase64Url(config.token, 32);
   }
+  async invite(input:{id:string;email:string;url:string;expiresAt:number}):Promise<void>{
+    try{
+      const response=await this.request(`${this.config.origin}/signup-email/invite`,{method:"POST",redirect:"error",
+        signal:AbortSignal.timeout(10_000),headers:{"Content-Type":"application/json",Authorization:`Bearer ${this.config.token}`},
+        body:JSON.stringify(input)});
+      await response.body?.cancel();
+      if(response.status!==204)throw new Error();
+    }catch{throw new SignupEmailError(503);}
+  }
   async post(step: "start" | "verify" | "bind", input: Record<string, unknown>, token: string) {
     const path = step === "start" ? "/signup-email" : `/signup-email/${step}`;
     try {
