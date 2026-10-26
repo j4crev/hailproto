@@ -7,11 +7,12 @@ signup recovery preview below temporarily handles owner recovery material.
 
 The [browser-client roadmap](../../docs/browser-client-roadmap.md) tracks its
 incremental productization. The responsive teal client now covers the feed,
-composer, message readers, Sent, sender permissions and security. The public home
+composer, message readers, Sent, sender permissions, Account, Settings and security. The public home
 does not show private folders. Private links consistently lead to passkey sign-in
-and return to the requested screen; QR fragments remain browser-local and do not
-authorize anything automatically. Connection and organization semantics are not
-implemented.
+and return to the requested screen. The homepage also signs in directly with a
+passkey; QR fragments remain browser-local and do not
+authorize anything automatically. Connection codes and existing connections live at `/connections`, separate from
+passkey security. Organization semantics are not implemented.
 
 New subscriptions select explicit categories, including General when offered,
 through the normal passkey approval. Uncategorized subscription creation is no
@@ -95,6 +96,22 @@ Address labels come only from retained signed Grant consent evidence. Sent detai
 explains hold and terminal failure reasons; only indeterminate submissions expose
 an idempotent retry control.
 The inbox presents messages as feed cards and shows bundled headers by default;
-the local “Show headers” preference can hide them without contacting senders.
+the “Show header images” switch in Settings can hide them without contacting
+senders. The preference stays in this browser, with an in-memory fallback when
+storage is blocked.
 The directory remains `apps/gui-poc` during the incremental migration; no package
 or deployment path rename is required for this presentation work.
+
+## Navigation and visual checks
+
+The desktop sidebar and mobile modal drawer share their navigation. The avatar
+opens a native popover with Account, Settings, Security and Sign out. Both the
+popover and drawer support outside-click and Escape dismissal; the drawer locks
+background scrolling and restores focus when closed. Account details live at
+`/account`; reading preferences live at `/settings`.
+
+The browser wizard checks those interactions at desktop and mobile widths,
+including direct homepage login, protected new routes, account-menu logout,
+preference persistence and blocked browser storage. To save screenshots outside
+the repository, set `HAIL_WIZARD_SCREENSHOTS=/tmp/hail-ui-review` when running
+`test:wizard` (combine with `HAIL_WIZARD_MOBILE=true` for the mobile set).

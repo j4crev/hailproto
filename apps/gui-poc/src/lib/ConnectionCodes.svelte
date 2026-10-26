@@ -9,7 +9,7 @@
   const personal=$derived(list?.codes.find(code=>code.personal));
   async function load(){list=await connectionRequest();}
   onMount(()=>{
-    void load().catch(error=>{if(!(error instanceof ConnectionRequestError&&[403,404].includes(error.status)))message="Connection codes could not be loaded. Retry without creating a new code.";});
+    void load().catch(error=>{message=error instanceof ConnectionRequestError&&[403,404].includes(error.status)?"Connections are not available for this account yet.":"Connection codes could not be loaded. Please try again.";});
     const timer=setInterval(()=>{if(!busy&&list?.pendingConnections?.some(p=>!["expired","conflict"].includes(p.state)))void load().catch(()=>{message="Synchronization status is unavailable. Your saved request will keep retrying.";});},3000);
     return()=>clearInterval(timer);
   });
@@ -28,7 +28,7 @@
 {/snippet}
 {#if list}
   <section class="mt-8 grid gap-5" aria-label="Connection codes">
-    <header class="grid gap-2"><p class="hail-eyebrow">Personal connections · preview</p><h2 class="m-0 text-2xl">Connect with me</h2><p class="m-0 text-sm text-muted">Connect here or through another compatible Hail provider. Owner-controlled accounts sign consent locally with their identity key. Personal messages and subscriptions remain independent. Transfer is unavailable while retained preview consent needs portability support.</p></header>
+    <header class="grid gap-2"><p class="hail-eyebrow">Personal connections · preview</p><h2 class="m-0 text-2xl">Connect with me</h2><p class="m-0 text-sm text-muted">Connect across compatible Hail providers. Connections are separate from subscriptions. Account transfer is unavailable while preview consent is retained.</p></header>
     {#if message}<p class="hail-error" role="status">{message}</p>{/if}
     {#if prepared}<ConnectionApproval approval={prepared} oncomplete={done} oncancel={cancel} />
     {:else}
@@ -53,4 +53,4 @@
     </section>
     {#if list.pendingConnections?.length}<section class="grid gap-3" aria-label="Connection synchronization"><h3 class="m-0 text-xl">Synchronizing with other providers</h3>{#each list.pendingConnections as pending}<article class="hail-card grid min-w-0 gap-2 p-5"><strong class="[overflow-wrap:anywhere]">{pending.address}</strong><p class="m-0 text-sm text-muted">{pending.state==="expired"?"This connection attempt expired. Open a current code to review and try again.":pending.state==="conflict"?"This attempt could not be confirmed because the reviewed identity or relationship changed. Review a current code before trying again.":pending.kind==="disconnect"?"Disconnected here. Notifying the other provider; automatic retries continue if it is offline.":pending.state==="active"?"Connected here. Updating the other provider's view; automatic retries continue if it is offline.":"Your connection approval is saved. Awaiting verified confirmation from both providers; no additional acceptance is needed."}</p></article>{/each}</section>{/if}
   </section>
-{:else if message}<section class="mt-8 grid gap-4" aria-label="Connection codes unavailable"><p class="hail-error" role="status">{message}</p><button class="hail-button-secondary justify-self-start" disabled={busy} onclick={()=>run(load)}>Retry loading connection codes</button></section>{/if}
+{:else if message}<section class="mt-8 grid gap-4" aria-label="Connection codes unavailable"><p class="hail-error" role="status">{message}</p><button class="hail-button-secondary justify-self-start" disabled={busy} onclick={()=>run(load)}>Retry loading connection codes</button></section>{:else}<p class="text-sm text-muted" role="status">Loading connections…</p>{/if}

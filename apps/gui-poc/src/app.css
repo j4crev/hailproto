@@ -61,3 +61,15 @@
 @utility hail-field { @apply grid min-w-0 gap-2 text-sm font-semibold [&_input]:min-w-0 [&_input]:w-full [&_select]:min-w-0 [&_select]:w-full [&_textarea]:w-full; }
 @utility hail-error { @apply m-0 rounded-xl border border-solid border-danger bg-danger-soft p-4 text-sm text-danger; }
 @utility hail-back { @apply mb-5 inline-flex min-h-11 items-center text-sm font-semibold text-brand underline-offset-4; }
+
+@layer components {
+  .page-heading { display:grid; gap:12px; margin-bottom:32px; }
+  .page-heading > p:not(.hail-eyebrow) { margin:0; font-size:14px; color:var(--color-muted); }
+  .setting-icon { display:grid; place-items:center; width:42px; height:42px; flex-shrink:0; border-radius:13px; background:var(--color-brand-soft); color:var(--color-brand); }
+  .setting-link { display:flex; align-items:center; gap:16px; min-width:0; padding:22px; border:1px solid var(--color-line); border-radius:18px; background:var(--color-surface); text-decoration:none; transition:border-color .15s, box-shadow .15s; }
+  .setting-link:hover { border-color:var(--color-brand); box-shadow:0 4px 20px #172b2d08; }
+  .setting-link > span:not(.setting-icon) { display:grid; gap:5px; min-width:0; }
+  .setting-link strong { font-size:14px; }
+  .setting-link small { font-size:12px; color:var(--color-muted); }
+  .setting-link > svg:last-child { margin-left:auto; flex-shrink:0; color:var(--color-muted); }
+}

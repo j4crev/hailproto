@@ -8,7 +8,7 @@ import {load as login} from "../routes/auth/login/+page.server.js";
 
 it("uses one sign-in destination for every anonymous private screen and action",async()=>{
   const cookies={get:()=>undefined},resolve=vi.fn();
-  for(const path of ["/permissions","/settings/security","/sent","/compose","/sent/message-id","/message/did%3Aplc%3Atest/message-id"]){
+  for(const path of ["/account","/settings","/connections","/permissions","/settings/security","/sent","/compose","/sent/message-id","/message/did%3Aplc%3Atest/message-id"]){
     expect(isAccountPath(path)).toBe(true);
     for(const search of ["","?after=page","?/reply"]){
       const url=new URL("https://provider.example"+path+search);
@@ -28,6 +28,6 @@ it("uses one sign-in destination for every anonymous private screen and action",
 it("allows only local inbox return paths, including public QR fragments",()=>{
   for(const value of [null,"https://evil.example/sent","//evil.example/sent","/\\evil.example/sent","/sent\nX-Test: bad","/auth/login","/auth/recover#secret","/signup","/sent/../auth/login","javascript:alert(1)"])
     expect(returnPath(value)).toBe("/");
-  for(const value of ["/","/sent?after=page","/permissions#sender=a%40example.com&did=did%3Aplc%3Aa","/compose","/settings/security"])
+  for(const value of ["/account","/settings","/connections","/","/sent?after=page","/permissions#sender=a%40example.com&did=did%3Aplc%3Aa","/compose","/settings/security"])
     expect(returnPath(value)).toBe(value);
 });

@@ -1,6 +1,6 @@
 // Built GUI + Chromium + virtual WebAuthn; local API fixtures, no public writes or mail.
 import {strict as assert} from "node:assert";
-import {mkdtemp,readFile,readdir,writeFile,rm} from "node:fs/promises";
+import {mkdir,mkdtemp,readFile,readdir,writeFile,rm} from "node:fs/promises";
 import {join} from "node:path";
 import {createRequire} from "node:module";
 import {createSignupBackup} from "../src/lib/signup-recovery.js";
@@ -15,7 +15,7 @@ const {generateRegistrationOptions,verifyRegistrationResponse,generateAuthentica
 const work=await mkdtemp(join(process.env.OPENCODE_TMP_DIR||"/tmp/opencode","hail-wizard-proof-"));
 const provider=await createSignupBackup(),messaging=await createSignupBackup();
 let gui:ReturnType<typeof Bun.spawn>|undefined,chrome:ReturnType<typeof Bun.spawn>|undefined,socket:WebSocket|undefined;
-let passed=false;
+let passed=false,logoutAttempts=0;
 let prepared:any=null,state="prepared",operation:any=null,enrolled=false,retired=false,authenticated=false,challenge="",credential:any;
 let did:string|null=null;const sessionToken="hails_"+"A".repeat(43);
 let setupId="",setupToken="",enrollmentToken="",secret="",invitation="fixture-invitation",publicationAttempts=0,prepareCalls=0;
@@ -230,6 +230,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     assert(result.verified);credential.counter=result.authenticationInfo.newCounter;authenticated=true;recentlyVerified=true;const response=json({authenticated:true});
     response.headers.set("Set-Cookie",`hail_session=${sessionToken}; HttpOnly; SameSite=Lax; Path=/`);return response;
   }
+  if(path==="/api/v1/auth/logout"){assert.equal(request.method,"POST");assert(request.headers.get("Cookie")?.includes(sessionToken));if(++logoutAttempts===1)return json({error:"Temporary logout failure"},503);authenticated=false;return json({ok:true});}
   if(path===`/api/v1/signup/${setupId}/complete`){assert(authenticated);retired=true;return json({state:"complete",signupId:setupId});}
   return json({},404);
 }});
@@ -257,6 +258,18 @@ try{
   const evaluate=async(expression:string)=>{const result=await cdp("Runtime.evaluate",{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw new Error("Browser evaluation failed: "+(result.exceptionDetails.exception?.description??result.exceptionDetails.text));return result.result.value;};
   const has=async(text:string)=>evaluate(`document.body?.innerText.includes(${JSON.stringify(text)})??false`);
   const styles=async(selector:string,properties:string[])=>evaluate(`(()=>{const style=getComputedStyle(document.querySelector(${JSON.stringify(selector)}));return ${JSON.stringify(properties)}.map(property=>style[property]);})()`);
+  const screenshot=async(name:string)=>{if(!process.env.HAIL_WIZARD_SCREENSHOTS)return;await mkdir(process.env.HAIL_WIZARD_SCREENSHOTS,{recursive:true});const shot=await cdp("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});await writeFile(join(process.env.HAIL_WIZARD_SCREENSHOTS,`${process.env.HAIL_WIZARD_MOBILE==='true'?'mobile':'desktop'}-${name}.png`),Buffer.from(shot.data,"base64"));};
+  const escape=async()=>{await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});};
+  const pointer=async(x:number,y:number)=>{await cdp("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,x,y});await cdp("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,x,y});};
+  const openAccount=async()=>{await evaluate(`(()=>{const b=[...document.querySelectorAll('[aria-label="Open account menu"]')].find(b=>b.checkVisibility());b.focus();b.click();})()`);await wait(async()=>evaluate(`!!document.querySelector('[popover]:popover-open')`),"avatar opens account menu");};
+  const narrowLayouts=async()=>{
+    if(process.env.HAIL_WIZARD_MOBILE!=="true")return;
+    for(const width of [320,768,390]){
+      await cdp("Emulation.setDeviceMetricsOverride",{width,height:844,deviceScaleFactor:3,mobile:true});
+      await evaluate(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
+      assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),`Page overflows at ${width}px`);
+    }
+  };
   const noPrematureSignIn=async()=>assert(await evaluate(`![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Sign in with a created passkey and finish setup')`),"Sign-in offered before confirmed passkey enrollment");
   const click=async(text:string)=>{await wait(async()=>evaluate(`!![...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled)`),"button: "+text);
     await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled).click()`);};
@@ -268,10 +281,11 @@ try{
   else await cdp("Emulation.setDeviceMetricsOverride",{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   await cdp("WebAuthn.addVirtualAuthenticator",{options:{protocol:"ctap2",transport:"internal",hasResidentKey:true,hasUserVerification:true,isUserVerified:true,automaticPresenceSimulation:true}});
   await cdp("Browser.setDownloadBehavior",{behavior:"allow",downloadPath:work});
-  await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("A little more signal."),"signed-out feed");
+  await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("Your permission."),"signed-out feed");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Signed-out feed overflows viewport");
   assert.equal(await evaluate(`!!document.querySelector('nav[aria-label="Main navigation"]') || !!document.querySelector('a[href="/compose"]')`),false,"Public home must not show private folders or compose");
-  const privatePaths=["/permissions","/settings/security","/sent?after=older","/compose","/?view=connections",`/sent/${incomingId}`,`/message/${encodeURIComponent(peerDid)}/${incomingId}`];
+  await narrowLayouts();await screenshot("home");
+  const privatePaths=["/account","/settings","/connections","/permissions","/settings/security","/sent?after=older","/compose","/?view=connections",`/sent/${incomingId}`,`/message/${encodeURIComponent(peerDid)}/${incomingId}`];
   for(const path of privatePaths){
     const response=await fetch(origin+path,{redirect:"manual"});assert.equal(response.status,303);
     assert.equal(new URL(response.headers.get("location")!,origin).searchParams.get("next"),path);
@@ -355,13 +369,43 @@ try{
   const finalBackup=JSON.parse(await readFile(join(work,"hail-account-recovery.vault.json"),"utf8"));assert(/^did:plc:[a-z2-7]{24}$/.test(finalBackup.did));
   await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your inbox').click()`);
   await wait(()=>has("No messages yet"),"completed alpha account inbox");
-  assert(await has("alice@provider.example.com"));
+  assert(await evaluate(`document.querySelector('.account-popover').textContent.includes("alice@provider.example.com")`));
   assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Feed");
-  assert.equal(await evaluate("document.querySelector('details').open"),false,"Technical account details start collapsed");
+  assert(!await has("Account details"),"Account metadata must not clutter the feed");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Empty feed overflows viewport");
-  assert.deepEqual(await styles(".sidebar",["position"]),[process.env.HAIL_WIZARD_MOBILE==="true"?"static":"fixed"]);
   if(process.env.HAIL_WIZARD_MOBILE!=="true")assert(await evaluate("document.querySelector('.sidebar').getBoundingClientRect().right<=document.querySelector('main').getBoundingClientRect().left"),"Desktop sidebar overlaps content");
-  else assert(await evaluate(`Array.from(document.querySelectorAll('nav[aria-label="Main navigation"] a')).every(a=>a.getBoundingClientRect().right<=innerWidth && a.getBoundingClientRect().height>=44)`),"Mobile navigation must remain visible and touch-sized");
+  else {
+    assert(await evaluate(`getComputedStyle(document.querySelector('.sidebar')).display==='none' && !document.querySelector('dialog').open`),"Mobile sidebar starts closed");
+    await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click()`);
+    await wait(async()=>evaluate(`document.querySelector('dialog').open`),"mobile drawer opens");
+    assert(await evaluate(`Array.from(document.querySelectorAll('dialog nav a')).every(a=>a.getBoundingClientRect().right<=innerWidth && a.getBoundingClientRect().height>=44)`),"Drawer links are touch-sized and fit");
+    assert(await evaluate(`document.body.style.overflow==='hidden'`),"Drawer locks background scrolling");
+    for(let i=0;i<16;i++){await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:"Tab",code:"Tab",windowsVirtualKeyCode:9});await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:"Tab",code:"Tab",windowsVirtualKeyCode:9});assert(await evaluate(`document.querySelector('dialog').contains(document.activeElement)||document.activeElement===document.body`),"Modal keeps keyboard focus out of the background");}
+    await screenshot("navigation");await escape();
+    await wait(async()=>evaluate(`!document.querySelector('dialog').open`),"Escape closes drawer");
+    assert(await evaluate(`document.activeElement?.getAttribute('aria-label')==='Open navigation'`),"Drawer restores focus to trigger");
+    await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click()`);await pointer(380,200);
+    await wait(async()=>evaluate(`!document.querySelector('dialog').open`),"Outside click closes drawer");
+    await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click();document.querySelector('dialog a[href="/settings"]').click()`);
+    await wait(async()=>evaluate(`location.pathname==='/settings'&&!document.querySelector('dialog').open`),"Drawer closes after navigation");
+    await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click();document.querySelector('dialog nav a[href="/"]').click()`);
+    await wait(()=>has("No messages yet"),"return through mobile drawer");
+  }
+  await screenshot("feed-empty");
+  await openAccount();await screenshot("account-menu");await escape();
+  await wait(async()=>evaluate(`!document.querySelector('[popover]:popover-open')`),"Escape closes account menu");
+  assert(await evaluate(`document.activeElement?.getAttribute('aria-label')==='Open account menu'`),"Account menu restores focus");
+  await openAccount();await pointer(process.env.HAIL_WIZARD_MOBILE==='true'?20:600,200);
+  await wait(async()=>evaluate(`!document.querySelector('[popover]:popover-open')`),"Outside click closes account menu");
+  await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/account"]').click()`);
+  await wait(()=>has("Key custody"),"Account page holds identity details");
+  assert(await has("alice@provider.example.com"));assert(await has(did!));
+  assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Account page fits");
+  await narrowLayouts();await screenshot("account");
+  // The public homepage now performs the passkey ceremony directly.
+  await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
+  await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("Your permission."),"signed-out homepage");
+  await click("Sign in with a passkey");await wait(()=>has("No messages yet"),"homepage passkey signs in without an intermediate page");
   await evaluate("document.querySelector('.skip-link').focus()");
   await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:"Enter",code:"Enter",windowsVirtualKeyCode:13});
   await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:"Enter",code:"Enter",windowsVirtualKeyCode:13});
@@ -380,37 +424,39 @@ try{
   assert.equal(replyPosts,1);
   await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("This reply invitation has expired or was already used"),"consumed one-time reply");
   assert.equal(replyPosts,1);
-  await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("Message feed"),"return to inbox");
+  await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("The latest from the senders you choose."),"return to inbox");
   const feedImage='[aria-label="Messages"] img[alt="Bundled test header"]';
-  await wait(async()=>evaluate(`document.querySelector('[aria-label="Inbox preferences"] input')?.disabled===false`),"feed preferences ready");
+  await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"feed header ready");
   assert(await evaluate(`document.querySelector(${JSON.stringify(feedImage)}).src.startsWith('data:image/png;base64,')`),"Feed header remains bundled");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Populated feed overflows viewport");
-  await evaluate(`document.querySelector('[aria-label="Inbox preferences"] input').click()`);
-  await wait(async()=>evaluate(`document.querySelector(${JSON.stringify(feedImage)})===null`),"hide feed headers");
+  await screenshot("feed");
+  const settings=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/settings';document.body.append(a);a.click();a.remove();})()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"reading settings ready");};
+  const feed=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/';document.body.append(a);a.click();a.remove();})()`);await wait(()=>has("The latest from the senders you choose."),"feed navigation");};
+  await settings();await narrowLayouts();await screenshot("settings");
+  await evaluate(`document.querySelector('#show-headers').click()`);await wait(()=>has("Saved on this browser."),"preference saved");
+  await feed();await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"hide feed headers through settings");
   await evaluate("document.documentElement.dataset.beforePreferenceReload='true'");
-  await cdp("Page.reload");await wait(async()=>evaluate(`!document.documentElement.dataset.beforePreferenceReload && document.querySelector('[aria-label="Inbox preferences"] input')?.disabled===false && document.querySelector('[aria-label="Inbox preferences"] input')?.checked===false && !document.querySelector(${JSON.stringify(feedImage)})`),"persist hidden header preference");
-  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(feedImage)})===null`),true);
+  await cdp("Page.reload");await wait(async()=>evaluate(`!document.documentElement.dataset.beforePreferenceReload && !!document.querySelector('[aria-label="Messages"]') && !document.querySelector(${JSON.stringify(feedImage)})`),"persist hidden header preference");
   await evaluate(`document.querySelector('[aria-label="Feed pages"] a').click()`);
   await wait(async()=>evaluate("new URL(location.href).searchParams.get('after')==='older-page' && !!document.querySelector('[aria-label=\"Feed pages\"] a[href=\"/\"]')"),"older feed page");
   await evaluate(`document.querySelector('[aria-label="Feed pages"] a[href="/"]').click()`);
   await wait(async()=>evaluate("location.search==='' && !!document.querySelector('[aria-label=\"Feed pages\"] a[href*=after]')"),"newest feed page");
-  await evaluate(`document.querySelector('[aria-label="Inbox preferences"] input').click()`);
+  await settings();assert.equal(await evaluate(`document.querySelector('#show-headers').checked`),false);
+  await evaluate(`document.querySelector('#show-headers').click()`);await feed();
   await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"show feed headers again");
   const blockedStorage=await cdp("Page.addScriptToEvaluateOnNewDocument",{source:`Storage.prototype.getItem=Storage.prototype.setItem=()=>{throw new DOMException('Storage blocked','SecurityError');};`});
-  await evaluate("document.documentElement.dataset.beforeStorageReload='true'");
-  await cdp("Page.reload");await wait(async()=>evaluate(`!document.documentElement.dataset.beforeStorageReload && document.querySelector('[aria-label="Inbox preferences"] input')?.disabled===false && !!document.querySelector(${JSON.stringify(feedImage)})`),"feed remains readable when storage is blocked");
-  await evaluate(`document.querySelector('[aria-label="Inbox preferences"] input').click()`);
-  await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"header toggle works without storage");
+  await cdp("Page.navigate",{url:origin+"/settings"});await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"settings works with blocked storage");
+  await evaluate(`document.querySelector('#show-headers').click()`);await wait(()=>has("Applied for this visit."),"storage failure feedback");
+  await feed();await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"in-memory header preference survives navigation without storage");
   await cdp("Page.removeScriptToEvaluateOnNewDocument",{identifier:blockedStorage.identifier});
-  // A new document restores ordinary storage before the permission ceremony.
-  await cdp("Page.navigate",{url:origin+"/"});await wait(async()=>evaluate(`document.querySelector('[aria-label="Inbox preferences"] input')?.disabled===false && !!document.querySelector(${JSON.stringify(feedImage)})`),"restore normal feed preferences");
+  await cdp("Page.navigate",{url:origin+"/"});await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"restore normal feed preferences");
   await evaluate(`[...document.querySelectorAll('nav a')].find(a=>a.textContent.trim()==='Allowed senders').click()`);
   await wait(()=>has("No permissions on this page"),"allowed-sender list");
   assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Allowed senders");
   await fill("Potential sender's Hail address",peerAddress);await click("Review sender");await wait(()=>has("Test sender"),"verified sender review");
   await evaluate(`document.querySelector('fieldset input[value=updates]').click()`);
   assert.deepEqual(await styles("fieldset label",["flexDirection","alignItems"]),["row","center"]);
-  await click("Review permission before approving");await wait(()=>has("Confirm allowed sender"),"exact permission review");
+  await click("Review permission");await wait(()=>has("Confirm allowed sender"),"exact permission review");
   assert.deepEqual(await styles('[aria-label="Permission confirmation"]',["borderTopWidth","borderTopColor"]),["2px","rgb(15, 118, 110)"]);
   assert.equal(allowed,null);assert(await has("alice@provider.example.com"));
   await click("Allow sender with my passkey");await wait(()=>has("Review revocation"),"passkey-approved permission saved");
@@ -495,12 +541,12 @@ try{
   await wait(async()=>evaluate(`!!document.querySelector('input[value=general]')`),"General is an ordinary offered category");
   assert(!await has("Allow uncategorized messages instead"));
   await evaluate(`document.querySelector('input[value=general]').click()`);
-  await click("Review permission before approving");await wait(()=>has("Confirm allowed sender"),"review General subscription");
+  await click("Review permission");await wait(()=>has("Confirm allowed sender"),"review General subscription");
   assert(await has("Scope: General"));await click("Allow sender with my passkey");
   await wait(async()=>evaluate(`[...document.querySelectorAll('[aria-label="Issued permissions"] article p')].some(p=>p.textContent.startsWith('General · active'))`),"new General subscription saved");
   assert.equal(allowed!.revision,1);assert.deepEqual(allowed!.scope,[{type:"categories",values:["general"]}]);
   // Separate permanent/expiring codes and real browser passkey confirmation (API fixtures).
-  await cdp("Page.navigate",{url:origin+"/settings/security?connections=1"});await wait(()=>has("Create my personal code"),"personal connection code creation");
+  await cdp("Page.navigate",{url:origin+"/connections?connections=1"});await wait(()=>has("Create my personal code"),"personal connection code creation");
   await click("Create my personal code");await wait(()=>has("Confirm new connection code"),"standing invitation consent");
   assert(await has("without another approval from you"));assert(await has("No automatic expiry"));
   await click("Confirm with passkey");await wait(()=>has("Show my QR & link"),"personal code saved");
@@ -546,7 +592,7 @@ try{
   await evaluate(`document.querySelector('a[href*="${connectionIncomingId}"]').click()`);await wait(()=>has('Message this connection →'),'standing connection response action');
   assert(!await evaluate(`!!document.querySelector('form[action="?/reply"]')`));
   await evaluate(`document.querySelector('a[href*="audience=connections&connection="]').click()`);await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]:checked').length===1`),'connection response preselects the same active connection');
-  await cdp("Page.navigate",{url:origin+"/settings/security?connected=1"});await wait(()=>has("Disconnect"),"connected account visible");
+  await cdp("Page.navigate",{url:origin+"/connections?connected=1"});await wait(()=>has("Disconnect"),"connected account visible");
   await click("Disconnect");await wait(()=>has("Confirm disconnect"),"disconnect review");await click("Confirm with passkey");await wait(()=>has("No connections yet."),"disconnect saved");
   assert(!personalConnection);assert.equal(allowed!.status,"active");
   await cdp('Page.navigate',{url:origin+`/message/${encodeURIComponent(peerDid)}/${connectionIncomingId}`});await wait(()=>has('This connection is no longer active.'),'disconnected historical messages remain readable without a standing send action');
@@ -559,12 +605,12 @@ try{
   await click("Review connection code");await wait(()=>has("Review before connecting"),"federated consent review");
   await click("Review before connecting");await wait(()=>has("Confirm connection"),"federated passkey consent");await click("Confirm with passkey");
   await wait(()=>has("Connecting across providers."),"durable cross-provider pending state");assert(!personalConnection);
-  await cdp("Page.navigate",{url:origin+"/settings/security?federation-pending=1"});await wait(()=>has("Synchronizing with other providers"),"pending work discoverable after closing scanner page");
+  await cdp("Page.navigate",{url:origin+"/connections?federation-pending=1"});await wait(()=>has("Synchronizing with other providers"),"pending work discoverable after closing scanner page");
   await wait(()=>has("Disconnect"),"automatic federation status polling discovers completed connection");assert(personalConnection);
   await click("Disconnect");await wait(()=>has("Confirm disconnect"),"federated disconnect consent");await click("Confirm with passkey");await wait(()=>has("No connections yet."),"federated disconnect visible");
   federatedConnecting=false;
   ownerConnectionSigning=true;
-  await cdp("Page.navigate",{url:origin+"/settings/security?owner-signing=1"});await wait(()=>has("Create an expiring connect link"),"owner-signing code form");
+  await cdp("Page.navigate",{url:origin+"/connections?owner-signing=1"});await wait(()=>has("Create an expiring connect link"),"owner-signing code form");
   await fill("Private label","Owner identity proof");await fill("Expires (your local time)","2027-01-15T18:00");await click("Review new link");
   await wait(()=>has("Sign with your own identity key"),"owner consent requires local signature");
   const ownerRow=[...connectionApprovals.values()].find(row=>row.ownerSigning)!;
@@ -582,6 +628,14 @@ try{
   assert.equal(composePosts,1);assert.equal(replyPosts,1);
   for(const req of requests){assert(!req.body.includes(secret),"Recovery secret uploaded");assert(!req.body.includes('"ciphertext"'),"Recovery vault uploaded");}
   assert(requests.filter(r=>r.authorization).every(r=>r.authorization==="Bearer "+setupToken||r.path.endsWith("check-address")));
+  await openAccount();
+  await evaluate(`document.querySelector('[popover]:popover-open form button').click()`);
+  await wait(()=>has("Couldn’t sign out. Please try again."),"logout failure offers retry");
+  assert(authenticated,"Failed logout retains the session");
+  await evaluate(`document.querySelector('[popover]:popover-open form button').click()`);
+  await wait(async()=>evaluate(`location.pathname==='/'&&document.body.innerText.includes('Your permission.')`),"avatar menu signs out to homepage");
+  assert(!authenticated);assert(requests.some(r=>r.path==='/api/v1/auth/logout'));
+  const loggedOut=await cdp("Network.getCookies",{urls:[origin]});assert(!loggedOut.cookies.some((cookie:any)=>cookie.name==='hail_session'),"Sign-out clears session cookie");
   passed=true;
   console.info("PASS: Chromium public/private shells, sign-in return paths and QR pins, signup, messaging, permissions and security (local API fixtures only)");
 }finally{

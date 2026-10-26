@@ -5,7 +5,8 @@
 </script>
 
 <svelte:head><title>Message · Haili</title></svelte:head>
-<a class="hail-back" href={data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.kind==='connection'?'Conversations':'Message feed'}</a>
+<div class="mx-auto max-w-[860px]">
+<a class="hail-back" href={data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.kind==='connection'?'Conversations':'Feed'}</a>
 <h1 class="sr-only">Received message</h1>
 <article class="hail-card overflow-hidden">
   <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line p-5 sm:px-7">
@@ -41,3 +42,5 @@
 {:else if data.message.replyUntil}
   <p class="mt-5 rounded-xl bg-warning-soft p-4 text-sm text-warning">This reply invitation has expired or was already used.</p>
 {/if}
+
+</div>

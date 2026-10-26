@@ -9,5 +9,5 @@ export async function POST({cookies}){
     if(!response.ok)error(502,"Provider logout failed");
   }
   cookies.delete("hail_session",{path:"/"});
-  redirect(303,"/auth/login");
+  redirect(303,"/");
 }
