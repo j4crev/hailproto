@@ -28,7 +28,7 @@
 {/snippet}
 {#if list}
   <section class="mt-8 grid gap-5" aria-label="Connection codes">
-    <header class="grid gap-2"><p class="hail-eyebrow">Personal connections · preview</p><h2 class="m-0 text-2xl">Connect with me</h2><p class="m-0 text-sm text-muted">Connect across compatible Hail providers. Connections are separate from subscriptions. Account transfer is unavailable while preview consent is retained.</p></header>
+    <header class="grid gap-2"><p class="hail-eyebrow">Personal connections · preview</p><h2 class="m-0 text-2xl">Connect with me</h2></header>
     {#if message}<p class="hail-error" role="status">{message}</p>{/if}
     {#if prepared}<ConnectionApproval approval={prepared} oncomplete={done} oncancel={cancel} />
     {:else}

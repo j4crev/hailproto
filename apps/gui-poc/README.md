@@ -104,8 +104,11 @@ or deployment path rename is required for this presentation work.
 
 ## Navigation and visual checks
 
-The desktop sidebar and mobile modal drawer share their navigation. The avatar
-opens a native popover with Account, Settings, Security and Sign out. Both the
+The desktop sidebar and mobile modal drawer share their navigation. Inbox shows
+subscription updates; Messages shows connection messages. Both have their own
+navigation entry and no tabs. Messages has one New message action in its heading. The avatar
+opens a native popover as the sole navigation to Account, Settings, Security and
+Sign out; those pages have no cross-link cards. Both the
 popover and drawer support outside-click and Escape dismissal; the drawer locks
 background scrolling and restores focus when closed. Account details live at
 `/account`; reading preferences live at `/settings`.
@@ -115,3 +118,20 @@ including direct homepage login, protected new routes, account-menu logout,
 preference persistence and blocked browser storage. To save screenshots outside
 the repository, set `HAIL_WIZARD_SCREENSHOTS=/tmp/hail-ui-review` when running
 `test:wizard` (combine with `HAIL_WIZARD_MOBILE=true` for the mobile set).
+
+## Subscriptions and publishing categories
+
+Subscriptions retains `/permissions` so existing sender links and QR codes keep
+working. It manages incoming subscriptions only. `/categories` is the publishing
+home: create a Sender Profile, edit its public name and description, add or remove
+categories, and share a sender QR or subscription link after the profile exists.
+Published category IDs stay fixed; category removal does not revoke old Grants.
+Existing profile versions, avatars, and legacy uncategorized settings are retained.
+
+Every browser save verifies a passkey and sends the revision the editor loaded.
+Conflicts retain the draft and require loading the latest profile; uncertain saves
+can retry the same definition through the provider's existing idempotent save.
+The provider allows this specific write for same-origin passkey sessions verified
+within five minutes, without adding `account:write` to browser sessions. Deploy
+both the GUI and provider change for browser publishing; older providers reject
+browser profile writes with 403. No schema migration is needed.

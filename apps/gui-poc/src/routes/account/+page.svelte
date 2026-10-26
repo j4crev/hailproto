@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Icon from "$lib/Icon.svelte";
   let {data} = $props();
   let copied = $state(false), copyError = $state("");
   async function copyAddress() {
@@ -18,7 +17,6 @@
       <dl class="m-0 grid gap-6 border-0 border-t border-solid border-line pt-6"><div><dt class="text-sm font-semibold">Identity</dt><dd class="m-0 mt-2 font-mono text-xs text-muted [overflow-wrap:anywhere]">{data.account.did}</dd></div><div><dt class="text-sm font-semibold">Key custody</dt><dd class="m-0 mt-2 text-sm text-muted">{data.account.custodyProfile === 'managed' ? 'Provider managed' : data.account.custodyProfile === 'owner-controlled' ? 'Owner controlled' : data.account.custodyProfile}</dd></div></dl>
     </div>
   </section>
-  <div class="mt-6 grid gap-4 sm:grid-cols-2"><a class="setting-link" href="/settings/security"><span class="setting-icon"><Icon name="shield" /></span><span><strong>Passkeys &amp; security</strong><small>Manage access to your account</small></span><Icon name="chevron" /></a><a class="setting-link" href="/connections"><span class="setting-icon"><Icon name="people" /></span><span><strong>Your connections</strong><small>Share a code. Start a conversation.</small></span><Icon name="chevron" /></a></div>
 </div>
 <style>
   .account-banner { height:140px; padding:24px 32px; display:flex; align-items:center; justify-content:space-between; gap:16px; background:var(--color-brand-soft); background-image:radial-gradient(circle at 85% 140%, transparent 80px, #0f766e0b 81px, #0f766e0b 120px, transparent 121px); }

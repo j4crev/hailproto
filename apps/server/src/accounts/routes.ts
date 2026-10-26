@@ -214,7 +214,13 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         return context.json(await binding.renew(session,input));
       }
       if(action==="profile") {
-        if(!session.scopes.includes(method==="GET"?"account:read":"account:write"))return problem(403);
+        // Browser profile edits get a narrow, fresh-passkey capability rather
+        // than account:write, which also authorizes unrelated account changes.
+        const freshBrowserProfile = Boolean(getCookie(context,"hail_session") && session.passkey_credential_id &&
+          session.passkey_verified_at && session.passkey_verified_at.getTime() > Date.now()-5*60_000 &&
+          session.scopes.includes("account:read"));
+        if(method==="GET" ? !session.scopes.includes("account:read") :
+          !session.scopes.includes("account:write") && !(method==="POST" && freshBrowserProfile))return problem(403);
         if(!profiles)return problem(503);
         if(method==="GET"){
           const current=await profiles.getLatest(session.canonical_address);if(!current)return problem(404);

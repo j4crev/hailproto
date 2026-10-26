@@ -39,8 +39,7 @@
 </script>
 
 <svelte:head><title>Security · Haili</title></svelte:head>
-<a class="hail-back" href="/settings">← Settings</a>
-<header class="mb-8 flex flex-wrap items-start justify-between gap-4"><div class="grid gap-3"><p class="hail-eyebrow">Account safety</p><h1 class="hail-title">Passkeys &amp; security</h1><p class="m-0 max-w-xl text-sm text-muted">Manage sign-in and keep a backup passkey. Owner recovery is separate.</p></div><button class="hail-button-secondary" onclick={verify} disabled={busy}>Verify to manage</button></header>
+<header class="mb-8 flex flex-wrap items-start justify-between gap-4"><div class="grid gap-3"><p class="hail-eyebrow">Account safety</p><h1 class="hail-title">Passkeys &amp; security</h1><p class="m-0 max-w-xl text-sm text-muted">Manage sign-in and keep a backup passkey.</p></div><button class="hail-button-secondary" onclick={verify} disabled={busy}>Verify to manage</button></header>
 {#if message}<div class="mb-5"><p class="hail-error" role="alert">{message}</p></div>{/if}
 {#if !data.recentlyVerified}<p class="mb-6 rounded-xl border border-solid border-line bg-brand-soft p-4 text-sm text-brand-strong">Verify with your current passkey before adding, renaming or revoking passkeys or signing out other devices.</p>{/if}
 <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
@@ -51,7 +50,6 @@
     <form class="hail-card grid min-w-0 gap-4 p-5 sm:p-7" onsubmit={event=>{event.preventDefault();void add();}}><h2 class="m-0 text-xl">Add a passkey</h2><p class="m-0 text-sm text-muted">Choose a name you’ll recognize.</p><label class="hail-field">Label<input bind:value={label} maxlength="80" required /></label><button class="hail-button justify-self-start" disabled={busy||!data.recentlyVerified||!label.trim()}>Add passkey</button></form>
   </div>
   <aside class="grid min-w-0 gap-6">
-    <section class="hail-card grid gap-4 p-5 sm:p-7"><h2 class="m-0 text-xl">Recovery is separate</h2><p class="m-0 text-sm text-muted">Keep your encrypted owner recovery backup and its secret in separate safe places. Synced passkeys can share the same failure point.</p><p class="m-0 text-sm text-muted">Post-signup browser recovery is not available yet. If all passkeys are lost, use the supported owner-authorized <code>hailp</code> recovery flow or contact your provider for guidance. Never send anyone your recovery secret.</p></section>
     <section class="hail-card grid gap-4 p-5 sm:p-7"><h2 class="m-0 text-xl">Account sessions</h2><p class="m-0 text-sm text-muted">Sign out every browser and device currently using this account, including this one.</p><button class="hail-button-secondary justify-self-start border-danger text-danger" onclick={revokeSessions} disabled={busy||!data.recentlyVerified}>Sign out everywhere</button></section>
   </aside>
 </div>

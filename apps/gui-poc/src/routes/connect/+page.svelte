@@ -42,8 +42,8 @@
 <div class="mx-auto grid max-w-2xl gap-5">
   <header class="grid gap-3"><p class="hail-eyebrow">Personal connections</p><h1 class="hail-title">Connect with someone</h1><p class="m-0 text-sm text-muted">Review the identity before confirming. A connection is separate from a subscription.</p></header>
   {#if message}<p class="hail-error" role="alert">{message}</p>{/if}
-  {#if pendingRequest}<p class="hail-card p-5 text-sm" role="status">Connecting across providers. Your saved request is retried automatically, even if you close this tab. You can also check synchronization on <a href="/settings/security">Security</a>.</p>{/if}
-  {#if connected}<section class="hail-card grid gap-4 p-5"><h2 class="m-0 text-xl">Connection saved</h2><p class="m-0 text-sm">You can see it on Security and choose it in Compose for personal messages. Subscriptions are unchanged.</p><a class="hail-button justify-self-start" href="/settings/security">View connections</a></section>
+  {#if pendingRequest}<p class="hail-card p-5 text-sm" role="status">Connecting across providers. Your saved request is retried automatically, even if you close this tab. Check synchronization in Connections.</p>{/if}
+  {#if connected}<section class="hail-card grid gap-4 p-5"><h2 class="m-0 text-xl">Connection saved</h2><p class="m-0 text-sm">Find it in Connections or choose it in Compose to send a personal message. Subscriptions are unchanged.</p></section>
   {:else if !data.signedIn}<section class="hail-card grid gap-4 p-5"><p class="m-0 text-sm">Sign in to this provider to review this code. It grants no account access. Your code stays in this tab, not the login URL.</p><a class="hail-button justify-self-start" href="/auth/login?next=%2Fconnect">Sign in to review</a></section>
   {:else if prepared}<ConnectionApproval approval={prepared} oncomplete={done} oncancel={cancel} />
   {:else}

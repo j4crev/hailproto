@@ -1,14 +1,12 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import {startAuthentication} from "@simplewebauthn/browser";
-  import {APPROVAL_STORAGE,approval,permissionRequest,senderLink,senderRequest,senderQr,subscriptionScopeLabel,type SenderReview,type Approval} from "$lib/permissions.js";
+  import {APPROVAL_STORAGE,approval,permissionRequest,senderRequest,subscriptionScopeLabel,type SenderReview,type Approval} from "$lib/permissions.js";
   let {data}=$props();
   let sender=$state(""),pinnedDid=$state<string|undefined>(),review=$state<SenderReview|null>(null),prepared=$state<Approval|null>(null);
-  let selected=$state<string[]>([]),days=$state(30),busy=$state(false),message=$state(""),showQr=$state(false);
+  let selected=$state<string[]>([]),days=$state(30),busy=$state(false),message=$state("");
   let now=$state(Date.now()),draft:Record<string,unknown>|null=null;
   const date=(value:number)=>new Date(value*1000).toLocaleString();
-  const share=$derived(senderLink(data.origin,data.account.address,data.account.did));
-  const qr=$derived(showQr&&share?senderQr(share):null);
   onMount(()=>{
     const readRequest=()=>{
       if(prepared||busy){message="Finish or cancel the current review before opening another sender request.";return;}
@@ -53,12 +51,12 @@
   function cancel(){if(prepared?.approved)return;prepared=null;draft=null;review=null;sessionStorage.removeItem(APPROVAL_STORAGE);}
 </script>
 
-<svelte:head><title>Allowed senders · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
+<svelte:head><title>Subscriptions · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 <div class="[&_h2]:m-0 [&_h2]:text-xl [&_h3]:m-0 [&_p]:m-0 [&_code]:text-xs [&_code]:[overflow-wrap:anywhere] [&_button]:self-start [&_button]:max-w-full [&_button]:whitespace-normal">
-  <header class="mb-8 grid gap-3"><p class="hail-eyebrow">Your subscriptions</p><h1 class="hail-title">Allowed senders</h1><p class="max-w-2xl text-sm text-muted">Choose which senders and categories reach your feed. For two-way messaging, use Connections.</p><p class="text-xs text-muted [overflow-wrap:anywhere]">Managing permissions for <strong>{data.account.address}</strong></p></header>
+  <header class="mb-8 grid gap-3"><p class="hail-eyebrow">Your feed</p><h1 class="hail-title">Subscriptions</h1><p class="max-w-2xl text-sm text-muted">Choose which senders and categories reach your feed. For two-way messaging, use Connections.</p><p class="text-xs text-muted [overflow-wrap:anywhere]">Managing permissions for <strong>{data.account.address}</strong></p></header>
   {#if message}<p class="mb-5! rounded-xl border border-solid border-line bg-brand-soft p-4 text-sm" role="status">{message}</p>{/if}
   {#if data.account.custodyProfile!=="managed"}<p class="mb-5! rounded-xl bg-warning-soft p-4 text-sm text-warning" role="status">Browser approval currently supports managed accounts only. Your owner-controlled account still uses its existing signer.</p>{/if}
-  <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+  <div class="grid items-start gap-6 max-w-[860px]">
     <div class="grid min-w-0 gap-6">
       {#if data.account.custodyProfile==="managed"}
         {#if !prepared}
@@ -86,18 +84,16 @@
         {/if}
         <button class="hail-button-secondary justify-self-start text-xs" disabled={busy} onclick={()=>run(check)}>Resume unfinished approval</button>
       {/if}
-      <section class="grid min-w-0 gap-4" aria-label="Issued permissions"><h2>Permissions you issued</h2><p class="text-sm text-muted">A saved permission may take a moment to reach the sender. Revocation does not delete messages already delivered.</p>
-        {#if !data.permissions.length}<p class="hail-card p-5 text-sm text-muted">No permissions on this page. Allowing a sender does not share past messages or permit them to send as you.</p>{/if}
+      <section class="grid min-w-0 gap-4" aria-label="Issued permissions"><h2>Your subscriptions</h2><p class="text-sm text-muted">A saved permission may take a moment to reach the sender. Revocation does not delete messages already delivered.</p>
+        {#if !data.permissions.length}<p class="hail-card p-5 text-sm text-muted">No subscriptions on this page. Add a sender to choose the updates you receive.</p>{/if}
         {#each data.permissions as permission}<article class="hail-card grid min-w-0 gap-3 p-5"><h3 class="text-base [overflow-wrap:anywhere]">{permission.sender}</h3><code class="text-muted">{permission.did}</code><p class="text-sm [overflow-wrap:anywhere]">{subscriptionScopeLabel(permission.scope)} · {permission.status}{permission.expiresAt!==null?` · expires ${date(permission.expiresAt)}`:" · no expiry"}</p>
           {#if permission.expiresAt!==null&&permission.expiresAt*1000<=now}<p class="text-sm text-warning">Expired; it no longer permits messages.</p>{/if}
           {#if data.account.custodyProfile==="managed"&&permission.status==="active"}<button class="hail-button-secondary justify-self-start" disabled={busy||!!prepared} onclick={()=>run(()=>prepareRevoke(permission))}>Review revocation</button>{/if}
         </article>{/each}
-        {#if data.next}<a class="hail-button-secondary justify-self-start" href={`/permissions?after=${encodeURIComponent(data.next)}`}>More permissions →</a>{/if}
+        {#if data.next}<a class="hail-button-secondary justify-self-start" href={`/permissions?after=${encodeURIComponent(data.next)}`}>More subscriptions →</a>{/if}
       </section>
     </div>
-    <aside class="hail-card grid min-w-0 gap-4 p-5 sm:p-7"><h2>Share your sender QR</h2><p class="text-sm text-muted">Invite others to subscribe to your updates. This public link requires a published Sender Profile; recipients choose what to allow.</p><button class="hail-button-secondary justify-self-start" onclick={()=>{showQr=!showQr;}}>{showQr?"Hide QR":"Show my sender QR"}</button>
-      {#if qr}<svg class="h-auto max-w-full" viewBox={`0 0 ${qr.size} ${qr.size}`} width="256" height="256" role="img" aria-label={`Sender request QR for ${data.account.address}`} shape-rendering="crispEdges"><rect width="100%" height="100%" fill="white" /><path d={qr.path} fill="black" /></svg><a class="text-xs text-brand underline-offset-4 [overflow-wrap:anywhere]" href={share} data-sveltekit-reload>{share}</a>{/if}
-    </aside>
+
   </div>
   {#if busy}<p class="mt-5! text-sm text-muted" role="status">Working… keep the original approval open if the response is delayed.</p>{/if}
 </div>

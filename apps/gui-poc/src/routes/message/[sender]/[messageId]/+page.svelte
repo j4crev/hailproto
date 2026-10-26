@@ -6,7 +6,7 @@
 
 <svelte:head><title>Message · Haili</title></svelte:head>
 <div class="mx-auto max-w-[860px]">
-<a class="hail-back" href={data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.kind==='connection'?'Conversations':'Feed'}</a>
+<a class="hail-back" href={data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.kind==='connection'?'Messages':'Inbox'}</a>
 <h1 class="sr-only">Received message</h1>
 <article class="hail-card overflow-hidden">
   <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line p-5 sm:px-7">

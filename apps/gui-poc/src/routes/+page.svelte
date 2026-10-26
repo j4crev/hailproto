@@ -8,7 +8,7 @@
   onMount(loadHeaderPreference);
 </script>
 
-<svelte:head><title>{!data.configured ? 'Welcome' : data.view==='connections'?'Conversations':'Feed'} · Haili</title></svelte:head>
+<svelte:head><title>{!data.configured ? 'Welcome' : data.view === 'connections' ? 'Messages' : 'Inbox'} · Haili</title></svelte:head>
 
 {#if !data.configured}
   <section class="welcome">
@@ -28,15 +28,14 @@
   <div class="welcome-principles"><div><span>01</span><strong>Choose your senders</strong><p>Let the right updates in.</p></div><div><span>02</span><strong>Keep it personal</strong><p>Make room for real conversations.</p></div><div><span>03</span><strong>Stay in control</strong><p>Change your permissions anytime.</p></div></div>
 {:else}
   <header class="feed-heading">
-    <div><p class="hail-eyebrow">Your daily space</p><h1 class="hail-title">{data.view === 'connections' ? 'Conversations' : 'Feed'}</h1><p class="feed-description">{data.view === 'connections' ? 'A little closer to your people.' : 'The latest from the senders you choose.'}</p></div>
-    <a class="hail-button-secondary" href={data.view === 'connections' ? '/compose?audience=connections' : '/permissions'}><Icon name={data.view === 'connections' ? 'plus' : 'people'} size={18} />{data.view === 'connections' ? 'New message' : 'Manage senders'}</a>
+    <div><p class="hail-eyebrow">Your daily space</p><h1 class="hail-title">{data.view === 'connections' ? 'Messages' : 'Inbox'}</h1><p class="feed-description">{data.view === 'connections' ? 'A little closer to your people.' : 'The latest from the senders you choose.'}</p></div>
+    <a class="hail-button-secondary" href={data.view === 'connections' ? '/compose?audience=connections' : '/permissions'}><Icon name={data.view === 'connections' ? 'plus' : 'people'} size={18} />{data.view === 'connections' ? 'New message' : 'Manage subscriptions'}</a>
   </header>
   <div class="feed-layout"><div class="min-w-0">
-  <nav class="feed-tabs" aria-label="Inbox views"><a href="/" aria-current={data.view !== 'connections' ? 'page' : undefined}>Subscriptions</a><a href="/?view=connections" aria-current={data.view === 'connections' ? 'page' : undefined}>Conversations</a><span>Latest first</span></nav>
   <section class="grid gap-5" aria-label="Messages">
 
     {#if data.messages.length === 0}
-      <div class="hail-card flex flex-col items-center gap-3 px-6 py-16 text-center"><span class="empty-symbol" aria-hidden="true"><Icon name={data.view === 'connections' ? 'chat' : 'feed'} size={30} /></span><h2 class="m-0 text-xl tracking-tight">No messages yet</h2><p class="m-0 max-w-sm text-sm text-muted">{data.view==='connections'?'Your people, your conversations. Start with a hello.':'A little quiet is a good start. Allow a sender to bring the updates you care about here.'}</p><a class="hail-button-secondary mt-2" href={data.view==='connections'?'/compose?audience=connections':'/permissions'}>{data.view==='connections'?'Message a connection':'Find your first sender'} <span aria-hidden="true">→</span></a></div>
+      <div class="hail-card flex flex-col items-center gap-3 px-6 py-16 text-center"><span class="empty-symbol" aria-hidden="true"><Icon name={data.view === 'connections' ? 'chat' : 'feed'} size={30} /></span><h2 class="m-0 text-xl tracking-tight">No messages yet</h2><p class="m-0 max-w-sm text-sm text-muted">{data.view==='connections'?'Your people, your conversations. Start with a hello.':'A little quiet is a good start. Allow a sender to bring the updates you care about here.'}</p>{#if data.view !== 'connections'}<a class="hail-button-secondary mt-2" href="/permissions">Find your first sender <span aria-hidden="true">→</span></a>{/if}</div>
     {:else}
       {#each data.messages as message}
         <a class="hail-card flex min-w-0 flex-col overflow-hidden no-underline transition-[border-color,box-shadow] duration-150 hover:border-brand hover:shadow-md" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
@@ -53,8 +52,8 @@
       {/each}
     {/if}
   </section>
-  {#if data.paged||data.next}<nav aria-label="Feed pages" class="mt-6 flex flex-wrap justify-center gap-3">{#if data.paged}<a class="hail-button-secondary" href={data.view==='connections'?'/?view=connections':'/'}>← Newest messages</a>{/if}{#if data.next}<a class="hail-button-secondary" href={`/?${data.view==='connections'?'view=connections&':''}after=${encodeURIComponent(data.next)}`}>Older messages →</a>{/if}</nav>{/if}
-  </div><aside class="feed-aside"><div class="aside-heading"><Icon name="shield" size={18} /><span>On your terms</span></div><h2>{data.view === 'connections' ? 'Good conversations start here.' : 'An inbox with intention.'}</h2><p>{data.view === 'connections' ? 'Share your connection code to invite someone into your space.' : 'Choose who can reach you and what they can send.'}</p><a href={data.view === 'connections' ? '/connections' : '/permissions'}>{data.view === 'connections' ? 'Your connection codes' : 'Your allowed senders'}<Icon name="arrow" size={16} /></a><div class="aside-divider"></div><a class="reading-link" href="/settings"><Icon name="settings" size={16} />Reading preferences</a></aside></div>
+  {#if data.paged||data.next}<nav aria-label={data.view === 'connections' ? 'Messages pages' : 'Inbox pages'} class="mt-6 flex flex-wrap justify-center gap-3">{#if data.paged}<a class="hail-button-secondary" href={data.view==='connections'?'/?view=connections':'/'}>← Newest messages</a>{/if}{#if data.next}<a class="hail-button-secondary" href={`/?${data.view==='connections'?'view=connections&':''}after=${encodeURIComponent(data.next)}`}>Older messages →</a>{/if}</nav>{/if}
+  </div><aside class="feed-aside"><div class="aside-heading"><Icon name="shield" size={18} /><span>On your terms</span></div><h2>{data.view === 'connections' ? 'Good conversations start here.' : 'An inbox with intention.'}</h2><p>{data.view === 'connections' ? 'Share your connection code to invite someone into your space.' : 'Choose who can reach you and what they can send.'}</p><a href={data.view === 'connections' ? '/connections' : '/permissions'}>{data.view === 'connections' ? 'Your connection codes' : 'Your subscriptions'}<Icon name="arrow" size={16} /></a></aside></div>
 {/if}
 
 <style>
@@ -98,20 +97,14 @@
   .feed-heading .hail-eyebrow { margin-bottom:12px; }
   .feed-description { margin:12px 0 0; font-size:14px; color:var(--color-muted); }
   .feed-layout { display:grid; grid-template-columns:minmax(0,1fr) 218px; gap:32px; align-items:start; }
-  .feed-tabs { display:flex; align-items:center; gap:24px; border-bottom:1px solid var(--color-line); margin-bottom:24px; }
-  .feed-tabs a { display:flex; align-items:center; min-height:48px; border-bottom:2px solid transparent; font-size:13px; font-weight:650; text-decoration:none; color:var(--color-muted); }
-  .feed-tabs a[aria-current=page] { color:var(--color-brand); border-color:var(--color-brand); }
-  .feed-tabs > span { margin-left:auto; font-size:10px; color:var(--color-muted); white-space:nowrap; }
-  .feed-aside { margin-top:72px; padding:24px 0 24px 24px; border-left:1px solid var(--color-line); }
+  .feed-aside { margin-top:0; padding:24px 0 24px 24px; border-left:1px solid var(--color-line); }
   .aside-heading { display:flex; align-items:center; gap:7px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--color-brand); }
   .feed-aside h2 { font-size:21px; line-height:1.4; letter-spacing:-.03em; margin:18px 0 12px; font-weight:600; }
   .feed-aside p { font-size:12px; line-height:1.8; color:var(--color-muted); margin:0 0 20px; }
   .feed-aside a { display:flex; align-items:center; gap:7px; min-height:44px; font-size:11px; font-weight:650; color:var(--color-brand-strong); text-decoration:none; }
   .feed-aside a:hover { text-decoration:underline; }
-  .aside-divider { height:1px; background:var(--color-line); margin:22px 0; }
-  .feed-aside .reading-link { font-weight:500; color:var(--color-muted); }
   .empty-symbol { display:grid; place-items:center; width:76px; height:76px; margin-bottom:14px; border:10px solid var(--color-canvas); border-radius:26px; background:var(--color-brand-soft); color:var(--color-brand); }
   @media(max-width:1200px) { .feed-layout { grid-template-columns:minmax(0,1fr); max-width:780px; margin:0 auto; } .feed-aside { display:none; } }
   @media(max-width:800px) { .welcome { gap:28px; } .welcome-art { height:370px; } .sample-front { top:120px; } .sample-back { padding:12px; } .sample-back > :global(svg) { display:none; } .welcome-principles { gap:18px; } }
-  @media(max-width:640px) { .welcome { grid-template-columns:1fr; padding:10px 0 35px; gap:28px; } .welcome-copy { padding-top:0; } .welcome-copy h1 { font-size:clamp(38px, 12vw, 48px); } .welcome-description { font-size:14px; } .welcome-signin { max-width:none; margin-top:26px; } .welcome-art { height:355px; max-width:380px; width:100%; margin:0 auto; } .sample-front { top:100px; } .sample-back { top:40px; } .welcome-principles { grid-template-columns:1fr; gap:24px; } .feed-heading { gap:16px; margin-bottom:20px; } .feed-tabs { gap:20px; } .feed-tabs > span { display:none; } }
+  @media(max-width:640px) { .welcome { grid-template-columns:1fr; padding:10px 0 35px; gap:28px; } .welcome-copy { padding-top:0; } .welcome-copy h1 { font-size:clamp(38px, 12vw, 48px); } .welcome-description { font-size:14px; } .welcome-signin { max-width:none; margin-top:26px; } .welcome-art { height:355px; max-width:380px; width:100%; margin:0 auto; } .sample-front { top:100px; } .sample-back { top:40px; } .welcome-principles { grid-template-columns:1fr; gap:24px; } .feed-heading { gap:16px; margin-bottom:20px; } }
 </style>

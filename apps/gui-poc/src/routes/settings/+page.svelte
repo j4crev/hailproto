@@ -18,7 +18,6 @@
     <p class="m-0 mt-6 border-0 border-t border-solid border-line pt-4 text-xs text-muted">Preferences are saved in this browser.</p>
     <p class="m-0 mt-3 min-h-5 text-xs text-brand-strong" role="status">{status}</p>
   </section>
-  <div class="mt-6 grid gap-4"><a class="setting-link" href="/settings/security"><span class="setting-icon"><Icon name="shield" /></span><span><strong>Passkeys &amp; security</strong><small>Passkeys, recovery, and signed-in devices</small></span><Icon name="chevron" /></a><a class="setting-link" href="/account"><span class="setting-icon"><Icon name="user" /></span><span><strong>Account</strong><small>Your address and identity</small></span><Icon name="chevron" /></a></div>
 </div>
 <style>
   .preference-switch { appearance:none; position:relative; flex-shrink:0; width:46px; height:28px; margin:0; border:1px solid var(--color-muted); border-radius:20px; background:var(--color-line); cursor:pointer; transition:background .15s; }

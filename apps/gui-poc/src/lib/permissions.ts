@@ -59,7 +59,7 @@ export async function permissionRequest(step:string,body?:unknown){
   const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
   const value=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
   if(!response.ok)throw new Error(response.status===401?"Sign in with your passkey before managing permissions.":
-    response.status===410?"Approval expired. Review the current allowed-sender list before starting a fresh approval.":
+    response.status===410?"Approval expired. Review the current subscriptions before starting a fresh approval.":
     response.status===429?"Too many permission requests. Wait a minute before retrying the same approval.":
     response.status===409?"The sender or permission changed, or this approval is still running. Check its status before retrying.":
     "Permission was not confirmed. Keep this review and check its status before trying again. The sender must have a current published Sender Profile.");

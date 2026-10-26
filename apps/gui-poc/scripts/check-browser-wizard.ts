@@ -16,6 +16,7 @@ const work=await mkdtemp(join(process.env.OPENCODE_TMP_DIR||"/tmp/opencode","hai
 const provider=await createSignupBackup(),messaging=await createSignupBackup();
 let gui:ReturnType<typeof Bun.spawn>|undefined,chrome:ReturnType<typeof Bun.spawn>|undefined,socket:WebSocket|undefined;
 let passed=false,logoutAttempts=0;
+let ownProfile:any=null,profileWrites=0,profileVerificationMismatch=false;
 let prepared:any=null,state="prepared",operation:any=null,enrolled=false,retired=false,authenticated=false,challenge="",credential:any;
 let did:string|null=null;const sessionToken="hails_"+"A".repeat(43);
 let setupId="",setupToken="",enrollmentToken="",secret="",invitation="fixture-invitation",publicationAttempts=0,prepareCalls=0;
@@ -185,12 +186,28 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   if(path==="/api/v1/account/grants")return json({grants:[...(allowed?[{grantId:allowed.grant_id,localRole:"grantor",status:allowed.status}]:[]),...(sendingGrant?[{grantId:sendingGrantId,localRole:"grantee",status:"active",expiresAt:sendingGrant.payload.expires_at}]:[])],next:null});
   if(path===`/api/v1/account/grants/${sendingGrantId}`&&sendingGrant)return json({type:"hailp.grant",version:1,cose:sendingGrant.cose,digest:sendingGrant.digest,localRole:"grantee"});
   if(path.startsWith("/api/v1/account/grants/")&&allowed)return json({type:"hailp.grant",version:1,cose:allowedCose,digest:allowedDigest,localRole:"grantor"});
+  if(path==="/api/v1/account/profile"){
+    if(!request.headers.get("Cookie")?.includes("hail_session="+sessionToken))return json({},401);
+    if(request.method==="POST"){
+      if(!recentlyVerified)return json({},403);
+      if(input.expectedRevision!==(ownProfile?.revision??0))return json({},409);
+      assert(input.definition.display_name);assert.equal(input.definition.offers_uncategorized,false);
+      const payload={type:"hail.sender-profile",version:input.definition.version,did,revision:(ownProfile?.revision??0)+1,
+        display_name:input.definition.display_name,...(input.definition.description?{description:input.definition.description}:{}),
+        offers_uncategorized:input.definition.offers_uncategorized,categories:input.definition.categories,updated_at:Math.floor(Date.now()/1000),key_id:did+"#hail-messaging"};
+      const cose=await signPayload("hail.sender-profile",payload,createWebCryptoSigner(payload.key_id,permissionSigner.privateKey));
+      ownProfile={type:"hailp.sender-profile",version:1,revision:payload.revision,cose:encodeBase64Url(cose),
+        digest:encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256",Uint8Array.from(cose)))),profile:toDiagnosticJson("hail.sender-profile",payload)};
+      profileWrites++;
+    }
+    return ownProfile?json(ownProfile):json({},404);
+  }
   if(path==="/api/v1/account"||path==="/api/v1/account/inbox"){
     if(!request.headers.get("Cookie")?.includes("hail_session="+sessionToken))return json({},401);
     assert(retired,"Inbox must use the completed account's session");
     const query=new URL(request.url).searchParams,personal=query.get('kind')==='connections';
     return json(path.endsWith("/inbox")?{messages:personal?(connectionIncoming?[connectionReply()]:[]):incoming?[incomingMessage()]:[],next:!personal&&incoming&&!query.has("after")?"older-page":null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
-      address:prepared.address,did,migrationState:null,custodyProfile:"managed",monitorVerificationMode:"reduced-assurance-alpha-v1",managedProfileVersion:"hail-managed-custody-v1",
+      address:prepared.address,did:profileVerificationMismatch?peerDid:did,migrationState:null,custodyProfile:"managed",monitorVerificationMode:"reduced-assurance-alpha-v1",managedProfileVersion:"hail-managed-custody-v1",
       identityPublicKey:prepared.userIdentityKey,ownerRecoveryPublicKey:prepared.userRecoveryKey,scopes:["account:read","grants:read","messages:read","messages:write"]});
   }
   if(path==="/api/v1/signup/check-address")return json({address:input.address,available:true});
@@ -262,6 +279,7 @@ try{
   const escape=async()=>{await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});};
   const pointer=async(x:number,y:number)=>{await cdp("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,x,y});await cdp("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,x,y});};
   const openAccount=async()=>{await evaluate(`(()=>{const b=[...document.querySelectorAll('[aria-label="Open account menu"]')].find(b=>b.checkVisibility());b.focus();b.click();})()`);await wait(async()=>evaluate(`!!document.querySelector('[popover]:popover-open')`),"avatar opens account menu");};
+  const accountNavigation=async()=>assert(await evaluate(`Array.from(document.querySelectorAll('a[href="/account"], a[href="/settings"], a[href="/settings/security"]')).every(a=>a.closest('nav[aria-label="Account menu"]'))`),"Account destinations belong only in the profile menu");
   const narrowLayouts=async()=>{
     if(process.env.HAIL_WIZARD_MOBILE!=="true")return;
     for(const width of [320,768,390]){
@@ -285,7 +303,7 @@ try{
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Signed-out feed overflows viewport");
   assert.equal(await evaluate(`!!document.querySelector('nav[aria-label="Main navigation"]') || !!document.querySelector('a[href="/compose"]')`),false,"Public home must not show private folders or compose");
   await narrowLayouts();await screenshot("home");
-  const privatePaths=["/account","/settings","/connections","/permissions","/settings/security","/sent?after=older","/compose","/?view=connections",`/sent/${incomingId}`,`/message/${encodeURIComponent(peerDid)}/${incomingId}`];
+  const privatePaths=["/categories","/account","/settings","/connections","/permissions","/settings/security","/sent?after=older","/compose","/?view=connections",`/sent/${incomingId}`,`/message/${encodeURIComponent(peerDid)}/${incomingId}`];
   for(const path of privatePaths){
     const response=await fetch(origin+path,{redirect:"manual"});assert.equal(response.status,303);
     assert.equal(new URL(response.headers.get("location")!,origin).searchParams.get("next"),path);
@@ -370,7 +388,7 @@ try{
   await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your inbox').click()`);
   await wait(()=>has("No messages yet"),"completed alpha account inbox");
   assert(await evaluate(`document.querySelector('.account-popover').textContent.includes("alice@provider.example.com")`));
-  assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Feed");
+  assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Inbox");
   assert(!await has("Account details"),"Account metadata must not clutter the feed");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Empty feed overflows viewport");
   if(process.env.HAIL_WIZARD_MOBILE!=="true")assert(await evaluate("document.querySelector('.sidebar').getBoundingClientRect().right<=document.querySelector('main').getBoundingClientRect().left"),"Desktop sidebar overlaps content");
@@ -386,11 +404,29 @@ try{
     assert(await evaluate(`document.activeElement?.getAttribute('aria-label')==='Open navigation'`),"Drawer restores focus to trigger");
     await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click()`);await pointer(380,200);
     await wait(async()=>evaluate(`!document.querySelector('dialog').open`),"Outside click closes drawer");
-    await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click();document.querySelector('dialog a[href="/settings"]').click()`);
-    await wait(async()=>evaluate(`location.pathname==='/settings'&&!document.querySelector('dialog').open`),"Drawer closes after navigation");
+    await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click();document.querySelector('dialog a[href="/sent"]').click()`);
+    await wait(async()=>evaluate(`location.pathname==='/sent'&&!document.querySelector('dialog').open`),"Drawer closes after navigation");
     await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click();document.querySelector('dialog nav a[href="/"]').click()`);
     await wait(()=>has("No messages yet"),"return through mobile drawer");
   }
+  await accountNavigation();
+  const navigateInboxView=async(href:string)=>{
+    if(process.env.HAIL_WIZARD_MOBILE==="true")await evaluate(`document.querySelector('[aria-label="Open navigation"]').click()`);
+    await evaluate(`Array.from(document.querySelectorAll('nav[aria-label="Main navigation"] a')).find(a=>a.getAttribute('href')===${JSON.stringify(href)}&&a.checkVisibility()).click()`);
+  };
+  await navigateInboxView('/?view=connections');
+  await wait(async()=>evaluate(`location.search==='?view=connections' && document.querySelector('h1').textContent==='Messages'`),"open Messages from navigation");
+  assert.equal(await evaluate(`document.title`),"Messages · Haili");
+  assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current="page"]').textContent.trim()`),"Messages");
+  assert(await evaluate(`!document.querySelector('[aria-label="Inbox views"]')`),"Messages has no tabs");
+  assert(await evaluate(`document.querySelectorAll('main a[href="/compose?audience=connections"]').length===1`),"Messages has exactly one New message action, including when empty");
+  assert(!await has("Message a connection"));
+  await screenshot("messages-empty");
+  await navigateInboxView('/');
+  await wait(async()=>evaluate(`location.search==='' && document.querySelector('h1').textContent==='Inbox'`),"open Inbox from navigation");
+  assert.equal(await evaluate(`document.title`),"Inbox · Haili");
+  assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current="page"]').textContent.trim()`),"Inbox");
+  assert(await evaluate(`!document.querySelector('[aria-label="Inbox views"]') && !document.querySelector('main a[href="/compose?audience=connections"]')`),"Inbox has no tabs or connection-message action");
   await screenshot("feed-empty");
   await openAccount();await screenshot("account-menu");await escape();
   await wait(async()=>evaluate(`!document.querySelector('[popover]:popover-open')`),"Escape closes account menu");
@@ -401,6 +437,8 @@ try{
   await wait(()=>has("Key custody"),"Account page holds identity details");
   assert(await has("alice@provider.example.com"));assert(await has(did!));
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Account page fits");
+  await accountNavigation();
+  assert.equal(await evaluate(`document.querySelectorAll("main a").length`),0,"Account has no cross-link cards");
   await narrowLayouts();await screenshot("account");
   // The public homepage now performs the passkey ceremony directly.
   await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
@@ -430,17 +468,17 @@ try{
   assert(await evaluate(`document.querySelector(${JSON.stringify(feedImage)}).src.startsWith('data:image/png;base64,')`),"Feed header remains bundled");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Populated feed overflows viewport");
   await screenshot("feed");
-  const settings=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/settings';document.body.append(a);a.click();a.remove();})()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"reading settings ready");};
+  const settings=async()=>{await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/settings"]').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"reading settings ready");};
   const feed=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/';document.body.append(a);a.click();a.remove();})()`);await wait(()=>has("The latest from the senders you choose."),"feed navigation");};
-  await settings();await narrowLayouts();await screenshot("settings");
+  await settings();await accountNavigation();assert.equal(await evaluate(`document.querySelectorAll("main a").length`),0,"Settings has no cross-link cards");await narrowLayouts();await screenshot("settings");
   await evaluate(`document.querySelector('#show-headers').click()`);await wait(()=>has("Saved on this browser."),"preference saved");
   await feed();await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"hide feed headers through settings");
   await evaluate("document.documentElement.dataset.beforePreferenceReload='true'");
   await cdp("Page.reload");await wait(async()=>evaluate(`!document.documentElement.dataset.beforePreferenceReload && !!document.querySelector('[aria-label="Messages"]') && !document.querySelector(${JSON.stringify(feedImage)})`),"persist hidden header preference");
-  await evaluate(`document.querySelector('[aria-label="Feed pages"] a').click()`);
-  await wait(async()=>evaluate("new URL(location.href).searchParams.get('after')==='older-page' && !!document.querySelector('[aria-label=\"Feed pages\"] a[href=\"/\"]')"),"older feed page");
-  await evaluate(`document.querySelector('[aria-label="Feed pages"] a[href="/"]').click()`);
-  await wait(async()=>evaluate("location.search==='' && !!document.querySelector('[aria-label=\"Feed pages\"] a[href*=after]')"),"newest feed page");
+  await evaluate(`document.querySelector('[aria-label="Inbox pages"] a').click()`);
+  await wait(async()=>evaluate("new URL(location.href).searchParams.get('after')==='older-page' && !!document.querySelector('[aria-label=\"Inbox pages\"] a[href=\"/\"]')"),"older feed page");
+  await evaluate(`document.querySelector('[aria-label="Inbox pages"] a[href="/"]').click()`);
+  await wait(async()=>evaluate("location.search==='' && !!document.querySelector('[aria-label=\"Inbox pages\"] a[href*=after]')"),"newest feed page");
   await settings();assert.equal(await evaluate(`document.querySelector('#show-headers').checked`),false);
   await evaluate(`document.querySelector('#show-headers').click()`);await feed();
   await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"show feed headers again");
@@ -450,9 +488,9 @@ try{
   await feed();await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"in-memory header preference survives navigation without storage");
   await cdp("Page.removeScriptToEvaluateOnNewDocument",{identifier:blockedStorage.identifier});
   await cdp("Page.navigate",{url:origin+"/"});await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"restore normal feed preferences");
-  await evaluate(`[...document.querySelectorAll('nav a')].find(a=>a.textContent.trim()==='Allowed senders').click()`);
-  await wait(()=>has("No permissions on this page"),"allowed-sender list");
-  assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Allowed senders");
+  await evaluate(`[...document.querySelectorAll('nav a')].find(a=>a.textContent.trim()==='Subscriptions').click()`);
+  await wait(()=>has("No subscriptions on this page"),"allowed-sender list");
+  assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Subscriptions");
   await fill("Potential sender's Hail address",peerAddress);await click("Review sender");await wait(()=>has("Test sender"),"verified sender review");
   await evaluate(`document.querySelector('fieldset input[value=updates]').click()`);
   assert.deepEqual(await styles("fieldset label",["flexDirection","alignItems"]),["row","center"]);
@@ -463,6 +501,30 @@ try{
   assert.equal(allowed!.status,"active");await click("Review revocation");await wait(()=>has("Confirm revocation"),"revocation review");
   await click("Revoke sender with my passkey");await wait(()=>has("revoked"),"passkey-confirmed revocation");
   assert.equal(allowed!.status,"revoked");
+  assert(!await has("Share your sender QR"),"Subscription page does not show publishing tools");
+  await cdp("Page.navigate",{url:origin+"/categories"});await wait(()=>has("Create sender profile with passkey"),"first sender profile setup");
+  await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"profile editor ready");
+  assert(!await has("Show my sender QR"),"QR is offered only after publishing a profile");
+  await fill("Sender name","Alice's updates");
+  profileVerificationMismatch=true;await click("Create sender profile with passkey");
+  await wait(()=>has("You verified a different account."),"profile draft cannot be saved to a different passkey account");
+  assert.equal(profileWrites,0);profileVerificationMismatch=false;
+  await click("Create sender profile with passkey");
+  await wait(()=>has("Save changes with passkey"),"profile created through passkey-authenticated save");
+  assert.equal(profileWrites,1);assert.deepEqual(ownProfile.profile.categories.map((c:any)=>({id:c.id,label:c.label})),[{id:"general",label:"General"}]);
+  await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"saved profile editor ready");
+  await click("Add category");
+  await evaluate(`(()=>{const fields=document.querySelectorAll('[aria-label="Publishing categories"] input');for(const [index,value] of [[3,'News'],[4,'news']]){fields[index].value=value;fields[index].dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+  await click("Save changes with passkey");await wait(async()=>profileWrites===2&&await has("Show my sender QR"),"category addition saved");
+  await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"updated category editor ready");
+  assert.deepEqual(ownProfile.profile.categories.map((c:any)=>c.id),['general','news']);
+  assert(await evaluate(`Array.from(document.querySelectorAll('[aria-label="Publishing categories"] input[readonly]')).map(i=>i.value).join(',')==='general,news'`),"Published category IDs stay stable");
+  await evaluate(`document.querySelector('[aria-label="Remove category 2"]').click()`);
+  await click("Save changes with passkey");await wait(async()=>profileWrites===3&&await has("Show my sender QR"),"category removal saved");
+  await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"removed category editor ready");
+  assert.deepEqual(ownProfile.profile.categories.map((c:any)=>c.id),['general']);
+  assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Categories fits viewport");
+  await narrowLayouts();await screenshot("categories");
   await click("Show my sender QR");assert(await evaluate("!!document.querySelector('svg[role=img] path')"));
   const qrRequests=requests.filter(r=>r.path.endsWith("/permissions/prepare")).length;
   await cdp("Page.navigate",{url:origin+"/permissions#"+new URLSearchParams({sender:peerAddress,did:peerDid})});
@@ -529,7 +591,8 @@ try{
     await wait(async()=>evaluate(`location.pathname+location.search===${JSON.stringify(path)} && document.body.innerText.includes(${JSON.stringify(text)})`),"resume folder: "+path);
     assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),path+" overflows viewport");
   }
-  assert(await has("Recovery is separate"));
+  assert(!await has("Recovery is separate"));
+  await accountNavigation();
   assert(await evaluate(`document.querySelectorAll('button').length>0 && [...document.querySelectorAll('button')].find(b=>b.textContent==='Revoke').disabled`),"Current/last passkey cannot be revoked");
   recentlyVerified=false;
   await cdp("Page.navigate",{url:origin+"/settings/security?fresh=1"});await wait(()=>has("Verify with your current passkey before adding"),"security management requires fresh verification");

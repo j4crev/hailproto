@@ -8,17 +8,18 @@
   let drawer = $state<HTMLDialogElement>();
   let drawerOpen = $state(false);
   const navigation = [
-    {href: "/", label: "Feed", icon: "feed"},
-    {href: "/?view=connections", label: "Conversations", icon: "chat"},
+    {href: "/", label: "Inbox", icon: "feed"},
+    {href: "/?view=connections", label: "Messages", icon: "chat"},
     {href: "/sent", label: "Sent", icon: "sent"},
-    {href: "/permissions", label: "Allowed senders", icon: "people"},
-    {href: "/connections", label: "Connections", icon: "user"}
+    {href: "/permissions", label: "Subscriptions", icon: "people"},
+    {href: "/connections", label: "Connections", icon: "user"},
+    {href: "/categories", label: "Categories", icon: "feed"}
   ];
   let focused = $derived(!page.data.hasAccountSession || page.url.pathname.startsWith("/auth/") || page.url.pathname.startsWith("/signup"));
   let address = $derived(page.data.account?.address ?? "Your account");
-  const active = (href: string) => href === "/?view=connections"
-    ? (page.url.pathname === "/" || page.url.pathname.startsWith("/message/")) && page.url.searchParams.get("view") === "connections"
-    : href === "/" ? (page.url.pathname === "/" || page.url.pathname.startsWith("/message/")) && page.url.searchParams.get("view") !== "connections"
+  const active = (href: string) => href === "/" || href === "/?view=connections"
+    ? (page.url.pathname === "/" || page.url.pathname.startsWith("/message/")) &&
+      (page.url.searchParams.get("view") === "connections") === (href === "/?view=connections")
     : page.url.pathname === href || page.url.pathname.startsWith(href + "/");
   function closeDrawer() { drawer?.close(); drawerOpen = false; }
   function openDrawer() { drawer?.showModal(); drawerOpen = true; }
@@ -43,7 +44,7 @@
 {#snippet links()}
   <a class="hail-button compose-button" href="/compose" aria-current={page.url.pathname === "/compose" ? "page" : undefined}><Icon name="plus" />Compose</a>
   <div class="nav-group"><p class="nav-label">Your space</p><nav aria-label="Main navigation">{#each navigation as item}<a href={item.href} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} />{item.label}{#if active(item.href)}<span class="active-dot" aria-hidden="true"></span>{/if}</a>{/each}</nav></div>
-  <div class="nav-bottom"><nav aria-label="Preferences"><a href="/settings" aria-current={active('/settings') ? 'page' : undefined}><Icon name="settings" />Settings</a><a href="/account" aria-current={active('/account') ? 'page' : undefined}><Icon name="user" />Account</a></nav><span class="alpha-label">Haili alpha <span>·</span> Powered by Hail</span></div>
+  <div class="nav-bottom"><span class="alpha-label">Haili alpha <span>·</span> Powered by Hail</span></div>
 {/snippet}
 <!-- Full navigation prevents signup/recovery CSP from leaking into the app. -->
 <div class:focused class="app-shell" data-sveltekit-reload={!page.data.hasAccountSession || page.url.pathname === "/signup" || page.url.pathname === "/signup/recovery"}>

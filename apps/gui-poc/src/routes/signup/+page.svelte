@@ -166,7 +166,7 @@
   {#if complete}
     <h2>Your account is ready</h2><p>Keep your encrypted recovery backup and its secret separately. A second passkey is useful but is not independent identity recovery.</p>
     {#if finalVault}<button class="hail-button-secondary" onclick={()=>download(JSON.stringify(finalVault,null,2),"hail-account-recovery.vault.json")}>Save account recovery backup again</button>{/if}
-    <div class="flex flex-wrap gap-3"><a class="hail-button" href="/">Open your inbox</a><a class="hail-button-secondary" href="/settings/security">Manage passkeys</a></div>
+    <div class="flex flex-wrap gap-3"><a class="hail-button" href="/">Open your inbox</a></div>
   {:else if !pending && !vault}
     {#if !cached}
       <h2>Start with an invitation</h2>
