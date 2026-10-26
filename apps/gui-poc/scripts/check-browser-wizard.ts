@@ -331,7 +331,8 @@ try{
     assert(await has("Your permission."));
   }
   assert(!requests.some(r=>r.path==="/api/v1/account"),"Anonymous screens must not request account data");
-  await cdp("Page.navigate",{url:origin+"/auth/login"});await wait(()=>has("Your permission."),"legacy login redirects to homepage");
+  assert.equal((await fetch(origin+"/auth/login",{redirect:"manual"})).status,404,"Removed login route must not redirect");
+  await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("Your permission."),"homepage sign-in");
   assert.equal(await evaluate("location.pathname"),"/");
   assert.equal(await evaluate("document.querySelector('nav[aria-label=\"Main navigation\"]')===null"),true,"Login keeps a focused shell");
   await cdp("Page.navigate",{url:origin+"/auth/recover#token=hailp_"+"C".repeat(43)});

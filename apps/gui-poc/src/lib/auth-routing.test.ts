@@ -5,7 +5,6 @@ import {isAccountPath,loginPath,returnPath} from "./auth-routing.js";
 import {handle} from "../hooks.server.js";
 import {load as layout} from "../routes/+layout.server.js";
 import {load as home} from "../routes/+page.server.js";
-import {load as legacyLogin} from "../routes/auth/login/+page.server.js";
 
 it("uses one sign-in destination for every anonymous private screen and action",async()=>{
   const cookies={get:()=>undefined},resolve=vi.fn();
@@ -28,17 +27,10 @@ it("uses one sign-in destination for every anonymous private screen and action",
 });
 
 it("allows only local inbox return paths, including public QR fragments",()=>{
-  for(const value of [null,"https://evil.example/sent","//evil.example/sent","/\\evil.example/sent","/sent\nX-Test: bad","/auth/login","/auth/recover#secret","/signup","/sent/../auth/login","javascript:alert(1)"])
+  for(const value of [null,"https://evil.example/sent","//evil.example/sent","/\\evil.example/sent","/sent\nX-Test: bad","/auth/authorize","/auth/recover#secret","/signup","/sent/../auth/authorize","javascript:alert(1)"])
     expect(returnPath(value)).toBe("/");
   for(const value of ["/admin","/categories","/account","/settings","/connections","/","/sent?after=page","/permissions#sender=a%40example.com&did=did%3Aplc%3Aa","/compose","/settings/security"])
     expect(returnPath(value)).toBe(value);
-});
-
-it("redirects old sign-in links to the homepage with a validated destination",()=>{
-  for(const [next,expected] of [["/admin","/admin"],["/connect?token=secret","/connect"],["https://evil.example","/"],["/auth/login","/"]]){
-    expect(()=>legacyLogin({url:new URL("https://provider.example/auth/login?next="+encodeURIComponent(next))} as never))
-      .toThrow(expect.objectContaining({status:303,location:"/?next="+encodeURIComponent(expected)}));
-  }
 });
 
 it("shows homepage sign-in for validated return paths even with an existing session",async()=>{

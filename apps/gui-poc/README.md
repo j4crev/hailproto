@@ -11,7 +11,7 @@ composer, message readers, Sent, sender permissions, Account, Settings and secur
 does not show private folders. Private links consistently lead to passkey sign-in
 and return to the requested screen. The homepage is the shared passkey sign-in screen, including fresh sign-in
 for existing sessions. Validated `next` destinations return users to the requested
-screen; old `/auth/login` links redirect to the homepage. QR fragments remain browser-local and do not
+screen. QR fragments remain browser-local and do not
 authorize anything automatically. Connection codes and existing connections live at `/connections`, separate from
 passkey security. Organization semantics are not implemented.
 

@@ -100,7 +100,7 @@ services:
       ALPHA_SIGNUP_MONITOR_ORIGIN: ${ALPHA_SIGNUP_MONITOR_ORIGIN:-}
       SIGNUP_MONITOR_PUBLIC_KEY: ${SIGNUP_MONITOR_PUBLIC_KEY:-}
     healthcheck:
-      test: [CMD, bun, -e, "const r=await fetch('http://127.0.0.1:3000/auth/login'); process.exit(r.ok?0:1)"]
+      test: [CMD, bun, -e, "const r=await fetch('http://127.0.0.1:3000/'); process.exit(r.ok?0:1)"]
       interval: 10s
       timeout: 5s
       retries: 12

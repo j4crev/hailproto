@@ -327,7 +327,7 @@ xdg-open "$(jq -r '.url' "$admin_dir/passkey-enrollment.json")"
 On macOS, use `open` instead of `xdg-open`; on another platform, open that file's
 `url` value privately in your browser. Do not share the enrollment link.
 
-Complete the passkey prompt, then visit your provider's `/auth/login` page and
+Complete the passkey prompt, then visit your provider's homepage and
 sign in with that passkey. The recovery secret is not your login password. The
 enrollment link is single-use and expires after ten minutes. If it expires,
 follow [owner-proof passkey recovery](passkey-authentication.md#lost-account-access)
@@ -360,7 +360,7 @@ creation requires passkey verification within the last ten minutes.
 
 ## Everyday use and recovery
 
-Sign in at your provider origin plus `/auth/login`, then open `/admin` or
+Sign in on your provider’s homepage, then open `/admin` or
 **Provider administration** in the sidebar. Enter an email address to send an
 invitation, or leave it blank to create a private link. Invitations last seven
 days and can be used once. Anyone holding the link can use it; the delivery email
