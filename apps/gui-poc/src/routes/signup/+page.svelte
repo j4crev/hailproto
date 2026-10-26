@@ -15,6 +15,7 @@
   let retryAt=$state(0),emailRetryAt=$state(0),now=$state(Date.now()),attempts=$state(0),packageText=$state("");
   let key:CryptoKey|null=null,epoch=0;
   const urls=new Set<string>();
+  const maxActivationAttempts=24;
   const phases=["Your address","Protection","Recovery kit","Security email","Create account","Passkey"];
   const phase=$derived(screen==="address"||screen==="resume"?0:screen==="protection"?1:screen==="save"||screen==="verify"?2:screen==="email"?3:screen==="publish"||screen==="activating"?4:5);
   const headings:Record<Screen,string>={address:"Choose your Hail address",protection:"How your account is protected",save:"Save your recovery kit",verify:"Check your saved recovery kit",
@@ -28,7 +29,7 @@
     const params=new URLSearchParams(location.hash.slice(1));invitation=params.get("invitation")??"";
     if(location.hash)history.replaceState(null,"",location.pathname);
     const hide=()=>{clearMemory();screen="resume";};
-    const timer=setInterval(()=>{now=Date.now();if(screen==="activating"&&!busy&&now>=retryAt&&attempts<12&&document.visibilityState==="visible")void run(advance);},1000);
+    const timer=setInterval(()=>{now=Date.now();if(screen==="activating"&&!busy&&now>=retryAt&&attempts<maxActivationAttempts&&document.visibilityState==="visible")void run(advance);},1000);
     window.addEventListener("pagehide",hide);
     return()=>{clearInterval(timer);window.removeEventListener("pagehide",hide);};
   });
@@ -41,8 +42,8 @@
     if(busy||Date.now()<retryAt)return;
     busy=true;message="";
     try{await action();}catch(error){
-      if(error instanceof SignupRequestError){message=error.message;if([202,429,503].includes(error.status))retryAt=Date.now()+error.retryAfter*1000;else if(screen==="activating")attempts=12;}
-      else {message="This step could not finish. Check your file or secret and try again with the same setup.";if(screen==="activating")attempts=12;}
+      if(error instanceof SignupRequestError){message=error.message;if([202,429,503].includes(error.status))retryAt=Date.now()+error.retryAfter*1000;else if(screen==="activating")attempts=maxActivationAttempts;}
+      else {message="This step could not finish. Check your file or secret and try again with the same setup.";if(screen==="activating")attempts=maxActivationAttempts;}
     }finally{enteredSecret="";busy=false;}
   }
   function download(){
@@ -226,7 +227,7 @@
         <button class="hail-button" disabled={busy||now<retryAt} onclick={()=>run(publish)}>Create my account</button>
       {:else if screen==="activating"}
         <p>We’re publishing your identity, connecting monitoring and checking security-alert delivery. You don’t need to repeat these steps.</p>
-        {#if attempts<12}<p role="status">Checking progress automatically…</p>{:else}<p>This is taking longer than expected. Your original setup is saved; you can check again or return later with your recovery kit.</p><button class="hail-button" disabled={busy||now<retryAt} onclick={()=>{attempts=0;void run(advance);}}>Check again</button>{/if}
+        {#if attempts<maxActivationAttempts}<p role="status">This can take a few minutes. Keep this page open; we’ll continue automatically when the checks finish.</p>{:else}<p>This is taking longer than expected. Your original setup is saved; you can check again or return later with your recovery kit.</p><button class="hail-button" disabled={busy||now<retryAt} onclick={()=>{attempts=0;void run(advance);}}>Check again</button>{/if}
       {:else if screen==="passkey"}
         <p>Use your device or password manager to create a passkey for everyday sign-in.</p>
         <form onsubmit={e=>{e.preventDefault();void run(enroll);}}><label>Passkey name<input bind:value={label} required maxlength="80" /></label><button class="hail-button" disabled={busy||now<retryAt}>Create passkey</button></form>
@@ -248,7 +249,7 @@
         <p>Keep your recovery kit and secret separately. Your temporary setup access has been retired.</p><a class="hail-button" href="/">Open your inbox</a>
       {/if}
     </div>{/key}
-    {#if busy}<p role="status">Working…</p>{/if}
+    {#if busy&&screen!=="activating"}<p role="status">Working…</p>{/if}
     {#if now<retryAt&&screen!=="activating"}<p>Try again in {Math.ceil((retryAt-now)/1000)} seconds.</p>{/if}
     {#if message}<p class="signup-message" role="status">{message}</p>{/if}
   </section>

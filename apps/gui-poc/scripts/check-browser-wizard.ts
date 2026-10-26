@@ -377,7 +377,7 @@ try{
   await evaluate("localStorage.clear()");await cdp("Page.reload");await wait(()=>has("Choose your Hail address"),"clean browser");
   await click("Continue an interrupted setup");await upload("Recovery kit or pending setup file",packagePath);
   await fill("Saved recovery secret",secret);await click("Continue setup");await wait(()=>has("Ready to create your account"),"resume original identity");
-  await click("Create my account");await wait(()=>has("Checking progress automatically"),"monitor wait");await noPrematureSignIn();
+  await click("Create my account");await wait(()=>has("This can take a few minutes"),"monitor wait");await noPrematureSignIn();
   await cdp("Page.reload");await wait(()=>has("Encrypted setup was found"),"monitor resume");
   await fill("Saved recovery secret",secret);await click("Continue setup");await wait(()=>has("Create your passkey"),"automatic activation after resume");
   await noPrematureSignIn();assert(!requests.some(r=>r.path.includes("authentication")),"Authentication requested before enrollment");

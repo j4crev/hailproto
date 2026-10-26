@@ -267,8 +267,20 @@ integration("reviewed bootstrap and durable backfill readiness", () => {
       expect((await db.sql`SELECT did FROM monitored_dids`)).toHaveLength(0);
       await monitor.enroll(did, genesisCid, "https://owner.example.com/alerts", reviewed);
       expect((await db.sql<{ last_healthy_at: Date | null }[]>`SELECT last_healthy_at FROM monitor_cursor`)[0]!.last_healthy_at).toBeNull();
-      expect(await monitor.poll()).toMatchObject({ state: "current" });
       const signer = new MonitorSigner(generateKeyPairSync("ed25519").privateKey);
+      await expect(monitor.attestOnboarding(did, genesisCid, "https://monitor.example.com", signer)).rejects.toThrow("coverage");
+      // Onboarding must become ready without waiting for the four-minute sweep.
+      const unrelatedDid = "did:plc:" + "a".repeat(24);
+      await db.sql`INSERT INTO monitored_dids (did,expected_cid,expected_state,alert_webhook_url)
+        SELECT ${unrelatedDid},expected_cid,expected_state,alert_webhook_url FROM monitored_dids WHERE did=${did}`;
+      try {
+        expect(await monitor.pollDid(did)).toMatchObject({ state: "current" });
+        expect((await db.sql`SELECT last_polled_at FROM monitored_dids WHERE did=${unrelatedDid}`)[0]!.last_polled_at).toBeNull();
+      } finally {
+        await db.sql`DELETE FROM monitor_alerts WHERE did=${unrelatedDid}`;
+        await db.sql`DELETE FROM monitored_dids WHERE did=${unrelatedDid}`;
+      }
+      expect((await db.sql`SELECT last_healthy_at FROM monitor_cursor`)[0]!.last_healthy_at).toBeNull();
       await expect(monitor.attestOnboarding(did, genesisCid, "https://monitor.example.com", signer)).rejects.toThrow("coverage");
       expect(await new MonitorNotifier(db.sql, signer, { async send() { return 204; } }).sendOne()).toBe("sent");
       const onboarding = await monitor.attestOnboarding(did, genesisCid, "https://monitor.example.com", signer);

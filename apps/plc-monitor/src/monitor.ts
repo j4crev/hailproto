@@ -67,13 +67,24 @@ export class PlcMonitor {
   }
 
   async poll(_legacyCount?:number): Promise<MonitorPollResult> {
+    return this.pollWatched();
+  }
+
+  // Bootstrap one account immediately without waiting for the periodic sweep.
+  // Reuse the full audit checks, but never claim fleet-wide cursor health.
+  async pollDid(did: string): Promise<MonitorPollResult> {
+    if (!/^did:plc:[a-z2-7]{24}$/.test(did)) throw new Error("Monitor DID is not canonical");
+    return this.pollWatched(did);
+  }
+
+  private async pollWatched(did?: string): Promise<MonitorPollResult> {
     return this.sql.begin(async (tx): Promise<MonitorPollResult> => {
       const now = this.now();
       let alerts = 0;
       let result:MonitorPollResult["state"]="current",inspected=0;
       const monitored = await tx<{ did:string;expected_cid:string;expected_state:unknown;enrolled_at:Date;
         last_polled_at:Date|null;last_audit:unknown }[]>`SELECT did,expected_cid,expected_state,enrolled_at,last_polled_at,last_audit
-        FROM monitored_dids ORDER BY did FOR UPDATE`;
+        FROM monitored_dids WHERE (${did ?? null}::text IS NULL OR did=${did ?? null}) ORDER BY did FOR UPDATE`;
       for (const row of monitored) {
         const baseline = row.last_polled_at && row.last_polled_at > row.enrolled_at ? row.last_polled_at : row.enrolled_at;
         if (now.getTime() - baseline.getTime() > 86_400_000) alerts += await this.alert(tx, row.did, "coverage-lost",
@@ -110,7 +121,7 @@ export class PlcMonitor {
             {observedAt:now.toISOString()});
         }
       }
-      await tx`UPDATE monitor_cursor SET caught_up=${result==="current"},
+      if (did === undefined) await tx`UPDATE monitor_cursor SET caught_up=${result==="current"},
         last_healthy_at=CASE WHEN ${result==="current"} THEN ${now} ELSE last_healthy_at END,updated_at=${now}
         WHERE singleton=true`;
       return {state:result,inspected,alerts};

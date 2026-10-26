@@ -96,6 +96,7 @@ export function createMonitorEnrollmentApi(config: MonitorEnrollmentConfig, moni
       monitorPublicKey: signer.publicDidKey, monitorAssurance: "reduced-assurance-alpha-v1" };
     try {
       await monitor.enroll(query.did, query.operationCid, `${config.alertOrigin}${SIGNUP_ALERT_PATH}`, state);
+      await monitor.pollDid(query.did);
       const signed = await monitor.attestOnboarding(query.did, query.operationCid, config.monitorOrigin, signer);
       return json({ ...status, state: "ready", attestation: { payload: encodeBase64Url(signed.payloadBytes), signature: encodeBase64Url(signed.signature) } });
     } catch (error) {

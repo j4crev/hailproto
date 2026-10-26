@@ -6,6 +6,7 @@ import { base58btc } from "multiformats/bases/base58";
 import { expect, it, vi } from "vitest";
 import { createMonitorEnrollmentApi, monitorEnrollmentConfig } from "../src/enrollment.js";
 import { MonitorSigner } from "../src/signing.js";
+import { OnboardingMonitorPending } from "../src/monitor.js";
 
 it("keeps the listener off by default and validates every enrollment declaration before startup", () => {
   expect(monitorEnrollmentConfig({ MONITOR_ORIGIN: "https://monitor.example.com" })).toBeUndefined();
@@ -21,9 +22,10 @@ it("keeps the listener off by default and validates every enrollment declaration
 
 it("authenticates and bounds requests and refuses a provider-signed genesis without owner authority", async () => {
   const signer = new MonitorSigner(generateKeyPairSync("ed25519").privateKey), enroll = vi.fn(), request = vi.fn();
+  const pollDid = vi.fn(), attestOnboarding = vi.fn();
   const config = { token: encodeBase64Url(randomBytes(32)), providerOrigin: "https://provider.example.com", alertOrigin: "https://alerts.example.com",
     monitorOrigin: "https://monitor.example.com", hostname: "127.0.0.1", port: 3001 };
-  const api = createMonitorEnrollmentApi(config, { enroll } as never, signer, request);
+  const api = createMonitorEnrollmentApi(config, { enroll, pollDid, attestOnboarding } as never, signer, request);
   const invoke = (body: string, token = config.token) => api.fetch(new Request("https://monitor.example.com/api/v1/onboarding", {
     method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body,
   }));
@@ -39,4 +41,20 @@ it("authenticates and bounds requests and refuses a provider-signed genesis with
   expect((await invoke(JSON.stringify(input))).status).toBe(400);
   expect((await invoke(JSON.stringify({ ...input, operation: await signOperation(unsigned, owner), alertUrl: "https://attacker.example.com" }))).status).toBe(400);
   expect(enroll).not.toHaveBeenCalled(); expect(request).not.toHaveBeenCalled();
+  expect(pollDid).not.toHaveBeenCalled();
+  request.mockImplementation(async (_url, init) => {
+    const query = JSON.parse(new TextDecoder().decode(init.body));
+    return Response.json({ bound: true, did: query.did, operationCid: query.operationCid });
+  });
+  const calls: string[] = [];
+  enroll.mockImplementation(async () => { calls.push("enroll"); });
+  pollDid.mockImplementation(async () => { calls.push("poll"); });
+  attestOnboarding.mockImplementation(async () => { calls.push("attest"); throw new OnboardingMonitorPending(); });
+  const valid = JSON.stringify({ ...input, operation: await signOperation(unsigned, owner) });
+  // Check immediately, but still wait for the signed coverage and email receipt.
+  expect((await invoke(valid)).status).toBe(202);
+  expect(calls).toEqual(["enroll", "poll", "attest"]);
+  expect(pollDid).toHaveBeenCalledWith(enroll.mock.calls[0]![0]);
+  attestOnboarding.mockResolvedValue({ payloadBytes: new Uint8Array([1]), signature: new Uint8Array([2]) });
+  expect((await invoke(valid)).status).toBe(200);
 });
