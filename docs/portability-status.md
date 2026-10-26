@@ -28,10 +28,11 @@ disposable local fixtures, not hosted account moves.
 ## Remaining rollout verification
 
 - [ ] Explicitly scoped reset of obsolete native records before upgrading affected pre-launch relationships; no conversion adapter planned.
-- [ ] Focused connection-bearing returning-account rehearsal; existing connection-free return tests remain a regression gate.
-- [ ] Public strict-authority connection-bearing rehearsal and unrelated-provider interoperability; private-fixture proof is not production finality.
+- [x] Strict-public connection-bearing app → dev → app rehearsals for both custody profiles: original usernames, fresh destination passkeys, source retirement, old credential/session/code rejection, four unchanged connection IDs/epoch 1, 16 historical message reads and eight post-return deliveries verified. Exact signed envelope copies and completed journals checked read-only; see [provider receipts](hailproto-providers-operations.md).
+- [ ] Unrelated-provider interoperability; the two public rehearsal providers share operator infrastructure.
 - [ ] Scoped breaking cleanup/upgrade instructions for unsupported pre-launch records.
 - [x] Commit, CI, push and guarded deployment, with off-host backup/migration proof.
+- [x] Upgrade `hailproto.app` and `hailproto.dev` with public transfer/monitor configuration; rehearsal backends now run `c7ec5c4` / schema 72; see [provider receipts](hailproto-providers-operations.md). Haili remains `d622ab3` / schema 71.
 
 New-model connection transfers are wired when orchestration is configured.
 Missing orchestration returns `awaiting-connection-handover`; obsolete records and
