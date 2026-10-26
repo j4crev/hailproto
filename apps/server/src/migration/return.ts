@@ -14,7 +14,7 @@ export async function retiredReturnAccount(sql:SQL,did:string) {
     LEFT JOIN provider_transfer_authorizations auth ON auth.did=f.did AND auth.consumed_transfer_id=f.transfer_id
     WHERE f.did=${did} AND f.state='retired' AND h.fence_record=to_jsonb(f) AND h.export_record=to_jsonb(e)
       AND h.authorization_record IS NOT DISTINCT FROM to_jsonb(auth)
-      AND EXISTS (SELECT 1 FROM portable_custody_evidence WHERE account_id=a.id AND monitor_verification_mode='poc-local')
+      AND EXISTS (SELECT 1 FROM portable_custody_evidence WHERE account_id=a.id AND monitor_verification_mode IN ('independent','poc-local'))
       AND NOT EXISTS (SELECT 1 FROM managed_custody_evidence WHERE account_id=a.id)
       AND NOT EXISTS (SELECT 1 FROM account_keys WHERE account_id=a.id AND role='hail-identity')`;
   return rows[0]??null;
@@ -24,7 +24,8 @@ export async function validateReturningEvidence(sql:SQL,manifest:TransferManifes
   const bytes=retired.export_record.manifest_bytes;if(typeof bytes!=="string"||!/^\\x[0-9a-f]+$/.test(bytes))throw new Error("Retired snapshot is unavailable");
   const previous=validateTransferManifest(new Uint8Array(Buffer.from(bytes.slice(2),"hex")));
   const old=previous.tables.portable_custody_evidence[0]!,next=manifest.tables.portable_custody_evidence[0]!;
-  if(old.monitor_verification_mode!=="poc-local"||next.monitor_verification_mode!=="poc-local"||old.user_identity_public_key!==next.user_identity_public_key||old.user_recovery_public_key!==next.user_recovery_public_key)throw new Error("Returning identity/recovery changes require the separate custody-transition profile");
+  if(old.monitor_verification_mode!==next.monitor_verification_mode||old.user_identity_public_key!==next.user_identity_public_key||old.user_recovery_public_key!==next.user_recovery_public_key)throw new Error("Returning identity/recovery or trust-profile changes require the separate custody-transition profile");
+  if(old.monitor_origin!==next.monitor_origin||old.monitor_public_key!==next.monitor_public_key)throw new Error("Returning snapshot changes retained monitor authority");
   validateRetainedHistory(previous.tables,manifest.tables);
   return retired;
 }

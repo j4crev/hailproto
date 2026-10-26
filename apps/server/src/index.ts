@@ -116,7 +116,7 @@ const statusSigner = new DeliveryStatusSigner(database.sql, onboardingRepository
 const statusPublisher = new TerminalStatusPublisher(database.sql, statusSigner, resolver,
   transport.fetch, transport.validateTarget);
 const targetKeys = new PreparedMigrationTarget(database.sql,
-  encryptor, config.hailServiceBase,process.env.POC_SELF_SERVICE_RETURN==="true");
+  encryptor, config.hailServiceBase,Boolean(config.publicManagedTransfer)||process.env.POC_SELF_SERVICE_RETURN==="true");
 const finalTransferPublisher = new TransferFinalRequestPublisher(database.sql, resolver,
   targetKeys, transport.fetch, transport.validateTarget);
 const invitationDelivery = new TransferInvitationDelivery(database.sql, resolver,
@@ -266,12 +266,12 @@ if(process.env.PUBLIC_SELF_SERVICE_ONBOARDING==="true"&&process.env.POC_SELF_SER
 if(!schemaRehearsal&&publicManaged) {
   const gate=publicManaged.gate,publicResolver=publicManaged.resolver;
   transferCompletion=new PortableTransferCompletion(database.sql,
-    new MigrationTransferService(database.sql,onboardingRepository,encryptor,publicResolver,config.hailServiceBase),
+    new MigrationTransferService(database.sql,onboardingRepository,encryptor,publicResolver,config.hailServiceBase,true),
     new PortablePlcSubmission(database.sql,plc,config.plcDirectoryUrl,config.hailServiceBase),
     new PortableAddressPublication(database.sql,publicResolver,gate,config.plcDirectoryUrl,config.hailServiceBase),
     new PortableMigrationActivation(database.sql,encryptor,publicResolver,gate,
       new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,publicResolver),
-       config.hailServiceBase,config.plcDirectoryUrl),config.hailServiceBase,'public',connectionOrchestration);
+       config.hailServiceBase,config.plcDirectoryUrl,undefined,'public',true),config.hailServiceBase,'public',connectionOrchestration);
 } else if(!schemaRehearsal&&process.env.POC_SELF_SERVICE_TRANSFER==="true") {
   const encryptor=new KeyEncryptor(config.keyEncryptionKey),gate=new PrivatePocCutoverGate(database.sql,
     {origin:config.plcDirectoryUrl,resolver,audit:did=>plc.getAuditableLog(did)},config.plcDirectoryUrl,config.hailServiceBase);

@@ -91,7 +91,6 @@ export class PortableMigrationActivation {
   }
 
   async activate(transferId: string, signedMonitor?: SignedMonitorAttestation): Promise<{ did: string; accountId: string }> {
-    if(this.allowReturns&&this.profile!=="private-poc")throw new Error("Returning materialization is limited to the private-POC profile");
     if (this.profile === "public" && this.registryOrigin !== "https://plc.directory") {
       throw new Error("Portable activation requires the canonical public PLC write registry");
     }
@@ -233,7 +232,7 @@ export class PortableMigrationActivation {
           AND canonical_address = ${pending.destination_address} AND did = ${manifest.did}`;
       }
       const released = await tx`DELETE FROM provider_accounts WHERE id = ${reserved[0].reserved_account_id}
-        AND canonical_address = ${pending.destination_address} AND did IS NULL
+        AND did IS NULL
         AND onboarding_state = 'reserved' RETURNING id`;
       if (released.length !== 1) throw new Error("Destination address was assigned elsewhere");
       reservedId=reserved[0].reserved_account_id;

@@ -110,10 +110,15 @@ export class TransferAddressReservation {
           receipt: { payloadBytes: new Uint8Array(existing[0].receipt_bytes),
             signature: new Uint8Array(existing[0].receipt_signature) }, prepared };
       }
+      const returning = (await tx<{ id: string }[]>`SELECT account.id FROM provider_accounts account
+        JOIN provider_migration_fences fence ON fence.account_id=account.id
+        WHERE account.canonical_address=${selection.address} AND account.did=${selection.did}
+          AND account.onboarding_state='active' AND fence.state='retired' FOR UPDATE OF account,fence`)[0];
       const reservedAccountId = randomUUID();
+      const reservedAddress = returning ? `${reservedAccountId}@${domain}` : selection.address;
       const occupied = await tx<{ id: string }[]>`
         INSERT INTO provider_accounts (id, tenant_id, canonical_address, onboarding_state)
-        VALUES (${reservedAccountId}, ${randomUUID()}, ${selection.address}, 'reserved')
+        VALUES (${reservedAccountId}, ${randomUUID()}, ${reservedAddress}, 'reserved')
         ON CONFLICT (canonical_address) DO NOTHING RETURNING id`;
       if (!occupied[0]) throw new Error("Address not available");
       const expiry = Math.min(selection.expires_at, offer.expires_at);
