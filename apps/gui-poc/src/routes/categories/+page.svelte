@@ -58,7 +58,6 @@
         <h2 class="m-0 text-lg">Your categories</h2>
         <div class="grid gap-2 rounded-xl border border-solid border-line bg-canvas p-4" aria-label="General category">
           <div class="flex items-center justify-between gap-3"><strong>General</strong><span class="text-xs text-muted">Built-in · Fixed</span></div>
-          <p class="m-0 text-sm text-muted">For people subscribed to General. Does not include other categories.</p>
           {#if data.revision && !data.definition.categories.some(category => category.id === 'general')}<p class="m-0 text-xs text-muted">Added to your profile when you save.</p>{/if}
         </div>
         {#each categories as category, index}
