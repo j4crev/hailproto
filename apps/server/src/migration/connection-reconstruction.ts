@@ -6,6 +6,7 @@ import type {HailDidResolver} from '../plc/resolver.js';
 import {requireFreshPublicAuthority} from '../plc/authority.js';
 import type {RemoteConnectionReview} from '../accounts/connection-review.js';
 import type {ConnectionFederation} from '../accounts/connection-federation.js';
+import {PLC_READ_EVIDENCE_POLICY_VERSION} from '../identity/managed-profile.js';
 import {uuidV7} from '../identity/uuid-v7.js';
 import {decodeSignedRecord} from './wire.js';
 import {validateTransferManifest} from './transfer.js';
@@ -223,7 +224,7 @@ export async function reconstructConnections(sql:SQL,manifest:Manifest,generatio
       primary.map(key=>JSON.stringify(row[key]))))[0]?.row;
     if(!prior||Object.keys(row).some(key=>!isDeepStrictEqual(normalized(key,row[key]),normalized(key,prior[key]))))throw new Error('Reconstruction conflicts with retained '+table+' bytes or ownership');
   };
-  for(const row of history.tables.public_plc_resolution_evidence)await insert('public_plc_resolution_evidence',row);
+  for(const row of history.tables.public_plc_resolution_evidence)await insert('public_plc_resolution_evidence',{...row,record_version:1,read_evidence_policy_version:PLC_READ_EVIDENCE_POLICY_VERSION});
   for(const row of history.tables.federated_connection_pairs){
     const projected:Row={...row,serving_generation:generation,coordinator_service_base:manifest.did<String(row.peer_did)?manifest.destinationServiceBase:row.peer_service_base,
       cutoff_at:row.cutoff_at===null?null:new Date().toISOString()};
