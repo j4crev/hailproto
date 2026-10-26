@@ -38,16 +38,18 @@ export class PortableCutoverGate {
   async assess(transferId: string, signedMonitor?: SignedMonitorAttestation): Promise<CutoverAssessment> {
     if (!signedMonitor) throw new Error("Public cutover requires a signed independent monitor attestation");
     const monitor = { payloadBytes: Uint8Array.from(signedMonitor.payloadBytes), signature: Uint8Array.from(signedMonitor.signature) };
-    const imports = await this.sql<{ did: string; state: string; manifest_bytes: Uint8Array;
+    const imports = await this.sql<{ did: string; state: string; custody_profile: "portable"|"managed"; manifest_bytes: Uint8Array;
       signed_plc_operation_bytes: Uint8Array | null }[]>`
-      SELECT did, state, manifest_bytes, signed_plc_operation_bytes
+      SELECT did, state, custody_profile, manifest_bytes, signed_plc_operation_bytes
       FROM pending_migration_imports WHERE transfer_id = ${transferId}
     `;
     const pending = imports[0];
     if (!pending || pending.state !== "staged" || !pending.signed_plc_operation_bytes) {
       throw new Error("Cutover requires a staged inactive user-signed PLC update");
     }
-    const manifest = this.managedMonitor ? validateManagedTransferManifest(pending.manifest_bytes) : validateTransferManifest(pending.manifest_bytes);
+    const managed=pending.custody_profile==="managed";
+    if(managed&&!this.managedMonitor)throw new Error("Public managed cutover requires a configured independent monitor");
+    const manifest = managed ? validateManagedTransferManifest(pending.manifest_bytes) : validateTransferManifest(pending.manifest_bytes);
     await requireConnectionImportPhase(this.sql,manifest,'committed');
     const signedOperation = def.operation.parse(parseJsonWithoutDuplicateKeys(
       new TextDecoder("utf-8", { fatal: true }).decode(pending.signed_plc_operation_bytes)));

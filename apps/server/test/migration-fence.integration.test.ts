@@ -905,6 +905,9 @@ integration("fenced transfer and concurrent cutover", () => {
     expect(initial.eligible).toBe(true);
     expect(initial.earliestEligibleAt.getTime()).toBe(initial.firstSeenAt.getTime());
     expect(initial.evidenceDigest).toHaveLength(32);
+    const sharedPublicGate=new PortableCutoverGate(target.sql,witnesses,()=>new Date(cutoverClock),providerOperators,
+      {monitorOrigin:"https://managed-monitor.example.com",monitorPublicKey:destinationMessagingPublicKey},canonical);
+    await expect(sharedPublicGate.assess(fence.transferId,exactReport)).resolves.toMatchObject({eligible:true,operationCid});
     const initialRows = await target.sql<{ bundle_bytes: Uint8Array; evidence_digest: Uint8Array }[]>`
       SELECT bundle_bytes,evidence_digest FROM public_cutover_evidence WHERE transfer_id=${fence.transferId}`;
     expect(initialRows).toHaveLength(1);
