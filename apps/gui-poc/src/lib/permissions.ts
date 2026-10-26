@@ -49,6 +49,22 @@ export function approval(value:any):Approval{
   // Frozen-byte validation stays on the server; commit takes only the ID/proof.
   return {...value,permission};
 }
+export class PermissionRequestError extends Error {
+  constructor(public status:number,message:string){super(message);}
+}
+
+// Recovery may finish an authorized action, but must never request new consent.
+export async function recoverPermission(requestId:string,grantor:string):Promise<Approval>{
+  let next=approval(await permissionRequest(requestId));
+  if(next.requestId!==requestId||next.permission.grantor!==grantor)throw new Error("Subscription account mismatch");
+  if(next.approved&&!next.result){
+    next=approval(await permissionRequest("commit",{requestId}));
+    if(next.requestId!==requestId||next.permission.grantor!==grantor)throw new Error("Subscription account mismatch");
+    if(!next.result)throw new Error("Subscription change is still being saved");
+  }
+  return next;
+}
+
 export async function permissionRequest(step:string,body?:unknown){
   if(!["review","prepare","commit"].includes(step)&&!UUID.test(step))throw new Error("Invalid permission operation");
   const response=await fetch(`/api/v1/account/permissions/${step}`,{method:body===undefined?"GET":"POST",credentials:"same-origin",redirect:"error",cache:"no-store",
@@ -58,10 +74,10 @@ export async function permissionRequest(step:string,body?:unknown){
   while(true){const next=await reader.read();if(next.done)break;size+=next.value.length;if(size>65_536){await reader.cancel();throw new Error("Permission response too large");}chunks.push(next.value);}
   const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
   const value=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
-  if(!response.ok)throw new Error(response.status===401?"Sign in with your passkey before managing permissions.":
-    response.status===410?"Approval expired. Review the current subscriptions before starting a fresh approval.":
-    response.status===429?"Too many permission requests. Wait a minute before retrying the same approval.":
-    response.status===409?"The sender or permission changed, or this approval is still running. Check its status before retrying.":
-    "Permission was not confirmed. Keep this review and check its status before trying again. The sender must have a current published Sender Profile.");
+  if(!response.ok)throw new PermissionRequestError(response.status,response.status===401?"Sign in with your passkey before managing permissions.":
+    response.status===410?"This review expired. Check your subscriptions and start again.":
+    response.status===429?"Too many requests. Wait a minute and try again.":
+    response.status===409?"The subscription may have changed, or your request is still being processed. Please try again.":
+    "Permission was not confirmed. Please try again. The sender must have a current published Sender Profile.");
   return value;
 }

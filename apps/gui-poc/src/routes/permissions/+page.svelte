@@ -1,24 +1,31 @@
 <script lang="ts">
+  import {invalidateAll} from "$app/navigation";
   import {onMount} from "svelte";
   import {startAuthentication} from "@simplewebauthn/browser";
-  import {APPROVAL_STORAGE,approval,permissionRequest,senderRequest,subscriptionScopeLabel,type SenderReview,type Approval} from "$lib/permissions.js";
+  import {APPROVAL_STORAGE,approval,permissionRequest,recoverPermission,PermissionRequestError,senderRequest,subscriptionScopeLabel,type SenderReview,type Approval} from "$lib/permissions.js";
   let {data}=$props();
   let sender=$state(""),pinnedDid=$state<string|undefined>(),review=$state<SenderReview|null>(null),prepared=$state<Approval|null>(null);
   let selected=$state<string[]>([]),days=$state(30),busy=$state(false),message=$state("");
+  let pendingId=$state<string|null>(null),recoveryNeeded=$state(false);
   let now=$state(Date.now()),draft:Record<string,unknown>|null=null;
   const date=(value:number)=>new Date(value*1000).toLocaleString();
   onMount(()=>{
     const readRequest=()=>{
-      if(prepared||busy){message="Finish or cancel the current review before opening another sender request.";return;}
+      if(prepared||busy||recoveryNeeded){message="Finish or cancel the current review before opening another sender request.";return;}
       try{const request=senderRequest(location.hash);if(request){sender=request.sender;pinnedDid=request.did;review=null;draft=null;}}
       catch(error){message=String(error instanceof Error?error.message:"Invalid sender link");}
     };
-    readRequest();window.addEventListener("hashchange",readRequest);
+    readRequest();
+    if(data.account.custodyProfile==="managed"){
+      try{pendingId=sessionStorage.getItem(APPROVAL_STORAGE);}catch{/* Storage may be unavailable. */}
+      if(pendingId)void run(recover);
+    }
+    window.addEventListener("hashchange",readRequest);
     const timer=setInterval(()=>{now=Date.now();},1000);
     return()=>{clearInterval(timer);window.removeEventListener("hashchange",readRequest);};
   });
   async function run(action:()=>Promise<void>){if(busy)return;busy=true;message="";try{await action();}
-    catch(error){message=error instanceof Error?error.message:"Permission request failed. Keep the original approval and retry.";}finally{busy=false;}}
+    catch(error){message=error instanceof Error?error.message:"Unable to update your subscriptions. Please try again.";}finally{busy=false;}}
   async function inspect(){
     prepared=null;draft=null;selected=[];
     review=await permissionRequest("review",{sender:sender.trim(),...(pinnedDid?{senderDid:pinnedDid}:{})});
@@ -29,26 +36,53 @@
     if(!draft)draft={requestId:crypto.randomUUID(),action:"allow",sender:review.address,senderDid:review.did,addressDigest:review.addressDigest,
       profileDigest:review.profileDigest,scope:{type:"categories",values:[...selected].sort()},expiresAt:Math.floor(Date.now()/1000)+Number(days)*86400};
     prepared=approval(await permissionRequest("prepare",draft));
-    sessionStorage.setItem(APPROVAL_STORAGE,prepared.requestId);
+    remember(prepared.requestId);
   }
   async function prepareRevoke(permission:{grantId:string;revision:number;digest:string}){
     review=null;draft={requestId:crypto.randomUUID(),action:"revoke",grantId:permission.grantId,revision:permission.revision,digest:permission.digest};
-    prepared=approval(await permissionRequest("prepare",draft));sessionStorage.setItem(APPROVAL_STORAGE,prepared.requestId);
+    prepared=approval(await permissionRequest("prepare",draft));remember(prepared.requestId);
   }
-  async function check(){
-    const id=prepared?.requestId??sessionStorage.getItem(APPROVAL_STORAGE);if(!id){message="No unfinished approval is saved in this tab.";return;}
-    prepared=approval(await permissionRequest(id));
-    if(prepared.result){sessionStorage.removeItem(APPROVAL_STORAGE);location.href="/permissions";}
-    else message=prepared.approved?"Passkey approval was accepted. Retry saving this exact permission; no new authority is needed.":"This exact permission still needs your passkey confirmation.";
+  function remember(id:string|null){
+    pendingId=id;
+    try{if(id)sessionStorage.setItem(APPROVAL_STORAGE,id);else sessionStorage.removeItem(APPROVAL_STORAGE);}catch{/* Recovery still works in this page when storage is blocked. */}
+  }
+  async function complete(){
+    const action=prepared!.action;
+    remember(null);prepared=null;draft=null;review=null;recoveryNeeded=false;
+    message=action==="revoke"?"Unsubscribed.":"Sender allowed.";
+    try{await invalidateAll();}catch{message+=" Refresh the page to update your subscription list.";}
+  }
+  async function recover(){
+    const id=prepared?.requestId??pendingId;if(!id)return;
+    recoveryNeeded=true;
+    try{
+      prepared=await recoverPermission(id,data.account.did);
+      recoveryNeeded=false;
+      if(prepared.result)await complete();
+      else message="Review the details and confirm with your passkey to finish.";
+    }catch(error){
+      if(error instanceof PermissionRequestError&&(error.status===404||error.status===410)){
+        remember(null);prepared=null;draft=null;review=null;recoveryNeeded=false;
+        message="This review is no longer available. Check your subscriptions before starting again.";
+        try{await invalidateAll();}catch{message+=" Refresh the page to update the list.";}
+      }else message=prepared?.action==="revoke"?"We couldn’t confirm whether you’ve been unsubscribed.":"We couldn’t confirm whether your subscription change was saved.";
+    }
   }
   async function confirmPermission(){
     if(!prepared||prepared.permission.grantor!==data.account?.did)return;
-    const response=prepared.approved?undefined:await startAuthentication({optionsJSON:prepared.options!});
-    prepared=approval(await permissionRequest("commit",{requestId:prepared.requestId,...(response?{response}:{})}));
-    if(!prepared.result)throw new Error("Permission not yet confirmed; check its status");
-    sessionStorage.removeItem(APPROVAL_STORAGE);location.href="/permissions";
+    if(prepared.approved){await recover();return;}
+    // Keep passkey cancellation separate from an uncertain server response.
+    let response;
+    try{response=await startAuthentication({optionsJSON:prepared.options!});}
+    catch{message="Passkey confirmation wasn’t completed. You can try again or cancel.";return;}
+    try{
+      prepared=approval(await permissionRequest("commit",{requestId:prepared.requestId,response}));
+      if(!prepared.result)throw new Error("Subscription change is still being saved");
+    }catch{await recover();return;}
+    await complete();
   }
-  function cancel(){if(prepared?.approved)return;prepared=null;draft=null;review=null;sessionStorage.removeItem(APPROVAL_STORAGE);}
+  function cancel(){if(busy||recoveryNeeded||prepared?.approved)return;prepared=null;draft=null;review=null;remember(null);message="";}
+
 </script>
 
 <svelte:head><title>Subscriptions · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
@@ -59,7 +93,7 @@
   <div class="grid items-start gap-6 max-w-[860px]">
     <div class="grid min-w-0 gap-6">
       {#if data.account.custodyProfile==="managed"}
-        {#if !prepared}
+        {#if !prepared&&!recoveryNeeded}
           <section class="hail-card grid min-w-0 gap-4 p-5 sm:p-7"><h2>Allow a sender</h2><p class="text-sm text-muted">Enter a Hail address or scan a sender QR. You’ll review before approving.</p>
             <label class="hail-field">Potential sender's Hail address<input bind:value={sender} maxlength="254" autocomplete="off" placeholder="sender@business.example" oninput={()=>{pinnedDid=undefined;review=null;draft=null;}} /></label>
             {#if pinnedDid}<p class="text-xs text-muted">QR identity pin: <code>{pinnedDid}</code></p>{/if}
@@ -73,27 +107,30 @@
               <button class="hail-button justify-self-start" disabled={busy||!selected.length} onclick={()=>run(prepareAllow)}>Review permission</button>
             {/if}
           </section>
-        {:else}
+        {:else if prepared}
           <section class="hail-card grid gap-4 border-2 border-brand p-5 sm:p-7" aria-label="Permission confirmation"><p class="hail-eyebrow">Confirm with your passkey</p><h2>{prepared.action==="allow"?"Confirm allowed sender":"Confirm unsubscribe"}</h2>
             <p class="text-sm [overflow-wrap:anywhere]"><strong>{prepared.permission.consent_context.grantee_address}</strong> {prepared.action==="allow"?"will be allowed to send to":"will lose this permission to send to"} <strong>{data.account.address}</strong>.</p>
             <p class="text-sm">Sender identity: <code>{prepared.permission.grantee}</code></p><p class="text-sm">Scope: {subscriptionScopeLabel(prepared.permission.scope[0])}</p><p class="text-sm">Permission expiry: {prepared.permission.expires_at===null?"No expiry":date(prepared.permission.expires_at)}</p>
             <p class="text-sm text-muted">Confirm only if these are the intended sender and permissions. Your provider signs the Grant; your passkey authorizes only this reviewed action. It is not an identity recovery key.</p><p class="text-xs text-muted">Approval expires {new Date(prepared.expiresAt).toLocaleString()}.</p>
-            <button class="hail-button justify-self-start" disabled={busy||now>=Date.parse(prepared.expiresAt)} onclick={()=>run(confirmPermission)}>{prepared.approved?"Retry saving approved permission":prepared.action==="allow"?"Allow sender with my passkey":"Unsubscribe with my passkey"}</button>
-            <button class="hail-button-secondary justify-self-start" disabled={busy} onclick={()=>run(check)}>Check original approval status</button>{#if !prepared.approved}<button class="hail-button-secondary justify-self-start" disabled={busy} onclick={cancel}>Cancel review</button>{/if}
+            {#if !recoveryNeeded}
+              <button class="hail-button justify-self-start" disabled={busy||now>=Date.parse(prepared.expiresAt)} onclick={()=>run(confirmPermission)}>{prepared.action==="allow"?"Allow sender with my passkey":"Confirm"}</button>
+              {#if now>=Date.parse(prepared.expiresAt)}<p class="text-sm text-muted">This review expired. Cancel and start again.</p>{/if}
+              {#if !prepared.approved}<button class="hail-button-secondary justify-self-start" disabled={busy} onclick={cancel}>Cancel</button>{/if}
+            {/if}
           </section>
         {/if}
-        <button class="hail-button-secondary justify-self-start text-xs" disabled={busy} onclick={()=>run(check)}>Resume unfinished approval</button>
+        {#if recoveryNeeded&&!busy}<button class="hail-button-secondary justify-self-start" onclick={()=>run(recover)}>Try again</button>{/if}
       {/if}
       <section class="grid min-w-0 gap-4" aria-label="Issued permissions"><h2>Your subscriptions</h2><p class="text-sm text-muted">A saved permission may take a moment to reach the sender. Unsubscribing keeps messages already delivered.</p>
         {#if !data.permissions.length}<p class="hail-card p-5 text-sm text-muted">No subscriptions on this page. Add a sender to choose the updates you receive.</p>{/if}
         {#each data.permissions as permission}<article class="hail-card grid min-w-0 gap-3 p-5"><h3 class="text-base [overflow-wrap:anywhere]">{permission.sender}</h3><code class="text-muted">{permission.did}</code><p class="text-sm [overflow-wrap:anywhere]">{subscriptionScopeLabel(permission.scope)} · {permission.status === "revoked" ? "Unsubscribed" : permission.status}{permission.expiresAt!==null?` · expires ${date(permission.expiresAt)}`:" · no expiry"}</p>
           {#if permission.expiresAt!==null&&permission.expiresAt*1000<=now}<p class="text-sm text-warning">Expired; it no longer permits messages.</p>{/if}
-          {#if data.account.custodyProfile==="managed"&&permission.status==="active"}<button class="hail-button-secondary justify-self-start" disabled={busy||!!prepared} onclick={()=>run(()=>prepareRevoke(permission))}>Unsubscribe</button>{/if}
+          {#if data.account.custodyProfile==="managed"&&permission.status==="active"}<button class="hail-button-secondary justify-self-start" disabled={busy||!!prepared||recoveryNeeded} onclick={()=>run(()=>prepareRevoke(permission))}>Unsubscribe</button>{/if}
         </article>{/each}
         {#if data.next}<a class="hail-button-secondary justify-self-start" href={`/permissions?after=${encodeURIComponent(data.next)}`}>More subscriptions →</a>{/if}
       </section>
     </div>
 
   </div>
-  {#if busy}<p class="mt-5! text-sm text-muted" role="status">Working… keep the original approval open if the response is delayed.</p>{/if}
+  {#if busy}<p class="mt-5! text-sm text-muted" role="status">Updating your subscriptions…</p>{/if}
 </div>

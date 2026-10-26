@@ -1,5 +1,5 @@
 import {expect,it,vi} from "vitest";
-import {senderLink,senderRequest,senderQr,permissionRequest,subscriptionScopeLabel} from "./permissions.js";
+import {recoverPermission,senderLink,senderRequest,senderQr,permissionRequest,subscriptionScopeLabel} from "./permissions.js";
 
 it("makes public identity-pinned QR links and rejects malformed or credential-bearing requests",()=>{
   const did="did:plc:"+"a".repeat(24),link=senderLink("https://haili.app","canary-prov@haili.app",did),url=new URL(link);
@@ -30,4 +30,51 @@ it("permission requests use only the bounded same-origin cookie API, never QR-se
     vi.stubGlobal("fetch",async()=>new Response('{"error":"private vendor diagnostics"}',{status:503}));
     await expect(permissionRequest("commit",{})).rejects.toThrow("Permission was not confirmed");
   }finally{vi.unstubAllGlobals();}
+});
+
+const requestId="00000000-0000-4000-8000-000000000001",grantor="did:plc:"+"a".repeat(24);
+function pending(approved=false,result:unknown=null){return {requestId,action:"revoke",expiresAt:new Date(Date.now()+60000).toISOString(),approved,
+  options:approved?null:{challenge:"passkey-required"},result,permission:{grant_id:requestId,revision:1,grantor,grantee:"did:plc:"+"b".repeat(24),
+    expires_at:null,scope:[{type:"categories",values:["general"]}],consent_context:{grantee_address:"sender@example.com"}}};}
+const saved={grantId:requestId,revision:2,status:"revoked",publication:"durable"};
+
+it("restores an unconfirmed review without submitting or authorizing it",async()=>{
+  const request=vi.fn(async()=>Response.json(pending()));vi.stubGlobal("fetch",request);
+  try{expect((await recoverPermission(requestId,grantor)).approved).toBe(false);expect(request).toHaveBeenCalledOnce();}
+  finally{vi.unstubAllGlobals();}
+});
+
+it("recognizes completion after a lost response without repeating the change",async()=>{
+  const request=vi.fn(async()=>Response.json(pending(true,saved)));vi.stubGlobal("fetch",request);
+  try{expect((await recoverPermission(requestId,grantor)).result).toEqual(saved);expect(request).toHaveBeenCalledOnce();}
+  finally{vi.unstubAllGlobals();}
+});
+
+it("finishes an already authorized action using the same request and no new proof",async()=>{
+  const request=vi.fn().mockResolvedValueOnce(Response.json(pending(true))).mockResolvedValueOnce(Response.json(pending(true,saved)));
+  vi.stubGlobal("fetch",request);
+  try{
+    expect((await recoverPermission(requestId,grantor)).result).toEqual(saved);
+    expect(request).toHaveBeenNthCalledWith(2,"/api/v1/account/permissions/commit",expect.objectContaining({body:JSON.stringify({requestId})}));
+    expect(request).toHaveBeenCalledTimes(2);
+  }finally{vi.unstubAllGlobals();}
+});
+
+it("bounds automatic recovery when saving remains unavailable",async()=>{
+  const request=vi.fn().mockResolvedValueOnce(Response.json(pending(true))).mockResolvedValueOnce(Response.json({}, {status:503}));
+  vi.stubGlobal("fetch",request);
+  try{await expect(recoverPermission(requestId,grantor)).rejects.toThrow();expect(request).toHaveBeenCalledTimes(2);}
+  finally{vi.unstubAllGlobals();}
+});
+
+it("does not retry another account's action",async()=>{
+  const request=vi.fn(async()=>Response.json(pending(true)));vi.stubGlobal("fetch",request);
+  try{await expect(recoverPermission(requestId,"did:plc:"+"c".repeat(24))).rejects.toThrow("account mismatch");expect(request).toHaveBeenCalledOnce();}
+  finally{vi.unstubAllGlobals();}
+});
+
+it.each([404,410])("preserves terminal status %s so the UI can clear a stale review",async status=>{
+  vi.stubGlobal("fetch",async()=>Response.json({}, {status}));
+  try{await expect(recoverPermission(requestId,grantor)).rejects.toMatchObject({status});}
+  finally{vi.unstubAllGlobals();}
 });
