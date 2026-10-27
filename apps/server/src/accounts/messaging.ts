@@ -9,6 +9,8 @@ import { UserGrantError } from "../grants/service.js";
 import type { AccountApiSession } from "./repository.js";
 import {connectionMessageAllowed} from "./connection-authorization.js";
 
+import {MessageTrash} from "./message-trash.js";
+
 const ID=/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const DID=/^did:plc:[a-z2-7]{24}$/;
 const PAGE_SIZE=5;
@@ -37,8 +39,9 @@ function statusDetails(bytes:Uint8Array|null) {
     retryAt:"retry_at" in status?status.retry_at:null};
 }
 export class AccountMessaging {
+  readonly trash:MessageTrash;
   constructor(private readonly sql:SQL,private readonly bodies:BodyRepository,private readonly envelopes:EnvelopeRepository,
-    private readonly service:EnvelopeService,private readonly submitEnvelope:(sender:string,id:string)=>Promise<object>){}
+    private readonly service:EnvelopeService,private readonly submitEnvelope:(sender:string,id:string)=>Promise<object>){this.trash=new MessageTrash(sql);}
   async submit(sender:string,id:string){
     try{return await this.submitEnvelope(sender,id);}catch(error){if(error instanceof EnvelopeAuthorizationError)throw new UserGrantError(409,error.message);throw error;}
   }
@@ -84,20 +87,20 @@ export class AccountMessaging {
     if(after){try{cursor=JSON.parse(Buffer.from(after,"base64url").toString("utf8"));}catch{throw new UserGrantError(400,"Invalid cursor");}
       if(!cursor||!ID.test(cursor.id)||!DID.test(cursor.sender))throw new UserGrantError(400,"Invalid cursor");}
     const rows=await this.sql<{message_id:string;sender_did:string;delivered_at:Date}[]>`
-      SELECT message_id,sender_did,delivered_at FROM delivered_messages WHERE recipient_did=${session.did}
+      SELECT message_id,sender_did,delivered_at FROM delivered_messages WHERE recipient_did=${session.did} AND trashed_at IS NULL
       AND (${after}::text IS NULL OR (message_id,sender_did)>(${cursor?.id ?? null}::uuid,${cursor?.sender ?? null}::text))
       ORDER BY message_id,sender_did LIMIT 51`;
     return {messages:rows.slice(0,50).map(row=>({messageId:row.message_id,sender:row.sender_did,deliveredAt:row.delivered_at.toISOString()})),
       next:rows.length>50?Buffer.from(JSON.stringify({id:rows[49]!.message_id,sender:rows[49]!.sender_did})).toString("base64url"):null};
   }
 
-  async inboxFeed(session:AccountApiSession,after:string|null,channel:"all"|"subscriptions"|"connections"="all") {
+  async inboxFeed(session:AccountApiSession,after:string|null,channel:"all"|"subscriptions"|"connections"="all",trash=false) {
     let cursor:{id:string;sender:string}|null=null;
     if(after){try{cursor=JSON.parse(Buffer.from(after,"base64url").toString("utf8"));}catch{throw new UserGrantError(400,"Invalid cursor");}
       if(!cursor||!ID.test(cursor.id)||!DID.test(cursor.sender))throw new UserGrantError(400,"Invalid cursor");}
     const rows=await this.sql<{message_id:string;sender_did:string;delivered_at:Date;envelope_cose:Uint8Array;
-      body_bytes:Uint8Array;sender_address:string|null}[]>`
-      SELECT message.message_id,message.sender_did,message.delivered_at,envelope.envelope_cose,body.body_bytes,
+      body_bytes:Uint8Array;sender_address:string|null;trashed_at:Date|null}[]>`
+      SELECT message.trashed_at,message.message_id,message.sender_did,message.delivered_at,envelope.envelope_cose,body.body_bytes,
         presentation.grantee_address AS sender_address
       FROM delivered_messages message JOIN received_envelopes envelope USING(sender_did,message_id)
       JOIN verified_body_provenance body ON body.recipient_did=message.recipient_did AND body.sender_did=message.sender_did
@@ -108,12 +111,13 @@ export class AccountMessaging {
           AND lineage.grantee_did=message.sender_did ORDER BY consent.revision DESC LIMIT 1
       ) presentation ON true
        WHERE message.recipient_did=${session.did}
+         AND ((${trash}=false AND message.trashed_at IS NULL) OR (${trash}=true AND message.trashed_at>clock_timestamp()-interval '30 days'))
          AND (${channel}='all' OR (${channel}='connections')=(envelope.authorization_type='connection'))
         AND (${after}::text IS NULL OR (message.message_id,message.sender_did)<(${cursor?.id??null}::uuid,${cursor?.sender??null}::text))
       ORDER BY message.message_id DESC,message.sender_did DESC LIMIT ${PAGE_SIZE+1}`;
     return {messages:await Promise.all(rows.slice(0,PAGE_SIZE).map(async row=>{const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
       return {messageId:row.message_id,sender:row.sender_did,senderAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,row.sender_did,envelope.authorization.connection_id):row.sender_address,recipient:session.did,
-        category:envelope.category??null,kind:envelope.authorization.type==="connection"?"connection":"subscription",deliveredAt:row.delivered_at.toISOString(),body:bodyDocument(row.body_bytes)};})),
+        trashedAt:row.trashed_at?.toISOString()??null,category:envelope.category??null,kind:envelope.authorization.type==="connection"?"connection":"subscription",deliveredAt:row.delivered_at.toISOString(),body:bodyDocument(row.body_bytes)};})),
       next:rows.length>PAGE_SIZE?Buffer.from(JSON.stringify({id:rows[PAGE_SIZE-1]!.message_id,
         sender:rows[PAGE_SIZE-1]!.sender_did})).toString("base64url"):null};
   }
@@ -191,7 +195,7 @@ export class AccountMessaging {
         WHERE lineage.local_account_id=${session.account_id} AND lineage.local_role='grantor'
           AND lineage.grantee_did=message.sender_did ORDER BY consent.revision DESC LIMIT 1
       ) presentation ON true
-      WHERE message.recipient_did=${session.did} AND message.sender_did=${sender} AND message.message_id=${id}`;
+      WHERE message.recipient_did=${session.did} AND message.trashed_at IS NULL AND message.sender_did=${sender} AND message.message_id=${id}`;
     if(!rows[0])return null;
     const envelope=inspectSignedPayload("hail.envelope",rows[0].envelope_cose).payload;
     const connection=envelope.authorization.type==="connection"?{id:envelope.authorization.connection_id,epoch:envelope.authorization.epoch,

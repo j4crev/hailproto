@@ -210,6 +210,15 @@ if(connections?.federation)setInterval(async()=>{
   finally{connectionRunning=false;}
 },1_000);
 
+let trashCleanupRunning=false;
+async function cleanTrash(){
+  if(trashCleanupRunning)return;trashCleanupRunning=true;
+  try{await messaging.trash.purgeExpired();}
+  catch(error){console.error(JSON.stringify({level:"error",message:"Trash cleanup failed",error:error instanceof Error?error.message:"unknown error"}));}
+  finally{trashCleanupRunning=false;}
+}
+void cleanTrash();setInterval(cleanTrash,60_000);
+
 let cleanupRunning = false;
 setInterval(async () => {
   if (cleanupRunning) return;

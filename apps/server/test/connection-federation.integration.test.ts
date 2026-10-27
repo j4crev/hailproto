@@ -139,7 +139,7 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
       const remote=new RemoteConnectionReview(db.sql,resolver,network,url=>{if(!providers.some(p=>p.origin===url.origin))throw new Error("Unexpected destination");},origin+"/hail");
       const service=new AccountConnections(db.sql,encryptor,resolver,passkeys,origin,remote);
       const provider={schema,db,origin,encryptor,accounts,passkeys,app,service};providers.push(provider);await db.migrate();
-      const rollback=await db.sql.reserve();try{for(const file of ['0075_connection_custody','0074_provider_operator','0073_signup_recovery_package','0072_retired_connection_peers','0071_connection_transfer_orchestration','0070_unified_connections','0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation'])
+      const rollback=await db.sql.reserve();try{for(const file of ['0076_message_trash','0075_connection_custody','0074_provider_operator','0073_signup_recovery_package','0072_retired_connection_peers','0071_connection_transfer_orchestration','0070_unified_connections','0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation'])
         await rollback.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{rollback.release();}
       await db.migrate();registerConnectionRoutes(app,service,accounts,origin);
     }

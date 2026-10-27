@@ -69,7 +69,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         context.req.header("Origin")!==sessionOrigin)return problem(403);
       return await withServingGeneration<Response>(session.account_id,session.serving_generation??1,async():Promise<Response>=>{
       const query = new URL(context.req.url).searchParams;
-      if (query.size && action !== "list" && action !== "inbox" && action !== "sent" && action !== "credential") return problem(400);
+      if (query.size && action !== "list" && action !== "inbox" && action !== "sent" && action !== "credential" && action !== "trash") return problem(400);
       const method = context.req.method;
       if(action?.startsWith("publication-")||action?.startsWith("connection-message-")){
         const kind=action.startsWith("connection-message-")?"connections":"category",operation=kind==="connections"?action.slice("connection-message-".length):action.slice("publication-".length);
@@ -248,6 +248,35 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           digest:encodeBase64Url(saved.digest),cose:encodeBase64Url(saved.cose),
           profile:toDiagnosticJson("hail.sender-profile",saved.payload)});
       }
+      if(["trash","trash-restore","message-delete","message-preferences"].includes(action??"")){
+        if(!messaging)return problem(503);
+        const reading=method==="GET";
+        if(!session.scopes.includes(reading?"messages:read":"messages:write"))return problem(403);
+        // Web Trash semantics require the cookie session; bearer deletion is explicitly permanent.
+        if(!session.passkey_credential_id)return problem(403);
+        if(action==="trash"){
+          if(!reading)return problem(405);
+          if([...query.keys()].some(k=>k!=="after")||query.getAll("after").length>1)return problem(400);
+          return context.json(await messaging.inboxFeed(session,query.get("after"),"all",true));
+        }
+        if(action==="message-preferences"&&reading)return context.json(await messaging.trash.settings(session));
+        if(method!=="POST")return problem(405);
+        if(session.migration_state)return problem(409);
+        if(context.req.header("Content-Type")!=="application/json"||context.req.header("Content-Encoding"))return problem(415);
+        const bytes=await accountRequestBytes(context.req.raw,32768);if(!bytes)return problem(413);
+        const input=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
+        if(!input||typeof input!=="object"||Array.isArray(input))return problem(400);
+        if(action==="message-preferences"){
+          if(Object.keys(input).length!==1||!("trashEnabled" in input))return problem(400);
+          return context.json(await messaging.trash.saveSettings(session,input.trashEnabled));
+        }
+        if(action==="trash-restore"){
+          if(Object.keys(input).length!==1||!("messages" in input))return problem(400);
+          return context.json(await messaging.trash.restore(session,input.messages));
+        }
+        if(Object.keys(input).length)return problem(400);
+        return context.json(await messaging.trash.remove(session,context.req.param("sender")!,grantId!));
+      }
       const scope = action === "send" || action === "resubmit" ? "messages:write" : ["inbox","read","status","sent","sent-read"].includes(action ?? "") ? "messages:read" : action === "credential" ? "credentials:write" : action === "proposal" || action === "managed-create" || action === "managed-revoke" ? "grants:write" : action === "list" ? "grants:read" :
         grantId === null ? "account:read" : method === "PUT" ? "grants:write" : "grants:read";
       if (!session.scopes.includes(scope)) return problem(403);
@@ -418,6 +447,10 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/connection-messages",context=>handle(context,null,"connection-message-create"));
   app.all("/api/v1/account/connection-messages/:publicationId/cancel",context=>handle(context,context.req.param("publicationId"),"connection-message-cancel"));
   app.all("/api/v1/account/connection-messages/:publicationId",context=>handle(context,context.req.param("publicationId"),"connection-message-status"));
+  app.all("/api/v1/account/message-preferences",context=>handle(context,null,"message-preferences"));
+  app.all("/api/v1/account/trash",context=>handle(context,null,"trash"));
+  app.all("/api/v1/account/trash/restore",context=>handle(context,null,"trash-restore"));
+  app.all("/api/v1/account/inbox/:sender/:messageId/delete",context=>handle(context,context.req.param("messageId"),"message-delete"));
   app.all("/api/v1/account/inbox",context=>handle(context,null,"inbox"));
   app.all("/api/v1/account/inbox/:sender/:messageId",context=>handle(context,context.req.param("messageId"),"read"));
   app.all("/api/v1/account/messages/:messageId/submit",context=>handle(context,context.req.param("messageId"),"resubmit"));

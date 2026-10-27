@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DeleteMessage from "$lib/DeleteMessage.svelte";
   import {onMount} from "svelte";
   import PasskeySignIn from "$lib/PasskeySignIn.svelte";
   import Icon from "$lib/Icon.svelte";
@@ -44,7 +45,8 @@
     {#if data.messages.length === 0}
       <div class="hail-card flex flex-col items-center gap-3 px-6 py-16 text-center"><span class="empty-symbol" aria-hidden="true"><Icon name={data.view === 'connections' ? 'chat' : 'feed'} size={30} /></span><h2 class="m-0 text-xl tracking-tight">No messages yet</h2><p class="m-0 max-w-sm text-sm text-muted">{data.view==='connections'?'Reach out and say "hello".':'All quiet here.'}</p>{#if data.view !== 'connections'}<a class="hail-button-secondary mt-2" href="/permissions">Find your first sender <span aria-hidden="true">→</span></a>{/if}</div>
     {:else}
-      {#each data.messages as message}
+      {#each data.messages as message (message.sender+message.messageId)}
+        <div class="grid gap-2">
         <a class="hail-card flex min-w-0 flex-col overflow-hidden no-underline transition-[border-color,box-shadow] duration-150 hover:border-brand hover:shadow-md" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
           <span class="flex items-center gap-3 px-6 py-4">
             {#if message.avatar}<img class="grid size-[42px] flex-[0_0_42px] place-items-center rounded-[13px] object-cover" src={message.avatar.src} alt="" width={message.avatar.width} height={message.avatar.height} />
@@ -56,6 +58,8 @@
           {/if}
           <span class="px-6 pt-4 pb-6 font-serif text-[17px] leading-relaxed text-ink [overflow-wrap:anywhere]">{message.preview}</span>
         </a>
+        <DeleteMessage sender={message.sender} messageId={message.messageId} />
+        </div>
       {/each}
     {/if}
   </section>

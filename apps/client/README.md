@@ -182,3 +182,30 @@ The provider allows this specific write for same-origin passkey sessions verifie
 within five minutes, without adding `account:write` to browser sessions. Deploy
 both the GUI and provider change for browser publishing; older providers reject
 browser profile writes with 403. No schema migration is needed.
+
+## Trash and deletion
+
+Inbox and Messages cards and readers offer **Delete message**. Trash is enabled
+by default and retains a message for 30 days from its first deletion, regardless
+of its original age. Repeated deletion does not extend retention. In **Trash**,
+select one or more messages (or the current page) and choose **Restore selected**;
+the original subscription/connection classification sends each back to Inbox or
+Messages. Expired messages cannot be restored.
+
+**Settings → Use Trash** is saved to the provider account, unlike the local header
+image preference. Disabling it requires confirmation, immediately purges existing
+Trash, and makes subsequent deletions permanent. This removes the recipient's
+message and unreferenced recipient body bytes, not another account's Sent copy.
+Delivery receipts and replay protection remain. Encrypted operational backups
+follow the provider's separate backup retention policy.
+
+Deploy provider migration 76 and its runtime before the client. The server runs
+expiration cleanup at startup and every minute, in bounded batches; account
+transfer fences defer cleanup until the account is writable. `trashed_at` travels
+with delivered-message snapshots between compatible providers. The Use Trash
+preference is provider-local and defaults on at a new provider.
+
+Keep schema 76 and compatible application code during rollback. Older runtimes
+do not filter trashed messages. Schema rollback refuses while Trash contains
+messages or any account has Trash disabled; never silently restore those messages
+just to roll back. Permanent deletions cannot be undone by application rollback.

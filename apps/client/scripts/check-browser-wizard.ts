@@ -48,6 +48,7 @@ const publicationResult=()=>({publicationId:publicationIntent.publicationId,cate
   delivery:{accepted:0,delivered:publicationReads>=2?1:0,"on-hold":0,failed:0,cancelled:0,indeterminate:publicationReads>=2?1:0},
   targets:[composed,composedOther].map(message=>({messageId:message.messageId,recipient:message.recipient,state:publicationReads>=2?"submitted":"pending",delivery:publicationReads>=2?message.state:null})),
   createdAt:new Date(publicationCreated).toISOString(),expiresAt:new Date(publicationCreated+86400000).toISOString()});
+let trashEnabled=true;const trashed=new Map<string,string>(),deleted=new Set<string>();
 let incoming=false,replyPosts=0,replied:any=null,recentlyVerified=false,guiProxy:ReturnType<typeof createApp>;
 const textBody=(text:string)=>({version:1,profile:"spt-1",blocks:[{_type:"block",_key:"b1",style:"normal",markDefs:[],children:[{_type:"span",_key:"s1",text,marks:[]}]}]});
 const connectionReply=()=>({messageId:connectionIncomingId,sender:peerDid,senderAddress:peerAddress,recipient:did,category:null,kind:'connection',
@@ -90,6 +91,16 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     return json(connectionMessageResult(),202);
   }
   if(connectionMessageIntent&&path===`/api/v1/account/connection-messages/${connectionMessageIntent.publicationId}`){connectionMessageReads++;return json(connectionMessageResult());}
+  if(path==='/api/v1/account/message-preferences'){
+    if(request.method==='POST'){trashEnabled=input.trashEnabled;if(!trashEnabled){for(const id of trashed.keys())deleted.add(id);trashed.clear();}}
+    return json({trashEnabled});
+  }
+  if(path.endsWith('/delete')&&path.startsWith('/api/v1/account/inbox/')){
+    const id=path.split('/').at(-2)!;if(trashEnabled)trashed.set(id,new Date().toISOString());else deleted.add(id);
+    return json({state:trashEnabled?'trashed':'deleted'});
+  }
+  if(path==='/api/v1/account/trash')return json({messages:[incomingMessage(),connectionReply()].filter(m=>trashed.has(m.messageId)).map(m=>({...m,trashedAt:trashed.get(m.messageId)})),next:null});
+  if(path==='/api/v1/account/trash/restore'){let restored=0;for(const m of input.messages)if(trashed.delete(m.messageId))restored++;return json({restored});}
   if(connectionIncoming&&(path===`/api/v1/account/inbox/${encodeURIComponent(peerDid)}/${connectionIncomingId}`||path===`/api/v1/account/inbox/${peerDid}/${connectionIncomingId}`))return json(connectionReply());
   if(path.startsWith("/api/v1/account/connections")){
     assert(request.headers.get("Cookie")?.includes("hail_session="+sessionToken));
@@ -210,7 +221,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     if(!request.headers.get("Cookie")?.includes("hail_session="+sessionToken))return json({},401);
     assert(retired,"Inbox must use the completed account's session");
     const query=new URL(request.url).searchParams,personal=query.get('kind')==='connections';
-    return json(path.endsWith("/inbox")?{messages:personal?(connectionIncoming?[connectionReply()]:[]):incoming?[incomingMessage()]:[],next:!personal&&incoming&&!query.has("after")?"older-page":null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
+    return json(path.endsWith("/inbox")?{messages:(personal?(connectionIncoming?[connectionReply()]:[]):incoming?[incomingMessage()]:[]).filter(m=>!trashed.has(m.messageId)&&!deleted.has(m.messageId)),next:!personal&&incoming&&!query.has("after")?"older-page":null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
       address:prepared.address,did:profileVerificationMismatch?peerDid:did,migrationState:null,custodyProfile:"managed",monitorVerificationMode:"reduced-assurance-alpha-v1",managedProfileVersion:"hail-managed-custody-v1",
       identityPublicKey:prepared.userIdentityKey,ownerRecoveryPublicKey:prepared.userRecoveryKey,scopes:["account:read","grants:read","messages:read","messages:write"]});
   }
@@ -318,7 +329,7 @@ try{
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Signed-out feed overflows viewport");
   assert.equal(await evaluate(`!!document.querySelector('nav[aria-label="Main navigation"]') || !!document.querySelector('a[href="/compose"]')`),false,"Public home must not show private folders or compose");
   await narrowLayouts();await screenshot("home");
-  const privatePaths=["/categories","/account","/settings","/connections","/permissions","/settings/security","/sent?after=older","/compose","/?view=connections",`/sent/${incomingId}`,`/message/${encodeURIComponent(peerDid)}/${incomingId}`];
+  const privatePaths=["/trash","/categories","/account","/settings","/connections","/permissions","/settings/security","/sent?after=older","/compose","/?view=connections",`/sent/${incomingId}`,`/message/${encodeURIComponent(peerDid)}/${incomingId}`];
   for(const path of privatePaths){
     const response=await fetch(origin+path,{redirect:"manual"});assert.equal(response.status,303);
     assert.equal(new URL(response.headers.get("location")!,origin).searchParams.get("next"),path);
@@ -730,6 +741,28 @@ try{
   assert.equal(composePosts,1);assert.equal(replyPosts,1);
   for(const req of requests){assert(!req.body.includes(secret),"Recovery secret uploaded");assert(!req.body.includes('"ciphertext"'),"Recovery vault uploaded");}
   assert(requests.filter(r=>r.authorization).every(r=>r.authorization==="Bearer "+setupToken||r.path.endsWith("check-address")));
+  // Inbox and connection messages share Trash but restore to their original feeds.
+  const mailboxPage=async(path:string,heading:string)=>{
+    await evaluate(`(()=>{const a=document.createElement('a');a.href=${JSON.stringify(path)};document.body.append(a);a.click();a.remove();})()`);
+    await wait(async()=>evaluate(`location.pathname+location.search===${JSON.stringify(path)} && document.querySelector('main h1')?.textContent===${JSON.stringify(heading)}`),'mailbox page '+heading);
+  };
+  await mailboxPage('/','Inbox');await wait(()=>has('Delete message'),'inbox delete available');
+  await click('Delete message');await wait(()=>has('Move to Trash'),'trash deletion review');await click('Move to Trash');await wait(()=>has('No messages yet'),'inbox deletion hides message');
+  await mailboxPage('/?view=connections','Messages');await wait(()=>has('Delete message'),'connection delete available');
+  await click('Delete message');await wait(()=>has('Move to Trash'),'connection deletion review');await click('Move to Trash');await wait(()=>has('No messages yet'),'connection deletion hides message');
+  await mailboxPage('/trash','Trash');await wait(()=>has('Restore selected'),'trash page');
+  assert(await has('Restore to Inbox'));assert(await has('Restore to Messages'));
+  await wait(async()=>evaluate(`document.querySelector('main input[type=checkbox]')?.disabled===false`),'Trash selection ready');
+  await evaluate(`document.querySelector('main input[type=checkbox]').click()`);await click('Restore selected');await wait(()=>has('Trash is empty.'),'bulk restore');
+  await mailboxPage('/?view=connections','Messages');await wait(()=>has('A personal connection reply'),'restore returns to Messages');
+  await mailboxPage('/','Inbox');await wait(()=>has('Delete message'),'restore returns to Inbox');
+  await click('Delete message');await wait(()=>has('Move to Trash'),'second trash review');await click('Move to Trash');await wait(()=>has('No messages yet'),'second trash deletion');
+  await mailboxPage('/settings','Settings');await wait(async()=>evaluate(`document.querySelector('#use-trash')?.disabled===false`),'account Trash preference');
+  await evaluate(`document.querySelector('#use-trash').click()`);await click('Disable Trash and delete contents');await wait(()=>has('Trash disabled.'),'disable purges existing trash');
+  assert.equal(trashed.size,0);assert(deleted.has(incomingId));
+  await mailboxPage('/?view=connections','Messages');await wait(()=>has('Delete message'),'permanent delete entry');
+  await click('Delete message');await wait(()=>has('Delete permanently'),'disabled trash warning');await click('Delete permanently');await wait(()=>has('No messages yet'),'immediate permanent deletion');
+  await mailboxPage('/trash','Trash');await wait(()=>has('Trash is empty.'),'disabled Trash has no deleted messages');
   await openAccount();
   await evaluate(`document.querySelector('[popover]:popover-open form button').click()`);
   await wait(()=>has("Couldn’t sign out. Please try again."),"logout failure offers retry");

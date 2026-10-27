@@ -41,6 +41,7 @@ async function didKey(key: CryptoKey) {
 integration("authenticated account API and real hailp HTTPS CLI", () => {
   let db: ProviderDatabase;
   let accounts: AccountApiRepository;
+  let messaging:AccountMessaging;
   let grants: GrantRepository;
   let server: ReturnType<typeof Bun.serve>;
   let receiver: ReturnType<typeof Bun.serve>;
@@ -166,7 +167,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
       const key=await new OnboardingRepository(db.sql).getKey(value===did?ownerId:senderId,"hail-messaging");
       return {did:value,messagingDidKey:key.publicKey,identityDidKey:value===did?vault.vault.identity.publicDidKey:senderIdentityKey,serviceBase:`${origin}/hail`,evidence};}};
     const envelopes=new EnvelopeRepository(db.sql),onboarding=new OnboardingRepository(db.sql);
-    const messaging=new AccountMessaging(db.sql,new BodyRepository(db.sql),envelopes,
+    messaging=new AccountMessaging(db.sql,new BodyRepository(db.sql),envelopes,
       new EnvelopeService(onboarding,grants,envelopes,messageEncryptor,messageResolver,`${origin}/hail`),async(sender,id)=>{
         const bytes=await envelopes.sent(sender,id);const envelope=inspectSignedPayload("hail.envelope",bytes!).payload;
         const receiver=new EnvelopeReceiver(onboarding,envelopes,messageResolver,`${origin}/hail`);
@@ -223,6 +224,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
       }
       await db.sql`DELETE FROM portable_custody_evidence WHERE account_id = ${ownerId}`;
       await db.sql`DELETE FROM account_keys WHERE account_id IN (${ownerId},${senderId})`;
+      await db.sql`DELETE FROM account_message_preferences WHERE account_id IN (${ownerId},${otherId},${senderId})`;
       await db.sql`DELETE FROM provider_accounts WHERE id IN (${ownerId},${otherId},${senderId})`;
       await db.close();
     }
@@ -458,7 +460,52 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     await writeFile(join(directory,"text.txt"),"changed");
     expect((await cli(args,"message-sender.credential.json")).exit).toBe(1);
     expect(await db.sql`SELECT message_id FROM delivered_messages WHERE sender_did=${senderDid} AND message_id=${id}`).toHaveLength(1);
-  });
+    const ownerSession=(await accounts.authenticate(`Bearer ${ownerMessageCredential.token}`))!;
+    const senderSession=(await accounts.authenticate(`Bearer ${senderCredential.token}`))!;
+    expect(await messaging.trash.settings(ownerSession)).toEqual({trashEnabled:true});
+    // Old message age does not shorten a newly started Trash retention window.
+    await db.sql`UPDATE delivered_messages SET delivered_at=clock_timestamp()-interval '90 days' WHERE message_id=${id}`;
+    await messaging.trash.remove(senderSession,senderDid,id);
+    expect(await messaging.read(ownerSession,senderDid,id)).not.toBeNull();
+    await messaging.trash.remove(ownerSession,senderDid,id);
+    const rollbackTrash=(await Bun.file(new URL('../migrations/rollback/0076_message_trash.sql',import.meta.url)).text()).replace(/^BEGIN;\n/,'').replace(/COMMIT;\n$/,'');
+    await expect(db.sql.begin(tx=>tx.unsafe(rollbackTrash))).rejects.toThrow('Restore or purge Trash');
+    const first=(await messaging.inboxFeed(ownerSession,null,"all",true)).messages[0]!;
+    expect(first.messageId).toBe(id);expect(Date.now()-Date.parse(first.trashedAt!)).toBeLessThan(5000);
+    await messaging.trash.remove(ownerSession,senderDid,id);
+    expect((await messaging.inboxFeed(ownerSession,null,"all",true)).messages[0]!.trashedAt).toBe(first.trashedAt);
+    expect(await messaging.read(ownerSession,senderDid,id)).toBeNull();
+    expect((await messaging.inbox(ownerSession,null)).messages.some(m=>m.messageId===id)).toBe(false);
+    await messaging.trash.remove(ownerSession,senderDid,richId);
+    expect(await messaging.trash.restore(ownerSession,[{sender:senderDid,messageId:id},{sender:senderDid,messageId:richId}])).toEqual({restored:2});
+    expect(await messaging.read(ownerSession,senderDid,id)).not.toBeNull();
+    expect((await messaging.inboxFeed(ownerSession,null,"all",true)).messages).toHaveLength(0);
+    const sharedId="01afffff-0000-7000-8000-000000000006";
+    expect((await app.request(`${origin}/api/v1/account/messages`,{method:"POST",headers:{Authorization:`Bearer ${senderCredential.token}`,"Content-Type":"application/json"},
+      body:JSON.stringify({messageId:sharedId,grantId,category:"updates",text:"CLI message"})})).status).toBe(200);
+    const sharedBody=(await db.sql<{body_digest:Uint8Array}[]>`SELECT body_digest FROM delivered_messages WHERE message_id=${sharedId}`)[0]!.body_digest;
+    await messaging.trash.remove(ownerSession,senderDid,id);
+    await messaging.trash.remove(ownerSession,senderDid,richId);
+    await db.sql`UPDATE delivered_messages SET trashed_at=clock_timestamp()-interval '30 days' WHERE message_id=${richId}`;
+    expect(await messaging.trash.restore(ownerSession,[{sender:senderDid,messageId:richId}])).toEqual({restored:0});
+    expect((await messaging.trash.purgeExpired()).deleted).toBe(1);
+    expect((await messaging.inboxFeed(ownerSession,null,"all",true)).messages.map(m=>m.messageId)).toEqual([id]);
+    await messaging.trash.saveSettings(ownerSession,false);
+    expect((await messaging.inboxFeed(ownerSession,null,"all",true)).messages).toHaveLength(0);
+    await expect(db.sql.begin(tx=>tx.unsafe(rollbackTrash))).rejects.toThrow('Restore or purge Trash');
+    expect(await messaging.read(ownerSession,senderDid,sharedId)).not.toBeNull(); // Shared body survives.
+    expect(await messaging.trash.restore(ownerSession,[{sender:senderDid,messageId:id}])).toEqual({restored:0});
+    expect(await messaging.trash.remove(ownerSession,senderDid,sharedId)).toMatchObject({state:"deleted"});
+    expect(await messaging.read(ownerSession,senderDid,sharedId)).toBeNull();
+    const body=await db.sql`SELECT 1 FROM verified_body_provenance WHERE recipient_did=${did} AND sender_did=${senderDid}
+      AND digest=${sharedBody}`;
+    expect(body).toHaveLength(0);
+    await messaging.submit(senderDid,id);
+    expect(await messaging.read(ownerSession,senderDid,id)).toBeNull(); // Replayed delivery cannot recreate deleted mail.
+    expect(await messaging.sentMessage(senderSession,id)).not.toBeNull(); // Recipient deletion is not a remote recall.
+    await messaging.trash.saveSettings(ownerSession,true);
+
+  },30_000);
 
   it("rejects fenced writes and recovers a committed revocation after a lost response without user keys at the provider", async () => {
     senderAvailable = false;

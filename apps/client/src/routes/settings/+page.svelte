@@ -1,4 +1,13 @@
 <script lang="ts">
+  import {invalidateAll} from "$app/navigation";
+  import {mailboxRequest} from "$lib/mailbox.js";
+  let {data}=$props();
+  let confirmDisable=$state(false),saving=$state(false),trashStatus=$state("");
+  async function saveTrash(enabled:boolean){
+    saving=true;trashStatus="";
+    try{await mailboxRequest("message-preferences",{trashEnabled:enabled});confirmDisable=false;await invalidateAll();trashStatus=enabled?"Trash enabled.":"Trash disabled. All messages in Trash were permanently deleted.";}
+    catch(e){trashStatus=e instanceof Error?e.message:"Unable to save Trash preference.";}finally{saving=false;}
+  }
   import {onMount} from "svelte";
   import Icon from "$lib/Icon.svelte";
   import {showInboxHeaders, loadHeaderPreference, saveHeaderPreference} from "$lib/preferences.js";
@@ -17,6 +26,13 @@
     <label class="flex cursor-pointer items-center justify-between gap-6" for="show-headers"><span class="grid gap-2"><strong class="text-sm">Show header images</strong><span class="text-sm text-muted">Display bundled images in your feed and conversations.</span></span><input id="show-headers" class="preference-switch" type="checkbox" role="switch" checked={$showInboxHeaders} onchange={change} disabled={!ready} /></label>
     <p class="m-0 mt-6 border-0 border-t border-solid border-line pt-4 text-xs text-muted">Preferences are saved in this browser.</p>
     <p class="m-0 mt-3 min-h-5 text-xs text-brand-strong" role="status">{status}</p>
+  </section>
+  <section class="hail-card mt-6 grid gap-4 p-6 sm:p-8" aria-labelledby="trash-title">
+    <h2 id="trash-title" class="m-0 text-lg">Trash</h2>
+    <p class="m-0 text-sm text-muted">Keep deleted messages for 30 days so you can restore them. This preference is saved to your account.</p>
+    <label class="flex items-center justify-between gap-6"><strong class="text-sm">Use Trash</strong><input id="use-trash" class="preference-switch" type="checkbox" role="switch" checked={data.trashEnabled} disabled={saving||!ready} onchange={event=>{const enabled=event.currentTarget.checked;event.currentTarget.checked=data.trashEnabled;if(enabled)void saveTrash(true);else confirmDisable=true;}} /></label>
+    {#if confirmDisable}<p class="m-0 text-sm">Disabling Trash immediately and permanently deletes everything already in Trash. Future deletions cannot be restored.</p><div class="flex flex-wrap gap-2"><button class="hail-button-secondary" disabled={saving||!ready} onclick={()=>saveTrash(false)}>Disable Trash and delete contents</button><button class="hail-button-secondary" disabled={saving||!ready} onclick={()=>confirmDisable=false}>Cancel</button></div>{/if}
+    {#if trashStatus}<p role="status" class="m-0 text-sm">{trashStatus}</p>{/if}
   </section>
 </div>
 <style>

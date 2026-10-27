@@ -217,6 +217,7 @@ const migrations: readonly Migration[] = [
   { version: 73, name: "signup-recovery-package", url: new URL("../../migrations/0073_signup_recovery_package.sql", import.meta.url) },
   { version: 74, name: "provider-operator", url: new URL("../../migrations/0074_provider_operator.sql", import.meta.url) },
   { version: 75, name: "connection-custody", url: new URL("../../migrations/0075_connection_custody.sql", import.meta.url) },
+  {version:76,name:"message-trash",url:new URL("../../migrations/0076_message_trash.sql",import.meta.url)},
 ];
 
 export class ProviderDatabase {

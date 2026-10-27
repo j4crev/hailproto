@@ -11,6 +11,7 @@
     {href: "/", label: "Inbox", icon: "feed"},
     {href: "/?view=connections", label: "Messages", icon: "chat"},
     {href: "/sent", label: "Sent", icon: "sent"},
+    {href: "/trash", label: "Trash", icon: "trash"},
     {href: "/permissions", label: "Subscriptions", icon: "people"},
     {href: "/connections", label: "Connections", icon: "user"},
     {href: "/categories", label: "Categories", icon: "feed"}

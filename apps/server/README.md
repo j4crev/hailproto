@@ -927,3 +927,19 @@ The original file-based private-PLC operator ceremony has been retired. New
 private rehearsals use the account API and [`hailp` workflows](../cli/docs/cli-workflows.md);
 the private runtime services and integration fixtures remain for compatibility
 and regression evidence.
+
+### Recipient Trash
+
+Migration 76 adds `delivered_messages.trashed_at` and account message preferences.
+The provider starts a bounded expiry worker immediately and every 60 seconds.
+It purges after 30 days **in Trash**, preserves shared recipient body references
+and delivery replay history, and respects account transfer fences. Failures are
+logged as `Trash cleanup failed`. No external cron is needed.
+
+Passkey sessions with `messages:read` can `GET /api/v1/account/trash` (optional
+`after` cursor) and `GET /api/v1/account/message-preferences`. Same-origin
+`messages:write` sessions can POST `{}` to `/api/v1/account/inbox/:sender/:messageId/delete`,
+POST `{ "messages": [{ "sender": "did:plc:…", "messageId": "…" }] }` to
+`/api/v1/account/trash/restore` (1–100 selections), or POST
+`{ "trashEnabled": false }` to `/api/v1/account/message-preferences`. Disabling
+Trash atomically purges it. See [client behavior and rollback](../client/README.md#trash-and-deletion).
