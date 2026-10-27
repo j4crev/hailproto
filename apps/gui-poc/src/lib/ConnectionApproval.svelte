@@ -67,7 +67,6 @@
     <label class="hail-field">Signed consent file (COSE only, not a vault)<input type="file" accept=".cose,application/cbor" onchange={upload} disabled={busy} /></label>
     {#if signedConsent}<p class="m-0 text-sm text-muted">Signed file ready. The provider will verify it against this exact review and your current identity key before saving.</p>{/if}
   </div>{/if}
-  <p class="m-0 text-sm text-muted">Retained connection records currently prevent switching between provider-managed and self-managed identity keys, even after revoking codes or disconnecting.</p>
   {#if message}<p class="hail-error" role="status">{message}</p>{/if}
   {#if busy}<p class="m-0 text-sm text-muted" role="status">Updating your connections…</p>{/if}
   <div class="flex flex-wrap gap-2">

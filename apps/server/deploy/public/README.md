@@ -1,8 +1,9 @@
 # Single public provider
 
 This profile prepares one strict-public provider, PostgreSQL database and Caddy
-edge. It defaults to `haili.app`, canonical `plc.directory` audit reads and no
-public onboarding, custody transitions or managed transfer.
+edge. It defaults to `haili.app` and canonical `plc.directory` audit reads.
+The operator-approved Haili profile enables same-provider custody transitions;
+public onboarding and managed transfer retain their separate switches.
 
 Production operation, backup, monitoring, limits and incident response are in
 [`docs/haili-operations.md`](../../../../docs/haili-operations.md).
@@ -48,21 +49,32 @@ for rollback; changing the RP ID invalidates existing provider-local passkeys.
 The provider keeps `/api`, `/hail`, `/.well-known`, and `/health` locally owned
 and proxies only GUI paths to the internal thin-client sidecar.
 
-### Connection preview
+### Connections and custody
 
 This Haili deployment profile enables `CONNECTION_PREVIEW` following operator approval.
 Set `CONNECTION_PREVIEW=false` to opt out; the application itself still defaults off.
-Security offers separate personal and expiring connection QR/link controls for
-managed accounts on this provider. Confirmed consent blocks transfer/custody changes
-even after code revocation or disconnect until portable export is implemented.
-Disabling the preview does not remove that retained consent or its guards.
+Connections offers separate personal and expiring connection QR/link controls.
+Migration 75 and the compatible custody writer allow settled connections to survive
+both same-provider custody directions. Successful custody cutover retires existing
+codes while retaining established connections, signed consent and disconnect history.
+Pending connection work must finish before preparation. Obsolete native connection
+records remain unsupported. Disabling the preview does not remove retained consent.
 Owner-controlled signing and cross-provider admission/reconciliation/disconnect are
 implemented; the other provider must support the same handshake. The one-second
-durable worker retries unfinished work after restarts. Security shows synchronization
-and recent failures, not an invitation inbox. Explicit blocking, connection message
-delivery and portable export are not included. Existing transfer restrictions remain
-in force. See [connection consent](../../../../spec/connection-auth.md) and
+durable worker retries unfinished work after restarts. Connections shows synchronization
+and recent failures. Connection messaging and portable history export are implemented;
+explicit blocking remains separate. Provider transfers require their own enabled
+runtime and authenticated handover. See [connection consent](../../../../spec/connection-auth.md) and
 [federation v1](../../../../spec/connection-federation.md) for wire and rollback rules.
+
+`PUBLIC_CUSTODY_TRANSITIONS` is explicitly enabled in this Haili Compose profile.
+The application still defaults off and refuses public enablement without production
+strict-public PLC authority. Owner recovery approval remains mandatory; enabling
+the routes does not switch any account's keys. Use the existing CLI custody commands.
+See [custody transitions](../../../cli/docs/custody-transitions.md#same-provider-custody-transition)
+for the code-retirement policy and migration rollback requirements. To disable new
+custody requests, deploy this profile with `PUBLIC_CUSTODY_TRANSITIONS: "false"`;
+retain schema 75 and compatible code until pending transitions are resolved.
 
 Initial canary enrollment may temporarily mount a mode-0600 credential. The
 deployed profile must not retain that mount or enable

@@ -22,10 +22,15 @@ import type { PlcDirectoryClient } from "../src/plc/client.js";
 import { PlcHailDidResolver } from "../src/plc/resolver.js";
 import { VerifiedPublicPlcResolver } from "../src/plc/public-resolver.js";
 import { plcStateDigest } from "../src/plc/read-evidence.js";
+import { collectConnectionHistory } from "../src/migration/connection-history.js";
+import { importEd25519PrivateKey } from "../src/identity/keys.js";
+import { AccountConnections } from "../src/accounts/connections.js";
+import type { PasskeyAuth } from "../src/accounts/passkeys.js";
+import { connectionMessageAllowed } from "../src/accounts/connection-authorization.js";
 import { publicEdKey } from "./public-plc-fixture.js";
 
 const integration=process.env.DATABASE_URL?it:it.skip;
-integration("same-provider custody changes are owner-approved, retryable and atomic in both directions",async()=>{
+integration.each([false,true])("same-provider custody round trip preserves authority (connections: %s)",async(withConnections)=>{
   const admin=new SQL(process.env.DATABASE_URL!),schema=`custody_${randomUUID().replaceAll("-","")}`;
   await admin.unsafe(`CREATE SCHEMA "${schema}"`);const url=new URL(process.env.DATABASE_URL!);
   url.searchParams.set("options",`-csearch_path=${schema}`);const db=new ProviderDatabase(url.toString());
@@ -52,7 +57,11 @@ integration("same-provider custody changes are owner-approved, retryable and ato
       representation:binding.cose,digest:binding.digest};}};
   const encryptor=new KeyEncryptor(encodeBase64Url(randomBytes(32)));
   try{
-    await db.migrate();const owner=await P256Keypair.create(),identity=await publicEdKey(),monitor=await publicEdKey();
+    await db.migrate();
+    // An unused migration can be reversed and reapplied without changing data.
+    const unusedRollback=await db.sql.reserve();try{await unusedRollback.unsafe(await Bun.file(new URL('../migrations/rollback/0075_connection_custody.sql',import.meta.url)).text());}finally{unusedRollback.release();}
+    await db.migrate();
+    const owner=await P256Keypair.create(),identity=await publicEdKey(),monitor=await publicEdKey();
     const address=`custody-${randomUUID()}@local.example.com`,onboarding=new PublicOnboarding(db.sql,plc,resolver,encryptor,
       "https://plc.directory",serviceBase,verifier);
     const prepared=await onboarding.prepare(address,owner.did(),identity.didKey,true,"owner-controlled","https://monitor.example.com",monitor.didKey);
@@ -92,7 +101,67 @@ integration("same-provider custody changes are owner-approved, retryable and ato
     const challenge=randomUUID();await db.sql`INSERT INTO account_access_challenges (id,token_hash,payload,expires_at)
       VALUES (${challenge},${randomBytes(32)},(${JSON.stringify({accountId:prepared.accountId})}::text)::jsonb,clock_timestamp()+interval '4 minutes')`;
 
+    const peer=`did:plc:${"2".repeat(24)}`,endedPeer=`did:plc:${"2".repeat(23)}3`;
+    const activePair=uuidV7(),endedPair=uuidV7(),activeConnection=uuidV7(),endedConnection=uuidV7();
+    const invitations:{id:string;cose:Uint8Array;token:string}[]=[];
+    const codes=new AccountConnections(db.sql,encryptor,resolver,{} as PasskeyAuth,"https://local.example.com");
+    const addCode=async(generation:number,key:CryptoKey,signingKey:string,personal:boolean)=>{
+      const id=uuidV7(),token=randomBytes(32),tokenDigest=new Uint8Array(createHash('sha256').update(token).digest());
+      const cose=await signPayload('hail.connection-invitation',{type:'hail.connection-invitation',version:1,invitation_id:id,from:did,
+        token_hash:{algorithm:'sha-256',value:tokenDigest},issued_at:now,expires_at:personal?null:now+3600,key_id:did+'#hail-identity'},
+        createWebCryptoSigner(did+'#hail-identity',key));
+      const encrypted=await encryptor.encryptConnectionToken(prepared.accountId,id,token),evidence=(await resolver.resolve(did)).evidence;
+      await withServingGeneration(prepared.accountId,generation,()=>db.sql`INSERT INTO connection_invitations
+        (id,account_id,serving_generation,did,personal,label,request_id,request_digest,token_hash,ciphertext,nonce,cose,signing_key,signing_evidence,expires_at)
+        VALUES(${id},${prepared.accountId},${generation},${did},${personal},'Custody test',${randomUUID()},${randomBytes(32)},${tokenDigest},
+          ${encrypted.ciphertext},${encrypted.nonce},${cose},${signingKey},${JSON.stringify(evidence)}::jsonb,${personal?null:now+3600})`);
+      invitations.push({id,cose,token:encodeBase64Url(token)});return id;
+    };
+    const pairSnapshot=()=>db.sql<{value:Record<string,unknown>}[]>`SELECT to_jsonb(p)-'serving_generation' AS value FROM federated_connection_pairs p
+      WHERE account_id=${prepared.accountId} ORDER BY id`;
+    let originalPairs:Awaited<ReturnType<typeof pairSnapshot>>=[];
+    const assertConnections=async(generation:number)=>{
+      if(!withConnections)return;
+      expect(await pairSnapshot()).toEqual(originalPairs);
+      expect(await db.sql`SELECT id FROM federated_connection_pairs WHERE account_id=${prepared.accountId} AND serving_generation=${generation}`).toHaveLength(2);
+      expect(await connectionMessageAllowed(db.sql,did,peer,{type:'connection',connection_id:activeConnection,epoch:1})).toBe(true);
+      expect(await connectionMessageAllowed(db.sql,did,endedPeer,{type:'connection',connection_id:endedConnection,epoch:2})).toBe(false);
+      expect((await db.sql<{connection_id:string}[]>`SELECT connection_id FROM federated_connection_tombstones WHERE account_id=${prepared.accountId}`).map(row=>row.connection_id)).toEqual([endedConnection]);
+      for(const invitation of invitations){
+        const row=(await db.sql<{cose:Uint8Array;revoked_at:Date|null}[]>`SELECT cose,revoked_at FROM connection_invitations WHERE id=${invitation.id}`)[0]!;
+        expect(row.revoked_at).not.toBeNull();expect(Buffer.from(row.cose)).toEqual(Buffer.from(invitation.cose));
+        await expect(codes.exportInvitation({id:invitation.id,did,token:invitation.token})).rejects.toThrow("revoked or expired");
+      }
+      // The retained history remains exportable after each custody direction.
+      const history=await collectConnectionHistory(db.sql,{accountId:prepared.accountId,did,sourceGeneration:generation,sourceServiceBase:serviceBase},new Date().toISOString());
+      expect(history.tables.federated_connection_pairs).toHaveLength(2);
+      expect(history.tables.connection_invitations).toHaveLength(invitations.length);
+    };
+    if(withConnections){
+      expect(peer<did&&endedPeer<did).toBe(true); // non-coordinator fixture rows
+      await addCode(1,identity.pair.privateKey,identity.didKey,true);
+      await addCode(1,identity.pair.privateKey,identity.didKey,false);
+      for(const [id,other,connection,state,epoch] of [[activePair,peer,activeConnection,'active',1],[endedPair,endedPeer,endedConnection,'disconnected',2]] as const){
+        await db.sql`INSERT INTO federated_connection_pairs(id,account_id,serving_generation,local_did,peer_did,peer_address,peer_service_base,coordinator_service_base,
+          connection_id,state,epoch,cutoff_at) VALUES(${id},${prepared.accountId},1,${did},${other},'peer@peer.example.com','https://peer.example.com/hail',
+          'https://peer.example.com/hail',${connection},${state},${epoch},${state==='disconnected'?new Date():null})`;
+      }
+      await db.sql`INSERT INTO federated_connection_tombstones(account_id,pair_id,connection_id,epoch) VALUES(${prepared.accountId},${endedPair},${endedConnection},2)`;
+      originalPairs=await pairSnapshot();
+      await expect(db.sql`UPDATE federated_connection_pairs SET serving_generation=2 WHERE id=${activePair}`).rejects.toThrow('cannot be replaced');
+    }
+
     const service=new SameProviderCustodyTransition(db.sql,plc,resolver,encryptor,serviceBase,verifier);
+    if(withConnections){
+      // In-flight disconnects must settle before preparation can fence their worker.
+      await expect(db.sql.begin(async tx=>{
+        await tx`INSERT INTO federated_connection_disconnects(id,account_id,pair_id,connection_id,epoch)
+          VALUES(${uuidV7()},${prepared.accountId},${activePair},${activeConnection},1)`;
+        // Check the same database drain gate without nesting a Bun transaction.
+        await expect(tx`SELECT hail_assert_connection_source_drained(${prepared.accountId}::uuid)`).rejects.toThrow('Finish supported connection work');
+        throw new Error('rollback pending probe');
+      })).rejects.toThrow('rollback pending probe');
+    }
     const app=new Hono();registerAccountApiRoutes(app,new AccountApiRepository(db.sql),new GrantRepository(db.sql),{} as GrantService,
       "https://local.example.com",undefined,undefined,undefined,service);
     const preparedResponse=await app.request("https://local.example.com/api/v1/account/custody/managed",{method:"POST",
@@ -102,6 +171,16 @@ integration("same-provider custody changes are owner-approved, retryable and ato
     expect(preparedWire.newIdentityKey).toBe(transition.newIdentityKey);expect((await service.prepare(prepared.accountId)).newIdentityKey).toBe(transition.newIdentityKey);
     expect((await db.sql`SELECT account_id FROM managed_custody_evidence WHERE account_id=${prepared.accountId}`)).toHaveLength(0);
     await expect(db.sql`UPDATE grant_lineages SET updated_at=clock_timestamp() WHERE grant_id=${grantId}`).rejects.toThrow("custody-transition-fenced");
+    if(withConnections){
+      await expect(db.sql`UPDATE connection_invitations SET revoked_at=clock_timestamp() WHERE id=${invitations[0]!.id}`).rejects.toThrow('custody-transition-fenced');
+      const rollback=await db.sql.reserve();try{await expect(rollback.unsafe(await Bun.file(new URL('../migrations/rollback/0075_connection_custody.sql',import.meta.url)).text())).rejects.toThrow('rollback refused');}
+      finally{await rollback.unsafe('ROLLBACK');rollback.release();}
+      // An old application cannot journal submission without connection handling.
+      await expect(db.sql.begin(async tx=>{
+        await tx`SELECT set_config('hail.custody_transition',${prepared.accountId},true)`;
+        await tx`UPDATE custody_transition_preparations SET state=state WHERE transition_id=${transition.transitionId}`;
+      })).rejects.toThrow('compatible transition writer');
+    }
     const operation=await signOperation(transition.unsignedOperation,owner),operationBytes=new TextEncoder().encode(JSON.stringify(operation));
     const operationCid=(await cidForCbor(operation)).toString(),issued=Math.floor(Date.now()/1000);
     const approval:CustodyTransitionApproval={type:"hailp.custody-transition",version:1,transition_id:transition.transitionId,did,
@@ -117,8 +196,27 @@ integration("same-provider custody changes are owner-approved, retryable and ato
     changedInput.set(tag);changedInput.set(changedApproval,tag.length);
     await expect(service.commit(prepared.accountId,transition.transitionId,operationBytes,changedApproval,await owner.sign(changedInput))).rejects.toThrow("does not match");
     await expect(service.commit(randomUUID(),transition.transitionId,operationBytes,approvalBytes,signature)).rejects.toThrow("does not exist");
+    if(withConnections){
+      // Fail after code retirement/pair rebasing but before generation cutover.
+      // The PLC result is retained; all local changes must roll back together.
+      await db.sql.unsafe(`CREATE FUNCTION custody_cutover_fault() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected cutover failure'; END $$;
+        CREATE TRIGGER z_custody_cutover_fault BEFORE UPDATE ON account_serving_generations FOR EACH ROW EXECUTE FUNCTION custody_cutover_fault()`);
+      await expect(service.commit(prepared.accountId,transition.transitionId,operationBytes,approvalBytes,signature)).rejects.toThrow('injected cutover failure');
+      expect(await pairSnapshot()).toEqual(originalPairs);
+      expect(await db.sql`SELECT id FROM federated_connection_pairs WHERE account_id=${prepared.accountId} AND serving_generation=1`).toHaveLength(2);
+      expect(await db.sql`SELECT id FROM connection_invitations WHERE account_id=${prepared.accountId} AND revoked_at IS NULL`).toHaveLength(2);
+      expect((await db.sql<{state:string}[]>`SELECT state FROM custody_transition_preparations WHERE transition_id=${transition.transitionId}`)[0]!.state).toBe('submission-unknown');
+      await db.sql.unsafe('DROP TRIGGER z_custody_cutover_fault ON account_serving_generations; DROP FUNCTION custody_cutover_fault()');
+      await expect(db.sql.begin(async tx=>{
+        await tx`SELECT set_config('hail.custody_transition',${prepared.accountId},true)`;
+        await tx`SELECT set_config('hail.connection_custody',${transition.transitionId},true)`;
+        await tx`UPDATE account_serving_generations SET generation=2 WHERE account_id=${prepared.accountId}`;
+      })).rejects.toThrow('must retire codes and preserve connection generations');
+    }
     const completed=await service.commit(prepared.accountId,transition.transitionId,operationBytes,approvalBytes,signature);expect(completed.generation).toBe(2);
+    await assertConnections(2);
     expect(await service.commit(prepared.accountId,transition.transitionId,operationBytes,approvalBytes,signature)).toEqual(completed);
+    await assertConnections(2);
     await expect(service.commit(prepared.accountId,transition.transitionId,operationBytes,approvalBytes,Uint8Array.from(signature,b=>b^1))).rejects.toThrow();
     expect(await db.sql`SELECT account_id FROM portable_custody_evidence WHERE account_id=${prepared.accountId}`).toHaveLength(0);
     expect(await db.sql`SELECT account_id FROM managed_custody_evidence WHERE account_id=${prepared.accountId} AND provider_identity_public_key=${transition.newIdentityKey}`).toHaveLength(1);
@@ -142,6 +240,13 @@ integration("same-provider custody changes are owner-approved, retryable and ato
 
     await withServingGeneration(prepared.accountId,2,()=>db.sql`UPDATE grant_publications SET state='acknowledged',acknowledged_etag='"grant-v2"',acknowledged_at=clock_timestamp()
       WHERE grant_id=${grantId} AND revision=2`);
+    if(withConnections){
+      const key=(await db.sql<{encrypted_private_key:Uint8Array;encryption_nonce:Uint8Array}[]>`SELECT encrypted_private_key,encryption_nonce FROM account_keys
+        WHERE account_id=${prepared.accountId} AND role='hail-identity'`)[0]!;
+      const raw=await encryptor.decrypt(prepared.accountId,'hail-identity','ed25519',transition.newIdentityKey,
+        {ciphertext:key.encrypted_private_key,nonce:key.encryption_nonce,encryptionVersion:1,kekId:'poc-v1'});
+      try{await addCode(2,await importEd25519PrivateKey(raw),transition.newIdentityKey,true);}finally{raw.fill(0);}
+    }
     const nextIdentity=await publicEdKey(),review=await service.reviewOwner(prepared.accountId,nextIdentity.didKey);
     expect(review.direction).toBe("managed-to-owner");expect(review.activeGrants).toHaveLength(1);
     const ownerBinding=await signPayload("hail.address-binding",review.binding,
@@ -171,12 +276,17 @@ integration("same-provider custody changes are owner-approved, retryable and ato
     reverseInput.set(tag);reverseInput.set(reverseApprovalBytes,tag.length);ambiguousUpdate=true;
     const reverseComplete=await service.commit(prepared.accountId,reverse.transitionId,reverseBytes,reverseApprovalBytes,await owner.sign(reverseInput));
     expect(reverseComplete.generation).toBe(3);
+    await assertConnections(3);
     expect(await db.sql`SELECT account_id FROM managed_custody_evidence WHERE account_id=${prepared.accountId}`).toHaveLength(0);
     expect(await db.sql`SELECT account_id FROM portable_custody_evidence WHERE account_id=${prepared.accountId}
       AND user_identity_public_key=${nextIdentity.didKey} AND monitor_verification_mode='independent'`).toHaveLength(1);
     expect(await db.sql`SELECT role FROM account_keys WHERE account_id=${prepared.accountId} AND role='hail-identity'`).toHaveLength(0);
     expect((await db.sql<{current_revision:number}[]>`SELECT current_revision FROM grant_lineages WHERE grant_id=${grantId}`)[0]!.current_revision).toBe(3);
     expect((await db.sql<{current_revision:number}[]>`SELECT current_revision FROM grant_lineages WHERE grant_id=${terminalId}`)[0]!.current_revision).toBe(1);
+    const completedRollback=await db.sql.reserve();try{await completedRollback.unsafe(await Bun.file(new URL('../migrations/rollback/0075_connection_custody.sql',import.meta.url)).text());}finally{completedRollback.release();}
+    await assertConnections(3);
+    await db.migrate();
+    await assertConnections(3);
     const reverseRollback=await db.sql.reserve();try{await expect(reverseRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0046_reverse_custody_transition.sql",import.meta.url)).text())).rejects.toThrow("rollback refused");}
     finally{await reverseRollback.unsafe("ROLLBACK");reverseRollback.release();}
   }finally{await db.close();await admin.unsafe(`DROP SCHEMA "${schema}" CASCADE`);await admin.close();}

@@ -52,7 +52,7 @@ integration("passkey session migration",()=>{
         await rollback.unsafe("ROLLBACK");
       }finally{rollback.release();}
       const browserRollback=await db.sql.reserve();try{
-        for(const file of ["0072_retired_connection_peers.sql","0071_connection_transfer_orchestration.sql",
+        for(const file of ["0075_connection_custody.sql","0074_provider_operator.sql","0073_signup_recovery_package.sql","0072_retired_connection_peers.sql","0071_connection_transfer_orchestration.sql",
           "0070_unified_connections.sql","0069_connection_reconstruction.sql","0068_connection_handover_barriers.sql",
           "0067_connection_proof_authority.sql","0066_connection_handover_preparations.sql"]){
           await browserRollback.unsafe(await Bun.file(new URL(`../migrations/rollback/${file}`,import.meta.url)).text());

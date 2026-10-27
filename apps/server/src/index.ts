@@ -377,6 +377,7 @@ console.info(
     message: "hail server starting",
     provider: config.providerId,
     port: config.port,
+    publicCustodyTransitions: process.env.PUBLIC_CUSTODY_TRANSITIONS === "true",
   }),
 );
 

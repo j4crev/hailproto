@@ -93,6 +93,26 @@ never forwarded; destination credentials are established by explicit owner login
 
 ## Same-provider custody transition
 
+Migration 75 supports settled connection history in both custody directions.
+Successful cutover retires all existing personal and expiring connection codes;
+create new codes after signing in with fresh credentials. Established connections,
+disconnect tombstones, consent bytes and messaging authority are preserved.
+Pending connection approvals, admission/disconnect/replication work, message targets
+and active handovers must finish before preparation. Obsolete native connection
+records remain unsupported, as they do for provider transfers.
+
+The owner-approved history checkpoint includes the existing portable connection
+history digest and `invalidate-at-cutover` share policy. Preparation captures it
+under the account lock before the custody fence is released. Code retirement,
+pair-generation advancement and key installation commit atomically. Exact retries
+after an ambiguous PLC response or local failure reuse the original approval.
+
+Deploy schema and application together. Old writers with retained connections are
+refused before journaling a new PLC submission. For rollback, finish pending
+connection-bearing custody transitions first; migration 75's down migration restores
+the old guards without deleting history or reviving codes. Public enablement remains
+controlled by `PUBLIC_CUSTODY_TRANSITIONS` and the existing deployment gates.
+
 1. Read and validate complete current PLC/custody state and owner recovery
    authority; generate the proposed identity key at its intended custodian.
 2. Inventory identity-signed Grant/binding history and acknowledged predecessor

@@ -84,6 +84,9 @@ import {PortableCutoverGate} from '../src/migration/cutover-gate.js';
 import {PortableAddressPublication} from '../src/migration/poc-address-publication.js';
 import {PortableTransferCompletion} from '../src/migration/poc-completion.js';
 import {signMonitorAttestation} from '../src/migration/monitor-attestation.js';
+import {SameProviderCustodyTransition,type CustodyTransitionApproval} from '../src/accounts/custody-transition.js';
+import {VerifiedPublicPlcResolver} from '../src/plc/public-resolver.js';
+import {PlcHailDidResolver} from '../src/plc/resolver.js';
 import {plcStateDigest} from '../src/plc/read-evidence.js';
 import {validateReturningEvidence} from '../src/migration/return.js';
 import {PortableMigrationActivation} from '../src/migration/activation.js';
@@ -136,7 +139,7 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
       const remote=new RemoteConnectionReview(db.sql,resolver,network,url=>{if(!providers.some(p=>p.origin===url.origin))throw new Error("Unexpected destination");},origin+"/hail");
       const service=new AccountConnections(db.sql,encryptor,resolver,passkeys,origin,remote);
       const provider={schema,db,origin,encryptor,accounts,passkeys,app,service};providers.push(provider);await db.migrate();
-      const rollback=await db.sql.reserve();try{for(const file of ['0072_retired_connection_peers','0071_connection_transfer_orchestration','0070_unified_connections','0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation'])
+      const rollback=await db.sql.reserve();try{for(const file of ['0075_connection_custody','0074_provider_operator','0073_signup_recovery_package','0072_retired_connection_peers','0071_connection_transfer_orchestration','0070_unified_connections','0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation'])
         await rollback.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{rollback.release();}
       await db.migrate();registerConnectionRoutes(app,service,accounts,origin);
     }
@@ -969,6 +972,55 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
         expect(await withFreshServingGenerations(third.db.sql,()=>peerStack.worker.processOne())).toBe('delivered');
         const messageId=(await portableStack.publications.status(returnedSession,batch.publicationId,'connections'))!.targets[0]!.messageId;
         expect(await peerStack.messaging.read(b.session,a.did,messageId)).toMatchObject({kind:'connection',senderAddress:a.address});
+        portabilityStage='custody after connection transfer and return';
+        // Exercise custody against real federation consent, imported archives and
+        // completed peer handovers, then deliver another personal message.
+        const custodyPlc={async health(){return {};},async getOperationLog(did:string){return users.find(u=>u.did===did)!.evidence.log as any;},
+          async getDocumentData(did:string){return (await validateOperationLog(did,await this.getOperationLog(did)))!;},
+          async getDocument(did:string){return formatDidDoc(await this.getDocumentData(did));},
+          async getAuditableLog(did:string){return Promise.all((await this.getOperationLog(did)).map(async(operation:any,index:number)=>({did,operation,
+            cid:(await cidForCbor(operation)).toString(),nullified:false,createdAt:new Date(auditStart+index*1000).toISOString()})));},
+          async sendOperation(did:string,operation:any){const user=users.find(u=>u.did===did)!,log=[...user.evidence.log,operation] as any,
+            data=(await validateOperationLog(did,log))!;user.evidence={document:formatDidDoc(data),data,log};}};
+        const auditStart=Date.now()-60000,reader=(name:string)=>({origin:`https://custody-${name}.example.com`,operator:`custody-${name}`,
+          resolver:new PlcHailDidResolver(custodyPlc),audit:(did:string)=>custodyPlc.getAuditableLog(did),health:async()=>({lastCommittedOpTime:new Date().toISOString()})});
+        const custodyResolver=new VerifiedPublicPlcResolver(target.db.sql,[reader('one'),reader('two')],['fixture-provider'],[target.origin]);
+        const custodyVerifier={async verify(address:string){const published=(await new OnboardingRepository(target.db.sql).findPublishedByAddress(address))!,state=await custodyResolver.resolve(a.did);
+          return {address,did:a.did,serviceBase:targetBase,identityDidKey:state.identityDidKey,messagingDidKey:state.messagingDidKey,plcEvidence:state.evidence,
+            verifiedAt:new Date(),binding:inspectSignedPayload('hail.address-binding',published.cose).payload,representation:published.cose,
+            digest:new Uint8Array(createHash('sha256').update(published.cose).digest())};}};
+        const custody=new SameProviderCustodyTransition(target.db.sql,custodyPlc,custodyResolver,target.encryptor,targetBase,custodyVerifier);
+        const retainedProofs=await target.db.sql`SELECT digest,cose,authority FROM federated_connection_signatures WHERE account_id=${a.id} ORDER BY digest`;
+        const retainedArchives=await target.db.sql`SELECT transfer_id,history_bytes FROM connection_history_archives WHERE account_id=${a.id} ORDER BY transfer_id`;
+        const commitCustody=async(preparation:Awaited<ReturnType<SameProviderCustodyTransition['prepare']>>)=>{
+          const op=await signOperation(preparation.unsignedOperation,a.recoveryKey),opBytes=new TextEncoder().encode(JSON.stringify(op)),issued=Math.floor(Date.now()/1000);
+          const approval:CustodyTransitionApproval={type:'hailp.custody-transition',version:1,transition_id:preparation.transitionId,did:a.did,direction:preparation.direction,
+            provider_service_base:targetBase,owner_recovery_key:a.recoveryPublicKey,old_identity_key:preparation.oldIdentityKey,new_identity_key:preparation.newIdentityKey,
+            previous_operation_cid:preparation.previousOperationCid,operation_cid:(await cidForCbor(op)).toString(),history_checkpoint_sha256:preparation.historyCheckpointDigest,
+            binding_sha256:preparation.bindingDigest,generation_from:preparation.generationFrom,generation_to:preparation.generationTo,nonce:randomUUID(),issued_at:issued,expires_at:issued+1800};
+          const bytes=encodeDeterministic(approval as any),tag=new TextEncoder().encode('hailp.custody-transition.v1\0'),signing=new Uint8Array(tag.length+bytes.length);
+          signing.set(tag);signing.set(bytes,tag.length);
+          const signature=await a.recoveryKey.sign(signing);
+          await withFreshServingGenerations(target.db.sql,()=>custody.commit(a.id,preparation.transitionId,opBytes,bytes,signature));
+        };
+        const managed=await withFreshServingGenerations(target.db.sql,()=>custody.prepare(a.id));await commitCustody(managed);
+        const freshOwner=await generateAccountKeys(randomUUID(),target.encryptor),ownerReview=await custody.reviewOwner(a.id,freshOwner.identityDidKey),
+          ownerBinding=await signPayload('hail.address-binding',ownerReview.binding,createWebCryptoSigner(a.did+'#hail-identity',freshOwner.identityPrivateKey));
+        expect(ownerReview.activeGrants).toHaveLength(0);
+        const ownerPrepared=await withFreshServingGenerations(target.db.sql,()=>custody.prepareOwner(a.id,freshOwner.identityDidKey,ownerBinding,[]));await commitCustody(ownerPrepared);
+        expect(await target.db.sql`SELECT peer_did,connection_id,epoch FROM federated_connection_pairs WHERE account_id=${a.id} ORDER BY peer_did`).toEqual(originalConnections);
+        expect(await target.db.sql`SELECT digest,cose,authority FROM federated_connection_signatures WHERE account_id=${a.id} ORDER BY digest`).toEqual(retainedProofs);
+        expect(await target.db.sql`SELECT transfer_id,history_bytes FROM connection_history_archives WHERE account_id=${a.id} ORDER BY transfer_id`).toEqual(retainedArchives);
+        const afterCustody=await collectConnectionHistory(target.db.sql,{accountId:a.id,did:a.did,sourceGeneration:4,sourceServiceBase:targetBase},new Date().toISOString());
+        await verifyConnectionHistoryAuthority(afterCustody,resolver);
+        const custodyBatch={publicationId:uuidV7(),connections:[paired.connection_id],text:'Connection survives both custody directions'},custodySession={...returnedSession,serving_generation:4};
+        await withFreshServingGenerations(target.db.sql,()=>portableStack.publications.createConnections(custodySession,custodyBatch));
+        await withFreshServingGenerations(target.db.sql,()=>portableStack.publications.workOne());
+        for(let i=0;i<500&&peerStack.schedule.inFlight;i++)await Bun.sleep(10);
+        expect(await withFreshServingGenerations(third.db.sql,()=>peerStack.worker.processOne())).toBe('delivered');
+        const custodyMessage=(await portableStack.publications.status(custodySession,custodyBatch.publicationId,'connections'))!.targets[0]!.messageId;
+        expect(await peerStack.messaging.read(b.session,a.did,custodyMessage)).toMatchObject({kind:'connection',senderAddress:a.address});
+
       }
       }
     }

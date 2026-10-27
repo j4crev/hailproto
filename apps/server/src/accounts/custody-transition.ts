@@ -18,6 +18,7 @@ import { retainPublicGrantAuthority } from "../plc/grant-authority.js";
 import type { HailDidResolver, PlcResolutionEvidence } from "../plc/resolver.js";
 import { retainPublicSigningAuthority } from "../plc/signing-authority.js";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
+import {collectConnectionHistory,connectionHistoryDigest} from "../migration/connection-history.js";
 
 const sha256 = (value: Uint8Array) => new Uint8Array(createHash("sha256").update(value).digest());
 const equal = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.from(b));
@@ -150,24 +151,27 @@ export class SameProviderCustodyTransition {
         predecessor_digest:expected.predecessorDigest,successor_revision:payload.revision,successor_cose:supplied.cose,
         successor_digest:sha256(supplied.cose),destination_service_base:expected.destinationServiceBase}});
     }
-    const history=await this.history(this.sql,accountId),bindingDigest=sha256(bindingCose);
-    const checkpoint=sha256(encodeDeterministic({type:"hailp.custody-history-checkpoint",version:1,did:review.did,
-      revisions:history.revisions.map(row=>({grant_id:row.grant_id,revision:row.revision,current_revision:row.lineage_current_revision,
-        current_status:row.lineage_current_status,digest:encodeBase64Url(row.representation_digest),cose_sha256:encodeBase64Url(sha256(row.cose)),
-        signer:row.signing_public_key,publication:row.publication_state??"none",etag:row.acknowledged_etag??""})),
-      bindings:history.bindings.map(row=>({id:row.id,digest:encodeBase64Url(row.representation_digest),cose_sha256:encodeBase64Url(sha256(row.cose)),
-        selected:row.selected_at?.toISOString()??"",published:row.published_at?.toISOString()??""})),
-      successors:successors.map(({row})=>({grant_id:row.grant_id,revision:row.successor_revision,previous:encodeBase64Url(row.predecessor_digest),
-        digest:encodeBase64Url(row.successor_digest)}))} as unknown as HailValue));
+    const bindingDigest=sha256(bindingCose);
     const transitionId=randomUUID(),expiresAt=new Date(this.now().getTime()+3600000),state=def.documentData.parse({did:review.did,
       rotationKeys:review.unsignedOperation.rotationKeys,verificationMethods:review.unsignedOperation.verificationMethods,
       alsoKnownAs:review.unsignedOperation.alsoKnownAs,services:review.unsignedOperation.services});
     return this.sql.begin(async tx=>{await tx`SELECT set_config('hail.custody_transition',${accountId},true)`;
+      await tx`SELECT set_config('hail.connection_custody',${transitionId},true)`;
       await tx`SELECT id FROM provider_accounts WHERE id=${accountId} FOR UPDATE`;
       const raced=(await tx<TransitionRow[]>`SELECT * FROM custody_transition_preparations WHERE account_id=${accountId} AND state<>'complete'`)[0];
       if(raced)return this.preparation(raced);
       const managed=(await tx<{provider_identity_public_key:string}[]>`SELECT provider_identity_public_key FROM managed_custody_evidence WHERE account_id=${accountId}`)[0];
       if(!managed||managed.provider_identity_public_key!==review.oldIdentityKey)throw new Error("Managed custody changed");
+      const history=await this.history(tx as SQL,accountId);
+      const checkpoint=sha256(encodeDeterministic({type:"hailp.custody-history-checkpoint",version:1,did:review.did,
+        revisions:history.revisions.map(row=>({grant_id:row.grant_id,revision:row.revision,current_revision:row.lineage_current_revision,
+          current_status:row.lineage_current_status,digest:encodeBase64Url(row.representation_digest),cose_sha256:encodeBase64Url(sha256(row.cose)),
+          signer:row.signing_public_key,publication:row.publication_state??"none",etag:row.acknowledged_etag??""})),
+        bindings:history.bindings.map(row=>({id:row.id,digest:encodeBase64Url(row.representation_digest),cose_sha256:encodeBase64Url(sha256(row.cose)),
+          selected:row.selected_at?.toISOString()??"",published:row.published_at?.toISOString()??""})),
+        connections:await this.connectionCheckpoint(tx as SQL,accountId,review.did,review.generationFrom),
+        successors:successors.map(({row})=>({grant_id:row.grant_id,revision:row.successor_revision,previous:encodeBase64Url(row.predecessor_digest),
+          digest:encodeBase64Url(row.successor_digest)}))} as unknown as HailValue));
       await tx`INSERT INTO custody_transition_preparations (transition_id,account_id,did,direction,state,owner_recovery_public_key,
         old_identity_public_key,new_identity_public_key,previous_operation_cid,expected_state,history_checkpoint_digest,binding_cose,
         binding_digest,generation_from,generation_to,expires_at,managed_profile_version) VALUES (${transitionId},${accountId},${review.did},'managed-to-owner','prepared',
@@ -205,6 +209,7 @@ export class SameProviderCustodyTransition {
     const bindingDigest=sha256(bindingCose),transitionId=randomUUID(),expiresAt=new Date(this.now().getTime()+60*60*1000);
     return this.sql.begin(async tx=>{
       await tx`SELECT set_config('hail.custody_transition',${accountId},true)`;
+      await tx`SELECT set_config('hail.connection_custody',${transitionId},true)`;
       const locked=(await tx<{did:string}[]>`SELECT did FROM provider_accounts WHERE id=${accountId} FOR UPDATE`)[0];
       const raced=(await tx<TransitionRow[]>`SELECT * FROM custody_transition_preparations WHERE account_id=${accountId} AND state<>'complete'`)[0];
       if(raced)return this.preparation(raced);
@@ -238,6 +243,7 @@ export class SameProviderCustodyTransition {
         bindings:history.bindings.map(row=>({id:row.id,digest:encodeBase64Url(row.representation_digest),
           cose_sha256:encodeBase64Url(sha256(row.cose)),selected:row.selected_at?.toISOString()??"",
           published:row.published_at?.toISOString()??""})),
+        connections:await this.connectionCheckpoint(tx as SQL,accountId,account.did,generation),
         successors:successors.map(({row})=>({grant_id:row.grant_id,revision:row.successor_revision,
           previous:encodeBase64Url(row.predecessor_digest),digest:encodeBase64Url(row.successor_digest)}))} as unknown as HailValue));
       await tx`INSERT INTO custody_transition_preparations (transition_id,account_id,did,direction,state,
@@ -280,6 +286,7 @@ export class SameProviderCustodyTransition {
       throw new Error("Invalid owner custody-transition approval");
     await this.sql.begin(async tx=>{
       await tx`SELECT set_config('hail.custody_transition',${row.account_id},true)`;
+      await tx`SELECT set_config('hail.connection_custody',${row.transition_id},true)`;
       const current=(await tx<TransitionRow[]>`SELECT * FROM custody_transition_preparations WHERE transition_id=${transitionId} FOR UPDATE`)[0];
       if(!current)throw new Error("Custody transition does not exist");
       if(current.signed_operation_bytes) {
@@ -317,6 +324,7 @@ export class SameProviderCustodyTransition {
   private async materialize(row:TransitionRow,operation:Operation,operationBytes:Uint8Array,dagBytes:Uint8Array,cid:string,evidence:PlcResolutionEvidence) {
     await this.sql.begin(async tx=>{
       await tx`SELECT set_config('hail.custody_transition',${row.account_id},true)`;
+      await tx`SELECT set_config('hail.connection_custody',${row.transition_id},true)`;
       const current=(await tx<TransitionRow[]>`SELECT * FROM custody_transition_preparations WHERE transition_id=${row.transition_id} FOR UPDATE`)[0];
       if(!current)throw new Error("Custody transition disappeared");if(current.state==="complete")return;
       const account=(await tx<{canonical_address:string;did:string}[]>`SELECT canonical_address,did FROM provider_accounts WHERE id=${row.account_id} FOR UPDATE`)[0];
@@ -402,11 +410,21 @@ export class SameProviderCustodyTransition {
       await tx`DELETE FROM serving_worker_leases WHERE account_id=${row.account_id}`;
       await tx`UPDATE provider_accounts SET activation_binding_digest=${row.binding_digest},state_version=state_version+1,updated_at=clock_timestamp()
         WHERE id=${row.account_id}`;
+      // Retain signed invitations and terminal history, but never reuse old-key codes.
+      // Pair identity, epoch, routing and consent remain byte-for-byte unchanged.
+      await tx`UPDATE connection_invitations SET revoked_at=clock_timestamp() WHERE account_id=${row.account_id} AND revoked_at IS NULL`;
+      await tx`UPDATE federated_connection_pairs SET serving_generation=${row.generation_to} WHERE account_id=${row.account_id}`;
       await tx`UPDATE custody_transition_preparations SET state='complete',retired_custody_evidence=(${JSON.stringify(retired)}::text)::jsonb,
         completed_at=clock_timestamp() WHERE transition_id=${row.transition_id}`;
       await tx`UPDATE account_serving_generations SET generation=generation+1 WHERE account_id=${row.account_id}`;
     });
     materializedServingGeneration(row.account_id,number(row.generation_to,"generation"));
+  }
+
+  private async connectionCheckpoint(sql:SQL,accountId:string,did:string,generation:number) {
+    await sql`SELECT hail_assert_connection_source_drained(${accountId}::uuid)`;
+    const history=await collectConnectionHistory(sql,{accountId,did,sourceGeneration:generation,sourceServiceBase:this.serviceBase},this.now().toISOString());
+    return {sha256:connectionHistoryDigest(history),share_policy:history.sharePolicy};
   }
 
   private async grants(sql:SQL,accountId:string):Promise<GrantRow[]> {
