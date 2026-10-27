@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ContactAddress from "$lib/ContactAddress.svelte";
   import {invalidateAll} from "$app/navigation";
   import DeliveryIcon from "$lib/DeliveryIcon.svelte";
   let {data}=$props();
@@ -13,7 +14,7 @@
     <section class="grid gap-[13px]" aria-label="Sent messages">
       {#each data.messages as message}
         <a class="hail-card grid min-w-0 overflow-hidden text-inherit no-underline hover:border-brand" href={`/sent/${message.messageId}`}>
-          <div class="flex flex-wrap items-center justify-between gap-3 px-5 pt-5"><div class="grid min-w-0 gap-1"><strong class="text-sm [overflow-wrap:anywhere]">To {message.recipientAddress??message.recipient}</strong></div><span class={["rounded-full px-3 py-1.5 text-xs font-semibold capitalize",message.state==='failed'||message.state==='cancelled'?"bg-danger-soft text-danger":message.state==='on-hold'||message.state==='indeterminate'?"bg-warning-soft text-warning":"bg-brand-soft text-brand-strong"]} aria-label={`Status: ${message.state}`} title={message.reason??undefined}><DeliveryIcon state={message.state} /> {message.state}</span></div>
+          <div class="flex flex-wrap items-center justify-between gap-3 px-5 pt-5"><div class="grid min-w-0 gap-1"><strong class="text-sm [overflow-wrap:anywhere]">To <ContactAddress owner={data.account.did} did={message.recipient} address={message.recipientAddress} /></strong></div><span class={["rounded-full px-3 py-1.5 text-xs font-semibold capitalize",message.state==='failed'||message.state==='cancelled'?"bg-danger-soft text-danger":message.state==='on-hold'||message.state==='indeterminate'?"bg-warning-soft text-warning":"bg-brand-soft text-brand-strong"]} aria-label={`Status: ${message.state}`} title={message.reason??undefined}><DeliveryIcon state={message.state} /> {message.state}</span></div>
           {#if message.header}<img class="mt-3.5 max-h-[220px] w-full object-cover" src={message.header.src} alt={message.header.alt} width={message.header.width} height={message.header.height}/>{/if}
           {#if message.kind==='connection'}<small class="mx-5 mt-3 font-semibold text-brand">Connection message</small>{/if}
           <p class="mx-5 mt-4 mb-3 font-serif text-[17px] leading-relaxed [overflow-wrap:anywhere]">{message.preview}</p><time class="mx-5 mb-5 text-xs text-muted" datetime={message.createdAt}>{date(message.createdAt)}</time>

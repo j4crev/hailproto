@@ -63,3 +63,12 @@ it("validates batch removal reviews and exact completion membership",()=>{
   for(const change of [{review:{connections:[]}},{review:{connections:[...batch.review.connections,...batch.review.connections]}},
     {result:{connectionIds:[],state:"disconnected"}},{result:{connectionIds:[recoveryId],state:"disconnected"}}])expect(()=>connectApproval({...batch,...change})).toThrow();
 });
+
+it("retains account history in resumed connection reviews and rejects malformed identities",async()=>{
+  const previous="did:plc:"+"d".repeat(24);
+  const value={...unfinished,action:"connect",review:{address:"friend@example.com",did:"did:plc:"+"a".repeat(24),previousDids:[previous]}};
+  vi.stubGlobal("fetch",async()=>Response.json(value));
+  try{expect((await recoverConnection(recoveryId)).review.previousDids).toEqual([previous]);}
+  finally{vi.unstubAllGlobals();}
+  expect(()=>connectApproval({...value,review:{...value.review,previousDids:["not-a-did"]}})).toThrow("identity history");
+});

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ContactAddress from "$lib/ContactAddress.svelte";
   import SelectionAvatar from "$lib/SelectionAvatar.svelte";
   import MessageActions from "$lib/MessageActions.svelte";
   import {afterNavigate} from "$app/navigation";
@@ -64,7 +65,7 @@
         <article class="hail-card message-card" class:is-selected={selected.includes(messageKey(message))}>
           <div class="flex items-center gap-3 px-6 py-4">
             <SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(messageKey(message))} disabled={selectionLocked} label={`Select message from ${message.senderAddress??message.sender}, ${date(message.deliveredAt)}`} ontoggle={()=>toggle(message)} />
-            <span class="flex min-w-0 flex-1 flex-col gap-[3px]"><strong class="truncate text-[14px]">{message.senderAddress ?? message.sender}</strong><time class="text-[11px] text-muted" datetime={message.deliveredAt}>{date(message.deliveredAt)}</time></span>
+            <span class="flex min-w-0 flex-1 flex-col gap-[3px]"><strong class="text-[14px]"><ContactAddress owner={data.account.did} did={message.sender} address={message.senderAddress} /></strong><time class="text-[11px] text-muted" datetime={message.deliveredAt}>{date(message.deliveredAt)}</time></span>
           </div>
           <a class="message-link" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
           {#if $showInboxHeaders && message.header}

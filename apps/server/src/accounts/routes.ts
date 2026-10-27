@@ -71,6 +71,12 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
       const query = new URL(context.req.url).searchParams;
       if (query.size && action !== "list" && action !== "inbox" && action !== "sent" && action !== "credential" && action !== "trash") return problem(400);
       const method = context.req.method;
+      if(action==="connection-address"){
+        if(!session.scopes.includes("messages:read"))return problem(403);
+        if(method!=="GET")return problem(405);
+        if(!/^did:plc:[a-z2-7]{24}$/.test(grantId!))return problem(400);
+        return context.json(await accounts.connectionAddress(session,grantId!));
+      }
       if(action?.startsWith("publication-")||action?.startsWith("connection-message-")){
         const kind=action.startsWith("connection-message-")?"connections":"category",operation=kind==="connections"?action.slice("connection-message-".length):action.slice("publication-".length);
         const required=operation==="audiences"?"grants:read":operation==="targets"||operation==="status"||operation==="create"&&method==="GET"?"messages:read":"messages:write";
@@ -435,6 +441,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/custody/owner-controlled/review",context=>handle(context,null,"custody-review-owner"));
   app.all("/api/v1/account/custody/owner-controlled",context=>handle(context,null,"custody-prepare-owner"));
   app.all("/api/v1/account/custody/managed/commit",context=>handle(context,null,"custody-commit"));
+  app.all("/api/v1/account/connection-addresses/:did",context=>handle(context,context.req.param("did"),"connection-address"));
   app.all("/api/v1/account/binding",context=>handle(context,null,"binding"));
   app.all("/api/v1/account/profile",context=>handle(context,null,"profile"));
   app.all("/api/v1/account/senders/:sender/profile",context=>handle(context,context.req.param("sender"),"sender-profile"));

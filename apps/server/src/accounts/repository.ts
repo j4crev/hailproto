@@ -23,6 +23,21 @@ export class CredentialConflictError extends Error {}
 export class AccountApiRepository {
   constructor(private readonly sql: SQL) {}
 
+  async connectionAddress(session:AccountApiSession,did:string) {
+    const row=(await this.sql<{address:string;previous_address:string|null;completed_at:Date|null}[]>`
+      SELECT p.peer_address AS address,n.previous_address,n.completed_at FROM federated_connection_pairs p
+        JOIN account_serving_generations g ON g.account_id=p.account_id AND g.generation=p.serving_generation
+        LEFT JOIN connection_address_notices n ON n.account_id=p.account_id AND n.peer_did=p.peer_did
+          AND n.serving_generation=g.generation AND n.connection_id=p.connection_id AND n.address=p.peer_address
+          AND n.completed_at<=clock_timestamp() AND n.completed_at>clock_timestamp()-interval '7 days'
+          AND EXISTS(SELECT 1 FROM connection_handover_barriers b WHERE b.account_id=p.account_id
+            AND b.moving_did=p.peer_did AND b.transfer_id=n.transfer_id AND b.state='completed')
+      WHERE p.account_id=${session.account_id} AND p.local_did=${session.did} AND p.peer_did=${did} AND p.state='active'
+        AND NOT hail_connection_handover_blocked(p.local_did,p.peer_did)`)[0];
+    return {owner:session.did,contact:row?{did,address:row.address,previousAddress:row.previous_address,
+      changedAt:row.completed_at?.toISOString()??null}:null};
+  }
+
   async issue(address: string, writeGrants = false, suppliedToken?: string, requestedScopes?: AccountApiScope[]) {
     const token = suppliedToken ?? `hailp_${encodeBase64Url(randomBytes(32))}`;
     if (!/^hailp_[A-Za-z0-9_-]{43}$/.test(token)) throw new Error("Invalid API token");

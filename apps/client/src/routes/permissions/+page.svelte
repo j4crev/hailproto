@@ -1,4 +1,8 @@
 <script lang="ts">
+  import IdentityWarning from "$lib/IdentityWarning.svelte";
+  import {identityMemory} from "$lib/identity-memory.js";
+  import {identityAcknowledgmentKey,conflictingIdentities,type IdentityHistory} from "$lib/identity-history.js";
+  import ContactAddress from "$lib/ContactAddress.svelte";
   import {afterNavigate,invalidateAll} from "$app/navigation";
   import {onMount,tick} from "svelte";
   import {startAuthentication} from "@simplewebauthn/browser";
@@ -19,6 +23,14 @@
     await tick();confirmation?.scrollIntoView({block:"center"});
   }
   let sender=$state(""),pinnedDid=$state<string|undefined>(),review=$state<SenderReview|null>(null),prepared=$state<Approval|null>(null);
+  let acknowledgedIdentity=$state("");
+  let knownIdentities=$state<IdentityHistory>([]);
+  let identityMounted=$state(false);
+  onMount(()=>{identityMounted=true;});
+  $effect(()=>{if(identityMounted)return identityMemory(data.account.did).subscribe(value=>knownIdentities=value);});
+  let identityConflicts=$derived(prepared?.action==="allow"?conflictingIdentities(knownIdentities,prepared.permission.grantee,prepared.permission.consent_context.grantee_address,prepared.previousDids??[]):[]);
+  let identityKey=$derived(prepared?identityAcknowledgmentKey(prepared.requestId,prepared.permission.grantee,prepared.permission.consent_context.grantee_address,identityConflicts):"");
+  let identityReady=$derived(!identityConflicts.length||acknowledgedIdentity===identityKey);
   let selected=$state<string[]>([]),days=$state(30),busy=$state(false),message=$state("");
   let pendingId=$state<string|null>(null),recoveryNeeded=$state(false);
   let now=$state(Date.now()),draft:Record<string,unknown>|null=null;
@@ -89,8 +101,16 @@
     }
   }
   async function confirmPermission(){
-    if(!prepared||prepared.permission.grantor!==data.account?.did)return;
+    if(!prepared||prepared.permission.grantor!==data.account?.did||!identityReady)return;
     if(prepared.approved){await recover();return;}
+    // Refresh conflict evidence immediately before asking for a passkey, including
+    // approvals restored from a previous tab/session.
+    const requestId=prepared.requestId;
+    const current=approval(await permissionRequest(requestId));
+    if(current.requestId!==requestId||current.permission.grantor!==data.account.did)throw new Error("Subscription account mismatch");
+    prepared=current;
+    if(current.approved){await recover();return;}
+    if(!identityReady){message="Check and acknowledge this different identity before confirming.";return;}
     // Keep passkey cancellation separate from an uncertain server response.
     let response;
     try{response=await startAuthentication({optionsJSON:prepared.options!});}
@@ -120,6 +140,7 @@
             <button class="hail-button justify-self-start" disabled={busy||!sender.trim()} onclick={()=>run(inspect)}>Review sender</button>
             {#if review}
               <div class="grid gap-2 border-0 border-t border-solid border-line pt-5"><h3>{review.displayName}</h3><p class="text-sm [overflow-wrap:anywhere]">{review.address}</p><code class="text-muted">{review.did}</code><p class="text-sm text-muted">Check the address and identity. A sender chooses their own profile name.</p></div>
+              <IdentityWarning address={review.address} did={review.did} previousDids={conflictingIdentities(knownIdentities,review.did,review.address,review.previousDids??[])} />
               {#if review.categories.length}<fieldset class="m-0 grid min-w-0 gap-2 rounded-xl border border-solid border-line p-4"><legend class="px-1 text-sm font-semibold">Categories this sender may send you</legend>{#each review.categories as category}
                 <label class="flex min-h-11 flex-wrap items-center gap-2 text-sm"><input type="checkbox" bind:group={selected} value={category.id} disabled={busy} />{category.label} <small class="text-muted">({category.id})</small></label>{#if category.description}<small class="text-muted">{category.description}</small>{/if}{/each}</fieldset>{/if}
               {#if review.offersUncategorized}<p class="text-sm text-muted">This publisher still offers legacy uncategorized delivery. New subscriptions use explicit categories; ask the publisher to enable General if you need it.</p>{/if}
@@ -140,9 +161,10 @@
               <p class="text-sm [overflow-wrap:anywhere]"><strong>{prepared.permission.consent_context.grantee_address}</strong> {prepared.action==="allow"?"will be allowed to send to":"will lose this permission to send to"} <strong>{data.account.address}</strong>.</p>
               <p class="text-sm">Sender identity: <code>{prepared.permission.grantee}</code></p><p class="text-sm">Scope: {subscriptionScopeLabel(prepared.permission.scope[0])}</p><p class="text-sm">Permission expiry: {prepared.permission.expires_at===null?"No expiry":date(prepared.permission.expires_at)}</p>
             {/if}
+            {#if identityConflicts.length}<IdentityWarning address={prepared.permission.consent_context.grantee_address} did={prepared.permission.grantee} previousDids={identityConflicts} /><label class="flex min-h-11 items-start gap-3 text-sm"><input type="checkbox" checked={acknowledgedIdentity===identityKey} onchange={event=>acknowledgedIdentity=event.currentTarget.checked?identityKey:""} />I checked this different identity through a trusted channel and want to allow it.</label>{/if}
             <p class="text-sm text-muted">Confirm only if these are the intended sender and permissions. Your provider signs the Grant; your passkey authorizes only this reviewed action. It is not an identity recovery key.</p><p class="text-xs text-muted">Approval expires {new Date(prepared.expiresAt).toLocaleString()}.</p>
             {#if !recoveryNeeded}
-              <button class="hail-button justify-self-start" disabled={busy||now>=Date.parse(prepared.expiresAt)} onclick={()=>run(confirmPermission)}>{prepared.action==="allow"?"Allow sender with my passkey":prepared.permissions?"Unsubscribe with my passkey":"Confirm"}</button>
+              <button class="hail-button justify-self-start" disabled={busy||!identityReady||now>=Date.parse(prepared.expiresAt)} onclick={()=>run(confirmPermission)}>{prepared.action==="allow"?"Allow sender with my passkey":prepared.permissions?"Unsubscribe with my passkey":"Confirm"}</button>
               {#if now>=Date.parse(prepared.expiresAt)}<p class="text-sm text-muted">This review expired. Cancel and start again.</p>{/if}
               {#if !prepared.approved}<button class="hail-button-secondary justify-self-start" disabled={busy} onclick={cancel}>Cancel</button>{/if}
             {/if}
@@ -160,7 +182,7 @@
         {#each data.permissions as permission (permission.grantId)}<article class="hail-card grid min-w-0 gap-3 p-5" class:is-selected={selectedSubscriptions.includes(permission.grantId)&&permission.status==="active"}>
           <div class="flex min-w-0 items-center gap-3">
             <SelectionAvatar name={permission.sender} avatar={permission.avatar} selected={permission.status==="active"&&selectedSubscriptions.includes(permission.grantId)} disabled={selectionLocked} label={`Select subscription to ${permission.sender}: ${subscriptionScopeLabel(permission.scope)}`} ontoggle={data.account.custodyProfile==="managed"&&permission.status==="active"?()=>toggleSubscription(permission.grantId):undefined} />
-            <h3 class="min-w-0 text-base [overflow-wrap:anywhere]">{permission.sender}</h3>
+            <h3 class="min-w-0 text-base [overflow-wrap:anywhere]"><ContactAddress owner={data.account.did} did={permission.did} address={permission.sender} /></h3>
           </div><code class="text-muted">{permission.did}</code><p class="text-sm [overflow-wrap:anywhere]">{subscriptionScopeLabel(permission.scope)} · {permission.status === "revoked" ? "Unsubscribed" : permission.status}{permission.expiresAt!==null?` · expires ${date(permission.expiresAt)}`:" · no expiry"}</p>
           {#if permission.expiresAt!==null&&permission.expiresAt*1000<=now}<p class="text-sm text-warning">Expired; it no longer permits messages.</p>{/if}
         </article>{/each}

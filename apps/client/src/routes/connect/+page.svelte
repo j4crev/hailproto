@@ -72,7 +72,7 @@
   {:else if recoveryNeeded}
       {#if busy}<p class="text-sm text-muted" role="status">Checking your connection change…</p>
       {:else}<button class="hail-button-secondary justify-self-start" onclick={()=>run(check)}>Try again</button>{/if}
-  {:else if prepared}<ConnectionApproval approval={prepared} oncomplete={done} oncancel={cancel} />
+  {:else if prepared}<ConnectionApproval owner={data.account!.did} approval={prepared} oncomplete={done} oncancel={cancel} />
   {:else}
     <section class="hail-card grid gap-4 p-5"><p class="m-0 text-sm">Signed in as <strong>{data.address}</strong>.</p>
       {#if busy}<p class="m-0 text-sm text-muted" role="status">Loading connection details…</p>

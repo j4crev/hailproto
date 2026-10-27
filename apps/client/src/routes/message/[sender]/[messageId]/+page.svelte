@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ContactAddress from "$lib/ContactAddress.svelte";
   import MessageActions from "$lib/MessageActions.svelte";
   import Unsubscribe from "$lib/Unsubscribe.svelte";
   import RichText from "$lib/RichText.svelte";
@@ -18,7 +19,7 @@
       {:else}<span class="grid size-[42px] flex-[0_0_42px] place-items-center rounded-[13px] bg-brand-soft text-xs font-bold text-brand" aria-hidden="true">{(data.message.senderAddress ?? data.message.sender).slice(0, 2).toUpperCase()}</span>{/if}
       <div class="flex min-w-0 flex-col gap-[5px]">
       <span class="text-xs text-muted">From</span>
-      <strong class="[overflow-wrap:anywhere]">{data.message.senderAddress ?? data.message.sender}</strong>
+      <strong class="[overflow-wrap:anywhere]"><ContactAddress owner={data.account.did} did={data.message.sender} address={data.message.senderAddress} /></strong>
       {#if data.message.senderAddress}<small class="font-mono text-xs text-muted [overflow-wrap:anywhere]">{data.message.sender}</small>{/if}
       </div>
     </div>

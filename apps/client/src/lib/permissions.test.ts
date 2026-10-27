@@ -105,3 +105,10 @@ it("recovers one authorized batch without requesting another passkey",async()=>{
     expect(request).toHaveBeenLastCalledWith("/api/v1/account/permissions/commit",expect.objectContaining({body:JSON.stringify({requestId})}));
   }finally{vi.unstubAllGlobals();}
 });
+
+it("preserves identity-conflict warnings when restoring an unfinished approval",async()=>{
+  const previous="did:plc:"+"d".repeat(24);
+  vi.stubGlobal("fetch",async()=>Response.json({...pending(),action:"allow",previousDids:[previous]}));
+  try{expect((await recoverPermission(requestId,grantor)).previousDids).toEqual([previous]);}
+  finally{vi.unstubAllGlobals();}
+});

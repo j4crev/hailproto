@@ -209,3 +209,11 @@ Keep schema 76 and compatible application code during rollback. Older runtimes
 do not filter trashed messages. Schema rollback refuses while Trash contains
 messages or any account has Trash disabled; never silently restore those messages
 just to roll back. Permanent deletions cannot be undone by application rollback.
+
+## Connection address changes
+
+After a connection completes a verified provider move, the shared address label
+can show a seven-day hover/focus notice: “Their address changed from X to Y”.
+This is automatic, with no Settings control or CLI notification command.
+Subscription-only relationships do not receive notices. Identity-conflict
+warnings take precedence. See [details](../../docs/contact-identity-notices.md).

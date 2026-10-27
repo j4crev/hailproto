@@ -1,3 +1,4 @@
+import {previousAddressIdentities} from "./identity-history.js";
 import {createHash,randomBytes,timingSafeEqual} from "node:crypto";
 import type {SQL} from "bun";
 import type {Hono} from "hono";
@@ -48,6 +49,7 @@ export class GrantPermissions {
     if(address.did===session.did)throw new PermissionError(400,"Choose another sender, not your own account");
     if(input.senderDid!==undefined&&input.senderDid!==address.did)throw new PermissionError(409,"This QR identity no longer matches the address. Ask the sender for a current code");
     return {address:address.address,did:address.did,addressDigest:encodeBase64Url(address.digest),profileDigest:encodeBase64Url(profile.digest),
+      previousDids:await previousAddressIdentities(this.sql,session.account_id,address.address,address.did),
       displayName:profile.profile.display_name,categories:profile.profile.categories,offersUncategorized:profile.profile.offers_uncategorized};
   }
 
@@ -71,6 +73,7 @@ export class GrantPermissions {
     return {requestId:row.id,action:batch?"revoke-batch":row.action,expiresAt:row.expires_at.toISOString(),approved:row.approved_at!==null,
       result:typeof row.result==="string"?JSON.parse(row.result):row.result,
       permission:toDiagnosticJson("hail.grant",payloads[0]!),
+      previousDids:row.action==="allow"?await previousAddressIdentities(this.sql,session.account_id,payloads[0]!.consent_context.grantee_address,payloads[0]!.grantee):[],
       ...(batch?{permissions:payloads.map(payload=>toDiagnosticJson("hail.grant",payload))}:{}),
       options:row.approved_at?null:await this.passkeys.actionOptions(session,row.challenge)};
   }

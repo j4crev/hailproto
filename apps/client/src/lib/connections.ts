@@ -56,6 +56,7 @@ export function connectApproval(value:any):ConnectApproval {
       value.result&&(!Array.isArray(value.result.connectionIds)||value.result.state!=="disconnected"||value.result.connectionIds.length!==items.length||value.result.connectionIds.some((id:any,index:number)=>id!==items[index].connectionId)))
       throw new Error("The provider returned an invalid connection removal review.");
   }
+  if(value.review.previousDids!==undefined&&(!Array.isArray(value.review.previousDids)||value.review.previousDids.length>20||value.review.previousDids.some((did:unknown)=>typeof did!=="string"||!DID.test(did))))throw new Error("Invalid identity history.");
   const owner=value.ownerSigning;
   if(owner!==undefined&&owner!==null&&(owner.type!=="hailp.connection-signing"||owner.version!==1||owner.requestId!==value.requestId||
     owner.expiresAt!==value.expiresAt||typeof owner.provider!=="string"||!owner.payload||

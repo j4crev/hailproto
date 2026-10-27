@@ -3,11 +3,11 @@ import type {HailGrant,HailGrantScope} from "@hailproto/codec";
 import type {startAuthentication} from "@simplewebauthn/browser";
 
 export const APPROVAL_STORAGE="hail.pending-grant-approval.v1";
-export interface SenderReview {address:string;did:string;displayName:string;addressDigest:string;profileDigest:string;
+export interface SenderReview {previousDids?:string[];address:string;did:string;displayName:string;addressDigest:string;profileDigest:string;
   offersUncategorized:boolean;categories:{id:string;label:string;description?:string}[];}
 export interface PermissionResult {grantId:string;revision:number;status:"active"|"revoked";publication:"durable";}
 export interface BatchPermissionResult {items:{grantId:string;result:PermissionResult|null;error:string|null}[];}
-export interface Approval {requestId:string;action:"allow"|"revoke"|"revoke-batch";expiresAt:string;approved:boolean;
+export interface Approval {previousDids?:string[];requestId:string;action:"allow"|"revoke"|"revoke-batch";expiresAt:string;approved:boolean;
   permission:Pick<HailGrant,"grant_id"|"revision"|"grantor"|"grantee"|"expires_at">&{scope:HailGrantScope[];consent_context:{grantee_address:string}};
   options:Parameters<typeof startAuthentication>[0]["optionsJSON"]|null;
   permissions?:Approval["permission"][];
@@ -48,6 +48,7 @@ function validResult(result:any):boolean{
   return !!result&&UUID.test(result.grantId)&&Number.isSafeInteger(result.revision)&&["active","revoked"].includes(result.status)&&result.publication==="durable";
 }
 export function approval(value:any):Approval{
+  if(value?.previousDids!==undefined&&(!Array.isArray(value.previousDids)||value.previousDids.length>20||value.previousDids.some((did:unknown)=>typeof did!=="string"||!DID.test(did))))throw new Error("Invalid identity history");
   if(!value||!UUID.test(value.requestId)||!["allow","revoke","revoke-batch"].includes(value.action)||!Number.isFinite(Date.parse(value.expiresAt))||
     typeof value.approved!=="boolean"||!value.approved&&!value.options||!validPermission(value.permission))
     throw new Error("The provider returned an invalid permission review");

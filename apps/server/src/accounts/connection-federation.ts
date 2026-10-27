@@ -464,11 +464,23 @@ export class ConnectionFederation {
             commit_signature=${command.signature},commit_moving_authority=${JSON.stringify(moving.evidence)}::jsonb,peer_commit_payload=${signed.payloadBytes},peer_commit_signature=${signed.signature},peer_commit_key=${key.publicKey},peer_commit_authority=${JSON.stringify(self.evidence)}::jsonb
             WHERE account_id=${owner.id} AND plan_digest=${request.plan_digest}`;
           await tx`SELECT set_config('hail.connection_handover_commit',${Buffer.from(request.plan_digest).toString('hex')},true)`;
+          if(pair.state==='active'&&pair.peer_address!==binding.address){
+            await tx`INSERT INTO connection_address_notices(account_id,serving_generation,peer_did,connection_id,transfer_id,previous_address,address)
+              VALUES(${owner.id},${owner.generation},${plan.did},${pair.connection_id},${plan.transfer_id},${pair.peer_address},${binding.address})
+              ON CONFLICT(account_id,peer_did) DO UPDATE SET serving_generation=EXCLUDED.serving_generation,
+                connection_id=EXCLUDED.connection_id,transfer_id=EXCLUDED.transfer_id,previous_address=EXCLUDED.previous_address,
+                address=EXCLUDED.address,completed_at=NULL`;
+          }
           await tx`UPDATE federated_connection_pairs SET peer_address=${binding.address},peer_service_base=${plan.destination_service_base},
             coordinator_service_base=${owner.did<plan.did?this.base:plan.destination_service_base},updated_at=clock_timestamp() WHERE id=${pair.id}`;
-        }else await tx`UPDATE connection_handover_barriers SET state='completed',completion_payload=${command.payloadBytes},completion_signature=${command.signature},activation_payload=${activation!.payloadBytes},activation_signature=${activation!.signature},
+        }else {
+          await tx`UPDATE connection_handover_barriers SET state='completed',completion_payload=${command.payloadBytes},completion_signature=${command.signature},activation_payload=${activation!.payloadBytes},activation_signature=${activation!.signature},
           peer_completion_payload=${signed.payloadBytes},peer_completion_signature=${signed.signature},peer_completion_key=${key.publicKey},peer_completion_authority=${JSON.stringify(self.evidence)}::jsonb
           WHERE account_id=${owner.id} AND plan_digest=${request.plan_digest}`;
+          await tx`UPDATE connection_address_notices SET completed_at=clock_timestamp()
+            WHERE account_id=${owner.id} AND peer_did=${plan.did} AND transfer_id=${plan.transfer_id}
+              AND serving_generation=${owner.generation} AND completed_at IS NULL`;
+        }
         return {phase:result.phase,currentPhase:result.phase,receipt:encodeSignedRecord(signed)};
       }finally{raw.fill(0);}
     });

@@ -990,3 +990,12 @@ CLI/API credentials with `messages:write` may POST `{}` to
 `/api/v1/account/inbox/:sender/:messageId/permanent-delete`. This endpoint bypasses
 Trash and accepts bearer credentials, not browser passkey sessions. It deletes
 only the authenticated recipient's copy and is safe to retry after a lost response.
+
+## Connection address-change notices
+
+Existing authenticated connection handover automatically updates a peer's
+address during a provider move. Migration 0077 retains the previous/new label
+for a seven-day UI notice, shown only after handover completes. This adds no
+sharing workflow, subscription notifications, federation endpoint or snapshot
+version. Presentation state is local and may disappear if the observer moves.
+See [contact identity notices](../../docs/contact-identity-notices.md).

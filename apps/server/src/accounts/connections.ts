@@ -1,3 +1,4 @@
+import {previousAddressIdentities} from "./identity-history.js";
 import {createHash,randomBytes,timingSafeEqual} from "node:crypto";
 import type {SQL} from "bun";
 import type {AuthenticationResponseJSON} from "@simplewebauthn/server";
@@ -217,6 +218,8 @@ export class AccountConnections {
   private async summary(session:AccountApiSession,row:Approval){
     const intent=decodeDeterministic(new Uint8Array(row.intent_bytes)) as Record<string,unknown>;
     const {token,confirmation,...review}=intent; // Expose review fields, not admission secrets or internal proof bytes.
+    if(row.action==="connect"&&typeof review.address==="string"&&typeof review.did==="string")
+      review.previousDids=await previousAddressIdentities(this.sql,session.account_id,review.address,review.did);
     const payload=row.owner_payload?decodeDeterministic(new Uint8Array(row.owner_payload)) as unknown as HailConnectionInvitation|HailConnectionConfirmation:null;
     let result=typeof row.result==="string"?JSON.parse(row.result):row.result;
     if(result&&typeof result==="object"&&"attemptId" in result&&typeof result.attemptId==="string"&&this.federation)result=await this.federation.result(session.account_id,result.attemptId);

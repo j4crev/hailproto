@@ -1,7 +1,20 @@
 <script lang="ts">
+  import IdentityWarning from "./IdentityWarning.svelte";
+  import {onMount} from "svelte";
+  import {identityMemory} from "./identity-memory.js";
+  import {identityAcknowledgmentKey,conflictingIdentities,type IdentityHistory} from "./identity-history.js";
   import {startAuthentication} from "@simplewebauthn/browser";
   import {connectApproval,connectionRequest,recoverConnection,ConnectionRequestError,signedConnectionFile,type ConnectApproval} from "$lib/connections.js";
-  let {approval,oncomplete,oncancel}:{approval:ConnectApproval;oncomplete:(result:NonNullable<ConnectApproval["result"]>)=>void|Promise<void>;oncancel:(message?:string)=>void}=$props();
+  let {owner,approval,oncomplete,oncancel}:{owner:string;approval:ConnectApproval;oncomplete:(result:NonNullable<ConnectApproval["result"]>)=>void|Promise<void>;oncancel:(message?:string)=>void}=$props();
+  let acknowledgedIdentity=$state("");
+  let knownIdentities=$state<IdentityHistory>([]);
+  let identityMounted=$state(false);
+  onMount(()=>{identityMounted=true;});
+  $effect(()=>{if(identityMounted)return identityMemory(owner).subscribe(value=>knownIdentities=value);});
+  const conflicts=(value:ConnectApproval)=>value.action==="connect"?conflictingIdentities(knownIdentities,value.review.did,value.review.address,value.review.previousDids??[]):[];
+  const conflictKey=(value:ConnectApproval)=>identityAcknowledgmentKey(value.requestId,value.review.did,value.review.address,conflicts(value));
+  let identityConflicts=$derived(conflicts(approval));
+  let identityReady=$derived(!identityConflicts.length||acknowledgedIdentity===conflictKey(approval));
   let recoveryNeeded=$state(false);
   let busy=$state(false),message=$state(""),signedConsent=$state<string|null>(null);
   function download(){
@@ -39,6 +52,7 @@
       try{next=await recoverConnection(approval.requestId);}catch(error){recoveryFailed(error);return;}
       if(next.result){await accept(next);return;}
       approval=next;
+      if(conflicts(next).length&&acknowledgedIdentity!==conflictKey(next)){message="Check and acknowledge this different identity before confirming.";return;}
       if(next.ownerSigning&&!signedConsent){message="Sign the downloaded consent locally and upload its COSE file first. Do not upload your vault or secret.";return;}
       let response;
       try{response=await startAuthentication({optionsJSON:next.options!});}
@@ -62,6 +76,7 @@
   {#if approval.action==="connect"}<p class="m-0 text-sm">This connects both accounts and permits personal messages while connected, without another approval from them. Subscriptions are unchanged. Check this identity with the person you intended. Cross-provider verification may take time and is retried automatically.</p>{/if}
   {#if approval.action.startsWith("disconnect")}<p class="m-0 text-sm">This ends the connection, not any subscriptions. Earlier codes cannot reconnect this pair; a new or replaced code is required.</p>{/if}
   <p class="m-0 text-xs text-muted">Your passkey approves only this action. Approval expires {new Date(approval.expiresAt).toLocaleString()}.</p>
+  {#if identityConflicts.length}<IdentityWarning address={approval.review.address} did={approval.review.did} previousDids={identityConflicts} /><label class="flex min-h-11 items-start gap-3 text-sm"><input type="checkbox" checked={acknowledgedIdentity===conflictKey(approval)} onchange={event=>acknowledgedIdentity=event.currentTarget.checked?conflictKey(approval):""} />I checked this different identity through a trusted channel and want to connect.</label>{/if}
   {#if approval.ownerSigning}<div class="grid min-w-0 gap-3 rounded-xl border border-solid border-line p-4" aria-label="Owner identity signing">
     <h3 class="m-0 text-lg">Sign with your own identity key</h3><p class="m-0 text-sm">Download this exact consent and sign it locally with <code>hailp connection sign</code>. Only the identity key is unlocked. Your vault, encryption secret and recovery key stay on your machine.</p>
     <button class="hail-button-secondary justify-self-start" disabled={busy} onclick={download}>Download consent proposal</button>
@@ -73,6 +88,6 @@
   {#if busy}<p class="m-0 text-sm text-muted" role="status">Updating your connections…</p>{/if}
   <div class="flex flex-wrap gap-2">
     {#if recoveryNeeded}<button class="hail-button" disabled={busy} onclick={()=>run(false)}>Try again</button>
-    {:else}<button class="hail-button" disabled={busy} onclick={()=>run(true)}>{approval.action==="disconnect-batch"?(approval.review.connections.length===1?"Remove connection":"Remove connections"):approval.action==="connect"?"Add connection":"Confirm"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>oncancel()}>Cancel</button>{/if}
+    {:else}<button class="hail-button" disabled={busy||!identityReady} onclick={()=>run(true)}>{approval.action==="disconnect-batch"?(approval.review.connections.length===1?"Remove connection":"Remove connections"):approval.action==="connect"?"Add connection":"Confirm"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>oncancel()}>Cancel</button>{/if}
   </div>
 </section>

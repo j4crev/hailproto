@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ContactAddress from "$lib/ContactAddress.svelte";
   import {onMount,tick} from "svelte";
   import {invalidateAll} from "$app/navigation";
   import SelectionAvatar from "$lib/SelectionAvatar.svelte";
@@ -6,7 +7,7 @@
   import {senderQr} from "$lib/permissions.js";
   import {connectionRequest,connectApproval,recoverConnection,ConnectionRequestError,CONNECTION_APPROVAL,type ConnectionList,type ConnectApproval} from "$lib/connections.js";
   import ConnectionApproval from "$lib/ConnectionApproval.svelte";
-  let {initialList=null,avatars={}}:{initialList?:ConnectionList|null;avatars?:Record<string,{src:string;width:number;height:number}|null>}=$props();
+  let {owner,initialList=null,avatars={}}:{owner:string;initialList?:ConnectionList|null;avatars?:Record<string,{src:string;width:number;height:number}|null>}=$props();
   let selected=$state<string[]>([]),confirmation=$state<HTMLDivElement>();
   function toggle(id:string){selected=selected.includes(id)?selected.filter(value=>value!==id):[...selected,id];}
   async function removeSelected(){
@@ -70,7 +71,7 @@
     {#if recoveryNeeded}
       {#if busy}<p class="text-sm text-muted" role="status">Checking your connection change…</p>
       {:else}<button class="hail-button-secondary justify-self-start" onclick={()=>run(check)}>Try again</button>{/if}
-    {:else if prepared}<div bind:this={confirmation}><ConnectionApproval approval={prepared} oncomplete={done} oncancel={cancel} /></div>
+    {:else if prepared}<div bind:this={confirmation}><ConnectionApproval {owner} approval={prepared} oncomplete={done} oncancel={cancel} /></div>
     {:else}
       <section class="hail-card grid min-w-0 gap-4 p-5" aria-label="Your personal code"><h3 class="m-0 text-xl">Share your personal code</h3><p class="m-0 text-sm text-muted">No automatic expiry. Replace if shared unintentionally. Allows immediate connection to you for anyone who scans or uses it.</p>
         {#if personal}<div class="flex flex-wrap gap-2"><button class="hail-button" aria-expanded={shown===personal.link} aria-controls={`connection-code-${personal.id}`} onclick={()=>shown=shown===personal.link?null:personal.link}>{shown===personal.link?"Hide QR & link":"Show QR & link"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"replace",id:personal.id}))}>Replace</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"revoke",id:personal.id}))}>Revoke</button></div>
@@ -95,7 +96,7 @@
       {/if}
       {#each list.connections as connection (connection.id)}
         <article class="hail-card grid min-w-0 gap-3 p-5" class:is-selected={selected.includes(connection.id)}>
-          <div class="flex min-w-0 items-center gap-3"><SelectionAvatar name={connection.address} avatar={avatars[connection.did]} selected={selected.includes(connection.id)} disabled={busy||prepared!==null||recoveryNeeded||draft!==null} label={`Select connection with ${connection.address}`} ontoggle={()=>toggle(connection.id)} /><strong class="min-w-0 [overflow-wrap:anywhere]">{connection.address}</strong></div>
+          <div class="flex min-w-0 items-center gap-3"><SelectionAvatar name={connection.address} avatar={avatars[connection.did]} selected={selected.includes(connection.id)} disabled={busy||prepared!==null||recoveryNeeded||draft!==null} label={`Select connection with ${connection.address}`} ontoggle={()=>toggle(connection.id)} /><strong class="min-w-0 [overflow-wrap:anywhere]"><ContactAddress {owner} did={connection.did} address={connection.address} /></strong></div>
           <code class="text-xs [overflow-wrap:anywhere]">{connection.did}</code>
         </article>
       {/each}
