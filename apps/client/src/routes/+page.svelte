@@ -1,5 +1,6 @@
 <script lang="ts">
-  import DeleteMessage from "$lib/DeleteMessage.svelte";
+  import MessageActions from "$lib/MessageActions.svelte";
+  import {afterNavigate} from "$app/navigation";
   import {onMount} from "svelte";
   import PasskeySignIn from "$lib/PasskeySignIn.svelte";
   import Icon from "$lib/Icon.svelte";
@@ -7,6 +8,16 @@
   let {data} = $props();
   const date = (value: string) => new Intl.DateTimeFormat(undefined, {dateStyle: "medium", timeStyle: "short"}).format(new Date(value));
   onMount(loadHeaderPreference);
+  const messageKey = (message: {sender: string; messageId: string}) => JSON.stringify([message.sender, message.messageId]);
+  let selected = $state<string[]>([]);
+  let selectionLocked = $state(false);
+  let selectedMessages = $derived((data.messages ?? []).filter(message => selected.includes(messageKey(message))));
+  afterNavigate(() => { selected = []; });
+  $effect(() => { if (!selectedMessages.length) selectionLocked = false; });
+  function toggle(message: {sender: string; messageId: string}) {
+    const key = messageKey(message);
+    selected = selected.includes(key) ? selected.filter(value => value !== key) : [...selected, key];
+  }
 </script>
 
 <svelte:head><title>{!data.configured ? 'Welcome' : data.view === 'connections' ? 'Messages' : 'Inbox'} · Haili</title></svelte:head>
@@ -39,27 +50,32 @@
     <div><p class="hail-eyebrow">Your daily space</p><h1 class="hail-title">{data.view === 'connections' ? 'Messages' : 'Inbox'}</h1><p class="feed-description">{data.view === 'connections' ? 'The latest from your connections' : 'The latest from your senders.'}</p></div>
     <a class="hail-button-secondary" href={data.view === 'connections' ? '/compose?audience=connections' : '/permissions'}><Icon name={data.view === 'connections' ? 'plus' : 'people'} size={18} />{data.view === 'connections' ? 'New message' : 'Manage subscriptions'}</a>
   </header>
-  <div class="feed-layout"><div class="min-w-0">
+  <div class="feed-layout" class:has-selection={selectedMessages.length > 0}><div class="min-w-0">
+  {#if selectedMessages.length}
+    <MessageActions messages={selectedMessages} bind:locked={selectionLocked} onclear={() => selected = []} onremoved={removed => { selected = selected.filter(key => !removed.some(message => messageKey(message) === key)); }} />
+  {/if}
   <section class="grid gap-5" aria-label="Messages">
 
     {#if data.messages.length === 0}
       <div class="hail-card flex flex-col items-center gap-3 px-6 py-16 text-center"><span class="empty-symbol" aria-hidden="true"><Icon name={data.view === 'connections' ? 'chat' : 'feed'} size={30} /></span><h2 class="m-0 text-xl tracking-tight">No messages yet</h2><p class="m-0 max-w-sm text-sm text-muted">{data.view==='connections'?'Reach out and say "hello".':'All quiet here.'}</p>{#if data.view !== 'connections'}<a class="hail-button-secondary mt-2" href="/permissions">Find your first sender <span aria-hidden="true">→</span></a>{/if}</div>
     {:else}
       {#each data.messages as message (message.sender+message.messageId)}
-        <div class="grid gap-2">
-        <a class="hail-card flex min-w-0 flex-col overflow-hidden no-underline transition-[border-color,box-shadow] duration-150 hover:border-brand hover:shadow-md" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
-          <span class="flex items-center gap-3 px-6 py-4">
-            {#if message.avatar}<img class="grid size-[42px] flex-[0_0_42px] place-items-center rounded-[13px] object-cover" src={message.avatar.src} alt="" width={message.avatar.width} height={message.avatar.height} />
-              {:else}<span class="grid size-[42px] flex-[0_0_42px] place-items-center rounded-[13px] bg-brand-soft text-[12px] font-extrabold text-brand" aria-hidden="true">{(message.senderAddress ?? message.sender).slice(0, 2).toUpperCase()}</span>{/if}
+        <article class="hail-card message-card" class:is-selected={selected.includes(messageKey(message))}>
+          <div class="flex items-center gap-3 px-6 py-4">
+            <button class="avatar-select" class:checked={selected.includes(messageKey(message))} type="button" aria-label={`Select message from ${message.senderAddress ?? message.sender}, ${date(message.deliveredAt)}`} aria-pressed={selected.includes(messageKey(message))} title="Select message" disabled={selectionLocked} onclick={() => toggle(message)}>
+              {#if selected.includes(messageKey(message))}<Icon name="check" size={24} />
+              {:else if message.avatar}<img src={message.avatar.src} alt="" width={message.avatar.width} height={message.avatar.height} />
+              {:else}<span aria-hidden="true">{(message.senderAddress ?? message.sender).slice(0, 2).toUpperCase()}</span>{/if}
+            </button>
             <span class="flex min-w-0 flex-1 flex-col gap-[3px]"><strong class="truncate text-[14px]">{message.senderAddress ?? message.sender}</strong><time class="text-[11px] text-muted" datetime={message.deliveredAt}>{date(message.deliveredAt)}</time></span>
-          </span>
+          </div>
+          <a class="message-link" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
           {#if $showInboxHeaders && message.header}
             <img class="block h-auto max-h-[320px] w-full border-0 border-y border-solid border-line object-cover" src={message.header.src} alt={message.header.alt} width={message.header.width} height={message.header.height} />
           {/if}
           <span class="px-6 pt-4 pb-6 font-serif text-[17px] leading-relaxed text-ink [overflow-wrap:anywhere]">{message.preview}</span>
         </a>
-        <DeleteMessage sender={message.sender} messageId={message.messageId} />
-        </div>
+        </article>
       {/each}
     {/if}
   </section>
@@ -68,6 +84,15 @@
 {/if}
 
 <style>
+  .message-card { position:relative; display:flex; min-width:0; flex-direction:column; }
+  .message-card:hover, .message-card.is-selected { border-color:var(--color-brand); }
+  .message-link { display:flex; flex-direction:column; color:inherit; text-decoration:none; }
+  .message-link::after { content:""; position:absolute; inset:0; border-radius:18px; }
+  .avatar-select { position:relative; z-index:1; display:grid; place-items:center; width:44px; height:44px; flex:0 0 44px; padding:0; overflow:hidden; border:0; border-radius:13px; background:var(--color-brand-soft); color:var(--color-brand); font-size:12px; font-weight:800; }
+  .avatar-select img { width:100%; height:100%; object-fit:cover; }
+  .avatar-select.checked { background:var(--color-brand); color:white; }
+  @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
+
   .welcome { display:grid; grid-template-columns:1.1fr 1fr; align-items:center; gap:48px; padding:28px 0 48px; }
   .welcome-copy h1 { margin:0 0 22px; font-size:clamp(42px,5.3vw,66px); line-height:1.08; letter-spacing:-.055em; font-weight:650; }
   .welcome-copy h1 span { color:var(--color-brand); }

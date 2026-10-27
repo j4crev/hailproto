@@ -1,5 +1,5 @@
 <script lang="ts">
-  import DeleteMessage from "$lib/DeleteMessage.svelte";
+  import MessageActions from "$lib/MessageActions.svelte";
   import Unsubscribe from "$lib/Unsubscribe.svelte";
   import RichText from "$lib/RichText.svelte";
   let { data,form } = $props();
@@ -7,10 +7,10 @@
 </script>
 
 <svelte:head><title>Message · Haili</title></svelte:head>
-<div class="mx-auto max-w-[860px]">
+<div class="message-detail mx-auto max-w-[860px]">
 <a class="hail-back" href={data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.kind==='connection'?'Messages':'Inbox'}</a>
 <h1 class="sr-only">Received message</h1>
-<div class="mb-5"><DeleteMessage sender={data.message.sender} messageId={data.message.messageId} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} /></div>
+<MessageActions messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} />
 <article class="hail-card overflow-hidden">
   <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line p-5 sm:px-7">
     <div class="flex min-w-0 items-center gap-3">
@@ -55,3 +55,7 @@
 {/if}
 
 </div>
+
+<style>
+  @media(max-width:900px) { .message-detail { padding-bottom:180px; } }
+</style>
