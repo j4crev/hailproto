@@ -107,6 +107,8 @@ try {
     const client = await AccountApiClient.fromCredentialFile(credential, selection);
     let result: unknown;
     if (group === "account") result = await client.account();
+    else if(group==="connection")result=command==="list"?await client.request("/connections/cli-list"):
+      await client.request("/connections/cli-remove",{connectionId:argument!});
     else if(group==="profile")result=command==="show"?await showProfile(client):command==="create"?
       await createProfile(client,values.file!):await updateProfile(client,values.file!);
     else if(group==="binding") {

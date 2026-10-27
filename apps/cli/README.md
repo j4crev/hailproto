@@ -162,3 +162,13 @@ v1 vault without overwriting an existing output. Use that extracted vault for
 `account passkey-recover` or the other existing recovery commands. This does not
 publish the signed identity, contact the provider, or activate an unfinished
 account. Older plain v1 vault files continue to work unchanged.
+
+## Remove a connection
+
+Run `hailp connection list --credentials <file>` to find a connection ID, then
+`hailp connection remove <connection-id> --credentials <file>`. Listing requires
+`account:read`; removal requires `account:write`. Removal immediately blocks new
+connection messages locally and durably retries notification to the other provider.
+Repeating removal of the same connection is safe. Subscriptions and existing
+messages remain; reconnecting requires a new or replaced code. The web client's
+Connections page offers **Remove connection**, confirmed with your passkey.

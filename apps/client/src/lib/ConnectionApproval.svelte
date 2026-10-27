@@ -52,7 +52,7 @@
 
 </script>
 <section class="hail-card grid gap-4 border-2 border-brand p-5" aria-label="Connection action confirmation">
-  <h2 class="m-0 text-xl">Confirm {approval.action==="create"?"new connection link":approval.action==="replace"?"personal code replacement":approval.action==="revoke"?"code revocation":approval.action==="disconnect"?"disconnect":"connection"}</h2>
+  <h2 class="m-0 text-xl">Confirm {approval.action==="create"?"new connection link":approval.action==="replace"?"personal code replacement":approval.action==="revoke"?"code revocation":approval.action==="disconnect"?"connection removal":"connection"}</h2>
   {#if approval.action==="connect"}<p class="m-0 text-sm [overflow-wrap:anywhere]">Connect with <strong>{approval.review.address}</strong><br /><code>{approval.review.did}</code></p>
   {:else if approval.action==="create"}<p class="m-0 text-sm">{approval.review.label} · {approval.review.expiresAt===null?"No automatic expiry":`Expires ${new Date(approval.review.expiresAt*1000).toLocaleString()}`}</p>
   {:else}<p class="m-0 text-sm [overflow-wrap:anywhere]">Reviewed identifier: <code>{approval.review.connectionId??approval.review.id}</code></p>{/if}

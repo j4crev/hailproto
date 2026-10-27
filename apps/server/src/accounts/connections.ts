@@ -143,6 +143,31 @@ export class AccountConnections {
     });
     return peer?withServingGeneration(peer.id,Number(peer.generation),run):run();
   }
+  async credentialConnections(session:AccountApiSession,connectionId?:string){
+    const scope=connectionId===undefined?"account:read":"account:write";
+    if(session.passkey_credential_id||!session.scopes.includes(scope))throw new ConnectionError(403);
+    if(connectionId!==undefined&&!UUID.test(connectionId))throw new ConnectionError(400);
+    return this.sql.begin(async tx=>{
+      await tx`SELECT id FROM provider_accounts WHERE id=${session.account_id} FOR UPDATE`;
+      const valid=await tx`SELECT c.id FROM account_api_credentials c
+        JOIN account_credential_generations b ON b.credential_id=c.id
+        JOIN account_serving_generations g ON g.account_id=c.account_id AND g.generation=b.generation
+        WHERE c.id=${session.credential_id} AND c.account_id=${session.account_id}
+          AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp()
+          AND c.scopes ? ${scope} AND g.generation=${session.serving_generation??1}`;
+      if(!valid.length)throw new ConnectionError(403);
+      const owner=await this.owner(tx as SQL,session.account_id);
+      await tx`SELECT hail_assert_unfenced_account(${session.account_id}::uuid)`;
+      if(connectionId===undefined)return this.federation.list(session.account_id);
+      // A retry can only acknowledge this account's own terminal operation.
+      const prior=await tx`SELECT id FROM federated_connection_disconnects
+        WHERE account_id=${session.account_id} AND connection_id=${connectionId}`;
+      if(prior.length)return {connectionId,state:"disconnected"};
+      const pair=await this.federation.active(session,connectionId);
+      if(!pair)throw new ConnectionError(404);
+      return this.federation.disconnect(tx as SQL,owner,pair.id,connectionId,uuidV7());
+    });
+  }
   async list(session:AccountApiSession){
     return this.pairTransaction(session,undefined,async tx=>{
       const codes=await tx<Invitation[]>`SELECT * FROM connection_invitations WHERE account_id=${session.account_id} AND revoked_at IS NULL

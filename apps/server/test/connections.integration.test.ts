@@ -171,8 +171,23 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     expect((await service.list(o.session)).connections).toHaveLength(2);
     expect(await db.sql`SELECT id FROM federated_connection_pairs WHERE peer_did=${o.did} AND state='active'`).toHaveLength(2);
     await expect(db.sql`UPDATE federated_connection_pairs SET peer_did=${a.did} WHERE account_id=${p.id}`).rejects.toThrow("cannot be replaced");
-    const ownerDisconnect=await service.prepare(p.session,{requestId:randomUUID(),action:"disconnect",connectionId:(await service.list(p.session)).connections[0]!.id});
-    expect(ownerDisconnect.ownerSigning).toBeNull();await service.commit(p.session,ownerDisconnect.requestId,p.assertion(ownerDisconnect.options!.challenge));
+    const connectionId=(await service.list(p.session)).connections[0]!.id;
+    const credential=await accounts.issue(p.address,false,undefined,["account:read","account:write"]);
+    const readonly=await accounts.issue(p.address,false,undefined,["account:read"]);
+    const stranger=await accounts.issue(e.address,false,undefined,["account:write"]);
+    const cli=(token:string,step="cli-remove",body:unknown={connectionId})=>app.request(origin+"/api/v1/account/connections/"+step,{
+      method:step==="cli-list"?"GET":"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},
+      ...(step==="cli-list"?{}:{body:JSON.stringify(body)})});
+    const listing=await (await cli(credential.token,"cli-list")).json();
+    expect(listing.connections.map((c:any)=>c.id)).toContain(connectionId);expect(listing.codes).toBeUndefined();
+    expect((await cli(readonly.token)).status).toBe(403);
+    expect((await cli(stranger.token)).status).toBe(404);
+    expect((await cli(credential.token,"cli-remove",{connectionId:"invalid"})).status).toBe(400);
+    expect((await cli(credential.token)).status).toBe(200);
+    expect((await cli(credential.token)).status).toBe(200); // Exact retry is harmless.
+    expect((await service.list(p.session)).connections).toHaveLength(0);
+    await accounts.revoke(credential.credentialId);
+    expect((await cli(credential.token)).status).toBe(401);
     await drain();
     const staleOwner=await service.prepare(p.session,{requestId:randomUUID(),action:'connect',...ownerScan});
     await service.commit(p.session,staleOwner.requestId,p.assertion(staleOwner.options!.challenge),await signedOwner(p,staleOwner));await drain();

@@ -43,6 +43,32 @@ export function registerConnectionRoutes(app:Hono,connections:AccountConnections
   });
   app.all("/api/v1/account/connections/:step?",async c=>{
     c.header("Cache-Control","no-store");c.header("Referrer-Policy","no-referrer");c.header("Vary","Cookie");
+    const apiStep=c.req.param("step");
+    if(apiStep==="cli-list"||apiStep==="cli-remove"){
+      c.header("Vary","Authorization");
+      try{
+        if(source.take(clientAddress(c.req.raw),60)!==null)throw new ConnectionError(429);
+        if(c.req.header("Cookie")||c.req.header("Origin"))throw new ConnectionError(403);
+        const session=await accounts.authenticate(c.req.header("Authorization"));
+        if(!session)throw new ConnectionError(401);
+        if(account.take(session.account_id,60)!==null)throw new ConnectionError(429);
+        if(new URL(c.req.url).search)throw new ConnectionError(400);
+        let connectionId:string|undefined;
+        if(apiStep==="cli-list"){if(c.req.method!=="GET")throw new ConnectionError(405);}
+        else{
+          if(c.req.method!=="POST")throw new ConnectionError(405);
+          if(c.req.header("Content-Type")!=="application/json"||c.req.header("Content-Encoding"))throw new ConnectionError(415);
+          const bytes=await accountRequestBytes(c.req.raw,1024);if(!bytes)throw new ConnectionError(413);
+          let input:any;
+          try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}catch{throw new ConnectionError(400);}
+          if(!input||Object.keys(input).length!==1||typeof input.connectionId!=="string")throw new ConnectionError(400);
+          connectionId=input.connectionId;
+        }
+        return await withServingGeneration(session.account_id,session.serving_generation??1,
+          async()=>c.json(await connections.credentialConnections(session,connectionId)));
+      }catch(error){return new Response(JSON.stringify({error:"Connection request not accepted"}),{
+        status:error instanceof ConnectionError?error.status:503,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});}
+    }
     const supplied=c.req.header("Origin");
     if(supplied!==origin&&!(c.req.method==="GET"&&supplied===undefined))return c.json({error:"Connection origin refused"},403);
     try{

@@ -46,6 +46,8 @@ const commands = [
   ["vault backup", "", "vault output", "", false, "Verify both keys and save an exact independent private copy."],
   ["vault import", "", "file vault expected-did", "", false, "Verify/import an exact private backup with reviewed DID or unbound."],
   ["binding show", "", "", "", true, "Read binding expiry and renewal reminder metadata."],
+  ["connection list", "", "", "", true, "List active connections; requires account:read."],
+  ["connection remove", "<connection-id>", "", "", true, "End a connection immediately here; notify the peer asynchronously. Requires account:write."],
   ["connection sign", "<proposal.json>", "vault output provider", "", false, "Offline identity-only signing for an exact browser connection review; never upload your vault or secret."],
   ["binding renew", "", "expires-at output", "vault", true, "Deliberately renew using owner identity or explicit managed custody."],
   ["profile show", "", "", "", true, "Read the current signed Sender Profile."],

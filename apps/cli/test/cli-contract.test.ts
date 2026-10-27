@@ -131,3 +131,10 @@ it("waits read-only on the same ID, honors throttling and preserves indeterminat
   const start = Date.now(); await expect(waitForStatus(client, id, 1)).rejects.toMatchObject({ status: 503 });
   expect(Date.now() - start).toBeLessThan(2000);
 }, 15_000);
+
+it("exposes authenticated connection list/removal with a required identifier",()=>{
+  expect(parseCommand(["connection","list"]).authenticated).toBe(true);
+  expect(parseCommand(["connection","remove",id]).authenticated).toBe(true);
+  expect(()=>parseCommand(["connection","remove"])).toThrow();
+  expect(parseCommand(["connection","remove","--help"]).help).toContain("account:write");
+});
