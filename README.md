@@ -81,7 +81,7 @@ The repository includes TypeScript and Go reference codecs, shared conformance v
 
 The reference CLI covers account administration and sensitive identity ceremonies. The thin GUI now supports invited managed signup, passkey access and everyday messaging. Signup temporarily handles owner recovery keys in the browser; routine managed signing stays with the provider.
 
-| Capability | [`hailp` CLI](apps/cli) | [Thin GUI client](apps/gui-poc) |
+| Capability | [`hailp` CLI](apps/cli) | [Thin GUI client](apps/client) |
 | --- | --- | --- |
 | View account identity | Full account details | Address, DID and custody summary |
 | Account onboarding | Owner-controlled and managed | Invited managed signup: resumable setup, verified recovery kit, external email verification and automatic monitoring |
@@ -105,7 +105,7 @@ Browser onboarding is an [invitation-only, reduced-assurance alpha](docs/public-
 
 - [`apps/server`](apps/server): TypeScript provider server, account APIs, delivery workers and custody-transfer runtime.
 - [`apps/cli`](apps/cli): `hailp` reference CLI (`hail-cli-ts`), encrypted user vault and owner-authorized onboarding, recovery and transfer workflows.
-- [`apps/gui-poc`](apps/gui-poc): Disposable thin GUI for inbox, safe rich-message rendering, composing, replies and sent-message status.
+- [`apps/client`](apps/client): Browser client for inbox, safe rich-message rendering, composing, replies and sent-message status.
 - [`apps/plc-monitor`](apps/plc-monitor): PLC history monitor, durable coverage and alerting, and signed onboarding/transfer attestations.
 - [`packages/hail-codec-ts`](packages/hail-codec-ts): TypeScript reference codec.
 - [`packages/hail-codec-go`](packages/hail-codec-go): Go reference codec.

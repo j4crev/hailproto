@@ -147,7 +147,7 @@ component dependency, relationship/reply protocol change or deployment was added
 
 ## Earlier Checkpoint — Shell And Feed
 
-The first local implementation slice evolves `apps/gui-poc` in place:
+The first local implementation slice evolves `apps/client` in place:
 
 - Responsive Haili navigation, active-route indication, keyboard skip link and a
   focused shell for authentication/signup, retaining the existing CSP reload boundary.
@@ -292,7 +292,7 @@ remains open.
 
 ## Browser Client Milestone
 
-Evolve `apps/gui-poc` into the maintained browser client rather than rewriting
+Evolve `apps/client` into the maintained browser client rather than rewriting
 working authentication, signup, recovery-kit verification or messaging flows.
 Avoid maintaining parallel old/new clients. Preserve server actions, protocol
 handling and existing tests where possible; do not combine the visual migration

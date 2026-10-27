@@ -100,7 +100,7 @@ bun install
 PASSKEY_AUTH=true PASSKEY_ORIGIN=http://localhost:5173 PASSKEY_RP_ID=localhost \
   bun run --cwd apps/server dev
 HAIL_GUI_API_ORIGIN=http://localhost:3000 HAIL_GUI_ORIGIN=http://localhost:5173 \
-  bun run --cwd apps/gui-poc dev --open
+  bun run --cwd apps/client dev --open
 ```
 
 The HTTP commands above support GUI development after an account already has a
@@ -144,8 +144,7 @@ The inbox presents messages as feed cards and shows bundled headers by default;
 the “Show header images” switch in Settings can hide them without contacting
 senders. The preference stays in this browser, with an in-memory fallback when
 storage is blocked.
-The directory remains `apps/gui-poc` during the incremental migration; no package
-or deployment path rename is required for this presentation work.
+The maintained browser client lives in `apps/client` (workspace package `hail-client`).
 
 ## Navigation and visual checks
 

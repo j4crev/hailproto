@@ -11,7 +11,7 @@ apps/server/src/cli/**
 !apps/cli/package.json
 !apps/cli/src/**
 !apps/plc-monitor/package.json
-!apps/gui-poc/**
+!apps/client/**
 !packages/hail-codec-ts/**
 !vendor/did-method-plc/package.json
 !vendor/did-method-plc/pnpm-lock.yaml

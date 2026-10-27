@@ -81,7 +81,7 @@ services:
 
   gui:
     image: hail-server-ts:public
-    command: [bun, /workspace/hailproto/apps/gui-poc/build/index.js]
+    command: [bun, /workspace/hailproto/apps/client/build/index.js]
     restart: unless-stopped
     init: true
     read_only: true

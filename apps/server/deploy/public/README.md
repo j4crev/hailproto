@@ -284,7 +284,7 @@ rollback migration 58 after pending/terminal ceremonies exist; code rollback
 must retain their records and use a compatible backend. The retained before.env
 is a rollback reference, not permission to overwrite unrelated later changes.
 
-Local checks: `bun run --cwd apps/gui-poc build`, `test`, `typecheck`,
+Local checks: `bun run --cwd apps/client build`, `test`, `typecheck`,
 `test:browser`, and `test:wizard`; repeat the latter with
 `HAIL_WIZARD_MOBILE=true` for a narrow mobile viewport. This is Chromium emulation,
 not proof of Safari/iOS/Android passkey behavior or real email deliverability.
