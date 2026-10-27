@@ -59,7 +59,7 @@
   {:else if approval.action==="create"}<p class="m-0 text-sm">{approval.review.label} · {approval.review.expiresAt===null?"No automatic expiry":`Expires ${new Date(approval.review.expiresAt*1000).toLocaleString()}`}</p>
   {:else}<p class="m-0 text-sm [overflow-wrap:anywhere]">Reviewed identifier: <code>{approval.review.connectionId??approval.review.id}</code></p>{/if}
   {#if approval.action==="create"||approval.action==="replace"}<p class="m-0 text-sm">Anyone signed in to a compatible Hail provider who has this link or QR can connect with you before it expires. Connections permit personal messages while active, not subscriptions. Share only where you intend. Existing connections are unaffected by code replacement or revocation.</p>{/if}
-  {#if approval.action==="connect"}<p class="m-0 text-sm">This connects both accounts and permits personal messages while connected, without another approval from them.</p>{/if}
+  {#if approval.action==="connect"}<p class="m-0 text-sm">This connects both accounts and permits personal messages while connected, without another approval from them. Subscriptions are unchanged. Check this identity with the person you intended. Cross-provider verification may take time and is retried automatically.</p>{/if}
   {#if approval.action.startsWith("disconnect")}<p class="m-0 text-sm">This ends the connection, not any subscriptions. Earlier codes cannot reconnect this pair; a new or replaced code is required.</p>{/if}
   <p class="m-0 text-xs text-muted">Your passkey approves only this action. Approval expires {new Date(approval.expiresAt).toLocaleString()}.</p>
   {#if approval.ownerSigning}<div class="grid min-w-0 gap-3 rounded-xl border border-solid border-line p-4" aria-label="Owner identity signing">
@@ -73,6 +73,6 @@
   {#if busy}<p class="m-0 text-sm text-muted" role="status">Updating your connections…</p>{/if}
   <div class="flex flex-wrap gap-2">
     {#if recoveryNeeded}<button class="hail-button" disabled={busy} onclick={()=>run(false)}>Try again</button>
-    {:else}<button class="hail-button" disabled={busy} onclick={()=>run(true)}>{approval.action==="disconnect-batch"?(approval.review.connections.length===1?"Remove connection":"Remove connections"):"Confirm"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>oncancel()}>Cancel</button>{/if}
+    {:else}<button class="hail-button" disabled={busy} onclick={()=>run(true)}>{approval.action==="disconnect-batch"?(approval.review.connections.length===1?"Remove connection":"Remove connections"):approval.action==="connect"?"Add connection":"Confirm"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>oncancel()}>Cancel</button>{/if}
   </div>
 </section>

@@ -10,6 +10,9 @@
   let homeProvider=$state(""),pendingRequest=$state<string|null>(null);
   function useHomeProvider(){if(!code)return;try{location.href=connectionHomeLink(homeProvider.trim(),code);}catch(error){message=error instanceof Error?error.message:"Invalid provider.";}}
   onMount(()=>{
+    if(data.signedIn){
+      try{pendingReviewId=sessionStorage.getItem(CONNECTION_APPROVAL);}catch{/* Storage may be unavailable. */}
+    }
     const readCode=()=>{
       const hash=location.hash;if(hash)history.replaceState(null,"","/connect");
       if(prepared||pendingRequest||busy||recoveryNeeded){message="Finish the current connection review before opening another code.";return;}
@@ -17,17 +20,19 @@
         if(hash){const parsed=connectionCode(hash);sessionStorage.setItem(CONNECTION_CODE,JSON.stringify(parsed));code=parsed;connected=false;review=null;draft=null;message="";}
         else {const saved=sessionStorage.getItem(CONNECTION_CODE);if(saved){const parsed=JSON.parse(saved);code=connectionCode(new URLSearchParams(parsed).toString());}}
       }catch(error){code=null;review=null;sessionStorage.removeItem(CONNECTION_CODE);message=error instanceof Error?error.message:"Invalid code.";}
+      if(data.signedIn&&code&&!pendingReviewId)void run(inspect);
     };
     readCode();window.addEventListener("hashchange",readCode);
-    if(data.signedIn){
-      try{pendingReviewId=sessionStorage.getItem(CONNECTION_APPROVAL);}catch{/* Storage may be unavailable. */}
-      if(pendingReviewId)void run(check);
-    }
+    if(data.signedIn&&pendingReviewId)void run(check);
     const timer=setInterval(()=>{if(pendingRequest&&!busy&&!recoveryNeeded)void run(check);},3000);
     return()=>{clearInterval(timer);window.removeEventListener("hashchange",readCode);};
   });
   async function run(action:()=>Promise<void>){if(busy)return;busy=true;message="";try{await action();}catch(error){message=error instanceof Error?error.message:"Connection not confirmed.";}finally{busy=false;}}
-  async function inspect(){if(code)review=await connectionRequest("review",code);}
+  async function inspect(){
+    if(!code)return;
+    review=await connectionRequest("review",code);
+    if(review?.admissionSupported!==false)await prepare();
+  }
   async function prepare(){if(!code||!review)return;if(!draft)draft={requestId:crypto.randomUUID(),action:"connect",...code};
     prepared=connectApproval(await connectionRequest("prepare",draft));remember(prepared.requestId);}
   async function done(result:NonNullable<ConnectApproval["result"]>){
@@ -70,11 +75,12 @@
   {:else if prepared}<ConnectionApproval approval={prepared} oncomplete={done} oncancel={cancel} />
   {:else}
     <section class="hail-card grid gap-4 p-5"><p class="m-0 text-sm">Signed in as <strong>{data.address}</strong>.</p>
-      {#if code}<button class="hail-button justify-self-start" disabled={busy} onclick={()=>run(inspect)}>Review connection code</button>
-      {:else}<p class="m-0 text-sm">Scan a connection QR or open a shared connect link to begin.</p>{/if}
+      {#if busy}<p class="m-0 text-sm text-muted" role="status">Loading connection details…</p>
+      {:else if code&&review?.admissionSupported!==false}<button class="hail-button justify-self-start" disabled={pendingRequest!==null} onclick={()=>run(inspect)}>Load connection details</button>
+      {:else if !code}<p class="m-0 text-sm">Scan a connection QR or open a shared connect link to begin.</p>{/if}
       {#if review}<h2 class="m-0 text-xl [overflow-wrap:anywhere]">{review.address}</h2><code class="text-xs [overflow-wrap:anywhere]">{review.did}</code><p class="m-0 text-sm">{review.expiresAt===null?"No automatic code expiry":`Code expires ${new Date(review.expiresAt*1000).toLocaleString()}`}. Check this identity with the person you intended.</p>
         {#if review.admissionSupported===false}<p class="m-0 text-sm">This provider verified the other provider's signed invitation and identity. Cross-provider connection activation is not enabled yet. You are not connected; no request or permission was created.</p>
-        {:else}<p class="m-0 text-sm">Your confirmation connects both accounts for personal messages without another approval from them. Cross-provider verification may take time and is retried automatically. Owner-controlled accounts sign consent locally. Subscriptions are independent.</p><button class="hail-button justify-self-start" disabled={busy||pendingRequest!==null||recoveryNeeded} onclick={()=>run(prepare)}>Review before connecting</button>{/if}
+        {/if}
       {/if}
     </section>
   {/if}
