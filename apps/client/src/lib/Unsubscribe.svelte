@@ -9,9 +9,9 @@
   onMount(() => {ready = true; const timer = setInterval(() => {now = Date.now();}, 1000); return () => clearInterval(timer);});
   function retain(value: unknown) {
     const review = approval(value);
-    if (review.action !== "revoke" || review.requestId !== requestId || review.permission.grant_id !== subscription.grantId ||
+    if (review.permissions || review.action !== "revoke" || review.requestId !== requestId || review.permission.grant_id !== subscription.grantId ||
       review.permission.grantor !== owner || review.permission.grantee !== subscription.did ||
-      review.result && (review.result.grantId !== subscription.grantId || review.result.status !== "revoked")) throw new Error("The unsubscribe review does not match this sender.");
+      review.result && (!("grantId" in review.result) || review.result.grantId !== subscription.grantId || review.result.status !== "revoked")) throw new Error("The unsubscribe review does not match this sender.");
     prepared = review;
     if (review.result) {
       done = true;

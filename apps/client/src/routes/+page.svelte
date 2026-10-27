@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SelectionAvatar from "$lib/SelectionAvatar.svelte";
   import MessageActions from "$lib/MessageActions.svelte";
   import {afterNavigate} from "$app/navigation";
   import {onMount} from "svelte";
@@ -62,11 +63,7 @@
       {#each data.messages as message (message.sender+message.messageId)}
         <article class="hail-card message-card" class:is-selected={selected.includes(messageKey(message))}>
           <div class="flex items-center gap-3 px-6 py-4">
-            <button class="avatar-select" class:checked={selected.includes(messageKey(message))} type="button" aria-label={`Select message from ${message.senderAddress ?? message.sender}, ${date(message.deliveredAt)}`} aria-pressed={selected.includes(messageKey(message))} title="Select message" disabled={selectionLocked} onclick={() => toggle(message)}>
-              {#if selected.includes(messageKey(message))}<Icon name="check" size={24} />
-              {:else if message.avatar}<img src={message.avatar.src} alt="" width={message.avatar.width} height={message.avatar.height} />
-              {:else}<span aria-hidden="true">{(message.senderAddress ?? message.sender).slice(0, 2).toUpperCase()}</span>{/if}
-            </button>
+            <SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(messageKey(message))} disabled={selectionLocked} label={`Select message from ${message.senderAddress??message.sender}, ${date(message.deliveredAt)}`} ontoggle={()=>toggle(message)} />
             <span class="flex min-w-0 flex-1 flex-col gap-[3px]"><strong class="truncate text-[14px]">{message.senderAddress ?? message.sender}</strong><time class="text-[11px] text-muted" datetime={message.deliveredAt}>{date(message.deliveredAt)}</time></span>
           </div>
           <a class="message-link" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
@@ -88,9 +85,6 @@
   .message-card:hover, .message-card.is-selected { border-color:var(--color-brand); }
   .message-link { display:flex; flex-direction:column; color:inherit; text-decoration:none; }
   .message-link::after { content:""; position:absolute; inset:0; border-radius:18px; }
-  .avatar-select { position:relative; z-index:1; display:grid; place-items:center; width:44px; height:44px; flex:0 0 44px; padding:0; overflow:hidden; border:0; border-radius:13px; background:var(--color-brand-soft); color:var(--color-brand); font-size:12px; font-weight:800; }
-  .avatar-select img { width:100%; height:100%; object-fit:cover; }
-  .avatar-select.checked { background:var(--color-brand); color:white; }
   @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
 
   .welcome { display:grid; grid-template-columns:1.1fr 1fr; align-items:center; gap:48px; padding:28px 0 48px; }

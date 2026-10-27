@@ -1,13 +1,28 @@
 <script lang="ts">
-  import {invalidateAll} from "$app/navigation";
-  import {onMount} from "svelte";
+  import {afterNavigate,invalidateAll} from "$app/navigation";
+  import {onMount,tick} from "svelte";
   import {startAuthentication} from "@simplewebauthn/browser";
   import {APPROVAL_STORAGE,approval,permissionRequest,recoverPermission,PermissionRequestError,senderRequest,subscriptionScopeLabel,type SenderReview,type Approval} from "$lib/permissions.js";
+  import SelectionAvatar from "$lib/SelectionAvatar.svelte";
+  import SelectionActions from "$lib/SelectionActions.svelte";
   let {data}=$props();
+  let selectedSubscriptions=$state<string[]>([]);
+  let confirmation=$state<HTMLElement>();
+  let selectedPermissions=$derived(data.permissions.filter(permission=>permission.status==="active"&&selectedSubscriptions.includes(permission.grantId)));
+  afterNavigate(({from,to})=>{if(from?.url.pathname!==to?.url.pathname||from?.url.search!==to?.url.search){selectedSubscriptions=[];}});
+  function toggleSubscription(id:string){selectedSubscriptions=selectedSubscriptions.includes(id)?selectedSubscriptions.filter(value=>value!==id):[...selectedSubscriptions,id];}
+  async function unsubscribeSelected(){
+    if(!selectedPermissions.length)return;
+    review=null;
+    draft={requestId:crypto.randomUUID(),action:"revoke",grants:selectedPermissions.map(({grantId,revision,digest})=>({grantId,revision,digest}))};
+    prepared=approval(await permissionRequest("prepare",draft));remember(prepared.requestId);
+    await tick();confirmation?.scrollIntoView({block:"center"});
+  }
   let sender=$state(""),pinnedDid=$state<string|undefined>(),review=$state<SenderReview|null>(null),prepared=$state<Approval|null>(null);
   let selected=$state<string[]>([]),days=$state(30),busy=$state(false),message=$state("");
   let pendingId=$state<string|null>(null),recoveryNeeded=$state(false);
   let now=$state(Date.now()),draft:Record<string,unknown>|null=null;
+  let selectionLocked=$derived(busy||!!prepared||recoveryNeeded);
   const date=(value:number)=>new Date(value*1000).toLocaleString();
   onMount(()=>{
     const readRequest=()=>{
@@ -38,18 +53,23 @@
     prepared=approval(await permissionRequest("prepare",draft));
     remember(prepared.requestId);
   }
-  async function prepareRevoke(permission:{grantId:string;revision:number;digest:string}){
-    review=null;draft={requestId:crypto.randomUUID(),action:"revoke",grantId:permission.grantId,revision:permission.revision,digest:permission.digest};
-    prepared=approval(await permissionRequest("prepare",draft));remember(prepared.requestId);
-  }
   function remember(id:string|null){
     pendingId=id;
     try{if(id)sessionStorage.setItem(APPROVAL_STORAGE,id);else sessionStorage.removeItem(APPROVAL_STORAGE);}catch{/* Recovery still works in this page when storage is blocked. */}
   }
   async function complete(){
-    const action=prepared!.action;
+    const completed=prepared!;
     remember(null);prepared=null;draft=null;review=null;recoveryNeeded=false;
-    message=action==="revoke"?"Unsubscribed.":"Sender allowed.";
+    if(completed.result&&"items" in completed.result){
+      const succeeded=completed.result.items.filter(item=>item.result).map(item=>item.grantId);
+      const failed=completed.result.items.filter(item=>!item.result);
+      selectedSubscriptions=[...new Set([...selectedSubscriptions.filter(id=>!succeeded.includes(id)),...failed.map(item=>item.grantId)])];
+      message=`Unsubscribed from ${succeeded.length} ${succeeded.length===1?"subscription":"subscriptions"}.`;
+      if(failed.length)message+=` ${failed.length} ${failed.length===1?"subscription changed":"subscriptions changed"} since review. Review the remaining selection to try again.`;
+    }else{
+      if(completed.action==="revoke")selectedSubscriptions=selectedSubscriptions.filter(id=>id!==completed.permission.grant_id);
+      message=completed.action==="revoke"?"Unsubscribed.":"Sender allowed.";
+    }
     try{await invalidateAll();}catch{message+=" Refresh the page to update your subscription list.";}
   }
   async function recover(){
@@ -65,7 +85,7 @@
         remember(null);prepared=null;draft=null;review=null;recoveryNeeded=false;
         message="This review is no longer available. Check your subscriptions before starting again.";
         try{await invalidateAll();}catch{message+=" Refresh the page to update the list.";}
-      }else message=prepared?.action==="revoke"?"We couldn’t confirm whether you’ve been unsubscribed.":"We couldn’t confirm whether your subscription change was saved.";
+      }else message=prepared?.action&&prepared.action!=="allow"?"We couldn’t confirm whether you’ve been unsubscribed.":"We couldn’t confirm whether your subscription change was saved.";
     }
   }
   async function confirmPermission(){
@@ -86,7 +106,7 @@
 </script>
 
 <svelte:head><title>Subscriptions · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
-<div class="[&_h2]:m-0 [&_h2]:text-xl [&_h3]:m-0 [&_p]:m-0 [&_code]:text-xs [&_code]:[overflow-wrap:anywhere] [&_button]:self-start [&_button]:max-w-full [&_button]:whitespace-normal">
+<div class:has-selection={selectedPermissions.length>0} class="[&_h2]:m-0 [&_h2]:text-xl [&_h3]:m-0 [&_p]:m-0 [&_code]:text-xs [&_code]:[overflow-wrap:anywhere] [&_button]:self-start [&_button]:max-w-full [&_button]:whitespace-normal">
   <header class="mb-8 grid gap-3"><p class="hail-eyebrow">Your inbox</p><h1 class="hail-title">Subscriptions</h1><p class="max-w-2xl text-sm text-muted">Choose which senders and categories reach your inbox. For two-way messaging, use Connections.</p><p class="text-xs text-muted [overflow-wrap:anywhere]">Managing permissions for <strong>{data.account.address}</strong></p></header>
   {#if message}<p class="mb-5! rounded-xl border border-solid border-line bg-brand-soft p-4 text-sm" role="status">{message}</p>{/if}
   {#if data.account.custodyProfile!=="managed"}<p class="mb-5! rounded-xl bg-warning-soft p-4 text-sm text-warning" role="status">Browser approval currently supports managed accounts only. Your owner-controlled account still uses its existing signer.</p>{/if}
@@ -108,12 +128,21 @@
             {/if}
           </section>
         {:else if prepared}
-          <section class="hail-card grid gap-4 border-2 border-brand p-5 sm:p-7" aria-label="Permission confirmation"><p class="hail-eyebrow">Confirm with your passkey</p><h2>{prepared.action==="allow"?"Confirm allowed sender":"Confirm unsubscribe"}</h2>
-            <p class="text-sm [overflow-wrap:anywhere]"><strong>{prepared.permission.consent_context.grantee_address}</strong> {prepared.action==="allow"?"will be allowed to send to":"will lose this permission to send to"} <strong>{data.account.address}</strong>.</p>
-            <p class="text-sm">Sender identity: <code>{prepared.permission.grantee}</code></p><p class="text-sm">Scope: {subscriptionScopeLabel(prepared.permission.scope[0])}</p><p class="text-sm">Permission expiry: {prepared.permission.expires_at===null?"No expiry":date(prepared.permission.expires_at)}</p>
+          <section class="hail-card grid gap-4 border-2 border-brand p-5 sm:p-7" aria-label="Permission confirmation" bind:this={confirmation}><p class="hail-eyebrow">Confirm with your passkey</p><h2>{prepared.action==="allow"?"Confirm allowed sender":"Confirm unsubscribe"}</h2>
+            {#if prepared.permissions}
+              <p class="text-sm">Unsubscribe from {prepared.permissions.length} {prepared.permissions.length===1?"subscription":"subscriptions"}? One passkey confirmation applies to everything listed below. Your past messages are kept.</p>
+              <ul class="m-0 grid max-h-[35dvh] gap-3 overflow-y-auto pl-5" aria-label="Subscriptions to unsubscribe">
+                {#each prepared.permissions as permission (permission.grant_id)}
+                  <li class="text-sm [overflow-wrap:anywhere]"><strong>{permission.consent_context.grantee_address}</strong><br />{subscriptionScopeLabel(permission.scope[0])}<details><summary class="cursor-pointer text-xs text-muted">Sender identity</summary><code>{permission.grantee}</code></details></li>
+                {/each}
+              </ul>
+            {:else}
+              <p class="text-sm [overflow-wrap:anywhere]"><strong>{prepared.permission.consent_context.grantee_address}</strong> {prepared.action==="allow"?"will be allowed to send to":"will lose this permission to send to"} <strong>{data.account.address}</strong>.</p>
+              <p class="text-sm">Sender identity: <code>{prepared.permission.grantee}</code></p><p class="text-sm">Scope: {subscriptionScopeLabel(prepared.permission.scope[0])}</p><p class="text-sm">Permission expiry: {prepared.permission.expires_at===null?"No expiry":date(prepared.permission.expires_at)}</p>
+            {/if}
             <p class="text-sm text-muted">Confirm only if these are the intended sender and permissions. Your provider signs the Grant; your passkey authorizes only this reviewed action. It is not an identity recovery key.</p><p class="text-xs text-muted">Approval expires {new Date(prepared.expiresAt).toLocaleString()}.</p>
             {#if !recoveryNeeded}
-              <button class="hail-button justify-self-start" disabled={busy||now>=Date.parse(prepared.expiresAt)} onclick={()=>run(confirmPermission)}>{prepared.action==="allow"?"Allow sender with my passkey":"Confirm"}</button>
+              <button class="hail-button justify-self-start" disabled={busy||now>=Date.parse(prepared.expiresAt)} onclick={()=>run(confirmPermission)}>{prepared.action==="allow"?"Allow sender with my passkey":prepared.permissions?"Unsubscribe with my passkey":"Confirm"}</button>
               {#if now>=Date.parse(prepared.expiresAt)}<p class="text-sm text-muted">This review expired. Cancel and start again.</p>{/if}
               {#if !prepared.approved}<button class="hail-button-secondary justify-self-start" disabled={busy} onclick={cancel}>Cancel</button>{/if}
             {/if}
@@ -123,9 +152,17 @@
       {/if}
       <section class="grid min-w-0 gap-4" aria-label="Issued permissions"><h2>Your subscriptions</h2><p class="text-sm text-muted">A saved permission may take a moment to reach the sender. Unsubscribing keeps messages already delivered.</p>
         {#if !data.permissions.length}<p class="hail-card p-5 text-sm text-muted">No subscriptions on this page. Add a sender to choose the updates you receive.</p>{/if}
-        {#each data.permissions as permission}<article class="hail-card grid min-w-0 gap-3 p-5"><h3 class="text-base [overflow-wrap:anywhere]">{permission.sender}</h3><code class="text-muted">{permission.did}</code><p class="text-sm [overflow-wrap:anywhere]">{subscriptionScopeLabel(permission.scope)} · {permission.status === "revoked" ? "Unsubscribed" : permission.status}{permission.expiresAt!==null?` · expires ${date(permission.expiresAt)}`:" · no expiry"}</p>
+        {#if selectedPermissions.length}
+          <SelectionActions label="Subscription actions" count={selectedPermissions.length} locked={selectionLocked} onclear={()=>selectedSubscriptions=[]}>
+            {#snippet actions()}<button class="hail-button-secondary" disabled={selectionLocked} onclick={()=>run(unsubscribeSelected)}>Unsubscribe</button>{/snippet}
+          </SelectionActions>
+        {/if}
+        {#each data.permissions as permission (permission.grantId)}<article class="hail-card grid min-w-0 gap-3 p-5" class:is-selected={selectedSubscriptions.includes(permission.grantId)&&permission.status==="active"}>
+          <div class="flex min-w-0 items-center gap-3">
+            <SelectionAvatar name={permission.sender} avatar={permission.avatar} selected={permission.status==="active"&&selectedSubscriptions.includes(permission.grantId)} disabled={selectionLocked} label={`Select subscription to ${permission.sender}: ${subscriptionScopeLabel(permission.scope)}`} ontoggle={data.account.custodyProfile==="managed"&&permission.status==="active"?()=>toggleSubscription(permission.grantId):undefined} />
+            <h3 class="min-w-0 text-base [overflow-wrap:anywhere]">{permission.sender}</h3>
+          </div><code class="text-muted">{permission.did}</code><p class="text-sm [overflow-wrap:anywhere]">{subscriptionScopeLabel(permission.scope)} · {permission.status === "revoked" ? "Unsubscribed" : permission.status}{permission.expiresAt!==null?` · expires ${date(permission.expiresAt)}`:" · no expiry"}</p>
           {#if permission.expiresAt!==null&&permission.expiresAt*1000<=now}<p class="text-sm text-warning">Expired; it no longer permits messages.</p>{/if}
-          {#if data.account.custodyProfile==="managed"&&permission.status==="active"}<button class="hail-button-secondary justify-self-start" disabled={busy||!!prepared||recoveryNeeded} onclick={()=>run(()=>prepareRevoke(permission))}>Unsubscribe</button>{/if}
         </article>{/each}
         {#if data.next}<a class="hail-button-secondary justify-self-start" href={`/permissions?after=${encodeURIComponent(data.next)}`}>More subscriptions →</a>{/if}
       </section>
@@ -134,3 +171,8 @@
   </div>
   {#if busy}<p class="mt-5! text-sm text-muted" role="status">Updating your subscriptions…</p>{/if}
 </div>
+
+<style>
+  .is-selected { border-color:var(--color-brand); }
+  @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
+</style>

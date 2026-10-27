@@ -78,3 +78,30 @@ it.each([404,410])("preserves terminal status %s so the UI can clear a stale rev
   try{await expect(recoverPermission(requestId,grantor)).rejects.toMatchObject({status});}
   finally{vi.unstubAllGlobals();}
 });
+
+it("validates the complete batch review and rejects missing, duplicate or unrelated results",async()=>{
+  const {approval}=await import("./permissions.js");
+  const first=pending().permission,second={...first,grant_id:"00000000-0000-4000-8000-000000000002"};
+  const batch={...pending(),action:"revoke-batch",permissions:[first,second]};
+  expect(approval(batch).permissions).toHaveLength(2);
+  const items=[first,second].map(permission=>({grantId:permission.grant_id,result:{...saved,grantId:permission.grant_id},error:null}));
+  expect(approval({...batch,approved:true,result:{items}}).result).toEqual({items});
+  for(const change of [{action:"revoke"},{permissions:undefined},{permissions:[first,first]},{permissions:[first,{...second,grantor:"did:plc:"+"c".repeat(24)}]},
+    {approved:true,result:{items:items.slice(0,1)}},{approved:true,result:{items:[items[1],items[0]]}},
+    {approved:true,result:{items:[{...items[0],result:{...saved,revision:99}},items[1]]}}]){
+    expect(()=>approval({...batch,...change})).toThrow();
+  }
+});
+
+it("recovers one authorized batch without requesting another passkey",async()=>{
+  const first=pending().permission,second={...first,grant_id:"00000000-0000-4000-8000-000000000002"};
+  const batch={...pending(true),action:"revoke-batch",permissions:[first,second]};
+  const result={items:[{grantId:first.grant_id,result:saved,error:null},{grantId:second.grant_id,result:null,error:"Subscription changed after review."}]};
+  const request=vi.fn().mockResolvedValueOnce(Response.json(batch)).mockResolvedValueOnce(Response.json({...batch,result}));
+  vi.stubGlobal("fetch",request);
+  try{
+    expect((await recoverPermission(requestId,grantor)).result).toEqual(result);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenLastCalledWith("/api/v1/account/permissions/commit",expect.objectContaining({body:JSON.stringify({requestId})}));
+  }finally{vi.unstubAllGlobals();}
+});

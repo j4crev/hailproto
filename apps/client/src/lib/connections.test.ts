@@ -54,3 +54,12 @@ it.each([404,503])("preserves recovery failure %s without retry loops",async sta
   const request=vi.fn(async()=>Response.json({}, {status}));vi.stubGlobal("fetch",request);
   try{await expect(recoverConnection(recoveryId)).rejects.toMatchObject({status});expect(request).toHaveBeenCalledOnce();}finally{vi.unstubAllGlobals();}
 });
+
+it("validates batch removal reviews and exact completion membership",()=>{
+  const connectionId="01954144-8097-7a9d-a7a8-ef29a823eaf2";
+  const batch={...unfinished,action:"disconnect-batch",review:{connections:[{connectionId,did:"did:plc:"+"a".repeat(24),address:"friend@example.com"}]}};
+  expect(connectApproval(batch).action).toBe("disconnect-batch");
+  expect(connectApproval({...batch,result:{connectionIds:[connectionId],state:"disconnected"}}).result?.connectionIds).toEqual([connectionId]);
+  for(const change of [{review:{connections:[]}},{review:{connections:[...batch.review.connections,...batch.review.connections]}},
+    {result:{connectionIds:[],state:"disconnected"}},{result:{connectionIds:[recoveryId],state:"disconnected"}}])expect(()=>connectApproval({...batch,...change})).toThrow();
+});

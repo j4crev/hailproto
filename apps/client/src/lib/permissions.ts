@@ -5,10 +5,13 @@ import type {startAuthentication} from "@simplewebauthn/browser";
 export const APPROVAL_STORAGE="hail.pending-grant-approval.v1";
 export interface SenderReview {address:string;did:string;displayName:string;addressDigest:string;profileDigest:string;
   offersUncategorized:boolean;categories:{id:string;label:string;description?:string}[];}
-export interface Approval {requestId:string;action:"allow"|"revoke";expiresAt:string;approved:boolean;
+export interface PermissionResult {grantId:string;revision:number;status:"active"|"revoked";publication:"durable";}
+export interface BatchPermissionResult {items:{grantId:string;result:PermissionResult|null;error:string|null}[];}
+export interface Approval {requestId:string;action:"allow"|"revoke"|"revoke-batch";expiresAt:string;approved:boolean;
   permission:Pick<HailGrant,"grant_id"|"revision"|"grantor"|"grantee"|"expires_at">&{scope:HailGrantScope[];consent_context:{grantee_address:string}};
   options:Parameters<typeof startAuthentication>[0]["optionsJSON"]|null;
-  result:{grantId:string;revision:number;status:"active"|"revoked";publication:"durable"}|null;}
+  permissions?:Approval["permission"][];
+  result:PermissionResult|BatchPermissionResult|null;}
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/,DID=/^did:plc:[a-z2-7]{24}$/;
 export function subscriptionScopeLabel(scope:HailGrantScope|undefined){
   if(!scope)return "Permission unavailable";
@@ -33,22 +36,38 @@ export function senderQr(value:string){
   for(let row=0;row<size;row++)for(let col=0;col<size;col++)if(qr.isDark(row,col))path.push(`M${col+4} ${row+4}h1v1h-1z`);
   return {size:size+8,path:path.join("")};
 }
-export function approval(value:any):Approval{
-  const permission=value?.permission,scope=permission?.scope?.[0];
-  if(!value||!UUID.test(value.requestId)||!["allow","revoke"].includes(value.action)||!Number.isFinite(Date.parse(value.expiresAt))||
-    typeof value.approved!=="boolean"||!value.approved&&!value.options||value.result&&
-    (!UUID.test(value.result.grantId)||!Number.isSafeInteger(value.result.revision)||!["active","revoked"].includes(value.result.status)||value.result.publication!=="durable"))
-    throw new Error("The provider returned an invalid permission review");
-  if(!permission||!UUID.test(permission.grant_id)||!Number.isSafeInteger(permission.revision)||permission.revision<1||!DID.test(permission.grantor)||!DID.test(permission.grantee)||
-    !Array.isArray(permission.scope)||permission.scope.length!==1||!scope||
-    !(scope.type==="uncategorized"||scope.type==="categories"&&Array.isArray(scope.values)&&scope.values.length>0&&scope.values.every((v:unknown)=>typeof v==="string"&&/^[a-z0-9][a-z0-9._-]{0,63}$/.test(v)))||
-    permission.expires_at!==null&&(!Number.isSafeInteger(permission.expires_at)||permission.expires_at<=0)||
-    typeof permission.consent_context?.grantee_address!=="string"||permission.consent_context.grantee_address.length>254)
-    throw new Error("The provider returned an invalid permission review");
-  // Display the public review fields without importing the Node-only codec.
-  // Frozen-byte validation stays on the server; commit takes only the ID/proof.
-  return {...value,permission};
+function validPermission(permission:any):boolean{
+  const scope=permission?.scope?.[0];
+  return !!permission&&UUID.test(permission.grant_id)&&Number.isSafeInteger(permission.revision)&&permission.revision>=1&&DID.test(permission.grantor)&&DID.test(permission.grantee)&&
+    Array.isArray(permission.scope)&&permission.scope.length===1&&!!scope&&
+    (scope.type==="uncategorized"||scope.type==="categories"&&Array.isArray(scope.values)&&scope.values.length>0&&scope.values.every((v:unknown)=>typeof v==="string"&&/^[a-z0-9][a-z0-9._-]{0,63}$/.test(v)))&&
+    (permission.expires_at===null||Number.isSafeInteger(permission.expires_at)&&permission.expires_at>0)&&
+    typeof permission.consent_context?.grantee_address==="string"&&permission.consent_context.grantee_address.length<=254;
 }
+function validResult(result:any):boolean{
+  return !!result&&UUID.test(result.grantId)&&Number.isSafeInteger(result.revision)&&["active","revoked"].includes(result.status)&&result.publication==="durable";
+}
+export function approval(value:any):Approval{
+  if(!value||!UUID.test(value.requestId)||!["allow","revoke","revoke-batch"].includes(value.action)||!Number.isFinite(Date.parse(value.expiresAt))||
+    typeof value.approved!=="boolean"||!value.approved&&!value.options||!validPermission(value.permission))
+    throw new Error("The provider returned an invalid permission review");
+  if(value.permissions!==undefined){
+    const permissions=value.permissions;
+    if(value.action!=="revoke-batch"||!Array.isArray(permissions)||!permissions.length||permissions.length>50||
+      !permissions.every((permission:any)=>validPermission(permission)&&permission.grantor===value.permission.grantor)||
+      new Set(permissions.map((permission:any)=>permission.grant_id)).size!==permissions.length||
+      JSON.stringify(permissions[0])!==JSON.stringify(value.permission))throw new Error("The provider returned an invalid batch review");
+    if(value.result){
+      const items=value.result.items;
+      if(!value.approved||!Array.isArray(items)||items.length!==permissions.length||items.some((item:any,index:number)=>
+        !item||item.grantId!==permissions[index].grant_id||
+        (item.result?(!validResult(item.result)||item.result.grantId!==item.grantId||item.result.status!=="revoked"||item.result.revision!==permissions[index].revision+1||item.error!==null):
+          typeof item.error!=="string"||!item.error||item.error.length>512)))throw new Error("The provider returned an invalid batch result");
+    }
+  }else if(value.action==="revoke-batch"||value.result&&!validResult(value.result))throw new Error("The provider returned an invalid permission result");
+  return value;
+}
+
 export class PermissionRequestError extends Error {
   constructor(public status:number,message:string){super(message);}
 }
@@ -76,6 +95,7 @@ export async function permissionRequest(step:string,body?:unknown){
   const value=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
   if(!response.ok)throw new PermissionRequestError(response.status,response.status===401?"Sign in with your passkey before managing permissions.":
     response.status===410?"This review expired. Check your subscriptions and start again.":
+    response.status===413?"This permission review is too large. For bulk unsubscribe, select fewer subscriptions.":
     response.status===429?"Too many requests. Wait a minute and try again.":
     response.status===409?"The subscription may have changed, or your request is still being processed. Please try again.":
     "Permission was not confirmed. Please try again. The sender must have a current published Sender Profile.");

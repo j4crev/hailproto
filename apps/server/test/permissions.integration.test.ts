@@ -62,6 +62,9 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
     const snapshot=async()=>JSON.stringify(await db.sql`SELECT account_id,role,public_key,encrypted_private_key,encryption_nonce FROM account_keys ORDER BY account_id,role`);
     const keysBefore=await snapshot();
     const emptyRollback=await db.sql.reserve();try{
+      const rollbackDirectory=new URL("../migrations/rollback/",import.meta.url).pathname;
+      for(const file of [...new Bun.Glob("*.sql").scanSync(rollbackDirectory)].filter(file=>Number(file.slice(0,4))>65).sort().reverse())
+        await emptyRollback.unsafe(await Bun.file(rollbackDirectory+file).text());
       await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());
       await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());
       await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());
@@ -150,6 +153,55 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
     const general=await permissions.commit(session,generalApproval.requestId,assertion(generalApproval.options!.challenge));
     expect(general.result).toMatchObject({status:"active",revision:1});
     expect((await grants.findCurrentByGrantId(generalPayload.grant_id))?.payload.scope).toEqual([{type:"categories",values:["general"]}]);
+    // One immutable batch challenge covers exactly the reviewed subscriptions.
+    service.revoke=realRevoke;
+    let senderIndex=3;
+    const makeGrant=async()=>{
+      const did="did:plc:"+String.fromCharCode(97+senderIndex++).repeat(24),sender=`${did.slice(-1)}@peer.example.com`;
+      const binding={...address.binding,did,address:sender,key_id:did+"#hail-identity"};
+      const profile={...senderProfile.profile,did,key_id:did+"#hail-messaging"};
+      const bindingBytes=await signPayload("hail.address-binding",binding,createWebCryptoSigner(did+"#hail-identity",identity.privateKey));
+      const profileBytes=await signPayload("hail.sender-profile",profile,createWebCryptoSigner(did+"#hail-messaging",identity.privateKey));
+      const newAddress={...address,did,address:sender,binding,representation:bindingBytes,digest:digest(bindingBytes)};
+      const newProfile={...senderProfile,did,profile,representation:profileBytes,digest:digest(profileBytes),etag:encodeBase64Url(digest(profileBytes))};
+      const creator=new GrantService(new OnboardingRepository(db.sql),grants,encryptor,resolver,{async verify(){return newAddress;}},{async verify(){return newProfile;}},base);
+      const payload=await creator.prepareUserSignedGrant(session.canonical_address,sender,{scope:{type:"categories",values:["general"]},expiresAt:now+86400});
+      return creator.updateManaged(session.canonical_address,payload,didKey);
+    };
+    const batchGrants=await Promise.all([makeGrant(),makeGrant(),makeGrant()]);
+    const selections=batchGrants.map(grant=>({grantId:grant.payload.grant_id,revision:grant.payload.revision,digest:encodeBase64Url(grant.digest)}));
+    const batchInput={requestId:randomUUID(),action:"revoke",grants:selections.slice(0,2)};
+    const batch=await permissions.prepare(session,batchInput);
+    expect(batch.permissions).toHaveLength(2);
+    expect(await permissions.prepare(session,batchInput)).toEqual(batch);
+    await expect(permissions.prepare(session,{...batchInput,grants:selections})).rejects.toMatchObject({status:409});
+    await expect(permissions.prepare(session,{...batchInput,requestId:randomUUID(),grants:[selections[0],selections[0]]})).rejects.toMatchObject({status:400});
+    await expect(permissions.prepare(session,{...batchInput,requestId:randomUUID(),grants:[selections[0],{...selections[1],revision:999}]})).rejects.toMatchObject({status:409});
+    await expect(permissions.status(anotherSession,batch.requestId)).rejects.toMatchObject({status:404});
+    await expect(permissions.status(foreignSession,batch.requestId)).rejects.toMatchObject({status:404});
+    await expect(permissions.commit(session,batch.requestId)).rejects.toMatchObject({status:403});
+    await expect(permissions.commit(session,batch.requestId,assertion(revocation.options!.challenge))).rejects.toMatchObject({status:401});
+    const batchBefore=await db.sql`SELECT grant_id FROM grant_revisions`;
+    const verify=vi.spyOn(passkeys,"approveAction");
+    let loseBatchReply=true;
+    service.revoke=async(...args)=>{const saved=await realRevoke(...args);if(loseBatchReply){loseBatchReply=false;throw new Error("Lost batch reply");}return saved;};
+    await expect(permissions.commit(session,batch.requestId,assertion(batch.options!.challenge))).rejects.toThrow("Lost batch reply");
+    const batchDone=await permissions.commit(session,batch.requestId);
+    expect(batchDone.result).toMatchObject({items:selections.slice(0,2).map(item=>({grantId:item.grantId,result:{status:"revoked",revision:2},error:null}))});
+    expect(verify).toHaveBeenCalledTimes(1);verify.mockRestore();
+    expect(await db.sql`SELECT grant_id FROM grant_revisions`).toHaveLength(batchBefore.length+2);
+    expect((await permissions.commit(session,batch.requestId)).result).toEqual(batchDone.result);
+    expect((await grants.findCurrentByGrantId(selections[2]!.grantId))?.payload.status).toBe("active");
+    // A changed member is reported independently; its newer revision is untouched.
+    const extra=await makeGrant(),last=batchGrants[2]!;
+    const mixed=await permissions.prepare(session,{requestId:randomUUID(),action:"revoke",grants:[selections[2],{grantId:extra.payload.grant_id,revision:1,digest:encodeBase64Url(extra.digest)}]});
+    const changed=await service.prepareUserSignedUpdate(session.canonical_address,last.payload.grant_id,{scope:last.payload.scope[0]!,expiresAt:now+80000,expectedRevision:1,expectedDigest:last.digest,refreshConsent:false});
+    await service.updateManaged(session.canonical_address,changed,didKey);
+    service.revoke=realRevoke;
+    const mixedDone=await permissions.commit(session,mixed.requestId,assertion(mixed.options!.challenge));
+    expect(mixedDone.result).toMatchObject({items:[{grantId:last.payload.grant_id,result:null,error:expect.any(String)},{grantId:extra.payload.grant_id,result:{status:"revoked"},error:null}]});
+    expect((await grants.findCurrentByGrantId(last.payload.grant_id))?.payload).toMatchObject({status:"active",revision:2});
+    expect((await permissions.commit(session,mixed.requestId)).result).toEqual(mixedDone.result);
     await expect(db.sql`UPDATE account_grant_approvals SET action='revoke' WHERE id=${prepared.requestId}`).rejects.toThrow("cannot be replaced");
     const rollback=await db.sql.reserve();try{await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text())).rejects.toThrow("prevent rollback");}finally{await rollback.unsafe("ROLLBACK");rollback.release();}
     await db.sql`UPDATE account_passkeys SET revoked_at=now() WHERE credential_id=${credential}`;

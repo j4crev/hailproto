@@ -563,6 +563,48 @@ the replacement and preserves scopes before revoking the original; fresh-process
 retries recover successful issuance/revocation even after response loss. This
 does not authenticate expired credentials or modify identity/recovery authority.
 
+### Browser batch unsubscribe
+
+`POST /api/v1/account/permissions/prepare` accepts a managed passkey session and
+`{requestId, action: "revoke", grants: [{grantId, revision, digest}, ...]}`.
+It freezes the exact ordered selection in one existing approval record with one
+challenge. The batch response has `action: "revoke-batch"`, `permissions` containing
+all reviewed Grants, and `permission` containing the first item. The distinct
+action makes older browser code reject batch recovery instead of displaying only
+one sender before authorizing the whole batch. Single-Grant requests are unchanged.
+
+One `/commit` passkey assertion authorizes the entire selection. A terminal batch
+`result.items` contains `{grantId, result, error}` for each reviewed item; successful
+items have the usual durable revocation result, while revision conflicts have a
+null result and a review-again error. Revocations are individually durable, not an
+atomic multi-Grant transaction. An uncertain write leaves the approval recoverable
+through its original ID without a new assertion; exact-successor detection prevents
+duplicate revisions. Newer subscription revisions are never revoked by old consent.
+
+The existing account/session/generation binding, five-minute expiry and immutable
+approval protections apply. Batches allow up to 50 distinct Grants within the
+existing 16 KiB encoded-intent limit; larger reviews return 413. No schema migration
+or signed Grant format change is needed. Before rolling back to older code, finish
+pending batch approvals; older code cannot resume them. Retain approval records
+and refresh the subscriptions list before reviewing any unfinished items again.
+
+### Browser batch connection removal
+
+`POST /api/v1/account/connections/prepare` accepts
+`{requestId, action: "disconnect", connectionIds: [...]}` for 1–100 distinct active
+connections. Its `disconnect-batch` review binds each connection ID, pair and epoch,
+plus the displayed address and DID, to one passkey challenge. Existing single
+removal and owner-signing flows are unchanged; ending a connection requires no
+new owner identity signature.
+
+One `/commit` creates all local cutoffs and propagation jobs in the same transaction
+as passkey consumption and the terminal approval result. A changed connection
+rolls back the entire batch. Retrying a completed request returns the retained
+`{connectionIds, state: "disconnected", propagation: "pending"}` result without
+another assertion. The existing worker notifies peers, including offline providers.
+No subscriptions or earlier messages are removed. Older clients reject the new
+review action; complete pending batch reviews before a code rollback.
+
 ### Post-expiry owner login/recovery (migration 34)
 
 `POC_ACCOUNT_ACCESS=true` explicitly enables private-PLC

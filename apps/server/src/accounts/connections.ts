@@ -27,6 +27,7 @@ const same=(a:Uint8Array,b:Uint8Array)=>a.length===b.length&&timingSafeEqual(a,b
 const now=()=>Math.floor(Date.now()/1000);
 export interface ConnectionOwner {id:string;did:string;canonical_address:string;generation:number|string;managed:boolean;identity_key:string;}
 type Owner=ConnectionOwner;
+interface DisconnectSelection {connectionId:string;pairId:string;epoch:number;did:string;address:string;operationId:string;}
 interface Invitation {id:string;account_id:string;serving_generation:number|string;did:string;personal:boolean;label:string;
   token_hash:Uint8Array;ciphertext:Uint8Array;nonce:Uint8Array;cose:Uint8Array;signing_key:string;expires_at:number|string|null;revoked_at:Date|null;created_at:Date;}
 interface Approval {id:string;action:string;connection_id:string|null;invitation_id:string|null;request_digest:Uint8Array;intent_bytes:Uint8Array;
@@ -219,7 +220,7 @@ export class AccountConnections {
     const payload=row.owner_payload?decodeDeterministic(new Uint8Array(row.owner_payload)) as unknown as HailConnectionInvitation|HailConnectionConfirmation:null;
     let result=typeof row.result==="string"?JSON.parse(row.result):row.result;
     if(result&&typeof result==="object"&&"attemptId" in result&&typeof result.attemptId==="string"&&this.federation)result=await this.federation.result(session.account_id,result.attemptId);
-    return {requestId:row.id,action:row.action,review,expiresAt:row.expires_at.toISOString(),result,
+    return {requestId:row.id,action:row.action==="disconnect"&&Array.isArray(intent.connections)?"disconnect-batch":row.action,review,expiresAt:row.expires_at.toISOString(),result,
       ownerSigning:payload?{type:"hailp.connection-signing",version:1,provider:this.origin,requestId:row.id,expiresAt:row.expires_at.toISOString(),payload:toDiagnosticJson(payload.type,payload)}:null,
       options:row.result||row.expires_at.getTime()<=Date.now()?null:await this.passkeys.actionOptions(session,row.challenge)};
   }
@@ -228,10 +229,10 @@ export class AccountConnections {
   }
   async prepare(session:AccountApiSession,input:Record<string,unknown>){
     if(typeof input.requestId!=="string"||!UUID.test(input.requestId)||typeof input.action!=="string")throw new ConnectionError(400);
-    const action=input.action;
+    const action=input.action,batch=action==="disconnect"&&Array.isArray(input.connectionIds);
     this.keys(input,action==="create"?["requestId","action","personal","label","expiresAt"]:
       action==="connect"?["requestId","action","id","did","token"]:action==="replace"||action==="revoke"?["requestId","action","id"]:
-      action==="disconnect"?["requestId","action","connectionId"]:[]);
+      action==="disconnect"?(batch?["requestId","action","connectionIds"]:["requestId","action","connectionId"]):[]);
     const requestId=input.requestId,requestDigest=hash(encodeDeterministic(input as never));
     // A retained retry never creates a new connection epoch.
     await this.live(this.sql,session);
@@ -243,7 +244,15 @@ export class AccountConnections {
       if(typeof input.id!=="string"||!UUID.test(input.id)||typeof input.did!=="string"||!DID.test(input.did)||typeof input.token!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(input.token))throw new ConnectionError(400,"Invalid connection code.");
       remoteDraft=await this.federation.prepare(session,{id:input.id,did:input.did as string,token:input.token as string});
     }else if(["replace","revoke"].includes(action))invitation=await this.invitation(this.sql,input.id);
-    if(action==="disconnect"){
+    const disconnects:DisconnectSelection[]=[];
+    if(batch){
+      const ids=input.connectionIds as unknown[];
+      if(!ids.length||ids.length>100||ids.some(id=>typeof id!=="string"||!UUID.test(id))||new Set(ids).size!==ids.length)throw new ConnectionError(400,"Select between 1 and 100 distinct connections.");
+      for(const id of ids as string[]){
+        const pair=await this.federation.active(session,id);if(!pair)throw new ConnectionError(409,"A selected connection changed. Refresh and review the selection again.");
+        disconnects.push({connectionId:id,pairId:pair.id,epoch:Number(pair.epoch),did:pair.peer_did,address:pair.peer_address,operationId:uuidV7()});
+      }
+    }else if(action==="disconnect"){
       if(typeof input.connectionId!=="string"||!UUID.test(input.connectionId))throw new ConnectionError(400);
       remotePair=await this.federation.active(session,input.connectionId);if(!remotePair)throw new ConnectionError(404);
     }
@@ -266,7 +275,7 @@ export class AccountConnections {
         intent={action,id:input.id,did:input.did,address:remoteDraft.address,confirmation:remoteDraft.confirmation,remote:true};
         if(!actor.managed)ownerPayload=encodeDeterministic(remoteDraft.confirmation as never);
       }else if(action==="disconnect"){
-        intent={...input,remote:true,operationId:uuidV7()};
+        intent=batch?{action,connections:disconnects}:{...input,remote:true,operationId:uuidV7()};
       }
       if(!actor.managed&&(action==="create"||action==="replace")){
         if(action==="replace"&&invitation!.revoked_at)throw new ConnectionError(409,"Personal code already changed. Refresh the list.");
@@ -305,7 +314,19 @@ export class AccountConnections {
         decodeDeterministic(new Uint8Array(row.owner_payload)) as unknown as HailConnectionConfirmation,row.actor_key,external):null;
       const credential=await this.passkeys.approveAction(tx,session,row.challenge,response);
       let result:Record<string,unknown>;
-      if(row.federated_pair_id){
+      if(row.action==="disconnect"&&Array.isArray(intent.connections)){
+        const selections=intent.connections as unknown as DisconnectSelection[];
+        // All local cutoffs and their propagation jobs commit with the one
+        // passkey assertion. A changed member rolls back the entire selection.
+        for(const item of [...selections].sort((a,b)=>a.pairId.localeCompare(b.pairId))){
+          const current=await tx`SELECT id FROM federated_connection_pairs p WHERE p.id=${item.pairId}
+            AND p.account_id=${actor.id} AND p.connection_id=${item.connectionId} AND p.epoch=${item.epoch} AND p.state='active'
+            AND NOT EXISTS(SELECT 1 FROM federated_connection_tombstones t WHERE t.pair_id=p.id AND t.connection_id=p.connection_id) FOR UPDATE`;
+          if(!current.length)throw new ConnectionError(409,"A selected connection changed. No connections were removed; refresh and review again.");
+          await this.federation.disconnect(tx,actor,item.pairId,item.connectionId,item.operationId);
+        }
+        result={connectionIds:selections.map(item=>item.connectionId),state:"disconnected",propagation:"pending"};
+      }else if(row.federated_pair_id){
         if(!this.federation)throw new ConnectionError(409,"Cross-provider connection handling is unavailable.");
         if(row.action==="disconnect")result=await this.federation.disconnect(tx,actor,row.federated_pair_id,intent.connectionId as string,intent.operationId as string);
         else{

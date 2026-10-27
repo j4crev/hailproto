@@ -1,4 +1,4 @@
-import {canaryAccount,ORIGIN} from "$lib/server/canary.js";
+import {canaryAccount,ORIGIN,senderAvatars} from "$lib/server/canary.js";
 
 export async function load({url,cookies,setHeaders}){
   setHeaders({"cache-control":"no-store","referrer-policy":"no-referrer"});
@@ -12,5 +12,6 @@ export async function load({url,cookies,setHeaders}){
       scope:grant.payload.scope[0],status:grant.payload.status,revision:grant.payload.revision,expiresAt:grant.payload.expires_at,
       digest:grant.digest};
   }));
-  return {configured:true as const,account,origin:ORIGIN,permissions,next:page.next as string|null};
+  const avatars=await senderAvatars(client,new Set<string>(permissions.map(permission=>permission.did)));
+  return {configured:true as const,account,origin:ORIGIN,permissions:permissions.map(permission=>({...permission,avatar:avatars.get(permission.did)??null})),next:page.next as string|null};
 }

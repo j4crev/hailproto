@@ -1,9 +1,20 @@
 <script lang="ts">
-  import {onMount} from "svelte";
+  import {onMount,tick} from "svelte";
+  import {invalidateAll} from "$app/navigation";
+  import SelectionAvatar from "$lib/SelectionAvatar.svelte";
+  import SelectionActions from "$lib/SelectionActions.svelte";
   import {senderQr} from "$lib/permissions.js";
   import {connectionRequest,connectApproval,recoverConnection,ConnectionRequestError,CONNECTION_APPROVAL,type ConnectionList,type ConnectApproval} from "$lib/connections.js";
   import ConnectionApproval from "$lib/ConnectionApproval.svelte";
+  let {initialList=null,avatars={}}:{initialList?:ConnectionList|null;avatars?:Record<string,{src:string;width:number;height:number}|null>}=$props();
+  let selected=$state<string[]>([]),confirmation=$state<HTMLDivElement>();
+  function toggle(id:string){selected=selected.includes(id)?selected.filter(value=>value!==id):[...selected,id];}
+  async function removeSelected(){
+    await prepare({action:"disconnect",connectionIds:selectedConnections.map(connection=>connection.id)});
+    await tick();confirmation?.scrollIntoView({block:"center"});
+  }
   let list=$state<ConnectionList|null>(null),prepared=$state<ConnectApproval|null>(null),busy=$state(false),message=$state(""),label=$state(""),expiry=$state("");
+  let selectedConnections=$derived((list?.connections??[]).filter(connection=>selected.includes(connection.id)));
   let pendingId=$state<string|null>(null),recoveryNeeded=$state(false);
   let shown=$state<string|null>(null),draft=$state<Record<string,unknown>|null>(null);
   const qr=$derived(shown?senderQr(shown):null);
@@ -22,7 +33,7 @@
   }
   function remember(id:string|null){pendingId=id;try{if(id)sessionStorage.setItem(CONNECTION_APPROVAL,id);else sessionStorage.removeItem(CONNECTION_APPROVAL);}catch{/* Keep in-page recovery available. */}}
   async function initialize(){
-    await load();
+    if(initialList)list=initialList;else await load();
     if(pendingId)await check();
   }
   async function check(){
@@ -40,9 +51,11 @@
   async function done(result?:NonNullable<ConnectApproval["result"]>){
     // Keep the saved review until the refreshed list is available, so failure is retryable.
     await load();
+    selected=selected.filter(id=>list?.connections.some(connection=>connection.id===id));
+    await invalidateAll();
     if(result?.state!=="connecting")remember(null);
     prepared=null;draft=null;shown=null;recoveryNeeded=false;
-    message=result?.state==="connecting"?"Connection saved. Synchronizing with the other provider.":result?.state==="expired"||result?.state==="conflict"?"The connection attempt expired or its reviewed state changed. Review a current code before trying again.":"Saved. Existing subscriptions are unchanged.";
+    message=result?.connectionIds?`Removed ${result.connectionIds.length} ${result.connectionIds.length===1?"connection":"connections"}. Existing subscriptions are unchanged.`:result?.state==="connecting"?"Connection saved. Synchronizing with the other provider.":result?.state==="expired"||result?.state==="conflict"?"The connection attempt expired or its reviewed state changed. Review a current code before trying again.":"Saved. Existing subscriptions are unchanged.";
   }
   function cancel(reason=""){prepared=null;draft=null;remember(null);recoveryNeeded=false;message=reason;}
 
@@ -51,13 +64,13 @@
   {#if qr}<div id={`connection-code-${id}`} class="grid min-w-0 gap-4" aria-label="Share connection code"><svg class="w-full max-w-72 bg-white" viewBox={`0 0 ${qr.size} ${qr.size}`} role="img" aria-label="Connection QR code"><path d={qr.path} fill="black" /></svg><label class="hail-field">Connection link<input readonly value={link} onclick={event=>event.currentTarget.select()} /></label><button class="hail-button-secondary justify-self-start" onclick={()=>run(async()=>{await navigator.clipboard.writeText(link);message="Link copied.";})}>Copy link</button></div>{/if}
 {/snippet}
 {#if list}
-  <section class="mt-8 grid gap-5" aria-label="Connection codes">
+  <section class="connection-content mt-8 grid gap-5" class:has-selection={selectedConnections.length>0} aria-label="Connection codes">
     <header class="grid gap-2"><p class="hail-eyebrow">Personal connections</p><h2 class="m-0 text-2xl">Connect with me</h2></header>
     {#if message}<p class="hail-error" role="status">{message}</p>{/if}
     {#if recoveryNeeded}
       {#if busy}<p class="text-sm text-muted" role="status">Checking your connection change…</p>
       {:else}<button class="hail-button-secondary justify-self-start" onclick={()=>run(check)}>Try again</button>{/if}
-    {:else if prepared}<ConnectionApproval approval={prepared} oncomplete={done} oncancel={cancel} />
+    {:else if prepared}<div bind:this={confirmation}><ConnectionApproval approval={prepared} oncomplete={done} oncancel={cancel} /></div>
     {:else}
       <section class="hail-card grid min-w-0 gap-4 p-5" aria-label="Your personal code"><h3 class="m-0 text-xl">Share your personal code</h3><p class="m-0 text-sm text-muted">No automatic expiry. Replace if shared unintentionally. Allows immediate connection to you for anyone who scans or uses it.</p>
         {#if personal}<div class="flex flex-wrap gap-2"><button class="hail-button" aria-expanded={shown===personal.link} aria-controls={`connection-code-${personal.id}`} onclick={()=>shown=shown===personal.link?null:personal.link}>{shown===personal.link?"Hide QR & link":"Show QR & link"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"replace",id:personal.id}))}>Replace</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"revoke",id:personal.id}))}>Revoke</button></div>
@@ -75,8 +88,23 @@
       {#if draft&&!prepared}<button class="hail-button-secondary justify-self-start" onclick={()=>cancel()}>Discard unsaved review</button>{/if}
     {/if}
     <section class="grid gap-4" aria-label="Your connections"><h3 class="m-0 text-xl">Your connections</h3>{#if !list.connections.length}<p class="m-0 text-sm text-muted">No connections yet. Share a code or scan someone else's.</p>{/if}
-      {#each list.connections as connection}<article class="hail-card grid min-w-0 gap-3 p-5"><strong class="[overflow-wrap:anywhere]">{connection.address}</strong><code class="text-xs [overflow-wrap:anywhere]">{connection.did}</code><div class="flex flex-wrap gap-2"><a class="hail-button-secondary" href={`/compose?audience=connections&connection=${connection.id}`}>Message</a><button class="hail-button-secondary" disabled={busy||prepared!==null||recoveryNeeded} onclick={()=>run(()=>prepare({action:"disconnect",connectionId:connection.id}))}>Remove connection</button></div></article>{/each}
+      {#if selectedConnections.length}
+        <SelectionActions label="Connection actions" count={selectedConnections.length} locked={busy||prepared!==null||recoveryNeeded||draft!==null} onclear={()=>selected=[]}>
+          {#snippet actions()}<button class="hail-button-secondary" disabled={busy||prepared!==null||recoveryNeeded||draft!==null} onclick={()=>run(removeSelected)}>{selectedConnections.length===1?'Remove connection':'Remove connections'}</button>{/snippet}
+        </SelectionActions>
+      {/if}
+      {#each list.connections as connection (connection.id)}
+        <article class="hail-card grid min-w-0 gap-3 p-5" class:is-selected={selected.includes(connection.id)}>
+          <div class="flex min-w-0 items-center gap-3"><SelectionAvatar name={connection.address} avatar={avatars[connection.did]} selected={selected.includes(connection.id)} disabled={busy||prepared!==null||recoveryNeeded||draft!==null} label={`Select connection with ${connection.address}`} ontoggle={()=>toggle(connection.id)} /><strong class="min-w-0 [overflow-wrap:anywhere]">{connection.address}</strong></div>
+          <code class="text-xs [overflow-wrap:anywhere]">{connection.did}</code>
+        </article>
+      {/each}
     </section>
     {#if list.pendingConnections?.length}<section class="grid gap-3" aria-label="Connection synchronization"><h3 class="m-0 text-xl">Synchronizing with other providers</h3>{#each list.pendingConnections as pending}<article class="hail-card grid min-w-0 gap-2 p-5"><strong class="[overflow-wrap:anywhere]">{pending.address}</strong><p class="m-0 text-sm text-muted">{pending.state==="expired"?"This connection attempt expired. Open a current code to review and try again.":pending.state==="conflict"?"This attempt could not be confirmed because the reviewed identity or relationship changed. Review a current code before trying again.":pending.kind==="disconnect"?"Disconnected here. Notifying the other provider; automatic retries continue if it is offline.":pending.state==="active"?"Connected here. Updating the other provider's view; automatic retries continue if it is offline.":"Your connection approval is saved. Awaiting verified confirmation from both providers; no additional acceptance is needed."}</p></article>{/each}</section>{/if}
   </section>
 {:else if message}<section class="mt-8 grid gap-4" aria-label="Connection codes unavailable"><p class="hail-error" role="status">{message}</p><button class="hail-button-secondary justify-self-start" disabled={busy} onclick={()=>run(initialize)}>Retry loading connection codes</button></section>{:else}<p class="text-sm text-muted" role="status">Loading connections…</p>{/if}
+
+<style>
+  .is-selected { border-color:var(--color-brand); }
+  @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
+</style>

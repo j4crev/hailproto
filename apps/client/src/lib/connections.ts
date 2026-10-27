@@ -7,7 +7,7 @@ export interface ConnectCode {id:string;did:string;token:string;}
 export interface ConnectReview {id:string;did:string;address:string;expiresAt:number|null;preview:true;admissionSupported?:boolean;provider?:string;}
 export interface ConnectApproval {requestId:string;action:string;review:Record<string,any>;expiresAt:string;
   ownerSigning?:{type:"hailp.connection-signing";version:1;provider:string;requestId:string;expiresAt:string;payload:Record<string,unknown>}|null;
-  result:{connectionId?:string|null;invitationId?:string;state?:string;revoked?:boolean;attemptId?:string;propagation?:string}|null;
+  result:{connectionIds?:string[];connectionId?:string|null;invitationId?:string;state?:string;revoked?:boolean;attemptId?:string;propagation?:string}|null;
   options:Parameters<typeof startAuthentication>[0]["optionsJSON"]|null;}
 export interface ConnectionList {preview:true;codes:{id:string;personal:boolean;label:string;expiresAt:number|null;link:string}[];
   connections:{id:string;did:string;address:string;connectedAt:string;remote?:boolean}[];
@@ -45,10 +45,17 @@ export function connectionHomeLink(origin:string,code:ConnectCode){
   return origin+"/connect#"+new URLSearchParams({...code});
 }
 export function connectApproval(value:any):ConnectApproval {
-  if(!value||!UUID.test(value.requestId)||!["create","replace","revoke","connect","disconnect"].includes(value.action)||
+  if(!value||!UUID.test(value.requestId)||!["create","replace","revoke","connect","disconnect","disconnect-batch"].includes(value.action)||
     !Number.isFinite(Date.parse(value.expiresAt))||!value.review||typeof value.review!=="object"||Array.isArray(value.review)||
     value.result!==null&&(!value.result||typeof value.result!=="object")||!value.result&&!value.options&&Date.parse(value.expiresAt)>Date.now())
     throw new Error("The provider returned an invalid connection review.");
+  if(value.action==="disconnect-batch"){
+    const items=value.review.connections;
+    if(!Array.isArray(items)||!items.length||items.length>100||items.some((item:any)=>!item||!UUID.test(item.connectionId)||!DID.test(item.did)||typeof item.address!=="string"||item.address.length>254)||
+      new Set(items.map((item:any)=>item.connectionId)).size!==items.length||value.ownerSigning||
+      value.result&&(!Array.isArray(value.result.connectionIds)||value.result.state!=="disconnected"||value.result.connectionIds.length!==items.length||value.result.connectionIds.some((id:any,index:number)=>id!==items[index].connectionId)))
+      throw new Error("The provider returned an invalid connection removal review.");
+  }
   const owner=value.ownerSigning;
   if(owner!==undefined&&owner!==null&&(owner.type!=="hailp.connection-signing"||owner.version!==1||owner.requestId!==value.requestId||
     owner.expiresAt!==value.expiresAt||typeof owner.provider!=="string"||!owner.payload||

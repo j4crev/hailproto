@@ -1,7 +1,7 @@
 import {createHash,generateKeyPairSync,randomBytes,randomUUID,sign} from "node:crypto";
 import {SQL} from "bun";
 import {Hono} from "hono";
-import {expect,it} from "vitest";
+import {expect,it,vi} from "vitest";
 import {P256Keypair} from "@atproto/crypto";
 import {createWebCryptoSigner,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,signPayload,createWebCryptoVerifier,verifySignedPayload} from "@hailproto/codec";
 import {ProviderDatabase} from "../src/db/database.js";
@@ -212,12 +212,41 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     const redirect=new RemoteConnectionReview(db.sql,resolver,async()=>new Response(null,{status:302,headers:{Location:"https://evil.example"}}),()=>{},"https://destination.example.com/hail");
     await expect(redirect.review(currentOwnerScan)).rejects.toThrow("supported connection response");
     const ownerRollback=await db.sql.reserve();try{await expect(ownerRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text())).rejects.toThrow("Retained owner connection consent");}finally{await ownerRollback.unsafe("ROLLBACK");ownerRollback.release();}
+    // Batch removal is one exact passkey action and locally all-or-nothing.
+    const third=await service.prepare(e.session,{requestId:randomUUID(),action:"connect",...scan(bobCode.link)});
+    await service.commit(e.session,third.requestId,e.assertion(third.options!.challenge));await drain();
+    const batchConnections=(await service.list(b.session)).connections;
+    expect(batchConnections).toHaveLength(3);
+    const batchInput={requestId:randomUUID(),action:"disconnect",connectionIds:batchConnections.map(c=>c.id)};
+    const batch=await service.prepare(b.session,batchInput);
+    expect(batch.action).toBe("disconnect-batch");
+    expect(await service.prepare(b.session,batchInput)).toEqual(batch);
+    await expect(service.prepare(b.session,{...batchInput,connectionIds:batchInput.connectionIds.slice(0,1)})).rejects.toMatchObject({status:409});
+    await expect(service.prepare(b.session,{...batchInput,requestId:randomUUID(),connectionIds:[batchInput.connectionIds[0],batchInput.connectionIds[0]]})).rejects.toMatchObject({status:400});
+    await expect(service.status(a.session,batch.requestId)).rejects.toMatchObject({status:404});
+    await expect(service.commit(b.session,batch.requestId)).rejects.toMatchObject({status:403});
+    await expect(service.commit(b.session,batch.requestId,b.assertion(disconnect.options!.challenge))).rejects.toMatchObject({status:401});
+    const items=batch.review.connections as {connectionId:string;pairId:string}[];
+    const last=[...items].sort((a,b)=>a.pairId.localeCompare(b.pairId)).at(-1)!;
+    const separate=await service.prepare(b.session,{requestId:randomUUID(),action:"disconnect",connectionId:last.connectionId});
+    await service.commit(b.session,separate.requestId,b.assertion(separate.options!.challenge));
+    await expect(service.commit(b.session,batch.requestId,b.assertion(batch.options!.challenge))).rejects.toMatchObject({status:409});
+    const remaining=(await service.list(b.session)).connections;
+    expect(remaining).toHaveLength(2); // Earlier members rolled back with the conflict.
+    const retry=await service.prepare(b.session,{requestId:randomUUID(),action:"disconnect",connectionIds:remaining.map(c=>c.id)});
+    const verify=vi.spyOn(passkeys,"approveAction");
+    const removed=await service.commit(b.session,retry.requestId,b.assertion(retry.options!.challenge));
+    expect(verify).toHaveBeenCalledTimes(1);verify.mockRestore();
+    expect(removed.result).toMatchObject({connectionIds:remaining.map(c=>c.id),state:"disconnected"});
+    expect((await service.commit(b.session,retry.requestId)).result).toEqual(removed.result);
+    expect((await service.list(b.session)).connections).toHaveLength(0);
+    await drain();
     const expiringSoon=await create(e,false,Math.floor(Date.now()/1000)+3);
     const late=await service.prepare(a.session,{requestId:randomUUID(),action:"connect",...scan(expiringSoon.link)});
     await Bun.sleep(3100);
     await expect(service.review(a.session,scan(expiringSoon.link))).rejects.toMatchObject({status:410});
     await expect(service.commit(a.session,late.requestId,a.assertion(late.options!.challenge))).rejects.toMatchObject({status:410});
-    expect((await service.list(a.session)).connections).toHaveLength(1);
+    expect((await service.list(a.session)).connections).toHaveLength(0);
     const secret=await encryptor.encryptConnectionToken(a.id,personal.id,new Uint8Array(32));
     await expect(encryptor.decryptConnectionToken(b.id,personal.id,secret)).rejects.toThrow();
     await expect(encryptor.decryptConnectionToken(a.id,next.id,secret)).rejects.toThrow();
