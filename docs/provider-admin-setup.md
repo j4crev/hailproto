@@ -383,3 +383,32 @@ changes require a new explicit grant.
 | `$DID` / `$GENESIS_CID` are unset | Step 5b explicitly reads lowercase `did` / `genesis_cid` from the public metadata file on the monitor host |
 | Unsure what to copy back | Download the JSON produced in step 5c, not the reviewed checkpoint or console error output |
 | Login works but `/admin` returns 403 | Complete the provider-local operator grant in step 8 |
+
+## Provider statistics
+
+The `/admin` dashboard also exposes operator-only statistics through
+`GET /api/v1/operator/stats?range=day|week|month`. It uses the same passkey
+session, origin check, serving-generation authorization, and rate limit as
+invitations. Bearer API credentials do not grant access. No schema migration
+or charting dependency is required.
+
+- Total users counts accounts whose onboarding state is `active`; other
+  accounts are shown separately as onboarding.
+- Sent counts recorded outbound envelopes. Received counts accepted inbound
+  envelopes, excluding unauthorized and expired submissions. These counts do
+  not imply successful delivery. Retries of an existing envelope do not add a
+  new record.
+- Delivery success is confirmed outbound `delivered` divided by `delivered +
+  failed + cancelled`. Messages without a terminal status are shown separately
+  and excluded from the percentage. With no terminal outcomes, the dashboard
+  displays a dash instead of a misleading zero percent.
+- Activity shows 24 hourly, 7 daily, or 30 daily UTC buckets, including the
+  current partial bucket. Missing periods are filled with zeros. Outbound
+  activity uses envelope creation time; inbound activity uses acceptance time.
+  A local message contributes to both directions.
+
+These are aggregates of retained database records, including migrated history,
+not durable lifetime traffic counters. Refresh the dashboard to update its
+snapshot. Totals currently require scans of retained records; consider cached
+rollups if provider volume makes dashboard queries expensive. Temporary stats
+errors leave invitations available.

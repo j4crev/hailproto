@@ -1,3 +1,4 @@
+import {OperatorStatistics} from "./operator/stats.js";
 import {registerOperatorRoutes} from "./operator/routes.js";
 import {OperatorInvitations} from "./operator/invitations.js";
 import { Hono } from "hono";
@@ -131,7 +132,7 @@ export function createApp(
     if(dependencies.passkeys)registerPasskeyRoutes(app,dependencies.passkeys,accounts);
     if(dependencies.passkeys&&dependencies.signup&&dependencies.signupEmail&&config.alphaSignup)
       registerOperatorRoutes(app,accounts,new OperatorInvitations(dependencies.signupEmail.sql,config.publicOrigin,
-        dependencies.passkeys.origin,config.alphaSignup.invitationKey,dependencies.signupEmail.client),dependencies.passkeys.origin);
+        dependencies.passkeys.origin,config.alphaSignup.invitationKey,dependencies.signupEmail.client),dependencies.passkeys.origin,new OperatorStatistics(dependencies.signupEmail.sql));
     if(dependencies.passkeys&&dependencies.servingSql)registerPermissionRoutes(app,
       new GrantPermissions(dependencies.servingSql,accounts,grants,service,dependencies.passkeys,config.publicOrigin),accounts,dependencies.passkeys.origin);
   }

@@ -1,3 +1,4 @@
+import type {OperatorStats} from "../../../../server/src/operator/stats.js";
 import {error} from "@sveltejs/kit";
 import {canaryAccount} from "$lib/server/canary.js";
 import {AccountApiError} from "../../../../cli/src/account-api.js";
@@ -8,7 +9,12 @@ export async function load({cookies,url}){
   try{
     const result=await client.request("/invitations",undefined,"/api/v1/operator");
     if(!Array.isArray(result.invitations))error(502,"Invalid invitation list");
-    return {account,invitations:result.invitations as Invitation[]};
+    const requested=url.searchParams.get("range")??"day";
+    const range=["day","week","month"].includes(requested)?requested:"day";
+    let stats:OperatorStats|null=null;
+    try{stats=await client.request(`/stats?range=${range}`,undefined,"/api/v1/operator") as OperatorStats;}
+    catch(cause){if(!(cause instanceof AccountApiError)||![429,503].includes(cause.status))throw cause;}
+    return {account,invitations:result.invitations as Invitation[],stats,range};
   }catch(cause){
     if(cause instanceof AccountApiError){
       if(cause.status===403)error(403,"This account does not have provider operator access.");

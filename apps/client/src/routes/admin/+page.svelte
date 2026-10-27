@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ProviderStats from "$lib/ProviderStats.svelte";
   import {invalidateAll} from "$app/navigation";
   let {data}=$props();
   let email=$state(""),busy=$state(false),message=$state(""),inviteUrl=$state(""),copied=$state(false);
@@ -24,9 +25,10 @@
   }
   async function copy(){try{await navigator.clipboard.writeText(inviteUrl);copied=true;}catch{message="Select and copy the link below.";}}
 </script>
-<svelte:head><title>Provider invitations · Hail</title><meta name="referrer" content="no-referrer" /></svelte:head>
+<svelte:head><title>Provider administration · Hail</title><meta name="referrer" content="no-referrer" /></svelte:head>
 <div class="dashboard">
-  <header class="page-heading"><p class="hail-eyebrow">Provider administration</p><h1 class="hail-title">Invite someone to Hail</h1><p>Manage signup invitations for {data.account.provider}.</p></header>
+  <header class="page-heading"><p class="hail-eyebrow">Provider administration</p><h1 class="hail-title">Your Hail server</h1><p>Activity and signup invitations for {data.account.provider}.</p></header>
+  <ProviderStats stats={data.stats} range={data.range} />
   <section class="hail-card panel" aria-labelledby="new-invitation">
     <h2 id="new-invitation">New invitation</h2>
     <p>Invitations are single-use and expire after seven days. They allow signup, not access to an existing account.</p>
