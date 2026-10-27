@@ -119,6 +119,8 @@ try {
       const until=values["reply-until"]===undefined?undefined:Number(values["reply-until"]);
       result=await sendMessage(client,values.file!,values.state!,group==="send"?values.grant:undefined,values.category?.[0],group==="reply"?command:undefined,until);
     }
+    else if((group==="inbox"||group==="message")&&command==="delete")result=
+      await client.request(`/inbox/${encodeURIComponent(argument!)}/${encodeURIComponent(positionals[3]!)}/permanent-delete`,{});
     else if(group==="inbox")result=command==="list"?await listPages(client,"inbox",values.after,pages):
       await client.request(`/inbox/${encodeURIComponent(argument!)}/${encodeURIComponent(positionals[3]!)}`);
     else if(group==="message")result=command==="status"?await waitForStatus(client,argument!,wait,interval):

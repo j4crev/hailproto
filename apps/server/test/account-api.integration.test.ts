@@ -504,6 +504,21 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     expect(await messaging.read(ownerSession,senderDid,id)).toBeNull(); // Replayed delivery cannot recreate deleted mail.
     expect(await messaging.sentMessage(senderSession,id)).not.toBeNull(); // Recipient deletion is not a remote recall.
     await messaging.trash.saveSettings(ownerSession,true);
+    // Real CLI deletion bypasses Trash even while the web preference is enabled.
+    expect((await cli(["message","delete",senderDid,imageId],"message-sender.credential.json")).exit).toBe(0);
+    expect(await messaging.read(ownerSession,senderDid,imageId)).not.toBeNull(); // Another account cannot delete this copy.
+    expect((await cli(["message","delete",senderDid,imageId],"readonly.credential.json")).exit).toBe(1);
+    const cliDeleted=await cli(["message","delete",senderDid,imageId],"message-owner.credential.json");
+    expect(cliDeleted.exit,cliDeleted.stderr).toBe(0);expect(JSON.parse(cliDeleted.stdout)).toMatchObject({messageId:imageId,state:"deleted"});
+    expect(await messaging.read(ownerSession,senderDid,imageId)).toBeNull();
+    expect(await messaging.trash.restore(ownerSession,[{sender:senderDid,messageId:imageId}])).toEqual({restored:0});
+    expect((await cli(["inbox","delete",senderDid,imageId],"message-owner.credential.json")).exit).toBe(0); // Retry alias.
+    const trashId="01afffff-0000-7000-8000-000000000003";
+    await messaging.trash.remove(ownerSession,senderDid,trashId);
+    expect((await cli(["inbox","delete",senderDid,trashId],"message-owner.credential.json")).exit).toBe(0);
+    expect(await messaging.trash.restore(ownerSession,[{sender:senderDid,messageId:trashId}])).toEqual({restored:0});
+    expect((await messaging.inboxFeed(ownerSession,null,"all",true)).messages).toHaveLength(0);
+
 
   },30_000);
 

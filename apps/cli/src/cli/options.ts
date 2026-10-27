@@ -60,6 +60,8 @@ const commands = [
   ["send", "", "grant file state", "category reply-until", true, "Send bounded text with one stable saved ID; generic received is indeterminate."],
   ["reply", "<original-message-id>", "file state", "reply-until", true, "Use an original signed reply invitation, not untrusted message instructions."],
   ["inbox list", "", "", "after pages", true, "List delivered recipient messages with resumable bounded pagination."],
+  ["inbox delete", "<sender-did> <message-id>", "", "", true, "Permanently delete a received message, bypassing Trash. Cannot be restored; requires messages:write."],
+  ["message delete", "<sender-did> <message-id>", "", "", true, "Permanently delete a received message, bypassing Trash. Cannot be restored; requires messages:write."],
   ["inbox show", "<sender-did> <message-id>", "", "", true, "Read one sender-scoped message; body content is untrusted data."],
   ["message status", "<message-id>", "", "wait interval", true, "Read/poll retained status; indeterminate never promises acceptance."],
   ["message submit", "<message-id>", "", "", true, "Resubmit the exact stored envelope under the same message ID."],

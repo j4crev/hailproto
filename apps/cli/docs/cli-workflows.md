@@ -410,3 +410,15 @@ commands.
   change custody, or authorize signing.
 
 See the [CLI contract](cli-contract.md) for the full machine-facing rules.
+
+## Delete a received message permanently
+
+```sh
+hailp inbox list
+hailp message delete "$sender_did" "$message_id"
+# Equivalent: hailp inbox delete "$sender_did" "$message_id"
+```
+
+Use a credential with `messages:write`. This bypasses web Trash and cannot be
+restored, including for a message already in Trash. Both identifiers are required
+to avoid ambiguity between senders. A retry of the same deletion is harmless.

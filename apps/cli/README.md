@@ -172,3 +172,12 @@ connection messages locally and durably retries notification to the other provid
 Repeating removal of the same connection is safe. Subscriptions and existing
 messages remain; reconnecting requires a new or replaced code. The web client's
 Connections page offers **Remove connection**, confirmed with your passkey.
+
+## Permanently delete a received message
+
+Use `hailp inbox list --credentials <file>` to find the sender DID and message ID,
+then run `hailp message delete <sender-did> <message-id> --credentials <file>`
+(or `hailp inbox delete` with the same arguments). Requires `messages:write`.
+Deletion is immediate and permanent, even when web Trash is enabled or the
+message is already in Trash. There is no restore command. Exact retries are safe.
+Only your received copy is deleted; other accounts' Sent messages are unaffected.

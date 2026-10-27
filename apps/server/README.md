@@ -943,3 +943,8 @@ POST `{ "messages": [{ "sender": "did:plc:…", "messageId": "…" }] }` to
 `/api/v1/account/trash/restore` (1–100 selections), or POST
 `{ "trashEnabled": false }` to `/api/v1/account/message-preferences`. Disabling
 Trash atomically purges it. See [client behavior and rollback](../client/README.md#trash-and-deletion).
+
+CLI/API credentials with `messages:write` may POST `{}` to
+`/api/v1/account/inbox/:sender/:messageId/permanent-delete`. This endpoint bypasses
+Trash and accepts bearer credentials, not browser passkey sessions. It deletes
+only the authenticated recipient's copy and is safe to retry after a lost response.

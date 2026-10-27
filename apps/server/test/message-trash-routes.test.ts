@@ -22,6 +22,7 @@ it('requires authenticated scoped same-origin web access for Trash mutations',as
   session.scopes=['messages:read'];expect((await post()).status).toBe(403);
   session.scopes=['messages:read','messages:write'];session.passkey_credential_id=null;
   expect((await post()).status).toBe(403);session.passkey_credential_id='passkey';
+  expect((await post(path.replace('/delete','/permanent-delete'))).status).toBe(403);
   expect(remove).not.toHaveBeenCalled();expect((await post()).status).toBe(200);expect(remove).toHaveBeenCalledTimes(1);
   expect((await post(path,{permanent:true})).status).toBe(400);
   expect((await post('/api/v1/account/message-preferences',{trashEnabled:false})).status).toBe(200);
@@ -29,4 +30,8 @@ it('requires authenticated scoped same-origin web access for Trash mutations',as
   expect((await post('/api/v1/account/trash/restore',{messages:[]})).status).toBe(200);
   expect(restore).toHaveBeenCalledWith(session,[]);
   expect((await app.request('/api/v1/account/trash?unknown=1',{headers})).status).toBe(400);
+  session.passkey_credential_id=null;
+  session.scopes=['messages:read'];expect((await post(path.replace('/delete','/permanent-delete'))).status).toBe(403);
+  session.scopes=['messages:write'];expect((await post(path.replace('/delete','/permanent-delete'))).status).toBe(200);
+  expect(remove.mock.calls.at(-1)?.at(-1)).toBe(true);
 });

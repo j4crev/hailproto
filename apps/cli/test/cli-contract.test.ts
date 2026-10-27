@@ -138,3 +138,12 @@ it("exposes authenticated connection list/removal with a required identifier",()
   expect(()=>parseCommand(["connection","remove"])).toThrow();
   expect(parseCommand(["connection","remove","--help"]).help).toContain("account:write");
 });
+
+it("makes CLI message deletion explicitly permanent and sender-scoped",()=>{
+  for(const group of ["inbox","message"]){
+    expect(parseCommand([group,"delete",sender,id]).authenticated).toBe(true);
+    expect(()=>parseCommand([group,"delete",id])).toThrow();
+    expect(()=>parseCommand([group,"delete",sender,id,"--restore"])).toThrow();
+    expect(parseCommand([group,"delete","--help"]).help).toContain("Cannot be restored");
+  }
+});
