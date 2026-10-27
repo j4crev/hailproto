@@ -35,14 +35,14 @@
   <p class="welcome-footer">Built on Hail, an open messaging protocol. Haili is currently an invitation-only alpha.</p>
 {:else}
   <header class="feed-heading">
-    <div><p class="hail-eyebrow">Your daily space</p><h1 class="hail-title">{data.view === 'connections' ? 'Messages' : 'Inbox'}</h1><p class="feed-description">{data.view === 'connections' ? 'A little closer to your people.' : 'The latest from the senders you choose.'}</p></div>
+    <div><p class="hail-eyebrow">Your daily space</p><h1 class="hail-title">{data.view === 'connections' ? 'Messages' : 'Inbox'}</h1><p class="feed-description">{data.view === 'connections' ? 'The latest from your connections' : 'The latest from your senders.'}</p></div>
     <a class="hail-button-secondary" href={data.view === 'connections' ? '/compose?audience=connections' : '/permissions'}><Icon name={data.view === 'connections' ? 'plus' : 'people'} size={18} />{data.view === 'connections' ? 'New message' : 'Manage subscriptions'}</a>
   </header>
   <div class="feed-layout"><div class="min-w-0">
   <section class="grid gap-5" aria-label="Messages">
 
     {#if data.messages.length === 0}
-      <div class="hail-card flex flex-col items-center gap-3 px-6 py-16 text-center"><span class="empty-symbol" aria-hidden="true"><Icon name={data.view === 'connections' ? 'chat' : 'feed'} size={30} /></span><h2 class="m-0 text-xl tracking-tight">No messages yet</h2><p class="m-0 max-w-sm text-sm text-muted">{data.view==='connections'?'Your people, your conversations. Start with a hello.':'A little quiet is a good start. Allow a sender to bring the updates you care about here.'}</p>{#if data.view !== 'connections'}<a class="hail-button-secondary mt-2" href="/permissions">Find your first sender <span aria-hidden="true">→</span></a>{/if}</div>
+      <div class="hail-card flex flex-col items-center gap-3 px-6 py-16 text-center"><span class="empty-symbol" aria-hidden="true"><Icon name={data.view === 'connections' ? 'chat' : 'feed'} size={30} /></span><h2 class="m-0 text-xl tracking-tight">No messages yet</h2><p class="m-0 max-w-sm text-sm text-muted">{data.view==='connections'?'Reach out and say "hello".':'All quiet here.'}</p>{#if data.view !== 'connections'}<a class="hail-button-secondary mt-2" href="/permissions">Find your first sender <span aria-hidden="true">→</span></a>{/if}</div>
     {:else}
       {#each data.messages as message}
         <a class="hail-card flex min-w-0 flex-col overflow-hidden no-underline transition-[border-color,box-shadow] duration-150 hover:border-brand hover:shadow-md" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
