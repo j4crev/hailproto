@@ -38,37 +38,13 @@ it.skipIf(!process.env.DATABASE_URL)("fresh public reads bind exact accepted env
         ${recipient.identity.didKey},'{}','{}','[]')`;
     const fingerprint=async()=>Promise.all(["provider_accounts","grant_lineages","grant_revisions","account_serving_generations"].map(async table=>
       JSON.stringify(await db.sql.unsafe(`SELECT to_jsonb(t) AS value FROM ${table} t ORDER BY to_jsonb(t)::text`))));
-    const before=await fingerprint(),migrationConnection=await db.sql.reserve();
-    try{
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0058_signup_ceremonies.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0057_alpha_monitoring.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0056_browser_authorization.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0055_passkey_recovery.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0054_passkey_sessions.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0053_spt3_profile.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0052_spt2_profile.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0051_did_monitor_coverage.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0050_managed_profile_version.sql",import.meta.url)).text());
-      if((await migrationConnection`SELECT version FROM schema_migrations WHERE version=49`).length)
-        await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0049_managed_migration_materialization.sql",import.meta.url)).text());
-      if((await migrationConnection`SELECT version FROM schema_migrations WHERE version=48`).length)
-        await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0048_managed_migration_approval.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0047_managed_provider_migration.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0046_reverse_custody_transition.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0045_same_provider_custody_transition.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0044_public_onboarding.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0043_public_signing_authority.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0042_public_grant_authority.sql",import.meta.url)).text());
-      await migrationConnection.unsafe(await Bun.file(new URL("../migrations/rollback/0041_public_plc_authority.sql",import.meta.url)).text());
-    }
-    finally{await migrationConnection.unsafe("ROLLBACK");migrationConnection.release();}
+    const before=await fingerprint();
+    // Exercise the current storage transition. The old hardcoded rollback ladder
+    // started at migration 65 and is now correctly refused by later schemas.
+    await db.sql.begin(async tx=>{
+      const rollback=await Bun.file(new URL("../migrations/rollback/0080_shared_plc_evidence.sql",import.meta.url)).text();
+      await tx.unsafe(rollback.replace(/^BEGIN;$/m,"").replace(/^COMMIT;$/m,""));
+    });
     expect(await fingerprint()).toEqual(before);await db.migrate();await db.migrate();expect(await fingerprint()).toEqual(before);
     expect(await db.sql`SELECT evidence_digest FROM public_plc_resolution_evidence`).toHaveLength(0);
     expect(await db.sql`SELECT message_id FROM public_envelope_authority_evidence`).toHaveLength(0);
@@ -85,7 +61,7 @@ it.skipIf(!process.env.DATABASE_URL)("fresh public reads bind exact accepted env
     expect(links.map(row=>row.authority_did).sort()).toEqual([sender.did,recipient.did].sort());
     for(const link of links){
       expect(new Uint8Array(link.representation_digest)).toEqual(evidenceHash(bytes));
-      const retained=(await db.sql<{bundle_bytes:Uint8Array}[]>`SELECT bundle_bytes FROM public_plc_resolution_evidence WHERE evidence_digest=${link.evidence_digest}`)[0]!.bundle_bytes;
+      const retained=(await db.sql<{bundle_bytes:Uint8Array}[]>`SELECT bundle_bytes FROM public_plc_resolution_contents WHERE evidence_digest=${link.evidence_digest}`)[0]!.bundle_bytes;
       expect(evidenceHash(retained)).toEqual(new Uint8Array(link.evidence_digest));
       expect((decodeDeterministic(retained,PUBLIC_EVIDENCE_LIMITS) as Record<string,any>).witnesses).toHaveLength(1);
     }

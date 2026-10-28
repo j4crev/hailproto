@@ -234,7 +234,7 @@ export async function reconstructConnections(sql:SQL,manifest:Manifest,generatio
     const inserted=await sql.unsafe(`INSERT INTO "${table}" SELECT * FROM jsonb_populate_record(NULL::"${table}",($1::text)::jsonb) ON CONFLICT DO NOTHING RETURNING 1`,[JSON.stringify(row)]);
     if(inserted.length)return;
     const primary=keys[table];if(!primary)throw new Error('Unknown reconstruction table');
-    const prior=(await sql.unsafe<{row:Row}[]>(`SELECT to_jsonb(t) AS row FROM "${table}" t WHERE ${primary.map((key,index)=>`to_jsonb(t)->'${key}'=(($${index+1}::text)::jsonb)`).join(' AND ')}`,
+    const prior=(await sql.unsafe<{row:Row}[]>(`SELECT to_jsonb(t) AS row FROM "${table==='public_plc_resolution_evidence'?'public_plc_resolution_contents':table}" t WHERE ${primary.map((key,index)=>`to_jsonb(t)->'${key}'=(($${index+1}::text)::jsonb)`).join(' AND ')}`,
       primary.map(key=>JSON.stringify(row[key]))))[0]?.row;
     if(!prior||Object.keys(row).some(key=>!isDeepStrictEqual(normalized(key,row[key]),normalized(key,prior[key]))))throw new Error('Reconstruction conflicts with retained '+table+' bytes or ownership');
   };

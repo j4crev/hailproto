@@ -634,7 +634,7 @@ export class MigrationTransferService {
       WHERE local_account_id = ${accountId} ORDER BY grant_id, revision, purpose`);
     const signingAuthority = await collect(tx`SELECT to_jsonb(t) AS row FROM public_signing_authority_evidence t
       WHERE local_account_id = ${accountId} ORDER BY action_type, representation_digest`);
-    const resolutionAuthority = await collect(tx`SELECT to_jsonb(t) AS row FROM public_plc_resolution_evidence t
+    const resolutionAuthority = await collect(tx`SELECT to_jsonb(t) AS row FROM public_plc_resolution_contents t
       WHERE evidence_digest IN (
         SELECT evidence_digest FROM public_envelope_authority_evidence WHERE local_account_id = ${accountId}
         UNION SELECT evidence_digest FROM public_grant_authority_evidence WHERE local_account_id = ${accountId}

@@ -6,11 +6,17 @@ import { VerifiedPublicPlcResolver } from "../src/plc/public-resolver.js";
 import { publicPlcFixture,publicPlcReaders } from "./public-plc-fixture.js";
 
 function recordingSql(){
-  let retained:Uint8Array|undefined;
-  const query=async(strings:TemplateStringsArray,...values:unknown[])=>{
+  let retained:Record<string,any>|undefined,payload:Uint8Array|undefined;
+  const query=async(strings:TemplateStringsArray,...values:any[])=>{
     const query=strings.join(" ");
-    if(query.includes("INSERT INTO public_plc_resolution_evidence")){retained=values[4] as Uint8Array;return [];}
-    if(query.includes("SELECT bundle_bytes"))return retained?[{bundle_bytes:retained}]:[];
+    if(query.includes("INSERT INTO public_plc_shared_evidence")){payload=values[1];return [];}
+    if(query.includes("SELECT payload_bytes"))return [{payload_bytes:payload}];
+    if(query.includes("INSERT INTO public_plc_resolution_evidence")){
+      retained={evidence_digest:values[0],did:values[1],operation_cid:values[2],verified_at:values[3],
+        record_version:values[4],read_evidence_policy_version:values[5],
+        bundle_bytes:Buffer.concat([values[7],payload!,values[8]])};return [];
+    }
+    if(query.includes("FROM public_plc_resolution_contents"))return retained?[retained]:[];
     return [];
   };
   const tx=query as unknown as SQL;

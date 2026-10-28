@@ -1,3 +1,4 @@
+import { storePublicResolution } from "./evidence-storage.js";
 import { isDeepStrictEqual } from "node:util";
 import { encode as encodeDagCbor } from "@ipld/dag-cbor";
 import { decodeDeterministic, encodeBase64Url, type HailValue } from "@hailproto/codec";
@@ -57,7 +58,7 @@ export class VerifiedPublicPlcResolver implements HailDidResolver {
   async resolve(did: string): Promise<ResolvedHailDid> {
     if (!/^did:plc:[a-z2-7]{24}$/.test(did)) throw new Error("DID is not canonical did:plc");
     const signal=AbortSignal.timeout(this.timeoutMs),deadline=Date.now()+this.timeoutMs,started=this.now(),failures:unknown[]=[];
-    const previous=(await withAbort(this.sql<{bundle_bytes:Uint8Array}[]>`SELECT bundle_bytes FROM public_plc_resolution_evidence
+    const previous=(await withAbort(this.sql<{bundle_bytes:Uint8Array}[]>`SELECT bundle_bytes FROM public_plc_resolution_contents
       WHERE did=${did} ORDER BY verified_at DESC LIMIT 1`,signal))[0];
     let selected:{reader:IndependentPlcObserver;resolved:ResolvedHailDid;checked:Awaited<ReturnType<typeof validatePlcAudit>>}|undefined;
     for(const [index,reader] of this.readers.entries()){
@@ -97,15 +98,11 @@ export class VerifiedPublicPlcResolver implements HailDidResolver {
     await withAbort(this.sql.begin(async tx=>{
       signal.throwIfAborted();
       await tx`SELECT pg_advisory_xact_lock(hashtextextended(${did},0))`;
-      const lockedPrevious=(await tx<{bundle_bytes:Uint8Array}[]>`SELECT bundle_bytes FROM public_plc_resolution_evidence
+      const lockedPrevious=(await tx<{bundle_bytes:Uint8Array}[]>`SELECT bundle_bytes FROM public_plc_resolution_contents
         WHERE did=${did} ORDER BY verified_at DESC LIMIT 1`)[0];
       if(lockedPrevious)assertNoHistoryRegression(lockedPrevious.bundle_bytes,checked.audit);
-      await tx`INSERT INTO public_plc_resolution_evidence
-        (evidence_digest,did,operation_cid,verified_at,bundle_bytes,record_version,read_evidence_policy_version)
-        VALUES(${digest},${did},${checked.operationCid},${verifiedAt},${bytes},1,${PLC_READ_EVIDENCE_POLICY_VERSION})
-        ON CONFLICT(evidence_digest) DO NOTHING`;
-      const retained=(await tx<{bundle_bytes:Uint8Array}[]>`SELECT bundle_bytes FROM public_plc_resolution_evidence WHERE evidence_digest=${digest}`)[0];
-      if(!retained||!Buffer.from(retained.bundle_bytes).equals(Buffer.from(bytes)))throw new Error("Retained public PLC resolution conflicts");
+      await storePublicResolution(tx as SQL, {evidence_digest:digest,did,operation_cid:checked.operationCid,
+        verified_at:verifiedAt,bundle_bytes:bytes,record_version:1,read_evidence_policy_version:PLC_READ_EVIDENCE_POLICY_VERSION});
       signal.throwIfAborted();
     }),signal);
     return {...resolved,evidence:{...resolved.evidence,verification:{profile:"strict-public-v1",digest:encodeBase64Url(digest),

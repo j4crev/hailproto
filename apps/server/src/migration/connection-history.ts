@@ -259,7 +259,7 @@ export async function collectConnectionHistory(tx:SQL,owner:ConnectionHistoryOwn
   for(const digest of [...new Set(evidenceRows(tables).map(authorityDigest).filter(v=>v!==undefined))].sort()){
     if(retainedAuthority.has(digest)){tables.public_plc_resolution_evidence.push(retainedAuthority.get(digest)!);continue;}
     const rows=await tx<{row:Row}[]>`SELECT jsonb_build_object('evidence_digest',evidence_digest,'did',did,'operation_cid',operation_cid,
-      'verified_at',verified_at,'bundle_bytes',bundle_bytes) AS row FROM public_plc_resolution_evidence WHERE evidence_digest=${bytes(digest,32)}`;
+      'verified_at',verified_at,'bundle_bytes',bundle_bytes) AS row FROM public_plc_resolution_contents WHERE evidence_digest=${bytes(digest,32)}`;
     if(!rows[0])return fail("lost historical public authority evidence");tables.public_plc_resolution_evidence.push(rows[0].row);
   }
   const history:ConnectionHistory={type:"hail.connection-history",version:3,...owner,capturedAt,sharePolicy:"invalidate-at-cutover",tables};

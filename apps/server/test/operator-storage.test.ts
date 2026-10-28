@@ -7,7 +7,7 @@ it.each([
   ['connection_message_targets','delivery'],['received_envelopes','delivery'],['sent_delivery_status','delivery'],
   ['account_passkeys','accounts'],['provider_operators','accounts'],['public_onboarding_drafts','accounts'],
   ['account_grant_approvals','connections'],['federated_connection_events','connections'],
-  ['public_envelope_authority_evidence','evidence'],['connection_proof_signatures','evidence'],
+  ['public_plc_shared_evidence','evidence'],['public_envelope_authority_evidence','evidence'],['connection_proof_signatures','evidence'],
   ['provider_migration_exports','migration'],['pending_migration_imports','migration'],
   ['connection_history_archives','migration'],['connection_transfer_commands','migration'],
   ['unrecognized_future_table','other'],

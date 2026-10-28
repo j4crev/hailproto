@@ -14,7 +14,7 @@ export async function requireFreshPublicAuthority(sql:SQL,evidence:PlcResolution
   assertPublicAuthorityFresh(evidence,now);
   const digest=decodeBase64Url(ref.digest,32);
   const row=(await sql<{did:string;operation_cid:string;verified_at:Date;bundle_bytes:Uint8Array}[]>`
-    SELECT did,operation_cid,verified_at,bundle_bytes FROM public_plc_resolution_evidence WHERE evidence_digest=${digest}`)[0];
+    SELECT did,operation_cid,verified_at,bundle_bytes FROM public_plc_resolution_contents WHERE evidence_digest=${digest}`)[0];
   if(!row||row.did!==expected.did||row.operation_cid!==ref.operationCid||row.verified_at.toISOString()!==ref.verifiedAt||
     !Buffer.from(evidenceHash(row.bundle_bytes)).equals(Buffer.from(digest)))throw new Error("Public authority evidence is missing or mismatched");
   const bundle=decodeDeterministic(row.bundle_bytes,PUBLIC_EVIDENCE_LIMITS) as Record<string,HailValue>,witnesses=bundle.witnesses as Record<string,any>[];

@@ -129,6 +129,32 @@ Prototype custodial onboarding and local/public activation tools refuse the
 strict profile rather than substituting for the missing owner/monitor ceremony.
 Selecting a read policy does not declare the whole deployment production-conforming.
 
+### Reference storage sharing and retention
+
+Migration 80 separates each routine resolution's exact encoded witness array from
+its per-observation prefix/suffix. The shared payload includes reader identity,
+document, full state/log/audit and canonical operation bytes. It is addressed by
+SHA-256 of those exact bytes, never by head CID alone: additional/nullified audit
+history can differ without changing the head. Read times, full bundle bytes and
+their original digests remain unchanged. This is a provider-local storage change;
+the `hail.public-plc-resolution` v1 record, frozen read policy, authority freshness
+rules and signed portable snapshot formats do not change.
+
+The `public_plc_resolution_contents` view reconstructs the exact original row
+shape for authority checks and exports. Database guards permit only byte-identical
+storage rewrites with unchanged observation metadata; historical evidence remains
+immutable. Shared payload updates/deletion and evidence deletion/truncation remain
+forbidden. Legacy full-byte imports remain readable and can be compacted later.
+
+There is no automatic observation TTL or garbage collection. A resolution absent
+from the four envelope/grant/signing/onboarding link tables may still be referenced
+by JSON authority or a signed snapshot, or needed as the latest anti-regression
+checkpoint. A future retention policy must enumerate all those roots, distinguish
+committed action history from incidental reads, and define retention deadlines and
+restoration guarantees before permitting deletion. Compaction preserves all of them.
+See [storage operations](../docs/verification-evidence-storage.md) for the coordinated
+upgrade, resumable compaction and lossless rollback procedure.
+
 ## Reviewed monitor bootstrap and coverage
 
 Enrollment pins the owner-reviewed DID, exact expected operation CID, **complete**
