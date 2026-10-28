@@ -12,16 +12,17 @@
   {#if storage}
     <dl>
       <div><dt>Total database</dt><dd>{bytes(storage.databaseBytes)}</dd></div>
-      <div><dt>Application data & indexes</dt><dd>{bytes(storage.applicationBytes)}</dd></div>
-      <div><dt>Application indexes</dt><dd>{bytes(storage.indexBytes)}</dd></div>
+      <div><dt>Hail storage</dt><dd>{bytes(storage.applicationBytes)}</dd></div>
+      <div><dt>Of which: lookup indexes</dt><dd>{bytes(storage.indexBytes)}</dd></div>
     </dl>
-    <div class="scroll"><table><thead><tr><th scope="col">Category</th><th scope="col">Data & storage overhead</th><th scope="col">Indexes</th><th scope="col">Total</th></tr></thead><tbody>
+    <p>Lookup indexes are extra structures that speed up database searches. They are already included in Hail storage and category totals.</p>
+    <div class="scroll"><table><thead><tr><th scope="col">Category</th><th scope="col">Data & storage overhead</th><th scope="col">Lookup indexes</th><th scope="col">Total</th></tr></thead><tbody>
       {#each storage.categories as category (category.id)}
         <tr><th scope="row">{category.label}</th><td>{bytes(category.tableBytes)}</td><td>{bytes(category.indexBytes)}</td><td>{bytes(category.totalBytes)}</td></tr>
       {/each}
     </tbody></table></div>
     <p>Other database storage: {bytes(storage.otherDatabaseBytes)} (approximately). Includes system catalogs and storage outside application tables.</p>
-    <p>Allocated space includes stored content, row overhead, and reusable space from deleted records. Indexes are included in category totals, not added again. Sizes may change during collection.</p>
+    <p>Allocated space includes stored content, row overhead, and reusable space from deleted records. Sizes may change during collection.</p>
     <p>Message bodies live in the database. Attachments are not supported yet; no separate attachment store is measured. Migration history may contain additional copies of messages.</p>
     <p>This is a current storage snapshot, independent of the activity period. Backups, PostgreSQL transaction logs, and host disk capacity are not included.</p>
   {:else}<p role="status">Storage statistics are temporarily unavailable.</p>{/if}
