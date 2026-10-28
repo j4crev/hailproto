@@ -7,6 +7,7 @@
 apps/server/src/cli/**
 !apps/server/src/cli/authorize-provider-role.ts
 !apps/server/src/cli/provider-operator.ts
+!apps/server/src/cli/compact-plc-evidence.ts
 !apps/server/migrations/**
 !apps/cli/package.json
 !apps/cli/src/**
