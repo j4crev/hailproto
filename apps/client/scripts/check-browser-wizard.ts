@@ -639,11 +639,10 @@ try{
   const previewContent=await rendered('[aria-label="Message preview"]');
   assert.deepEqual(previewContent,{headings:["Release notes","Highlights"],bullets:["First","Second"],numbered:["Number one","Number two"],quote:"A quote",images:0,text:true});
   await evaluate(`document.querySelector('form[enctype]').requestSubmit()`);
-  await wait(()=>has("Publication publishing"),"durable category publication accepted");assert.equal(composePosts,1);
-  assert(await has("2 subscribers in the saved audience"));
-  await click("Refresh status");await wait(()=>has("Publication finished"),"publication work is distinct from delivery status");
-  assert(await has("1 delivered"));assert(await has("1 indeterminate"));
-  await evaluate(`document.querySelector('[aria-label="Publication status"] a[href="/sent"]').click()`);
+  await wait(()=>has("Message sent."),"provider accepted category message before delivery");assert.equal(composePosts,1);
+  assert(!await has("Publication publishing"));assert(!await has("Recent publications"));
+  assert(!await has("Refresh status"));assert(!await has("saved audience"));
+  await cdp("Page.navigate",{url:origin+"/sent"});
   await wait(()=>has("Sent messages"),"publication links to per-message delivery details");
   await evaluate(`document.querySelector(${JSON.stringify(`a[href="/sent/${composed.messageId}"]`)}).click()`);
   await wait(async()=>evaluate(`location.pathname===${JSON.stringify(`/sent/${composed.messageId}`)} && !!document.querySelector('article h1')`),"sent rich-message reader");
@@ -736,7 +735,9 @@ try{
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Personal message to chosen connections';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);await click('Send →');
   await wait(()=>has('Message batch not confirmed'),'ambiguous connection acceptance retains the original intent');
   assert(await evaluate(`document.querySelector('textarea[name=text]').value==='Personal message to chosen connections'&&document.querySelectorAll('input[name="connection"]:checked').length===2`),'Connection retry must retain body and recipients');
-  await click('Send →');await wait(()=>has('Selected connections'),'connection batch queued');await click('Refresh status');await wait(()=>has('Message batch finished'),'connection outbox completion');
+  assert(!await has('Message sent.'),'Lost acceptance response must not show success');
+  await click('Send →');await wait(()=>has('Message sent.'),'provider accepted connection message before delivery');
+  assert(!await has('Message batch publishing'));assert(!await has('Recent messages'));assert(!await has('Refresh status'));
   assert.equal(connectionSent.length,2);assert.equal(composePosts,1);assert.deepEqual(allowed!.scope,[{type:'categories',values:['general']}]);
   connectionIncoming=true;
   await cdp('Page.navigate',{url:origin+'/?view=connections'});await wait(()=>has('A personal connection reply'),'connection message uses existing reader preview');

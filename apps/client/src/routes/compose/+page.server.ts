@@ -4,7 +4,7 @@ import { encodeBase64Url } from "@hailproto/codec";
 import { composeBlocks } from "$lib/compose.js";
 import { canaryAccount } from "$lib/server/canary.js";
 import { messageId } from "$lib/server/message-id.js";
-import {publicationAudiences,publicationStatus,recentPublications} from "$lib/publications.js";
+import {publicationAudiences,publicationStatus} from "$lib/publications.js";
 import {AccountApiError} from "../../../../cli/src/account-api.js";
 import {connectionMessageTargets} from "$lib/connections.js";
 
@@ -18,12 +18,13 @@ export async function load({url,cookies}) {
   const targets=kind==="connections"?connectionMessageTargets(await client.request("/connection-messages/targets")):{maxRecipients:100,connections:[]};
   const endpoint=kind==="connections"?"/connection-messages":"/publications";
   const id=url.searchParams.get("publication");if(id&&!UUID7.test(id))error(400,"Invalid publication ID");
+  // A validated provider record confirms durable acceptance, independently of recipient delivery.
   let status:ReturnType<typeof publicationStatus>|null=null;
   if(id){try{status=publicationStatus(await client.request(`${endpoint}/${id}`),kind);}
     catch(cause){if(cause instanceof AccountApiError&&cause.status===404)error(404,"Publication unavailable for this account");throw cause;}
     if(status.publicationId!==id)error(502,"Provider returned another publication");}
-  const recent=recentPublications(await client.request(endpoint),kind),preferred=url.searchParams.get("connection");
-  return {account,...audiences,connections:targets.connections,maxRecipients:kind==="connections"?targets.maxRecipients:audiences.maxRecipients,kind,status,recent,newPublicationId:messageId(),
+  const preferred=url.searchParams.get("connection");
+  return {account,...audiences,connections:targets.connections,maxRecipients:kind==="connections"?targets.maxRecipients:audiences.maxRecipients,kind,status,newPublicationId:messageId(),
     defaultConnection:targets.connections.some(t=>t.connectionId===preferred)?preferred:null,defaultCategory:audiences.categories.some(row=>row.category==="general")?"general":""};
 }
 

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { tick,untrack } from "svelte";
-  import { invalidateAll } from "$app/navigation";
   import {enhance} from "$app/forms";
   import { composeBlocks,formatLines } from "$lib/compose.js";
   import {parseBody} from "$lib/messages.js";
@@ -14,7 +13,6 @@
   let audience=$derived(data.categories.find(row=>row.category===category)?.subscribers??0);
   let canPublish=$derived(data.kind==="connections"?selected.length>0&&selected.length<=data.maxRecipients:audience>0&&audience<=data.maxRecipients);
   let retryPublication=$derived(form&&"publicationId" in form&&typeof form.publicationId==="string"?form.publicationId:null);
-  let refreshing=$state(false);
   const batchUrl=(id:string)=>`/compose?${data.kind==='connections'?'audience=connections&':''}publication=${id}`;
   let blocks=$derived(parseBody({version:1,profile:"spt-2",blocks:composeBlocks(title,text)}).blocks);
   function image(event:Event){if(preview)URL.revokeObjectURL(preview);const file=(event.currentTarget as HTMLInputElement).files?.[0];preview=file?URL.createObjectURL(file):null;}
@@ -33,21 +31,14 @@
     const formatted=formatLines(text,editor.selectionStart,editor.selectionEnd,prefix);
     text=formatted.text;await tick();editor.focus();editor.setSelectionRange(formatted.start,formatted.end);
   }
-  async function refreshStatus(){refreshing=true;try{await invalidateAll();}finally{refreshing=false;}}
 </script>
 
 <svelte:head><title>{data.kind==="connections"?"Send a message":"Send a hail"} · Haili</title></svelte:head>
 <header class="mb-8 grid gap-2"><p class="hail-eyebrow">{data.kind==="connections"?"Your connections":"Your subscribers"}</p><h1 class="hail-title">{data.kind==="connections"?"Send a message":"Send a hail"}</h1><p class="m-0 text-sm text-muted [overflow-wrap:anywhere]">From {data.account.address}</p><p class="m-0 text-xs text-muted">{data.kind==="connections"?"Each connection receives a separate, private message.":"Send to everyone subscribed to a category."}</p><nav class="mt-3 flex flex-wrap gap-2" aria-label="Compose audience"><a class={data.kind==='category'?'hail-button':'hail-button-secondary'} href="/compose" aria-current={data.kind==='category'?'page':undefined}>Subscribers</a><a class={data.kind==='connections'?'hail-button':'hail-button-secondary'} href="/compose?audience=connections" aria-current={data.kind==='connections'?'page':undefined}>Connections</a></nav></header>
-{#if data.status}
-  <section class="hail-card mb-5 grid gap-4 p-5" aria-label="Publication status"><div class="flex flex-wrap items-center justify-between gap-3"><div class="min-w-0"><strong>{data.kind==='connections'?'Message batch':'Publication'} {data.status.state}</strong><p class="m-0 mt-1 text-sm text-muted [overflow-wrap:anywhere]">{data.kind==='connections'?'Selected connections':data.status.category==='general'?'General':data.status.category} · {data.status.total} {data.kind==='connections'?'connection':'subscriber'}{data.status.total===1?'':'s'} in the saved audience</p></div><button class="hail-button-secondary" type="button" onclick={refreshStatus} disabled={refreshing}>{refreshing?'Refreshing…':'Refresh status'}</button></div>
-    <dl class="m-0 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">{#each Object.entries(data.status.counts) as [name,count]}<div class="rounded-xl bg-canvas p-3"><dt class="capitalize text-muted">{name==='indeterminate'?'Unconfirmed':name}</dt><dd class="m-0 mt-1 text-xl font-bold">{count}</dd></div>{/each}</dl>
-    <p class="m-0 text-xs text-muted">Finished means fan-out work ended, not that everyone received or read the update. Confirmed delivery: {data.status.delivery.delivered} delivered, {data.status.delivery.accepted} accepted, {data.status.delivery['on-hold']} on hold, {data.status.delivery.failed} failed, {data.status.delivery.cancelled} cancelled, {data.status.delivery.indeterminate} indeterminate.</p>
-    <details><summary class="cursor-pointer py-2 text-sm font-semibold">{data.kind==='connections'?'Per-connection':'Per-subscriber'} outcomes</summary><ul class="m-0 mt-2 grid list-none gap-3 p-0">{#each data.status.targets as target}<li class="grid gap-1 rounded-xl border border-solid border-line p-3 text-xs"><code class="[overflow-wrap:anywhere]">{target.recipient}</code><span>Work: {target.state} · Delivery: {target.delivery??'no delivery record'}</span>{#if target.delivery!==null}<a class="inline-block py-2 font-semibold text-brand" href={`/sent/${target.messageId}`}>View sent message →</a>{/if}</li>{/each}</ul></details>
-    <div class="flex flex-wrap gap-2"><a class="hail-button-secondary" href="/sent">View Sent delivery details →</a>{#if data.status.counts.pending}<form method="POST" action={data.kind==='connections'?'?/cancel&audience=connections':'?/cancel'}><input type="hidden" name="publicationId" value={data.status.publicationId}/><button class="hail-button-secondary text-danger">Stop new messages</button></form>{/if}</div><p class="m-0 text-xs text-muted">Stopping new messages does not recall delivered content. Already-created messages may still be submitted while authorized. Unfinished creation attempts expire {new Date(data.status.expiresAt).toLocaleString()}.</p>
-  </section>
+{#if data.status && !form?.error}
+  <p class="mb-5 text-sm" role="status">Message sent.</p>
 {/if}
 {#if form?.error}<div class="mb-5"><p class="hail-error" role="alert">{form.error}</p>{#if retryPublication}<a class="hail-back mt-2" href={batchUrl(retryPublication)}>Check original {data.kind==='connections'?'message batch':'publication'} status →</a>{/if}</div>{/if}
-{#if data.recent.length}<details class="hail-card mb-6 p-5" open={data.recent.some(row=>row.pending)}><summary class="cursor-pointer text-sm font-semibold">Recent {data.kind==='connections'?'messages':'publications'}</summary><ul class="m-0 mt-3 grid list-none gap-2 p-0">{#each data.recent as publication}<li><a class="flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-xl bg-canvas px-3 py-2 text-sm no-underline hover:bg-brand-soft" href={batchUrl(publication.publicationId)} aria-current={data.status?.publicationId===publication.publicationId?'page':undefined}><span class="[overflow-wrap:anywhere]">{data.kind==='connections'?'Connections':publication.category==='general'?'General':publication.category} · {new Date(publication.createdAt).toLocaleString()}</span>{#if publication.pending}<span class="text-xs font-semibold text-brand">Unfinished</span>{/if}</a></li>{/each}</ul></details>{/if}
 <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
   <form class="hail-card grid min-w-0 gap-6 p-5 sm:p-7" method="POST" use:enhance action={data.kind==='connections'?'?/publish&audience=connections':'?/publish'} enctype="multipart/form-data">
     <input type="hidden" name="publicationId" value={retryPublication??data.newPublicationId}/>
