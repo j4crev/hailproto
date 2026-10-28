@@ -63,21 +63,21 @@
       <div class="hail-card flex flex-col items-center gap-3 px-6 py-16 text-center"><span class="empty-symbol" aria-hidden="true"><Icon name={data.view === 'connections' ? 'chat' : 'feed'} size={30} /></span><h2 class="m-0 text-xl tracking-tight">No messages yet</h2><p class="m-0 max-w-sm text-sm text-muted">{data.view==='connections'?'Reach out and say "hello".':'All quiet here.'}</p>{#if data.view !== 'connections'}<a class="hail-button-secondary mt-2" href="/permissions">Find your first sender <span aria-hidden="true">→</span></a>{/if}</div>
     {:else}
       {#each data.messages as message (message.sender+message.messageId)}
-        <article class="list-row message-row" class:is-selected={selected.includes(messageKey(message))}>
+        <article class="list-row message-row" class:has-header={$showInboxHeaders && !!message.header} class:is-selected={selected.includes(messageKey(message))}>
           <SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(messageKey(message))} disabled={selectionLocked} label={`Select message from ${message.senderAddress??message.sender}, ${date(message.deliveredAt)}`} ontoggle={()=>toggle(message)} />
-          <div class="message-content">
-            <div class="message-meta">
-              <strong class="message-sender"><ContactAddress owner={data.account.did} did={message.sender} address={message.senderAddress} /></strong>
-              <span class="list-date"><ListDate value={message.deliveredAt} /></span>
-            </div>
-            <a class="message-link" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
+          <div class="message-meta">
+            <strong class="message-sender"><ContactAddress owner={data.account.did} did={message.sender} address={message.senderAddress} /></strong>
+            <span class="list-date"><ListDate value={message.deliveredAt} /></span>
+          </div>
+          <a class="message-link" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
+            {#if $showInboxHeaders && message.header}
+              <img class="message-header" src={message.header.src} alt={message.header.alt} width={message.header.width} height={message.header.height} />
+            {/if}
+            <span class="message-copy">
               {#if message.title}<strong class="message-subject">{message.title}</strong>{/if}
               <span class="message-preview">{message.preview}</span>
-            </a>
-          </div>
-          {#if $showInboxHeaders && message.header}
-            <img class="message-thumbnail" src={message.header.src} alt={message.header.alt} width={message.header.width} height={message.header.height} />
-          {/if}
+            </span>
+          </a>
         </article>
       {/each}
     {/if}
@@ -87,8 +87,16 @@
 {/if}
 
 <style>
-  .message-row { position:relative; display:flex; align-items:center; gap:12px; }
-  .message-content { min-width:0; flex:1; }
+  .message-row { position:relative; display:grid; grid-template-columns:44px minmax(0,1fr); align-items:center; column-gap:12px; }
+  .message-row > :global(.selection-avatar) { grid-column:1; grid-row:1 / 3; }
+  .message-meta, .message-link { grid-column:2; min-width:0; }
+  .message-row.has-header { padding:0; grid-template-columns:60px minmax(0,1fr); }
+  .has-header > :global(.selection-avatar) { grid-row:1; margin:12px 0 12px 16px; }
+  .has-header .message-meta { margin-right:16px; }
+  .has-header .message-link { grid-column:1 / -1; }
+  .has-header .message-copy { display:block; padding:16px; }
+  .has-header .message-subject, .has-header .message-preview { white-space:normal; overflow-wrap:anywhere; }
+  .message-header { display:block; width:100%; height:auto; max-height:320px; object-fit:cover; border-block:1px solid var(--color-line); }
   .message-meta { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
   .message-sender { min-width:0; font-size:13px; }
   .message-sender :global(.address) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -99,8 +107,7 @@
   .message-subject, .message-preview { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
   .message-subject { margin-top:2px; font-weight:650; }
   .message-preview { color:var(--color-muted); }
-  .message-thumbnail { width:56px; height:56px; flex-shrink:0; border-radius:6px; object-fit:cover; }
-  @media(max-width:640px) { .message-meta { gap:8px; } .message-thumbnail { width:40px; height:40px; } }
+  @media(max-width:640px) { .message-meta { gap:8px; } }
   @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
 
   .welcome { display:grid; grid-template-columns:1.1fr 1fr; align-items:center; gap:48px; padding:28px 0 48px; }
