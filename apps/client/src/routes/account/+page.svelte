@@ -8,7 +8,7 @@
 </script>
 <svelte:head><title>Account · Haili</title></svelte:head>
 <div class="mx-auto max-w-[860px]">
-  <header class="page-heading"><p class="hail-eyebrow">Your space</p><h1 class="hail-title">Account</h1><p>Your address and identity, in one place.</p></header>
+  <header class="page-heading"><h1 class="hail-title">Account</h1><p>Your address and identity, in one place.</p></header>
   <section class="hail-card overflow-hidden" aria-label="Account details">
     <div class="account-banner"><span class="account-avatar">{data.account.address.split('@')[0].slice(0,2).toUpperCase()}</span><span class="text-xs font-semibold text-brand-strong">Your Hail identity</span></div>
     <div class="grid gap-7 p-6 sm:p-8">

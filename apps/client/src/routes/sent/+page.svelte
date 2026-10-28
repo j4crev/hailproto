@@ -7,7 +7,7 @@
 </script>
 
 <svelte:head><title>Sent · Haili</title></svelte:head>
-  <header class="mb-8 flex flex-wrap items-start justify-between gap-4"><div class="grid min-w-0 gap-3"><p class="hail-eyebrow">Your outbox</p><h1 class="hail-title">Sent messages</h1><p class="m-0 text-xs text-muted">One entry for each send, regardless of audience size.</p></div><button class="hail-button-secondary" type="button" onclick={refresh} disabled={refreshing}>{refreshing?'Refreshing…':'Refresh'}</button></header>
+  <header class="mb-8 flex flex-wrap items-start justify-between gap-4"><div class="grid min-w-0 gap-3"><h1 class="hail-title">Sent messages</h1></div><button class="hail-button-secondary" type="button" onclick={refresh} disabled={refreshing}>{refreshing?'Refreshing…':'Refresh'}</button></header>
   {#if data.messages.length}
     <section class="grid gap-[13px]" aria-label="Sent messages">
       {#each data.messages as message}

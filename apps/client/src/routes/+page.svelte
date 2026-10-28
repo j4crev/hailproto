@@ -51,8 +51,8 @@
   <p class="welcome-footer">Built on Hail, an open messaging protocol. Haili is currently an invitation-only alpha.</p>
 {:else}
   <header class="feed-heading">
-    <div><p class="hail-eyebrow">Your daily space</p><h1 class="hail-title">{data.view === 'connections' ? 'Messages' : 'Inbox'}</h1><p class="feed-description">{data.view === 'connections' ? 'The latest from your connections' : 'The latest from your senders.'}</p></div>
-    <a class="hail-button-secondary" href={data.view === 'connections' ? '/compose?audience=connections' : '/permissions'}><Icon name={data.view === 'connections' ? 'plus' : 'people'} size={18} />{data.view === 'connections' ? 'New message' : 'Manage subscriptions'}</a>
+    <div><h1 class="hail-title">{data.view === 'connections' ? 'Messages' : 'Inbox'}</h1><p class="feed-description">{data.view === 'connections' ? 'The latest from your connections' : 'The latest from your subscriptions'}</p></div>
+    {#if data.view === 'connections'}<a class="hail-button-secondary" href="/compose?audience=connections"><Icon name="plus" size={18} />New message</a>{/if}
   </header>
   <div class="feed-layout" class:has-selection={selectedMessages.length > 0}><div class="min-w-0">
   {#if selectedMessages.length}
@@ -130,7 +130,6 @@
   .welcome-benefits p { margin:0; font-size:14px; line-height:1.8; color:var(--color-muted); }
   .welcome-footer { margin:32px 0 0; padding-top:20px; border-top:1px solid var(--color-line); color:var(--color-muted); font-size:12px; line-height:1.7; }
   .feed-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px; margin-bottom:32px; }
-  .feed-heading .hail-eyebrow { margin-bottom:12px; }
   .feed-description { margin:12px 0 0; font-size:14px; color:var(--color-muted); }
   .feed-layout { display:grid; grid-template-columns:minmax(0,1fr) 218px; gap:32px; align-items:start; }
   .feed-aside { margin-top:0; padding:24px 0 24px 24px; border-left:1px solid var(--color-line); }

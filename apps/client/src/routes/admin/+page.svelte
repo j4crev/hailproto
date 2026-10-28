@@ -41,7 +41,7 @@
 </script>
 <svelte:head><title>Provider administration · Hail</title><meta name="referrer" content="no-referrer" /></svelte:head>
 <div class="dashboard">
-  <header class="page-heading"><p class="hail-eyebrow">Provider administration</p><h1 class="hail-title">Your Hail server</h1><p>Activity and signup invitations for {data.account.provider}.</p></header>
+  <header class="page-heading"><h1 class="hail-title">Your Hail server</h1><p>Activity and signup invitations for {data.account.provider}.</p></header>
   <section class="hail-card panel" aria-labelledby="registration-heading">
     <h2 id="registration-heading">Registration</h2>
     <div class="registration-setting">

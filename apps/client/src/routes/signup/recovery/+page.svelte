@@ -54,7 +54,7 @@
 <svelte:head><title>Recovery setup preview · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 
 <section class="hail-card flex flex-col gap-5 p-5 sm:p-7 [&_h2]:m-0 [&_h2]:text-lg [&_p]:m-0 [&_p]:text-sm [&_p]:leading-relaxed [&_label]:text-sm [&_label]:leading-relaxed [&_label>input:not([type=checkbox])]:mt-2 [&_label>input:not([type=checkbox])]:block [&_label>input:not([type=checkbox])]:max-w-full [&_input[type=password]]:w-full [&_button]:self-start [&_button]:max-w-full [&_button]:whitespace-normal">
-  <p class="hail-eyebrow">Local preview only</p><h1 class="hail-title">Recovery setup preview</h1>
+  <h1 class="hail-title">Recovery setup preview</h1>
   <p class="rounded-xl bg-warning-soft p-4 text-warning"><strong>This preview does not create an account or publish an identity.</strong>
     It tests saving and reopening an encrypted recovery kit locally in your browser.</p>
   <p>Managed Hail accounts let the provider sign everyday permissions. You keep separate

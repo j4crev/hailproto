@@ -20,7 +20,7 @@
 </script>
 <svelte:head><title>Settings · Haili</title></svelte:head>
 <div class="mx-auto max-w-[860px]">
-  <header class="page-heading"><p class="hail-eyebrow">Make it yours</p><h1 class="hail-title">Settings</h1><p>A calmer inbox, your way.</p></header>
+  <header class="page-heading"><h1 class="hail-title">Settings</h1><p>A calmer inbox, your way.</p></header>
   <section class="hail-card p-6 sm:p-8" aria-labelledby="reading-title">
     <div class="mb-7 flex items-center gap-3"><span class="setting-icon"><Icon name="feed" /></span><h2 id="reading-title" class="m-0 text-lg">Reading</h2></div>
     <label class="flex cursor-pointer items-center justify-between gap-6" for="show-headers"><span class="grid gap-2"><strong class="text-sm">Show header images</strong><span class="text-sm text-muted">Display bundled images in your feed and conversations.</span></span><input id="show-headers" class="preference-switch" type="checkbox" role="switch" checked={$showInboxHeaders} onchange={change} disabled={!ready} /></label>

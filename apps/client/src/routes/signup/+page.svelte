@@ -181,7 +181,6 @@
     <ol aria-label="Signup steps" class="signup-dots">{#each phases as name,index}<li aria-current={index===phase?"step":undefined} class:current={index===phase} class:past={index<phase}><span class="sr-only">{name}</span></li>{/each}</ol>
   {/if}
   <section class="hail-card signup-card" aria-busy={busy}>
-    <p class="hail-eyebrow">Invitation-only alpha</p>
     <h1 id="signup-heading" tabindex="-1" class="hail-title">{headings[screen]}</h1>
     {#key screen}<div class="signup-page">
       {#if screen==="address"}

@@ -67,7 +67,7 @@
 {/snippet}
 {#if list}
   <section class="connection-content mt-8 grid gap-5" class:has-selection={selectedConnections.length>0} aria-label="Connection codes">
-    <header class="grid gap-2"><p class="hail-eyebrow">Personal connections</p><h2 class="m-0 text-2xl">Connect with me</h2></header>
+    <header class="grid gap-2"><h2 class="m-0 text-2xl">Connect with me</h2></header>
     {#if message}<p class="hail-error" role="status">{message}</p>{/if}
     {#if recoveryNeeded}
       {#if busy}<p class="text-sm text-muted" role="status">Checking your connection change…</p>

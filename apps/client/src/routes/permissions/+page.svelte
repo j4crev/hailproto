@@ -127,7 +127,7 @@
 
 <svelte:head><title>Subscriptions · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 <div class:has-selection={selectedPermissions.length>0} class="[&_h2]:m-0 [&_h2]:text-xl [&_h3]:m-0 [&_p]:m-0 [&_code]:text-xs [&_code]:[overflow-wrap:anywhere] [&_button]:self-start [&_button]:max-w-full [&_button]:whitespace-normal">
-  <header class="mb-8 grid gap-3"><p class="hail-eyebrow">Your inbox</p><h1 class="hail-title">Subscriptions</h1><p class="max-w-2xl text-sm text-muted">Choose which senders and categories reach your inbox. For two-way messaging, use Connections.</p><p class="text-xs text-muted [overflow-wrap:anywhere]">Managing permissions for <strong>{data.account.address}</strong></p></header>
+  <header class="mb-8 grid gap-3"><h1 class="hail-title">Subscriptions</h1><p class="text-xs text-muted [overflow-wrap:anywhere]">Managing permissions for <strong>{data.account.address}</strong></p></header>
   {#if message}<p class="mb-5! rounded-xl border border-solid border-line bg-brand-soft p-4 text-sm" role="status">{message}</p>{/if}
   {#if data.account.custodyProfile!=="managed"}<p class="mb-5! rounded-xl bg-warning-soft p-4 text-sm text-warning" role="status">Browser approval currently supports managed accounts only. Your owner-controlled account still uses its existing signer.</p>{/if}
   <div class="grid items-start gap-6 max-w-[860px]">

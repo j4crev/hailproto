@@ -47,7 +47,7 @@
   }
 </script>
 <svelte:head><title>Categories · Haili</title></svelte:head>
-<header class="page-heading"><p class="hail-eyebrow">Your publishing space</p><h1 class="hail-title">Categories</h1><p>{data.revision ? 'Manage what people can subscribe to.' : 'Create a sender profile to let people subscribe to your updates.'}</p></header>
+<header class="page-heading"><h1 class="hail-title">Categories</h1><p>{data.revision ? 'Manage what people can subscribe to.' : 'Create a sender profile to let people subscribe to your updates.'}</p></header>
 <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
   <form class="hail-card min-w-0 p-5 sm:p-7" onsubmit={save}>
     <fieldset class="m-0 grid min-w-0 gap-6 border-0 p-0" disabled={busy || !ready || !!data.account.migrationState}>

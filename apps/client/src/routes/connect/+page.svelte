@@ -65,7 +65,7 @@
 </script>
 <svelte:head><title>Connect · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 <div class="mx-auto grid max-w-2xl gap-5">
-  <header class="grid gap-3"><p class="hail-eyebrow">Personal connections</p><h1 class="hail-title">Connect with someone</h1><p class="m-0 text-sm text-muted">Review the identity before confirming. A connection is separate from a subscription.</p></header>
+  <header class="grid gap-3"><h1 class="hail-title">Connect with someone</h1><p class="m-0 text-sm text-muted">Review the identity before confirming. A connection is separate from a subscription.</p></header>
   {#if message}<p class="hail-error" role="alert">{message}</p>{/if}
   {#if pendingRequest}<p class="hail-card p-5 text-sm" role="status">Connecting across providers. Your saved request is retried automatically, even if you close this tab. Check synchronization in Connections.</p>{/if}
   {#if connected}<section class="hail-card grid gap-4 p-5"><h2 class="m-0 text-xl">Connection saved</h2><p class="m-0 text-sm">Find it in Connections or choose it in Compose to send a personal message. Subscriptions are unchanged.</p></section>

@@ -20,7 +20,7 @@
       <div class="flex min-w-0 flex-col gap-[5px]">
       <strong class="[overflow-wrap:anywhere]"><ContactAddress owner={data.account.did} did={data.message.sender} address={data.message.senderAddress} /></strong>
       <span class="text-xs text-muted"><DateTime value={data.message.deliveredAt} /></span>
-      {#if data.message.senderAddress}<small class="font-mono text-xs text-muted [overflow-wrap:anywhere]">{data.message.sender}</small>{/if}
+      {#if data.message.senderAddress}<small class="font-mono text-[11px] text-muted [overflow-wrap:anywhere] sm:text-xs">{data.message.sender}</small>{/if}
       </div>
     </div>
     {#if data.message.kind!=='connection' && data.message.category}<mark class="max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{data.message.category==='general'?'General':data.message.category}</mark>{/if}

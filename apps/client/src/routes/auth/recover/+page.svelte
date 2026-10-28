@@ -19,7 +19,7 @@
 
 <svelte:head><title>Replacement passkey · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 <section class="hail-card mx-auto mt-6 flex max-w-[600px] flex-col items-start gap-5 p-6 sm:p-10">
-  <p class="hail-eyebrow">Owner-authorized enrollment</p><h1 class="hail-title">Create a replacement passkey</h1>
+  <h1 class="hail-title">Create a replacement passkey</h1>
   <p class="m-0 text-sm text-muted">Use a recovery enrollment link issued after proof of existing Hail owner authority. This page does not import a recovery backup, change custody or publish a PLC operation.</p>
   {#if !complete}<label class="hail-field w-full">Passkey label<input bind:value={label} maxlength="80" /></label>
     <button class="hail-button max-w-full whitespace-normal" onclick={enroll} disabled={busy||!token||!label.trim()}>Create replacement passkey</button>
