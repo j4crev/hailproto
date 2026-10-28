@@ -92,7 +92,7 @@ export class DeliveryRepository {
         DO NOTHING
       `;
       const existing = await tx<{ body_bytes: Uint8Array }[]>`
-        SELECT body_bytes FROM verified_body_provenance
+        SELECT body_bytes FROM verified_body_contents
         WHERE recipient_did = ${envelope.to} AND sender_did = ${envelope.from}
           AND digest = ${envelope.body.digest.value} AND media_type = ${envelope.body.media_type}
           AND profile = ${envelope.body.profile}

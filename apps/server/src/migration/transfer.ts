@@ -616,7 +616,7 @@ export class MigrationTransferService {
     const work = await collect(tx`SELECT to_jsonb(t) AS row FROM delivery_work t JOIN received_envelopes owner
       ON owner.sender_did = t.sender_did AND owner.message_id = t.message_id
       WHERE owner.local_account_id = ${accountId} ORDER BY t.sender_did, t.message_id`);
-    const provenance = await collect(tx`SELECT to_jsonb(t) AS row FROM verified_body_provenance t WHERE recipient_did = ${did} ORDER BY sender_did, digest`);
+    const provenance = await collect(tx`SELECT to_jsonb(t) AS row FROM verified_body_contents t WHERE recipient_did = ${did} ORDER BY sender_did, digest`);
     const messages = await collect(tx`SELECT to_jsonb(t) AS row FROM delivered_messages t WHERE recipient_did = ${did} ORDER BY sender_did, message_id`);
     const statuses = await collect(tx`SELECT to_jsonb(t) AS row FROM delivery_status_payloads t JOIN received_envelopes owner
       ON owner.sender_did = t.sender_did AND owner.message_id = t.message_id

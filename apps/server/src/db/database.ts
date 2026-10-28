@@ -220,6 +220,7 @@ const migrations: readonly Migration[] = [
   {version:76,name:"message-trash",url:new URL("../../migrations/0076_message_trash.sql",import.meta.url)},
   {version:77,name:"connection-address-notices",url:new URL("../../migrations/0077_connection_address_notices.sql",import.meta.url)},
   {version:78,name:"registration-policy",url:new URL("../../migrations/0078_registration_policy.sql",import.meta.url)},
+  {version:79,name:"shared-received-bodies",url:new URL("../../migrations/0079_shared_received_bodies.sql",import.meta.url)},
 ];
 
 export class ProviderDatabase {

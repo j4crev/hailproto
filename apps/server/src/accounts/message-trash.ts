@@ -82,6 +82,7 @@ export class MessageTrash {
           AND trashed_at<=clock_timestamp()-interval '30 days' ORDER BY trashed_at LIMIT 500) RETURNING sender_did,body_digest,media_type,profile`;
       await this.cleanBodies(tx as SQL,account.did,rows);deleted+=rows.length;
     }));
+    await this.sql`SELECT hail_collect_received_blobs(500)`;
     return {deleted};
   }
 }

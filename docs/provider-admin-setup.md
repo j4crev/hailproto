@@ -417,9 +417,11 @@ errors leave invitations available.
 
 The statistics response includes `storage` (or `null` if size collection fails).
 It reports current allocated PostgreSQL disk bytes, independently of the chosen
-activity period. Message bodies are stored in `detached_bodies` and
-`verified_body_provenance`; attachments and a separate attachment store are not
-implemented.
+activity period. Sent body bytes are stored in `detached_bodies`; received bytes are shared by
+digest in `shared_content_blobs`, with recipient references in
+`verified_body_provenance`. Attachments and an external attachment store are not
+implemented. See [content storage and attachments](content-storage-and-attachments.md)
+for accounting semantics, upgrade/rollback instructions, and future attachment constraints.
 
 Public-schema tables and materialized views are grouped by responsibility:
 message content, delivery/metadata, accounts/security, connections/permissions,

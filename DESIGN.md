@@ -364,7 +364,9 @@ SHA-256 integrity, dimensions, size, role and loading mode. `spt-3` uses one
 `header` asset and prohibits remote resources, so rendering cannot disclose a
 user open to the sender. The reusable manifest also reserves an `avatar` role,
 but Sender Profile integration is not implemented. Attachments, remote assets,
-and other image formats remain deferred.
+and other image formats remain deferred. See
+[content storage and attachments](docs/content-storage-and-attachments.md) for
+the received-body storage implementation and attachment design constraints.
 
 Later profiles may package additional declared assets or structured metadata.
 

@@ -478,7 +478,7 @@ async function collectManagedTables(tx: SQL, did: string, accountId: string): Pr
   const reply_capabilities = await collect(tx`SELECT to_jsonb(t) AS row FROM reply_capabilities t WHERE original_sender_did=${did} ORDER BY original_message_id`);
   const delivery_work = await collect(tx`SELECT (to_jsonb(t)-'lease_token'-'lease_expires_at') AS row FROM delivery_work t JOIN received_envelopes owner USING(sender_did,message_id)
     WHERE owner.local_account_id=${accountId} ORDER BY t.sender_did,t.message_id`);
-  const verified_body_provenance = await collect(tx`SELECT to_jsonb(t) AS row FROM verified_body_provenance t WHERE recipient_did=${did} ORDER BY sender_did,digest`);
+  const verified_body_provenance = await collect(tx`SELECT to_jsonb(t) AS row FROM verified_body_contents t WHERE recipient_did=${did} ORDER BY sender_did,digest`);
   const delivered_messages = await collect(tx`SELECT to_jsonb(t) AS row FROM delivered_messages t WHERE recipient_did=${did} ORDER BY sender_did,message_id`);
   const delivery_status_payloads = await collect(tx`SELECT to_jsonb(t) AS row FROM delivery_status_payloads t
     JOIN received_envelopes owner USING(sender_did,message_id) WHERE owner.local_account_id=${accountId}

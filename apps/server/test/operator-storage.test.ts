@@ -3,7 +3,7 @@ import {readStorage,storageCategory} from "../src/operator/storage.js";
 import type {SQL} from "bun";
 
 it.each([
-  ['detached_bodies','content'],['verified_body_provenance','content'],
+  ['detached_bodies','content'],['verified_body_provenance','content'],['shared_content_blobs','content'],
   ['connection_message_targets','delivery'],['received_envelopes','delivery'],['sent_delivery_status','delivery'],
   ['account_passkeys','accounts'],['provider_operators','accounts'],['public_onboarding_drafts','accounts'],
   ['account_grant_approvals','connections'],['federated_connection_events','connections'],

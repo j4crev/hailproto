@@ -103,7 +103,7 @@ export class AccountMessaging {
       SELECT message.trashed_at,message.message_id,message.sender_did,message.delivered_at,envelope.envelope_cose,body.body_bytes,
         presentation.grantee_address AS sender_address
       FROM delivered_messages message JOIN received_envelopes envelope USING(sender_did,message_id)
-      JOIN verified_body_provenance body ON body.recipient_did=message.recipient_did AND body.sender_did=message.sender_did
+      JOIN verified_body_contents body ON body.recipient_did=message.recipient_did AND body.sender_did=message.sender_did
         AND body.digest=message.body_digest AND body.media_type=message.media_type AND body.profile=message.profile
       LEFT JOIN LATERAL (
         SELECT consent.grantee_address FROM grant_lineages lineage JOIN grant_consent_evidence consent USING(grant_id)
@@ -188,7 +188,7 @@ export class AccountMessaging {
             AND COALESCE(status.current_state,'indeterminate') NOT IN ('failed','cancelled')) AS reply_unused
       FROM delivered_messages message
       JOIN received_envelopes envelope USING(sender_did,message_id)
-      JOIN verified_body_provenance body ON body.recipient_did=message.recipient_did AND body.sender_did=message.sender_did
+      JOIN verified_body_contents body ON body.recipient_did=message.recipient_did AND body.sender_did=message.sender_did
         AND body.digest=message.body_digest AND body.media_type=message.media_type AND body.profile=message.profile
       LEFT JOIN LATERAL (
         SELECT consent.grantee_address FROM grant_lineages lineage JOIN grant_consent_evidence consent USING(grant_id)
