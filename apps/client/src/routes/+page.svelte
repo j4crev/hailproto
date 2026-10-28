@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ListDate from "$lib/ListDate.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
   import SelectionAvatar from "$lib/SelectionAvatar.svelte";
   import MessageActions from "$lib/MessageActions.svelte";
@@ -56,23 +57,27 @@
   {#if selectedMessages.length}
     <MessageActions messages={selectedMessages} bind:locked={selectionLocked} onclear={() => selected = []} onremoved={removed => { selected = selected.filter(key => !removed.some(message => messageKey(message) === key)); }} />
   {/if}
-  <section class="grid gap-5" aria-label="Messages">
+  <section class:compact-list={data.messages.length > 0} aria-label="Messages">
 
     {#if data.messages.length === 0}
       <div class="hail-card flex flex-col items-center gap-3 px-6 py-16 text-center"><span class="empty-symbol" aria-hidden="true"><Icon name={data.view === 'connections' ? 'chat' : 'feed'} size={30} /></span><h2 class="m-0 text-xl tracking-tight">No messages yet</h2><p class="m-0 max-w-sm text-sm text-muted">{data.view==='connections'?'Reach out and say "hello".':'All quiet here.'}</p>{#if data.view !== 'connections'}<a class="hail-button-secondary mt-2" href="/permissions">Find your first sender <span aria-hidden="true">→</span></a>{/if}</div>
     {:else}
       {#each data.messages as message (message.sender+message.messageId)}
-        <article class="hail-card message-card" class:is-selected={selected.includes(messageKey(message))}>
-          <div class="flex items-center gap-3 px-6 py-4">
-            <SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(messageKey(message))} disabled={selectionLocked} label={`Select message from ${message.senderAddress??message.sender}, ${date(message.deliveredAt)}`} ontoggle={()=>toggle(message)} />
-            <span class="flex min-w-0 flex-1 flex-col gap-[3px]"><strong class="text-[14px]"><ContactAddress owner={data.account.did} did={message.sender} address={message.senderAddress} /></strong><time class="text-[11px] text-muted" datetime={message.deliveredAt}>{date(message.deliveredAt)}</time></span>
+        <article class="list-row message-row" class:is-selected={selected.includes(messageKey(message))}>
+          <SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(messageKey(message))} disabled={selectionLocked} label={`Select message from ${message.senderAddress??message.sender}, ${date(message.deliveredAt)}`} ontoggle={()=>toggle(message)} />
+          <div class="message-content">
+            <div class="message-meta">
+              <strong class="message-sender"><ContactAddress owner={data.account.did} did={message.sender} address={message.senderAddress} /></strong>
+              <span class="list-date"><ListDate value={message.deliveredAt} /></span>
+            </div>
+            <a class="message-link" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
+              {#if message.title}<strong class="message-subject">{message.title}</strong>{/if}
+              <span class="message-preview">{message.preview}</span>
+            </a>
           </div>
-          <a class="message-link" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
           {#if $showInboxHeaders && message.header}
-            <img class="block h-auto max-h-[320px] w-full border-0 border-y border-solid border-line object-cover" src={message.header.src} alt={message.header.alt} width={message.header.width} height={message.header.height} />
+            <img class="message-thumbnail" src={message.header.src} alt={message.header.alt} width={message.header.width} height={message.header.height} />
           {/if}
-          <span class="px-6 pt-4 pb-6 font-serif text-[17px] leading-relaxed text-ink [overflow-wrap:anywhere]">{message.preview}</span>
-        </a>
         </article>
       {/each}
     {/if}
@@ -82,10 +87,20 @@
 {/if}
 
 <style>
-  .message-card { position:relative; display:flex; min-width:0; flex-direction:column; }
-  .message-card:hover, .message-card.is-selected { border-color:var(--color-brand); }
-  .message-link { display:flex; flex-direction:column; color:inherit; text-decoration:none; }
-  .message-link::after { content:""; position:absolute; inset:0; border-radius:18px; }
+  .message-row { position:relative; display:flex; align-items:center; gap:12px; }
+  .message-content { min-width:0; flex:1; }
+  .message-meta { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+  .message-sender { min-width:0; font-size:13px; }
+  .message-sender :global(.address) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .list-date { position:relative; z-index:1; }
+  .message-link { display:block; color:inherit; text-decoration:none; }
+  .message-link::after { content:""; position:absolute; inset:0; }
+  .message-link:focus-visible::after { outline:2px solid var(--color-brand); outline-offset:-2px; }
+  .message-subject, .message-preview { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+  .message-subject { margin-top:2px; font-weight:650; }
+  .message-preview { color:var(--color-muted); }
+  .message-thumbnail { width:56px; height:56px; flex-shrink:0; border-radius:6px; object-fit:cover; }
+  @media(max-width:640px) { .message-meta { gap:8px; } .message-thumbnail { width:40px; height:40px; } }
   @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
 
   .welcome { display:grid; grid-template-columns:1.1fr 1fr; align-items:center; gap:48px; padding:28px 0 48px; }

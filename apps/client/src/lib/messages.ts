@@ -95,6 +95,12 @@ export function messagePreview(message: Pick<MessageView,"paragraphs">, maximum 
   return characters.length <= maximum ? plain : `${characters.slice(0, maximum - 1).join("")}…`;
 }
 
+export function messageListSummary(message: Pick<MessageView,"blocks"|"paragraphs">) {
+  const first = message.blocks[0];
+  const title = first?.style === "h1" ? first.spans.map(span => span.text).join("").trim() : "";
+  return {title, preview: messagePreview({paragraphs: title ? message.paragraphs.slice(1) : message.paragraphs})};
+}
+
 export function parseBody(value: unknown): Pick<MessageView,"blocks"|"header"|"paragraphs"> {
   const body = object(value, "message body");
   if (body.version !== 1 || !["spt-1","spt-2","spt-3"].includes(body.profile as string) || !Array.isArray(body.blocks)) {

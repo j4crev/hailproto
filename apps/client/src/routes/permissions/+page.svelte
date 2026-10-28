@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ListDate from "$lib/ListDate.svelte";
   import IdentityWarning from "$lib/IdentityWarning.svelte";
   import {identityMemory} from "$lib/identity-memory.js";
   import {identityAcknowledgmentKey,conflictingIdentities,type IdentityHistory} from "$lib/identity-history.js";
@@ -179,13 +180,15 @@
             {#snippet actions()}<button class="hail-button-secondary" disabled={selectionLocked} onclick={()=>run(unsubscribeSelected)}>Unsubscribe</button>{/snippet}
           </SelectionActions>
         {/if}
-        {#each data.permissions as permission (permission.grantId)}<article class="hail-card grid min-w-0 gap-3 p-5" class:is-selected={selectedSubscriptions.includes(permission.grantId)&&permission.status==="active"}>
-          <div class="flex min-w-0 items-center gap-3">
+        <div class="compact-list">
+        {#each data.permissions as permission (permission.grantId)}<article class="list-row contact-row" class:is-selected={selectedSubscriptions.includes(permission.grantId)&&permission.status==="active"}>
             <SelectionAvatar name={permission.sender} avatar={permission.avatar} selected={permission.status==="active"&&selectedSubscriptions.includes(permission.grantId)} disabled={selectionLocked} label={`Select subscription to ${permission.sender}: ${subscriptionScopeLabel(permission.scope)}`} ontoggle={data.account.custodyProfile==="managed"&&permission.status==="active"?()=>toggleSubscription(permission.grantId):undefined} />
-            <h3 class="min-w-0 text-base [overflow-wrap:anywhere]"><ContactAddress owner={data.account.did} did={permission.did} address={permission.sender} /></h3>
-          </div><code class="text-muted">{permission.did}</code><p class="text-sm [overflow-wrap:anywhere]">{subscriptionScopeLabel(permission.scope)} · {permission.status === "revoked" ? "Unsubscribed" : permission.status}{permission.expiresAt!==null?` · expires ${date(permission.expiresAt)}`:" · ongoing until you unsubscribe"}</p>
+            <div class="contact-copy"><h3><ContactAddress owner={data.account.did} did={permission.did} address={permission.sender} /></h3>
+          <code class="contact-identity" title={permission.did}>{permission.did}</code><p>{subscriptionScopeLabel(permission.scope)} · {permission.status === "revoked" ? "Unsubscribed" : permission.status}{#if permission.expiresAt!==null}{" · expires "}<ListDate value={permission.expiresAt*1000} />{:else}{" · ongoing until you unsubscribe"}{/if}</p>
           {#if permission.expiresAt!==null&&permission.expiresAt*1000<=now}<p class="text-sm text-warning">Expired; it no longer permits messages.</p>{/if}
+          </div>
         </article>{/each}
+        </div>
         {#if data.next}<a class="hail-button-secondary justify-self-start" href={`/permissions?after=${encodeURIComponent(data.next)}`}>More subscriptions →</a>{/if}
       </section>
     </div>
@@ -195,6 +198,5 @@
 </div>
 
 <style>
-  .is-selected { border-color:var(--color-brand); }
   @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
 </style>

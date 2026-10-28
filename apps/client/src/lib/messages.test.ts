@@ -87,3 +87,14 @@ it("shows send titles separately from previews and retains untitled content",asy
   expect(parseSentSends({messages:[send,{...send,messageId:"another"}],next:"cursor"}).messages).toHaveLength(2);
   expect(()=>parseSentSend({...send,kind:"unknown"})).toThrow("Invalid send kind");
 });
+
+it("separates inbox and connection subjects from body previews", async () => {
+  const {messageListSummary, parseBody} = await import("./messages.js");
+  const block = (style: string, text: string) => ({_type:"block", style, children:[{_type:"span", text, marks:[]}], markDefs:[]});
+  const summary = (...blocks: ReturnType<typeof block>[]) => messageListSummary(parseBody({version:1, profile:"spt-2", blocks}));
+  expect(summary(block("h1", "Subject"), block("normal", "Body preview"))).toEqual({title:"Subject", preview:"Body preview"});
+  expect(summary(block("normal", "No subject"))).toEqual({title:"", preview:"No subject"});
+  expect(summary(block("h2", "Body heading"), block("normal", "Body"))).toEqual({title:"", preview:"Body heading Body"});
+  expect(summary(block("h1", "Subject only"))).toEqual({title:"Subject only", preview:""});
+  expect(summary()).toEqual({title:"", preview:""});
+});

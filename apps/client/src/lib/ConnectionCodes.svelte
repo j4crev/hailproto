@@ -94,18 +94,19 @@
           {#snippet actions()}<button class="hail-button-secondary" disabled={busy||prepared!==null||recoveryNeeded||draft!==null} onclick={()=>run(removeSelected)}>{selectedConnections.length===1?'Remove connection':'Remove connections'}</button>{/snippet}
         </SelectionActions>
       {/if}
+      <div class="compact-list">
       {#each list.connections as connection (connection.id)}
-        <article class="hail-card grid min-w-0 gap-3 p-5" class:is-selected={selected.includes(connection.id)}>
-          <div class="flex min-w-0 items-center gap-3"><SelectionAvatar name={connection.address} avatar={avatars[connection.did]} selected={selected.includes(connection.id)} disabled={busy||prepared!==null||recoveryNeeded||draft!==null} label={`Select connection with ${connection.address}`} ontoggle={()=>toggle(connection.id)} /><strong class="min-w-0 [overflow-wrap:anywhere]"><ContactAddress {owner} did={connection.did} address={connection.address} /></strong></div>
-          <code class="text-xs [overflow-wrap:anywhere]">{connection.did}</code>
+        <article class="list-row contact-row" class:is-selected={selected.includes(connection.id)}>
+          <SelectionAvatar name={connection.address} avatar={avatars[connection.did]} selected={selected.includes(connection.id)} disabled={busy||prepared!==null||recoveryNeeded||draft!==null} label={`Select connection with ${connection.address}`} ontoggle={()=>toggle(connection.id)} /><div class="contact-copy"><strong class="text-sm"><ContactAddress {owner} did={connection.did} address={connection.address} /></strong>
+          <code class="contact-identity" title={connection.did}>{connection.did}</code></div>
         </article>
       {/each}
+      </div>
     </section>
     {#if list.pendingConnections?.length}<section class="grid gap-3" aria-label="Connection synchronization"><h3 class="m-0 text-xl">Synchronizing with other providers</h3>{#each list.pendingConnections as pending}<article class="hail-card grid min-w-0 gap-2 p-5"><strong class="[overflow-wrap:anywhere]">{pending.address}</strong><p class="m-0 text-sm text-muted">{pending.state==="expired"?"This connection attempt expired. Open a current code to review and try again.":pending.state==="conflict"?"This attempt could not be confirmed because the reviewed identity or relationship changed. Review a current code before trying again.":pending.kind==="disconnect"?"Disconnected here. Notifying the other provider; automatic retries continue if it is offline.":pending.state==="active"?"Connected here. Updating the other provider's view; automatic retries continue if it is offline.":"Your connection approval is saved. Awaiting verified confirmation from both providers; no additional acceptance is needed."}</p></article>{/each}</section>{/if}
   </section>
 {:else if message}<section class="mt-8 grid gap-4" aria-label="Connection codes unavailable"><p class="hail-error" role="status">{message}</p><button class="hail-button-secondary justify-self-start" disabled={busy} onclick={()=>run(initialize)}>Retry loading connection codes</button></section>{:else}<p class="text-sm text-muted" role="status">Loading connections…</p>{/if}
 
 <style>
-  .is-selected { border-color:var(--color-brand); }
   @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
 </style>
