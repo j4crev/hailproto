@@ -310,7 +310,7 @@ const app = createApp(config, schemaRehearsal ? {
     { accountAccess: { access: new AccountAccess(database.sql, resolver, config.publicOrigin), sql: database.sql } } : {}),
   ...(process.env.PUBLIC_SELF_SERVICE_ONBOARDING === "true" ? (()=>{
     if(config.nodeEnv!=="production"||!config.publicPlcAuthority)throw new Error("Public self-service onboarding requires production strict public PLC authority");
-    return {selfServiceOnboarding:{sql:database.sql,profile:"strict-public-v1" as const,
+    return {selfServiceOnboarding:{sql:database.sql,...(config.alphaSignup?{invitationKey:config.alphaSignup.invitationKey}:{}),profile:"strict-public-v1" as const,
       onboarding:new PublicOnboarding(database.sql,plc,resolver,new KeyEncryptor(config.keyEncryptionKey),config.plcDirectoryUrl,
         config.hailServiceBase,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver)),provider:config.publicOrigin}};
   })() : process.env.POC_SELF_SERVICE_ONBOARDING === "true" ? {selfServiceOnboarding:{sql:database.sql,

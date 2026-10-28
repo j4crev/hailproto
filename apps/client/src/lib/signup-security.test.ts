@@ -23,12 +23,12 @@ it("keeps the recovery preview off by default and preserves nonce CSP while deny
 
 it("keeps invited signup off by default and exposes only public pins, never service or invitation signing secrets",async()=>{
   const setHeaders=vi.fn();
-  expect(()=>signupLoad({setHeaders} as never)).toThrow(expect.objectContaining({status:404}));
+  await expect(signupLoad({setHeaders} as never)).rejects.toThrow(expect.objectContaining({status:404}));
   Object.assign(env,{HAIL_GUI_SIGNUP:"true",HAIL_GUI_PROVIDER:"https://provider.example",ALPHA_SIGNUP_MONITOR_ORIGIN:"https://monitor.example",
     SIGNUP_MONITOR_PUBLIC_KEY:"did:key:z6MkTest",SIGNUP_MONITOR_TOKEN:"private-service-secret",ALPHA_SIGNUP_INVITE_KEY:"private-invitation-key"});
   try{
-    const value=signupLoad({setHeaders} as never);
-    expect(value).toEqual({policy:{provider:"https://provider.example",monitorOrigin:"https://monitor.example",monitorKey:"did:key:z6MkTest"}});
+    const value=await signupLoad({setHeaders,fetch:async()=>Response.json({mode:"invite",signupAvailable:true})} as never);
+    expect(value).toEqual({signupMode:"invite",policy:{provider:"https://provider.example",monitorOrigin:"https://monitor.example",monitorKey:"did:key:z6MkTest"}});
     expect(JSON.stringify(value)).not.toContain("private-");
     const response=await handle({event:{url:new URL("https://provider.example/signup")},resolve:async()=>new Response("signup",{headers:{"content-security-policy":"script-src 'nonce-test'"}})} as never);
     expect(response.headers.get("content-security-policy")).toContain("script-src 'nonce-test', connect-src 'self'; form-action 'none'; frame-ancestors 'none'");

@@ -213,6 +213,26 @@ means disabling new signup access, not deleting retained records. The production
 monitor connection and local browser state export/import proof are complete.
 The invited live ceremony and wider platform/recovery tests remain outstanding.
 
+## Registration mode
+
+Migration 0078 creates a persisted server-wide registration mode, defaulting to
+`invite`. Operators can select **Invite** or **Public** in `/admin`; changes
+require a passkey authentication within ten minutes and are recorded in
+`provider_registration_audit`. Both browser signup and the CLI onboarding API
+use the same admission ledger. Invitations are single-use across both APIs.
+Public mode removes only the invitation requirement; recovery, monitoring,
+reserved names, and the provider-domain restriction still apply. Custom hosted
+domains are not supported.
+
+The mode is independent of endpoint enablement: `PUBLIC_ALPHA_SIGNUP` enables
+the browser signup service, and `PUBLIC_SELF_SERVICE_ONBOARDING` enables the CLI
+onboarding service. Enabling the latter does not bypass the registration mode.
+Apply migrations before starting the updated server. Existing browser ceremonies
+and their consumed invitations are retained. Newly admitted setups can resume
+for 24 hours even after switching from `public` to `invite`; new uninvited
+admissions are rejected immediately. Rollback refuses to discard admission or
+settings audit evidence.
+
 ## Invited Browser Pilot
 
 The built `/signup` page reuses the existing browser recovery and WebAuthn code.

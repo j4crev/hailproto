@@ -20,10 +20,10 @@ export class OperatorInvitations{
   async list(){
     const invitations=await this.sql<{id:string;email:string|null;created_at:Date;expires_at:Date;status:string;delivery:string}[]>`SELECT i.id,i.email,to_timestamp(i.issued_at) AS created_at,
       to_timestamp(i.issued_at+604800) AS expires_at,
-      CASE WHEN c.completed_at IS NOT NULL THEN 'completed' WHEN c.id IS NOT NULL THEN 'accepted'
+      CASE WHEN c.completed_at IS NOT NULL THEN 'completed' WHEN a.token_hash IS NOT NULL THEN 'accepted'
         WHEN i.issued_at+604800<=extract(epoch FROM clock_timestamp()) THEN 'expired' ELSE 'pending' END AS status,
       CASE WHEN i.email IS NULL THEN 'link' WHEN i.email_accepted_at IS NOT NULL THEN 'accepted-by-email-service' ELSE 'unconfirmed' END AS delivery
-      FROM provider_signup_invitations i LEFT JOIN account_signup_ceremonies c ON c.invitation_id=i.id
+      FROM provider_signup_invitations i LEFT JOIN account_signup_ceremonies c ON c.invitation_id=i.id LEFT JOIN provider_signup_admissions a ON a.invitation_id=i.id
       ORDER BY i.created_at DESC,i.id LIMIT 100`;
     return {invitations};
   }

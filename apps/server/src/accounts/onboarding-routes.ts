@@ -1,4 +1,5 @@
-import { randomUUID,timingSafeEqual } from "node:crypto";
+import {RegistrationPolicy,RegistrationError} from "../onboarding/registration.js";
+import { createHash,randomUUID,timingSafeEqual } from "node:crypto";
 import { decodeBase64Url } from "@hailproto/codec";
 import type { Hono } from "hono";
 import type { SQL } from "bun";
@@ -11,10 +12,11 @@ import { accountRequestBytes } from "./routes.js";
 import {clientAddress,FixedWindowRateLimit} from "../http/rate-limit.js";
 
 export interface SelfServiceOnboarding { sql: SQL; onboarding: PrivatePocOnboarding | PublicOnboarding;
-  activation?: ActivationService; provider: string; profile?: "private-poc" | "strict-public-v1"; }
+  activation?: ActivationService; provider: string; profile?: "private-poc" | "strict-public-v1"; invitationKey?:string; }
 
 export function registerSelfServiceOnboarding(app: Hono, dependencies: SelfServiceOnboarding) {
   const rateLimit=new FixedWindowRateLimit();
+  const registration=new RegistrationPolicy(dependencies.sql,dependencies.provider,dependencies.invitationKey);
   app.all("/api/v1/onboarding/:id?", async context => {
     context.header("Cache-Control","no-store");
     if (context.req.method !== "POST") return context.json({error:"Use POST"},405);
@@ -32,15 +34,20 @@ export function registerSelfServiceOnboarding(app: Hono, dependencies: SelfServi
           SELECT signup_token_hash FROM ${dependencies.sql.unsafe(table)} WHERE account_id=${id}`;
         if (!token || !rows[0]?.signup_token_hash || !timingSafeEqual(Buffer.from(tokenHash(token)),Buffer.from(rows[0].signup_token_hash))) return context.json({error:"Unauthorized signup"},401);
       }
+      if(id)await registration.requireLive(tokenHash(token!),"cli");
       const bytes = await accountRequestBytes(context.req.raw);
       if (!bytes || bytes.length>64000) return context.json({error:"Request too large"},413);
       const input = parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as Record<string,unknown>;
       if (!input || typeof input !== "object" || Array.isArray(input)) return context.json({error:"Invalid request"},400);
       if (!id) {
-        if (Object.keys(input).some(k=>!["address","recoveryKey","identityKey","custody","backupVerified","signupHash","monitorOrigin","monitorKey"].includes(k)) ||
+        if (Object.keys(input).some(k=>!["address","recoveryKey","identityKey","custody","backupVerified","signupHash","monitorOrigin","monitorKey","invitation"].includes(k)) ||
           typeof input.address !== "string" || typeof input.recoveryKey !== "string" || input.recoveryKey.length>256 || typeof input.identityKey !== "string" || input.identityKey.length>256 ||
           typeof input.signupHash !== "string" || input.backupVerified !== true || !["owner-controlled","managed"].includes(input.custody as string)) return context.json({error:"Invalid preparation"},400);
         const hash=decodeBase64Url(input.signupHash);if(hash.length!==32)return context.json({error:"Invalid signup hash"},400);
+        if(input.invitation!==undefined&&(typeof input.invitation!=="string"||input.invitation.length>2048))return context.json({error:"Invalid invitation"},400);
+        if(input.address.split("@")[1]?.toLowerCase()!==new URL(dependencies.provider).hostname)return context.json({error:"Choose an address at this provider"},400);
+        const digest=new Uint8Array(createHash("sha256").update(JSON.stringify(Object.fromEntries(Object.entries(input).sort(([a],[b])=>a.localeCompare(b))))).digest());
+        await registration.admit(hash,digest,"cli",input.invitation as string??"");
         if(dependencies.profile==="strict-public-v1") {
           if(typeof input.monitorOrigin!=="string"||typeof input.monitorKey!=="string"||input.monitorOrigin.length>2048||input.monitorKey.length>256)return context.json({error:"Public signup requires monitor origin/key"},400);
           return context.json(await (dependencies.onboarding as PublicOnboarding).prepare(input.address,input.recoveryKey,input.identityKey,true,
@@ -95,6 +102,6 @@ export function registerSelfServiceOnboarding(app: Hono, dependencies: SelfServi
           url:`${dependencies.provider}/auth/recover#token=${encodeURIComponent(input.enrollmentToken)}`,expiresAt:capability.expires_at.toISOString()};
       }
       return context.json({did:result.did,credential:{type:"hailp.api-credential",version:1,provider:dependencies.provider,...credential},...(enrollment?{enrollment}:{})});
-    } catch { return context.json({error:"Signup not completed; retain artifacts and retry the same request"},409); }
+    } catch(error) { if(error instanceof RegistrationError)return context.json({error:error.message},error.status); return context.json({error:"Signup not completed; retain artifacts and retry the same request"},409); }
   });
 }

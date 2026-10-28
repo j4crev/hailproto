@@ -32,6 +32,8 @@ it("proves the process contract and rejects misplaced options, duplicate flags a
   ]) expect(() => parseCommand(args)).toThrow();
   expect(parseCommand(["grant", "update", "--help"]).help).toContain("fresh verified consent");
   expect(parseCommand(["grant","create","--help"]).help).not.toContain("uncategorized");
+  expect(parseCommand(["account","create","--provider","https://example.com","--address","user@example.com","--custody","managed",
+    "--vault","vault.json","--state","state.json","--credentials","credentials.json","--backup-verified","--invitation","signed-token"]).values.invitation).toBe("signed-token");
   expect(selectedScope("general")).toEqual({type:"categories",values:["general"]});
   expect(()=>selectedScope(null)).toThrow("named category");
   expect(parseCommand(["account","managed-transfer","export","--state","state.json","--output","snapshot.json",

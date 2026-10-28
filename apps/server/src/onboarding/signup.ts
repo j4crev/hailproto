@@ -17,7 +17,7 @@ import { SignupEmailError } from "./email.js";
 import { SignupMonitorError, type SignupMonitorService } from "./monitor.js";
 import { OnboardingRepository } from "./repository.js";
 import type { AlphaMonitoringPolicy, PublicOnboarding, PublicOnboardingPreparation } from "./public.js";
-import { verifySignupInvitation } from "./invitation.js";
+import {RegistrationPolicy,RegistrationError} from "./registration.js";
 
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/,TOKEN=/^hailp_[A-Za-z0-9_-]{43}$/;
 const equal=(a:Uint8Array,b:Uint8Array)=>a.length===b.length&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
@@ -36,7 +36,8 @@ const decoded=<T>(value:T|string):T=>typeof value==="string"?JSON.parse(value) a
 
 export class SignupCoordinator {
   constructor(private readonly sql:SQL,private readonly onboarding:PublicOnboarding,private readonly monitor:SignupMonitorService,
-    private readonly origin:string,private readonly policy:AlphaMonitoringPolicy,private readonly invitationKey:string){}
+    private readonly origin:string,private readonly policy:AlphaMonitoringPolicy,invitationKey:string){this.registration=new RegistrationPolicy(sql,origin,invitationKey);}
+  private readonly registration:RegistrationPolicy;
 
   private async row(id:string,token:string,sql=this.sql):Promise<SignupRow>{
     const row=(await sql<(SignupRow&{live:boolean;current_generation:boolean})[]>`SELECT c.*,expires_at>clock_timestamp() AS live,
@@ -64,9 +65,10 @@ export class SignupCoordinator {
   private async rowById(id:string):Promise<SignupRow>{return (await this.sql<SignupRow[]>`SELECT * FROM account_signup_ceremonies WHERE id=${id}`)[0]!;}
 
   async checkAddress(input:Record<string,unknown>){
+    if(!Object.hasOwn(input,"invitation"))input={...input,invitation:""};
     if(Object.keys(input).length!==2||typeof input.address!=="string"||typeof input.invitation!=="string"||input.invitation.length>2048)
       throw new SignupError(400);
-    try{verifySignupInvitation(input.invitation,this.origin,this.invitationKey);}catch{throw new SignupError(403,"Invitation invalid or expired");}
+    await this.registration.check(input.invitation);
     let address:string;
     try{address=canonicalizeHailAddress(input.address);}catch{throw new SignupError(400,"Invalid address");}
     if(address.split("@")[1]!==new URL(this.origin).hostname)throw new SignupError(400,"Choose an address at this provider");
@@ -77,6 +79,7 @@ export class SignupCoordinator {
   }
 
   async prepare(input:Record<string,unknown>,token:string){
+    if(!Object.hasOwn(input,"invitation"))input={...input,invitation:""};
     const allowed=["signupId","address","recoveryKey","identityKey","enrollmentHash","invitation","backupVerified","managedAccepted","alphaMonitoringAccepted"];
     if(Object.keys(input).length!==allowed.length||Object.keys(input).some(key=>!allowed.includes(key))||
       typeof input.signupId!=="string"||!UUID.test(input.signupId)||!TOKEN.test(token)||
@@ -95,9 +98,8 @@ export class SignupCoordinator {
     const digest=new Uint8Array(createHash("sha256").update(JSON.stringify(request)).digest());
     const prior=(await this.sql<SignupRow[]>`SELECT * FROM account_signup_ceremonies WHERE id=${input.signupId}`)[0];
     if(!prior){
-      let invitationId:string;
-      try{invitationId=verifySignupInvitation(input.invitation,this.origin,this.invitationKey);}catch{throw new SignupError(403,"Invitation invalid or expired");}
       await this.sql.begin(async tx=>{
+        const invitationId=await this.registration.admit(signupHash,digest,"browser",input.invitation as string,tx as unknown as SQL);
         if((await tx`SELECT id FROM account_api_credentials WHERE token_hash IN (${signupHash},${enrollmentHash})`).length||
           (await tx`SELECT id FROM account_passkey_enrollment_capabilities WHERE token_hash IN (${signupHash},${enrollmentHash})`).length)
           throw new SignupError(409,"Existing account credentials cannot be used as setup authority");
@@ -309,10 +311,10 @@ export function registerSignupRoutes(app:Hono,signup:SignupCoordinator,accounts:
       throw new SignupError(404);
     }catch(error){
       const postgres=error as {code?:unknown;errno?:unknown}|null;
-      const status=error instanceof SignupError||error instanceof SignupMonitorError||error instanceof SignupEmailError?error.status:
+      const status=error instanceof SignupError||error instanceof RegistrationError||error instanceof SignupMonitorError||error instanceof SignupEmailError?error.status:
         postgres?.code==="23505"||postgres?.errno==="23505"?409:503;
       if(status===202||status===503)context.header("Retry-After","15");
-      return new Response(JSON.stringify({error:error instanceof SignupError?error.message:"Signup not completed; retain the original setup state"}),{
+      return new Response(JSON.stringify({error:error instanceof SignupError||error instanceof RegistrationError?error.message:"Signup not completed; retain the original setup state"}),{
         status,headers:{"Content-Type":"application/json","Cache-Control":"no-store",...(status===202||status===503?{"Retry-After":"15"}:{})}});
     }
   });

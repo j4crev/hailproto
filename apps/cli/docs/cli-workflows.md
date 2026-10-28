@@ -58,6 +58,14 @@ hailp account create \
   --backup-verified
 ```
 
+If the provider uses `invite` registration, add `--invitation '<signed token>'`.
+Use the token from the invitation link’s `#invitation=` fragment (URL-decoded),
+not the entire URL. The CLI retains it in the private setup state for retries;
+you do not need to repeat the option when resuming. In `public` mode, omit it.
+Both modes require an address at the provider’s configured domain and preserve
+the existing recovery and monitoring requirements. The provider must also have
+its CLI onboarding endpoint enabled.
+
 Choose `--custody managed` explicitly when the provider should hold the active
 identity key. The owner still signs genesis with the top recovery key. Retain
 the signup state and rerun the exact command after interruption.

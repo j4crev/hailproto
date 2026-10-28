@@ -1,3 +1,4 @@
+import {createSignupInvitation} from "../src/onboarding/invitation.js";
 import {randomBytes,randomUUID} from "node:crypto";
 import {mkdtemp,writeFile,readFile,rm,stat} from "node:fs/promises";
 import {join} from "node:path";
@@ -32,6 +33,7 @@ import {PasskeyAuth} from "../src/accounts/passkeys.js";
 const integration=process.env.DATABASE_URL?describe:describe.skip;
 integration("self-service custody profiles and credentials",()=>{
   let db:ProviderDatabase;
+  const invitationKey=encodeBase64Url(randomBytes(32));
   const origin="https://source.example.com",base=`${origin}/hail`;
   const log=new Map<string,Operation>();let writes=0;
   const encryptor=new KeyEncryptor(encodeBase64Url(randomBytes(32)));
@@ -77,7 +79,7 @@ integration("self-service custody profiles and credentials",()=>{
       {async verify(){return verifiedProfile!;}},base);
     const binding=new AccountBinding(db.sql,resolver,encryptor,origin,addressVerifier);
     const app=createApp({publicOrigin:origin,hailServiceBase:base,providerId:"test"} as AppConfig,{accountApi:{accounts,grants,service,binding},discoveryStore:repository,
-      selfServiceOnboarding:{sql:db.sql,onboarding,activation,provider:origin},async checkReadiness(){return {ready:true};}});
+      selfServiceOnboarding:{sql:db.sql,onboarding,activation,provider:origin,invitationKey},async checkReadiness(){return {ready:true};}});
     vi.stubGlobal("fetch",(input:RequestInfo|URL,init?:RequestInit)=>app.fetch(input instanceof Request?input:new Request(String(input),init)));
     const paths={vault:join(directory,"vault.json"),state:join(directory,"state.json"),credential:join(directory,"credential.json"),
       enrollment:join(directory,"passkey-enrollment.json")};
@@ -85,7 +87,7 @@ integration("self-service custody profiles and credentials",()=>{
     const address=`signup-${randomUUID()}@source.example.com`;
     try {
       const input=async()=>encodeBase64Url(vault.recoverySecret);
-      const created=await createAccount(origin,address,custody,paths.vault,paths.state,paths.credential,input,undefined,paths.enrollment);
+      const created=await createAccount(origin,address,custody,paths.vault,paths.state,paths.credential,input,undefined,paths.enrollment,createSignupInvitation(origin,invitationKey));
       const before=writes;
       expect(await createAccount(origin,address,custody,paths.vault,paths.state,paths.credential,input,undefined,paths.enrollment)).toEqual(created);
       expect(writes).toBe(before);

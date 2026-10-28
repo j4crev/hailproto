@@ -18,28 +18,29 @@ export async function writeState(path:string,data:unknown) {
 }
 export async function createAccount(provider:string,address:string,custody:"owner-controlled"|"managed",
   vaultPath:string,statePath:string,credentialPath:string,recoveryInput:()=>Promise<string>=readRecoverySecret,
-  monitor?:{origin:string;publicKey:string;attestationPath?:string},enrollmentPath?:string) {
-  let state: {provider:string;address:string;custody:string;token:string;preparation?:Record<string,unknown>;
+  monitor?:{origin:string;publicKey:string;attestationPath?:string},enrollmentPath?:string,invitation?:string) {
+  let state: {provider:string;address:string;custody:string;token:string;invitation?:string;preparation?:Record<string,unknown>;
     operation?:Operation;binding?:string|null;did?:string;monitorOrigin?:string;monitorKey?:string;enrollmentToken?:string};
   if(enrollmentPath&&new Set([vaultPath,statePath,credentialPath,enrollmentPath].map(path=>resolve(path))).size!==4)
     throw new Error("Signup private output paths must be distinct");
   try {state=JSON.parse(new TextDecoder().decode(await privateFile(statePath,64000)));}
   catch(error) {
     if(!(error instanceof Error&&"code" in error&&error.code==="ENOENT"))throw error;
-    state={provider,address,custody,token:`hailp_${encodeBase64Url(randomBytes(32))}`,
+    state={provider,address,custody,...(invitation?{invitation}:{}),token:`hailp_${encodeBase64Url(randomBytes(32))}`,
       ...(monitor?{monitorOrigin:monitor.origin,monitorKey:monitor.publicKey}:{})};
     await savePrivateBytes(statePath,new TextEncoder().encode(JSON.stringify(state)));
   }
   if(state.provider!==provider||state.address!==address||state.custody!==custody||state.monitorOrigin!==monitor?.origin||state.monitorKey!==monitor?.publicKey)throw new Error("Signup state belongs to another request");
   if(enrollmentPath&&!state.enrollmentToken){state.enrollmentToken=`hailp_${encodeBase64Url(randomBytes(32))}`;await writeState(statePath,state);}
   if(state.enrollmentToken&&!/^hailp_[A-Za-z0-9_-]{43}$/.test(state.enrollmentToken))throw new Error("Invalid signup enrollment state");
+  if(invitation!==undefined&&invitation!==state.invitation)throw new Error("Invitation differs from retained signup state");
   const secret=decodeBase64Url(await recoveryInput());
   try {
     const user=await unlockUserVault(JSON.parse(new TextDecoder().decode(await privateFile(vaultPath,16384))) as UserVaultFile,secret);
     const originallyUnbound=user.vault.did===null;
     const client=AccountApiClient.signup(provider,state.token);
     const prepared=state.preparation ?? await client.request("",{address,recoveryKey:user.vault.recovery.publicDidKey,
-      identityKey:user.vault.identity.publicDidKey,custody,backupVerified:true,
+      identityKey:user.vault.identity.publicDidKey,custody,backupVerified:true,...(state.invitation?{invitation:state.invitation}:{}),
        signupHash:encodeBase64Url(new Uint8Array(createHash("sha256").update(state.token).digest())),
        ...(monitor?{monitorOrigin:monitor.origin,monitorKey:monitor.publicKey}:{})},"/api/v1/onboarding");
     if(prepared.address!==address.toLowerCase()||prepared.userRecoveryKey!==user.vault.recovery.publicDidKey||prepared.custodyProfile!==custody||

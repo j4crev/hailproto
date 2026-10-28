@@ -29,7 +29,7 @@ import type { PlcDirectoryClient } from "../src/plc/client.js";
 import { PlcHailDidResolver } from "../src/plc/resolver.js";
 import { VerifiedPublicPlcResolver } from "../src/plc/public-resolver.js";
 
-it.skipIf(!process.env.DATABASE_URL).each([false,true])("automates monitored signup (single package: %s) with restart and terminal authority", async (packageFlow) => {
+it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false},{packageFlow:true,publicSignup:false},{packageFlow:true,publicSignup:true}])("automates monitored signup ($packageFlow, public: $publicSignup) with restart and terminal authority", async ({packageFlow,publicSignup}) => {
   const admin = new SQL(process.env.DATABASE_URL!), suffix = randomUUID().replaceAll("-", ""), providerSchema = `signup_provider_${suffix}`, monitorSchema = `signup_monitor_${suffix}`;
   await admin.unsafe(`CREATE SCHEMA "${providerSchema}"`); await admin.unsafe(`CREATE SCHEMA "${monitorSchema}"`);
   const databaseUrl = (schema: string) => { const url = new URL(process.env.DATABASE_URL!); url.searchParams.set("options", `-csearch_path=${schema}`); return url.toString(); };
@@ -148,7 +148,8 @@ it.skipIf(!process.env.DATABASE_URL).each([false,true])("automates monitored sig
     expect(emailMessages[1]!).toMatchObject({ to: "owner@example.com", from: { email: "security@notify.example.com", name: "Hail" } });
 
     await monitorDb.sql`UPDATE monitored_dids SET last_polled_at=now()-interval '6 minutes'`;
-    expect((await enrollment()).status).toBe(202); await monitor.poll();
+    // Enrollment refreshes this DID before checking coverage.
+    expect((await enrollment()).status).toBe(200); await monitor.poll();
     tamperSignature = true; expect((await enrollment()).status).toBe(503); tamperSignature = false;
     expect((await repository.getAccount(prepared.accountId)).state).toBe("address-staged");
     // Rebuild service instances as after a monitor process restart; keep all retained evidence.
@@ -169,7 +170,8 @@ it.skipIf(!process.env.DATABASE_URL).each([false,true])("automates monitored sig
 
     const browserVault=await createUserVault();
     try{
-      const inviteKey=encodeBase64Url(randomBytes(32)),invite=createSignupInvitation(providerOrigin,inviteKey);
+      const inviteKey=encodeBase64Url(randomBytes(32)),invite=publicSignup?"":createSignupInvitation(providerOrigin,inviteKey);
+      if(publicSignup)await db.sql`UPDATE provider_registration_settings SET mode='public' WHERE singleton=true`;
       const setupToken=`hailp_${encodeBase64Url(randomBytes(32))}`,enrollmentToken=`hailp_${encodeBase64Url(randomBytes(32))}`,id=randomUUID();
       const policy={profile:"reduced-assurance-alpha-v1" as const,monitorOrigin,monitorPublicKey:signer.publicDidKey};
       let coordinator=new SignupCoordinator(db.sql,onboarding,monitoring,providerOrigin,policy,inviteKey);
@@ -187,13 +189,19 @@ it.skipIf(!process.env.DATABASE_URL).each([false,true])("automates monitored sig
       expect(await coordinator.checkAddress({address:request.address,invitation:invite})).toEqual({address:request.address,available:true});
       await expect(coordinator.checkAddress({address:request.address,invitation:"invalid"})).rejects.toMatchObject({status:403});
       await expect(coordinator.checkAddress({address:"elsewhere@other.example",invitation:invite})).rejects.toMatchObject({status:400});
-      const created=await call("signup",request);expect(created.status).toBe(200);
+      if(!publicSignup)await expect(coordinator.prepare({...request,invitation:""},setupToken)).rejects.toMatchObject({status:403});
+      const {invitation:omittedInvitation,...publicRequest}=request;
+      const created=await call("signup",publicSignup?publicRequest:request);expect(created.status).toBe(200);
       expect(await coordinator.checkAddress({address:request.address,invitation:invite})).toEqual({address:request.address,available:false});
+      if(publicSignup){
+        await db.sql`UPDATE provider_registration_settings SET mode='invite' WHERE singleton=true`;
+        await expect(coordinator.prepare({...request,signupId:randomUUID()},`hailp_${encodeBase64Url(randomBytes(32))}`)).rejects.toMatchObject({status:403});
+      }
       const setup=await created.json() as {accountId:string;state:string;expiresAt:string;preparation:typeof prepared};
       expect((await signupApp.request(`${providerOrigin}/api/v1/signup/${id}`,{headers:{Authorization:`Bearer ${setupToken}`}})).status).toBe(200);
       expect(setup.state).toBe(packageFlow?"recovery-required":"prepared");expect((await call("signup",request)).status).toBe(200);
       expect((await call("signup",{...request,address:`other-${suffix}@provider.example.com`})).status).toBe(409);
-      expect((await call("signup",{...request,signupId:randomUUID()})).status).toBe(409); // Single-use invitation.
+      expect((await call("signup",{...request,signupId:randomUUID()})).status).toBe(409); // No second admission.
       expect((await call(`signup/${id}/advance`,{operation:genesis.operation,enrollmentToken})).status).toBe(packageFlow?409:400);
       expect((await db.sql<{operation_bytes:Uint8Array|null}[]>`SELECT operation_bytes FROM account_signup_ceremonies WHERE id=${id}`)[0]!.operation_bytes).toBeNull();
       const browserOwner=await unlockUserVault(browserVault.vault,browserVault.recoverySecret),p=setup.preparation;
@@ -308,23 +316,9 @@ it.skipIf(!process.env.DATABASE_URL).each([false,true])("automates monitored sig
       expect((await db.sql<{signup_token_hash:Uint8Array|null}[]>`SELECT signup_token_hash FROM public_onboarding_preparations WHERE account_id=${setup.accountId}`)[0]!.signup_token_hash).toBeNull();
       await expect(db.sql`UPDATE account_signup_ceremonies SET completed_at=NULL,completed_by=NULL WHERE id=${id}`).rejects.toThrow("cannot be replaced");
       const rollback=await db.sql.reserve();try{
-        if(packageFlow){
-          await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0073_signup_recovery_package.sql",import.meta.url)).text())).rejects.toThrow("rollback would discard");
-        } else {
-          const files=new Bun.Glob("*.sql");
-          const directory=new URL("../migrations/rollback/",import.meta.url).pathname;
-          const names=Array.from(files.scanSync(directory)).filter(name=>Number(name.slice(0,4))>65).sort().reverse();
-          for(const name of names)await rollback.unsafe(await Bun.file(directory+name).text());
-        await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());
-        await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());
-        await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());
-        await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());
-        await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());
-        await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
-        await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());
-        await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0058_signup_ceremonies.sql",import.meta.url)).text())).rejects.toThrow("prevent rollback");
-        }
-       }finally{await rollback.unsafe("ROLLBACK");rollback.release();}
+        await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0078_registration_policy.sql",import.meta.url)).text())).rejects.toThrow("retain admission and audit evidence");
+        if(packageFlow)await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0073_signup_recovery_package.sql",import.meta.url)).text())).rejects.toThrow("rollback would discard");
+      }finally{await rollback.unsafe("ROLLBACK");rollback.release();}
        await db.migrate();
        const generationVault=await createUserVault();try{
         const retiredToken=`hailp_${encodeBase64Url(randomBytes(32))}`,retiredId=randomUUID();

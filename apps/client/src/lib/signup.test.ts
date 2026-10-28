@@ -14,6 +14,8 @@ it("round-trips encrypted pending setup without retaining its recovery secret; r
     expect(key.extractable).toBe(false);
     for(const sensitive of [secret,pending.token,pending.enrollmentToken,pending.invitation,pending.email,pending.vault.recovery.ciphertext])expect(text).not.toContain(sensitive);
     expect(await openPending(text,key,policy)).toEqual(pending);
+    const publicPending={...pending,invitation:""};
+    expect(await openPending(await sealPending(publicPending,key),key,policy)).toEqual(publicPending);
     expect(await sealPending(pending,key)).not.toBe(text); // fresh nonce per checkpoint
     await expect(openPending(text,await pendingKey(encodeBase64Url(crypto.getRandomValues(new Uint8Array(32)))),policy)).rejects.toThrow();
     const altered=JSON.parse(text);altered.ciphertext=(altered.ciphertext[0]==="A"?"B":"A")+altered.ciphertext.slice(1);

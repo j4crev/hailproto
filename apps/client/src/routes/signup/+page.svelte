@@ -186,8 +186,8 @@
     {#key screen}<div class="signup-page">
       {#if screen==="address"}
         <form onsubmit={e=>{e.preventDefault();void run(chooseAddress);}}>
-          <label>Invitation<input type="password" bind:value={invitation} required autocomplete="off" maxlength="2048" /></label>
-          <label>Your Hail address<div class="address-input"><input bind:value={local} required pattern={'[a-z0-9][a-z0-9._-]{0,63}'} maxlength="64" autocomplete="username" /><span>@{new URL(data.policy.provider).hostname}</span></div></label>
+          {#if data.signupMode==="invite"||invitation}<label>Invitation<input type="password" bind:value={invitation} required={data.signupMode==="invite"} autocomplete="off" maxlength="2048" /></label>{/if}
+          <label>Your Hail address<div class="address-input"><input bind:value={local} required pattern={'[a-z0-9][a-z0-9._\\-]{0,63}'} maxlength="64" autocomplete="username" /><span>@{new URL(data.policy.provider).hostname}</span></div></label>
           <label>Security email<input type="email" bind:value={email} required autocomplete="email" maxlength="254" /></label>
           <p>Use an existing email address outside Hail for security alerts. We’ll verify it later.</p>
           <button class="hail-button" disabled={busy||now<retryAt}>Continue</button>

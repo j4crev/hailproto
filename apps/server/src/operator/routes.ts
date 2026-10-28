@@ -1,3 +1,4 @@
+import {RegistrationError,type RegistrationPolicy} from "../onboarding/registration.js";
 import type {Hono} from "hono";
 import {getCookie} from "hono/cookie";
 import type {AccountApiRepository} from "../accounts/repository.js";
@@ -8,9 +9,10 @@ import {OperatorError, type OperatorInvitations} from "./invitations.js";
 
 import {statsRanges, type OperatorStatistics, type StatsRange} from "./stats.js";
 
-export function registerOperatorRoutes(app:Hono,accounts:AccountApiRepository,invitations:OperatorInvitations,origin:string,statistics?:OperatorStatistics){
+export function registerOperatorRoutes(app:Hono,accounts:AccountApiRepository,invitations:OperatorInvitations,origin:string,statistics?:OperatorStatistics,registration?:RegistrationPolicy){
   const rate=new FixedWindowRateLimit();
-  for(const path of ["/api/v1/operator/invitations","/api/v1/operator/stats"])app.all(path,async context=>{
+  for(const path of ["/api/v1/operator/invitations","/api/v1/operator/stats","/api/v1/operator/registration"])app.all(path,async context=>{
+    const isRegistration=context.req.path.endsWith("/registration");
     const isStats=context.req.path.endsWith("/stats");
     context.header("Cache-Control","no-store");
     context.header("Referrer-Policy","no-referrer");
@@ -31,9 +33,11 @@ export function registerOperatorRoutes(app:Hono,accounts:AccountApiRepository,in
         if(!statistics)return context.json({error:"Statistics unavailable"},503);
         return context.json(await statistics.read(range as StatsRange));
       }
+      if(isRegistration&&!registration)return context.json({error:"Registration policy unavailable"},503);
+      if(isRegistration&&context.req.method==="GET")return context.json(await registration!.read());
       if(context.req.method==="GET")return context.json(await invitations.list());
       if(!session.passkey_verified_at||Date.now()-session.passkey_verified_at.getTime()>10*60_000)
-        return context.json({error:"Sign in again before creating invitations"},403);
+        return context.json({error:"Sign in again before changing settings or creating invitations"},403);
       if(context.req.header("Content-Type")!=="application/json"||context.req.header("Content-Encoding"))return context.json({error:"Use JSON"},415);
       const bytes=await accountRequestBytes(context.req.raw,4096);
       if(!bytes)return context.json({error:"Request too large"},413);
@@ -42,9 +46,11 @@ export function registerOperatorRoutes(app:Hono,accounts:AccountApiRepository,in
         input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as Record<string,unknown>;
         if(!input||typeof input!=="object"||Array.isArray(input))throw new Error();
       }catch{return context.json({error:"Invalid request"},400);}
+      if(isRegistration)return context.json(await registration!.update(session.account_id,input));
       return context.json(await invitations.create(session.account_id,input));
     }catch(error){
-      if(error instanceof OperatorError)return context.json({error:error.message},error.status);
+      if(error instanceof OperatorError||error instanceof RegistrationError)return context.json({error:error.message},error.status);
+      if(isRegistration)return context.json({error:"Registration policy unavailable"},503);
       if(isStats)return context.json({error:"Statistics unavailable"},503);
       // Never expose email addresses, invitation bearers or upstream diagnostics.
       return context.json({error:"Invitation delivery unconfirmed; retry the same request"},503);

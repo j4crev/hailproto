@@ -1,3 +1,4 @@
+import {RegistrationPolicy} from "./onboarding/registration.js";
 import {OperatorStatistics} from "./operator/stats.js";
 import {registerOperatorRoutes} from "./operator/routes.js";
 import {OperatorInvitations} from "./operator/invitations.js";
@@ -115,6 +116,12 @@ export function createApp(
 ): Hono {
   const app = new Hono();
   if(dependencies.servingSql)app.use("*",async(_context,next)=>withFreshServingGenerations(dependencies.servingSql!,next));
+  const registration=dependencies.servingSql?new RegistrationPolicy(dependencies.servingSql,config.publicOrigin,config.alphaSignup?.invitationKey):undefined;
+  if(registration)app.get("/api/v1/registration",async context=>{
+    context.header("Cache-Control","no-store");
+    try{return context.json({...await registration.read(),signupAvailable:Boolean(dependencies.signup)});}
+    catch{return context.json({error:"Registration policy unavailable"},503);}
+  });
   const protectedSchedule = new ProtectedResponseSchedule();
   if(dependencies.selfServiceOnboarding)registerSelfServiceOnboarding(app,dependencies.selfServiceOnboarding);
   if(dependencies.signupEmail)registerSignupEmailRoutes(app,dependencies.signupEmail.sql,dependencies.signupEmail.client,config.passkeys?.origin??config.publicOrigin);
@@ -132,7 +139,7 @@ export function createApp(
     if(dependencies.passkeys)registerPasskeyRoutes(app,dependencies.passkeys,accounts);
     if(dependencies.passkeys&&dependencies.signup&&dependencies.signupEmail&&config.alphaSignup)
       registerOperatorRoutes(app,accounts,new OperatorInvitations(dependencies.signupEmail.sql,config.publicOrigin,
-        dependencies.passkeys.origin,config.alphaSignup.invitationKey,dependencies.signupEmail.client),dependencies.passkeys.origin,new OperatorStatistics(dependencies.signupEmail.sql));
+        dependencies.passkeys.origin,config.alphaSignup.invitationKey,dependencies.signupEmail.client),dependencies.passkeys.origin,new OperatorStatistics(dependencies.signupEmail.sql),registration);
     if(dependencies.passkeys&&dependencies.servingSql)registerPermissionRoutes(app,
       new GrantPermissions(dependencies.servingSql,accounts,grants,service,dependencies.passkeys,config.publicOrigin),accounts,dependencies.passkeys.origin);
   }

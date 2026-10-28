@@ -57,3 +57,17 @@ it("returns a safe retryable statistics error without database diagnostics",asyn
   const response=await t.app.request("/api/v1/operator/stats",{headers:{Origin:origin,Cookie:"hail_session=test"}});
   expect(response.status).toBe(503);expect(await response.json()).toEqual({error:"Statistics unavailable"});
 });
+
+it("protects registration reads and changes with operator authority, origin and recent authentication",async()=>{
+  const t=setup(),registration={read:vi.fn(async()=>({mode:"invite"})),update:vi.fn(async()=>({mode:"public"}))};
+  const app=new Hono();registerOperatorRoutes(app,t.accounts as never,t.invitations as never,origin,undefined,registration as never);
+  const request=(method="GET",extra:Record<string,string>={})=>app.request("/api/v1/operator/registration",{method,
+    headers:{Origin:origin,Cookie:"hail_session=test","Content-Type":"application/json",...extra},...(method==="POST"?{body:'{"mode":"public"}'}:{})});
+  expect((await request()).status).toBe(200);
+  expect((await request("POST",{Origin:"https://evil.example"})).status).toBe(403);
+  t.session.passkey_verified_at=new Date(Date.now()-11*60_000);expect((await request("POST")).status).toBe(403);
+  t.session.passkey_verified_at=new Date();t.invitations.authorized.mockResolvedValue(false);expect((await request("POST")).status).toBe(403);
+  t.invitations.authorized.mockResolvedValue(true);expect((await request("POST")).status).toBe(200);
+  expect(registration.update).toHaveBeenCalledExactlyOnceWith("a",{mode:"public"});
+  t.accounts.authenticate.mockResolvedValue(null as never);expect((await request("POST")).status).toBe(401);
+});

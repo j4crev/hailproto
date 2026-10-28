@@ -37,7 +37,7 @@ it("shows homepage sign-in for validated return paths even with an existing sess
   for(const token of [undefined,"existing-session"]){
     for(const [next,expected] of [["/admin","/admin"],["/connect?token=secret","/connect"],["https://evil.example","/"]]){
       const url=new URL("https://provider.example/?next="+encodeURIComponent(next));
-      await expect(home({url,cookies:{get:()=>token}} as never)).resolves.toEqual({configured:false,returnTo:expected});
+      await expect(home({url,cookies:{get:()=>token},setHeaders:vi.fn()} as never)).resolves.toEqual({configured:false,returnTo:expected,registration:null});
     }
   }
 });

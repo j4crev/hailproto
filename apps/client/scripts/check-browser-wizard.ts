@@ -68,6 +68,7 @@ const reserved=Bun.serve({hostname:"127.0.0.1",port:0,fetch:()=>new Response()})
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{"Cache-Control":"no-store","Content-Type":"application/json"}});
 function summary(){return {type:"hail.signup",version:1,signupId:setupId,accountId:prepared.accountId,address:prepared.address,did,state,
   expiresAt:new Date(Date.now()+86400_000).toISOString(),preparation:prepared,enrollmentExpiresAt:new Date(Date.now()+600_000).toISOString()};}
+let signupMode:"invite"|"public"="invite";
 const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   const path=new URL(request.url).pathname;
   assert(!request.url.includes(fixtureAdmissionToken),"Connection token leaked into an HTTP URL");
@@ -224,6 +225,16 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     return json(path.endsWith("/inbox")?{messages:(personal?(connectionIncoming?[connectionReply()]:[]):incoming?[incomingMessage()]:[]).filter(m=>!trashed.has(m.messageId)&&!deleted.has(m.messageId)),next:!personal&&incoming&&!query.has("after")?"older-page":null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
       address:prepared.address,did:profileVerificationMismatch?peerDid:did,migrationState:null,custodyProfile:"managed",monitorVerificationMode:"reduced-assurance-alpha-v1",managedProfileVersion:"hail-managed-custody-v1",
       identityPublicKey:prepared.userIdentityKey,ownerRecoveryPublicKey:prepared.userRecoveryKey,scopes:["account:read","grants:read","messages:read","messages:write"]});
+  }
+  if(path==="/api/v1/registration")return json({mode:signupMode,signupAvailable:true});
+  if(path.startsWith("/api/v1/operator/")){
+    if(!authenticated)return json({},403);
+    if(path.endsWith("/invitations"))return json({invitations:[]});
+    if(path.endsWith("/stats"))return json({},503);
+    if(path.endsWith("/registration")){
+      if(request.method==="POST"){assert(["invite","public"].includes(input.mode));signupMode=input.mode;}
+      return json({mode:signupMode});
+    }
   }
   if(path==="/api/v1/signup/check-address")return json({address:input.address,available:true});
   if(path==="/api/v1/signup"){
@@ -402,6 +413,19 @@ try{
   assert(retired&&authenticated&&enrolled);assert.equal(prepareCalls,1);assert.equal(publicationAttempts,2);
   assert.equal(await evaluate("localStorage.getItem('hail.pending-signup.v1')"),null);
   assert.equal((await readdir(work)).filter(name=>name.endsWith(".json")).length,1,"Only one package download is required");
+  if(process.env.HAIL_REGISTRATION_CHECK_ONLY==="true"){
+    await cdp("Page.navigate",{url:origin+"/admin"});await wait(()=>has('Your Hail server'),'admin registration');
+    await click('Public');await wait(()=>has('Registration setting saved.'),'public registration saved');assert.equal(signupMode,'public');
+    await click('Invite');await wait(async()=>signupMode==='invite','invite registration saved');
+    await click('Public');await wait(async()=>signupMode==='public','public registration restored');
+    await screenshot('admin-registration');
+    authenticated=false;await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
+    await cdp("Page.navigate",{url:origin});await wait(()=>has('Create an account'),'public homepage link');
+    await cdp("Page.navigate",{url:origin+"/signup"});await wait(()=>has('Choose your Hail address'),'public signup');
+    assert.equal(await evaluate(`document.querySelector('input[maxlength="2048"]')===null`),true);
+    await screenshot('public-signup');passed=true;
+    console.info('PASS: Chromium invite signup, admin Invite/Public controls and public signup presentation (local API fixtures)');
+  }else{
   await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your inbox').click()`);
   await wait(()=>has("No messages yet"),"completed alpha account inbox");
   assert(await evaluate(`document.querySelector('.account-popover').textContent.includes("alice@provider.example.com")`));
@@ -764,6 +788,12 @@ try{
   await mailboxPage('/?view=connections','Messages');await wait(()=>has('Delete message'),'permanent delete entry');
   await click('Delete message');await wait(()=>has('Delete permanently'),'disabled trash warning');await click('Delete permanently');await wait(()=>has('No messages yet'),'immediate permanent deletion');
   await mailboxPage('/trash','Trash');await wait(()=>has('Trash is empty.'),'disabled Trash has no deleted messages');
+  await mailboxPage('/admin','Your Hail server');
+  await click('Public');await wait(()=>has('Registration setting saved.'),'public registration saved');
+  assert.equal(signupMode,'public');
+  await click('Invite');await wait(async()=>signupMode==='invite','invite registration saved');
+  await click('Public');await wait(async()=>signupMode==='public','public registration restored');
+  await screenshot('admin-registration');
   await openAccount();
   await evaluate(`document.querySelector('[popover]:popover-open form button').click()`);
   await wait(()=>has("Couldn’t sign out. Please try again."),"logout failure offers retry");
@@ -772,8 +802,14 @@ try{
   await wait(async()=>evaluate(`location.pathname==='/'&&document.body.innerText.includes('Your permission.')`),"avatar menu signs out to homepage");
   assert(!authenticated);assert(requests.some(r=>r.path==='/api/v1/auth/logout'));
   const loggedOut=await cdp("Network.getCookies",{urls:[origin]});assert(!loggedOut.cookies.some((cookie:any)=>cookie.name==='hail_session'),"Sign-out clears session cookie");
+  await wait(()=>has('Create an account'),'public homepage signup link');
+  await cdp("Page.navigate",{url:origin+"/signup"});
+  await wait(()=>has('Choose your Hail address'),'public signup form');
+  assert.equal(await evaluate(`document.querySelector('input[maxlength="2048"]')===null`),true,'Public signup does not require an invitation');
+  await screenshot('public-signup');
   passed=true;
   console.info("PASS: Chromium public/private shells, sign-in return paths and QR pins, signup, messaging, permissions and security (local API fixtures only)");
+  }
 }finally{
   socket?.close();chrome?.kill();gui?.kill();server.stop(true);
   if(chrome)await chrome.exited;if(gui)await gui.exited;

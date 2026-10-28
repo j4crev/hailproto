@@ -29,7 +29,7 @@ export function validatePending(value:PendingSignup,policy:SignupPolicy):Pending
   if(!value||Object.keys(value).length!==12||Object.keys(value).some(key=>!["type","version","policy","signupId","address","token","enrollmentToken","invitation","vault","email","operation","did"].includes(key))||
     value.type!=="hail.pending-signup"||![1,2].includes(value.version)||!uuid.test(value.signupId)||
     !token.test(value.token)||!token.test(value.enrollmentToken)||value.token===value.enrollmentToken||
-    typeof value.invitation!=="string"||value.invitation.length>2048||!value.invitation||
+    typeof value.invitation!=="string"||value.invitation.length>2048||
     typeof value.email!=="string"||value.email.length>254||(value.version===1?!value.email.includes("@"):value.email!==""&&!value.email.includes("@"))||
     typeof value.address!=="string"||!new RegExp(`^[a-z0-9][a-z0-9._-]{0,63}@`).test(value.address)||
     value.address.split("@").length!==2||value.address.split("@")[1]!==new URL(policy.provider).hostname||

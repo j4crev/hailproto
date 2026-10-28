@@ -1,9 +1,23 @@
 <script lang="ts">
+  import {onMount} from "svelte";
   import ProviderStats from "$lib/ProviderStats.svelte";
   import {invalidateAll} from "$app/navigation";
   let {data}=$props();
   let email=$state(""),busy=$state(false),message=$state(""),inviteUrl=$state(""),copied=$state(false);
   let pending=$state<{id:string;email:string|null}|null>(null);
+  let ready=$state(false);
+  onMount(()=>{ready=true;});
+  let savingMode=$state(false),modeMessage=$state("");
+  async function setMode(mode:"invite"|"public"){
+    if(savingMode||mode===data.signupMode)return;
+    savingMode=true;modeMessage="";
+    try{
+      const response=await fetch("/api/v1/operator/registration",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode})});
+      if(!response.ok){modeMessage=response.status===403?"Sign in again with your operator passkey to change registration.":"Could not confirm the setting. Refresh and retry.";return;}
+      await invalidateAll();modeMessage="Registration setting saved.";
+    }catch{modeMessage="Could not confirm the setting. Refresh and retry.";}
+    finally{savingMode=false;}
+  }
   async function create(event:SubmitEvent){
     event.preventDefault();if(busy)return;
     busy=true;message="";inviteUrl="";copied=false;
@@ -28,6 +42,17 @@
 <svelte:head><title>Provider administration · Hail</title><meta name="referrer" content="no-referrer" /></svelte:head>
 <div class="dashboard">
   <header class="page-heading"><p class="hail-eyebrow">Provider administration</p><h1 class="hail-title">Your Hail server</h1><p>Activity and signup invitations for {data.account.provider}.</p></header>
+  <section class="hail-card panel" aria-labelledby="registration-heading">
+    <h2 id="registration-heading">Registration</h2>
+    <p>Invite requires a single-use invitation. Public allows anyone to create an account at this server’s domain. Setups already started can finish within their existing expiry.</p>
+    <div role="group" aria-label="Registration mode">
+      <button class="hail-button-secondary" aria-pressed={data.signupMode==="invite"} disabled={!ready||savingMode} onclick={()=>setMode("invite")}>Invite</button>
+      <button class="hail-button-secondary" aria-pressed={data.signupMode==="public"} disabled={!ready||savingMode} onclick={()=>setMode("public")}>Public</button>
+    </div>
+    <p>Current mode: <strong>{data.signupMode==="invite"?"Invite":"Public"}</strong></p>
+    {#if modeMessage}<p role="status">{modeMessage}</p>{/if}
+    <p class="hint">Changing registration requires a passkey login within the last ten minutes.</p>
+  </section>
   <ProviderStats stats={data.stats} range={data.range} />
   <section class="hail-card panel" aria-labelledby="new-invitation">
     <h2 id="new-invitation">New invitation</h2>

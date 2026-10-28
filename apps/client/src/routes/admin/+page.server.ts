@@ -14,7 +14,9 @@ export async function load({cookies,url}){
     let stats:OperatorStats|null=null;
     try{stats=await client.request(`/stats?range=${range}`,undefined,"/api/v1/operator") as OperatorStats;}
     catch(cause){if(!(cause instanceof AccountApiError)||![429,503].includes(cause.status))throw cause;}
-    return {account,invitations:result.invitations as Invitation[],stats,range};
+    const registration=await client.request("/registration",undefined,"/api/v1/operator");
+    if(registration.mode!=="invite"&&registration.mode!=="public")error(502,"Invalid registration policy");
+    return {account,signupMode:registration.mode as "invite"|"public",invitations:result.invitations as Invitation[],stats,range};
   }catch(cause){
     if(cause instanceof AccountApiError){
       if(cause.status===403)error(403,"This account does not have provider operator access.");
