@@ -166,3 +166,37 @@ fresh disposable PostgreSQL 14.4 database with:
 DATABASE_URL=postgresql://monitor:password@127.0.0.1:5432/hail_monitor_test \
   bun --bun vitest run test/monitor.integration.test.ts
 ```
+
+## Human-readable alert emails
+
+The email receiver renders category-specific summaries, impact, next steps and
+technical evidence. Signup binds the provider account's canonical Hail address
+separately from the verified notification mailbox. The address is a retained
+provider-supplied label, not a claim independently verified by the PLC monitor.
+Retries cannot replace it. Older bindings without an address fall back to the
+DID and explicitly say the address was not retained; they are not inferred from
+the mailbox or from mutable PLC aliases.
+
+Unexpected-operation details compare each validated operation with its declared
+parent (including recovery branches), retain its directory timestamp separately
+from detection time, and report whether it was current, superseded or nullified
+at detection. The email is an event snapshot, not a live status page. Monitoring
+resumption and later supersession/nullification produce separate durable
+follow-ups; neither constitutes approval or proof that the identity is safe.
+The monitor still fails closed on histories it cannot validate, including a
+terminal state without a valid current document.
+
+Roll out in this order:
+
+1. Deploy the Cloudflare receiver first. It accepts old payloads/bindings as well
+   as the new optional address and follow-up categories.
+2. Apply monitor migration 6, then deploy the monitor that emits richer details
+   and the new `operation-status` and `monitoring-restored` categories.
+3. Deploy the provider that includes the canonical account address on signup
+   email binding. Existing completed signups are not automatically backfilled.
+
+Monitor/provider application rollback preserves the expanded schema and receiver.
+Do not roll the receiver back while new-category alerts may be queued. The
+migration rollback refuses to discard retained follow-up evidence or run beneath
+later migrations. Existing queued payloads remain renderable without enrichment;
+no evidence is rewritten or approved by this change.

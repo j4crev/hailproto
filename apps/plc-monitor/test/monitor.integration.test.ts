@@ -107,10 +107,13 @@ integration("independent monitor durable cursor", () => {
     exported.push({ did, operation: updated, cid: updateCid, seq: 2, type: "sequenced_op",
       createdAt: observed().toISOString() });
     expect(await monitor.poll()).toMatchObject({ state: "current", inspected: 1, alerts: 1 });
-    const alerts = await db.sql<{ category: string; sent_at: Date | null }[]>`
-      SELECT category, sent_at FROM monitor_alerts WHERE did = ${did}`;
+    const alerts = await db.sql<{ category: string; sent_at: Date | null; detail: any }[]>`
+      SELECT category, sent_at, detail FROM monitor_alerts WHERE did = ${did}`;
     expect(alerts[0]?.category).toBe("unexpected-operation");
     expect(alerts[0]?.sent_at).toBeNull();
+    const detail = typeof alerts[0]!.detail === "string" ? JSON.parse(alerts[0]!.detail) : alerts[0]!.detail;
+    expect(detail).toMatchObject({ status: "current", operationRecordedAt: new Date(auditEpoch + 1000).toISOString(),
+      changes: [{ field: "alsoKnownAs", before: [], after: ["https://changed.example.com"] }] });
     expect(await monitor.poll()).toMatchObject({ state: "current", alerts: 0 });
     expect((await db.sql`SELECT id FROM monitor_alerts WHERE did = ${did}`)).toHaveLength(1);
   });
@@ -134,7 +137,8 @@ integration("independent monitor durable cursor", () => {
   it("records lost coverage after downtime and preserves the cursor after a restart", async () => {
     tick += 25 * 3600 * 1000;
     const monitor = new PlcMonitor(db.sql, client, observed);
-    expect(await monitor.poll()).toMatchObject({ state: "current", alerts: 1 });
+    expect(await monitor.poll()).toMatchObject({ state: "current", alerts: 2 });
+    expect(await db.sql`SELECT id FROM monitor_alerts WHERE category='monitoring-restored'`).toHaveLength(1);
     const restarted = new PlcMonitor(db.sql, client, observed);
     expect(await restarted.poll()).toMatchObject({ state: "current", alerts: 0 });
     expect((await db.sql`SELECT id FROM monitor_alerts WHERE category = 'coverage-lost'`)).toHaveLength(1);
@@ -362,4 +366,67 @@ integration("reviewed bootstrap and durable backfill readiness", () => {
       await db.close();
     }
   }, 30_000);
+});
+
+integration("alert outcome follow-ups", () => {
+  it("reports recovery nullification once and guards retained evidence against rollback", async () => {
+    const db = new MonitorDatabase(process.env.DATABASE_URL!);
+    let did = "";
+    try {
+      await db.migrate();
+      const owner = await P256Keypair.create(), provider = await P256Keypair.create();
+      const genesis = await signOperation({ type: "plc_operation", prev: null, rotationKeys: [owner.did(), provider.did()],
+        verificationMethods: {}, services: {}, alsoKnownAs: [] }, owner);
+      did = await didForCreateOp(genesis);
+      const cid = (await cidForCbor(genesis)).toString();
+      const { sig: _signature, ...unsigned } = genesis;
+      const changed = await signOperation({ ...unsigned, prev: cid, alsoKnownAs: ["at://changed.example"] }, provider);
+      const changedCid = (await cidForCbor(changed)).toString();
+      const recovery = await signOperation({ ...unsigned, prev: cid, rotationKeys: [owner.did()], alsoKnownAs: [] }, owner);
+      const recoveryCid = (await cidForCbor(recovery)).toString();
+      const epoch = Date.now();
+      const entries = await Promise.all([genesis, changed, recovery].map(async (operation, i) => ({
+        did, operation, cid: (await cidForCbor(operation)).toString(), nullified: false, createdAt: new Date(epoch + i * 1000).toISOString(),
+      })));
+      let audit = entries.slice(0, 1);
+      const client: MonitorPlcClient = {
+        async getAuditableLog() { return audit; },
+        async exportAfter() { throw new Error("unused"); },
+        async getOperationLog() { throw new Error("unused"); },
+        async getDocumentData() { throw new Error("unused"); },
+      };
+      const monitor = new PlcMonitor(db.sql, client, () => new Date(epoch + 3000));
+      await monitor.enroll(did, cid, "https://owner.example.com/alerts");
+      // Expand/rollback/reapply before new evidence exists preserves the enrollment.
+      const retained = JSON.stringify(await db.sql`SELECT to_jsonb(watched) FROM monitored_dids watched WHERE did=${did}`);
+      const rollback = await db.sql.reserve();
+      try { await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0006_alert_outcomes.sql", import.meta.url)).text()); }
+      finally { rollback.release(); }
+      await db.migrate();
+      expect(JSON.stringify(await db.sql`SELECT to_jsonb(watched) FROM monitored_dids watched WHERE did=${did}`)).toBe(retained);
+      await monitor.pollDid(did);
+      audit = entries.slice(0, 2);
+      expect(await monitor.pollDid(did)).toMatchObject({ state: "current", alerts: 1 });
+      audit = entries.map(entry => ({ ...entry, nullified: entry.cid === changedCid }));
+      expect(await monitor.pollDid(did)).toMatchObject({ state: "current", alerts: 2 });
+      const rows = await db.sql`SELECT detail FROM monitor_alerts WHERE did=${did} AND category='operation-status'`;
+      expect(rows).toHaveLength(1);
+      const detail = typeof rows[0]!.detail === "string" ? JSON.parse(rows[0]!.detail) : rows[0]!.detail;
+      expect(detail).toMatchObject({ status: "nullified", operationCid: changedCid, currentCid: recoveryCid });
+      expect((await monitor.pollDid(did)).alerts).toBe(0);
+      const connection = await db.sql.reserve();
+      try {
+        await expect(connection.unsafe(await Bun.file(new URL("../migrations/rollback/0006_alert_outcomes.sql", import.meta.url)).text()))
+          .rejects.toThrow("Alert outcome evidence");
+      } finally { await connection.unsafe("ROLLBACK"); connection.release(); }
+      expect(await db.sql`SELECT id FROM monitor_alerts WHERE did=${did}`).toHaveLength(3);
+    } finally {
+      if (did) {
+        await db.sql`DELETE FROM monitor_alerts WHERE did=${did}`;
+        await db.sql`DELETE FROM monitor_observations WHERE did=${did}`;
+        await db.sql`DELETE FROM monitored_dids WHERE did=${did}`;
+      }
+      await db.close();
+    }
+  });
 });

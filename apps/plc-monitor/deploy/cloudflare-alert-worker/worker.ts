@@ -1,3 +1,4 @@
+import { alertMessage } from "./alert-message.js";
 import { base58btc } from "multiformats/bases/base58";
 import { parseJsonWithoutDuplicateKeys } from "../../src/strict-json.js";
 import { pruneSignupEmail, sendEmail, signupEmail, signupEmailPaths,
@@ -6,7 +7,7 @@ import { authenticated, hash, boundedBody } from "../../src/http.js";
 import { EMAIL_BINDING_CONTEXT, SIGNUP_ALERT_PATH, SIGNUP_BINDING_PATH, checkEmailBindingQuery } from "../../src/email-binding.js";
 
 const context = new TextEncoder().encode("hail.plc-monitor-alert.v1\0");
-const categories = new Set(["unexpected-operation", "coverage-lost", "invalid-operation-log", "export-gap", "onboarding-enrollment"]);
+const categories = new Set(["unexpected-operation", "coverage-lost", "invalid-operation-log", "export-gap", "onboarding-enrollment", "operation-status", "monitoring-restored"]);
 
 export interface Env extends EmailEnvironment {
   ALERT_RECIPIENT:string;
@@ -59,9 +60,8 @@ export class AlertDeduplicator {
     });
     if(claimed!=="send")return new Response(null,{status:claimed==="sent"?204:claimed==="busy"?503:409});
     try{
-      const text=`A signed Hail PLC monitor alert was received.\n\n${JSON.stringify(alert,null,2)}\n\nIf this identity change was not expected, investigate immediately. PLC recovery must reach the directory within 72 hours of the unwanted operation; you may have less time remaining. An alert does not perform recovery. Never share your recovery secret.`;
       await sendEmail(this.env,{to:recipient?.email??this.env.ALERT_RECIPIENT,from:this.env.ALERT_SENDER,
-        subject:`[Hail PLC] ${alert.category}: ${alert.did}`,text});
+        ...alertMessage(alert,recipient?.hailAddress)});
       await this.state.storage.transaction(async storage=>{
         if((await storage.get<{claim:string}>(key))?.claim===claim)
           await storage.put(key,{state:"sent",digest,claim,updatedAt:Date.now(),expiresAt:Date.now()+30*86400_000});

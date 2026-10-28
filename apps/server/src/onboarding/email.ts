@@ -15,11 +15,11 @@ export class SignupEmailError extends Error {
 const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 
 export interface SignupIdentity {
-  did: string; operation_cid: string; monitor_origin: string; monitor_public_key: string; operation: unknown;
+  canonical_address: string; did: string; operation_cid: string; monitor_origin: string; monitor_public_key: string; operation: unknown;
 }
 export async function signupIdentity(sql: SQL, accountId: string, token: string): Promise<SignupIdentity | null> {
   const row = (await sql<(SignupIdentity & { signup_token_hash: Uint8Array })[]>`
-    SELECT account.did,evidence.operation_cid,evidence.signed_operation AS operation,
+    SELECT account.canonical_address,account.did,evidence.operation_cid,evidence.signed_operation AS operation,
       preparation.signup_token_hash,preparation.monitor_origin,preparation.monitor_public_key FROM provider_accounts account
     JOIN public_onboarding_preparations preparation ON preparation.account_id=account.id
     JOIN plc_operation_evidence evidence ON evidence.account_id=account.id AND evidence.previous_cid IS NULL
@@ -108,7 +108,7 @@ export function registerSignupEmailRoutes(app: Hono, sql: SQL, client: SignupEma
         // retained after owner signature verification and public read-back.
         const row = await signupIdentity(sql, input.accountId as string, token);
         if (!row) return context.json({ error: "Signup identity refused" }, 403);
-        return context.json(await client.post("bind", { signupId: input.signupId, did: row.did, operationCid: row.operation_cid }, token));
+        return context.json(await client.post("bind", { signupId: input.signupId, did: row.did, operationCid: row.operation_cid, hailAddress: row.canonical_address }, token));
       }
       return context.json(await client.post(step, input, token));
     } catch (error) {

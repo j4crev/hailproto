@@ -1,3 +1,4 @@
+import { operationDetail } from "./operation-detail.js";
 import { randomUUID } from "node:crypto";
 import { isIP } from "node:net";
 import { isDeepStrictEqual } from "node:util";
@@ -83,11 +84,12 @@ export class PlcMonitor {
       let alerts = 0;
       let result:MonitorPollResult["state"]="current",inspected=0;
       const monitored = await tx<{ did:string;expected_cid:string;expected_state:unknown;enrolled_at:Date;
-        last_polled_at:Date|null;last_audit:unknown }[]>`SELECT did,expected_cid,expected_state,enrolled_at,last_polled_at,last_audit
+        last_polled_at:Date|null;last_audit:unknown;poll_ready:boolean }[]>`SELECT did,expected_cid,expected_state,enrolled_at,last_polled_at,last_audit,poll_ready
         FROM monitored_dids WHERE (${did ?? null}::text IS NULL OR did=${did ?? null}) ORDER BY did FOR UPDATE`;
       for (const row of monitored) {
         const baseline = row.last_polled_at && row.last_polled_at > row.enrolled_at ? row.last_polled_at : row.enrolled_at;
-        if (now.getTime() - baseline.getTime() > 86_400_000) alerts += await this.alert(tx, row.did, "coverage-lost",
+        const coverageGap = now.getTime() - baseline.getTime() > 86_400_000;
+        if (coverageGap) alerts += await this.alert(tx, row.did, "coverage-lost",
           `coverage:${row.did}:${baseline.toISOString()}`,
           { lastHealthyAt: row.last_polled_at?.toISOString() ?? null, enrolledAt: row.enrolled_at.toISOString(), observedAt: now.toISOString() });
         let rawAudit:ExportedOp[];
@@ -105,11 +107,29 @@ export class PlcMonitor {
               VALUES (${row.did},${entry.cid},NULL,${JSON.stringify(entry.operation)}::jsonb,${expected})
               ON CONFLICT (did,cid) DO NOTHING`;
             if(entry.cid!==row.expected_cid)alerts+=await this.alert(tx,row.did,"unexpected-operation",`operation:${row.did}:${entry.cid}`,
-              {operationCid:entry.cid,expectedCid:row.expected_cid});
+              operationDetail(entry,current.audit,current.cid,row.expected_cid,now));
             inspected+=1;
           }
           if(!expected)alerts+=await this.alert(tx,row.did,"unexpected-operation",`operation:${row.did}:${current.cid}`,
-            {operationCid:current.cid,expectedCid:row.expected_cid});
+            operationDetail(current.audit.find(entry=>entry.cid===current.cid)!,current.audit,current.cid,row.expected_cid,now));
+          // Report later changes in the disposition of an already reported operation.
+          const previousCurrentCid = previous?.filter(entry => !entry.nullified).at(-1)?.cid;
+          for (const prior of previous ?? []) {
+            const entry = current.audit.find(entry => entry.cid === prior.cid)!;
+            const wasCurrent = prior.cid === previousCurrentCid;
+            if ((!prior.nullified && entry.nullified) || wasCurrent && entry.cid !== current.cid) {
+              const reported = await tx`SELECT id FROM monitor_alerts WHERE did=${row.did}
+                AND correlation=${`operation:${row.did}:${entry.cid}`} LIMIT 1`;
+              if (!reported.length) continue;
+              alerts += await this.alert(tx,row.did,"operation-status",`status:${row.did}:${entry.cid}:${entry.nullified ? "nullified" : "superseded"}`,
+                operationDetail(entry,current.audit,current.cid,row.expected_cid,now));
+            }
+          }
+          if (coverageGap || !row.poll_ready && row.last_polled_at) {
+            alerts += await this.alert(tx,row.did,"monitoring-restored",`restored:${row.did}:${baseline.toISOString()}`,
+              { observedAt: now.toISOString(), lastHealthyAt: row.last_polled_at?.toISOString() ?? null,
+                matchesApprovedState: expected, currentCid: current.cid });
+          }
           await tx`UPDATE monitored_dids SET last_audit=${JSON.stringify(current.audit)}::jsonb,last_polled_at=${now},
             coverage_since=COALESCE(coverage_since,${now}),poll_ready=true,
             last_verified_cid=CASE WHEN ${expected} THEN ${current.cid} ELSE last_verified_cid END,

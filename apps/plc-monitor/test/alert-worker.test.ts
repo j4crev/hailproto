@@ -119,13 +119,18 @@ it("authenticates signup verification, stores only code hashes and binds one ver
   expect((await f.post("/signup-email",input)).status).toBe(200);expect(f.send).toHaveBeenCalledOnce();
   expect((await f.post("/signup-email",{...input,email:"bob@example.com"})).status).toBe(409);
   const did=`did:plc:${"a".repeat(24)}`,operationCid=(await cidForCbor({genesis:"fixture"})).toString();
-  const binding={...f.identity,did,operationCid};
+  const binding={...f.identity,did,operationCid,hailAddress:"alice@hail.example"};
   expect((await f.post("/signup-email/bind",binding)).status).toBe(409);
   expect((await f.post("/signup-email/verify",{...f.identity,code:code==="00000000"?"00000001":"00000000"})).status).toBe(409);
   expect((await f.post("/signup-email/verify",{...f.identity,code})).status).toBe(200);
   expect((f.coordinator.values.get(`signup:${f.identity.signupId}`) as {codeHash:unknown}).codeHash).toBeNull();
   expect((await f.post("/signup-email/verify",{...f.identity,code})).status).toBe(200);
   expect((await f.post("/signup-email/bind",binding)).status).toBe(200);
+  expect((await f.post("/signup-email/bind",{...binding,hailAddress:"mallory@hail.example"})).status).toBe(409);
+  expect((await f.post("/signup-email/bind",{...binding,hailAddress:"alice\r\nBcc: victim"})).status).toBe(400);
+  // An old sender's retry cannot erase the retained address.
+  expect((await f.post("/signup-email/bind",{...f.identity,did,operationCid})).status).toBe(200);
+
   expect((await f.post("/signup-email/bind",binding)).status).toBe(200);
   expect((await f.post("/signup-email/bind",{...binding,did:`did:plc:${"b".repeat(24)}`})).status).toBe(409);
   expect((await f.post("/signup-email/bind",{...binding,operationCid:(await cidForCbor({genesis:"different"})).toString()})).status).toBe(409);
@@ -136,6 +141,8 @@ it("authenticates signup verification, stores only code hashes and binds one ver
   const request=f.alert(did);
   expect((await worker.fetch(request.clone(),f.env)).status).toBe(204);
   expect(f.send.mock.calls.at(-1)![0]).toMatchObject({to:"alice@example.com",from:{email:"security@notify.haili.app",name:"Hail"}});
+  expect(f.send.mock.calls.at(-1)![0].subject).toContain("alice@hail.example");
+  expect(f.send.mock.calls.at(-1)![0].text).toContain("Hail address: alice@hail.example");
   const count=f.send.mock.calls.length;
   expect((await worker.fetch(request.clone(),f.env)).status).toBe(204);expect(f.send).toHaveBeenCalledTimes(count);
   const changed=f.alert(`did:plc:${"c".repeat(24)}`,(await request.clone().json() as {id:string}).id);

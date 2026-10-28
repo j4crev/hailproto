@@ -68,7 +68,7 @@ export class SignupMonitorService {
     const identity = await signupIdentity(this.sql, accountId, token);
     if (!identity) throw new SignupMonitorError(403);
     if (identity.monitor_public_key !== this.monitor.publicKey) throw new SignupMonitorError(503);
-    await this.email.post("bind", { signupId, did: identity.did, operationCid: identity.operation_cid }, token);
+    await this.email.post("bind", { signupId, did: identity.did, operationCid: identity.operation_cid, hailAddress: identity.canonical_address }, token);
     return this.monitor.enroll(identity, signupId, token);
   }
 }

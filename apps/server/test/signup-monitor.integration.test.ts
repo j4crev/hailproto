@@ -146,6 +146,9 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
     failAlert = false; await monitorDb.sql`UPDATE monitor_alerts SET next_attempt_at=now()-interval '1 second' WHERE sent_at IS NULL`;
     expect(await notifier.sendOne()).toBe("sent"); expect(emailMessages).toHaveLength(2);
     expect(emailMessages[1]!).toMatchObject({ to: "owner@example.com", from: { email: "security@notify.example.com", name: "Hail" } });
+    expect(emailMessages[1]!.subject).toContain(`Identity monitoring enrolled: signup-${suffix}@provider.example.com`);
+    expect(emailMessages[1]!.text).toContain(`Hail address: signup-${suffix}@provider.example.com`);
+    expect(emailMessages[1]!.text).not.toContain("recovery is time-sensitive");
 
     await monitorDb.sql`UPDATE monitored_dids SET last_polled_at=now()-interval '6 minutes'`;
     // Enrollment refreshes this DID before checking coverage.

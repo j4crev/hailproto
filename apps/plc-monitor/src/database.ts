@@ -13,7 +13,7 @@ export class MonitorDatabase {
       await tx`SELECT pg_advisory_xact_lock(686169154)`;
       for (const [version, filename] of [[1, "0001_monitor.sql"], [2, "0002_user_approved_expectations.sql"],
         [3, "0003_backfill_readiness.sql"], [4, "0004_onboarding_notification.sql"],
-        [5, "0005_per_did_audit_polling.sql"]] as const) {
+        [5, "0005_per_did_audit_polling.sql"], [6, "0006_alert_outcomes.sql"]] as const) {
         const contents = await Bun.file(new URL(`../migrations/${filename}`, import.meta.url)).text();
         const checksum = createHash("sha256").update(contents).digest("hex");
         const rows = await tx<{ checksum: string }[]>`SELECT checksum FROM schema_migrations WHERE version = ${version}`;

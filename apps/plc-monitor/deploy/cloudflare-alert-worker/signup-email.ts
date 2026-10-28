@@ -22,7 +22,7 @@ interface Signup {
   did?: string; operationCid?: string;
 }
 export interface Recipient {
-  email: string; signupId: string; signupHash: string; did: string; operationCid: string; verifiedAt: number;
+  hailAddress?: string; email: string; signupId: string; signupHash: string; did: string; operationCid: string; verifiedAt: number;
 }
 interface Rate { count: number; expiresAt: number; }
 const hour = 3_600_000, codeLifetime = 10 * 60_000, verifiedLifetime = 24 * hour;
@@ -59,7 +59,7 @@ export async function signupEmail(path: string, input: unknown, storage: Durable
   if(path==="/signup-email/invite")return sendSignupInvitation(input,storage,env);
   if (!input || typeof input !== "object" || Array.isArray(input)) return reply({ error: "Invalid signup email request" }, 400);
   const row = input as Record<string, unknown>, fields = path === "/signup-email" ? ["signupId", "signupHash", "email", "resend"] :
-    path === "/signup-email/verify" ? ["signupId", "signupHash", "code"] : ["signupId", "signupHash", "did", "operationCid"];
+    path === "/signup-email/verify" ? ["signupId", "signupHash", "code"] : ["signupId", "signupHash", "did", "operationCid", "hailAddress"];
   if (Object.keys(row).some(key => !fields.includes(key)) || typeof row.signupId !== "string" || !uuid.test(row.signupId) ||
     typeof row.signupHash !== "string") return reply({ error: "Invalid signup email request" }, 400);
   try { decodeBase64Url(row.signupHash, 32); } catch { return reply({ error: "Invalid signup email request" }, 400); }
@@ -125,15 +125,21 @@ export async function signupEmail(path: string, input: unknown, storage: Durable
     const cid = CID.parse(row.operationCid);
     if (cid.toString() !== row.operationCid || cid.code !== 0x71 || cid.multihash.code !== 0x12 || cid.multihash.digest.length !== 32) throw new Error();
   } catch { return reply({ error: "Invalid signup identity" }, 400); }
+  // Optional for old senders; never infer the Hail address from the security email.
+  if (row.hailAddress !== undefined && (typeof row.hailAddress !== "string" || row.hailAddress.length > 254 ||
+    !/^[^\s@\x00-\x1f\x7f]+@[^\s@\x00-\x1f\x7f]+$/.test(row.hailAddress)))
+    return reply({ error: "Invalid Hail address" }, 400);
+  const hailAddress = row.hailAddress as string | undefined;
   const did = row.did, operationCid = row.operationCid;
   return storage.transaction(async tx => {
     const saved = await tx.get<Signup>(key), recipientKey = `recipient:${did}`, recipient = await tx.get<Recipient>(recipientKey);
     if (!saved || saved.signupHash !== signupHash || !saved.verifiedAt ||
       saved.state !== "verified" && saved.state !== "bound" || saved.state !== "bound" && saved.expiresAt <= now ||
       saved.state === "bound" && (saved.did !== did || saved.operationCid !== operationCid) ||
-      recipient && (recipient.signupId !== signupId || recipient.signupHash !== signupHash || recipient.operationCid !== operationCid || recipient.email !== saved.email))
+      recipient && (recipient.signupId !== signupId || recipient.signupHash !== signupHash || recipient.operationCid !== operationCid || recipient.email !== saved.email || hailAddress !== undefined && recipient.hailAddress !== undefined && recipient.hailAddress !== hailAddress))
       return reply({ error: "Verified signup destination cannot be bound" }, 409);
-    await tx.put(recipientKey, { email: saved.email, signupId, signupHash, did, operationCid, verifiedAt: saved.verifiedAt } satisfies Recipient);
+    const retainedAddress = recipient?.hailAddress ?? hailAddress;
+    await tx.put(recipientKey, { ...(retainedAddress ? { hailAddress: retainedAddress } : {}), email: saved.email, signupId, signupHash, did, operationCid, verifiedAt: saved.verifiedAt } satisfies Recipient);
     await tx.put(key, { ...saved, state: "bound", codeHash: null, did, operationCid });
     return reply({ bound: true, did, operationCid });
   });
