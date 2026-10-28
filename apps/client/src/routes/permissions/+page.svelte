@@ -31,7 +31,7 @@
   let identityConflicts=$derived(prepared?.action==="allow"?conflictingIdentities(knownIdentities,prepared.permission.grantee,prepared.permission.consent_context.grantee_address,prepared.previousDids??[]):[]);
   let identityKey=$derived(prepared?identityAcknowledgmentKey(prepared.requestId,prepared.permission.grantee,prepared.permission.consent_context.grantee_address,identityConflicts):"");
   let identityReady=$derived(!identityConflicts.length||acknowledgedIdentity===identityKey);
-  let selected=$state<string[]>([]),days=$state(30),busy=$state(false),message=$state("");
+  let selected=$state<string[]>([]),days=$state<number|null>(null),busy=$state(false),message=$state("");
   let pendingId=$state<string|null>(null),recoveryNeeded=$state(false);
   let now=$state(Date.now()),draft:Record<string,unknown>|null=null;
   let selectionLocked=$derived(busy||!!prepared||recoveryNeeded);
@@ -61,7 +61,7 @@
   async function prepareAllow(){
     if(!review||!selected.length)return;
     if(!draft)draft={requestId:crypto.randomUUID(),action:"allow",sender:review.address,senderDid:review.did,addressDigest:review.addressDigest,
-      profileDigest:review.profileDigest,scope:{type:"categories",values:[...selected].sort()},expiresAt:Math.floor(Date.now()/1000)+Number(days)*86400};
+      profileDigest:review.profileDigest,scope:{type:"categories",values:[...selected].sort()},expiresAt:days===null?null:Math.floor(Date.now()/1000)+Number(days)*86400};
     prepared=approval(await permissionRequest("prepare",draft));
     remember(prepared.requestId);
   }
@@ -144,7 +144,7 @@
               {#if review.categories.length}<fieldset class="m-0 grid min-w-0 gap-2 rounded-xl border border-solid border-line p-4"><legend class="px-1 text-sm font-semibold">Categories this sender may send you</legend>{#each review.categories as category}
                 <label class="flex min-h-11 flex-wrap items-center gap-2 text-sm"><input type="checkbox" bind:group={selected} value={category.id} disabled={busy} />{category.label} <small class="text-muted">({category.id})</small></label>{#if category.description}<small class="text-muted">{category.description}</small>{/if}{/each}</fieldset>{/if}
               {#if review.offersUncategorized}<p class="text-sm text-muted">This publisher still offers legacy uncategorized delivery. New subscriptions use explicit categories; ask the publisher to enable General if you need it.</p>{/if}
-              <label class="hail-field">Permission expires in<select bind:value={days}><option value={7}>7 days</option><option value={30}>30 days</option><option value={90}>90 days</option><option value={365}>1 year</option></select></label>
+              <label class="hail-field">Subscription duration<select bind:value={days}><option value={null}>Until I unsubscribe</option><option value={7}>7 days</option><option value={30}>30 days</option><option value={90}>90 days</option><option value={365}>1 year</option></select></label>
               <button class="hail-button justify-self-start" disabled={busy||!selected.length} onclick={()=>run(prepareAllow)}>Review permission</button>
             {/if}
           </section>
@@ -159,7 +159,7 @@
               </ul>
             {:else}
               <p class="text-sm [overflow-wrap:anywhere]"><strong>{prepared.permission.consent_context.grantee_address}</strong> {prepared.action==="allow"?"will be allowed to send to":"will lose this permission to send to"} <strong>{data.account.address}</strong>.</p>
-              <p class="text-sm">Sender identity: <code>{prepared.permission.grantee}</code></p><p class="text-sm">Scope: {subscriptionScopeLabel(prepared.permission.scope[0])}</p><p class="text-sm">Permission expiry: {prepared.permission.expires_at===null?"No expiry":date(prepared.permission.expires_at)}</p>
+              <p class="text-sm">Sender identity: <code>{prepared.permission.grantee}</code></p><p class="text-sm">Scope: {subscriptionScopeLabel(prepared.permission.scope[0])}</p><p class="text-sm">Permission expiry: {prepared.permission.expires_at===null?"Ongoing — until you unsubscribe":date(prepared.permission.expires_at)}</p>
             {/if}
             {#if identityConflicts.length}<IdentityWarning address={prepared.permission.consent_context.grantee_address} did={prepared.permission.grantee} previousDids={identityConflicts} /><label class="flex min-h-11 items-start gap-3 text-sm"><input type="checkbox" checked={acknowledgedIdentity===identityKey} onchange={event=>acknowledgedIdentity=event.currentTarget.checked?identityKey:""} />I checked this different identity through a trusted channel and want to allow it.</label>{/if}
             <p class="text-sm text-muted">Confirm only if these are the intended sender and permissions. Your provider signs the Grant; your passkey authorizes only this reviewed action. It is not an identity recovery key.</p><p class="text-xs text-muted">Approval expires {new Date(prepared.expiresAt).toLocaleString()}.</p>
@@ -183,7 +183,7 @@
           <div class="flex min-w-0 items-center gap-3">
             <SelectionAvatar name={permission.sender} avatar={permission.avatar} selected={permission.status==="active"&&selectedSubscriptions.includes(permission.grantId)} disabled={selectionLocked} label={`Select subscription to ${permission.sender}: ${subscriptionScopeLabel(permission.scope)}`} ontoggle={data.account.custodyProfile==="managed"&&permission.status==="active"?()=>toggleSubscription(permission.grantId):undefined} />
             <h3 class="min-w-0 text-base [overflow-wrap:anywhere]"><ContactAddress owner={data.account.did} did={permission.did} address={permission.sender} /></h3>
-          </div><code class="text-muted">{permission.did}</code><p class="text-sm [overflow-wrap:anywhere]">{subscriptionScopeLabel(permission.scope)} · {permission.status === "revoked" ? "Unsubscribed" : permission.status}{permission.expiresAt!==null?` · expires ${date(permission.expiresAt)}`:" · no expiry"}</p>
+          </div><code class="text-muted">{permission.did}</code><p class="text-sm [overflow-wrap:anywhere]">{subscriptionScopeLabel(permission.scope)} · {permission.status === "revoked" ? "Unsubscribed" : permission.status}{permission.expiresAt!==null?` · expires ${date(permission.expiresAt)}`:" · ongoing until you unsubscribe"}</p>
           {#if permission.expiresAt!==null&&permission.expiresAt*1000<=now}<p class="text-sm text-warning">Expired; it no longer permits messages.</p>{/if}
         </article>{/each}
         {#if data.next}<a class="hail-button-secondary justify-self-start" href={`/permissions?after=${encodeURIComponent(data.next)}`}>More subscriptions →</a>{/if}

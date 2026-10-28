@@ -69,7 +69,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         context.req.header("Origin")!==sessionOrigin)return problem(403);
       return await withServingGeneration<Response>(session.account_id,session.serving_generation??1,async():Promise<Response>=>{
       const query = new URL(context.req.url).searchParams;
-      if (query.size && action !== "list" && action !== "inbox" && action !== "sent" && action !== "credential" && action !== "trash") return problem(400);
+      if (query.size && action !== "list" && action !== "inbox" && action !== "sent" && action !== "sent-read" && action !== "credential" && action !== "trash") return problem(400);
       const method = context.req.method;
       if(action==="connection-address"){
         if(!session.scopes.includes("messages:read"))return problem(403);
@@ -303,10 +303,16 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         if(method!=="GET")return problem(405);
         if(action==="sent") {
           if([...query.keys()].some(k=>!["after","include"].includes(k))||query.getAll("after").length>1||query.getAll("include").length>1||
-            ![null,"body"].includes(query.get("include")))return problem(400);
+            ![null,"body","sends"].includes(query.get("include")))return problem(400);
+          if(query.get("include")==="sends")return context.json(await messaging.sentSends(session,query.get("after")));
           return context.json(query.get("include")==="body"?await messaging.sentFeed(session,query.get("after")):await messaging.sent(session,query.get("after")));
         }
         if(action==="sent-read") {
+          if([...query.keys()].some(k=>k!=="kind")||query.getAll("kind").length>1)return problem(400);
+          if(query.has("kind")){
+            const found=(await messaging.sentSends(session,null,{id:grantId!,kind:query.get("kind")!})).messages[0];
+            return found?context.json(found):problem(404);
+          }
           const found=await messaging.sentMessage(session,grantId!);return found?context.json(found):problem(404);
         }
         if(action==="inbox") {

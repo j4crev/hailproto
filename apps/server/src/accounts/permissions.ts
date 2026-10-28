@@ -96,10 +96,10 @@ export class GrantPermissions {
       if((input.scope as Record<string,unknown>|undefined)?.type==="uncategorized")
         throw new PermissionError(400,"Subscribe to General instead; the publisher must offer that category first");
       if(typeof input.sender!=="string"||input.sender.length>254||typeof input.senderDid!=="string"||!DID.test(input.senderDid)||input.senderDid===session.did||
-        typeof input.addressDigest!=="string"||typeof input.profileDigest!=="string"||!Number.isSafeInteger(input.expiresAt)||
-        Number(input.expiresAt)<=Math.floor(Date.now()/1000)||Number(input.expiresAt)>Math.floor(Date.now()/1000)+366*86400)
-        throw new PermissionError(400,"Choose the reviewed sender and a future expiry within one year");
-      payload=await this.service.prepareUserSignedGrant(session.canonical_address,input.sender,{scope:input.scope as never,expiresAt:Number(input.expiresAt)});
+        typeof input.addressDigest!=="string"||typeof input.profileDigest!=="string"||(input.expiresAt!==null&&(!Number.isSafeInteger(input.expiresAt)||
+        Number(input.expiresAt)<=Math.floor(Date.now()/1000)||Number(input.expiresAt)>Math.floor(Date.now()/1000)+366*86400)))
+        throw new PermissionError(400,"Choose the reviewed sender and an ongoing subscription or a future expiry within one year");
+      payload=await this.service.prepareUserSignedGrant(session.canonical_address,input.sender,{scope:input.scope as never,expiresAt:input.expiresAt===null?null:Number(input.expiresAt)});
       if(payload.grantee!==input.senderDid||encodeBase64Url(payload.consent_context.address_binding_hash.value)!==input.addressDigest||
         encodeBase64Url(payload.consent_context.sender_profile_hash.value)!==input.profileDigest)
         throw new PermissionError(409,"Sender identity or profile changed. Review it again before approving");

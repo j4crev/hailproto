@@ -61,19 +61,12 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
     const before=await db.sql`SELECT id,account_id,scopes FROM account_passkey_sessions ORDER BY id`;
     const snapshot=async()=>JSON.stringify(await db.sql`SELECT account_id,role,public_key,encrypted_private_key,encryption_nonce FROM account_keys ORDER BY account_id,role`);
     const keysBefore=await snapshot();
+    // Later migrations intentionally prohibit the old empty-schema rollback chain.
+    // Check the protection without dismantling the current schema under this test.
     const emptyRollback=await db.sql.reserve();try{
-      const rollbackDirectory=new URL("../migrations/rollback/",import.meta.url).pathname;
-      for(const file of [...new Bun.Glob("*.sql").scanSync(rollbackDirectory)].filter(file=>Number(file.slice(0,4))>65).sort().reverse())
-        await emptyRollback.unsafe(await Bun.file(rollbackDirectory+file).text());
-      await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());
-      await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());
-      await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());
-      await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());
-      await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());
-      await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
-      await emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());
-    }finally{emptyRollback.release();}
-    await db.migrate();expect(await snapshot()).toBe(keysBefore);
+      await expect(emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text())).rejects.toThrow("prevent rollback");
+    }finally{await emptyRollback.unsafe("ROLLBACK");emptyRollback.release();}
+    expect(await snapshot()).toBe(keysBefore);
     const now=Math.floor(Date.now()/1000),profile={type:"hail.sender-profile" as const,version:1 as const,did:peerDid,revision:1,updated_at:now,display_name:"Peer",offers_uncategorized:true,
       categories:[{id:"receipts",label:"Receipts"},{id:"updates",label:"Updates"}],key_id:peerDid+"#hail-messaging"};
     const binding={type:"hail.address-binding" as const,version:1 as const,address:"peer@peer.example.com",did:peerDid,issued_at:now,expires_at:now+86400,key_id:peerDid+"#hail-identity"};
@@ -94,10 +87,14 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
     expect((await call("permissions/review",{sender:binding.address,senderDid:otherDid})).status).toBe(409);
     const review=await permissions.review(session,{sender:binding.address,senderDid:peerDid});expect(review.categories).toHaveLength(2);
     const input={requestId:randomUUID(),action:"allow",sender:binding.address,senderDid:peerDid,addressDigest:review.addressDigest,profileDigest:review.profileDigest,
-      scope:{type:"categories",values:["updates"]},expiresAt:now+86400};
+      scope:{type:"categories",values:["updates"]},expiresAt:null};
+    for(const expiresAt of [0,now-1,now+367*86400,"ongoing",undefined]){
+      expect((await call("permissions/prepare",{...input,requestId:randomUUID(),expiresAt})).status).toBe(400);
+    }
     profileChanged=true;await expect(permissions.prepare(session,input)).rejects.toMatchObject({status:409});profileChanged=false;
     const started=await call("permissions/prepare",input);expect(started.status).toBe(200);
     const prepared=await started.json() as Awaited<ReturnType<GrantPermissions["prepare"]>>;
+    expect(prepared.permission).toMatchObject({expires_at:null});
     expect(await permissions.prepare(session,input)).toEqual(prepared);
     await expect(permissions.prepare(session,{...input,expiresAt:now+90000})).rejects.toMatchObject({status:409});
     await expect(permissions.status(foreignSession,prepared.requestId)).rejects.toMatchObject({status:404});

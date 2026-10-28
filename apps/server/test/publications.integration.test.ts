@@ -30,8 +30,8 @@ it.skipIf(!process.env.DATABASE_URL)("snapshots category audiences, resumes exac
   const users=[] as {id:string;did:string;address:string;keys:Awaited<ReturnType<typeof generateAccountKeys>>}[];
   try{
     await db.migrate();
-    const rollback=await db.sql.reserve();try{await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());}finally{rollback.release();}
-    await db.migrate();
+    // Current schemas intentionally prevent rolling back the publication tables
+    // beneath later migrations. Exercise send behavior against the current schema.
     for(const [i,name] of ["publisher","alice","bob","sales-only","late"].entries()){
       const id=randomUUID(),did="did:plc:"+String.fromCharCode(97+i).repeat(24),keys=await generateAccountKeys(id,encryptor),address=name+"@publisher.example.com";
       await db.sql`INSERT INTO provider_accounts(id,tenant_id,canonical_address,did,onboarding_state,activated_at,activation_binding_digest,activation_verification_mode)
@@ -109,6 +109,16 @@ it.skipIf(!process.env.DATABASE_URL)("snapshots category audiences, resumes exac
     expect(payloads.every(p=>p.category==="general")).toBe(true);
     expect(Buffer.from(payloads[0]!.body.digest.value)).toEqual(Buffer.from(payloads[1]!.body.digest.value));
     expect(Buffer.from(payloads[0]!.body.access.token)).not.toEqual(Buffer.from(payloads[1]!.body.access.token));
+    // Identical bodies sent twice remain distinct; recipient copies do not.
+    const feed=await messaging.sentSends(session,null);
+    expect(feed.messages.map(message=>message.messageId)).toEqual([complete.publicationId,input.publicationId].sort().reverse());
+    expect(feed.messages.every(message=>message.kind==="category")).toBe(true);
+    expect((await messaging.sentSends(session,null,{id:complete.publicationId,kind:"category"})).messages).toHaveLength(1);
+    expect((await messaging.sentSends({...session,account_id:users[1]!.id,did:users[1]!.did},null)).messages).toEqual([]);
+    const grouped=await app.request(origin+"/api/v1/account/sent?include=sends",{headers:{Authorization:`Bearer ${credential.token}`}});
+    expect(grouped.status).toBe(200);expect((await grouped.json()).messages).toHaveLength(2);
+    const detail=await app.request(origin+`/api/v1/account/sent/${complete.publicationId}?kind=category`,{headers:{Authorization:`Bearer ${credential.token}`}});
+    expect(detail.status).toBe(200);expect((await detail.json()).messageId).toBe(complete.publicationId);
     const cancel={...input,publicationId:uuidV7()};await publications.create(session,cancel);
     const fence=()=>db.sql`INSERT INTO provider_migration_fences(did,account_id,transfer_id,destination_service_base,state)
       VALUES(${sender.did},${sender.id},${randomUUID()},'https://destination.example.com/hail','fenced')`;
@@ -133,7 +143,16 @@ it.skipIf(!process.env.DATABASE_URL)("snapshots category audiences, resumes exac
     for(let i=0;i<5;i++){const publicationId=uuidV7();await publications.create(session,{...input,publicationId});open.push(publicationId);}
     await expect(publications.create(session,{...input,publicationId:uuidV7()})).rejects.toThrow("Finish or cancel open");
     expect((await publications.create(session,{...input,publicationId:open[0]!})).total).toBe(2);
+    for(let i=0;i<10;i++)await publications.workOne();
     for(const id of open)await publications.cancel(session,id);
+    const firstPage=await messaging.sentSends(session,null);
+    expect(firstPage.messages).toHaveLength(5);expect(firstPage.next).not.toBeNull();
+    const secondPage=await messaging.sentSends(session,firstPage.next);
+    const history=[...firstPage.messages,...secondPage.messages];
+    expect(history).toHaveLength(8);expect(new Set(history.map(item=>item.messageId)).size).toBe(8);
+    expect(history.some(item=>item.messageId===cancel.publicationId||item.messageId===expired.publicationId)).toBe(false);
+    expect(secondPage.next).toBeNull();
+    await expect(messaging.sentSends(session,"invalid")).rejects.toMatchObject({status:400});
     // Remote subscribers need no local account; exercise the admission ceiling against the full query, not a GUI count.
     for(let i=0;i<100;i++){
       const grantor="did:plc:"+"z".repeat(22)+"abcdefghijklmnopqrstuvwxyz234567"[Math.floor(i/32)]+"abcdefghijklmnopqrstuvwxyz234567"[i%32];

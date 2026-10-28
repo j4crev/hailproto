@@ -235,6 +235,21 @@ federation operations:
 | `GET /api/v1/account/grants/{grant_id}` | `grants:read` | Own authoritative or received Grant, local role, exact base64url COSE bytes, digest and ETag; the CLI renders diagnostic JSON locally |
 | `PUT /api/v1/account/grants/{grant_id}` | `grants:write` | Verify/store an initial or terminal user-signed Grant; JSON acknowledgement of revision/status/digest and durable publication responsibility |
 
+Haili's Sent history uses `GET /api/v1/account/sent?include=sends` (`messages:read`).
+It returns five sends per page with an opaque `next` cursor for `after`. Each item
+contains `messageId`, `kind` (`category`, `connections`, or standalone `message`),
+`category`, `createdAt`, and `body`. Category publications and connection batches
+appear once after their first envelope is created; cancelled or expired batches
+with no envelopes do not appear. Separate sends with identical bodies stay separate.
+Read an item with `GET /api/v1/account/sent/{messageId}?kind={kind}`. These views
+omit recipient addresses and delivery status. The existing per-envelope Sent APIs
+remain available for delivery diagnostics and retries. Grouping uses retained local
+batch records; envelopes without those records remain standalone entries.
+
+Browser subscription approval accepts `expiresAt: null` for an ongoing subscription
+that ends when revoked. Fixed expiries must still be in the future and within one
+year. Haili labels the ongoing option “Until I unsubscribe”.
+
 PUT uses `application/cose; cose-type="cose-sign1"`, no content coding, and a
 256 KiB body limit. The signature/predecessor supplies update authority; this
 account endpoint does not reuse the peer receiver's HTTP precondition contract.

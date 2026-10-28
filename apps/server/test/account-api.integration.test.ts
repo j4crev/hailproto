@@ -448,6 +448,10 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     const sentFeed=await (await app.request(`${origin}/api/v1/account/sent?include=body`,{headers:{Authorization:`Bearer ${senderCredential.token}`}})).json();
     expect(sentFeed.messages).toHaveLength(5);expect(sentFeed.next).toBe(imageId);expect(sentFeed.messages[0]).toMatchObject({recipient:did,
       recipientAddress:null,state:"indeterminate",reason:null,retryAt:null,body:{profile:"spt-1"}});
+    const sends=await (await app.request(`${origin}/api/v1/account/sent?include=sends`,{headers:{Authorization:`Bearer ${senderCredential.token}`}})).json();
+    expect(sends.messages).toHaveLength(5);
+    expect(sends.messages.every((message:{kind:string})=>message.kind==="message")).toBe(true);
+    expect(sends.next).toBe(`${imageId}/message`);
     const sentOlder=await (await app.request(`${origin}/api/v1/account/sent?include=body&after=${sentFeed.next}`,{headers:{Authorization:`Bearer ${senderCredential.token}`}})).json();
     expect(sentOlder.messages.map((message:{messageId:string})=>message.messageId)).toEqual([richId]);expect(sentOlder.next).toBeNull();
     const inboxFeed=await (await app.request(`${origin}/api/v1/account/inbox?include=body`,{headers:{Authorization:`Bearer ${ownerMessageCredential.token}`}})).json();

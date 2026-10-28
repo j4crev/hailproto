@@ -75,3 +75,15 @@ describe("message projections", () => {
     expect(messagePreview(message)).toBe("Hello");
   });
 });
+
+it("shows send titles separately from previews and retains untitled content",async()=>{
+  const {parseSentSend,parseSentSends}=await import("./messages.js");
+  const block=(style:string,text:string)=>({_type:"block",style,children:[{_type:"span",text,marks:[]}],markDefs:[]});
+  const send={messageId:"send",kind:"category",category:"updates",createdAt:"now",
+    body:{version:1,profile:"spt-2",blocks:[block("h1","Weekly news"),block("normal","The update")]}};
+  expect(parseSentSend(send)).toMatchObject({title:"Weekly news",preview:"The update"});
+  expect(parseSentSend({...send,body:{...send.body,blocks:[block("normal","Keep this opening")]}}))
+    .toMatchObject({title:"Untitled message",preview:"Keep this opening"});
+  expect(parseSentSends({messages:[send,{...send,messageId:"another"}],next:"cursor"}).messages).toHaveLength(2);
+  expect(()=>parseSentSend({...send,kind:"unknown"})).toThrow("Invalid send kind");
+});

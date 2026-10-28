@@ -89,7 +89,7 @@ export function groupMessageBlocks(blocks: MessageBlock[]): MessageBlockGroup[] 
   return groups;
 }
 
-export function messagePreview(message: MessageView, maximum = 120): string {
+export function messagePreview(message: Pick<MessageView,"paragraphs">, maximum = 120): string {
   const plain = message.paragraphs.join(" ").replace(/\s+/g, " ").trim();
   const characters = Array.from(plain);
   return characters.length <= maximum ? plain : `${characters.slice(0, maximum - 1).join("")}…`;
@@ -217,4 +217,21 @@ export function parseSentFeed(value:unknown) {
   const page=object(value,"sent feed");
   if(!Array.isArray(page.messages))throw new Error("Invalid sent feed");
   return {messages:page.messages.map(parseSentMessage),next:nextCursor(page.next)};
+}
+
+export function parseSentSend(value:unknown) {
+  const item=object(value,"sent send");
+  if(!["category","connections","message"].includes(item.kind as string))throw new Error("Invalid send kind");
+  const content=parseBody(item.body),first=content.blocks[0];
+  const title=first?.style==="h1"?first.spans.map(span=>span.text).join("").trim():"";
+  const paragraphs=title?content.paragraphs.slice(1):content.paragraphs;
+  return {...content,messageId:text(item.messageId,"send ID"),kind:item.kind as "category"|"connections"|"message",
+    category:item.category===null?null:text(item.category,"category"),createdAt:text(item.createdAt,"creation time"),
+    title:title||"Untitled message",preview:messagePreview({paragraphs})};
+}
+
+export function parseSentSends(value:unknown) {
+  const page=object(value,"sent sends");
+  if(!Array.isArray(page.messages))throw new Error("Invalid sent sends");
+  return {messages:page.messages.map(parseSentSend),next:nextCursor(page.next)};
 }

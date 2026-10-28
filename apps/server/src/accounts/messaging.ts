@@ -1,3 +1,4 @@
+import {sentSends} from "./sent-sends.js";
 import { createHash } from "node:crypto";
 import { decodePayload,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,toDiagnosticJson,type DiagnosticJson } from "@hailproto/codec";
 import type { SQL } from "bun";
@@ -120,6 +121,10 @@ export class AccountMessaging {
         trashedAt:row.trashed_at?.toISOString()??null,category:envelope.category??null,kind:envelope.authorization.type==="connection"?"connection":"subscription",deliveredAt:row.delivered_at.toISOString(),body:bodyDocument(row.body_bytes)};})),
       next:rows.length>PAGE_SIZE?Buffer.from(JSON.stringify({id:rows[PAGE_SIZE-1]!.message_id,
         sender:rows[PAGE_SIZE-1]!.sender_did})).toString("base64url"):null};
+  }
+
+  sentSends(session:AccountApiSession,after:string|null,selection?:{id:string;kind:string}) {
+    return sentSends(this.sql,session,after,selection);
   }
 
   async sent(session:AccountApiSession,after:string|null) {
