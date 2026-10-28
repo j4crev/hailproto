@@ -44,12 +44,14 @@
   <header class="page-heading"><p class="hail-eyebrow">Provider administration</p><h1 class="hail-title">Your Hail server</h1><p>Activity and signup invitations for {data.account.provider}.</p></header>
   <section class="hail-card panel" aria-labelledby="registration-heading">
     <h2 id="registration-heading">Registration</h2>
-    <p>Invite requires a single-use invitation. Public allows anyone to create an account at this server’s domain. Setups already started can finish within their existing expiry.</p>
-    <div role="group" aria-label="Registration mode">
-      <button class="hail-button-secondary" aria-pressed={data.signupMode==="invite"} disabled={!ready||savingMode} onclick={()=>setMode("invite")}>Invite</button>
-      <button class="hail-button-secondary" aria-pressed={data.signupMode==="public"} disabled={!ready||savingMode} onclick={()=>setMode("public")}>Public</button>
+    <div class="registration-setting">
+      <label for="public-registration">Public registration</label>
+      <input id="public-registration" class="preference-switch" type="checkbox" role="switch"
+        aria-describedby="registration-description" checked={data.signupMode==="public"} disabled={!ready||savingMode}
+        onchange={event=>{const enabled=event.currentTarget.checked;event.currentTarget.checked=data.signupMode==="public";void setMode(enabled?"public":"invite");}} />
     </div>
-    <p>Current mode: <strong>{data.signupMode==="invite"?"Invite":"Public"}</strong></p>
+    <p id="registration-description">When on, anyone can create an account at this server’s domain. When off, signup requires an invitation.</p>
+    <p class="hint">Setups already started can finish within their existing expiry.</p>
     {#if modeMessage}<p role="status">{modeMessage}</p>{/if}
     <p class="hint">Changing registration requires a passkey login within the last ten minutes.</p>
   </section>
@@ -79,4 +81,13 @@
 </div>
 <style>
   .dashboard{max-width:980px;margin:auto}.panel{padding:28px;margin-bottom:24px}h2{margin-top:0;font-size:20px}p{line-height:1.6}form{display:grid;gap:12px;max-width:540px}label{display:block;font-weight:600;margin-bottom:8px}label span,.hint{color:var(--color-muted);font-size:13px}input,textarea{width:100%;padding:12px;border:1px solid var(--color-line);border-radius:10px;background:var(--color-canvas);color:var(--color-ink)}textarea{margin-bottom:12px;overflow-wrap:anywhere}.table-scroll{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}th,td{padding:14px 12px;border-bottom:1px solid var(--color-line)}td:first-child{overflow-wrap:anywhere}th{color:var(--color-muted)}
+  .registration-setting{display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:44px}
+  .registration-setting label{margin:0;cursor:pointer;flex:1;padding:12px 0}
+  .preference-switch{appearance:none;position:relative;flex-shrink:0;width:46px;height:28px;padding:0;margin:0;border:1px solid var(--color-muted);border-radius:20px;background:var(--color-line);cursor:pointer;transition:background .15s}
+  .preference-switch::before{content:'';position:absolute;width:20px;height:20px;top:3px;left:3px;border-radius:50%;background:var(--color-surface);box-shadow:0 1px 3px #172b2d30;transition:transform .15s}
+  .preference-switch:checked{background:var(--color-brand);border-color:var(--color-brand)}
+  .preference-switch:checked::before{transform:translateX(18px)}
+  .preference-switch:focus-visible{outline:2px solid var(--color-brand);outline-offset:4px}
+  .preference-switch:disabled{opacity:.5;cursor:wait}
+  @media(prefers-reduced-motion:reduce){.preference-switch,.preference-switch::before{transition:none}}
 </style>

@@ -216,8 +216,8 @@ The invited live ceremony and wider platform/recovery tests remain outstanding.
 ## Registration mode
 
 Migration 0078 creates a persisted server-wide registration mode, defaulting to
-`invite`. Operators can select **Invite** or **Public** in `/admin`; changes
-require a passkey authentication within ten minutes and are recorded in
+`invite`. Operators can turn **Public registration** on or off in `/admin`
+(off requires an invitation); changes require a passkey authentication within ten minutes and are recorded in
 `provider_registration_audit`. Both browser signup and the CLI onboarding API
 use the same admission ledger. Invitations are single-use across both APIs.
 Public mode removes only the invitation requirement; recovery, monitoring,

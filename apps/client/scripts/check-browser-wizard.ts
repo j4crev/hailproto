@@ -413,18 +413,31 @@ try{
   assert(retired&&authenticated&&enrolled);assert.equal(prepareCalls,1);assert.equal(publicationAttempts,2);
   assert.equal(await evaluate("localStorage.getItem('hail.pending-signup.v1')"),null);
   assert.equal((await readdir(work)).filter(name=>name.endsWith(".json")).length,1,"Only one package download is required");
+  const switchRegistration=async(mode:"invite"|"public")=>{
+    await wait(async()=>evaluate(`document.querySelector('#public-registration')?.disabled===false`),'registration switch ready');
+    await evaluate(`document.querySelector('#public-registration').focus()`);
+    await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:" ",code:"Space",windowsVirtualKeyCode:32});
+    await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:" ",code:"Space",windowsVirtualKeyCode:32});
+    await wait(async()=>signupMode===mode&&await evaluate(`document.querySelector('#public-registration')?.disabled===false && document.querySelector('#public-registration').checked===${mode==='public'}`),'registration switch saved '+mode);
+    assert(!await has('Current mode:'));
+    const ax=await cdp("Accessibility.getFullAXTree");
+    const control=ax.nodes.find((node:any)=>node.role?.value==='switch'&&node.name?.value==='Public registration');
+    assert(control,'Registration switch has an accessible name');
+    assert.equal(control.properties.find((property:any)=>property.name==='checked')?.value.value,String(mode==='public'));
+    assert(control.description?.value.includes('When off, signup requires an invitation.'));
+  };
   if(process.env.HAIL_REGISTRATION_CHECK_ONLY==="true"){
     await cdp("Page.navigate",{url:origin+"/admin"});await wait(()=>has('Your Hail server'),'admin registration');
-    await click('Public');await wait(()=>has('Registration setting saved.'),'public registration saved');assert.equal(signupMode,'public');
-    await click('Invite');await wait(async()=>signupMode==='invite','invite registration saved');
-    await click('Public');await wait(async()=>signupMode==='public','public registration restored');
+    await switchRegistration('public');assert.equal(signupMode,'public');
+    await switchRegistration('invite');
+    await switchRegistration('public');
     await screenshot('admin-registration');
     authenticated=false;await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
     await cdp("Page.navigate",{url:origin});await wait(()=>has('Create an account'),'public homepage link');
     await cdp("Page.navigate",{url:origin+"/signup"});await wait(()=>has('Choose your Hail address'),'public signup');
     assert.equal(await evaluate(`document.querySelector('input[maxlength="2048"]')===null`),true);
     await screenshot('public-signup');passed=true;
-    console.info('PASS: Chromium invite signup, admin Invite/Public controls and public signup presentation (local API fixtures)');
+    console.info('PASS: Chromium invite signup, admin public registration switch and public signup presentation (local API fixtures)');
   }else{
   await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your inbox').click()`);
   await wait(()=>has("No messages yet"),"completed alpha account inbox");
@@ -789,10 +802,10 @@ try{
   await click('Delete message');await wait(()=>has('Delete permanently'),'disabled trash warning');await click('Delete permanently');await wait(()=>has('No messages yet'),'immediate permanent deletion');
   await mailboxPage('/trash','Trash');await wait(()=>has('Trash is empty.'),'disabled Trash has no deleted messages');
   await mailboxPage('/admin','Your Hail server');
-  await click('Public');await wait(()=>has('Registration setting saved.'),'public registration saved');
+  await switchRegistration('public');
   assert.equal(signupMode,'public');
-  await click('Invite');await wait(async()=>signupMode==='invite','invite registration saved');
-  await click('Public');await wait(async()=>signupMode==='public','public registration restored');
+  await switchRegistration('invite');
+  await switchRegistration('public');
   await screenshot('admin-registration');
   await openAccount();
   await evaluate(`document.querySelector('[popover]:popover-open form button').click()`);
