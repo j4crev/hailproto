@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DateTime from "$lib/DateTime.svelte";
   import {onMount} from "svelte";
   import {startAuthentication} from "@simplewebauthn/browser";
   let requestId=$state(""),csrfState=$state(""),code=$state(""),busy=$state(false),message=$state(""),
@@ -31,7 +32,7 @@
 <section class="hail-card mx-auto mt-6 flex max-w-[620px] flex-col items-start gap-5 p-6 sm:p-10">
   <p class="hail-eyebrow">hailp authorization</p><h1 class="hail-title">Authorize this command line?</h1>
   {#if details}<p class="m-0 text-sm text-muted [overflow-wrap:anywhere]"><strong>hailp</strong> will receive temporary access through <code>{new URL(details.redirectUri).host}</code>. Approve only a command-line login you started.</p>
-    <div class="w-full rounded-xl bg-brand-soft p-4"><h2 class="m-0 mb-2 text-sm">Requested permissions</h2><ul class="m-0 pl-5 text-sm text-brand-strong">{#each details.scopes as scope}<li class="[overflow-wrap:anywhere]">{scope}</li>{/each}</ul><p class="m-0 mt-3 text-xs text-muted">Request expires {new Date(details.expiresAt).toLocaleString()}.</p></div>
+    <div class="w-full rounded-xl bg-brand-soft p-4"><h2 class="m-0 mb-2 text-sm">Requested permissions</h2><ul class="m-0 pl-5 text-sm text-brand-strong">{#each details.scopes as scope}<li class="[overflow-wrap:anywhere]">{scope}</li>{/each}</ul><p class="m-0 mt-3 text-xs text-muted">Request expires <DateTime value={details.expiresAt} />.</p></div>
     <button class="hail-button max-w-full whitespace-normal" onclick={authorize} disabled={busy}>Verify with a passkey and authorize</button>
   {:else if !message}<p class="m-0 text-sm text-muted">Loading authorization request…</p>{/if}
   {#if message}<p class="hail-error" role="alert">{message}</p>{/if}

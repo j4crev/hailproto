@@ -1,9 +1,9 @@
 <script lang="ts">
+  import DateTime from "$lib/DateTime.svelte";
   import {startAuthentication,startRegistration} from "@simplewebauthn/browser";
   let {data}=$props();
   let busy=$state(false),message=$state(""),label=$state("Backup passkey");
   let selectedSessions=$state<string[]>([]);
-  const date=(value:string)=>new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(value));
   async function json(response:Response){if(!response.ok)throw new Error(response.status===403?"Verify with a passkey first.":"The provider refused the request.");return response.json();}
   async function verify(){
     busy=true;message="";
@@ -54,7 +54,7 @@
 <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
   <div class="grid min-w-0 gap-6">
     <section class="grid gap-4" aria-label="Passkeys"><h2 class="m-0 text-xl">Your passkeys</h2>
-      {#each data.passkeys as passkey}<article class="hail-card grid min-w-0 gap-4 p-5"><div class="flex flex-wrap items-center gap-2"><strong class="[overflow-wrap:anywhere]">{passkey.label}</strong>{#if passkey.current}<span class="rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand-strong">Current</span>{/if}</div><p class="m-0 text-sm text-muted">{passkey.deviceType==="multiDevice"?"Synced passkey":"Device-bound passkey"}{passkey.backedUp?" · backed up":""}</p><small class="text-xs text-muted">Created {date(passkey.createdAt)}{passkey.lastUsedAt?` · used ${date(passkey.lastUsedAt)}`:""}</small><div class="flex flex-wrap gap-2"><button class="hail-button-secondary" onclick={()=>manage(passkey.credentialId,"rename",passkey.label)} disabled={busy||!data.recentlyVerified}>Rename</button><button class="hail-button-secondary text-danger" onclick={()=>manage(passkey.credentialId,"revoke",passkey.label)} disabled={busy||!data.recentlyVerified||passkey.current||data.passkeys.length===1}>Revoke</button></div></article>{/each}
+      {#each data.passkeys as passkey}<article class="hail-card grid min-w-0 gap-4 p-5"><div class="flex flex-wrap items-center gap-2"><strong class="[overflow-wrap:anywhere]">{passkey.label}</strong>{#if passkey.current}<span class="rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand-strong">Current</span>{/if}</div><p class="m-0 text-sm text-muted">{passkey.deviceType==="multiDevice"?"Synced passkey":"Device-bound passkey"}{passkey.backedUp?" · backed up":""}</p><small class="text-xs text-muted">Created <DateTime value={passkey.createdAt} />{#if passkey.lastUsedAt}{" · used "}<DateTime value={passkey.lastUsedAt} />{/if}</small><div class="flex flex-wrap gap-2"><button class="hail-button-secondary" onclick={()=>manage(passkey.credentialId,"rename",passkey.label)} disabled={busy||!data.recentlyVerified}>Rename</button><button class="hail-button-secondary text-danger" onclick={()=>manage(passkey.credentialId,"revoke",passkey.label)} disabled={busy||!data.recentlyVerified||passkey.current||data.passkeys.length===1}>Revoke</button></div></article>{/each}
     </section>
     <form class="hail-card grid min-w-0 gap-4 p-5 sm:p-7" onsubmit={event=>{event.preventDefault();void add();}}><h2 class="m-0 text-xl">Add a passkey</h2><p class="m-0 text-sm text-muted">Choose a name you’ll recognize.</p><label class="hail-field">Label<input bind:value={label} maxlength="80" required /></label><button class="hail-button justify-self-start" disabled={busy||!data.recentlyVerified||!label.trim()}>Add passkey</button></form>
   </div>
@@ -69,8 +69,8 @@
               <input type="checkbox" class="mt-1 shrink-0" bind:group={selectedSessions} value={session.id} disabled={busy} />
               <span class="grid min-w-0 gap-1">
                 <span class="flex flex-wrap items-center gap-2"><strong class="[overflow-wrap:anywhere]">{session.label}</strong>{#if session.current}<span class="rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand-strong">This session</span>{/if}</span>
-                <span class="text-xs text-muted">Signed in {date(session.createdAt)}</span>
-                <span class="text-xs text-muted">Last active {date(session.lastSeenAt)}</span>
+                <span class="text-xs text-muted">Signed in <DateTime value={session.createdAt} /></span>
+                <span class="text-xs text-muted">Last active <DateTime value={session.lastSeenAt} /></span>
               </span>
             </label>
           </li>

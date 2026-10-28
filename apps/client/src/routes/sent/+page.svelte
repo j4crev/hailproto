@@ -1,8 +1,8 @@
 <script lang="ts">
+  import DateTime from "$lib/DateTime.svelte";
   import {invalidateAll} from "$app/navigation";
   let {data}=$props();
   let refreshing=$state(false);
-  const date=(value:string)=>new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(value));
   async function refresh(){refreshing=true;try{await invalidateAll();}finally{refreshing=false;}}
 </script>
 
@@ -14,7 +14,7 @@
         <a class="hail-card grid min-w-0 overflow-hidden text-inherit no-underline hover:border-brand" href={`/sent/send/${message.kind}/${message.messageId}`}>
           <div class="grid min-w-0 gap-2 px-5 pt-5"><h2 class="m-0 text-lg [overflow-wrap:anywhere]">{message.title}</h2><small class="text-muted">{message.kind==='category'?`Category: ${message.category}`:message.kind==='connections'?'Connections':'Message'}</small></div>
           {#if message.header}<img class="mt-3.5 max-h-[220px] w-full object-cover" src={message.header.src} alt={message.header.alt} width={message.header.width} height={message.header.height}/>{/if}
-          <p class="mx-5 mt-4 mb-3 font-serif text-[17px] leading-relaxed [overflow-wrap:anywhere]">{message.preview}</p><time class="mx-5 mb-5 text-xs text-muted" datetime={message.createdAt}>{date(message.createdAt)}</time>
+          <p class="mx-5 mt-4 mb-3 font-serif text-[17px] leading-relaxed [overflow-wrap:anywhere]">{message.preview}</p><span class="mx-5 mb-5 text-xs text-muted"><DateTime format="list" value={message.createdAt} /></span>
         </a>
       {/each}
     </section>

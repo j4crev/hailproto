@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ListDate from "$lib/ListDate.svelte";
+  import DateTime from "$lib/DateTime.svelte";
   import IdentityWarning from "$lib/IdentityWarning.svelte";
   import {identityMemory} from "$lib/identity-memory.js";
   import {identityAcknowledgmentKey,conflictingIdentities,type IdentityHistory} from "$lib/identity-history.js";
@@ -36,7 +36,6 @@
   let pendingId=$state<string|null>(null),recoveryNeeded=$state(false);
   let now=$state(Date.now()),draft:Record<string,unknown>|null=null;
   let selectionLocked=$derived(busy||!!prepared||recoveryNeeded);
-  const date=(value:number)=>new Date(value*1000).toLocaleString();
   onMount(()=>{
     const readRequest=()=>{
       if(prepared||busy||recoveryNeeded){message="Finish or cancel the current review before opening another sender request.";return;}
@@ -160,10 +159,10 @@
               </ul>
             {:else}
               <p class="text-sm [overflow-wrap:anywhere]"><strong>{prepared.permission.consent_context.grantee_address}</strong> {prepared.action==="allow"?"will be allowed to send to":"will lose this permission to send to"} <strong>{data.account.address}</strong>.</p>
-              <p class="text-sm">Sender identity: <code>{prepared.permission.grantee}</code></p><p class="text-sm">Scope: {subscriptionScopeLabel(prepared.permission.scope[0])}</p><p class="text-sm">Permission expiry: {prepared.permission.expires_at===null?"Ongoing — until you unsubscribe":date(prepared.permission.expires_at)}</p>
+              <p class="text-sm">Sender identity: <code>{prepared.permission.grantee}</code></p><p class="text-sm">Scope: {subscriptionScopeLabel(prepared.permission.scope[0])}</p><p class="text-sm">Permission expiry: {#if prepared.permission.expires_at===null}Ongoing — until you unsubscribe{:else}<DateTime value={prepared.permission.expires_at*1000} />{/if}</p>
             {/if}
             {#if identityConflicts.length}<IdentityWarning address={prepared.permission.consent_context.grantee_address} did={prepared.permission.grantee} previousDids={identityConflicts} /><label class="flex min-h-11 items-start gap-3 text-sm"><input type="checkbox" checked={acknowledgedIdentity===identityKey} onchange={event=>acknowledgedIdentity=event.currentTarget.checked?identityKey:""} />I checked this different identity through a trusted channel and want to allow it.</label>{/if}
-            <p class="text-sm text-muted">Confirm only if these are the intended sender and permissions. Your provider signs the Grant; your passkey authorizes only this reviewed action. It is not an identity recovery key.</p><p class="text-xs text-muted">Approval expires {new Date(prepared.expiresAt).toLocaleString()}.</p>
+            <p class="text-sm text-muted">Confirm only if these are the intended sender and permissions. Your provider signs the Grant; your passkey authorizes only this reviewed action. It is not an identity recovery key.</p><p class="text-xs text-muted">Approval expires <DateTime value={prepared.expiresAt} />.</p>
             {#if !recoveryNeeded}
               <button class="hail-button justify-self-start" disabled={busy||!identityReady||now>=Date.parse(prepared.expiresAt)} onclick={()=>run(confirmPermission)}>{prepared.action==="allow"?"Allow sender with my passkey":prepared.permissions?"Unsubscribe with my passkey":"Confirm"}</button>
               {#if now>=Date.parse(prepared.expiresAt)}<p class="text-sm text-muted">This review expired. Cancel and start again.</p>{/if}
@@ -184,7 +183,7 @@
         {#each data.permissions as permission (permission.grantId)}<article class="list-row contact-row" class:is-selected={selectedSubscriptions.includes(permission.grantId)&&permission.status==="active"}>
             <SelectionAvatar name={permission.sender} avatar={permission.avatar} selected={permission.status==="active"&&selectedSubscriptions.includes(permission.grantId)} disabled={selectionLocked} label={`Select subscription to ${permission.sender}: ${subscriptionScopeLabel(permission.scope)}`} ontoggle={data.account.custodyProfile==="managed"&&permission.status==="active"?()=>toggleSubscription(permission.grantId):undefined} />
             <div class="contact-copy"><h3><ContactAddress owner={data.account.did} did={permission.did} address={permission.sender} /></h3>
-          <code class="contact-identity" title={permission.did}>{permission.did}</code><p>{subscriptionScopeLabel(permission.scope)} · {permission.status === "revoked" ? "Unsubscribed" : permission.status}{#if permission.expiresAt!==null}{" · expires "}<ListDate value={permission.expiresAt*1000} />{:else}{" · ongoing until you unsubscribe"}{/if}</p>
+          <code class="contact-identity" title={permission.did}>{permission.did}</code><p>{subscriptionScopeLabel(permission.scope)} · {permission.status === "revoked" ? "Unsubscribed" : permission.status}{#if permission.expiresAt!==null}{" · expires "}<DateTime format="list" value={permission.expiresAt*1000} />{:else}{" · ongoing until you unsubscribe"}{/if}</p>
           {#if permission.expiresAt!==null&&permission.expiresAt*1000<=now}<p class="text-sm text-warning">Expired; it no longer permits messages.</p>{/if}
           </div>
         </article>{/each}

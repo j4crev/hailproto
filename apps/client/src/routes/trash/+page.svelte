@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DateTime from "$lib/DateTime.svelte";
   import {onMount} from 'svelte';
   let ready=$state(false);onMount(()=>ready=true);
   import {afterNavigate,invalidateAll} from '$app/navigation';
@@ -33,7 +34,7 @@
         <article class="hail-card grid gap-3 p-5" class:is-selected={selected.includes(key(message))}>
           <div class="flex items-start gap-3">
             <SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(key(message))} disabled={busy||!ready} label={`Select message from ${message.senderAddress??message.sender}`} ontoggle={()=>toggle(key(message))} />
-            <span class="min-w-0 [overflow-wrap:anywhere]"><strong>{message.senderAddress??message.sender}</strong><span class="mt-1 block text-xs text-muted">Restore to {message.kind==='connection'?'Messages':'Inbox'} · Trashed {new Date(message.trashedAt).toLocaleString()}</span></span>
+            <span class="min-w-0 [overflow-wrap:anywhere]"><strong>{message.senderAddress??message.sender}</strong><span class="mt-1 block text-xs text-muted">Restore to {message.kind==='connection'?'Messages':'Inbox'} · Trashed <DateTime value={message.trashedAt} /></span></span>
           </div>
           <p class="m-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{message.preview}</p>
         </article>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DateTime from "$lib/DateTime.svelte";
   import IdentityWarning from "./IdentityWarning.svelte";
   import {onMount} from "svelte";
   import {identityMemory} from "./identity-memory.js";
@@ -70,12 +71,12 @@
   {#if approval.action==="disconnect-batch"}<p class="m-0 text-sm">Remove {approval.review.connections.length} {approval.review.connections.length===1?"connection":"connections"}? One passkey confirmation applies to the whole selection.</p>
     <ul class="m-0 grid max-h-[35dvh] gap-3 overflow-y-auto pl-5" aria-label="Connections to remove">{#each approval.review.connections as connection (connection.connectionId)}<li class="text-sm [overflow-wrap:anywhere]"><strong>{connection.address}</strong><br /><code class="text-xs text-muted">{connection.did}</code></li>{/each}</ul>
   {:else if approval.action==="connect"}<p class="m-0 text-sm [overflow-wrap:anywhere]">Connect with <strong>{approval.review.address}</strong><br /><code>{approval.review.did}</code></p>
-  {:else if approval.action==="create"}<p class="m-0 text-sm">{approval.review.label} · {approval.review.expiresAt===null?"No automatic expiry":`Expires ${new Date(approval.review.expiresAt*1000).toLocaleString()}`}</p>
+  {:else if approval.action==="create"}<p class="m-0 text-sm">{approval.review.label} · {#if approval.review.expiresAt===null}No automatic expiry{:else}Expires <DateTime value={approval.review.expiresAt*1000} />{/if}</p>
   {:else}<p class="m-0 text-sm [overflow-wrap:anywhere]">Reviewed identifier: <code>{approval.review.connectionId??approval.review.id}</code></p>{/if}
   {#if approval.action==="create"||approval.action==="replace"}<p class="m-0 text-sm">Anyone signed in to a compatible Hail provider who has this link or QR can connect with you before it expires. Connections permit personal messages while active, not subscriptions. Share only where you intend. Existing connections are unaffected by code replacement or revocation.</p>{/if}
   {#if approval.action==="connect"}<p class="m-0 text-sm">This connects both accounts and permits personal messages while connected, without another approval from them. Subscriptions are unchanged. Check this identity with the person you intended. Cross-provider verification may take time and is retried automatically.</p>{/if}
   {#if approval.action.startsWith("disconnect")}<p class="m-0 text-sm">This ends the connection, not any subscriptions. Earlier codes cannot reconnect this pair; a new or replaced code is required.</p>{/if}
-  <p class="m-0 text-xs text-muted">Your passkey approves only this action. Approval expires {new Date(approval.expiresAt).toLocaleString()}.</p>
+  <p class="m-0 text-xs text-muted">Your passkey approves only this action. Approval expires <DateTime value={approval.expiresAt} />.</p>
   {#if identityConflicts.length}<IdentityWarning address={approval.review.address} did={approval.review.did} previousDids={identityConflicts} /><label class="flex min-h-11 items-start gap-3 text-sm"><input type="checkbox" checked={acknowledgedIdentity===conflictKey(approval)} onchange={event=>acknowledgedIdentity=event.currentTarget.checked?conflictKey(approval):""} />I checked this different identity through a trusted channel and want to connect.</label>{/if}
   {#if approval.ownerSigning}<div class="grid min-w-0 gap-3 rounded-xl border border-solid border-line p-4" aria-label="Owner identity signing">
     <h3 class="m-0 text-lg">Sign with your own identity key</h3><p class="m-0 text-sm">Download this exact consent and sign it locally with <code>hailp connection sign</code>. Only the identity key is unlocked. Your vault, encryption secret and recovery key stay on your machine.</p>

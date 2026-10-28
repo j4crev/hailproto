@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ListDate from "$lib/ListDate.svelte";
+  import DateTime from "$lib/DateTime.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
   import SelectionAvatar from "$lib/SelectionAvatar.svelte";
   import MessageActions from "$lib/MessageActions.svelte";
@@ -9,8 +9,9 @@
   import Icon from "$lib/Icon.svelte";
   import {showInboxHeaders, loadHeaderPreference} from "$lib/preferences.js";
   let {data} = $props();
-  const date = (value: string) => new Intl.DateTimeFormat(undefined, {dateStyle: "medium", timeStyle: "short"}).format(new Date(value));
-  onMount(loadHeaderPreference);
+  let localDates = $state(false);
+  const date = (value: string) => !localDates ? value : new Intl.DateTimeFormat(undefined, {dateStyle: "medium", timeStyle: "short"}).format(new Date(value));
+  onMount(() => { localDates = true; loadHeaderPreference(); });
   const messageKey = (message: {sender: string; messageId: string}) => JSON.stringify([message.sender, message.messageId]);
   let selected = $state<string[]>([]);
   let selectionLocked = $state(false);
@@ -67,7 +68,7 @@
           <SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(messageKey(message))} disabled={selectionLocked} label={`Select message from ${message.senderAddress??message.sender}, ${date(message.deliveredAt)}`} ontoggle={()=>toggle(message)} />
           <div class="message-meta">
             <strong class="message-sender"><ContactAddress owner={data.account.did} did={message.sender} address={message.senderAddress} /></strong>
-            <span class="list-date"><ListDate value={message.deliveredAt} /></span>
+            <span class="list-date"><DateTime format="list" value={message.deliveredAt} /></span>
           </div>
           <a class="message-link" href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
             {#if $showInboxHeaders && message.header}

@@ -4,7 +4,8 @@ import {listDate} from "./list-date.js";
 describe("list dates", () => {
   const now = new Date(2026, 9, 28, 12);
   it("uses calendar days and readable older dates", () => {
-    expect(listDate(new Date(2026, 9, 28, 0), now)).toBe("Today");
+    expect(listDate(new Date(2026, 9, 28, 0), now)).toBe(new Date(2026, 9, 28, 0).toLocaleTimeString(undefined, {hour:"numeric", minute:"2-digit"}));
+    expect(listDate(new Date(2026, 9, 28, 14, 35), now)).toBe(new Date(2026, 9, 28, 14, 35).toLocaleTimeString(undefined, {hour:"numeric", minute:"2-digit"}));
     expect(listDate(new Date(2026, 9, 27, 23), now)).toBe("Yesterday");
     expect(listDate(new Date(2026, 9, 25), now)).toBe("Sunday");
     expect(listDate(new Date(2026, 9, 22), now)).toBe("Thursday");

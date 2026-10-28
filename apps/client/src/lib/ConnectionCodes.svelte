@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DateTime from "$lib/DateTime.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
   import {onMount,tick} from "svelte";
   import {invalidateAll} from "$app/navigation";
@@ -85,7 +86,7 @@
         <p class="m-0 text-sm">Public sharing lets any authenticated holder connect with you.</p>
         <button class="hail-button justify-self-start" disabled={busy}>Review</button>
       </form>
-      {#each list.codes.filter(code=>!code.personal) as code}<article class="hail-card grid min-w-0 gap-3 p-5"><strong>{code.label}</strong><p class="m-0 text-sm text-muted">Expires {new Date(code.expiresAt!*1000).toLocaleString()}</p><div class="flex flex-wrap gap-2"><button class="hail-button-secondary" aria-expanded={shown===code.link} aria-controls={`connection-code-${code.id}`} onclick={()=>shown=shown===code.link?null:code.link}>{shown===code.link?"Hide QR & link":"Show QR & link"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"revoke",id:code.id}))}>Revoke</button></div>{#if shown===code.link}{@render shareCode(code.link,code.id)}{/if}</article>{/each}
+      {#each list.codes.filter(code=>!code.personal) as code}<article class="hail-card grid min-w-0 gap-3 p-5"><strong>{code.label}</strong><p class="m-0 text-sm text-muted">Expires <DateTime value={code.expiresAt!*1000} /></p><div class="flex flex-wrap gap-2"><button class="hail-button-secondary" aria-expanded={shown===code.link} aria-controls={`connection-code-${code.id}`} onclick={()=>shown=shown===code.link?null:code.link}>{shown===code.link?"Hide QR & link":"Show QR & link"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"revoke",id:code.id}))}>Revoke</button></div>{#if shown===code.link}{@render shareCode(code.link,code.id)}{/if}</article>{/each}
       {#if draft&&!prepared}<button class="hail-button-secondary justify-self-start" onclick={()=>cancel()}>Discard unsaved review</button>{/if}
     {/if}
     <section class="grid gap-4" aria-label="Your connections"><h3 class="m-0 text-xl">Your connections</h3>{#if !list.connections.length}<p class="m-0 text-sm text-muted">No connections yet. Share a code or scan someone else's.</p>{/if}

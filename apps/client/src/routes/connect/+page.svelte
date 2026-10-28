@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DateTime from "$lib/DateTime.svelte";
   import {goto} from "$app/navigation";
   import {onMount} from "svelte";
   import {connectionCode,connectionHomeLink,connectionRequest,connectApproval,recoverConnection,ConnectionRequestError,CONNECTION_CODE,CONNECTION_APPROVAL,type ConnectCode,type ConnectReview,type ConnectApproval} from "$lib/connections.js";
@@ -78,7 +79,7 @@
       {#if busy}<p class="m-0 text-sm text-muted" role="status">Loading connection details…</p>
       {:else if code&&review?.admissionSupported!==false}<button class="hail-button justify-self-start" disabled={pendingRequest!==null} onclick={()=>run(inspect)}>Load connection details</button>
       {:else if !code}<p class="m-0 text-sm">Scan a connection QR or open a shared connect link to begin.</p>{/if}
-      {#if review}<h2 class="m-0 text-xl [overflow-wrap:anywhere]">{review.address}</h2><code class="text-xs [overflow-wrap:anywhere]">{review.did}</code><p class="m-0 text-sm">{review.expiresAt===null?"No automatic code expiry":`Code expires ${new Date(review.expiresAt*1000).toLocaleString()}`}. Check this identity with the person you intended.</p>
+      {#if review}<h2 class="m-0 text-xl [overflow-wrap:anywhere]">{review.address}</h2><code class="text-xs [overflow-wrap:anywhere]">{review.did}</code><p class="m-0 text-sm">{#if review.expiresAt===null}No automatic code expiry{:else}Code expires <DateTime value={review.expiresAt*1000} />{/if}. Check this identity with the person you intended.</p>
         {#if review.admissionSupported===false}<p class="m-0 text-sm">This provider verified the other provider's signed invitation and identity. Cross-provider connection activation is not enabled yet. You are not connected; no request or permission was created.</p>
         {/if}
       {/if}
