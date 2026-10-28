@@ -412,3 +412,31 @@ not durable lifetime traffic counters. Refresh the dashboard to update its
 snapshot. Totals currently require scans of retained records; consider cached
 rollups if provider volume makes dashboard queries expensive. Temporary stats
 errors leave invitations available.
+
+### Storage breakdown
+
+The statistics response includes `storage` (or `null` if size collection fails).
+It reports current allocated PostgreSQL disk bytes, independently of the chosen
+activity period. Message bodies are stored in `detached_bodies` and
+`verified_body_provenance`; attachments and a separate attachment store are not
+implemented.
+
+Public-schema tables and materialized views are grouped by responsibility:
+message content, delivery/metadata, accounts/security, connections/permissions,
+verification evidence, migration/retained history, and other application data.
+Unknown tables fall into the last category. Migration snapshots can contain
+copies of messages, so content is not a count of every message byte everywhere.
+
+`pg_table_size` includes TOAST/overflow storage and table overhead; attached
+indexes are measured with `pg_indexes_size`. Category totals include both.
+TOAST tables are not enumerated again. Partition parents have no storage and
+are excluded; physical partitions are included. Deleted/reusable space remains
+allocated, so these numbers are not logical payload sizes or a bloat estimate.
+The total comes from `pg_database_size(current_database())`; the approximate
+remainder includes catalogs, sequences, and objects outside application tables.
+Size calls are not an atomic disk snapshot, so concurrent writes can cause small
+differences. Backups, WAL, host disk capacity and unrelated databases are outside
+this measurement. No additional database privileges or schema changes are needed
+for the normal provider database owner.
+
+Size function semantics: [PostgreSQL database object size functions](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADMIN-DBSIZE).

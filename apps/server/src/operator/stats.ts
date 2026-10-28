@@ -1,9 +1,10 @@
 import type {SQL} from "bun";
+import {readStorage, type StorageStats} from "./storage.js";
 
 export const statsRanges = {day: {buckets:24, seconds:3600}, week:{buckets:7, seconds:86400}, month:{buckets:30, seconds:86400}} as const;
 export type StatsRange = keyof typeof statsRanges;
 export type OperatorStats = {
-  range:StatsRange; generatedAt:string;
+  range:StatsRange; generatedAt:string; storage:StorageStats|null;
   totals:{users:number; pendingUsers:number; sent:number; received:number; rejected:number; delivered:number; failed:number; pending:number; deliveryRate:number|null};
   activity:{start:string; sent:number; received:number}[];
 };
@@ -48,6 +49,8 @@ export class OperatorStatistics {
         'deliveryRate',CASE WHEN o.delivered+o.failed>0 THEN round((100*o.delivered/(o.delivered+o.failed))::numeric,1) ELSE NULL END) AS totals,
         (SELECT json_agg(activity) FROM activity) AS activity
       FROM outbound o CROSS JOIN inbound i CROSS JOIN users u`;
-    return {range,generatedAt:now.toISOString(),...result!};
+    // Storage collection must not take down message stats or invitations.
+    const storage=await readStorage(this.sql).catch(()=>null);
+    return {range,generatedAt:now.toISOString(),...result!,storage};
   }
 }

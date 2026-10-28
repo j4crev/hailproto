@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ProviderStorage from "./ProviderStorage.svelte";
   import type {OperatorStats} from "../../../server/src/operator/stats.js";
   let {stats,range}:{stats:OperatorStats|null;range:string}=$props();
   const number=(value:number)=>value.toLocaleString("en-US");
@@ -18,6 +19,7 @@
     <p class="hint">{number(stats.totals.pendingUsers)} accounts onboarding · {number(stats.totals.delivered)} outbound delivered · {number(stats.totals.failed)} failed or cancelled · {number(stats.totals.pending)} awaiting a terminal outcome · {number(stats.totals.rejected)} inbound rejected</p>
     <p class="hint">Delivery success excludes outstanding messages and measures confirmed delivery, not reads. “Sent” does not confirm network acceptance; “received” does not confirm body delivery.</p>
   {/if}
+  {#if stats}<ProviderStorage storage={stats.storage} />{/if}
   <div class="heading"><h3>Message activity</h3><nav aria-label="Activity period">
     {#each [["day","24 hours"],["week","7 days"],["month","30 days"]] as [value,title]}
       <a href={`/admin?range=${value}`} aria-current={range===value?"page":undefined}>{title}</a>
