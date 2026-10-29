@@ -51,7 +51,19 @@ export class AccountConnections {
   }
 
   private async live(tx:SQL,session:AccountApiSession){
-    if(!session.passkey_credential_id)throw new ConnectionError(403,"Use your account's passkey session.");
+    if(!session.passkey_credential_id){
+      if(!session.scopes.includes("account:write"))throw new ConnectionError(403,"Connection consent requires account:write and a local identity signature.");
+      const valid=await tx`SELECT c.id FROM account_api_credentials c
+        JOIN account_credential_generations b ON b.credential_id=c.id
+        JOIN account_serving_generations g ON g.account_id=c.account_id AND g.generation=b.generation
+        WHERE c.id=${session.credential_id} AND c.account_id=${session.account_id}
+          AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp() AND c.scopes ? 'account:write'
+          AND g.generation=${session.serving_generation??1}`;
+      const owner=await this.owner(tx,session.account_id);
+      if(!valid.length||owner.did!==session.did||owner.managed)throw new ConnectionError(403,"CLI consent requires current owner-controlled account access; managed consent requires a passkey.");
+      await tx`SELECT hail_assert_unfenced_account(${session.account_id}::uuid)`;
+      return;
+    }
     const rows=await tx`SELECT s.id FROM account_passkey_sessions s JOIN provider_accounts a ON a.id=s.account_id
       JOIN account_serving_generations g ON g.account_id=a.id
       JOIN account_passkeys k ON k.credential_id=s.credential_id AND k.account_id=a.id
@@ -212,7 +224,8 @@ export class AccountConnections {
   }
   private async approval(tx:SQL,session:AccountApiSession,id:string){
     const row=(await tx<Approval[]>`SELECT * FROM connection_approvals WHERE id=${id} AND account_id=${session.account_id}
-      AND session_id=${session.credential_id} AND serving_generation=${session.serving_generation??1}`)[0];
+      AND ((${Boolean(session.passkey_credential_id)} AND session_id=${session.credential_id}) OR
+        (${!session.passkey_credential_id} AND api_credential_id=${session.credential_id})) AND serving_generation=${session.serving_generation??1}`)[0];
     if(!row)throw new ConnectionError(404);return row;
   }
   private async summary(session:AccountApiSession,row:Approval){
@@ -223,9 +236,18 @@ export class AccountConnections {
     const payload=row.owner_payload?decodeDeterministic(new Uint8Array(row.owner_payload)) as unknown as HailConnectionInvitation|HailConnectionConfirmation:null;
     let result=typeof row.result==="string"?JSON.parse(row.result):row.result;
     if(result&&typeof result==="object"&&"attemptId" in result&&typeof result.attemptId==="string"&&this.federation)result=await this.federation.result(session.account_id,result.attemptId);
+    let invitation;
+    if(!session.passkey_credential_id&&row.action==="create"&&result?.invitationId){
+      const code=await this.invitation(this.sql,result.invitationId);
+      if(code.account_id!==session.account_id||code.revoked_at||code.expires_at!==null&&Number(code.expires_at)<=now())
+        throw new ConnectionError(410,"The retained invitation is expired or revoked.");
+      const token=await this.encryptor.decryptConnectionToken(code.account_id,code.id,{ciphertext:code.ciphertext,nonce:code.nonce,encryptionVersion:1,kekId:"poc-v1"});
+      try{invitation={type:"hailp.connection-invitation",version:1,id:code.id,did:code.did,token:encodeBase64Url(token)};}finally{token.fill(0);}
+    }
     return {requestId:row.id,action:row.action==="disconnect"&&Array.isArray(intent.connections)?"disconnect-batch":row.action,review,expiresAt:row.expires_at.toISOString(),result,
+      ...(invitation?{invitation}:{}),
       ownerSigning:payload?{type:"hailp.connection-signing",version:1,provider:this.origin,requestId:row.id,expiresAt:row.expires_at.toISOString(),payload:toDiagnosticJson(payload.type,payload)}:null,
-      options:row.result||row.expires_at.getTime()<=Date.now()?null:await this.passkeys.actionOptions(session,row.challenge)};
+      options:!session.passkey_credential_id||row.result||row.expires_at.getTime()<=Date.now()?null:await this.passkeys.actionOptions(session,row.challenge)};
   }
   async status(session:AccountApiSession,id:string){
     if(!UUID.test(id))throw new ConnectionError(400);await this.live(this.sql,session);return this.summary(session,await this.approval(this.sql,session,id));
@@ -233,6 +255,7 @@ export class AccountConnections {
   async prepare(session:AccountApiSession,input:Record<string,unknown>){
     if(typeof input.requestId!=="string"||!UUID.test(input.requestId)||typeof input.action!=="string")throw new ConnectionError(400);
     const action=input.action,batch=action==="disconnect"&&Array.isArray(input.connectionIds);
+    if(!session.passkey_credential_id&&!["create","connect"].includes(action))throw new ConnectionError(403,"CLI approvals support only owner-signed invitation creation and acceptance.");
     this.keys(input,action==="create"?["requestId","action","personal","label","expiresAt"]:
       action==="connect"?["requestId","action","id","did","token"]:action==="replace"||action==="revoke"?["requestId","action","id"]:
       action==="disconnect"?(batch?["requestId","action","connectionIds"]:["requestId","action","connectionId"]):[]);
@@ -290,8 +313,8 @@ export class AccountConnections {
           pendingToken=await this.encryptor.encryptConnectionToken(actor.id,invitationId,token);
         }finally{token.fill(0);}
       }
-      await tx`INSERT INTO connection_approvals(id,account_id,session_id,serving_generation,action,connection_id,invitation_id,request_digest,intent_bytes,
-        actor_key,peer_key,actor_binding,peer_binding,challenge,owner_payload,token_ciphertext,token_nonce,federated_pair_id,remote_bundle,remote_token_ciphertext,remote_token_nonce) VALUES(${requestId},${session.account_id},${session.credential_id},${session.serving_generation??1},${action},
+      await tx`INSERT INTO connection_approvals(id,account_id,session_id,api_credential_id,serving_generation,action,connection_id,invitation_id,request_digest,intent_bytes,
+        actor_key,peer_key,actor_binding,peer_binding,challenge,owner_payload,token_ciphertext,token_nonce,federated_pair_id,remote_bundle,remote_token_ciphertext,remote_token_nonce) VALUES(${requestId},${session.account_id},${session.passkey_credential_id?session.credential_id:null},${session.passkey_credential_id?null:session.credential_id},${session.serving_generation??1},${action},
         ${null},${invitation?.id??null},${requestDigest},${encodeDeterministic(intent as never)},${actor.identity_key},${peerKey},${actorBinding},${peerBinding},${encodeBase64Url(randomBytes(32))},${ownerPayload},${pendingToken?.ciphertext??null},${pendingToken?.nonce??null},
         ${remoteDraft?.pairId??remotePair?.id??null},${remoteDraft?.bytes??null},${remoteDraft?.ciphertext??null},${remoteDraft?.nonce??null})
         ON CONFLICT(id) DO NOTHING`;
@@ -309,13 +332,14 @@ export class AccountConnections {
     const saved=await this.pairTransaction(session,undefined,async tx=>{
       const row=await this.approval(tx,session,id);if(row.result)return row;
       if(row.expires_at.getTime()<=Date.now())throw new ConnectionError(410,"Approval expired. Review again.");
-      if(!response)throw new ConnectionError(403,"Confirm this exact action with your passkey.");
+      if(session.passkey_credential_id&&!response)throw new ConnectionError(403,"Confirm this exact action with your passkey.");
+      if(!session.passkey_credential_id&&(response||!row.owner_payload||!["create","connect"].includes(row.action)))throw new ConnectionError(403,"CLI consent requires the exact owner signature.");
       const intent=decodeDeterministic(new Uint8Array(row.intent_bytes)) as Record<string,unknown>;
       const actor=await this.owner(tx,session.account_id);await this.authority(tx,actor,row.actor_key);
       if(Boolean(row.owner_payload)!==Boolean(external))throw new ConnectionError(403,row.owner_payload?"This action also needs your locally signed consent file.":"This action does not accept an external consent file.");
       const ownerConfirmation=row.owner_payload&&row.action==="connect"?await this.signedConsent(tx,actor,"hail.connection-confirmation",
         decodeDeterministic(new Uint8Array(row.owner_payload)) as unknown as HailConnectionConfirmation,row.actor_key,external):null;
-      const credential=await this.passkeys.approveAction(tx,session,row.challenge,response);
+      const credential=session.passkey_credential_id?await this.passkeys.approveAction(tx,session,row.challenge,response!):null;
       let result:Record<string,unknown>;
       if(row.action==="disconnect"&&Array.isArray(intent.connections)){
         const selections=intent.connections as unknown as DisconnectSelection[];

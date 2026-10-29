@@ -4,7 +4,7 @@ import {privateFile,savePrivateBytes} from "./grant-revocation.js";
 import {unlockUserIdentity,type UserVaultFile} from "./vault.js";
 import {readRecoverySecret} from "./cli/private-input.js";
 
-export async function signConnectionProposal(vaultPath:string,proposalPath:string,output:string,expectedProvider:string){
+export async function signConnectionProposal(vaultPath:string,proposalPath:string,output:string,expectedProvider:string,showReview=true){
   const proposal=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(proposalPath,32768)));
   const origin=new URL(expectedProvider);
   if(origin.protocol!=="https:"||origin.origin!==expectedProvider||Object.keys(proposal).sort().join(",")!=="expiresAt,payload,provider,requestId,type,version"||
@@ -17,7 +17,7 @@ export async function signConnectionProposal(vaultPath:string,proposalPath:strin
   const payload=fromDiagnosticJson(type,proposal.payload),now=Math.floor(Date.now()/1000);
   if(payload.issued_at>now+300||payload.expires_at!==null&&payload.expires_at<=now)throw new Error("Connection consent has expired or is dated in the future");
   // Public consent only. No admission token, unlocked key or vault is sent to a provider.
-  console.error(JSON.stringify({provider:expectedProvider,requestId:proposal.requestId,consent:proposal.payload,
+  if(showReview)console.error(JSON.stringify({provider:expectedProvider,requestId:proposal.requestId,consent:proposal.payload,
     warning:type==="hail.connection-invitation"?"Standing invitation: any authenticated holder may connect before expiry, without another approval.":"Explicit mutual connection consent, not a subscription."}));
   const secret=decodeBase64Url(await readRecoverySecret());
   try{

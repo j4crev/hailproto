@@ -13,6 +13,8 @@ are implementation and test choices—not requirements of the Hail protocol.
 - [Install or build `hailp`](docs/cli-installation.md)
 - [Follow task-based CLI workflows](docs/cli-workflows.md)
 - [Look up automation and output rules](docs/cli-contract.md)
+- [Use hailp as an agent](docs/agent-guide.md)
+- [Run account-first agent evaluations](docs/agent-evaluation.md)
 - [Browse design notes and the roadmap](docs/README.md)
 
 The CLI also has authoritative, command-specific help:
@@ -164,6 +166,12 @@ publish the signed identity, contact the provider, or activate an unfinished
 account. Older plain v1 vault files continue to work unchanged.
 
 ## Remove a connection
+
+Owner-controlled accounts can now create and accept native Connections with
+`hailp connection invite` and `hailp connection accept`, using a local identity
+signature and private retry state. Use `hailp connection send` to send through
+an active Connection. See the [Connection workflow](docs/cli-workflows.md#create-a-native-connection-and-exchange-messages).
+Managed-account consent continues to use the browser passkey flow.
 
 Run `hailp connection list --credentials <file>` to find a connection ID, then
 `hailp connection remove <connection-id> --credentials <file>`. Listing requires

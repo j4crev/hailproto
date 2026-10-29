@@ -16,6 +16,9 @@
     "build:binary": "bun build --compile --target=bun-linux-x64-baseline src/cli/hailp.ts --outfile dist/hailp",
     "smoke": "bun scripts/smoke.ts",
     "verify:install": "bun scripts/verify-install.ts",
+    "eval:agents": "bun scripts/agent-eval.ts",
+    "smoke:connections": "bun scripts/connection-smoke.ts",
+    "eval:connections": "bun scripts/connection-eval.ts",
     "test": "bun --bun vitest run",
     "vault:create": "bun src/cli/create-vault.ts",
     "vault:verify": "bun src/cli/verify-vault.ts"

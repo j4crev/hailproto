@@ -26,6 +26,7 @@ import {completeManagedTransfer,exportManagedTransferSnapshot,managedTransferOff
   selectManagedTransferAddress,signManagedTransferCutover} from "../managed-account-transfer.js";
 import {createProfile,showProfile,updateProfile} from "../sender-profile.js";
 import {signConnectionProposal} from "../connection-signing.js";
+import {inviteConnection,acceptConnection,connectionStatus} from "../connections.js";
 
 try {
   const parsed = parseCommand(Bun.argv.slice(2));
@@ -107,8 +108,13 @@ try {
     const client = await AccountApiClient.fromCredentialFile(credential, selection);
     let result: unknown;
     if (group === "account") result = await client.account();
-    else if(group==="connection")result=command==="list"?await client.request("/connections/cli-list"):
-      await client.request("/connections/cli-remove",{connectionId:argument!});
+    else if(group==="connection") {
+      if(command==="invite")result=await inviteConnection(client,values.label!,Number(values["expires-at"]),values.vault!,values.state!,values.output!);
+      else if(command==="accept")result=await acceptConnection(client,values.file!,values["expected-did"]!,values.vault!,values.state!);
+      else if(command==="status")result=await connectionStatus(client,values.state!);
+      else if(command==="send")result=await sendMessage(client,values.file!,values.state!,undefined,undefined,undefined,undefined,argument!);
+      else result=command==="list"?await client.request("/connections/cli-list"):await client.request("/connections/cli-remove",{connectionId:argument!});
+    }
     else if(group==="profile")result=command==="show"?await showProfile(client):command==="create"?
       await createProfile(client,values.file!):await updateProfile(client,values.file!);
     else if(group==="binding") {

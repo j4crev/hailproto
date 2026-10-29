@@ -293,7 +293,7 @@ export class ConnectionFederation {
       UNION ALL SELECT o.id,p.peer_did,p.peer_address,CASE WHEN e.state='active' THEN 'connect' ELSE 'disconnect' END AS kind,e.state
         FROM federated_connection_outbox o JOIN federated_connection_events e ON e.id=o.event_id JOIN federated_connection_pairs p ON p.id=e.pair_id
         WHERE o.account_id=${accountId} AND o.ack_cose IS NULL LIMIT 300`;
-    return {connections:active.map(p=>({id:p.connection_id!,did:p.peer_did,address:p.peer_address,connectedAt:p.updated_at.toISOString(),remote:p.peer_service_base!==this.base})),
+    return {connections:active.map(p=>({id:p.connection_id!,did:p.peer_did,address:p.peer_address,epoch:Number(p.epoch),connectedAt:p.updated_at.toISOString(),remote:p.peer_service_base!==this.base})),
       pendingConnections:[...new Map(pending.map(p=>[p.kind+":"+p.peer_did,{id:p.id,did:p.peer_did,address:p.peer_address,kind:p.kind,state:p.state}])).values()]};
   }
 

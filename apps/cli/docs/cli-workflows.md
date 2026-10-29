@@ -170,7 +170,8 @@ hailp grant revoke "$grant_id" \
   --output /secure/account/revoked-grant.cose
 ```
 
-Use repeated `--category` flags or `--uncategorized`, but not both. Omit expiry
+Use repeated `--category` flags for multiple named categories; use `general` for
+General subscriptions. Uncategorized authoring is no longer supported. Omit expiry
 flags on update to preserve the current expiry. Use `--refresh-consent` when a
 fresh sender consent is required. Owner-controlled accounts need `--vault` for
 signing; managed accounts omit it. In both profiles, retain outputs and request
@@ -201,6 +202,67 @@ Message bodies are limited to 64 KiB. Reusing a state file reuses the same
 message ID and exact content; changed content is rejected. A generic `received`
 or `indeterminate` result is not proof of acceptance or delivery. Replies rely
 on the original signed, unexpired invitation—not instructions in message text.
+
+## Create a native Connection and exchange messages
+
+The provider must enable its Connection feature. Invitation creation and
+acceptance through the CLI require owner-controlled custody,
+`account:read`/`account:write`, and your local identity vault. Managed-account
+consent continues to use the browser passkey flow. The existing browser flow
+and its passkey requirements are unchanged.
+
+Create an expiring invitation (expiration must be within one year):
+
+```sh
+hailp connection invite --label 'Connect with Bob' \
+  --expires-at "$future_unix_seconds" \
+  --vault /secure/account/vault.json \
+  --state /secure/account/invite.json \
+  --output /secure/account/invitation.json
+```
+
+Enter your secret at the hidden prompt or redirect it from its private file.
+The invitation is standing consent: anyone holding its admission capability
+can connect before expiry. Share the private `invitation.json` file only with
+the intended peer, and supply your DID independently. The CLI reports the
+output path and public identifiers, never the admission token.
+
+On the peer's account:
+
+```sh
+hailp connection accept --file /secure/account/peer-invitation.json \
+  --expected-did "$inviter_did" --vault /secure/account/vault.json \
+  --state /secure/account/accept.json
+hailp connection status --state /secure/account/accept.json
+hailp connection list
+```
+
+`connecting` is pending. Wait for status `active` or confirm the connection in
+`connection list` before sending. Both commands preserve their request ID in
+the state file and exact consent in `.proposal.json` and `.cose` sidecars.
+After interruption, repeat the same command with the same inputs and original
+credential. Never replace state or signatures to bypass an expired approval,
+changed identity, or provider fence. These approvals are bound to the credential
+that prepared them, so another credential cannot finish or inspect them.
+
+Once active, either side can send text:
+
+```sh
+hailp connection send "$connection_id" --file /secure/account/message.txt \
+  --state /secure/account/connection-send.json
+hailp message status "$message_id" --wait 30 --interval 2
+hailp inbox list
+hailp inbox show "$sender_did" "$message_id"
+```
+
+Sending requires `account:read` and `messages:write`; it works with any active
+Connection supported by the provider, including those created in the browser.
+It pins the recipient, connection epoch, text, and message ID. Exact retries
+reuse that selection even after a timeout; a removed connection cannot be
+silently replaced. The provider checks current authority again before signing,
+submission, and delivery. To respond, use another `connection send` with a new
+state file. The subscription `reply` command uses a different authorization
+mechanism and is not used for this flow.
 
 ## Back up and restore a vault
 

@@ -14,6 +14,7 @@ import {generateAccountKeys} from "../src/identity/keys.js";
 import {ed25519PublicKeyFromDidKey} from "../src/identity/did-key.js";
 import type {HailDidResolver} from "../src/plc/resolver.js";
 import {RemoteConnectionReview} from "../src/accounts/connection-review.js";
+import {readdir} from "node:fs/promises";
 
 it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitations, converges crossed consent and preserves terminal history",async()=>{
   const admin=new SQL(process.env.DATABASE_URL!),schema="connections_"+randomUUID().replaceAll("-","");
@@ -21,11 +22,22 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
   const db=new ProviderDatabase(url.toString()),origin="https://provider.example.com",encryptor=new KeyEncryptor(encodeBase64Url(randomBytes(32)));
   const users=[] as {id:string;did:string;address:string;keys:Awaited<ReturnType<typeof generateAccountKeys>>;credential:string;token:string;session:AccountApiSession;
     assertion:(challenge:string,change?:{origin?:string;flags?:number})=>any}[];
+  // Exercise historical rollback at its original schema boundary. Later
+  // migrations (including 77, which has no rollback) must not be discarded to
+  // run the preview/unified-connection downgrade checks.
+  const historical=async()=>{
+    await db.sql`CREATE TABLE IF NOT EXISTS schema_migrations(version integer PRIMARY KEY,name text NOT NULL,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())`;
+    for(const file of (await readdir(new URL('../migrations/',import.meta.url))).filter(name=>/^\d{4}_.*\.sql$/.test(name)&&Number(name.slice(0,4))<=76).sort()){
+      const version=Number(file.slice(0,4));if((await db.sql`SELECT version FROM schema_migrations WHERE version=${version}`).length)continue;
+      const source=await Bun.file(new URL('../migrations/'+file,import.meta.url)).text();
+      await db.sql.begin(async tx=>{await tx.unsafe(source);await tx`INSERT INTO schema_migrations(version,name,checksum) VALUES(${version},${file.slice(5,-4)},${createHash('sha256').update(source).digest('hex')})`;});
+    }
+  };
   try{
-    await db.migrate();
+    await historical();
     const empty=await db.sql.reserve();try{for(const file of ['0076_message_trash','0075_connection_custody','0074_provider_operator','0073_signup_recovery_package','0072_retired_connection_peers','0071_connection_transfer_orchestration','0070_unified_connections','0069_connection_reconstruction','0068_connection_handover_barriers','0067_connection_proof_authority','0066_connection_handover_preparations','0065_connection_messages','0064_connection_federation','0063_connection_owner_signing','0062_connection_preview'])
       await empty.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{empty.release();}
-    await db.migrate();
+    await historical();
     const passkeys=new PasskeyAuth(db.sql,"provider.example.com",origin),accounts=new AccountApiRepository(db.sql);
     for(const [i,name] of ["alice","bob","eve","owner","second-owner"].entries()){
       const id=randomUUID(),did="did:plc:"+String.fromCharCode(97+i).repeat(24),address=name+"@provider.example.com",keys=await generateAccountKeys(id,encryptor);
@@ -99,6 +111,10 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     await expect(service.commit(a.session,prepared.requestId,a.assertion(prepared.options!.challenge,{flags:1}))).rejects.toMatchObject({status:401});
     await expect(service.commit(a.session,prepared.requestId,e.assertion(prepared.options!.challenge))).rejects.toMatchObject({status:403});
     const accepted=await service.commit(a.session,prepared.requestId,a.assertion(prepared.options!.challenge));
+    const oldApprovals=await db.sql`SELECT to_jsonb(a)-'api_credential_id' AS value FROM connection_approvals a ORDER BY id`;
+    const expand=await db.sql.reserve();try{await expand.unsafe(await Bun.file(new URL('../migrations/rollback/0083_connection_cli_approvals.sql',import.meta.url)).text());}finally{expand.release();}
+    await db.migrate();
+    expect(await db.sql`SELECT to_jsonb(a)-'api_credential_id' AS value FROM connection_approvals a ORDER BY id`).toEqual(oldApprovals);
     service=new AccountConnections(db.sql,encryptor,resolver,passkeys,origin);
     expect((await service.commit(a.session,prepared.requestId)).result).toEqual(accepted.result);
     const personal=(await service.list(a.session)).codes[0]!;expect(personal.expiresAt).toBeNull();
@@ -258,5 +274,30 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     const rollback=await db.sql.reserve();try{await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text())).rejects.toThrow("prevents schema rollback");}finally{await rollback.unsafe("ROLLBACK");rollback.release();}
     await db.sql`UPDATE account_passkeys SET revoked_at=now() WHERE credential_id=${a.credential}`;
     await expect(service.list(a.session)).rejects.toMatchObject({status:403});
+    // Bearer access is a distinct owner-signature channel; browser passkeys and
+    // managed signing are never synthesized or bypassed by a credential.
+    const ownerAccess=await accounts.issue(o.address,false,undefined,["account:read","account:write"]);
+    const otherAccess=await accounts.issue(o.address,false,undefined,["account:read","account:write"]);
+    const readAccess=await accounts.issue(o.address,false,undefined,["account:read"]);
+    const managedAccess=await accounts.issue(b.address,false,undefined,["account:read","account:write"]);
+    const ownerSession=(await accounts.authenticate("Bearer "+ownerAccess.token))!;
+    const ownerInput={requestId:randomUUID(),action:"create",personal:false,label:"CLI consent",expiresAt:Math.floor(Date.now()/1000)+3600};
+    expect((await cli(readAccess.token,"cli-prepare",ownerInput)).status).toBe(403);
+    expect((await cli(managedAccess.token,"cli-prepare",ownerInput)).status).toBe(403);
+    expect((await cli(ownerAccess.token,"prepare",ownerInput)).status).toBe(403);
+    expect((await cli(ownerAccess.token,"cli-prepare",{requestId:randomUUID(),action:"revoke",id:currentOwner.id})).status).toBe(403);
+    const ownerPrepared=await service.prepare(ownerSession,ownerInput);
+    expect(ownerPrepared.options).toBeNull();
+    await expect(service.commit(ownerSession,ownerPrepared.requestId)).rejects.toMatchObject({status:403});
+    await expect(service.status((await accounts.authenticate("Bearer "+otherAccess.token))!,ownerPrepared.requestId)).rejects.toMatchObject({status:404});
+    await expect(service.status(o.session,ownerPrepared.requestId)).rejects.toMatchObject({status:404});
+    const ownerSigned=await signedOwner(o,ownerPrepared),broken=Uint8Array.from(ownerSigned);broken[broken.length-1]=broken[broken.length-1]!^1;
+    expect((await cli(ownerAccess.token,"cli-commit",{requestId:ownerPrepared.requestId,cose:encodeBase64Url(broken)})).status).toBe(400);
+    const committedOwner=await service.commit(ownerSession,ownerPrepared.requestId,undefined,ownerSigned);
+    expect(committedOwner.invitation).toMatchObject({did:o.did,type:"hailp.connection-invitation"});
+    expect((await service.commit(ownerSession,ownerPrepared.requestId)).result).toEqual(committedOwner.result);
+    const refusal=await db.sql.reserve();try{await expect(refusal.unsafe(await Bun.file(new URL('../migrations/rollback/0083_connection_cli_approvals.sql',import.meta.url)).text())).rejects.toThrow('Retained CLI');}finally{await refusal.unsafe('ROLLBACK');refusal.release();}
+    await accounts.revoke(ownerAccess.credentialId);
+    await expect(service.status(ownerSession,ownerPrepared.requestId)).rejects.toMatchObject({status:403});
   }finally{await db.close();await admin.unsafe(`DROP SCHEMA "${schema}" CASCADE`);await admin.close();}
 },60_000);

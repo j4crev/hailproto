@@ -10,6 +10,7 @@ const options = {
   "refresh-consent": { type: "boolean" }, "no-expiry": { type: "boolean" },
   "backup-verified": { type: "boolean" }, "recovery-file": { type: "string" },
   invitation: { type: "string" },
+  label: { type: "string" },
   "passkey-enrollment": { type: "string" },
   sender: { type: "string" }, address: { type: "string" }, custody: { type: "string" },
   file: { type: "string" }, grant: { type: "string" }, did: { type: "string" }, signer: { type: "string" },
@@ -48,6 +49,10 @@ const commands = [
   ["vault import", "", "file vault expected-did", "", false, "Verify/import an exact private backup with reviewed DID or unbound."],
   ["binding show", "", "", "", true, "Read binding expiry and renewal reminder metadata."],
   ["connection list", "", "", "", true, "List active connections; requires account:read."],
+  ["connection invite", "", "label expires-at vault state output", "", true, "Create an expiring owner-signed invitation; private output contains its admission capability. Requires account:read/account:write."],
+  ["connection accept", "", "file expected-did vault state", "", true, "Accept a private invitation for the expected peer using local owner consent. Retain state for exact retries; connecting is not active."],
+  ["connection status", "", "state", "", true, "Read a retained invitation/admission approval; use the original credential and state."],
+  ["connection send", "<connection-id>", "file state", "", true, "Send text to one active connection with a saved message ID and epoch. Requires account:read/messages:write; retry with the same state."],
   ["connection remove", "<connection-id>", "", "", true, "End a connection immediately here; notify the peer asynchronously. Requires account:write."],
   ["connection sign", "<proposal.json>", "vault output provider", "", false, "Offline identity-only signing for an exact browser connection review; never upload your vault or secret."],
   ["binding renew", "", "expires-at output", "vault", true, "Deliberately renew using owner identity or explicit managed custody."],
@@ -126,6 +131,9 @@ export function parseCommand(args: string[]) {
     throw new CliError("USAGE_ERROR", "Select only one expiry option");
   }
   if (values.category?.some(value => !value) || values.scope?.some(value => !value)) throw new CliError("USAGE_ERROR", "Categories/scopes must not be empty");
+  if (name === "connection invite" && (!values.label!.trim() || values.label!.length > 80)) throw new CliError("USAGE_ERROR", "Connection label must be 1–80 characters");
+  if (name === "connection accept" && !/^did:plc:[a-z2-7]{24}$/.test(values["expected-did"]!)) throw new CliError("USAGE_ERROR", "Expected peer must be a did:plc identity");
+  if (name === "connection send" && !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(positionals[2]!)) throw new CliError("USAGE_ERROR", "Connection ID must be a UUIDv7");
   if (name === "send" && values.category && values.category.length !== 1) throw new CliError("USAGE_ERROR", "Messages select exactly one category");
   if (name === "account create" && !["owner-controlled", "managed"].includes(values.custody!)) throw new CliError("USAGE_ERROR", "Select owner-controlled or managed custody");
   if (name === "account create" && Boolean(values["monitor-origin"]) !== Boolean(values["monitor-key"])) throw new CliError("USAGE_ERROR", "Use --monitor-origin and --monitor-key together");

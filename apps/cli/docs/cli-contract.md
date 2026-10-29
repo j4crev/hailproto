@@ -97,6 +97,27 @@ offline vault/cutover/completion commands do not accept bearer selection options
   and requests remain bound to the selected credential. This is not a snapshot
   of a concurrently changing account. Failures emit no partial success object.
 
+## Native Connection operations
+
+`connection invite/accept` use credential-bound approvals on owner-controlled
+accounts (`account:read` and `account:write`). The provider verifies the exact
+locally signed invitation/confirmation before committing. Browser approval
+continues to require its original passkey session/assertion; a bearer cannot
+authorize managed identity signing. Providers must run schema migration 83 and
+the updated Connection routes; existing list/removal remain compatible.
+
+Invitations are private version-1 `hailp.connection-invitation` files containing
+`id`, `did`, and `token`. The token is an admission capability and never appears
+in command arguments or normal CLI results. State and signed sidecars are
+private and immutable across retries. `connection status --state` exposes only
+public approval/admission metadata; `connecting` is not an active connection.
+
+Connection lists add numeric `epoch` to each active entry. `connection send`
+uses the existing message endpoint/status contract with a pinned connection ID,
+epoch, and recipient DID. It does not relax current scopes, fences, or delivery
+authorization. Old providers without epoch metadata fail explicitly instead
+of guessing an epoch. Grant/subscription commands retain their existing shape.
+
 ## Verification and distribution
 
 First-slice proof exercises actual CLI processes: contextual help/version,

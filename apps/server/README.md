@@ -1014,3 +1014,41 @@ for a seven-day UI notice, shown only after handover completes. This adds no
 sharing workflow, subscription notifications, federation endpoint or snapshot
 version. Presentation state is local and may disappear if the observer moves.
 See [contact identity notices](../../docs/contact-identity-notices.md).
+
+## Owner-signed CLI Connections
+
+With the existing Connection feature enabled (`CONNECTION_PREVIEW=true` and
+the provider's passkey configuration), schema migration 0083 adds a separate
+API-credential owner to Connection approvals. Existing passkey approvals keep
+their session and assertion requirements. The expanded schema allows exactly
+one access owner per approval; API approvals must have a local owner payload,
+use `create` or `connect`, and cannot impersonate a passkey approval.
+
+The credential-authenticated endpoints under `/api/v1/account/connections` are:
+
+- `POST /cli-prepare`: prepare an exact `create`/`connect` request with a stable
+  client `requestId`.
+- `POST /cli-commit`: submit `{requestId,cose}` for the exact current owner
+  identity signature. No WebAuthn assertion is synthesized.
+- `GET /cli-status?requestId=<uuid>`: resume/read the same credential's retained
+  approval. Completed invitation results include a private admission capability
+  for the CLI to save to a mode-0600 file; do not log the response body.
+
+These require live, unfenced, current-generation owner-controlled access with
+`account:write`; the CLI also uses `account:read` to confirm identity. Missing,
+expired, revoked, wrong-scope, and different credentials cannot commit/resume an
+approval. Managed-account consent remains passkey-only. A Connection still
+activates through the existing signed federation state machine, even when both
+accounts are on one provider.
+
+Active Connection list entries add numeric `epoch`. CLI Connection sends use
+the existing message endpoint with the exact connection ID, epoch, recipient
+DID, and stable message ID, preserving current messaging scopes and authority
+checks. See the [CLI workflow](../cli/docs/cli-workflows.md#create-a-native-connection-and-exchange-messages).
+
+Migration 0083 preserves browser approvals and supports code rollback with the
+expanded schema retained. Its schema rollback refuses to remove retained CLI
+approval evidence; before any CLI approval exists, the rollback restores the
+original non-null passkey-session ownership. Do not delete approvals to force
+a rollback. The connection integration test checks both paths and byte/data
+preservation of existing browser approvals.

@@ -44,7 +44,7 @@ export function registerConnectionRoutes(app:Hono,connections:AccountConnections
   app.all("/api/v1/account/connections/:step?",async c=>{
     c.header("Cache-Control","no-store");c.header("Referrer-Policy","no-referrer");c.header("Vary","Cookie");
     const apiStep=c.req.param("step");
-    if(apiStep==="cli-list"||apiStep==="cli-remove"){
+    if(["cli-list","cli-remove","cli-prepare","cli-commit","cli-status"].includes(apiStep??"")){
       c.header("Vary","Authorization");
       try{
         if(source.take(clientAddress(c.req.raw),60)!==null)throw new ConnectionError(429);
@@ -52,7 +52,28 @@ export function registerConnectionRoutes(app:Hono,connections:AccountConnections
         const session=await accounts.authenticate(c.req.header("Authorization"));
         if(!session)throw new ConnectionError(401);
         if(account.take(session.account_id,60)!==null)throw new ConnectionError(429);
-        if(new URL(c.req.url).search)throw new ConnectionError(400);
+        const query=new URL(c.req.url).searchParams;
+        if(apiStep==="cli-status"){
+          if(c.req.method!=="GET"||[...query.keys()].some(key=>key!=="requestId")||query.getAll("requestId").length!==1)throw new ConnectionError(400);
+          return await withServingGeneration(session.account_id,session.serving_generation??1,
+            async()=>c.json(await connections.status(session,query.get("requestId")!)));
+        }
+        if(query.size)throw new ConnectionError(400);
+        if(apiStep==="cli-prepare"||apiStep==="cli-commit"){
+          if(c.req.method!=="POST")throw new ConnectionError(405);
+          if(c.req.header("Content-Type")!=="application/json"||c.req.header("Content-Encoding"))throw new ConnectionError(415);
+          const bytes=await accountRequestBytes(c.req.raw,32768);if(!bytes)throw new ConnectionError(413);
+          let input:Record<string,unknown>;
+          try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as Record<string,unknown>;
+            if(!input||typeof input!=="object"||Array.isArray(input))throw new Error();}catch{throw new ConnectionError(400);}
+          return await withServingGeneration(session.account_id,session.serving_generation??1,async()=>{
+            if(apiStep==="cli-prepare")return c.json(await connections.prepare(session,input));
+            if(Object.keys(input).sort().join(",")!=="cose,requestId"||typeof input.requestId!=="string"||typeof input.cose!=="string"||input.cose.length>21846)throw new ConnectionError(400);
+            let cose:Uint8Array;
+            try{cose=decodeBase64Url(input.cose);if(cose.length>16384||encodeBase64Url(cose)!==input.cose)throw new Error();}catch{throw new ConnectionError(400);}
+            return c.json(await connections.commit(session,input.requestId,undefined,cose));
+          });
+        }
         let connectionId:string|undefined;
         if(apiStep==="cli-list"){if(c.req.method!=="GET")throw new ConnectionError(405);}
         else{

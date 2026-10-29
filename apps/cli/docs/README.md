@@ -10,6 +10,10 @@ evidence for maintainers.
   credentials, Grants, messaging, backups, bindings, and transfers.
 - [CLI contract](cli-contract.md): stable output, errors, selection, bounds,
   and retry behavior for scripts and agents.
+- [Agent guide](agent-guide.md): account setup, private files, task boundaries,
+  and truthful completion reporting.
+- [Agent evaluations](agent-evaluation.md): disposable account-first trials and
+  coordinated multi-agent milestones.
 - [Installation](cli-installation.md): pinned source build, native executable,
   and clean-install verification.
 - [Roadmap](cli-roadmap.md): implemented scope and remaining production work.
