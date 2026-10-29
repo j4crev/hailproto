@@ -332,6 +332,7 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     expect(sends.messages).toHaveLength(1);
     expect(sends.messages[0]).toMatchObject({messageId:direct.publicationId,kind:"connections"});
     expect(sends.messages[0]).not.toHaveProperty("recipients");
+    expect(sends.messages[0]!.recipientSummary).toEqual({count:2,address:null,did:null});
     const sentDetail=(await one.messaging.sentSends(a.session,null,{id:direct.publicationId,kind:"connections"})).messages;
     expect(sentDetail).toHaveLength(1);
     expect(sentDetail[0]!.recipients).toEqual(expect.arrayContaining([{did:b.did,address:b.address},{did:c.did,address:c.address}]));

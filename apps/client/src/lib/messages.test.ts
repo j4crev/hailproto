@@ -86,6 +86,10 @@ it("shows send titles separately from previews and retains untitled content",asy
     .toMatchObject({title:"Untitled message",preview:"Keep this opening"});
   expect(parseSentSends({messages:[send,{...send,messageId:"another"}],next:"cursor"}).messages).toHaveLength(2);
   expect(parseSentSend(send).recipients).toBeNull();
+  expect(parseSentSend(send).recipientSummary).toBeNull();
+  for(const summary of [{count:1,address:"friend@example.test",did:"did:plc:friend"},{count:2,address:null,did:null}])
+    expect(parseSentSend({...send,recipientSummary:summary}).recipientSummary).toEqual(summary);
+  expect(()=>parseSentSend({...send,recipientSummary:{count:0,address:null,did:null}})).toThrow("Invalid recipient count");
   const recipients=[{did:"did:plc:recipient",address:"friend@example.test"},{did:"did:plc:other",address:null}];
   expect(parseSentSend({...send,kind:"connections",recipients}).recipients).toEqual(recipients);
   expect(()=>parseSentSend({...send,recipients:{}})).toThrow("Invalid recipients");

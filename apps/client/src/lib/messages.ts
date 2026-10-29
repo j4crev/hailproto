@@ -233,12 +233,18 @@ export function parseSentSend(value:unknown) {
     const recipient=object(value,"recipient");
     return {did:text(recipient.did,"recipient DID"),address:recipient.address===null?null:text(recipient.address,"recipient address")};
   });
+  let recipientSummary:{count:number;address:string|null;did:string|null}|null=null;
+  if(item.recipientSummary!==undefined){
+    const summary=object(item.recipientSummary,"recipient summary");
+    if(!Number.isSafeInteger(summary.count)||Number(summary.count)<1||Number(summary.count)>100)throw new Error("Invalid recipient count");
+    recipientSummary={count:Number(summary.count),address:summary.address===null?null:text(summary.address,"recipient address"),did:summary.did===null?null:text(summary.did,"recipient DID")};
+  }
   const content=parseBody(item.body),first=content.blocks[0];
   const title=first?.style==="h1"?first.spans.map(span=>span.text).join("").trim():"";
   const paragraphs=title?content.paragraphs.slice(1):content.paragraphs;
   return {...content,messageId:text(item.messageId,"send ID"),kind:item.kind as "category"|"connections"|"message",
     category:item.category===null?null:text(item.category,"category"),createdAt:text(item.createdAt,"creation time"),
-    title:title||"Untitled message",preview:messagePreview({paragraphs}),recipients};
+    title:title||"Untitled message",preview:messagePreview({paragraphs}),recipients,recipientSummary};
 }
 
 export function parseSentSends(value:unknown) {

@@ -17,7 +17,7 @@
       {#each data.messages as message}
         <MessageListRow timestamp={message.createdAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null}
           href={`/sent/send/${message.kind}/${message.messageId}`}>
-          {#snippet sender()}{#if message.kind === 'category'}<mark class="inline-block max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{audience(message)}</mark>{/if}{/snippet}
+          {#snippet sender()}{#if message.kind === 'category'}<mark class="inline-block max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{audience(message)}</mark>{:else if message.recipientSummary}<span class="[overflow-wrap:anywhere]">{message.recipientSummary.count > 1 ? 'Multiple recipients' : message.recipientSummary.address ?? message.recipientSummary.did}</span>{/if}{/snippet}
         </MessageListRow>
       {/each}
     </section>

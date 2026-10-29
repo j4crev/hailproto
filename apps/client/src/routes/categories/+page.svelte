@@ -66,7 +66,7 @@
           <div class="flex items-center justify-between gap-3"><strong>General</strong><span class="text-xs text-muted">Built-in · Fixed</span></div>
           {#if data.revision && !data.definition.categories.some(category => category.id === 'general')}<p class="m-0 text-xs text-muted">Added to your profile when you save.</p>{/if}
         </div>
-        <p class="m-0 text-sm text-muted">Add custom categories for specific topics.</p>
+        <p class="m-0 text-sm text-muted">Add custom categories for specific topics.{#if categories.length} Tap a category to edit it.{/if}</p>
         {#if selected.length}
           <SelectionActions label="Category actions" count={selected.length} locked={busy} onclear={() => selected = []}>
             {#snippet actions()}<button class="hail-button-secondary text-danger" type="button" disabled={busy} onclick={removeSelected}>Remove</button>{/snippet}

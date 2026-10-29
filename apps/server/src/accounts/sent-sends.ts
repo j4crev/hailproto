@@ -40,7 +40,28 @@ export async function sentSends(sql:SQL,session:AccountApiSession,after:string|n
     WHERE (${cursorId??null}::uuid IS NULL OR (id,kind)<(${cursorId??null}::uuid,${cursorKind??null}::text))
       AND (${selection?.id??null}::uuid IS NULL OR (id=${selection?.id??null}::uuid AND kind=${selection?.kind??null}))
     ORDER BY id DESC,kind DESC LIMIT ${PAGE_SIZE+1}`;
-  // Only the detail request needs recipients; feeds keep their existing query cost.
+  const page=rows.slice(0,PAGE_SIZE);
+  const connectionIds=page.filter(row=>row.kind==="connections").map(row=>row.id);
+  const messageIds=page.filter(row=>row.kind==="message").map(row=>row.id);
+  // One bounded summary query for the displayed page; full recipient lists remain detail-only.
+  const summaries=connectionIds.length||messageIds.length ? await sql<{id:string;kind:string;count:number;address:string|null;did:string}[]>`
+    WITH recipients AS (
+      SELECT target.publication_id AS id, 'connections'::text AS kind, target.recipient_did
+      FROM connection_message_targets target
+      JOIN sent_envelopes envelope ON envelope.sender_account_id=target.account_id AND envelope.message_id=target.message_id
+      WHERE target.account_id=${session.account_id} AND envelope.sender_did=${session.did}
+        AND target.publication_id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(connectionIds)}::text::jsonb))
+      UNION ALL
+      SELECT message_id, 'message', recipient_did FROM sent_envelopes
+      WHERE sender_account_id=${session.account_id} AND sender_did=${session.did} AND authorization_type='connection'
+        AND message_id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(messageIds)}::text::jsonb))
+    )
+    SELECT recipients.id, recipients.kind, count(*)::integer AS count, min(pair.peer_address) AS address, min(recipients.recipient_did) AS did
+    FROM recipients LEFT JOIN federated_connection_pairs pair
+      ON pair.account_id=${session.account_id} AND pair.peer_did=recipients.recipient_did
+    GROUP BY recipients.id, recipients.kind` : [];
+  const summaryById=new Map(summaries.map(row=>[`${row.kind}/${row.id}`,{count:row.count,address:row.count===1?row.address:null,did:row.count===1?row.did:null}]));
+  // Only the detail request needs the full recipients.
   const recipients = selection?.kind === "connections" && rows.some(row => row.id === selection.id && row.kind === "connections")
     ? await sql<{did:string;address:string|null}[]>`
       SELECT target.recipient_did AS did, pair.peer_address AS address
@@ -51,7 +72,7 @@ export async function sentSends(sql:SQL,session:AccountApiSession,after:string|n
         AND envelope.sender_did=${session.did}
       ORDER BY target.recipient_did`
     : undefined;
-  return {messages:rows.slice(0,PAGE_SIZE).map(row=>({messageId:row.id,kind:row.kind,category:row.category,
-    createdAt:row.created_at.toISOString(),body:bodyDocument(row.body_bytes),...(recipients ? {recipients} : {})})),
+  return {messages:page.map(row=>({messageId:row.id,kind:row.kind,category:row.category,
+    createdAt:row.created_at.toISOString(),body:bodyDocument(row.body_bytes),...(summaryById.has(`${row.kind}/${row.id}`)?{recipientSummary:summaryById.get(`${row.kind}/${row.id}`)}:{}),...(recipients ? {recipients} : {})})),
     next:rows.length>PAGE_SIZE?`${rows[PAGE_SIZE-1]!.id}/${rows[PAGE_SIZE-1]!.kind}`:null};
 }

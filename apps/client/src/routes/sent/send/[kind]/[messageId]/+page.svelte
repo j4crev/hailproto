@@ -8,7 +8,11 @@
 <a class="hail-back" href="/sent">← Sent messages</a>
 <h1 class="sr-only">{data.message.title}</h1>
 <article class="hail-card overflow-hidden">
-  <header class="border-0 border-b border-solid border-line p-5 text-xs text-muted sm:px-7">{#if data.message.kind === 'connections' && data.message.recipients}
+  <header class="border-0 border-b border-solid border-line p-5 text-xs text-muted sm:px-7">{#if data.message.kind === 'category' && data.message.category}
+      <div class="mb-3 flex flex-wrap gap-2"><mark class="max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{data.message.category === 'general' ? 'General' : data.message.category}</mark></div>
+    {:else if data.message.recipientSummary?.count === 1}
+      <p class="m-0 mb-3 text-sm font-semibold text-ink [overflow-wrap:anywhere]">{data.message.recipientSummary.address ?? data.message.recipientSummary.did}</p>
+    {:else if data.message.kind === 'connections' && data.message.recipients && data.message.recipients.length > 1}
       <details class="mb-3 text-sm text-ink">
         <summary class="cursor-pointer font-semibold">Recipients ({data.message.recipients.length})</summary>
         <ul class="m-0 mt-2 grid max-h-60 gap-2 overflow-y-auto pl-5" aria-label="Message recipients">
