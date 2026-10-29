@@ -1,9 +1,10 @@
 <script lang="ts">
+  import CopyButton from "$lib/CopyButton.svelte";
   import {onMount} from "svelte";
   import ProviderStats from "$lib/ProviderStats.svelte";
   import {invalidateAll} from "$app/navigation";
   let {data}=$props();
-  let email=$state(""),busy=$state(false),message=$state(""),inviteUrl=$state(""),copied=$state(false);
+  let email=$state(""),busy=$state(false),message=$state(""),inviteUrl=$state("");
   let pending=$state<{id:string;email:string|null}|null>(null);
   let ready=$state(false);
   onMount(()=>{ready=true;});
@@ -20,7 +21,7 @@
   }
   async function create(event:SubmitEvent){
     event.preventDefault();if(busy)return;
-    busy=true;message="";inviteUrl="";copied=false;
+    busy=true;message="";inviteUrl="";
     pending??={id:crypto.randomUUID(),email:email.trim()||null};
     try{
       const response=await fetch("/api/v1/operator/invitations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(pending)});
@@ -37,7 +38,6 @@
     }catch{message="Could not confirm the request. Retry to check the same invitation.";}
     finally{busy=false;}
   }
-  async function copy(){try{await navigator.clipboard.writeText(inviteUrl);copied=true;}catch{message="Select and copy the link below.";}}
 </script>
 <svelte:head><title>Provider administration · Hail</title><meta name="referrer" content="no-referrer" /></svelte:head>
 <div class="dashboard">
@@ -67,7 +67,7 @@
     </form>
     {#if pending&&!busy}<button class="hail-button-secondary" onclick={()=>{pending=null;email="";message="The previous invitation may still be delivered. A new request creates a separate invitation.";}}>Start another invitation</button>{/if}
     {#if message}<p role="status">{message}</p>{/if}
-    {#if inviteUrl}<label for="invite-link">Private invitation link</label><textarea id="invite-link" readonly value={inviteUrl} rows="3"></textarea><button class="hail-button-secondary" onclick={copy}>{copied?"Copied":"Copy link"}</button>{/if}
+    {#if inviteUrl}<label for="invite-link">Private invitation link</label><div class="flex min-w-0 items-start gap-1"><textarea class="min-w-0 flex-1" id="invite-link" readonly value={inviteUrl} rows="3"></textarea><CopyButton value={inviteUrl} label="Copy invitation link" /></div>{/if}
     <p class="hint">Creating invitations requires a passkey login within the last ten minutes. <a href="/?next=%2Fadmin">Sign in again</a></p>
   </section>
   <section class="hail-card panel" aria-labelledby="recent-invitations">

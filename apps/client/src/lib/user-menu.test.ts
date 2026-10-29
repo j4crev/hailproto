@@ -8,6 +8,8 @@ it("renders the saved photo in desktop and compact mobile menus", () => {
     const {body} = render(UserMenu, {props: {address: "alice@example.com", compact, avatar: "data:image/png;base64,AQID"}});
     expect(body).toContain('src="data:image/png;base64,AQID"');
     expect(body).toContain('aria-label="Open account menu"');
+    expect(body).toContain('href="/account"');
+    expect(body).not.toContain('/settings/security');
     expect(body).not.toContain('>AL<');
   }
 });

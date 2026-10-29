@@ -32,7 +32,6 @@
   <nav aria-label="Account menu">
     <a href="/account"><Icon name="user" />Account<Icon name="chevron" size={16} /></a>
     <a href="/settings"><Icon name="settings" />Settings<Icon name="chevron" size={16} /></a>
-    <a href="/settings/security"><Icon name="shield" />Passkeys &amp; security<Icon name="chevron" size={16} /></a>
   </nav>
   <form method="POST" action="/auth/logout" onsubmit={signOut}><button disabled={signingOut}><Icon name="logout" />{signingOut ? "Signing out…" : "Sign out"}</button></form>
   {#if error}<p class="hail-error" role="alert">{error}</p>{/if}

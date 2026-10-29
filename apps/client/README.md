@@ -165,11 +165,13 @@ The maintained browser client lives in `apps/client` (workspace package `hail-cl
 The desktop sidebar and mobile modal drawer share their navigation. Inbox shows
 subscription updates; Messages shows connection messages. Both have their own
 navigation entry and no tabs. Messages has one New message action in its heading. The avatar
-opens a native popover as the sole navigation to Account, Settings, Security and
+opens a native popover as the sole navigation to Account, Settings and
 Sign out; those pages have no cross-link cards. Both the
 popover and drawer support outside-click and Escape dismissal; the drawer locks
 background scrolling and restores focus when closed. Account details live at
-`/account`; reading preferences live at `/settings`.
+`/account`, including Sign-in & security for passkeys and active sessions. Old
+`/settings/security` links redirect to `/account#security`; reading preferences
+live at `/settings`.
 
 The browser wizard checks those interactions at desktop and mobile widths,
 including direct homepage login, protected new routes, account-menu logout,

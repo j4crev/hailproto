@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CopyButton from "$lib/CopyButton.svelte";
   import SelectionActions from "$lib/SelectionActions.svelte";
   import {onMount, untrack} from "svelte";
   import {startAuthentication} from "@simplewebauthn/browser";
@@ -13,7 +14,7 @@
     categories = categories.filter((_, index) => !selected.includes(index));
     selected = []; editing = null;
   }
-  let busy = $state(false), ready = $state(false), message = $state(""), conflict = $state(false), showQr = $state(false), copied = $state("");
+  let busy = $state(false), ready = $state(false), message = $state(""), conflict = $state(false), showQr = $state(false);
   const share = $derived(senderLink(data.origin, data.account.address, data.account.did));
   const qr = $derived(showQr && share ? senderQr(share) : null);
   onMount(() => {ready = true;});
@@ -47,10 +48,7 @@
     } catch (error) {message = error instanceof Error ? error.message : "Couldn’t save your profile. Please try again."; busy = false;}
   }
   function reload() {if (confirm("Discard your draft and load the latest profile?")) location.reload();}
-  async function copy() {
-    try {await navigator.clipboard.writeText(share); copied = "Link copied.";}
-    catch {copied = "Couldn’t copy. Select the link below to copy it.";}
-  }
+
 </script>
 <svelte:head><title>Categories · Haili</title></svelte:head>
 <header class="page-heading"><h1 class="hail-title">Categories</h1><p>{data.revision ? 'Manage what people can subscribe to.' : 'Create a sender profile to let people subscribe to your updates.'}</p></header>
@@ -108,9 +106,7 @@
       <p class="m-0 text-sm text-muted">Invite people to subscribe. They choose which categories to receive.</p>
       <button class="hail-button-secondary justify-self-start" onclick={() => {showQr = !showQr;}} aria-expanded={showQr} aria-controls="sender-qr">{showQr ? 'Hide QR' : 'Show QR'}</button>
       {#if qr}<div id="sender-qr"><svg class="h-auto max-w-full" viewBox={`0 0 ${qr.size} ${qr.size}`} width="256" height="256" role="img" aria-label={`Sender request QR for ${data.account.address}`} shape-rendering="crispEdges"><rect width="100%" height="100%" fill="white" /><path d={qr.path} fill="black" /></svg></div>{/if}
-      <label class="hail-field">Subscription link<input readonly value={share} onclick={event => event.currentTarget.select()} /></label>
-      <button class="hail-button-secondary justify-self-start" onclick={copy}>Copy link</button>
-      <p class="m-0 text-xs text-muted" role="status">{copied}</p>
+      <div class="flex min-w-0 items-end gap-1"><label class="hail-field min-w-0 flex-1">Subscription link<input readonly value={share} onclick={event => event.currentTarget.select()} /></label><CopyButton value={share} label="Copy subscription link" /></div>
     {:else}<p class="m-0 text-sm text-muted">Create your sender profile to get a subscription link and QR code.</p>{/if}
   </aside>
 </div>

@@ -130,7 +130,7 @@
 <div class:has-selection={selectedPermissions.length>0} class="[&_h2]:m-0 [&_h2]:text-xl [&_h3]:m-0 [&_p]:m-0 [&_code]:text-xs [&_code]:[overflow-wrap:anywhere] [&_button]:self-start [&_button]:max-w-full [&_button]:whitespace-normal">
   <header class="mb-8"><h1 class="hail-title">Subscriptions</h1></header>
   {#if message}<p class="mb-5! rounded-xl border border-solid border-line bg-brand-soft p-4 text-sm" role="status">{message}</p>{/if}
-  <div class="grid items-start gap-6 max-w-[860px]">
+  <div class="grid min-w-0 items-start gap-6">
     <div class="grid min-w-0 gap-6">
       {#if data.account.custodyProfile==="managed"}
         {#if !prepared&&!recoveryNeeded}

@@ -747,7 +747,7 @@ try{
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Signing in through a QR must not approve or prepare it");
   // Verify each ordinary folder resumes after login, including its query string.
-  for(const [path,text] of [["/sent?after=older","Sent"],["/compose","Send a hail"],["/settings/security","Passkeys & security"]]){
+  for(const [path,text] of [["/sent?after=older","Sent"],["/compose","Send a hail"],["/account","Sign-in & security"]]){
     await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
     await cdp("Page.navigate",{url:origin+path});
     await wait(async()=>evaluate(`location.pathname==='/' && new URL(location.href).searchParams.get('next')===${JSON.stringify(path)}`),"folder login: "+path);
@@ -755,11 +755,20 @@ try{
     await wait(async()=>evaluate(`location.pathname+location.search===${JSON.stringify(path)} && document.body.innerText.includes(${JSON.stringify(text)})`),"resume folder: "+path);
     assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),path+" overflows viewport");
   }
+  // Copy controls report success only after clipboard access succeeds, and recover on failure.
+  await evaluate(`Object.defineProperty(navigator, 'clipboard', {configurable:true, value:{writeText:async value=>{window.copiedValue=value;}}})`);
+  await evaluate(`document.querySelector('button[aria-label="Copy address"]').click()`);
+  await wait(()=>has("Copied to clipboard."),"copy address success feedback");
+  assert.equal(await evaluate(`window.copiedValue`),prepared.address);
+  await wait(async()=>evaluate(`!document.querySelector('button[aria-label="Copy address"]').classList.contains('copied')`),"copy feedback resets");
+  await evaluate(`navigator.clipboard.writeText=async()=>{throw new Error('Clipboard blocked');};document.querySelector('button[aria-label="Copy address"]').click()`);
+  await wait(()=>has("Couldn’t copy. Select and copy the text instead."),"clipboard failure gives manual fallback");
+  assert(!await has("Copied to clipboard."),"failed copy must not report success");
   assert(!await has("Recovery is separate"));
   await accountNavigation();
   assert(await evaluate(`document.querySelectorAll('button').length>0 && [...document.querySelectorAll('button')].find(b=>b.textContent==='Revoke').disabled`),"Current/last passkey cannot be revoked");
   recentlyVerified=false;
-  await cdp("Page.navigate",{url:origin+"/settings/security?fresh=1"});await wait(()=>has("Verify with your current passkey before adding"),"security management requires fresh verification");
+  await cdp("Page.navigate",{url:origin+"/account?fresh=1"});await wait(()=>has("Verify with your current passkey before adding"),"security management requires fresh verification");
   assert(await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent==='Add passkey').disabled`));
   await click("Verify to manage");await wait(async()=>evaluate(`location.search==='?fresh=1' && [...document.querySelectorAll('button')].find(b=>b.textContent==='Add passkey')?.disabled===false`),"fresh passkey verification unlocks management");
   generalAvailable=true;

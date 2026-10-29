@@ -10,7 +10,7 @@
 </script>
 
 <svelte:head><title>Sent · Haili</title></svelte:head>
-<div class="mx-auto max-w-[860px]">
+<div class="min-w-0">
   <header class="page-heading"><h1 class="hail-title">Sent</h1></header>
   {#if data.messages.length}
     <section class="compact-list" aria-label="Sent messages">

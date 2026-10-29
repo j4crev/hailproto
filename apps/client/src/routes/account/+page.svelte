@@ -1,9 +1,10 @@
 <script lang="ts">
+  import CopyButton from "$lib/CopyButton.svelte";
+  import AccountSecurity from "$lib/AccountSecurity.svelte";
   import {onMount, untrack} from "svelte";
   import {startAuthentication} from "@simplewebauthn/browser";
   import {avatarDefinition, avatarSource, prepareAvatar} from "$lib/avatar.js";
   let {data} = $props();
-  let copied = $state(false), copyError = $state("");
   let avatar = $state<string | null>(untrack(() => data.definition.avatar ?? null));
   let ready = $state(false), busy = $state(false), processing = $state(false), message = $state(""), conflict = $state(false);
   const changed = $derived(avatar !== (data.definition.avatar ?? null));
@@ -44,19 +45,15 @@
       location.reload();
     } catch (error) {message = error instanceof Error ? error.message : "Couldn’t save your photo. Please try again."; busy = false;}
   }
-  async function copyAddress() {
-    try { await navigator.clipboard.writeText(data.account.address); copied = true; copyError = ""; }
-    catch { copyError = "Couldn’t copy. Select and copy your address below."; }
-  }
+
 </script>
 <svelte:head><title>Account · Haili</title></svelte:head>
-<div class="mx-auto max-w-[860px]">
+<div class="min-w-0">
   <header class="page-heading"><h1 class="hail-title">Account</h1></header>
   <section class="hail-card overflow-hidden" aria-label="Account details">
     <div class="account-banner"><span class="account-avatar">{#if source}<img src={source} alt="Your avatar preview" />{:else}{data.account.address.split('@')[0].slice(0,2).toUpperCase()}{/if}</span><span class="text-xs font-semibold text-brand-strong">Your Hail identity</span></div>
     <div class="grid gap-7 p-6 sm:p-8">
-      <div class="flex flex-wrap items-center justify-between gap-4"><div class="min-w-0"><p class="hail-eyebrow mb-2">Hail address</p><h2 class="m-0 text-xl tracking-tight [overflow-wrap:anywhere]">{data.account.address}</h2></div><button class="hail-button-secondary" onclick={copyAddress}>{copied ? 'Copied' : 'Copy address'}</button><span class="sr-only" role="status">{copied ? 'Address copied to clipboard.' : ''}</span></div>
-      {#if copyError}<p class="hail-error" role="status">{copyError}</p>{/if}
+      <div class="min-w-0"><p class="hail-eyebrow mb-2">Hail address</p><div class="flex items-center gap-1"><h2 class="m-0 min-w-0 text-xl tracking-tight [overflow-wrap:anywhere]">{data.account.address}</h2><CopyButton value={data.account.address} label="Copy address" /></div></div>
       <form onsubmit={save} aria-label="Profile photo">
         <fieldset class="m-0 grid min-w-0 gap-4 border-0 p-0" disabled={!ready || busy || processing || conflict || !!data.account.migrationState}>
           <legend class="mb-2 text-sm font-semibold">Profile photo</legend>
@@ -75,6 +72,9 @@
       </form>
       <dl class="m-0 grid gap-6 border-0 border-t border-solid border-line pt-6"><div><dt class="text-sm font-semibold">Identity</dt><dd class="m-0 mt-2 font-mono text-xs text-muted [overflow-wrap:anywhere]">{data.account.did}</dd></div><div><dt class="text-sm font-semibold">Key custody</dt><dd class="m-0 mt-2 text-sm text-muted">{data.account.custodyProfile === 'managed' ? 'Provider managed' : data.account.custodyProfile === 'owner-controlled' ? 'Owner controlled' : data.account.custodyProfile}</dd></div></dl>
     </div>
+  </section>
+  <section id="security" aria-labelledby="security-title" class="mt-10 scroll-mt-24">
+    <AccountSecurity data={data.security} />
   </section>
 </div>
 <style>

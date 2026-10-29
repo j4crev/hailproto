@@ -23,7 +23,7 @@
   }
 </script>
 <svelte:head><title>Trash · Haili</title></svelte:head>
-<div class="trash-list mx-auto max-w-[860px]" class:has-selection={selectedMessages.length>0}>
+<div class="trash-list min-w-0" class:has-selection={selectedMessages.length>0}>
   <header class="page-heading"><h1 class="hail-title">Trash</h1><p>Messages are permanently deleted 30 days after they enter Trash.</p></header>
   {#if status}<p role="status">{status}</p>{/if}
   {#if data.messages.length}

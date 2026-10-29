@@ -5,6 +5,7 @@
     unread: 'M21 11v8H3V5h11 M3 5l9 7 4-3 M23 4a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
     feed: 'M4 5h16v14H4z M4 9h16 M8 13h8 M8 16h5',
     chat: 'M4 4h16v12H9l-5 4z M8 8h8 M8 12h5',
+    copy: 'M9 9h12v12H9z M15 9V3H3v12h6',
     check: 'm5 12 4 4L19 6',
     reply: 'm9 5-6 6 6 6 M3 11h10a7 7 0 0 1 7 7',
     more: 'M12 5h.01 M12 12h.01 M12 19h.01',

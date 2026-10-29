@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CopyButton from "$lib/CopyButton.svelte";
   import DateTime from "$lib/DateTime.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
   import {onMount,tick} from "svelte";
@@ -63,7 +64,7 @@
 
 </script>
 {#snippet shareCode(link:string,id:string)}
-  {#if qr}<div id={`connection-code-${id}`} class="grid min-w-0 gap-4" aria-label="Share connection code"><svg class="w-full max-w-72 bg-white" viewBox={`0 0 ${qr.size} ${qr.size}`} role="img" aria-label="Connection QR code"><path d={qr.path} fill="black" /></svg><label class="hail-field">Connection link<input readonly value={link} onclick={event=>event.currentTarget.select()} /></label><button class="hail-button-secondary justify-self-start" onclick={()=>run(async()=>{await navigator.clipboard.writeText(link);message="Link copied.";})}>Copy link</button></div>{/if}
+  {#if qr}<div id={`connection-code-${id}`} class="grid min-w-0 gap-4" aria-label="Share connection code"><svg class="w-full max-w-72 bg-white" viewBox={`0 0 ${qr.size} ${qr.size}`} role="img" aria-label="Connection QR code"><path d={qr.path} fill="black" /></svg><div class="flex min-w-0 items-end gap-1"><label class="hail-field min-w-0 flex-1">Connection link<input readonly value={link} onclick={event=>event.currentTarget.select()} /></label><CopyButton value={link} label="Copy connection link" /></div></div>{/if}
 {/snippet}
 {#if list}
   <section class="connection-content mt-8 grid gap-5" class:has-selection={selectedConnections.length>0} aria-label="Connection codes">
