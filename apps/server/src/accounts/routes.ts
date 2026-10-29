@@ -13,6 +13,7 @@ import {withServingGeneration} from "../db/serving.js";
 import type { SameProviderCustodyTransition } from "./custody-transition.js";
 import type { ManagedAccountTransfer } from "./managed-transfer.js";
 import { parseSenderProfileDefinition, SenderProfileConflictError, type SenderProfileService } from "../profiles/service.js";
+import type { SenderProfileStore, VerifiedSenderProfileStore } from "../profiles/store.js";
 import type { SenderProfileVerifier } from "../profiles/verifier.js";
 import {getCookie} from "hono/cookie";
 import {clientAddress,FixedWindowRateLimit} from "../http/rate-limit.js";
@@ -46,7 +47,8 @@ export async function accountRequestBytes(request: Request,limit=MAX_BYTES): Pro
 export function registerAccountApiRoutes(app: Hono, accounts: AccountApiRepository,
   grants: GrantRepository, service: GrantService, provider: string, messaging?:AccountMessaging, binding?:AccountBinding,
   transfer?:AccountTransfer,custodyTransition?:SameProviderCustodyTransition,managedTransfer?:ManagedAccountTransfer,
-  profiles?:SenderProfileService,profileVerifier?:Pick<SenderProfileVerifier,"verify">,sessionOrigin?:string,publications?:AccountPublications): void {
+  profiles?:SenderProfileService,profileVerifier?:Pick<SenderProfileVerifier,"verify">,sessionOrigin?:string,publications?:AccountPublications,
+  avatarProfiles?:SenderProfileStore & VerifiedSenderProfileStore): void {
   const ingress=new FixedWindowRateLimit(),anonymous=new FixedWindowRateLimit(),authenticated=new FixedWindowRateLimit();
   const handle = async (context: Context, grantId: string | null, action?: string):Promise<Response> => {
     context.header("Cache-Control", "no-store");
@@ -100,6 +102,18 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         if(operation==="create")return context.json(kind==="connections"?await publications.createConnections(session,input as Record<string,unknown>):await publications.create(session,input as Record<string,unknown>),202);
         if(Object.keys(input).length)return problem(400);
         const found=await publications.cancel(session,grantId!,kind);return found?context.json(found):problem(404);
+      }
+      if(action==="sender-avatar"){
+        if(!session.scopes.includes("messages:read"))return problem(403);
+        if(method!=="GET")return problem(405);
+        const did=grantId!;if(!/^did:plc:[a-z2-7]{24}$/.test(did))return problem(400);
+        if(!avatarProfiles)return problem(503);
+        // Presentation only: never put PLC/network verification on the page-load path.
+        // Prefer the current local profile, including an explicitly removed avatar.
+        const local=await avatarProfiles.findCurrentByDid(did);
+        const profile=local?local.payload:(await avatarProfiles.getLatestVerifiedSenderProfile(did))?.profile;
+        const asset=profile?.version===2?profile.assets?.assets.find(asset=>asset.role==="avatar"):undefined;
+        return context.json({did,avatar:asset?{data:encodeBase64Url(asset.data),width:asset.width,height:asset.height}:null});
       }
       if(action==="sender-profile"){
         if(!session.scopes.includes("messages:read"))return problem(403);
@@ -454,6 +468,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/connection-addresses/:did",context=>handle(context,context.req.param("did"),"connection-address"));
   app.all("/api/v1/account/binding",context=>handle(context,null,"binding"));
   app.all("/api/v1/account/profile",context=>handle(context,null,"profile"));
+  app.all("/api/v1/account/senders/:sender/avatar",context=>handle(context,context.req.param("sender"),"sender-avatar"));
   app.all("/api/v1/account/senders/:sender/profile",context=>handle(context,context.req.param("sender"),"sender-profile"));
   app.all("/api/v1/account/messages",context=>handle(context,null,"send"));
   app.all("/api/v1/account/publications/audiences",context=>handle(context,null,"publication-audiences"));

@@ -133,8 +133,17 @@ The reader supports headings, blockquotes, captions, lists, basic decorators,
 declared HTTPS links, and one bundled PNG header. Invited managed signup is
 supported separately; post-signup browser recovery import, custody transitions
 and general attachments remain unavailable.
-Verified Sender Profile v2 avatars appear in the inbox and message reader with
-initials as the fallback; avatar bytes are bundled and never loaded remotely.
+Sender Profile v2 avatars appear in the inbox and message reader with initials
+as the fallback. Display uses the provider's `/api/v1/account/senders/:did/avatar`
+lookup: the current local profile takes precedence, including photo removal;
+other senders use the last retained verified profile. This lookup performs no
+external profile fetch or PLC verification, so identity-reader timeouts cannot
+hold up navigation just to display a photo. Remote photos reflect the last
+profile retained by normal verification flows; unknown photos show initials.
+Avatar bytes are bundled into page data and never fetched from senders by the browser.
+Deploy the provider and GUI together for this endpoint; an older provider yields
+initials. No database migration is needed. Fresh profile verification remains
+available for protocol operations that require it.
 The compose route publishes plain or structured updates to all active subscribers
 in a selected category, optionally with one bundled PNG header. General defaults
 when available; there is no individual subscription-recipient picker. The provider

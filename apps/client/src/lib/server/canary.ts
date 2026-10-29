@@ -36,10 +36,13 @@ export async function senderAvatars(client: AccountApiClient, senderDids: Set<st
   await Promise.all([...senderDids].map(async did=>{
     let avatar:{src:string;width:number;height:number}|null=null;
     try {
-      const {payload}=await client.senderProfile(did);
-      const asset=payload.version===2?payload.assets?.assets[0]:undefined;
-      if(asset?.role==="avatar")avatar={src:`data:image/png;base64,${Buffer.from(asset.data).toString("base64")}`,
-        width:asset.width,height:asset.height};
+      const result=await client.request(`/senders/${encodeURIComponent(did)}/avatar`);
+      const asset=result.avatar as {data?:unknown;width?:unknown;height?:unknown}|null;
+      if(result.did===did && asset && typeof asset.data==="string" && /^[A-Za-z0-9_-]+$/.test(asset.data) &&
+        asset.data.length<=43_691 && typeof asset.width==="number" && Number.isSafeInteger(asset.width) && asset.width>0 &&
+        typeof asset.height==="number" && Number.isSafeInteger(asset.height) && asset.height>0)
+        avatar={src:`data:image/png;base64,${Buffer.from(asset.data,"base64url").toString("base64")}`,
+          width:asset.width,height:asset.height};
     } catch { /* A missing current profile must not hide a message. */ }
     avatars.set(did,avatar);
   }));

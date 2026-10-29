@@ -334,6 +334,7 @@ const app = createApp(config, schemaRehearsal ? {
     binding:new AccountBinding(database.sql,resolver,new KeyEncryptor(config.keyEncryptionKey),config.publicOrigin,
        new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver)),
      messaging,publications,
+    avatarProfiles:onboardingRepository,
     profiles:new SenderProfileService(onboardingRepository,new KeyEncryptor(config.keyEncryptionKey),resolver,config.hailServiceBase),
     profileVerifier,
     service: new GrantService(onboardingRepository, grantRepository, new KeyEncryptor(config.keyEncryptionKey),

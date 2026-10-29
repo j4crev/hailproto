@@ -7,7 +7,7 @@ import type { AppConfig } from "./config.js";
 import { registerDiscoveryRoutes } from "./discovery/routes.js";
 import type { DiscoveryStore } from "./discovery/store.js";
 import { registerSenderProfileRoutes } from "./profiles/routes.js";
-import type { SenderProfileStore } from "./profiles/store.js";
+import type { SenderProfileStore, VerifiedSenderProfileStore } from "./profiles/store.js";
 import { registerGrantRoutes } from "./grants/routes.js";
 import type { GrantReceiver } from "./grants/receiver.js";
 import { registerBodyRoutes } from "./bodies/routes.js";
@@ -94,7 +94,7 @@ export interface AppDependencies {
   managedMigrationCompletion?:ManagedMigrationCompletion;
   accountApi?: { accounts: AccountApiRepository; grants: GrantRepository; service: GrantService; messaging?:AccountMessaging;
     binding?:AccountBinding;transfer?:AccountTransfer;custodyTransition?:SameProviderCustodyTransition;managedTransfer?:ManagedAccountTransfer;
-    profiles?:SenderProfileService;profileVerifier?:Pick<SenderProfileVerifier,"verify">;publications?:AccountPublications;connections?:AccountConnections };
+    avatarProfiles?:SenderProfileStore & VerifiedSenderProfileStore;profiles?:SenderProfileService;profileVerifier?:Pick<SenderProfileVerifier,"verify">;publications?:AccountPublications;connections?:AccountConnections };
   selfServiceOnboarding?: SelfServiceOnboarding;
   signupEmail?:{sql:SQL;client:SignupEmailClient};
   signupMonitor?:SignupMonitorService;
@@ -134,7 +134,7 @@ export function createApp(
 
   if (dependencies.accountApi) {
     const { accounts, grants, service, messaging, binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,publications } = dependencies.accountApi;
-    registerAccountApiRoutes(app, accounts, grants, service, config.publicOrigin,messaging,binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,config.passkeys?.origin,publications);
+    registerAccountApiRoutes(app, accounts, grants, service, config.publicOrigin,messaging,binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,config.passkeys?.origin,publications,dependencies.accountApi.avatarProfiles);
     if(dependencies.accountApi.connections)registerConnectionRoutes(app,dependencies.accountApi.connections,accounts,config.passkeys?.origin??config.publicOrigin);
     if(dependencies.passkeys)registerPasskeyRoutes(app,dependencies.passkeys,accounts);
     if(dependencies.passkeys&&dependencies.signup&&dependencies.signupEmail&&config.alphaSignup)
