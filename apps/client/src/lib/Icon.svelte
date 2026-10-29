@@ -5,7 +5,7 @@
     feed: 'M4 5h16v14H4z M4 9h16 M8 13h8 M8 16h5',
     chat: 'M4 4h16v12H9l-5 4z M8 8h8 M8 12h5',
     check: 'm5 12 4 4L19 6',
-    reply: 'm9 5-7 7 7 7 M2 12h10a8 8 0 0 1 8 8v-4a8 8 0 0 0-8-8H6',
+    reply: 'm9 5-6 6 6 6 M3 11h10a7 7 0 0 1 7 7',
     more: 'M12 5h.01 M12 12h.01 M12 19h.01',
     trash: 'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7',
     sent: 'm3 11 18-8-8 18-3-8-7-2Z M10 13 21 3',
@@ -20,4 +20,4 @@
     chevron: 'm9 5 7 7-7 7', image: 'M3 3h18v18H3z m0 14 5-5 4 4 4-6 5 7 M8 7h.01'
   };
 </script>
-<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={paths[name] ?? paths.feed} /></svg>
+<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{#if name === 'more'}<circle cx="12" cy="5" r="2" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" /><circle cx="12" cy="19" r="2" fill="currentColor" stroke="none" />{:else}<path d={paths[name] ?? paths.feed} />{/if}</svg>

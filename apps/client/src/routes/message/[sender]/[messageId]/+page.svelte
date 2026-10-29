@@ -29,7 +29,7 @@
         {#if data.message.kind !== 'connection' && data.account.custodyProfile === 'managed' && data.subscription}
           {#key `${data.subscription.grantId}:${data.subscription.revision}`}<Unsubscribe compact subscription={data.subscription} owner={data.account.did} />{/key}
         {/if}
-        {#if data.message.connection?.active}<a class="hail-button-secondary" aria-label="Reply" title="Reply" href={`/compose?audience=connections&connection=${data.message.connection.id}`}><Icon name="reply" /></a>{/if}
+        {#if data.message.connection?.active}<a class="hail-icon-button compact" aria-label="Reply" title="Reply" href={`/compose?audience=connections&connection=${data.message.connection.id}`}><Icon name="reply" /></a>{/if}
         <MessageActions compact menu={data.message.kind==='connection'} messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} />
       </div>
       {#if data.message.kind !== 'connection' && data.account.custodyProfile === 'managed'}

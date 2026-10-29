@@ -64,17 +64,17 @@
     {#if !confirming}
       {#if menu}
         <details class="action-menu">
-          <summary aria-label="More message actions" title="More actions"><Icon name="more" /></summary>
-          <div class="menu-items"><button class="hail-button-secondary" disabled={busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');void review();}}>Delete</button></div>
+          <summary class="hail-icon-button compact" aria-label="More message actions" title="More actions"><Icon name="more" /></summary>
+          <div class="menu-items"><button class="menu-item" type="button" disabled={busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');void review();}}><Icon name="trash" /><span>Trash</span></button></div>
         </details>
-      {:else}<button class="hail-button-secondary" type="button" aria-label="Delete message" title="Delete" disabled={busy || !ready} onclick={review}><Icon name="trash" /></button>{/if}
+      {:else}<button class="hail-icon-button compact" type="button" aria-label="Delete message" title="Delete" disabled={busy || !ready} onclick={review}><Icon name="trash" /></button>{/if}
     {/if}
     {@render confirmation()}
   </div>
 {:else}
   <SelectionActions label="Message actions" count={onclear?messages.length:undefined} {onclear} locked={busy||confirming} {busy}>
     {#snippet actions()}
-      {#if !confirming}<button class="hail-button-secondary" type="button" aria-label={messages.length === 1 ? 'Delete message' : `Delete ${messages.length} messages`} title="Delete" disabled={busy || !ready} onclick={review}><Icon name="trash" /></button>{/if}
+      {#if !confirming}<button class="hail-icon-button" type="button" aria-label={messages.length === 1 ? 'Delete message' : `Delete ${messages.length} messages`} title="Delete" disabled={busy || !ready} onclick={review}><Icon name="trash" /></button>{/if}
     {/snippet}
     {@render confirmation()}
   </SelectionActions>
@@ -82,7 +82,9 @@
 <style>
   .inline-actions.expanded { flex-basis:100%; }
   .action-menu { position:relative; }
-  summary { display:flex; min-height:44px; min-width:44px; align-items:center; justify-content:center; cursor:pointer; border:1px solid var(--color-line); border-radius:12px; list-style:none; }
+  summary { list-style:none; }
   summary::-webkit-details-marker { display:none; }
+  .menu-item { display:flex; align-items:center; gap:10px; width:100%; min-width:120px; padding:10px 12px; border:0; border-radius:6px; background:transparent; text-align:left; font-size:14px; }
+  .menu-item:hover { background:var(--color-brand-soft); }
   .menu-items { position:absolute; right:0; top:100%; z-index:5; padding:6px; background:var(--color-surface); border:1px solid var(--color-line); border-radius:12px; box-shadow:0 4px 12px #0002; }
 </style>

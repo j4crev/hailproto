@@ -11,7 +11,7 @@
     <span class="action-count" role="status">{count===undefined?label:`${count} selected`}</span>
     {#if onselectall}<button class="hail-button-secondary" disabled={locked} onclick={onselectall}>Select all</button>{/if}
     {@render actions()}
-    {#if onclear}<button class="hail-button-secondary" type="button" aria-label="Clear selection" title="Clear selection" disabled={locked} onclick={onclear}><Icon name="close" /></button>{/if}
+    {#if onclear}<button class="hail-icon-button" type="button" aria-label="Clear selection" title="Clear selection" disabled={locked} onclick={onclear}><Icon name="close" /></button>{/if}
   </div>
   {#if children}{@render children()}{/if}
 </section>
