@@ -2,6 +2,7 @@
   let {name, size = 20}: {name: string; size?: number} = $props();
   const paths: Record<string, string> = {
     'double-check': 'M18 6 7 17l-5-5 M22 6 11 17l-3-3',
+    unread: 'M21 11v8H3V5h11 M3 5l9 7 4-3 M23 4a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
     feed: 'M4 5h16v14H4z M4 9h16 M8 13h8 M8 16h5',
     chat: 'M4 4h16v12H9l-5 4z M8 8h8 M8 12h5',
     check: 'm5 12 4 4L19 6',

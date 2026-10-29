@@ -2,8 +2,8 @@
   import type {Snippet} from "svelte";
   import type {MessageImage} from "./messages.js";
   import DateTime from "./DateTime.svelte";
-  let {leading, sender, timestamp, title, preview, header = null, href, selected = false, details}: {
-    leading?: Snippet; sender?: Snippet; timestamp: string; title: string; preview: string;
+  let {isRead = false, leading, sender, timestamp, title, preview, header = null, href, selected = false, details}: {
+    isRead?: boolean; leading?: Snippet; sender?: Snippet; timestamp: string; title: string; preview: string;
     header?: MessageImage | null; href?: string; selected?: boolean; details?: Snippet;
   } = $props();
 </script>
@@ -17,7 +17,7 @@
   </span>
 {/snippet}
 
-<article class="list-row message-row" class:has-header={!!header} class:without-leading={!leading} class:is-selected={selected}>
+<article class="list-row message-row" class:is-read={isRead} class:has-header={!!header} class:without-leading={!leading} class:is-selected={selected}>
   {#if leading}<div class="message-leading">{@render leading()}</div>{/if}
   <div class="message-meta">
     {#if sender}<strong class="message-sender">{@render sender()}</strong>{/if}
@@ -50,6 +50,7 @@
   .message-link:focus-visible::after { outline:2px solid var(--color-brand); outline-offset:-2px; }
   .message-subject, .message-preview { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
   .message-subject { margin-top:2px; font-weight:650; }
+  .is-read .message-sender, .is-read .message-subject { font-weight:400; }
   .message-preview { color:var(--color-muted); }
   @media(max-width:640px) { .message-meta { gap:8px; } }
   .message-details { display:block; margin-top:4px; color:var(--color-muted); font-size:11px; }

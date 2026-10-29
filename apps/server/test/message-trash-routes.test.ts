@@ -11,7 +11,8 @@ it('requires authenticated scoped same-origin web access for Trash mutations',as
   let authenticated=true;
   const accounts={authenticate:vi.fn(async()=>authenticated?session:null)} as unknown as AccountApiRepository;
   const remove=vi.fn(async()=>({state:'trashed'})),restore=vi.fn(async()=>({restored:1})),saveSettings=vi.fn(async()=>({trashEnabled:false}));
-  const messaging={trash:{remove,restore,saveSettings,settings:async()=>({trashEnabled:true})},inboxFeed:async()=>({messages:[],next:null})} as unknown as AccountMessaging;
+  const setRead=vi.fn(async()=>({isRead:true}));
+  const messaging={setRead,trash:{remove,restore,saveSettings,settings:async()=>({trashEnabled:true})},inboxFeed:async()=>({messages:[],next:null})} as unknown as AccountMessaging;
   const origin='https://example.com',app=createApp({publicOrigin:origin,providerId:'test',passkeys:{origin}} as AppConfig,
     {accountApi:{accounts,grants:{} as GrantRepository,service:{} as GrantService,messaging},async checkReadiness(){return {ready:true};}});
   const path='/api/v1/account/inbox/did:plc:'+ 'b'.repeat(24)+'/019a0000-0000-7000-8000-000000000001/delete';
@@ -23,6 +24,12 @@ it('requires authenticated scoped same-origin web access for Trash mutations',as
   session.scopes=['messages:read','messages:write'];session.passkey_credential_id=null;
   expect((await post()).status).toBe(403);session.passkey_credential_id='passkey';
   expect((await post(path.replace('/delete','/permanent-delete'))).status).toBe(403);
+  expect((await post(path.replace('/delete','/mark-read'),{}, {Origin:'https://evil.example'})).status).toBe(403);
+  expect((await post(path.replace('/delete','/mark-read')))).toHaveProperty('status',200);
+  expect(setRead.mock.calls.at(-1)?.at(-1)).toBe(true);
+  expect((await post(path.replace('/delete','/mark-unread'))).status).toBe(200);
+  expect(setRead.mock.calls.at(-1)?.at(-1)).toBe(false);
+  expect((await post(path.replace('/delete','/mark-read'),{isRead:true})).status).toBe(400);
   expect(remove).not.toHaveBeenCalled();expect((await post()).status).toBe(200);expect(remove).toHaveBeenCalledTimes(1);
   expect((await post(path,{permanent:true})).status).toBe(400);
   expect((await post('/api/v1/account/message-preferences',{trashEnabled:false})).status).toBe(200);

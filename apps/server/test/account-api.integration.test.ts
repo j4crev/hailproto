@@ -406,7 +406,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     expect(waited.exit,waited.stderr).toBe(0);
     expect(JSON.parse(waited.stdout)).toMatchObject({cliContractVersion:1,messageId:id,state:"indeterminate",revision:null,
       wait:{completed:false,timedOut:true}});
-    const inbox=await cli(["inbox","list","--pages","2"],"message-owner.credential.json");expect(inbox.exit).toBe(0);expect(JSON.parse(inbox.stdout).messages).toHaveLength(1);
+    const inbox=await cli(["inbox","list","--pages","2"],"message-owner.credential.json");expect(inbox.exit,inbox.stderr).toBe(0);expect(JSON.parse(inbox.stdout).messages).toHaveLength(1);
     const read=await cli(["inbox","show",senderDid,id],"message-owner.credential.json");if(read.exit)throw new Error(read.stderr);
     expect(JSON.parse(read.stdout).body.blocks[0].children[0].text).toBe("CLI message");
     expect(JSON.parse(read.stdout).reply.allowed).toBe(true);
@@ -466,6 +466,15 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     expect(await db.sql`SELECT message_id FROM delivered_messages WHERE sender_did=${senderDid} AND message_id=${id}`).toHaveLength(1);
     const ownerSession=(await accounts.authenticate(`Bearer ${ownerMessageCredential.token}`))!;
     const senderSession=(await accounts.authenticate(`Bearer ${senderCredential.token}`))!;
+    expect((await messaging.read(ownerSession,senderDid,id))?.isRead).toBe(false);
+    expect(await messaging.setRead(senderSession,senderDid,id,true)).toBeNull();
+    await messaging.setRead(ownerSession,senderDid,id,true);
+    await messaging.setRead(ownerSession,senderDid,id,true);
+    expect((await messaging.read(ownerSession,senderDid,id))?.isRead).toBe(true);
+    expect((await messaging.inbox(ownerSession,null)).messages.find(m=>m.messageId===id)?.isRead).toBe(true);
+    expect((await messaging.inboxFeed(ownerSession,null)).messages.find(m=>m.messageId===id)?.isRead).toBe(true);
+    await messaging.setRead(ownerSession,senderDid,id,false);
+    expect((await messaging.read(ownerSession,senderDid,id))?.isRead).toBe(false);
     expect(await messaging.trash.settings(ownerSession)).toEqual({trashEnabled:true});
     // Old message age does not shorten a newly started Trash retention window.
     await db.sql`UPDATE delivered_messages SET delivered_at=clock_timestamp()-interval '90 days' WHERE message_id=${id}`;

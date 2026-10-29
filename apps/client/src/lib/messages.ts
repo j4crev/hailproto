@@ -11,6 +11,7 @@ function text(value: unknown, label: string): string {
 }
 
 export interface InboxItem {
+  isRead?: boolean;
   messageId: string;
   sender: string;
   deliveredAt: string;
@@ -22,6 +23,7 @@ export function parseInbox(value: unknown): InboxItem[] {
   return result.messages.map((entry) => {
     const item = object(entry, "inbox item");
     return {
+      isRead: item.isRead === true,
       messageId: text(item.messageId, "message ID"),
       sender: text(item.sender, "sender"),
       deliveredAt: text(item.deliveredAt, "delivery time"),
@@ -182,6 +184,7 @@ export function parseMessage(value: unknown): MessageView {
   }
   return {
     ...(message.kind==="connection"?{kind:"connection" as const}:{}),...(connection?{connection}:{}),
+    isRead: message.isRead === true,
     messageId: text(message.messageId, "message ID"),
     sender: text(message.sender, "sender"),
     senderAddress:message.senderAddress===null||message.senderAddress===undefined?null:text(message.senderAddress,"sender address"),

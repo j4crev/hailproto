@@ -1,6 +1,8 @@
 <script lang="ts">
   import {messageDisplayContent} from "$lib/messages.js";
   import {tick} from "svelte";
+  import {mailboxRequest} from "$lib/mailbox.js";
+  import {invalidateAll} from "$app/navigation";
   import Icon from "$lib/Icon.svelte";
   import DateTime from "$lib/DateTime.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
@@ -8,6 +10,16 @@
   import Unsubscribe from "$lib/Unsubscribe.svelte";
   import RichText from "$lib/RichText.svelte";
   let { data,form } = $props();
+  let opened = '';
+  let readError = $state(''), readPending = $state(true);
+  $effect(() => {
+    const message = data.message, key = `${message.sender}/${message.messageId}`;
+    if (opened === key) return;
+    opened = key;
+    readError = ''; readPending = true;
+    void mailboxRequest(`inbox/${encodeURIComponent(message.sender)}/${encodeURIComponent(message.messageId)}/mark-read`, {})
+      .then(() => invalidateAll()).catch(() => { readError = 'Unable to mark this message read. Reload to try again.'; }).finally(() => { readPending = false; });
+  });
   let replyOpen = $state(false), replyInput = $state<HTMLTextAreaElement>(), replyButton = $state<HTMLButtonElement>();
   $effect(() => {
     // Reset when navigating between messages; reveal submission errors on return.
@@ -31,6 +43,7 @@
 <div class="message-detail mx-auto max-w-[860px]">
 <a class="hail-back" href={data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.kind==='connection'?'Messages':'Inbox'}</a>
 {#if content.title}<h1 class="mb-5 mt-0 text-2xl font-semibold leading-tight [overflow-wrap:anywhere] sm:text-3xl">{content.title}</h1>{:else}<h1 class="sr-only">Received message</h1>{/if}
+{#if readError}<p class="hail-error" role="alert">{readError}</p>{/if}
 <article class="hail-card overflow-hidden">
   <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line p-5 sm:px-7">
     <div class="flex min-w-0 items-center gap-3">
@@ -50,7 +63,7 @@
         {/if}
         {#if data.message.connection?.active}<a class="hail-icon-button compact" aria-label="Reply" title="Reply" href={`/compose?audience=connections&connection=${data.message.connection.id}`}><Icon name="reply" /></a>
         {:else if data.message.kind !== 'connection' && data.canReply}<button bind:this={replyButton} class="hail-icon-button compact" type="button" aria-label="Reply" title="Reply" aria-expanded={replyOpen} aria-controls="subscription-reply" onclick={openReply}><Icon name="reply" /></button>{/if}
-        <MessageActions compact menu={data.message.kind==='connection'} messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} />
+        <MessageActions compact menu disabled={readPending} messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} />
       </div>
       {#if data.message.kind !== 'connection' && data.account.custodyProfile === 'managed'}
         {#if data.subscriptionUnavailable}<p class="w-full text-sm text-muted" role="status">Couldn’t check your subscription. Reload this message to try again.</p>

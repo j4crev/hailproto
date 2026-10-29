@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { groupMessageBlocks, messagePreview, parseInbox, parseInboxFeed, parseMessage, parseSent, parseSentFeed, parseSentMessage } from "./messages.js";
 
 describe("message projections", () => {
+  it("preserves read status and defaults older responses to unread", () => {
+    const item={messageId:"m",sender:"s",recipient:"r",deliveredAt:"now",category:null,
+      body:{version:1,profile:"spt-1",blocks:[]}};
+    for(const isRead of [true,false]){
+      expect(parseInbox({messages:[{...item,isRead}]})[0]?.isRead).toBe(isRead);
+      expect(parseInboxFeed({messages:[{...item,isRead}],next:null}).messages[0]?.isRead).toBe(isRead);
+    }
+    expect(parseMessage(item).isRead).toBe(false);
+  });
   it("accepts the account API inbox and current spt-1 body", () => {
     expect(parseInbox({ messages: [{ messageId: "m", sender: "did:plc:sender", deliveredAt: "now" }] })[0]?.sender)
       .toBe("did:plc:sender");

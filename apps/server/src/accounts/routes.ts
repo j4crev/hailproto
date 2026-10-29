@@ -254,7 +254,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           digest:encodeBase64Url(saved.digest),cose:encodeBase64Url(saved.cose),
           profile:toDiagnosticJson("hail.sender-profile",saved.payload)});
       }
-      if(["trash","trash-restore","message-delete","message-purge","message-preferences"].includes(action??"")){
+      if(["message-read","message-unread","trash","trash-restore","message-delete","message-purge","message-preferences"].includes(action??"")){
         if(!messaging)return problem(503);
         const reading=method==="GET";
         if(!session.scopes.includes(reading?"messages:read":"messages:write"))return problem(403);
@@ -281,6 +281,10 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           return context.json(await messaging.trash.restore(session,input.messages));
         }
         if(Object.keys(input).length)return problem(400);
+        if(action==="message-read"||action==="message-unread"){
+          const result=await messaging.setRead(session,context.req.param("sender")!,grantId!,action==="message-read");
+          return result?context.json(result):problem(404);
+        }
         return context.json(await messaging.trash.remove(session,context.req.param("sender")!,grantId!,action==="message-purge"));
       }
       const scope = action === "send" || action === "resubmit" ? "messages:write" : ["inbox","read","status","sent","sent-read"].includes(action ?? "") ? "messages:read" : action === "credential" ? "credentials:write" : action === "proposal" || action === "managed-create" || action === "managed-revoke" ? "grants:write" : action === "list" ? "grants:read" :
@@ -464,6 +468,8 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/trash",context=>handle(context,null,"trash"));
   app.all("/api/v1/account/trash/restore",context=>handle(context,null,"trash-restore"));
   app.all("/api/v1/account/inbox/:sender/:messageId/permanent-delete",context=>handle(context,context.req.param("messageId"),"message-purge"));
+  app.all("/api/v1/account/inbox/:sender/:messageId/mark-read",context=>handle(context,context.req.param("messageId"),"message-read"));
+  app.all("/api/v1/account/inbox/:sender/:messageId/mark-unread",context=>handle(context,context.req.param("messageId"),"message-unread"));
   app.all("/api/v1/account/inbox/:sender/:messageId/delete",context=>handle(context,context.req.param("messageId"),"message-delete"));
   app.all("/api/v1/account/inbox",context=>handle(context,null,"inbox"));
   app.all("/api/v1/account/inbox/:sender/:messageId",context=>handle(context,context.req.param("messageId"),"read"));

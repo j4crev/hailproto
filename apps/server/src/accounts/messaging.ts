@@ -83,15 +83,28 @@ export class AccountMessaging {
     return this.submit(session.did,input.messageId);
   }
 
+  async setRead(session:AccountApiSession,sender:string,id:string,isRead:boolean) {
+    if(!DID.test(sender)||!ID.test(id))throw new UserGrantError(400,"Invalid message identity");
+    return this.sql.begin(async tx=>{
+      const accounts=await tx`SELECT id FROM provider_accounts WHERE id=${session.account_id} AND did=${session.did} AND onboarding_state='active' FOR UPDATE`;
+      if(!accounts.length)throw new UserGrantError(409,"Account is unavailable");
+      await tx`SELECT hail_assert_unfenced_account(${session.account_id}::uuid)`;
+      const rows=await tx`UPDATE delivered_messages SET is_read=${isRead}
+        WHERE recipient_did=${session.did} AND sender_did=${sender} AND message_id=${id} AND trashed_at IS NULL RETURNING message_id`;
+      if(!rows.length)return null;
+      return {messageId:id,isRead};
+    });
+  }
+
   async inbox(session:AccountApiSession,after:string|null) {
     let cursor:{id:string;sender:string}|null=null;
     if(after){try{cursor=JSON.parse(Buffer.from(after,"base64url").toString("utf8"));}catch{throw new UserGrantError(400,"Invalid cursor");}
       if(!cursor||!ID.test(cursor.id)||!DID.test(cursor.sender))throw new UserGrantError(400,"Invalid cursor");}
-    const rows=await this.sql<{message_id:string;sender_did:string;delivered_at:Date}[]>`
-      SELECT message_id,sender_did,delivered_at FROM delivered_messages WHERE recipient_did=${session.did} AND trashed_at IS NULL
+    const rows=await this.sql<{message_id:string;sender_did:string;is_read:boolean;delivered_at:Date}[]>`
+      SELECT is_read,message_id,sender_did,delivered_at FROM delivered_messages WHERE recipient_did=${session.did} AND trashed_at IS NULL
       AND (${after}::text IS NULL OR (message_id,sender_did)>(${cursor?.id ?? null}::uuid,${cursor?.sender ?? null}::text))
       ORDER BY message_id,sender_did LIMIT 51`;
-    return {messages:rows.slice(0,50).map(row=>({messageId:row.message_id,sender:row.sender_did,deliveredAt:row.delivered_at.toISOString()})),
+    return {messages:rows.slice(0,50).map(row=>({isRead:row.is_read,messageId:row.message_id,sender:row.sender_did,deliveredAt:row.delivered_at.toISOString()})),
       next:rows.length>50?Buffer.from(JSON.stringify({id:rows[49]!.message_id,sender:rows[49]!.sender_did})).toString("base64url"):null};
   }
 
@@ -99,9 +112,9 @@ export class AccountMessaging {
     let cursor:{id:string;sender:string}|null=null;
     if(after){try{cursor=JSON.parse(Buffer.from(after,"base64url").toString("utf8"));}catch{throw new UserGrantError(400,"Invalid cursor");}
       if(!cursor||!ID.test(cursor.id)||!DID.test(cursor.sender))throw new UserGrantError(400,"Invalid cursor");}
-    const rows=await this.sql<{message_id:string;sender_did:string;delivered_at:Date;envelope_cose:Uint8Array;
+    const rows=await this.sql<{message_id:string;sender_did:string;is_read:boolean;delivered_at:Date;envelope_cose:Uint8Array;
       body_bytes:Uint8Array;sender_address:string|null;trashed_at:Date|null}[]>`
-      SELECT message.trashed_at,message.message_id,message.sender_did,message.delivered_at,envelope.envelope_cose,body.body_bytes,
+      SELECT message.is_read,message.trashed_at,message.message_id,message.sender_did,message.delivered_at,envelope.envelope_cose,body.body_bytes,
         presentation.grantee_address AS sender_address
       FROM delivered_messages message JOIN received_envelopes envelope USING(sender_did,message_id)
       JOIN verified_body_contents body ON body.recipient_did=message.recipient_did AND body.sender_did=message.sender_did
@@ -117,7 +130,7 @@ export class AccountMessaging {
         AND (${after}::text IS NULL OR (message.message_id,message.sender_did)<(${cursor?.id??null}::uuid,${cursor?.sender??null}::text))
       ORDER BY message.message_id DESC,message.sender_did DESC LIMIT ${PAGE_SIZE+1}`;
     return {messages:await Promise.all(rows.slice(0,PAGE_SIZE).map(async row=>{const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
-      return {messageId:row.message_id,sender:row.sender_did,senderAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,row.sender_did,envelope.authorization.connection_id):row.sender_address,recipient:session.did,
+      return {isRead:row.is_read,messageId:row.message_id,sender:row.sender_did,senderAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,row.sender_did,envelope.authorization.connection_id):row.sender_address,recipient:session.did,
         trashedAt:row.trashed_at?.toISOString()??null,category:envelope.category??null,kind:envelope.authorization.type==="connection"?"connection":"subscription",deliveredAt:row.delivered_at.toISOString(),body:bodyDocument(row.body_bytes)};})),
       next:rows.length>PAGE_SIZE?Buffer.from(JSON.stringify({id:rows[PAGE_SIZE-1]!.message_id,
         sender:rows[PAGE_SIZE-1]!.sender_did})).toString("base64url"):null};
@@ -185,8 +198,8 @@ export class AccountMessaging {
 
   async read(session:AccountApiSession,sender:string,id:string) {
     if(!DID.test(sender)||!ID.test(id))throw new UserGrantError(400,"Invalid message identity");
-    const rows=await this.sql<{envelope_cose:Uint8Array;body_bytes:Uint8Array;delivered_at:Date;sender_address:string|null;reply_unused:boolean}[]>`
-      SELECT envelope.envelope_cose,body.body_bytes,message.delivered_at,presentation.grantee_address AS sender_address,
+    const rows=await this.sql<{envelope_cose:Uint8Array;body_bytes:Uint8Array;is_read:boolean;delivered_at:Date;sender_address:string|null;reply_unused:boolean}[]>`
+      SELECT message.is_read,envelope.envelope_cose,body.body_bytes,message.delivered_at,presentation.grantee_address AS sender_address,
         NOT EXISTS (SELECT 1 FROM sent_envelopes reply LEFT JOIN sent_delivery_status status
           ON status.sender_did=reply.sender_did AND status.message_id=reply.message_id
           WHERE reply.sender_did=${session.did} AND reply.authorization_type='reply' AND reply.reply_to_message_id=${id}
@@ -205,7 +218,7 @@ export class AccountMessaging {
     const envelope=inspectSignedPayload("hail.envelope",rows[0].envelope_cose).payload;
     const connection=envelope.authorization.type==="connection"?{id:envelope.authorization.connection_id,epoch:envelope.authorization.epoch,
       active:await connectionMessageAllowed(this.sql,session.did,sender,envelope.authorization)}:null;
-    return {messageId:id,sender,senderAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,sender,envelope.authorization.connection_id):rows[0].sender_address,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
+    return {isRead:rows[0].is_read,messageId:id,sender,senderAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,sender,envelope.authorization.connection_id):rows[0].sender_address,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
       kind:connection?"connection":"subscription",connection,
       replyAvailable:envelope.reply.allowed&&envelope.reply.until+300>=Math.floor(Date.now()/1000)&&rows[0].reply_unused,
       deliveredAt:rows[0].delivered_at.toISOString(),body:bodyDocument(rows[0].body_bytes)};

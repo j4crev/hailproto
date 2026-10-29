@@ -6,8 +6,9 @@
   import Icon from '$lib/Icon.svelte';
 
   type Message = {sender: string; messageId: string};
-  let {messages, returnTo, onremoved, onclear, compact = false, menu = false, locked = $bindable(false)}: {
+  let {messages, disabled = false, returnTo, onremoved, onclear, compact = false, menu = false, locked = $bindable(false)}: {
     messages: Message[];
+    disabled?: boolean;
     compact?: boolean; menu?: boolean;
     returnTo?: string;
     onremoved?: (messages: Message[]) => void;
@@ -17,6 +18,15 @@
   let ready = $state(false), confirming = $state(false), trashEnabled = $state(true), busy = $state(false), error = $state('');
   onMount(() => { ready = true; });
   $effect(() => { locked = busy || confirming; });
+  async function markUnread() {
+    busy = true; error = '';
+    try {
+      for (const message of messages) await mailboxRequest(`inbox/${encodeURIComponent(message.sender)}/${encodeURIComponent(message.messageId)}/mark-unread`, {});
+      if (returnTo) await goto(returnTo, {invalidateAll: true});
+      else await invalidateAll();
+    } catch (e) { error = e instanceof Error ? e.message : 'Unable to mark unread.'; }
+    finally { busy = false; }
+  }
   async function review() {
     if (busy) return;
     busy = true; error = '';
@@ -67,16 +77,16 @@
       {#if menu}
         <details class="action-menu">
           <summary class="hail-icon-button compact" aria-label="More message actions" title="More actions"><Icon name="more" /></summary>
-          <div class="menu-items"><button class="menu-item" type="button" disabled={busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');void review();}}><Icon name="trash" /><span>Trash</span></button></div>
+          <div class="menu-items"><button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');void markUnread();}}><Icon name="unread" /><span>Mark unread</span></button><button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');void review();}}><Icon name="trash" /><span>Trash</span></button></div>
         </details>
-      {:else}<button class="hail-icon-button compact" type="button" aria-label="Delete message" title="Delete" disabled={busy || !ready} onclick={review}><Icon name="trash" /></button>{/if}
+      {:else}<button class="hail-icon-button compact" type="button" aria-label="Delete message" title="Delete" disabled={disabled || busy || !ready} onclick={review}><Icon name="trash" /></button>{/if}
     {/if}
     {@render confirmation()}
   </div>
 {:else}
   <SelectionActions label="Message actions" count={onclear?messages.length:undefined} {onclear} locked={busy||confirming} {busy}>
     {#snippet actions()}
-      {#if !confirming}<button class="hail-icon-button" type="button" aria-label={messages.length === 1 ? 'Delete message' : `Delete ${messages.length} messages`} title="Delete" disabled={busy || !ready} onclick={review}><Icon name="trash" /></button>{/if}
+      {#if !confirming}<button class="hail-icon-button" type="button" aria-label={messages.length === 1 ? 'Delete message' : `Delete ${messages.length} messages`} title="Delete" disabled={disabled || busy || !ready} onclick={review}><Icon name="trash" /></button>{/if}
     {/snippet}
     {@render confirmation()}
   </SelectionActions>
