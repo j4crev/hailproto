@@ -21,9 +21,9 @@ it("uses one sign-in destination for every anonymous private screen and action",
     }
   }
   expect(resolve).not.toHaveBeenCalled();
-  expect(layout({cookies} as never)).toEqual({hasAccountSession:false});
+  expect(await layout({cookies,url:new URL("https://provider.example/")} as never)).toEqual({hasAccountSession:false,accountAvatar:null});
   // This only controls navigation visibility; it is not proof of authentication.
-  expect(layout({cookies:{get:()=>"expired-token"}} as never)).toEqual({hasAccountSession:true});
+  expect(await layout({cookies:{get:()=>"expired-token"},url:new URL("https://provider.example/?next=%2Faccount")} as never)).toEqual({hasAccountSession:true,accountAvatar:null});
 });
 
 it("allows only local inbox return paths, including public QR fragments",()=>{

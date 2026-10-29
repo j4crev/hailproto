@@ -21,6 +21,7 @@
   ];
   let focused = $derived(!page.data.hasAccountSession || (page.url.pathname === "/" && page.url.searchParams.has("next")) || page.url.pathname.startsWith("/auth/") || page.url.pathname.startsWith("/signup"));
   let address = $derived(page.data.account?.address ?? "Your account");
+  const avatar = $derived(page.data.accountAvatar?.did === page.data.account?.did ? page.data.accountAvatar?.src : null);
   const active = (href: string) => href === "/" || href === "/?view=connections"
     ? (page.url.pathname === "/" || page.url.pathname.startsWith("/message/")) &&
       (page.url.searchParams.get("view") === "connections") === (href === "/?view=connections")
@@ -57,8 +58,8 @@
   {#if focused}
     <header class="public-header">{@render brand()}{#if page.url.pathname !== "/"}<a class="hail-button-secondary" href="/">{page.data.hasAccountSession ? "Back to inbox" : "Home"}</a>{:else}<span class="alpha-badge">Invitation-only alpha</span>{/if}</header>
   {:else}
-    <aside class="sidebar">{@render brand()}{@render links()}<div class="sidebar-account"><UserMenu {address} /></div></aside>
-    <header class="mobile-header"><button class="icon-button" onclick={openDrawer} aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="mobile-navigation"><Icon name="menu" /></button>{@render brand()}<UserMenu {address} compact /></header>
+    <aside class="sidebar">{@render brand()}{@render links()}<div class="sidebar-account"><UserMenu {address} {avatar} /></div></aside>
+    <header class="mobile-header"><button class="icon-button" onclick={openDrawer} aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="mobile-navigation"><Icon name="menu" /></button>{@render brand()}<UserMenu {address} {avatar} compact /></header>
     <dialog id="mobile-navigation" class="navigation-drawer" bind:this={drawer} onclose={() => {drawerOpen = false;}} onclick={event => {if (event.target === drawer) closeDrawer();}} aria-label="Navigation">
       <div class="drawer-content"><div class="drawer-heading">{@render brand()}<button class="icon-button" onclick={closeDrawer} aria-label="Close navigation"><Icon name="close" /></button></div>{@render links()}</div>
     </dialog>

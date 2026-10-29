@@ -1,7 +1,7 @@
 <script lang="ts">
   import {afterNavigate} from "$app/navigation";
   import Icon from "$lib/Icon.svelte";
-  let {address = "Your account", compact = false}: {address?: string; compact?: boolean} = $props();
+  let {address = "Your account", compact = false, avatar = null}: {address?: string; compact?: boolean; avatar?: string | null} = $props();
   const id = $props.id();
   let panel: HTMLDivElement;
   let open = $state(false), signingOut = $state(false), error = $state("");
@@ -24,7 +24,7 @@
   afterNavigate(() => panel?.hidePopover());
 </script>
 <button class:compact class="account-trigger" popovertarget={id} aria-label="Open account menu" aria-expanded={open} aria-controls={id}>
-  <span class="avatar">{#if initials}{initials}{:else}<Icon name="user" />{/if}</span>
+  <span class="avatar">{#if avatar}<img src={avatar} alt="" />{:else if initials}{initials}{:else}<Icon name="user" />{/if}</span>
   {#if !compact}<span class="account-label"><strong>{address}</strong><small>Personal account</small></span><span class="account-dots" aria-hidden="true">···</span>{/if}
 </button>
 <div id={id} bind:this={panel} popover="auto" class="account-popover" ontoggle={event => {open = event.newState === "open";}}>
@@ -41,6 +41,7 @@
   .account-trigger { display:flex; align-items:center; gap:10px; width:100%; padding:12px 8px; border:0; background:transparent; text-align:left; border-radius:14px; }
   .account-trigger:hover, .account-trigger[aria-expanded=true] { background:var(--color-brand-soft); }
   .avatar { display:grid; place-items:center; width:40px; height:40px; flex-shrink:0; border:0; border-radius:50%; background:var(--color-brand-soft); color:var(--color-brand-strong); font-size:13px; font-weight:750; }
+  .avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
   .account-label { display:grid; min-width:0; gap:3px; }
   .account-label strong { overflow:hidden; text-overflow:ellipsis; font-size:12px; }
   .account-label small { font-size:11px; color:var(--color-muted); }
