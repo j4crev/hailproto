@@ -150,3 +150,39 @@ After an enrollment or migration incident, inspect passkeys, sessions,
 invitations and prepared migration slots before cleanup. Unexpected passkeys and
 orphan slots are not deleted automatically because bulk removal could destroy
 legitimate recovery or standalone preparation state.
+
+## Retained application images for rollback
+
+The provider operations wrapper retains the running image under
+`hail-server-ts:rollback-<full-image-digest>` **before** a replacement build takes
+over `hail-server-ts:public`. Saving only the container's image ID is insufficient:
+with the containerd image store, rebuilding the same public tag can make the
+old ID unavailable without a prune operation. The October 29 CLI rollout exposed
+this failure; rebuilding the previous commit restored service.
+
+Deploy and rollback share an exclusive lock. A successful deploy atomically saves
+three fields in `/var/lib/hail-provider-previous`: the previous commit, retained
+image reference, and expected image ID. Both automatic failure recovery and
+manual rollback verify the image identity before changing the checkout or public
+tag, restore GUI and provider with builds/pulls disabled, and check readiness.
+The PostgreSQL overlay and data volume remain in place; this is an application
+rollback, not permission to undo incompatible database changes.
+
+Existing two-field rollback records are rejected before any release change. They
+must not be treated as proven recovery artifacts. A successful deployment using
+the updated wrapper creates the new verified record. Retained tags are not
+removed automatically; preserve the recorded recovery image during any separately
+reviewed image cleanup.
+
+The installed `/usr/local/sbin/hail-provider-ops` is root-owned and independent of
+the repository checkout. Pushing or deploying source does **not** update that
+installed file. Install the reviewed wrapper through the operator's authenticated
+sudo session or VPS console, preserving its previous copy and checking the new
+file's SHA-256. Wrapper-only passwordless sudo does not authorize self-updating
+or arbitrary privileged installation. After installation, use its read-only
+`status` command, then the next approved deployment to establish a retained
+rollback image and record.
+
+Regression checks: `bun run --cwd apps/server test -- test/provider-ops.test.ts`.
+The tests cover retention before build, build/readiness failures, both-service
+restoration, and refusal of missing, mismatched or legacy image records.
