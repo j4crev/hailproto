@@ -48,13 +48,14 @@ const publicationResult=()=>({publicationId:publicationIntent.publicationId,cate
   delivery:{accepted:0,delivered:publicationReads>=2?1:0,"on-hold":0,failed:0,cancelled:0,indeterminate:publicationReads>=2?1:0},
   targets:[composed,composedOther].map(message=>({messageId:message.messageId,recipient:message.recipient,state:publicationReads>=2?"submitted":"pending",delivery:publicationReads>=2?message.state:null})),
   createdAt:new Date(publicationCreated).toISOString(),expiresAt:new Date(publicationCreated+86400000).toISOString()});
+const readMessages=new Set<string>();
 let trashEnabled=true;const trashed=new Map<string,string>(),deleted=new Set<string>();
 let incoming=false,replyPosts=0,replied:any=null,recentlyVerified=false,guiProxy:ReturnType<typeof createApp>;
 const textBody=(text:string)=>({version:1,profile:"spt-1",blocks:[{_type:"block",_key:"b1",style:"normal",markDefs:[],children:[{_type:"span",_key:"s1",text,marks:[]}]}]});
-const connectionReply=()=>({messageId:connectionIncomingId,sender:peerDid,senderAddress:peerAddress,recipient:did,category:null,kind:'connection',
+const connectionReply=()=>({isRead:readMessages.has(connectionIncomingId),messageId:connectionIncomingId,sender:peerDid,senderAddress:peerAddress,recipient:did,category:null,kind:'connection',
   deliveredAt:new Date().toISOString(),body:textBody('A personal connection reply'),reply:{allowed:false},replyAvailable:false,connection:{id:fixtureConnectionId,epoch:1,active:personalConnection}});
 const headerPng=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64");
-const incomingMessage=()=>({messageId:incomingId,sender:peerDid,senderAddress:peerAddress,recipient:did,category:"updates",deliveredAt:new Date().toISOString(),
+const incomingMessage=()=>({isRead:readMessages.has(incomingId),messageId:incomingId,sender:peerDid,senderAddress:peerAddress,recipient:did,category:"updates",deliveredAt:new Date().toISOString(),
   body:{...textBody("One-time reply browser transport test"),profile:"spt-3",assets:{version:1,assets:[{id:"hero",role:"header",media_type:"image/png",loading:"bundled",
     size:headerPng.length,width:1,height:1,data:headerPng.toString("base64url"),digest:{algorithm:"sha-256",value:"view-fixture"}}]},
     blocks:[{_type:"spt.image",asset:"hero",alt:"Bundled test header"},...textBody("One-time reply browser transport test").blocks]},
@@ -63,7 +64,7 @@ const permissionPayload=(id:string):HailGrant=>({type:"hail.grant",version:1,gra
   scope:[{type:"categories",values:["updates"]}],status:"active",issued_at:Math.floor(Date.now()/1000),updated_at:Math.floor(Date.now()/1000),expires_at:Math.floor(Date.now()/1000)+30*86400,
   consent_context:{grantee_address:peerAddress,address_binding_hash:{algorithm:"sha-256",value:new Uint8Array(32)},sender_profile_hash:{algorithm:"sha-256",value:new Uint8Array(32)}},key_id:did!+"#hail-identity"});
 const actionSummary=(id:string)=>{const row=approvals.get(id)!;return {requestId:id,action:row.action,approved:row.approved,result:row.result,
-  expiresAt:new Date(Date.now()+300_000).toISOString(),permission:toDiagnosticJson("hail.grant",row.payload),options:row.approved?null:{challenge:row.challenge,rpId:"localhost",userVerification:"required",allowCredentials:[{id:credential.id,type:"public-key"}]}};};
+  expiresAt:new Date(Date.now()+300_000).toISOString(),permission:toDiagnosticJson("hail.grant",row.payload),...(row.action==="revoke-batch"?{permissions:[toDiagnosticJson("hail.grant",row.payload)]}:{}),options:row.approved?null:{challenge:row.challenge,rpId:"localhost",userVerification:"required",allowCredentials:[{id:credential.id,type:"public-key"}]}};};
 const reserved=Bun.serve({hostname:"127.0.0.1",port:0,fetch:()=>new Response()});const guiPort=reserved.port!;reserved.stop(true);
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{"Cache-Control":"no-store","Content-Type":"application/json"}});
 function summary(){return {type:"hail.signup",version:1,signupId:setupId,accountId:prepared.accountId,address:prepared.address,did,state,
@@ -96,6 +97,16 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     if(request.method==='POST'){trashEnabled=input.trashEnabled;if(!trashEnabled){for(const id of trashed.keys())deleted.add(id);trashed.clear();}}
     return json({trashEnabled});
   }
+  const readAction=path.match(/^\/api\/v1\/account\/inbox\/([^/]+)\/([^/]+)\/mark-(read|unread)$/);
+  if(readAction){
+    assert.equal(request.method,'POST');
+    assert(request.headers.get('Cookie')?.includes('hail_session='+sessionToken));
+    const [,sender,id,action]=readAction;
+    assert.equal(decodeURIComponent(sender),peerDid);
+    assert([incomingId,connectionIncomingId].includes(id));
+    if(action==='read')readMessages.add(id);else readMessages.delete(id);
+    return json({messageId:id,isRead:readMessages.has(id)});
+  }
   if(path.endsWith('/delete')&&path.startsWith('/api/v1/account/inbox/')){
     const id=path.split('/').at(-2)!;if(trashEnabled)trashed.set(id,new Date().toISOString());else deleted.add(id);
     return json({state:trashEnabled?'trashed':'deleted'});
@@ -114,7 +125,11 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     if(step==="prepare"){
       const options=await generateAuthenticationOptions({rpID:"localhost",userVerification:"required",allowCredentials:[{id:credential.id}]});
       const review={...input,...(input.action==="connect"?{address:peerAddress}:{})};delete review.token;
-      const row={requestId:input.requestId,action:input.action,review,expiresAt:new Date(Date.now()+300000).toISOString(),result:null,options};
+      if(input.connectionIds){
+        assert.equal(input.action,"disconnect");assert.deepEqual(input.connectionIds,[fixtureConnectionId]);
+        review.connections=[{connectionId:fixtureConnectionId,did:peerDid,address:peerAddress}];
+      }
+      const row={requestId:input.requestId,action:input.connectionIds?"disconnect-batch":input.action,review,expiresAt:new Date(Date.now()+300000).toISOString(),result:null,options};
       if(ownerConnectionSigning&&input.action==="create"){
         const tokenBytes=new Uint8Array(Buffer.from("M".repeat(43),"base64url"));
         const payload={type:"hail.connection-invitation" as const,version:1 as const,invitation_id:uuidV7(),from:did!,
@@ -133,6 +148,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
           const id=uuidV7();connectionCodes.push({id,personal:row.action==="replace"||row.review.personal,label:row.review.label??"Personal code",expiresAt:row.review.expiresAt??null,
             link:origin+"/connect#"+new URLSearchParams({id,did:did!,token:"M".repeat(43)})});row.result={invitationId:id};
         }else if(row.action==="revoke"){const index=connectionCodes.findIndex(code=>code.id===row.review.id);assert(index>=0);connectionCodes.splice(index,1);row.result={invitationId:row.review.id,revoked:true};}
+        else if(row.action==="disconnect-batch"){personalConnection=false;row.result={connectionIds:row.review.connectionIds,state:"disconnected"};}
         else{personalConnection=row.action==="connect"&&!federatedConnecting;row.result=row.action==="connect"&&federatedConnecting?{connectionId:null,attemptId:row.requestId,state:'connecting'}:{connectionId:fixtureConnectionId,state:personalConnection?"active":"disconnected"};}
         row.options=null;
       }
@@ -165,6 +181,18 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   }
   if(publicationIntent&&path===`/api/v1/account/publications/${publicationIntent.publicationId}`){publicationReads++;return json(publicationResult());}
   if(path===`/api/v1/account/messages/${composed?.messageId}`&&composed)return json({messageId:composed.messageId,state:composed.state,revision:composed.revision});
+  const sentSends=[
+    ...(connectionMessageIntent?[{messageId:connectionMessageIntent.publicationId,kind:"connections",category:null,createdAt:connectionSent[0].createdAt,body:connectionSent[0].body,
+      recipientSummary:{count:connectionSent.length,address:null,did:null},recipients:connectionSent.map(message=>({did:message.recipient,address:message.recipientAddress}))}]:[]),
+    ...(publicationIntent?[{messageId:publicationIntent.publicationId,kind:"category",category:publicationIntent.category,createdAt:new Date(publicationCreated).toISOString(),body:publicationIntent.body}]:[]),
+    ...(replied?[{...replied,kind:"message",recipientSummary:{count:1,address:replied.recipientAddress,did:replied.recipient}}]:[])
+  ];
+  const sentQuery=new URL(request.url).searchParams;
+  if(path==="/api/v1/account/sent"&&sentQuery.get("include")==="sends")return json({messages:sentSends,next:null});
+  if(path.startsWith("/api/v1/account/sent/")&&sentQuery.has("kind")){
+    const send=sentSends.find(message=>message.messageId===path.split('/').at(-1)&&message.kind===sentQuery.get("kind"));
+    return send?json(send):json({},404);
+  }
   for(const message of [replied,composed,composedOther,...connectionSent])if(message&&path===`/api/v1/account/sent/${message.messageId}`)return json(message);
   if(path==="/api/v1/account/sent")return json({messages:[...connectionSent,composed,composedOther,replied].filter(Boolean),next:null});
   if(path==="/api/v1/auth/passkeys")return json({recentlyVerified,sessions:[],passkeys:[{credentialId:credential.id,label:"Primary passkey",deviceType:"multiDevice",backedUp:true,
@@ -181,11 +209,14 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
         assert.deepEqual(input.scope,{type:"categories",values:[generalAvailable?"general":"updates"]});
         assert(!allowed||allowed.status==="revoked");
       }
-      else assert(allowed?.status==="active");
+      else {
+        assert(allowed?.status==="active");
+        if(input.grants)assert.deepEqual(input.grants,[{grantId:allowed!.grant_id,revision:allowed!.revision,digest:allowedDigest}]);
+      }
       const options=await generateAuthenticationOptions({rpID:"localhost",userVerification:"required",allowCredentials:[{id:credential.id}]});
       const proposed={...permissionPayload(generalAvailable?"019a15fd-2bd0-7433-8afa-bd0355e0608f":"019a15fd-2bd0-7433-8afa-bd0355e0608c"),
         scope:[input.scope],expires_at:input.expiresAt};
-      approvals.set(input.requestId,{action:input.action,payload:input.action==="allow"?proposed:allowed!,challenge:options.challenge,approved:false,result:null});
+      approvals.set(input.requestId,{action:input.grants?"revoke-batch":input.action,payload:input.action==="allow"?proposed:allowed!,challenge:options.challenge,approved:false,result:null});
       return json(actionSummary(input.requestId));
     }
     if(step==="commit"){
@@ -195,7 +226,8 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
       allowed=row.action==="allow"?row.payload:{...row.payload,status:"revoked",revision:row.payload.revision+1,previous:Buffer.from(allowedDigest,"base64url"),updated_at:row.payload.updated_at+1};
       const raw=await signPayload("hail.grant",allowed,createWebCryptoSigner(did!+"#hail-identity",permissionSigner.privateKey));
       allowedCose=encodeBase64Url(raw);allowedDigest=encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256",Uint8Array.from(raw))));
-      row.result={grantId:allowed.grant_id,revision:allowed.revision,status:allowed.status,publication:"durable"};return json(actionSummary(input.requestId));
+      const result={grantId:allowed.grant_id,revision:allowed.revision,status:allowed.status,publication:"durable"};
+      row.result=row.action==="revoke-batch"?{items:[{grantId:allowed.grant_id,result,error:null}]}:result;return json(actionSummary(input.requestId));
     }
     if(approvals.has(step))return json(actionSummary(step));
   }
@@ -326,8 +358,8 @@ try{
     }
   };
   const noPrematureSignIn=async()=>assert(await evaluate(`![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Sign in and finish')`),"Sign-in offered before confirmed passkey enrollment");
-  const click=async(text:string)=>{await wait(async()=>evaluate(`!![...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled)`),"button: "+text);
-    await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled).click()`);};
+  const click=async(text:string)=>{await wait(async()=>evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')??b.textContent.trim())===${JSON.stringify(text)}&&!b.disabled)`),"button: "+text);
+    await evaluate(`[...document.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')??b.textContent.trim())===${JSON.stringify(text)}&&!b.disabled).click()`);};
   const fill=async(label:string,value:string)=>evaluate(`(()=>{const e=[...document.querySelectorAll('label')].find(l=>l.textContent.startsWith(${JSON.stringify(label)})).querySelector('input');e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   async function file(label:string,path:string){const {root}=await cdp("DOM.getDocument"),{nodeId}=await cdp("DOM.querySelector",{nodeId:root.nodeId,selector:`input[type=file][data-proof="${label}"]`});assert(nodeId);await cdp("DOM.setFileInputFiles",{nodeId,files:[path]});}
   const upload=async(label:string,path:string)=>{await evaluate(`(()=>{const e=[...document.querySelectorAll('label')].find(l=>l.textContent.startsWith(${JSON.stringify(label)})).querySelector('input');e.dataset.proof='upload';})()`);await file("upload",path);};
@@ -553,7 +585,13 @@ try{
   incoming=true;
   const messagePath=`/message/${encodeURIComponent(peerDid)}/${incomingId}`;
   await evaluate(`(()=>{const a=document.createElement('a');a.href=${JSON.stringify(messagePath)};a.textContent='Open received test';document.body.append(a);a.click();})()`);
-  await wait(()=>has("Send reply"),"incoming one-time reply after signup navigation");
+  await wait(async()=>evaluate(`document.querySelector('button[aria-label="Reply"]')?.disabled===false`),"incoming reply action ready");
+  assert.equal(await evaluate(`!!document.querySelector('#subscription-reply')`),false,"Reply form starts collapsed");
+  await click("Reply");await wait(()=>has("Send reply"),"reply action opens form");
+  assert.equal(await evaluate(`document.activeElement?.getAttribute('name')`),"text","Reply focuses the editor");
+  await click("Cancel");assert.equal(await evaluate(`document.activeElement?.getAttribute('aria-label')`),"Reply","Cancel restores reply focus");
+  assert.equal(await evaluate(`!!document.querySelector('#subscription-reply')`),false);
+  await click("Reply");await wait(()=>has("Send reply"),"reply can reopen after cancellation");
   assert.deepEqual(await styles("article",["borderRadius","overflow"]),["18px","hidden"]);
   assert.deepEqual(await styles("article > div",["fontSize","lineHeight"]),["18px","30.6px"]);
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Browser transport reply';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
@@ -562,14 +600,22 @@ try{
   assert.equal(replyPosts,1);
   await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("This reply invitation has expired or was already used"),"consumed one-time reply");
   assert.equal(replyPosts,1);
-  await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("The latest from your senders."),"return to inbox");
+  await cdp("Page.navigate",{url:origin+"/"});await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Inbox'`),"return to inbox");
+  assert(readMessages.has(incomingId),'Opening a message persists read state');
+  await wait(async()=>evaluate(`!!document.querySelector('[aria-label="Messages"] .message-row.is-read')`),'Inbox reflects read state');
+  await cdp("Page.navigate",{url:origin+messagePath});
+  await wait(async()=>evaluate(`document.querySelector('.action-menu button')?.disabled===false`),'reader actions ready after marking read');
+  await evaluate(`document.querySelector('summary[aria-label="More message actions"]').click()`);
+  await click('Mark unread');
+  await wait(async()=>evaluate(`location.pathname==='/' && !!document.querySelector('[aria-label="Messages"] .message-row:not(.is-read)')`),'Mark unread returns to Inbox with unread styling');
+  assert(!readMessages.has(incomingId));
   const feedImage='[aria-label="Messages"] img[alt="Bundled test header"]';
   await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"feed header ready");
   assert(await evaluate(`document.querySelector(${JSON.stringify(feedImage)}).src.startsWith('data:image/png;base64,')`),"Feed header remains bundled");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Populated feed overflows viewport");
   await screenshot("feed");
   const settings=async()=>{await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/settings"]').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"reading settings ready");};
-  const feed=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/';document.body.append(a);a.click();a.remove();})()`);await wait(()=>has("The latest from your senders."),"feed navigation");};
+  const feed=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/';document.body.append(a);a.click();a.remove();})()`);await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Inbox'`),"feed navigation");};
   await settings();await accountNavigation();assert.equal(await evaluate(`document.querySelectorAll("main a").length`),0,"Settings has no cross-link cards");await narrowLayouts();await screenshot("settings");
   await evaluate(`document.querySelector('#show-headers').click()`);await wait(()=>has("Saved on this browser."),"preference saved");
   await feed();await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"hide feed headers through settings");
@@ -589,19 +635,20 @@ try{
   await cdp("Page.removeScriptToEvaluateOnNewDocument",{identifier:blockedStorage.identifier});
   await cdp("Page.navigate",{url:origin+"/"});await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"restore normal feed preferences");
   await evaluate(`[...document.querySelectorAll('nav a')].find(a=>a.textContent.trim()==='Subscriptions').click()`);
-  await wait(()=>has("No subscriptions on this page"),"allowed-sender list");
+  await wait(()=>has("No subscriptions yet"),"allowed-sender list");
   assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Subscriptions");
-  await fill("Potential sender's Hail address",peerAddress);await click("Review sender");await wait(()=>has("Test sender"),"verified sender review");
+  await fill("Sender’s Hail address",peerAddress);await click("Continue");await wait(()=>has("Test sender"),"verified sender review");
   await evaluate(`document.querySelector('fieldset input[value=updates]').click()`);
   assert.deepEqual(await styles("fieldset label",["flexDirection","alignItems"]),["row","center"]);
   await click("Review permission");await wait(()=>has("Confirm allowed sender"),"exact permission review");
   assert.deepEqual(await styles('[aria-label="Permission confirmation"]',["borderTopWidth","borderTopColor"]),["2px","rgb(15, 118, 110)"]);
   assert.equal(allowed,null);assert(await has("alice@provider.example.com"));
-  await click("Allow sender with my passkey");await wait(()=>has("Unsubscribe"),"passkey-approved permission saved");
+  await click("Allow sender with my passkey");await wait(async()=>evaluate(`document.querySelector('button[aria-label^="Select subscription to"]')?.disabled===false`),"passkey-approved permission saved");
+  await evaluate(`document.querySelector('button[aria-label^="Select subscription to"]').click()`);
   assert.equal(allowed!.status,"active");await click("Unsubscribe");await wait(()=>has("Confirm unsubscribe"),"subscription unsubscribe review");
   await click("Cancel");assert.equal(allowed!.status,"active","Cancel leaves subscription active");
   await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("Unsubscribe"),"Inbox reader offers unsubscribe");
-  assert(await evaluate(`(()=>{const action=document.querySelector('article > header [aria-label="Sender subscription"] button');const category=document.querySelector('article > header mark');return !!action&&!!category&&action.getBoundingClientRect().top>=category.getBoundingClientRect().bottom;})()`),"Unsubscribe sits in the message header below its category");
+  assert(await evaluate(`(()=>{const header=document.querySelector('article > header');const action=[...header.querySelectorAll('button')].find(b=>b.textContent.trim()==='Unsubscribe');return !!action?.checkVisibility()&&!!header.querySelector('mark');})()`),"Reader header contains visible subscription and category controls");
   const beforeReaderReview=approvals.size;
   await click("Unsubscribe");await wait(()=>has("Unsubscribe with my passkey"),"reader unsubscribe confirmation");
   assert.equal(allowed!.status,"active","Opening review does not unsubscribe");
@@ -614,11 +661,11 @@ try{
   assert.equal(allowed!.status,"revoked");assert(await has("One-time reply browser transport test"),"Unsubscribe retains message content");
   await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("You have no active subscription to this sender."),"reader reflects unsubscribed sender on reload");
   assert(await evaluate(`![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Unsubscribe')`));
-  await cdp("Page.navigate",{url:origin+"/permissions"});await wait(()=>has("Unsubscribed"),"Subscriptions uses unsubscribe terminology");
+  await cdp("Page.navigate",{url:origin+"/permissions"});await wait(()=>has("No subscriptions yet"),"Revoked subscription is absent from active subscriptions");
   assert(!await has("Share your sender QR"),"Subscription page does not show publishing tools");
   await cdp("Page.navigate",{url:origin+"/categories"});await wait(()=>has("Create sender profile with passkey"),"first sender profile setup");
   await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"profile editor ready");
-  assert(!await has("Show my sender QR"),"QR is offered only after publishing a profile");
+  assert(!await has("Show QR"),"QR is offered only after publishing a profile");
   assert(await evaluate(`!!document.querySelector('[aria-label="General category"]') && !document.querySelector('[aria-label="General category"] input, [aria-label="General category"] button')`),"General is built-in with no edit or remove controls");
   await fill("Sender name","Alice's updates");
   profileVerificationMismatch=true;await click("Create sender profile with passkey");
@@ -629,24 +676,25 @@ try{
   assert.equal(profileWrites,1);assert.deepEqual(ownProfile.profile.categories.map((c:any)=>({id:c.id,label:c.label})),[{id:"general",label:"General"}]);
   await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"saved profile editor ready");
   await click("Add category");
-  await evaluate(`(()=>{const fields=document.querySelectorAll('[aria-label="Publishing categories"] input');for(const [index,value] of [[0,'News'],[1,'news']]){fields[index].value=value;fields[index].dispatchEvent(new Event('input',{bubbles:true}));}})()`);
-  await click("Save changes with passkey");await wait(async()=>profileWrites===2&&await has("Show my sender QR"),"category addition saved");
+  await fill("Category name","News");await fill("Category ID","news");
+  await click("Save changes with passkey");await wait(async()=>profileWrites===2&&await has("Show QR"),"category addition saved");
   await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"updated category editor ready");
   assert.deepEqual(ownProfile.profile.categories.map((c:any)=>c.id),['general','news']);
-  assert(await evaluate(`Array.from(document.querySelectorAll('[aria-label="Publishing categories"] input[readonly]')).map(i=>i.value).join(',')==='news'`),"Published category IDs stay stable");
-  await evaluate(`document.querySelector('[aria-label="Remove category 1"]').click()`);
-  await click("Save changes with passkey");await wait(async()=>profileWrites===3&&await has("Show my sender QR"),"category removal saved");
+  await click("News");
+  assert(await evaluate(`document.querySelector('#category-editor-0 input[disabled]')?.value==='news'`),"Published category IDs stay fixed");
+  await evaluate(`document.querySelector('input[aria-label="Select News"]').click()`);await click("Remove");
+  await click("Save changes with passkey");await wait(async()=>profileWrites===3&&await has("Show QR"),"category removal saved");
   await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"removed category editor ready");
   assert.deepEqual(ownProfile.profile.categories.map((c:any)=>c.id),['general']);
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Categories fits viewport");
   await narrowLayouts();await screenshot("categories");
-  await click("Show my sender QR");assert(await evaluate("!!document.querySelector('svg[role=img] path')"));
+  await click("Show QR");assert(await evaluate("!!document.querySelector('svg[role=img] path')"));
   const qrRequests=requests.filter(r=>r.path.endsWith("/permissions/prepare")).length;
   await cdp("Page.navigate",{url:origin+"/permissions#"+new URLSearchParams({sender:peerAddress,did:peerDid})});
   await wait(()=>has("QR identity pin:"),"scanned sender QR prefill");
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Opening a QR must not prepare or approve a permission");
-  await click("Review sender");await wait(()=>has("Test sender"),"QR and typed address share the same review");
+  await click("Continue");await wait(()=>has("Test sender"),"QR and typed address share the same review");
   await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>has("Send a hail"),"publisher styling");
   await selectedAudience("Subscribers");
   assert.deepEqual(await styles("form[enctype] label",["display","fontWeight"]),["grid","600"]);
@@ -684,10 +732,11 @@ try{
   assert(!await has("Publication publishing"));assert(!await has("Recent publications"));
   assert(!await has("Refresh status"));assert(!await has("saved audience"));
   await cdp("Page.navigate",{url:origin+"/sent"});
-  await wait(()=>has("Sent messages"),"publication links to per-message delivery details");
-  await evaluate(`document.querySelector(${JSON.stringify(`a[href="/sent/${composed.messageId}"]`)}).click()`);
-  await wait(async()=>evaluate(`location.pathname===${JSON.stringify(`/sent/${composed.messageId}`)} && !!document.querySelector('article h1')`),"sent rich-message reader");
-  assert.deepEqual(await rendered('article > div'),previewContent,"Preview and sent reader must render the same safe content");
+  await wait(async()=>evaluate(`!!document.querySelector('[aria-label="Sent messages"]')`),"publication appears as a grouped send");
+  await evaluate(`document.querySelector(${JSON.stringify(`a[href="/sent/send/category/${publicationIntent.publicationId}"]`)}).click()`);
+  await wait(async()=>evaluate(`location.pathname===${JSON.stringify(`/sent/send/category/${publicationIntent.publicationId}`)} && document.querySelector('main > h1')?.textContent==='Release notes'`),"sent rich-message reader");
+  assert.deepEqual(await rendered('article > div'),{...previewContent,headings:["Highlights"]},"Reader preserves preview content with the title lifted above the card");
+  assert.equal(await evaluate(`document.querySelectorAll('main h1').length`),1,"Reader shows the title exactly once");
   // Expired sessions use the same login, preserve the QR fragment, and clear the stale cookie.
   const qrFragment=new URLSearchParams({sender:peerAddress,did:peerDid}).toString();
   await cdp("Network.setCookie",{name:"hail_session",value:"hails_"+"B".repeat(43),url:origin,httpOnly:true,sameSite:"Lax"});
@@ -698,7 +747,7 @@ try{
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Signing in through a QR must not approve or prepare it");
   // Verify each ordinary folder resumes after login, including its query string.
-  for(const [path,text] of [["/sent?after=older","Sent messages"],["/compose","Send a hail"],["/settings/security","Passkeys & security"]]){
+  for(const [path,text] of [["/sent?after=older","Sent"],["/compose","Send a hail"],["/settings/security","Passkeys & security"]]){
     await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
     await cdp("Page.navigate",{url:origin+path});
     await wait(async()=>evaluate(`location.pathname==='/' && new URL(location.href).searchParams.get('next')===${JSON.stringify(path)}`),"folder login: "+path);
@@ -714,18 +763,18 @@ try{
   assert(await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent==='Add passkey').disabled`));
   await click("Verify to manage");await wait(async()=>evaluate(`location.search==='?fresh=1' && [...document.querySelectorAll('button')].find(b=>b.textContent==='Add passkey')?.disabled===false`),"fresh passkey verification unlocks management");
   generalAvailable=true;
-  await cdp("Page.navigate",{url:origin+"/permissions?general-proof=1"});await wait(()=>has("Potential sender's Hail address"),"General subscription screen");
-  await fill("Potential sender's Hail address",peerAddress);await click("Review sender");
+  await cdp("Page.navigate",{url:origin+"/permissions?general-proof=1"});await wait(()=>has("Sender’s Hail address"),"General subscription screen");
+  await fill("Sender’s Hail address",peerAddress);await click("Continue");
   await wait(async()=>evaluate(`!!document.querySelector('input[value=general]')`),"General is an ordinary offered category");
   assert(!await has("Allow uncategorized messages instead"));
   await evaluate(`document.querySelector('input[value=general]').click()`);
   await click("Review permission");await wait(()=>has("Confirm allowed sender"),"review General subscription");
   assert(await has("Scope: General"));await click("Allow sender with my passkey");
-  await wait(async()=>evaluate(`[...document.querySelectorAll('[aria-label="Issued permissions"] article p')].some(p=>p.textContent.startsWith('General · active'))`),"new General subscription saved");
+  await wait(async()=>evaluate(`[...document.querySelectorAll('[aria-label="Subscriptions"] article dd')].some(p=>p.textContent==='General')`),"new General subscription saved");
   assert.equal(allowed!.revision,1);assert.deepEqual(allowed!.scope,[{type:"categories",values:["general"]}]);
   // Separate permanent/expiring codes and real browser passkey confirmation (API fixtures).
-  await cdp("Page.navigate",{url:origin+"/connections?connections=1"});await wait(()=>has("Create my personal code"),"personal connection code creation");
-  await click("Create my personal code");await wait(()=>has("Confirm new connection link"),"standing invitation consent");
+  await cdp("Page.navigate",{url:origin+"/connections?connections=1"});await wait(()=>has("Create my QR code"),"personal connection code creation");
+  await click("Create my QR code");await wait(()=>has("Confirm new connection link"),"standing invitation consent");
   assert(await has("Connections permit personal messages while active"));assert(await has("No automatic expiry"));
   assert(!await has("Continue interrupted review"));assert(!await has("Check original status"));
   const pendingCodeReview=await evaluate(`sessionStorage.getItem('hail.connection-approval.v1')`);
@@ -737,21 +786,20 @@ try{
   await click("Confirm");await wait(()=>has("We couldn’t confirm whether your connection change was saved."),"uncertain save exposes retry");
   assert.equal(connectionCodes.length,1);
   assert(!await evaluate(`[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Cancel')`),"Uncertain save cannot be discarded");
-  await click("Try again");await wait(()=>has("Show QR & link"),"saved result recovered without another passkey");
+  await click("Try again");await wait(()=>has("Show QR"),"saved result recovered without another passkey");
   assert.equal(requests.filter(r=>r.path==="/api/v1/account/connections/commit").length,connectionCommitsBefore+1,"Recovery must not repeat the saved action");
-  await click("Show QR & link");await wait(async()=>evaluate(`!!document.querySelector('svg[aria-label="Connection QR code"]')`),"local QR rendering");
-  assert(await evaluate(`(()=>{const card=document.querySelector('[aria-label="Your personal code"]'),button=[...card.querySelectorAll('button')].find(b=>b.textContent==='Hide QR & link');return !!card.querySelector('svg[aria-label="Connection QR code"]')&&button?.getAttribute('aria-expanded')==='true'&&card.contains(document.getElementById(button.getAttribute('aria-controls')));})()`),"Personal QR and its toggle must stay in the personal card");
+  await click("Show QR");await wait(async()=>evaluate(`!!document.querySelector('svg[aria-label="Connection QR code"]')`),"local QR rendering");
+  assert(await evaluate(`(()=>{const card=document.querySelector('[aria-label="Your personal code"]'),button=[...card.querySelectorAll('button')].find(b=>b.textContent==='Hide QR');return !!card.querySelector('svg[aria-label="Connection QR code"]')&&button?.getAttribute('aria-expanded')==='true'&&card.contains(document.getElementById(button.getAttribute('aria-controls')));})()`),"Personal QR and its toggle must stay in the personal card");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Connection QR overflows viewport");
-  await click("Hide QR & link");await wait(async()=>evaluate(`!document.querySelector('svg[aria-label="Connection QR code"]')`),"same button hides personal QR");
-  await click("Show QR & link");await wait(()=>has("Hide QR & link"),"same button reopens personal QR");await click("Hide QR & link");
-  await fill("Private label","Conference");
-  await fill("Expires (your local time)","2027-01-15T18:00");await click("Review");await wait(()=>has("Confirm new connection link"),"expiring code review");
+  await click("Hide QR");await wait(async()=>evaluate(`!document.querySelector('svg[aria-label="Connection QR code"]')`),"same button hides personal QR");
+  await click("Show QR");await wait(()=>has("Hide QR"),"same button reopens personal QR");await click("Hide QR");
+  await fill("Purpose","Conference");
+  await fill("Expires","2027-01-15T18:00");await click("Create");await wait(()=>has("Confirm new connection link"),"expiring code review");
   await click("Confirm");await wait(async()=>connectionCodes.length===2&&await has("Saved. Existing subscriptions are unchanged."),"expiring code saved");
   assert.equal(connectionCodes.length,2);assert.equal(connectionCodes.filter(code=>code.personal).length,1);
   assert(connectionCodes.find(code=>!code.personal)!.expiresAt!>0);assert.equal(connectionCodes.find(code=>code.personal)!.expiresAt,null);
   await evaluate(`[...document.querySelectorAll("article button")].find(b=>b.textContent==="Show QR & link").click()`);await wait(async()=>evaluate(`!!document.querySelector('article svg[aria-label="Connection QR code"]')`),"expiring QR stays in its own card");
-  await click("Show QR & link");await wait(async()=>evaluate(`!!document.querySelector('[aria-label="Your personal code"] svg')&&!document.querySelector('article svg[aria-label="Connection QR code"]')`),"switching codes moves the inline panel to the selected card");
-  await click("Hide QR & link");
+  await click("Show QR");await wait(async()=>evaluate(`!!document.querySelector('[aria-label="Your personal code"] svg')&&!document.querySelector('article svg[aria-label="Connection QR code"]')`),"switching codes moves the inline panel to the selected card");
   await click("Replace");await wait(()=>has("Confirm personal code replacement"),"personal replacement review");
   await click("Confirm");await wait(()=>has("Saved. Existing subscriptions are unchanged."),"replacement committed");
   assert.equal(connectionCodes.length,2);
@@ -783,12 +831,16 @@ try{
   connectionIncoming=true;
   await cdp('Page.navigate',{url:origin+'/?view=connections'});await wait(()=>has('A personal connection reply'),'connection message uses existing reader preview');
   assert(!await has('One-time reply browser transport test'));
-  await evaluate(`document.querySelector('a[href*="${connectionIncomingId}"]').click()`);await wait(()=>has('Message this connection →'),'standing connection response action');
-  assert(await evaluate(`!document.querySelector('[aria-label="Sender subscription"]')`),"Connection messages never offer unsubscribe");
+  await evaluate(`document.querySelector('a[href*="${connectionIncomingId}"]').click()`);await wait(async()=>evaluate(`!!document.querySelector('a[aria-label="Reply"][href*="audience=connections&connection="]')`),'standing connection response action');
+  assert(await evaluate(`![...document.querySelectorAll('article button')].some(b=>b.textContent.trim()==='Unsubscribe')`),"Connection messages never offer unsubscribe");
   assert(!await evaluate(`!!document.querySelector('form[action="?/reply"]')`));
   await evaluate(`document.querySelector('a[href*="audience=connections&connection="]').click()`);await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]:checked').length===1`),'connection response preselects the same active connection');
-  await cdp("Page.navigate",{url:origin+"/connections?connected=1"});await wait(()=>has("Remove connection"),"connected account visible");
-  await click("Remove connection");await wait(()=>has("Confirm connection removal"),"disconnect review");await click("Confirm");await wait(()=>has("No connections yet."),"disconnect saved");
+  const selectConnection=async()=>{
+    await wait(async()=>evaluate(`document.querySelector('[aria-label="Your connections"] button[aria-pressed]')?.disabled===false`),'connection selection ready');
+    await evaluate(`document.querySelector('[aria-label="Your connections"] button[aria-pressed]').click()`);
+  };
+  await cdp("Page.navigate",{url:origin+"/connections?connected=1"});await selectConnection();
+  await click("Remove connection");await wait(()=>has("Confirm connection removal"),"disconnect review");await click("Remove connection");await wait(()=>has("No connections yet."),"disconnect saved");
   assert(!personalConnection);assert.equal(allowed!.status,"active");
   await cdp('Page.navigate',{url:origin+`/message/${encodeURIComponent(peerDid)}/${connectionIncomingId}`});await wait(()=>has('This connection is no longer active.'),'disconnected historical messages remain readable without a standing send action');
   const savedConnectionReview=[...connectionApprovals.values()].find(row=>row.action==="connect")!;
@@ -799,12 +851,12 @@ try{
   assert(await has(peerDid));assert(!personalConnection);await click("Add connection");
   await wait(()=>has("Connecting across providers."),"durable cross-provider pending state");assert(!personalConnection);
   await cdp("Page.navigate",{url:origin+"/connections?federation-pending=1"});await wait(()=>has("Synchronizing with other providers"),"pending work discoverable after closing scanner page");
-  await wait(()=>has("Remove connection"),"automatic federation status polling discovers completed connection");assert(personalConnection);
-  await click("Remove connection");await wait(()=>has("Confirm connection removal"),"federated disconnect consent");await click("Confirm");await wait(()=>has("No connections yet."),"federated disconnect visible");
+  await selectConnection();assert(personalConnection);
+  await click("Remove connection");await wait(()=>has("Confirm connection removal"),"federated disconnect consent");await click("Remove connection");await wait(()=>has("No connections yet."),"federated disconnect visible");
   federatedConnecting=false;
   ownerConnectionSigning=true;
   await cdp("Page.navigate",{url:origin+"/connections?owner-signing=1"});await wait(()=>has("Create an expiring connect link"),"owner-signing code form");
-  await fill("Private label","Owner identity proof");await fill("Expires (your local time)","2027-01-15T18:00");await click("Review");
+  await fill("Purpose","Owner identity proof");await fill("Expires","2027-01-15T18:00");await click("Create");
   await wait(()=>has("Sign with your own identity key"),"owner consent requires local signature");
   const ownerRow=[...connectionApprovals.values()].find(row=>row.ownerSigning)!;
   await click("Download consent proposal");await wait(async()=>{try{return (await readdir(work)).includes(`hail-connection-${ownerRow.requestId}.json`);}catch{return false;}},"owner proposal download");
@@ -826,22 +878,30 @@ try{
     await evaluate(`(()=>{const a=document.createElement('a');a.href=${JSON.stringify(path)};document.body.append(a);a.click();a.remove();})()`);
     await wait(async()=>evaluate(`location.pathname+location.search===${JSON.stringify(path)} && document.querySelector('main h1')?.textContent===${JSON.stringify(heading)}`),'mailbox page '+heading);
   };
-  await mailboxPage('/','Inbox');await wait(()=>has('Delete message'),'inbox delete available');
-  await click('Delete message');await wait(()=>has('Move to Trash'),'trash deletion review');await click('Move to Trash');await wait(()=>has('No messages yet'),'inbox deletion hides message');
-  await mailboxPage('/?view=connections','Messages');await wait(()=>has('Delete message'),'connection delete available');
-  await click('Delete message');await wait(()=>has('Move to Trash'),'connection deletion review');await click('Move to Trash');await wait(()=>has('No messages yet'),'connection deletion hides message');
-  await mailboxPage('/trash','Trash');await wait(()=>has('Restore selected'),'trash page');
-  assert(await has('Restore to Inbox'));assert(await has('Restore to Messages'));
-  await wait(async()=>evaluate(`document.querySelector('main input[type=checkbox]')?.disabled===false`),'Trash selection ready');
-  await evaluate(`document.querySelector('main input[type=checkbox]').click()`);await click('Restore selected');await wait(()=>has('Trash is empty.'),'bulk restore');
+  const selectMessage=async()=>{
+    await wait(async()=>evaluate(`document.querySelector('main button[aria-label^="Select message from"]')?.disabled===false`),'message selection ready');
+    await evaluate(`document.querySelector('main button[aria-label^="Select message from"]').click()`);
+  };
+  await mailboxPage('/','Inbox');await selectMessage();
+  await click('Delete message');await wait(()=>has('No messages yet'),'inbox deletion moves directly to Trash');
+  assert(trashed.has(incomingId));assert(!deleted.has(incomingId));
+  await mailboxPage('/?view=connections','Messages');await selectMessage();
+  await click('Delete message');await wait(()=>has('No messages yet'),'connection deletion moves directly to Trash');
+  await mailboxPage('/trash','Trash');await selectMessage();await click('Select all');
+  assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Trashed messages"] button[aria-pressed="true"]').length`),2,'Both trashed messages selected');
+  await click('Restore');await wait(()=>has('Trash is empty.'),'bulk restore');
   await mailboxPage('/?view=connections','Messages');await wait(()=>has('A personal connection reply'),'restore returns to Messages');
-  await mailboxPage('/','Inbox');await wait(()=>has('Delete message'),'restore returns to Inbox');
-  await click('Delete message');await wait(()=>has('Move to Trash'),'second trash review');await click('Move to Trash');await wait(()=>has('No messages yet'),'second trash deletion');
+  await mailboxPage('/','Inbox');await selectMessage();
+  await click('Delete message');await wait(()=>has('No messages yet'),'second trash deletion');
   await mailboxPage('/settings','Settings');await wait(async()=>evaluate(`document.querySelector('#use-trash')?.disabled===false`),'account Trash preference');
   await evaluate(`document.querySelector('#use-trash').click()`);await click('Disable Trash and delete contents');await wait(()=>has('Trash disabled.'),'disable purges existing trash');
   assert.equal(trashed.size,0);assert(deleted.has(incomingId));
-  await mailboxPage('/?view=connections','Messages');await wait(()=>has('Delete message'),'permanent delete entry');
-  await click('Delete message');await wait(()=>has('Delete permanently'),'disabled trash warning');await click('Delete permanently');await wait(()=>has('No messages yet'),'immediate permanent deletion');
+  await mailboxPage('/?view=connections','Messages');await selectMessage();
+  await click('Delete message');await wait(()=>has('Delete permanently'),'disabled trash warning');
+  assert(!deleted.has(connectionIncomingId),'Permanent deletion waits for confirmation');
+  await click('Cancel');assert(!deleted.has(connectionIncomingId),'Cancel preserves the message');
+  await click('Delete message');await click('Delete permanently');await wait(()=>has('No messages yet'),'confirmed permanent deletion');
+  assert(deleted.has(connectionIncomingId));
   await mailboxPage('/trash','Trash');await wait(()=>has('Trash is empty.'),'disabled Trash has no deleted messages');
   await mailboxPage('/admin','Your Hail server');
   await switchRegistration('public');
