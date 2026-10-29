@@ -30,7 +30,7 @@ v0 should focus primarily on B2C communication such as:
 
 This is closer to consent-based business/customer messaging than a full replacement for all email conversations.
 
-The initial prototype should validate:
+The core delivery design covers:
 
 - sender discovery
 - receiver-created grants
@@ -102,7 +102,7 @@ human address -> DID -> current Hail service endpoint and verification keys
 
 Address-to-DID resolution uses an expiring Hail Address Binding discovered through authenticated HTTPS WebFinger at the address domain. The WebFinger response selects one binding using the exact `https://hailproto.com/rel/address-binding` relation, and the selected binding separately verifies under the DID's `#hail-identity` key. Discovery follows the bounded redirect, SSRF, media-type, expiration, and one-hour maximum-cache rules in [`spec/address-binding.md`](spec/address-binding.md). Hail addresses are not written to `alsoKnownAs`, avoiding permanent address history in the public PLC log.
 
-Continuity-preserving provider migration fences the old provider, transfers the complete grant, reply, replay, delivery, status, cache-provenance, and verification-evidence serialization domain, then updates both `#hail-messaging` and `#hail`. The new provider starts only after durable import and after the PLC update satisfies Hail's still-open recovery-window acceptance policy. The DID and DID-bound relationships remain stable.
+Continuity-preserving provider migration fences the old provider, transfers the complete grant, reply, replay, delivery, status, cache-provenance, and verification-evidence serialization domain, then updates both `#hail-messaging` and `#hail`. The new provider starts only after durable import and after the PLC update satisfies the [current read-evidence policy](spec/plc-read-evidence.md). The DID and DID-bound relationships remain stable.
 
 For domain-backed sender addresses, authenticated WebFinger publication proves that the domain authorizes the address-to-DID association. Direct DNS proof is not part of v0. Hosting that DID's Hail service does not itself make a provider the identity owner.
 
@@ -311,59 +311,20 @@ with one digest-bound bundled PNG header. These closed deterministic-CBOR
 profiles make unsafe behavior inexpressible instead of relying on sanitization
 after parsing untrusted markup.
 
-The following diagnostic JSON illustrates possible future body models and is not part of v0:
+Use the exact examples and constraints in [the body specification](spec/bodies.md)
+and [body-format guide](BODY_FORMAT.md). Additional semantic blocks, themes and
+layouts require an explicit profile design rather than arbitrary editor extensions.
 
-```json
-{
-  "version": 1,
-  "blocks": [
-    { "type": "hero", "asset": "sha256:...", "alt": "Weekend sale banner" },
-    { "type": "heading", "level": 1, "text": "Weekend Sale" },
-    { "type": "paragraph", "text": "Save up to 40% on summer gear." },
-    { "type": "button", "label": "Shop Sale", "url": "https://example-store.com/sale" }
-  ]
-}
-```
-
-The exact POC logical structure is shown below as diagnostic JSON rather than wire data:
-
-```json
-{
-  "version": 1,
-  "profile": "spt-1",
-  "blocks": [
-    {
-      "_type": "block",
-      "style": "normal",
-      "children": [
-        { "_type": "span", "text": "Hello from the prototype.", "marks": [] }
-      ],
-      "markDefs": []
-    }
-  ]
-}
-```
-
-This allows Hail to evolve into a richer block vocabulary without changing the transport model.
-
-Useful prior art to research:
-
-- Portable Text
-- Slack Block Kit
-- Atlassian Document Format
-- ProseMirror schemas
-- Editor.js
-- Lexical
-- MJML
-- AMP for Email
+Connection messages use explicit connection authorization; subscription replies
+retain their single-use capabilities. Signed version-3 parent references establish
+thread relationships without broadening either permission. See [envelopes](spec/envelopes.md).
 
 ## Rich Content And Assets
 
 The v1 asset manifest defines bounded, non-animated bundled PNG bytes with
 SHA-256 integrity, dimensions, size, role and loading mode. `spt-3` uses one
 `header` asset and prohibits remote resources, so rendering cannot disclose a
-user open to the sender. The reusable manifest also reserves an `avatar` role,
-but Sender Profile integration is not implemented. Attachments, remote assets,
+user open to the sender. Sender Profile v2 uses the same manifest for bundled PNG avatars. Attachments, remote assets,
 and other image formats remain deferred. See
 [content storage and attachments](docs/content-storage-and-attachments.md) for
 the received-body storage implementation and attachment design constraints.
@@ -502,37 +463,29 @@ Possible analytics model:
 
 The pitch to legitimate senders is better deliverability and more honest engagement data in exchange for reduced covert tracking.
 
-## Prototype Architecture
+## Reference Architecture
 
-The first prototype should validate the wire protocol between two toy servers.
+The TypeScript provider owns account APIs, federation handlers, durable workers
+and transactional delivery/transfer state. The browser client and `hailp` use
+its account API; independent providers interoperate through the federation
+specifications. TypeScript and Go codecs share conformance vectors.
 
-Current implementation status: independent TypeScript and Go reference codecs implement strict deterministic CBOR, tagged COSE_Sign1, typed payload validation, shared conformance vectors, executable schema checks, diagnostic tooling, and benchmarks. The TypeScript reference provider and `hailp` client implement DID/WebFinger/PLC discovery, Sender Profiles, Grants, detached bodies, envelopes, replies, signed delivery status and durable replay/retry state. Two strict-public alpha providers have completed bidirectional grant-authorized delivery between owner-controlled `plc.directory` canaries. Production hardening, independent provider infrastructure, restoration/load proof and public managed migration remain open.
-
-Suggested build phases:
-
-1. Shared protocol codecs for encode/decode, signing, verification, schema validation, and conformance. **Implemented for the current draft in TypeScript and Go; pre-release and subject to schema, vector, limit, and conformance stabilization.**
-2. Sender server with a signed Sender Profile, grant receipt, body storage, and send pipeline.
-3. Receiver server with grant table, envelope endpoint, ingest checks, body retrieval, and message store.
-4. Test harness for subscribe, send, revoke, reply, expired reply, and unauthorized traffic rejection.
-5. Minimal receiver client for grant approval and message reading.
-
-The most important prototype metric is cost-to-reject unauthorized traffic.
-
-If the receiver can drop unauthorized envelopes cheaply before signature verification and body transfer, Hail has a compelling infrastructure story compared with email spam filtering.
+Current behavior and operational entry points are documented in the
+[root README](README.md), [provider guide](apps/server/deploy/public/README.md)
+and [CLI workflows](apps/cli/docs/cli-workflows.md).
 
 ## Open Questions
 
-- When does Hail treat a PLC update as authoritative during the 72-hour recovery window?
-- What PLC mirror, checkpoint, and locally validated log behavior is required for production resolution?
+Current PLC authority and recovery rules are defined in [the DID profile](spec/did-profile.md)
+and [read-evidence policy](spec/plc-read-evidence.md).
+
 - What production uncompressed body size must every conforming server accept, and what recipient-configurable ceiling is permitted?
-- What is the first useful post-POC block vocabulary after plain text?
 - How should organization verification work beyond domain control?
 - How should bridge-to-email work without weakening the anti-spam model?
 
 ## Topics To Discuss Next
 
 - Production body-size interoperability floors and ceilings.
-- Post-POC block document vocabulary.
 - Server abuse protections and rate limits.
 - Email bridge strategy.
 - Business model and ecosystem incentives.

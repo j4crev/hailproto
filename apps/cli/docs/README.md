@@ -1,8 +1,7 @@
 # Documentation guide
 
 Start with the task you are trying to complete. Most CLI users need only the
-first three pages below; the remaining files record design decisions and test
-evidence for maintainers.
+first three pages below; the remaining files explain current security and lifecycle contracts.
 
 ## Use the CLI
 
@@ -17,7 +16,7 @@ evidence for maintainers.
   coordinated multi-agent milestones.
 - [Installation](cli-installation.md): pinned source build, native executable,
   and clean-install verification.
-- [Roadmap](cli-roadmap.md): implemented scope and remaining production work.
+- [Roadmap](cli-roadmap.md): remaining client and provider-readiness work.
 
 For exact flags, use `hailp <command> --help`. Runtime help is generated from
 the same command table used to validate options.
@@ -28,16 +27,12 @@ These pages explain security or lifecycle decisions. They are not tutorials.
 
 - [Account access recovery](account-access-recovery.md)
 - [Credential lifecycle](credential-lifecycle.md)
-- [Vault restoration](vault-restoration.md)
 - [Device-keystore boundary](device-keystore.md)
 - [Binding renewal](binding-renewal.md)
 - [Grant revisions](grant-revisions.md)
 - [Historical Grant keys](grant-key-reconciliation.md)
 - [Custody transitions](custody-transitions.md)
-- [Lifecycle history](lifecycle-history-migration.md)
-- [Generation-bound return](generation-bound-return.md)
-- [Post-export recovery](post-export-recovery.md)
 
-Normative protocol rules live in the sibling `hailproto` repository. When a
+Normative protocol rules live in this repository’s [`spec`](../../../spec) directory. When a
 design note and a protocol specification differ, the specification is the
 authority.

@@ -1,164 +1,67 @@
-# Subscriptions, Connections And Publishing
+# Subscriptions, connections and publishing
 
-Status: Approved product direction; staged implementation. Stages 1–2 deployed
-to `haili.app` on October 25, 2026 UTC; see [deployment evidence](haili-launch.md).
-Future connection authorization, reply changes and attachments are not live.
+## Product model
 
-## Agreed Product Model
+- **Publish an update:** select General or a custom category. The provider snapshots
+  authorized subscribers and delivers private copies through the durable outbox.
+- **Send a message:** select explicit connections. Reciprocal subscriptions do not
+  create a connection, and disconnecting does not revoke a separate subscription.
+- Receivers classify messages from verified authorization, not sender-supplied labels.
+  A category delivery does not prove every other subscriber received it.
+- Campaign grouping may narrow an authorized audience; it cannot grant permission.
 
-- **Publish an update:** choose General or a custom category, not individual
-  subscribers. Send to all currently authorized subscribers for that category.
-- **Send a message:** select one or more explicit connections.
-- **General** is the GUI label; `general` is the category ID. It is not a wildcard
-  and does not authorize future custom categories.
-- Subscriptions and connections coexist independently. Neither implies the other;
-  reciprocal subscriptions are not a connection. Unsubscribe and disconnect must
-  remain separate, with an explicit block-all action when needed.
-- Later campaign groups may narrow an authorized category audience, never grant
-  permission. Recipient-specific billing/renewal automation requires separately
-  authorized transactional delivery; calling something "system" grants no authority.
-- Receivers classify messages from verified authorization, not an unauthenticated
-  sender-chosen correspondence label. A receiver cannot prove that every other
-  subscriber received a publication or infer the semantic intent of arbitrary text.
+## General and custom categories
 
-## Haili Built-in General Category
+The browser profile editor always includes category ID `general`, label General,
+with no editable description. It cannot be renamed or removed; up to 99 custom
+categories can accompany it. Existing profiles normalize General on their next
+explicit browser save, never on read. General reaches only its own subscribers.
+This is a Haili product rule: credential-authorized profile APIs may omit General.
 
-Haili's browser editor always includes General, with fixed ID `general`, label
-`General`, and no editable description. It cannot be renamed or removed. Up to
-99 custom categories can accompany it. Browser profile saves enforce this rule.
-Existing profiles gain or normalize General on their next explicit browser save;
-loading the editor performs no write and existing Grants remain unchanged.
-General only reaches its explicitly authorized subscribers, never all categories.
+New subscriptions require named, offered categories and explicit recipient consent.
+CLI, browser and shared provider services reject new uncategorized permissions.
+Retained signed history remains readable/revocable; no connection is inferred from it.
 
-This is a Haili product rule, not a protocol requirement: profiles managed through
-API credentials with `account:write` may still omit General. The historical
-"ordinary offered category" decision below describes the protocol representation.
+See [browser permissions](browser-permissions.md) and [category publishing](category-publishing.md)
+for approval, immutable audiences, retries, limits and cancellation.
 
-## Stage 1 — Named Subscription Categories (Implemented)
+## Connections
 
-The operator chose a simpler controlled-alpha transition: no special migration
-command or conversion UI. General is an ordinary offered category:
-`{id: "general", label: "General"}`. Publishers use the existing profile create/update
-commands. Subscribers choose it in the browser or use `--category general` with
-the existing Grant create/update commands.
+Connections begin through a shared QR/link and explicit scanner confirmation.
+The creator's code supplies standing consent; there is no unsolicited invitation
+folder or second creator approval. A personal code has no automatic expiry;
+additional sharing codes may expire. Code expiry/revocation stops new admission,
+not existing relationships. Publicly sharing a code allows authenticated holders
+to connect. Code management and relationships live at `/connections`.
 
-CLI Grant creation and updates require named categories; `--uncategorized` is
-removed. The shared provider Grant service rejects new uncategorized permissions,
-including directly signed initial Grants and updates submitted through the API.
-The browser does not expose an uncategorized subscription choice. General still
-requires a current signed category offer and explicit recipient approval.
+Managed and owner-controlled consent, local and remote admission, crossed-scan
+convergence, signed disconnect, messaging and supported history transfers use the
+shared coordinator model. A connection is not a category or two subscription Grants.
+Pending synchronization is shown explicitly; old results cannot revive a disconnected
+relationship. Reconnection requires fresh consent.
 
-Historical wire decoding, exact retained retries and revocation are preserved;
-they are not permission to create a new uncategorized subscription. No connection
-is inferred from an old uncategorized Grant. This change needs no SQL migration.
+A committed provider move invalidates old share links and personal codes. Warn
+before cutover and create fresh destination codes. Preparing or cancelling a move
+does not revoke source codes. Preserve established connections, immutable consent,
+messages and terminal/replay history. Unsupported records and undrained work block
+transfer; cleanup must identify the affected records and preserve unrelated state.
+See [connection messaging](connection-messaging.md) for current implementation behavior.
 
-### Read-Only Inventory And Cleanup Boundary
+## Remaining product work
 
-The two accessible Haili account inventories contained 13 account-scoped current
-Grant records and zero uncategorized records. Other saved credentials returned
-401 and were not renewed or escalated. This is not a provider-wide database audit:
-the installed restricted operations wrapper does not expose arbitrary SQL.
+Persistent blocking, organization membership/delegation and organization-to-person
+relationships require explicit authority rules. Corporate subscription publishing
+does not depend on organization connections.
 
-No database was wiped. New-subscription enforcement does not require destroying
-existing signed history, delivery evidence or foreign-key dependencies. A provider
-operator can run this aggregate-only audit in an authorized database console:
+Forwarding and signed threaded replies exist. Subscription recommendations still
+need recipient opt-in, and multiple replies under a fixed subscription permission
+window need a separate protocol design; neither follows from connection admission.
 
-```sql
-BEGIN READ ONLY;
-SELECT lineage.local_role, lineage.current_status, count(*) AS grants
-FROM grant_lineages lineage
-JOIN grant_revisions revision ON revision.grant_id = lineage.grant_id
-  AND revision.revision = lineage.current_revision
-WHERE (CASE WHEN jsonb_typeof(revision.scope_payload)='string'
-  THEN (revision.scope_payload#>>'{}')::jsonb ELSE revision.scope_payload END)->0->>'type' = 'uncategorized'
-GROUP BY lineage.local_role, lineage.current_status;
-ROLLBACK;
-```
+Attachments remain deferred: the proposed starting formats are PDF, TXT and LOG,
+download-only, with a proposed 25 MiB aggregate baseline and explicit advertised
+limits. Authorization, digest binding, quotas, retention and rejection-before-upload
+must be specified first. DOCX/XLSX are separate; macro-enabled files are not implicit.
+See [attachment direction](content-storage-and-attachments.md#attachment-design-direction-not-implemented).
 
-If additional legacy Grants exist, inspect their delivery dependencies before any
-cleanup; ordinary revocation remains available. Do not truncate unrelated tables
-or erase account/recovery state merely to remove a subscription option.
-
-## Stage 2 — Category Publishing (Implemented)
-
-The browser now chooses a category, with General defaulted when available, rather
-than subscription recipients. The provider stores an immutable audience snapshot
-and stable per-recipient message IDs, resumes partial fan-out, and exposes work
-and delivery outcomes separately. New subscribers do not join an exact retry.
-Recipient authorization is still checked by normal envelope creation/acceptance.
-
-Migration 61 guards transfer fencing/generation advances while targets are pending;
-finish or cancel the work first. Initial limits are 100 subscribers and five open
-publications per account. See [the API, worker, proof and rollback boundaries](category-publishing.md).
-
-## Stage 3 — Explicit Connections
-
-Invitation UX is now decided: QR/link sharing only, no unsolicited request folder.
-A user has a permanent personal QR with no automatic expiry on Security (eventually
-My Account), plus optional expiring sharing codes. The scanner reviews/confirms;
-a valid code's creator needs no second approval. Expiry stops new admission, not
-established relationships. Sharing a public QR must clearly disclose that any
-authenticated holder may connect; replacement/revocation and blocking need controls.
-
-The initial wire foundation and opt-in same-provider managed-account preview implemented
-code management on Security, identity-pinned scan/confirm, crossed-review convergence
-and disconnect tombstones. See [draft connection consent](../spec/connection-auth.md).
-That preview was enabled on Haili by operator approval. Retained
-preview consent blocks provider/custody transitions rather than losing that history.
-
-The expanded release implements owner-controlled signing via an exact proposal →
-local identity-only CLI signature → browser COSE upload flow. Owner-held keys are
-never uploaded, and old managed Grants are preserved. PLC-pinned home-provider handoff,
-durable cross-provider admission, crossed-scan epoch reconciliation and signed
-disconnect propagation are implemented with replay/partition/restart proof across
-independent stores. See [connection consent](../spec/connection-auth.md) and
-[federation v1](../spec/connection-federation.md) for migrations 63/64 and lifecycle
-boundaries. Connection messaging, explicit blocking and portable export remain separate.
-
-Connection messaging was deployed on Haili October 25, 2026 using the
-same Envelope/body/delivery/outbox/composer mechanisms, with a version-2 connection
-authorization selector rather than a new message protocol. It supports selected
-individual connections, private multi-send copies and separate conversation views.
-See [connection messaging](connection-messaging.md).
-
-Portable-export policy is now explicit: committing a provider move invalidates all
-old shareable links/QR codes, including the never-expiring personal code. Warn the
-user before cutover and create new codes at the destination; do not promise forwarding
-or port active share tokens. Existing connections and terminal/replay history must
-still be preserved. Transfer guards remain until that separate migration work is proven.
-
-The current one-active-subscription-Grant-per-directional-pair rule must not be
-reused to collapse connection permission into a subscription. The draft separates
-connection-specific signed consent and permissions into distinct object families;
-the future store must allow independent relationship lifecycles. Do not encode
-connection state as a category or infer it from reciprocal subscription Grants.
-
-Crossed invitations for the same DID pair and compatible mutual-consent terms
-must converge on one connection. Deduplicate on a canonical pair internally, bind
-consent to explicit invitation attempts/terms and expiry, and verify both parties'
-authority before showing Connected. No global cross-provider transaction is
-assumed. Old/retried invitations cannot reactivate a disconnected or blocked
-relationship; reconnecting needs fresh consent. Incompatible terms require review.
-
-Organization creators become admins and may establish organization relationships,
-but domain proof, delegated membership, departures and individual blocking need
-their own design. Organization-to-person relationships (such as consultants) stay
-in scope for design. Corporate subscriptions do not depend on this implementation.
-
-## Later Verified Slices
-
-- Multiple replies within a fixed, explicitly authorized conversation window,
-  with distinct IDs, idempotency, abuse controls and version negotiation. Do not
-  reinterpret existing single-use capabilities or renew expiry implicitly.
-- Attachments: PDF, TXT and LOG initially, download-only and untrusted. Proposed
-  baseline: 25 MiB aggregate file content (26,214,400 bytes) per message for
-  attachment-capable providers, with advertised higher operator limits and
-  recipient/account restrictions. Authorization, digest binding, quotas, retention
-  and rejection-before-upload need implementation. DOCX/XLSX follow separately;
-  macro-enabled formats are not implicitly included.
-- Subscription recommendations require recipient opt-in even between connections.
-  Forwarding must retain honest attribution and never transfer Grants or reply
-  capabilities. Neither is enabled by the connection handshake alone.
-- Publisher pilot: a retailer with receipts/order updates/offers, and an independent
-  newsletter or community organization using General. The operator will contribute
-  further publisher suggestions. No wider enrollment is implied by this plan.
+Publisher pilots should exercise real category needs such as receipts, order
+updates and newsletters before expanding format or campaign features.

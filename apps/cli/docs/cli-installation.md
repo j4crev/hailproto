@@ -1,69 +1,51 @@
-# Reproducible hailp installation (0.1.0)
+# Build and install the TypeScript hailp CLI
 
-The supported baseline builds from a reviewed client source revision plus pinned
-sibling libraries. Registry dependencies resolve through committed lockfiles;
-installs use frozen mode. No provider credentials, database, vault or live account
-is needed to install or run the offline smoke test.
+Build from a reviewed monorepo revision and its pinned `vendor/did-method-plc`
+submodule. Dependencies resolve through committed lockfiles. No provider credentials,
+database, vault or live account are needed for installation or offline smoke checks.
 
-## Toolchain and source pins
+## Toolchain and checkout
 
-Verified build toolchain: **Bun 1.4.0**, **Node 26.7.0**, **pnpm 11.11.0**, Git and
-tar on Linux x64. Node/pnpm build the PLC dependency; the finished compiled CLI
-does not require Node, pnpm, Bun or sibling repositories at runtime.
-
-| Checkout | Exact revision |
-| --- | --- |
-| `hailproto` | `fb9697b4074086fb86f6dc61f26805ec0450d315` |
-| `did-method-plc` | `996e23b5ced9c15b32bcc612dd304880342ca4ab` |
-| `hailproto` | Select the reviewed CLI release commit; retain its SHA with the binary |
-
-Keep these checkouts beside each other. The client has local `file:` dependencies,
-so `bun link` alone is not a reproducible distribution. All three repositories
-are needed at build time. The client is still a private reference package; no
-registry publication is implied by version `0.1.0`.
-
-## Build and install
-
-From the client checkout, after selecting the pinned sibling revisions:
+The clean-install verifier requires Bun 1.4.0, Node 26.7.0 and pnpm 11.11.0, plus
+Git and tar on Linux x64. Node/pnpm build the PLC dependency. The compiled CLI bundles
+the Bun runtime; end users do not need those build tools or sibling repositories.
 
 ```bash
-bun install --cwd ../.. --frozen-lockfile
-pnpm --dir ../../vendor/did-method-plc install --frozen-lockfile
-pnpm --dir ../../vendor/did-method-plc --filter @did-plc/lib build
-bun run --cwd ../../packages/hail-codec-ts build
+git clone --recurse-submodules https://github.com/j4crev/hailproto.git
+cd hailproto
+# Select a reviewed release and retain its SHA with the installed binary.
+git submodule update --init --recursive
+pnpm --dir vendor/did-method-plc install --frozen-lockfile
+pnpm --dir vendor/did-method-plc --filter @did-plc/lib build
 bun install --frozen-lockfile
-bun run build
-bun run smoke
-bun run smoke -- dist/hailp
-install -Dm755 dist/hailp "$HOME/.local/bin/hailp"
+bun run --cwd packages/hail-codec-ts build
+bun run --cwd apps/cli build
+bun run --cwd apps/cli smoke
+bun run --cwd apps/cli smoke -- dist/hailp
+install -Dm755 apps/cli/dist/hailp "$HOME/.local/bin/hailp"
 hailp --version
 hailp account show --help
 ```
 
-Put `$HOME/.local/bin` on PATH. `--version` prints `0.1.0`. The executable bundles
-the CLI, dependencies and Bun runtime for the build host's platform. HTTPS
-verification remains enabled; normal platform trust configuration still matters.
-Keep credentials and vaults in private storage independently of the executable.
+Put `$HOME/.local/bin` on PATH. The TypeScript build currently targets
+`bun-linux-x64-baseline` and embeds the package version. HTTPS verification remains
+enabled; keep normal trust configuration and private credentials/vaults separate.
+The package remains private; building a binary is not registry publication.
 
-`build` typechecks the CLI/scripts and compiles the binary. The full development
-`typecheck`/`test` gates also cover legacy tests importing sibling provider source;
-those require a `hail-server-ts` development checkout, not for installation.
-`bun run hailp -- ...` and `bun link` remain useful for development. To build the
-binary again, rerun `build`; it embeds the package version at build time.
-Cross-platform builds/releases are not yet verified by this Linux proof.
+For development, use `bun run --cwd apps/cli hailp -- ...`. Integration tests import
+provider code from the same workspace; no separate provider checkout is required.
 
-## Fresh-environment gate
+## Fresh-environment verification
+
+From the repository root:
 
 ```bash
-bun run verify:install
+bun run --cwd apps/cli verify:install
 ```
 
-The gate copies candidate client source (tracked and nonignored new files) into
-a disposable empty sibling layout and uses Git archives of the exact library
-pins. It carries over no `node_modules` or `dist`, performs frozen installs,
-builds/typechecks, then tests help/version/strict errors and offline private vault
-creation/verification through both the Bun source CLI and the compiled executable.
-It deletes its own temporary tree on
-completion. Registry access is required to populate dependencies; a local cache
-may supply them. This proves a clean filesystem install, not an empty registry
-cache or byte-identical binaries across different operating systems/toolchains.
+The verifier copies candidate workspace source without `node_modules`/build output,
+archives the checked-out PLC dependency, performs frozen installs and builds, and
+checks help/version/errors plus offline vault creation/verification through source
+and binary. It removes its temporary tree afterward. Registry access or a populated
+cache is required. This is a clean-filesystem check, not a byte-identical build or
+cross-platform distribution guarantee.

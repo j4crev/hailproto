@@ -1,346 +1,248 @@
-# Single public provider
+# Deploy a new Hail provider
 
-This profile prepares one strict-public provider, PostgreSQL database and Caddy
-edge. It defaults to `haili.app` and canonical `plc.directory` audit reads.
-The operator-approved Haili profile enables same-provider custody transitions;
-public onboarding and managed transfer retain their separate switches.
+This guide is the starting point for an operator deploying the reference provider
+on their own domain. The stack contains the TypeScript provider, browser GUI,
+PostgreSQL and a loopback-only Caddy edge behind a host Cloudflare Tunnel.
+Hail is pre-launch: select a reviewed repository revision and plan coordinated
+application/schema upgrades. The [protocol specifications](../../../../spec) define
+federation; this guide configures the reference implementation.
 
-Production operation, backup, monitoring, limits and incident response are in
-[`docs/haili-operations.md`](../../../../docs/haili-operations.md).
-The staged private-origin Cloudflare Tunnel migration, console apply and rollback
-are in [`docs/vps-network-hardening.md`](../../../../docs/vps-network-hardening.md).
-The edge publishes only loopback `127.0.0.1:8080` for a host-local cloudflared
-service; no direct public HTTP/HTTPS bindings are needed.
+## 1. Prepare the host and domain
 
-## Prepare
+You need a Linux host with Docker Engine and Docker Compose (2.40.3 or later for
+the override example below), Git, OpenSSL, a domain you control in Cloudflare,
+a host-installed cloudflared connector, and privileged console recovery access.
+Use your own domain throughout; the checked-in example defaults to `haili.app`.
+Do not point an independent provider at Haili's private tokens or deployment scripts.
 
-Create a Cloudflare Tunnel and its proxied hostname CNAME, routing HTTP to
-`127.0.0.1:8080` with the provider domain as HTTP Host Header. Configure the
-connector, HTTPS enforcement, API browser-check exceptions and cache bypass as
-documented in the hardening runbook. Do not retain direct-origin A/AAAA records.
-Then create the private environment file:
+Clone the monorepo and initialize its pinned PLC dependency:
 
 ```bash
+git clone --recurse-submodules https://github.com/j4crev/hailproto.git
+cd hailproto
+# Select your reviewed release before building.
+git submodule update --init --recursive
 cd apps/server/deploy/public
+umask 077
 cp .env.example .env
 chmod 600 .env
+```
+
+Use a host name distinct from the public provider domain. Some VPS images map their
+host name to loopback in `/etc/hosts`. Check `getent ahosts <your-provider-domain>`
+from the host and later from the containers: public activation must resolve the
+public endpoint. Correct persistent cloud-init aliases as well as `/etc/hosts`.
+
+## 2. Configure identity, secrets and feature gates
+
+Edit the private `.env`:
+
+| Setting | Value |
+| --- | --- |
+| `PROVIDER_DOMAIN` | Your public DNS name, without scheme or path |
+| `PROVIDER_ID` | A stable local identifier for this provider |
+| `PLC_PROVIDER_OPERATORS` | JSON array naming the actual operator, e.g. `["example-operator"]` |
+| `DB_PASSWORD` | Independent random database secret |
+| `KEY_ENCRYPTION_KEY` | Independent 32-byte base64url key for retained operational keys |
+| `PASSKEY_AUTH` | `true`; RP ID/origin derive from your provider domain |
+| `CONNECTION_PREVIEW` | Explicit `true` or `false`; the supplied profile defaults to `true` |
+| `PUBLIC_SELF_SERVICE_ONBOARDING` | Initially `false`; enable after the monitor/backup ceremony is ready |
+| `PUBLIC_ALPHA_SIGNUP` | Initially `false`; browser signup needs email and automatic monitoring |
+| `PUBLIC_MANAGED_TRANSFER` | Initially `false`; transfer requires separate operational readiness |
+
+Generate each secret separately; do not reuse one across roles:
+
+```bash
 openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
 ```
 
-Use an OS/server hostname distinct from the public provider domain. Some VPS
-images, including cloud-init configurations used by Hetzner, map a server name
-such as `haili.app` to `127.0.1.1` in `/etc/hosts`. Containers can inherit that
-answer, causing the required public activation self-check to connect to
-loopback. Before starting, confirm `getent ahosts haili.app` returns only the
-public addresses. If it returns loopback, remove the alias from both
-`/etc/hosts` and its cloud-init template/configuration so it does not return on
-reboot.
+Keep `.env` and recovery material outside version control. Changing the encryption
+key without a key migration can make stored operational keys unreadable. Changing
+the passkey RP ID invalidates existing provider-local passkeys.
 
-Run the command separately for `DB_PASSWORD` and `KEY_ENCRYPTION_KEY`; never
-reuse them. Keep `PUBLIC_SELF_SERVICE_ONBOARDING=false` until the reviewed
-monitor, backup and abuse controls are ready. Provider transfer defaults off;
-enable it with `PUBLIC_MANAGED_TRANSFER=true` plus the pinned
-`PLC_MANAGED_MONITOR_ORIGIN` and `PLC_MANAGED_MONITOR_PUBLIC_KEY`. Public
-onboarding may remain enabled at the same time.
+The base Compose file hardcodes `PUBLIC_CUSTODY_TRANSITIONS: "true"` for Haili.
+A `.env` variable does not override that literal. New operators can disable it in
+a local Compose overlay until custody/recovery procedures are ready.
 
-Passkey authentication defaults on for this profile, with the exact HTTPS
-provider origin and provider domain as its RP ID. Set `PASSKEY_AUTH=false` only
-for rollback; changing the RP ID invalidates existing provider-local passkeys.
-The provider keeps `/api`, `/hail`, `/.well-known`, and `/health` locally owned
-and proxies only GUI paths to the internal thin-client sidecar.
+## 3. Select persistent database configuration
 
-### Connections and custody
+The checked-in base Compose file pins PostgreSQL 14.24. Existing Haili hosts use
+an independently retained PostgreSQL 18 overlay. A fresh installation can use the
+following explicit 18.6 baseline with an empty volume; review the image pin for
+your deployment. This example is **not** an upgrade procedure for an existing database.
 
-This Haili deployment profile enables `CONNECTION_PREVIEW` following operator approval.
-Set `CONNECTION_PREVIEW=false` to opt out; the application itself still defaults off.
-Connections offers separate personal and expiring connection QR/link controls.
-Migration 75 and the compatible custody writer allow settled connections to survive
-both same-provider custody directions. Successful custody cutover retires existing
-codes while retaining established connections, signed consent and disconnect history.
-Pending connection work must finish before preparation. Obsolete native connection
-records remain unsupported. Disabling the preview does not remove retained consent.
-Owner-controlled signing and cross-provider admission/reconciliation/disconnect are
-implemented; the other provider must support the same handshake. The one-second
-durable worker retries unfinished work after restarts. Connections shows synchronization
-and recent failures. Connection messaging and portable history export are implemented;
-explicit blocking remains separate. Provider transfers require their own enabled
-runtime and authenticated handover. See [connection consent](../../../../spec/connection-auth.md) and
-[federation v1](../../../../spec/connection-federation.md) for wire and rollback rules.
+Create `compose.local.yaml` beside the base file:
 
-`PUBLIC_CUSTODY_TRANSITIONS` is explicitly enabled in this Haili Compose profile.
-The application still defaults off and refuses public enablement without production
-strict-public PLC authority. Owner recovery approval remains mandatory; enabling
-the routes does not switch any account's keys. Use the existing CLI custody commands.
-See [custody transitions](../../../cli/docs/custody-transitions.md#same-provider-custody-transition)
-for the code-retirement policy and migration rollback requirements. To disable new
-custody requests, deploy this profile with `PUBLIC_CUSTODY_TRANSITIONS: "false"`;
-retain schema 75 and compatible code until pending transitions are resolved.
-
-Initial canary enrollment may temporarily mount a mode-0600 credential. The
-deployed profile must not retain that mount or enable
-`HAIL_GUI_CREDENTIAL_FALLBACK` after a passkey has been tested.
-
-## Validate and start
-
-These are bootstrap commands, **not commands for the migrated production host**.
-On production use `sudo hail-provider-ops ...`. The installed
-`/etc/hail-provider-postgres/compose.yaml` must be included with `-f` after the
-base Compose file for every direct Compose operation, including rollback; omitting
-it can select the retained PostgreSQL 14 volume and discard access to newer writes.
-See [PostgreSQL updates](../../../../docs/monitor-postgres-update.md).
-
-```bash
-docker compose --env-file .env config --quiet
-docker compose --env-file .env build provider
-docker compose --env-file .env up -d db provider
-docker compose --env-file .env ps
-docker compose --env-file .env up -d caddy
+```yaml
+services:
+  db:
+    image: postgres:18.6-alpine
+    volumes: !override
+      - provider_db18:/var/lib/postgresql
+  provider:
+    environment:
+      PUBLIC_CUSTODY_TRANSITIONS: "false"
+volumes:
+  provider_db18:
 ```
 
-The provider applies compatible database migrations before serving.
+Use the same ordered files for every Compose command, backup and application
+rollback. Keep the overlay with your deployment configuration and encrypted backup.
+Never mount a PostgreSQL 14 data directory into 18, select an old volume after new
+writes, or run `down -v` as an upgrade/recovery step. Existing databases need a
+separately rehearsed dump/restore migration and preservation proof.
 
-Migration 60 reserves `ops`, `alerts`, `abuse`, `security`, `support` and `admin`
-automatically; no accounts or credentials are generated. Before enabling signup,
-review any migration warning about an existing account occupying a role name.
-See [reserved provider addresses](../../README.md#reserved-provider-addresses)
-to authorize an intended owner's public recovery key and complete normal onboarding.
+## 4. Configure HTTPS ingress
 
-Verify from another network:
+Create a Cloudflare Tunnel for your provider hostname and run its connector as a
+host service with a protected tunnel credential. Publish the hostname through the
+tunnel's proxied CNAME, routing to **HTTP `127.0.0.1:8080`** with your provider
+hostname as HTTP Host Header. Remove obsolete direct-origin A/AAAA records.
+
+Configure HTTPS enforcement and cache bypass for dynamic application traffic.
+Disable browser-only challenges for `/api`, `/hail`, `/.well-known`, `/health`
+and their slash-delimited subpaths. Federation clients cannot complete interactive
+Access or browser challenges. Keep managed WAF/DDoS protection; Free-plan Bot Fight
+Mode cannot be selectively bypassed for these API paths.
+
+Only the host connector may reach the origin listener. Caddy trusts
+`CF-Connecting-IP` there and overwrites `X-Hail-Trusted-Client-IP`; never expose
+8080 publicly or forward caller-supplied trusted-client headers. Preserve actual
+IPv6 addresses: do not enable Remove visitor IP headers or Pseudo IPv4 transforms.
+
+Use key-only administration over your private access network, retain console
+recovery, and restrict host/hosting firewalls for both IP families after testing
+private access and outbound connectivity. The database and provider containers
+must remain private. Test Docker forwarding rules as well as the host firewall.
+
+## 5. Build, start and verify
+
+Run from `apps/server/deploy/public`:
 
 ```bash
-domain=$(sed -n 's/^PROVIDER_DOMAIN=//p' .env)
-curl --fail --silent --show-error "https://${domain}/health/ready"
+docker compose --env-file .env -f compose.yaml -f compose.local.yaml config --quiet
+docker compose --env-file .env -f compose.yaml -f compose.local.yaml build provider
+docker compose --env-file .env -f compose.yaml -f compose.local.yaml up -d --wait db gui provider caddy
+docker compose --env-file .env -f compose.yaml -f compose.local.yaml ps
 ```
 
-Enabling owner-controlled public onboarding is a separate launch-checklist item;
-it requires the external reviewed-monitor ceremony documented in the
-[provider guide](../../README.md#hailp-account-api).
+The single built image contains both provider and GUI. The provider applies pending
+migrations before listening. Inspect service logs if health checks fail. Container
+health alone does not prove public DNS, TLS, discovery or monitoring work.
 
-## Invited Browser-Signup Backend (Local Implementation)
+From another network:
 
-The resumable backend has local integration proof through owner-signed genesis,
-verified email, monitored activation, real WebAuthn registration and fresh
-passkey login. **The code is staged on the provider, but account creation remains
-disabled by default. The browser wizard has local Chromium proof, but the invited
-live ceremony is still required before widening access.** Existing
-CLI onboarding is unchanged.
+```bash
+curl --fail --silent --show-error https://your-provider.example/health/ready
+curl --fail --silent --show-error https://your-provider.example/auth/login
+```
 
-Enabling it requires production HTTPS/passkeys on the provider origin, strict
-public PLC authority, the configured signup email/monitor services, and:
+Verify the tunnel connector is ready, requests are not cached/challenged, and direct
+public database/provider/origin ports are inaccessible. After creating an account,
+verify WebFinger, its signed Address Binding and a grant-authorized exchange with
+a compatible peer. A generic envelope HTTP receipt is not proof of delivery.
+
+## 6. Arrange monitoring and signup admission
+
+Before publishing an identity, arrange a reviewed monitor and external alert path.
+Follow the [monitor deployment guide](../../../plc-monitor/deploy/public/README.md)
+and [email receiver guide](../../../plc-monitor/deploy/cloudflare-alert-worker/README.md).
+Strict public CLI onboarding requires the independent-monitor evidence specified by
+the protocol. Same-operator monitoring belongs to the explicitly reduced-assurance
+browser alpha profile; separate hosting alone does not make it independent.
+
+Registration defaults to `invite` for both CLI and browser. The current runtime
+loads the invitation verification key from enabled alpha signup configuration;
+merely enabling CLI onboarding or reserving `admin` does not bypass admission.
+Configure email and automatic monitor enrollment before bootstrapping an invited
+administrator, even though that administrator uses the manual strict-public monitor
+ceremony. Deploy the email receiver first, then the monitor API. Set:
 
 ```dotenv
+PUBLIC_SELF_SERVICE_ONBOARDING=true
+SIGNUP_EMAIL_ORIGIN=https://alerts.your-monitor.example
+SIGNUP_EMAIL_TOKEN=<independent email-service secret>
+SIGNUP_MONITOR_API_ORIGIN=https://enroll.your-monitor.example
+SIGNUP_MONITOR_TOKEN=<monitor enrollment service secret>
+SIGNUP_MONITOR_PUBLIC_KEY=did:key:z...
 PUBLIC_ALPHA_SIGNUP=true
-ALPHA_SIGNUP_MONITOR_ORIGIN=https://monitor.example.com
-ALPHA_SIGNUP_INVITE_KEY=<random canonical 32-byte base64url operator signing key>
+ALPHA_SIGNUP_INVITE_KEY=<independent canonical 32-byte base64url signing key>
+ALPHA_SIGNUP_MONITOR_ORIGIN=https://your-monitor.example
 ```
 
-The identity origin must match the configured monitor's attestations, not
-necessarily its API hostname. Private-POC gates are incompatible. Declarations
-without the explicit enablement flag are refused. Defaults leave the surface off.
-The invitation key must be independent of the email/monitor service secrets and
-the provider key-encryption key; known role reuse is refused.
+The monitor identity origin must match signed attestations; it may differ from the
+API hostname. The receiver's `SIGNUP_ORIGIN` must match the browser/passkey origin.
+The [monitor guide](../../../plc-monitor/deploy/public/README.md#automatic-reduced-assurance-alpha-enrollment)
+defines matching settings and the authenticated email-binding contract. Recreate
+provider/GUI using the same Compose files after environment changes; a plain restart
+does not reload them. Keep registration invitation-only during bootstrap.
 
-### Admission And API
+## 7. Create the administrator and invite users
 
-The operator can create a seven-day, provider-bound, single-use invitation with
-the signing key and `PUBLIC_ORIGIN` in a protected environment:
+Follow [First provider administrator: vault to dashboard](../../../../docs/provider-admin-setup.md):
 
-```bash
-bun src/cli/create-signup-invitation.ts /secure/private-invites/alice.json
-```
+1. Generate and independently back up the owner's vault on their computer.
+2. Authorize its public recovery key for the reserved administrator address.
+3. Mint a private signup invitation from the provider console and transfer it to the owner.
+4. Start CLI onboarding, enroll the exact public state with the monitor, and retrieve its attestation.
+5. Complete onboarding, enroll/test a passkey, and grant explicit operator permission.
 
-The parent directory must be private. The output is created exclusively with
-mode `0600`; stdout contains only its path/provider metadata. Do not put the key
-or invitation bearer in logs, command arguments or the repository. Key rotation
-does not invalidate already admitted setup attempts; their own fixed expiry
-still applies. Invitations admit signup, never login, recovery or account access.
+Reserved names (`admin`, `ops`, `alerts`, `abuse`, `security`, `support`) are not
+accounts and confer no privilege automatically. The provider uses one served domain;
+custom hosted domains are not supported. The reserved administrator uses CLI signup;
+the browser address picker intentionally excludes reserved names.
 
-The client creates two independent random `hailp_...` secrets: a resumable setup
-capability and a single-purpose passkey enrollment token. It retains these in its
-protected pending-signup state; neither is an account API credential. No owner
-private key, recovery secret or vault is sent to this API.
+After first login, `/admin` can issue private signup links or send email invitations
+and can switch public registration on/off with recent passkey verification.
+Invitations are seven-day, single-use admission capabilities; email-service acceptance
+is not inbox delivery. CLI and browser share the admission ledger. Public mode removes
+only the invitation requirement, not recovery, monitoring or reserved-name restrictions.
 
-| Operation | Request | Behavior |
-| --- | --- | --- |
-| `POST /api/v1/signup/check-address` | Random setup-form bearer; address and valid invitation | Read-only availability check, no invitation consumption or reservation; the actual reservation remains authoritative |
-| `POST /api/v1/signup` | Setup bearer; `signupId`, address, recovery/identity public `did:key` values, enrollment-token SHA-256 `enrollmentHash`, invitation, and explicit `backupVerified`, `managedAccepted`, `alphaMonitoringAccepted` true flags | Atomically admits immutable intent before allocating resources; returns public preparation and fixed setup expiry |
-| `GET /api/v1/signup/:id` | Original setup bearer | Read-only progress, provider keys and identity metadata; a same-origin browser GET need not supply Origin |
-| `POST /api/v1/signup/:id/advance` | Original setup bearer; original `enrollmentToken`, optional first owner-signed `operation` | Retains and resumes the exact genesis, email binding, monitoring and activation; returns progress or the bounded enrollment URL |
-| `POST /api/v1/signup/:id/complete` | Current HttpOnly passkey session cookie, after a fresh login | Retires setup authority and its enrollment capability without revoking the tested session |
+The browser wizard verifies **one saved DID-bound recovery package** before explicit
+publication, verifies email, waits for monitored activation, and requires fresh
+passkey sign-in before retiring setup authority. No full-access signup credential
+is issued. See [signup behavior](../../../client/README.md#invited-signup) and
+[trust/recovery boundaries](../../../../docs/public-authentication.md).
 
-All POST operations require the expected Origin; responses are `no-store` and
-bounded/rate-limited. Initial intent cannot change address, keys, invitation or
-token hashes on retry. Admission consumes the invitation once even if the first
-response is lost. A repeated admission resumes the same account rather than
-allocating a new identity. Public signing-role and owner-signature checks happen
-before the signed operation becomes immutable.
+The signup API retains exact intent under a setup bearer. `POST /api/v1/signup`
+creates the provisional ceremony; `GET /:id` reads progress; `POST /:id/verify-backup`
+records the saved-package digest commitment; `POST /:id/advance` resumes the exact
+operation; `POST /:id/complete` requires the fresh passkey session. These paths are
+under `/api/v1/signup`; POSTs require the expected Origin and responses are no-store.
+Retries cannot change keys, address or token hashes or revive retired setup authority.
 
-### Interruption And Authority Boundaries
+Verify an invited browser signup, alert, passkey login and explicit message exchange
+before expanding admission. Setup lasts 24 hours and enrollment tokens ten minutes.
+Keep original package/state after interruption. Switching registration to invite
+preserves admitted continuations; disabling the signup endpoint affects continuation
+as well. Preserve retained ceremonies and use compatible code for rollback.
 
-- Setup authority has a fixed approximately 24-hour lifetime; retries do not
-  renew it. It is bound to the original serving generation from preparation,
-  not merely from passkey issuance; advancing that generation retires setup.
-  The first WebAuthn enrollment capability has a fixed ten-minute
-  lifetime. Expired/consumed authority is never recreated from retained state.
-- Pending stages return `awaiting-monitor` or a retryable busy result. The existing
-  email endpoints verify the destination using the same signup ID/capability.
-- Exact operations and the selected monitor proof are durably retained before
-  activation. After a lost activation response, the backend reconciles account
-  state instead of requesting a different proof or publishing another genesis.
-- A connection-held global signup lock deliberately serializes alpha advancement.
-  This has a throughput ceiling; replace it with bounded, fenced per-account
-  workers if pilot concurrency warrants it. An activation epoch is rechecked in
-  the activation commit, so an abandoned controller cannot commit after another
-  attempt supersedes it. No recovery/identity signer is unlocked by the backend.
-- Once any passkey exists, setup does not return another enrollment URL. After
-  fresh passkey login, completion checks the current account, credential, session,
-  serving generation and migration fence. API credentials cannot substitute for
-  this login. Setup hashes remain as terminal replay evidence, while the provider
-  preparation's bootstrap hash is cleared and the enrollment bearer expires.
-- Completion is idempotent under the user's session, including after setup expiry.
-  The setup bearer itself cannot read or mutate the completed ceremony, issue
-  account credentials or grant credential-management scope.
-- If enrollment/setup expires before completion, retain the recovery kit and
-  original signup state. Active-account access can use the existing owner-proof
-  ceremony; an unregistered/inactive attempt needs provider review. Browser-based
-  post-signup recovery import is still a separate approval gate. Do not silently
-  create another DID or change custody to get past expiry.
+## 8. Operate and upgrade
 
-Migration 58 adds the retained ceremony/tombstone records without changing old
-accounts. Rollback is allowed only before any ceremony exists; it refuses to
-erase either pending identity evidence or retired authority. Pausing the rollout
-means disabling new signup access, not deleting retained records. The production
-monitor connection and local browser state export/import proof are complete.
-The invited live ceremony and wider platform/recovery tests remain outstanding.
+Maintain encrypted off-host backups of the database, `.env` (including key encryption
+material), selected image/revision and Compose overlays. Keep the decryption key off
+the provider and test restoration into an isolated instance on the recorded PostgreSQL
+major. Compare retained state and decrypt all operational keys before trusting recovery.
+Monitor readiness, backup freshness and monitor coverage externally; name incident and
+abuse contacts and keep an out-of-provider reporting path.
 
-## Registration mode
+For upgrades, take/verify a backup, read schema compatibility requirements, retain
+both running application images, then build and recreate provider/GUI together.
+Migrations 79/80 change content/evidence readers and forbid mixed old/new serving;
+see [content storage](../../../../docs/content-storage-and-attachments.md) and
+[evidence storage](../../../../docs/verification-evidence-storage.md). Code rollback
+must preserve the database overlay, current volume and compatible schema readers.
+Never restore an old dump over newly accepted writes as an application rollback.
 
-Migration 0078 creates a persisted server-wide registration mode, defaulting to
-`invite`. Operators can turn **Public registration** on or off in `/admin`
-(off requires an invitation); changes require a passkey authentication within ten minutes and are recorded in
-`provider_registration_audit`. Both browser signup and the CLI onboarding API
-use the same admission ledger. Invitations are single-use across both APIs.
-Public mode removes only the invitation requirement; recovery, monitoring,
-reserved names, and the provider-domain restriction still apply. Custom hosted
-domains are not supported.
+The checked-in `provider-ops.sh`, backup scripts and one-time setup helpers include
+Haili-specific paths, domains, bucket names and policy checks. They are examples for
+operator adaptation, not generic installers. Do not install them unchanged for a
+new domain. [Haili operations](../../../../docs/haili-operations.md) describes the
+installed Haili environment; use your own reviewed service supervision, backup and
+least-privilege administration configuration.
 
-The mode is independent of endpoint enablement: `PUBLIC_ALPHA_SIGNUP` enables
-the browser signup service, and `PUBLIC_SELF_SERVICE_ONBOARDING` enables the CLI
-onboarding service. Enabling the latter does not bypass the registration mode.
-Apply migrations before starting the updated server. Existing browser ceremonies
-and their consumed invitations are retained. Newly admitted setups can resume
-for 24 hours even after switching from `public` to `invite`; new uninvited
-admissions are rejected immediately. Rollback refuses to discard admission or
-settings audit evidence.
-
-## Invited Browser Pilot
-
-The built `/signup` page reuses the existing browser recovery and WebAuthn code.
-Compose maps `PUBLIC_ALPHA_SIGNUP` to private GUI flag `HAIL_GUI_SIGNUP` (the
-`PUBLIC_` prefix is reserved for SvelteKit public environment exports). The GUI
-receives only provider/monitor public pins, never the invitation signing key or
-provider-to-monitor/mail service secrets. Default deployments return 404.
-
-Pending setup is encrypted with the separate random recovery secret using
-AES-GCM with fresh nonces and distinct associated data. Only ciphertext is placed
-in browser storage and downloadable setup files. The vault remains v1-compatible;
-the raw secret and unlocked keys are not included in pending artifacts or API
-requests. The page holds an in-memory nonextractable encryption key only while
-setup is open and clears sensitive page references on pagehide/unmount. This
-does not promise secure erasure or protect against compromised same-origin code.
-No third-party scripts/analytics are added; same-origin CSP, no-referrer and
-no-store cover the wizard. Unfinished setup import is not post-signup recovery.
-
-Before admission the user must verify a saved recovery file and separately
-retained secret and save an encrypted setup file. After signing, the updated
-setup file must be saved before publication. Reloads/eviction reopen the original
-state; no automatic replacement keys or DID are generated. An earlier setup file
-can reconcile an already retained operation through backend status. If both
-encrypted pending state and its exported file are lost after submission, the
-wizard cannot recreate setup capabilities from the recovery vault: retain the
-vault and use provider assistance/existing owner-proof tooling. Expired setup or
-enrollment shows an explicit terminal explanation rather than renewed authority.
-
-Activation leads to passkey creation, a final DID-bound recovery-backup download,
-and a fresh sign-in before completion. Completion removes the browser ciphertext;
-the user must delete obsolete pending downloads. No full-access API credential
-is created. Keep the final recovery vault and its separate secret.
-
-### One Operator-Invited Live Ceremony
-
-Deploy the tested release **with gates off first**. Then, in the provider VPS
-console as root, run the reviewed one-time helper:
-
-```bash
-python3 /opt/hailproto/apps/server/deploy/public/enable-signup-pilot.py
-```
-
-This validates the candidate against the running provider, takes the normal
-encrypted backup, retains a private pre-change environment, and atomically sets
-only the three alpha gate/signing-key/monitor-identity fields. It refuses existing
-pilot configuration rather than rotating a key. It mints one seven-day single-use
-invitation and displays its browser URL **only to the intended operator in the
-console**. Treat that URL as private; do not put it in repository/central logs.
-No account, DID or owner recovery material is created by the helper. It does not
-modify SSH, sudoers, database images or old accounts. No new privileged wrapper
-command is installed; this enablement deliberately needs the approved console.
-
-Have the agent recreate through the existing guarded deployment wrapper and
-verify both GUI/API gates, HTTPS and email/monitor availability. Only then open
-the invitation link on the test browser. The operator selects an unused address
-and their external alert email and handles all recovery secrets/passkey prompts.
-Confirm verification mail and the monitor enrollment alert actually arrive.
-If it waits or fails, preserve original encrypted setup state and report the
-step/message, never recovery material or setup-token contents. The user should
-finish by entering the inbox, checking security settings and exchanging a message
-with an existing test account through explicit permissions.
-
-After successful completion, pause the pilot by console-setting
-`PUBLIC_ALPHA_SIGNUP=false` and removing its two `ALPHA_SIGNUP_*` declarations,
-then recreate through the guarded wrapper. Existing passkey login remains on.
-Do not pause midway through a pending ceremony without an explicit recovery plan:
-this initial gate controls both admission and its continuation routes. Do not
-rollback migration 58 after pending/terminal ceremonies exist; code rollback
-must retain their records and use a compatible backend. The retained before.env
-is a rollback reference, not permission to overwrite unrelated later changes.
-
-Local checks: `bun run --cwd apps/client build`, `test`, `typecheck`,
-`test:browser`, and `test:wizard`; repeat the latter with
-`HAIL_WIZARD_MOBILE=true` for a narrow mobile viewport. This is Chromium emulation,
-not proof of Safari/iOS/Android passkey behavior or real email deliverability.
-
-## Narrow Monitor Configuration Operation
-
-After the monitor bridge is ready, the provider needs three matching settings.
-Do not enable root SSH or restore `NOPASSWD:ALL` to add them.
-
-The agent can stage the reviewed source with the existing guarded deploy wrapper,
-leaving signup/monitor gates off. In the provider console, as root, install that
-checkout's updated wrapper once:
-
-```bash
-install -o root -g root -m 0755 \
-  /opt/hailproto/apps/server/deploy/public/provider-ops.sh \
-  /usr/local/sbin/hail-provider-ops
-```
-
-Then the normal `hailops` account can run:
-
-```bash
-sudo hail-provider-ops signup-monitor-configure < /home/hailops/<private-monitor-settings.json>
-```
-
-The private JSON contains exactly `SIGNUP_MONITOR_API_ORIGIN`,
-`SIGNUP_MONITOR_TOKEN` and `SIGNUP_MONITOR_PUBLIC_KEY`. The initial host-specific
-operation accepts only HTTPS origins under `plcmonitor.us`. It validates the
-complete candidate with the running reference provider, backs up before writing,
-preserves unrelated environment lines, writes atomically with mode 0600 and
-refuses to overwrite a different existing configuration. It does **not** enable
-public alpha signup or change any account keys, SSH settings or sudoers rules.
-The token goes through stdin; neither stdout nor errors expose it.
-
-Recreate through the guarded deployment operation afterward; a plain Docker
-restart does not load changed container environment. Remove temporary staging
-files only after both services have been verified. Explicit token rotation and
-non-`plcmonitor.us` deployments require a separate configuration review rather
-than broadening this helper's privileges silently.
+Public transfers are optional. Enable `PUBLIC_MANAGED_TRANSFER` only with the pinned
+`PLC_MANAGED_MONITOR_ORIGIN`/`PLC_MANAGED_MONITOR_PUBLIC_KEY` and the participating
+providers' [readiness requirements](../../../cli/docs/custody-transitions.md#production-enablement-required-versus-deferrable).
+Custody transitions and Connections are separate switches. Supported settled
+connections survive moves; pending work and unsupported history remain blocked.

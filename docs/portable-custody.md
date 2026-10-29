@@ -52,8 +52,7 @@ do not require Hail to adopt provider custody for its consent-signing role.
 | Lower-priority PLC rotation key | Provider operational DID updates | Provider controls signing | Provider controls signing | Provider controls signing |
 
 The portable model is therefore **split custody**, not a requirement for the
-user device to perform every server operation. Original Alice/Bob POC accounts
-are custodial; newer user-key-held POC identities exercise the split model.
+user device to perform every server operation.
 
 | Consideration | User-held identity key | Provider-held identity key |
 | --- | --- | --- |
@@ -558,7 +557,7 @@ non-nullified cutover. The resulting observation is explicitly labeled
 `monitor_verification_mode=poc-local`. It is **not** two independent mirrors,
 an independent monitor, public PLC finality, or public Hail federation.
 The normal public cutover path still requires `https://plc.directory`,
-independently operated readers and a signed independent-monitor attestation;
+validated canonical audit reads and a signed independent-monitor attestation;
 it rejects `poc-local` custody.
 
 The destination stages the exact signed user PLC operation, submits it only
@@ -570,13 +569,6 @@ activation. Activation atomically replaces that provisional publication
 with the imported active account's same signed binding. The source retires
 only on the target's signed activation receipt. No separate monitoring VPS or
 public PLC mirror is required for this deliberately non-independent POC test.
-
-### Retired private-PLC operator ceremony
-
-The original file-based provider ceremony and its standalone `poc:*` wrappers
-were retired after onboarding, Grants and transfer completion moved behind the
-account API and `hailp`. The private runtime paths and fixtures remain for
-compatibility and regression evidence; Git history preserves the old ceremony.
 
 ### Message continuity and collocated Grants
 

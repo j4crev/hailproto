@@ -1,6 +1,6 @@
 # Device-keystore protection decision
 
-This defines milestone 2's device protection path; OS-keystore integration is
+This defines the device protection boundary; OS-keystore integration is
 not implemented yet. The current v1 vault remains a portable encrypted backup,
 unlocked with its separately retained random secret. Routine Grant actions use
 identity-only decryption, but storing that shared secret in a device keystore

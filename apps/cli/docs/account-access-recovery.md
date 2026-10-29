@@ -1,10 +1,9 @@
 # Account access after credential expiry — design decision
 
-The milestone 3 design is now implemented as a **private-PLC API-plus-CLI
-slice**, requiring provider migration 34 and explicit `POC_ACCOUNT_ACCESS=true`.
-It is deployed and verified on both POC providers. Expired/revoked bearer
-credentials still cannot authenticate; independent owner-key proof issues a new
-credential.
+Owner proof issues a new provider-local credential; expired/revoked bearers remain
+invalid. The runtime enables this API through public managed-transfer configuration
+or the explicitly private `POC_ACCOUNT_ACCESS` gate. See the provider configuration
+before relying on endpoint availability.
 
 ## Authority and custody
 
@@ -22,9 +21,9 @@ credential. People and agents follow the same authority checks.
   operation or top-authority replacement.
 - The provider-held managed identity key is not owner authentication: the
   provider can already sign with it. Managed login must require independent
-  owner proof. A future enrolled account-login passkey could handle routine
-  access without recovery-key use; it needs its own enrollment/revocation design
-  and cannot be inferred from an API token or substituted for raw Hail signatures.
+  owner proof. Enrolled passkeys handle routine browser access without recovery-key use;
+  their separate enrollment/revocation authority cannot be inferred from an API
+  token or substituted for raw Hail signatures.
 - Custodial POC/unknown profiles with no independently verifiable owner authority
   have no self-service recovery under this design. An operator-mediated access
   procedure is separate and must not be labeled owner-controlled recovery.
@@ -121,11 +120,5 @@ the credential table. Protected completion responses reuse the provider's bounde
 response schedule. These are controlled POC limits, not public-registry abuse
 protection or independent monitoring guarantees.
 
-Both custody paths, challenge tampering/expiry/replay, concurrent completion,
-fresh-process/handler retries, terminal credential rejection, current-key/service
-changes, unavailable PLC verification and all source-fence states have local
-regression proof. Migration 33→34 preserved all 37 pre-existing tables in a
-populated disposable database and retained old/new credential-reader compatibility.
-Restored deployment-copy rehearsal, individual VPS rollout and real endpoint
-recovery passed. Private-POC proof
-does not establish public PLC or independent production recovery guarantees.
+The provider account-access integration tests cover both custody profiles,
+challenge replay/expiry, exact retries, current authority and source fences.

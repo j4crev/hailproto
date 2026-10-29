@@ -1,10 +1,7 @@
-# Address Binding renewal — migration-35 slice
+# Address Binding renewal
 
-This implements milestone 4's first item and is deployed to both private-POC
-providers at migration 35.
-The [Grant revision/consent slice](grant-revisions.md) and
-[historical-key decision](grant-key-reconciliation.md) are also complete locally;
-historical-key reconciliation execution remains disabled.
+Address Binding renewal preserves DID-bound relationships and immutable binding history.
+Identity-key reconciliation remains [separately constrained](grant-key-reconciliation.md).
 
 ## Commands and authority
 
@@ -76,7 +73,7 @@ selection do not transfer/revoke DID-bound relationships. Original completed
 signup retries still find their original immutable binding by digest rather than
 mistaking a renewal for changed onboarding artifacts.
 
-## API and proof
+## API
 
 `GET /api/v1/account/binding` returns the authenticated account's selected binding
 and expiry/reminder metadata. `POST` requires `account:write` and exact uncoded
@@ -84,20 +81,5 @@ JSON with `previous`, `signingKey` and either owner `cose` or managed `payload`.
 Requests/representations are bounded; unknown fields and invalid lifetime/schema
 fail validation. No protocol change or new binding-history table is introduced.
 
-Both custody integration cases prove signed renewal, failed verification and
-exact repair, retained historical bytes/URLs, one selected binding, superseded
-retry behavior, original signup retries, conflicting predecessors, 90-day bounds,
-wrong signer, revoked/expired/read-only authority and source fences. An expired
-selected binding returns discovery 404 instead of an older binding; explicit
-renewal restores discovery, while the account's Grant revisions/statuses remain
-unchanged. Owner renewal also passes with unreadable recovery ciphertext.
-
-Recorded gates: **16 focused PostgreSQL integrations**, **one private-provider
-transfer integration** for discovery/retirement compatibility, **108 provider tests**
-without DB environment (61 DB tests skipped), **5 client tests**, both typechecks/
-builds and diff checks passed. Migration 34→35 on a populated disposable database
-preserved existing credential bytes/scopes/expiry, repeated cleanly and allowed
-the old migration runner; `account:write` required new deliberate issuance.
-Local migration check: `/tmp/opencode/binding-upgrade-20261009/check.ts`.
-Restored deployment-copy rehearsal and real HTTPS publication proof subsequently
-passed.
+An expired selected binding returns discovery 404 instead of an older binding.
+Explicit renewal restores discovery without changing Grant revisions or delivery status.

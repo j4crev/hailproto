@@ -31,22 +31,19 @@ delete evidence while responding to abuse.
 
 ## Access and key handling
 
-The staged Tailscale/Cloudflare Tunnel migration and its console-only apply,
-verification and rollback steps are in [VPS network hardening](vps-network-hardening.md).
-The October 23 cutover is complete: SSH uses Tailscale; public Haili and monitor
-HTTP use Cloudflare Tunnels; direct public TCP 22/80/443 was verified blocked on
-both IPv4 and IPv6. Hosting firewalls deny new inbound traffic. Review the
-hardening runbook's current checkpoint and release-adoption caveat before deploy.
-The ingress release was committed/pushed and adopted on the provider with a clean
-checkout. The monitor's separate [PostgreSQL update](monitor-postgres-update.md)
-completed October 24: 14.24 is pinned in the active legacy override, data/volume
-and application identity are retained, and encrypted off-host backups are verified.
-The monitor subsequently completed 18.6 in a new volume with a higher-priority
-database overlay; its post-cutover encrypted backup has passed an off-host restore.
-Haili's separate 18.6 cutover is complete too: exact data/credentials and all 20
-retained operational key pairs passed; its actual post-upgrade R2 backup was
-downloaded, authenticated and restored off-host. Both app images stayed unchanged,
-both original 14 volumes remain retained, and the POC VPS was untouched.
+Haili administration uses ordinary key-based SSH over Tailscale. Public provider
+and monitor HTTP use host Cloudflare Tunnels with loopback-only origins. Keep
+unsolicited public ingress blocked in host and hosting firewalls for IPv4/IPv6,
+while preserving outbound, established and private administration traffic.
+The [provider setup guide](../apps/server/deploy/public/README.md#4-configure-https-ingress)
+describes header trust, cache and browser-check boundaries. Monitor enrollment is a
+public HTTPS transport with restricted admission, not a private-only tailnet API.
+
+Provider PostgreSQL configuration lives in `/etc/hail-provider-postgres/compose.yaml`;
+monitor configuration includes `/etc/hail-monitor-enrollment/compose.postgres.yaml`.
+These select the PostgreSQL 18 storage independently of application releases.
+Preserve overlays on every Compose operation and restore. Retained older volumes
+are not rollback targets after either application has accepted new writes.
 
 - SSH allows only the named `hailops` account with public-key authentication;
   root, passwords, keyboard-interactive authentication and X11 are disabled.
@@ -72,9 +69,7 @@ checking merely because an automated session did not inherit the socket.
 Granting `NOPASSWD:ALL` does not fix SSH authentication. Routine provider status,
 deploy, restart and rollback use `sudo hail-provider-ops ...` under the restricted
 rule. New privileged configuration changes need separately approved access.
-The October 22 email rollout restored wrapper-only passwordless sudo and
-verified that agent login and wrapper commands still work; unrestricted
-noninteractive sudo is refused. SSH keys and `sshd` configuration were unchanged.
+Routine access must retain wrapper-only sudo and key-only SSH authentication.
 
 ## Backup and restore
 
@@ -88,13 +83,10 @@ No automatic deletion policy is enabled.
 Quarterly, download a fresh object on a non-provider host, decrypt it, restore it
 into a disposable instance of the recorded PostgreSQL major (both production
 databases are now 18.6), compare schema and row counts, and
-decrypt every retained account and prepared-transfer operational key. Record the object name, digest, counts and
-result in `docs/haili-launch.md`; remove plaintext artifacts afterward.
+decrypt every retained account and prepared-transfer operational key. Record the
+object name, digest, counts and result in protected operator records
+with the backup; remove plaintext artifacts afterward.
 
-PostgreSQL 14 reaches end of life November 12, 2026. Direct 14→18 encrypted-copy
-rehearsals passed for both production databases; monitor-first console cutover
-and write-safe rollback boundaries are in [PostgreSQL updates](monitor-postgres-update.md).
-Both live cutovers and actual post-upgrade encrypted-backup restores passed.
 The installed provider database
 overlay at `/etc/hail-provider-postgres/compose.yaml` must accompany every Compose
 operation, including application rollback. A major migration uses a new volume;
@@ -132,13 +124,8 @@ failure, treat alerting itself as failed and use the Cloudflare Worker logs.
 | Body storage/retrieval | 256 KiB body | `413` at bounded request surfaces |
 | Sender Profile retrieval | 64 KiB response | Verification failure |
 
-October 21, 2026 calibration against the database-backed public readiness route
-on the 2-vCPU, 1.9-GiB host produced 20.9 requests/s at one connection, 86.6 at
-four, and 339.0 at sixteen. At sixteen connections p50 was 45.7 ms, p99 125.1 ms,
-maximum 281.6 ms, with no HTTP or transport errors. The public mutation limits
-are therefore policy limits, not observed capacity limits. Recalibrate after a
-host, database, runtime or traffic-shape change. Stop and investigate if the
-external readiness check fails; do not raise mutation limits without measuring
+Recalibrate after host, database, runtime or traffic-shape changes. Stop and
+investigate failed readiness checks. Raising mutation limits requires measuring
 the protected 500-ms response schedule and database contention separately.
 
 Caddy is the trusted client-address boundary and must overwrite
@@ -157,8 +144,7 @@ The provider operations wrapper retains the running image under
 `hail-server-ts:rollback-<full-image-digest>` **before** a replacement build takes
 over `hail-server-ts:public`. Saving only the container's image ID is insufficient:
 with the containerd image store, rebuilding the same public tag can make the
-old ID unavailable without a prune operation. The October 29 CLI rollout exposed
-this failure; rebuilding the previous commit restored service.
+old ID unavailable without a prune operation. The retained tag keeps rollback independent of a replacement build.
 
 Deploy and rollback share an exclusive lock. A successful deploy atomically saves
 three fields in `/var/lib/hail-provider-previous`: the previous commit, retained

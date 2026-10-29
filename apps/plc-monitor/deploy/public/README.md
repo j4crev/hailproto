@@ -1,11 +1,5 @@
 # Public alpha monitor
 
-The staged public enrollment Cloudflare Tunnel migration, console-only apply and
-rollback are in [Monitor tunnel hardening](../../../../docs/monitor-tunnel-hardening.md).
-This changes ingress only; independent-provider admission remains a separate task.
-The separately guarded 14.4 → 14.24 maintenance plan and verified restore evidence
-are in [Monitor PostgreSQL update](../../../../docs/monitor-postgres-update.md).
-
 This profile runs the monitor worker and its private PostgreSQL database. It polls
 each enrolled DID's canonical `https://plc.directory/<did>/log/audit` endpoint.
 
@@ -14,19 +8,26 @@ uses an external signed-alert email receiver. A deployment beside a provider or
 within the same failure domain remains bootstrap evidence, not independent
 production monitoring.
 
-The host heartbeat timer runs every three minutes and the external receiver
-alerts after six minutes without a successful authenticated heartbeat. Install
+The reference heartbeat timer runs every three minutes and the receiver alerts
+after six minutes without a successful authenticated heartbeat. Before installing,
+adapt `heartbeat.sh` to your receiver URL and actual monitor container name; its
+checked-in values are Haili-specific. Configure the matching private heartbeat
+token in root-only `/etc/hail-monitor-heartbeat` and in your receiver. Install
 `heartbeat.sh` as root-owned `/usr/local/sbin/hail-monitor-heartbeat`, install
 the included service and timer in `/etc/systemd/system`, then daemon-reload and
 enable the timer. The DID audit poll remains independent at four minutes.
 
 ## Prepare, but do not start yet
 
-Keep sibling `hailproto`, `did-method-plc` and `hail-plc-monitor-ts` checkouts in
-one workspace because the image build uses pinned local libraries.
+Use the monorepo with its pinned `vendor/did-method-plc` submodule initialized.
+Run the following from the repository root. Set an independent random
+`MONITOR_DB_PASSWORD` and your `MONITOR_ORIGIN` in `.env` before building. The base
+Compose pins PostgreSQL 14.24; select and retain your database image/storage overlay
+using the [fresh-provider pattern](../../../server/deploy/public/README.md#3-select-persistent-database-configuration),
+with a distinct monitor volume. Include your overlay in every command below.
 
 ```bash
-cd hail-plc-monitor-ts/deploy/public
+cd apps/plc-monitor/deploy/public
 cp .env.example .env
 chmod 600 .env
 install -d -m 700 secrets
@@ -48,12 +49,13 @@ alert destinations are outbound HTTPS webhooks.
 Start after DNS, the monitor key and alert webhook are ready:
 
 ```bash
-docker compose --env-file .env up -d --wait
+docker compose --env-file .env up -d
 docker compose --env-file .env logs -f monitor
 docker compose --env-file .env exec db \
   psql -U monitor -d monitor -c 'SELECT last_seq,caught_up,last_healthy_at FROM monitor_cursor'
 ```
 
+A fresh monitor may remain unhealthy until a DID is enrolled and a poll succeeds.
 No global PLC backfill is required. A fresh successful poll must validate every
 enrolled DID before the monitor can attest.
 
@@ -96,19 +98,17 @@ recovery secret or provider credential between trust domains.
 
 ## Automatic Reduced-Assurance Alpha Enrollment
 
-The private API and Haili provider connection are deployed and verified as of
-October 23, 2026 UTC. They remain **disabled by default** for other deployments;
-public alpha account creation and the browser wizard are not enabled. The legacy
-CLI ceremony above remains available. Automatic enrollment does not change
-existing canaries or claim independent monitoring for a same-operator service.
+Automatic enrollment is optional and disabled without the declarations below.
+Manual reviewed enrollment remains available. Same-operator monitoring must retain
+its reduced-assurance label rather than claiming independent coverage.
 
 The existing monitor process can optionally serve an authenticated private API.
 Configure the monitor's protected environment with:
 
 ```dotenv
 MONITOR_ENROLLMENT_TOKEN=<random canonical 32-byte base64url service secret>
-MONITOR_ENROLLMENT_PROVIDER=https://haili.app
-MONITOR_ENROLLMENT_ALERT_ORIGIN=https://alerts.plcmonitor.us
+MONITOR_ENROLLMENT_PROVIDER=https://your-provider.example
+MONITOR_ENROLLMENT_ALERT_ORIGIN=https://alerts.your-monitor.example
 ```
 
 `MONITOR_ORIGIN` remains the monitor identity origin used in signed attestations.
@@ -171,124 +171,59 @@ keeps the provider orchestration endpoint disabled.
 9. The provider verifies the returned signature, freshness, DID, CID, state
    digest, monitor key/origin and reduced-assurance label before returning it.
    The signup coordinator must durably retain the chosen activation artifact
-   and reconcile ambiguous activation before requesting a replacement. Full
-   resumable coordination and passkey-only signup are the next slice.
+   and reconcile ambiguous activation before requesting a replacement. The browser signup coordinator resumes the retained ceremony through passkey
+   enrollment and fresh sign-in.
 
 This API cannot approve unexpected updates, perform recovery, change custody,
 export keys, replace an email destination or silently select independent mode.
 New activation continues to use the existing public read-back and address checks.
 
-### Proof And Rollback
+### Pause and recovery
 
-The provider integration test exercises the full local flow against disposable
-PostgreSQL schemas, a local PLC fixture and mocked email delivery. It covers
-incorrect capabilities, unverified email, receiver failure, a committed-but-lost
-monitor response, notification retries, stale polling, tampered signatures,
-restart and coverage-gap refusal. No real email or public PLC write is performed.
-
-There is no schema migration for this slice. To pause new enrollment, remove the
+To disable automatic enrollment, remove the
 provider monitor declarations and monitor API declarations; preserve the existing
 monitor key, database, polling, notifier and bound consumer webhook routes. Do
 not downgrade a consumer webhook to `/hail` or remove the receiver's consumer
 route while enrolled identities depend on it. Never reset a cursor or generate
 a replacement DID to recover from an ambiguous API response.
 
-## One-Time Legacy Host Bridge (Console Approval Required)
+## Enrollment ingress
 
-Before the rollout, `2.25.206.150` built from the separate repository at
-`/opt/hail/hail-plc-monitor-ts`. The bridge is now active: monorepo code builds at
-`/opt/hailproto`, with the legacy private configuration/storage paths retained.
-Do not give an unconverted old deployment wrapper a monorepo commit: it fetches
-from a different Git origin. Root SSH remains disabled;
-`hailops` authenticates with the existing SSH agent and retains wrapper-only sudo.
+The base Compose publishes no API port. For automatic enrollment, bind the monitor
+API to `0.0.0.0:3001` inside the container and add only a host-loopback port mapping
+in your private deployment overlay. Put a loopback reverse proxy in front of it and
+route a host Cloudflare Tunnel to that proxy. Preserve the enrollment Host, POST
+method and exact `/api/v1/onboarding` path; all other requests should be denied.
+Keep provider admission restrictions and the service-token check. The current API
+pins one provider; it is not a multi-provider enrollment service.
 
-The reviewed `enrollment-setup.py` bridges **code builds**, not data storage:
+Trust `CF-Connecting-IP` only on the connector's private loopback boundary. Account
+for the provider's public IPv4 and IPv6 egress addresses when configuring admission.
+Bypass caching and browser challenges for the enrollment hostname/path; never require
+an interactive Access login for provider requests. Keep the backend and origin ports
+unreachable directly from the public network.
 
-- Keep both old checkouts and the old Compose base unchanged. The PostgreSQL
-  image (currently `postgres:14.4-alpine`), project/volume names, key mounts,
-  monitor identity origin and heartbeat stay on their existing paths.
-- Put the new protected monorepo at `/opt/hailproto`. A root-owned override in
-  `/etc/hail-monitor-enrollment` changes only the monitor build, API settings,
-  loopback port binding and an added Caddy edge. It does not recreate PostgreSQL.
-- Build and test key readability before stopping the old monitor. Verify applied
-  migration checksums and the reviewed running monitor public key; this fixed
-  host bridge refuses unexpected key/schema transitions before stopping it.
-- Pause only the monitor for a consistent encrypted backup and immutable-history
-  snapshot, then switch runtime. Verify retained rows, accepted alert receipts,
-  current polling, API authentication and the pinned signed mail-peer request.
-  New observations/delivery progress are allowed, loss of old evidence is not.
-- Use only the public backup recipient matching
-  `870DECF2F98318BCDE17D4B8333035D2650B0400`. Private backup-decryption keys are
-  refused. Temporary plaintext dumps are removed; encrypted archives are
-  root-owned/group-readable by `hailops` under `/var/lib/hail-monitor-enrollment`
-  so they can be downloaded and checksum-verified off-host.
-- Add a loopback-only HTTP origin with `caddy:2.10.2-alpine` for a host-local
-  Cloudflare Tunnel connector, with administration disabled and capabilities
-  dropped except the official binary's required `NET_BIND_SERVICE`. Only this
-  origin trusts `CF-Connecting-IP`, permitting the configured
-  Haili provider's public IPv4/IPv6 to POST the enrollment path. All other traffic
-  gets `403`. Backend port `3001` is published only on loopback. Public HTTPS is
-  terminated at Cloudflare, not directly on the VPS. No sudoers changes are made.
+From the actual provider container, verify trusted TLS and unauthenticated `401`,
+then authenticated invalid-payload `400` using its protected service token. Do not
+print the token or create an identity as a connectivity probe. Requests outside the
+permitted source policy should be refused before enrollment. Reverify after changing
+networking or recreating containers.
 
-This is a one-time console-approved operation, not an unrestricted sudo grant.
-The scripts have configuration/rendering/preservation regression checks and the
-actual legacy Compose merge has been validated locally. The operator applied
-this bridge successfully on the production monitor. The protected API is healthy,
-external TLS and source-IP restrictions are verified, and its encrypted backup
-has been downloaded and checksum-verified off-host. On another installation,
-all root preflights and backups must still pass.
+## Backups and existing Haili installation
 
-### Operator Actions
+Back up the database, signing key, environment, Compose overlays and connector
+configuration in encrypted off-host storage. Retain the monitor's public-key pin
+and identity origin. Restore into an isolated database on its recorded PostgreSQL
+major and verify retained audit/approval/alert rows and the signing key before use.
+Do not reset coverage history, replace consumer webhooks or approve unexpected state
+merely to make a health check pass. Keep polling and notification working when
+pausing new enrollment.
 
-1. Prepare a Cloudflare Tunnel for `enroll.plcmonitor.us`. The edge listens only
-   on `127.0.0.1:8080`; direct DNS-only A/AAAA records, ACME and public 80/443 are
-   no longer required. After the local edge is ready, install the protected
-   connector and publish the proxied tunnel CNAME using the pattern documented in
-   [Monitor tunnel hardening](../../../../docs/monitor-tunnel-hardening.md).
-   Do not re-run this one-time bridge on an already-converted host or open 3001.
-2. Have the agent stage a private `monitor.json` containing exactly `api_domain`
-   and a newly generated `enrollment_token`, plus the reviewed **public** backup
-   key, in a mode-0700 `hailops` directory. The JSON must be mode 0600. Do not
-   paste the token into chat, shell arguments or the repository.
-3. Deploy the compatible email Worker first; its signed binding-read endpoint
-   must exist before the monitor's mail-peer verification can pass.
-4. In the monitor VPS console, as root, clone the monorepo into the new location
-   and pin the reviewed full release SHA. If the target already exists, stop
-   and inspect it rather than resetting or overwriting it:
-
-   ```bash
-   set -eu
-   umask 022
-   git clone --no-checkout https://github.com/j4crev/hailproto.git /opt/hailproto
-   git -C /opt/hailproto fetch origin <reviewed-full-release-SHA>
-   git -C /opt/hailproto checkout --detach <reviewed-full-release-SHA>
-   git -C /opt/hailproto submodule update --init --recursive
-   python3 /opt/hailproto/apps/plc-monitor/deploy/public/enrollment-setup.py \
-     --apply /home/hailops/<private-staging-directory>/monitor.json \
-     --backup-key /home/hailops/<private-staging-directory>/backup-public.asc \
-     --commit <reviewed-full-release-SHA>
-   ```
-
-   Use the console, not root SSH. The helper checks source ownership and
-   cleanliness, port availability, backup recipient, schema/key paths and old
-   runtime health before switching. It never edits the old `.env`. A second
-   encrypted backup includes the new protected enrollment configuration.
-5. The helper installs the updated root-owned `hail-monitor-ops` only after
-   verification. Its `status` reports only public enrollment metadata; `backup`,
-   guarded `deploy` and `rollback` remain available through the existing sudo
-   rule. Download the encrypted archives via `hailops` and verify their hashes.
-6. From the provider, verify trusted HTTPS to the new API: an unauthenticated
-   empty POST must return `401`, and an authenticated empty POST `400`, without
-   creating an identity. From outside the provider IP, expect `403`. Only then
-   install the matching provider settings using its narrow configuration command.
-   TLS issuance and external reachability are not proven by local container health.
-
-The first migration's `rollback` restores the legacy image and original wrapper
-while keeping the current database and signing key. Later code releases have a
-separate previous-release record. Rollback never restores an older database dump
-over newly observed history and never removes data/certificate volumes. On a
-setup failure, the old runtime is restarted and newly written configuration is
-retained for review; reapplying refuses to overwrite that directory. If the
-console/process is killed mid-switch, use `sudo hail-monitor-ops status/restart`
-and inspect the retained backup/configuration before continuing. Do not delete
-the legacy checkout or rewrite consumer webhooks as cleanup.
+The installed Haili monitor builds from `/opt/hailproto` while retaining protected
+legacy storage/configuration paths. Its overrides and operations configuration live
+under `/etc/hail-monitor-enrollment`; `compose.postgres.yaml` selects its database.
+Every deployment, backup and rollback must preserve those overlays. Application
+rollback never restores an old database over new observations. The installed
+root-owned wrapper is separate from a repository checkout and requires a reviewed
+privileged installation to update. Do not rerun a one-time host bridge on a converted
+host. Fresh independent deployments should use their own paths and operator policy.

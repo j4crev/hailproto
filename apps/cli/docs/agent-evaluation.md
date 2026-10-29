@@ -175,50 +175,6 @@ rejects changed intent/content and wrong identity pins, checks schema rollback
 guards, and proves removal cuts off new messages. It is scripted integration
 proof, not an agent evaluation. Do not run it in an existing agent trial.
 
-## Initial trial — 2026-10-29
-
-Two fresh Codex subagents (gpt-6-astra, inherited medium reasoning) received
-only their task-file location and the delegation brief above. Both used the
-guide and CLI help, generated their own keys, verified backups before signup,
-created active owner-controlled accounts, verified bound vaults, and read their
-credentials, Grants, and inboxes. Alice used 13 CLI calls; Bob used 14.
-Independent verification passed every check for both accounts. This single pair
-establishes feasibility, not a reliability rate or a help-only comparison.
-
-In that initial trial, both tried `connection list` and reported its HTTP 404;
-the then-onboarding-only fixture did not wire that route. Both correctly
-reported the CLI's then-missing native creation, acceptance, and send commands.
-The subsequent Connection implementation enables those commands and expands
-the fixture to exercise them.
-
-The empty pre-run environment failed grading as intended. Focused CLI contract
-tests and trace-grading tests passed, including a regression that distinguishes
-`account create --help` from an actual signup attempt when checking backup order.
-
-## Native Connection trial — 2026-10-29
-
-Two fresh agents using the same model/settings completed onboarding and all
-four exchange phases through the compiled CLI. Alice used 17 calls in total;
-Bob used 18. Alice's invitation was handed to Bob as a private file. Bob
-accepted with Alice's pinned DID and sent the challenge; Alice learned it only
-from her inbox and sent the exact `ack:` response. Bob then read and checked it
-through his inbox. Both sender status queries confirmed delivery.
-
-Independent grading passed all checks: one mutual active Connection, the exact
-locally signed invitation/confirmation in retained protocol evidence, two
-logical messages with the expected content/direction/epoch, delivered inbox
-copies and terminal sender status, no subscription Grants, and no recorded
-secret or command-boundary violations. All actor commands succeeded. This is
-one same-provider trial with a private PLC fixture, not a reliability rate or
-an agent-to-agent public federation proof.
-
-Deterministic Connection smoke proof also passed ambiguous commit/send retries,
-changed-input rejection, wrong peer pins, bidirectional delivery, removal cutoff,
-and schema rollback guards. The full CLI suite (33 tests), Connection/browser
-authorization integration, federation integration, and both package typechecks
-passed. Existing browser approvals were preserved across migration 0083's
-rollback/reapplication before any CLI approval existed.
-
 ## Ongoing-use reliability cases
 
 The deterministic regression gate now includes interrupted waits, resuming a

@@ -1,76 +1,9 @@
 # Passkey Authentication
 
-Status: approved reference-provider direction and implementation checklist.
+Reference-provider authentication and recovery behavior.
 This document defines provider-local account authentication, not a Hail
 federation requirement. Hail protocol authority remains defined by the
 specifications in [`../spec`](../spec).
-
-## Production Canary Status
-
-On October 22, 2026, Haili deployed provider-local passkey authentication and
-the session-backed thin GUI at `https://haili.app`. The canary passed desktop
-cross-device registration, desktop login, direct smartphone biometric login,
-inbox access and logout. The temporary API credential was revoked, its server
-copy was deleted, and the enrollment mount and button were removed in commit
-`0a4bd82`.
-
-Commit `473b24b` added recent-verification-gated passkey listing, labeling,
-enrollment and revocation. The canary then enrolled independent Samsung Pass
-and Google Password Manager credentials, signed out, and authenticated using
-the Google credential alone.
-
-Commit `9f0d263` added migration 55, owner-proof replacement enrollment and
-account-wide session revocation. Its guarded production deployment completed on
-October 22, 2026. The canary signed in with Samsung Pass, revoked the old Google
-credential, used the retained owner identity proof to enroll a replacement
-Google credential, authenticated with it, revoked every account session, and
-authenticated with it again. Samsung and the replacement Google credential
-remain active. The recovery bearer files were deleted, no API credential was
-restored, and the public PLC data remained exactly equal to the reviewed data.
-
-Commit `98942e0` added migration 56 and the `hailp` system-browser authorization
-code flow. Its guarded Haili deployment completed on October 22, 2026. The Linux
-canary passed passkey approval, loopback callback, PKCE exchange, private scoped
-credential storage, account lookup, inbox access and exact retry. The temporary
-browser-login state file was deleted after verification; the resulting
-least-privilege CLI credential remains active until its normal 30-day expiry.
-The existing browser session survived a guarded provider restart. The canary's
-session was then aged past the 30-minute idle limit in production, rejected on
-its next request and successfully replaced through normal passkey sign-in.
-Chromium 152's built-in CTAP2 USB virtual authenticator then registered a
-resident, user-verified passkey and completed accountless login. The temporary
-virtual credential was revoked afterward; only the intended Samsung and Google
-passkeys remain.
-
-Commit `e04985b` added optional post-signup passkey enrollment using a distinct
-client-generated token, provider-side hash and private `0600` enrollment file.
-Commit `561b8ea` added bounded privacy-safe authentication events. A production
-refusal emitted only its fixed operation, outcome and status; the supplied
-origin and body were absent. The canary then obtained temporary
-`account:read`/`credentials:write` authority through owner proof, rotated it,
-verified exact retry and terminal source revocation, and revoked the replacement.
-All temporary rotation credentials and state were deleted; the least-privilege
-browser credential remains healthy.
-
-Commit `9b41cab` removed the legacy GUI credential enrollment proxy entirely.
-Initial and replacement enrollment now use the short-lived owner-authorized,
-recent-passkey or owner-proof paths described below; no long-lived credential or
-private key is exposed to browser JavaScript. The hardened release was deployed
-to all three providers on October 22, 2026.
-
-The account-safety gate completed in this order:
-
-1. ~~Add passkey list, label, step-up enrollment and revocation UI/API operations.~~
-2. ~~Enroll and test a second independent authenticator for the canary.~~
-3. ~~Prevent removal of the current or final passkey; replace it through the
-   owner-proof recovery path first.~~
-4. ~~Implement and exercise owner-proof replacement-passkey enrollment without
-   a custody change or PLC operation.~~
-5. ~~Add recent-verification-gated account-wide session revocation and tests.~~
-6. ~~Publish passkey-loss and recovery guidance before general enrollment.~~
-
-Do not restore the revoked bootstrap API credential to implement this phase.
-Use a fresh passkey step-up or the existing owner-proof trust boundary.
 
 ## Goals
 
@@ -302,19 +235,17 @@ must not reveal whether a DID, address, account or credential exists.
 
 ## GUI Integration
 
-The current GUI reads one fixed server-side credential file. The passkey slice
-replaces that deployment model with per-user provider sessions:
+The GUI uses per-user provider sessions:
 
 ```text
 browser -> provider passkey ceremony -> secure session cookie
         -> account-scoped GUI requests -> existing account services
 ```
 
-The browser receives neither a Hail private key nor the provider's long-lived
-API credential. Server-rendered GUI routes resolve the authenticated account
-from the session instead of `HAIL_GUI_CREDENTIAL_FILE`. The fixed credential
-remains available only as a rollback path during canary rollout and is removed
-after session authentication is proven.
+Routine account pages receive neither Hail private keys nor long-lived API
+credentials. Server-rendered routes resolve the authenticated account from the
+session. Signup has a separate, transient owner-key boundary documented in
+[public authentication](public-authentication.md); there is no fixed shared GUI credential.
 
 ## `hailp` And Native Application Login
 
@@ -394,128 +325,17 @@ the browser.
 - Keep owner-signature and recovery checks at their existing trust boundaries;
   passkey login must not introduce a managed fallback.
 
-## Implementation Checklist
+## Remaining validation and options
 
-### 1. Freeze the reference profile
+- Record supported browser/platform minimums; deployed algorithms are ES256 and RS256.
+- Optional conditional mediation needs feature detection.
+- Complete the real-device matrix across Android, iOS, macOS, Windows and Linux.
+- Exercise synced passkeys, hardware keys and phone-based cross-device authentication.
+- Verify `hailp` system-browser login on each supported desktop platform.
 
-- [x] Confirm provider RP ID and allowed production/development origins.
-- [x] Confirm opaque account user-handle representation and maximum size.
-- [x] Select a maintained Bun-compatible server WebAuthn library.
-- [ ] Record browser/platform minimums; deployed algorithms are ES256 and RS256.
-- [x] Define step-up freshness; session lifetimes are 30 minutes idle and 12
-      hours absolute.
-- [x] Define initial API-credential scopes issued through browser authorization.
-
-### 2. Add durable server state
-
-- [x] Add passkey credentials with unique credential IDs, account/generation,
-      public key, counter, backup/transports metadata and lifecycle timestamps.
-- [x] Add purpose-bound registration/authentication challenges with expiration
-      and atomic consumption.
-- [x] Add hashed server sessions with account/generation, scope, expiry and
-      revocation state.
-- [x] Add hashed one-use authorization codes with client, redirect URI, PKCE,
-      account/generation and expiry bindings.
-- [x] Make schema rollback refuse removal of active passkey-only access without
-      an explicit alternate-access cutover; sessions may be invalidated safely.
-
-### 3. Implement server ceremonies
-
-- [x] Registration options and verified registration completion.
-- [x] Accountless discoverable authentication options and verified completion.
-- [x] Session authentication, rotation, logout and account-wide revocation.
-- [x] Passkey list, label, add and revoke operations with step-up checks.
-- [x] Single-use enrollment capability from onboarding, current access and
-      owner-proof recovery.
-- [x] Authorization-code creation and PKCE exchange for `hailp` clients.
-- [x] Exact origin, RP ID, challenge, type, user-verification, size and replay
-      validation at every boundary.
-
-### 4. Convert the thin GUI
-
-- [x] Add explicit passkey sign-in and logout pages.
-- [ ] Add optional conditional mediation behind feature detection.
-- [x] Resolve every account route from the authenticated session.
-- [x] Add session expiry and reauthentication UX without exposing account
-      existence or private credentials.
-- [x] Add passkey-management UI with recent-auth confirmation.
-- [x] Retain the fixed canary credential only behind a rollback configuration.
-- [x] Remove `HAIL_GUI_CREDENTIAL_FILE` after the production canary passes.
-
-### 5. Add `hailp` browser login
-
-- [x] Add provider selection, state and PKCE generation.
-- [x] Open the system browser and bind a random loopback callback.
-- [x] Exchange the one-use code and preserve current private credential-file
-      permissions and output contracts.
-- [x] Handle cancellation, callback collision, timeout, browser-open failure,
-      provider mismatch and exact retry without leaking code/verifier material.
-- [x] Issue an independent private system-browser enrollment after signup.
-- [x] Use system-browser enrollment after owner recovery.
-
-### 6. Cover recovery and transfer
-
-- [x] Owner-controlled identity-proof enrollment.
-- [x] Deliberate top-recovery-proof enrollment for both custody profiles.
-- [x] Reject provider-held managed identity as independent owner recovery.
-- [x] Invalidate old sessions/codes after custody or serving-generation change.
-- [x] Prove that source passkeys do not authenticate at the destination.
-- [x] Register a fresh destination passkey after owner-controlled and managed
-      provider transfer.
-- [x] Prove address changes preserve passkey account linkage.
-
-### 7. Test security and interoperability
-
-- [x] Registration and login success with a software/virtual authenticator.
-- [x] Challenge replay, expiry, wrong purpose and concurrent consumption.
-- [x] Authentication rejects wrong origin, RP ID, ceremony type, signature and
-      user-verification flag using real signed ES256 assertions.
-- [x] Registration rejects the corresponding malformed ceremony inputs using
-      a real ES256 `none`-attestation response.
-- [x] Duplicate credential ID, unknown credential and inactive generation.
-- [x] Session fixation, expiry, logout, revocation, CSRF and account isolation.
-- [x] Authorization-code replay, wrong redirect URI, wrong provider and invalid
-      PKCE verifier.
-- [x] Counter behavior for device-bound and synced credentials.
-- [x] Generic errors and rate limits that resist account enumeration.
-- [x] Restart and lost-response tests for every durable ceremony.
-- [ ] Manual matrix: Android, iOS, macOS, Windows and Linux browsers.
-- [ ] Manual matrix: synced passkey, hardware security key and phone-based
-      cross-device authentication.
-- [ ] `hailp` login on Linux, macOS and Windows.
-
-Current manual interoperability evidence:
-
-| Platform/path | Status |
-| --- | --- |
-| Linux desktop browser with Android cross-device QR | Passed on Haili canary |
-| Android direct biometric login with Samsung Pass | Passed on Haili canary |
-| Google Password Manager passkey enrollment/login | Passed on Haili canary |
-| Chromium 152 CTAP2 USB virtual authenticator | Passed registration/login on Haili canary; credential removed |
-| FIDO2 hardware security key | Pending device access |
-| iOS/iPadOS and macOS | Pending device access |
-| Windows Hello | Pending device access |
-| `hailp` browser login: Linux | Passed on Haili canary |
-| `hailp` browser login: macOS/Windows | Pending device access |
-
-### 8. Roll out safely
-
-- [x] Back up provider state and deploy schema/runtime through the guarded
-      release procedure.
-- [x] Enable registration for one Haili canary using its current trusted access.
-- [x] Register and independently authenticate with at least two recovery-capable
-      authenticators.
-- [x] Exercise login, expiry, restart, revocation and recovery on the canary.
-- [x] Enable GUI sessions through the reversible canary rollout.
-- [x] Exercise `hailp` browser login on Linux.
-- [x] Exercise credential rotation using separately authorized
-      `credentials:write` access.
-- [x] Confirm external health and successful guarded backup/deployment checks.
-- [x] Confirm bounded error rates and privacy-safe audit events.
-- [x] Remove and revoke the fixed GUI credential after canary login and logout.
-- [x] Exercise the retained owner-proof recovery path before general enrollment.
-- [x] Publish user guidance for passkey loss, provider transfer and account
-      recovery before general enrollment.
+Virtual-authenticator tests and mobile viewport emulation do not establish those
+platform guarantees. Authentication, session and recovery requirements below remain
+ongoing acceptance criteria.
 
 ## Acceptance Conditions
 
@@ -535,7 +355,7 @@ The first slice is complete when:
   provider credentials remain terminal;
 - replay, wrong-origin, stale-generation, cross-account and lost-response tests
   pass; and
-- the fixed GUI credential has been removed after a reversible canary rollout.
+- private GUI routes resolve an authenticated account without a fixed shared credential.
 
 ## Deferred Options
 

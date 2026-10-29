@@ -1,9 +1,6 @@
-# Active Grant updates and consent refresh — milestone-4 slice
+# Active Grant updates and consent refresh
 
-This slice is deployed to both private-POC providers with migration-35
-[binding renewal](binding-renewal.md); Grant revisions themselves need no new
-schema migration. Both custody profiles and cross-provider acknowledgements were
-checked over real HTTPS.
+Active Grant updates retain explicit selection, fresh consent where required and exact retries.
 
 ## Explicit selection and signed revisions
 
@@ -86,25 +83,9 @@ creation also supports an additive `scope` field while preserving legacy single-
 category requests. Federation remains the existing signed snapshot/If-Match
 protocol, with no new selector or unsigned blocking mode.
 
-## Verification
+## Signing-key boundary
 
-Real HTTPS CLI/PostgreSQL tests exercise both custody profiles: multi-category
-creation, offline restrictions/shorter expiry, rejection of silent expired
-permission expansion, explicit renewal with fresh evidence, response loss after
-commit, exact and superseded retries, consent refresh, stale/missing choices,
-address reassignment, a same-revision fork, read-only authority, current signer
-epoch mismatch and terminal revocation. Immutable initial bytes and all six
-revision/outbox entries are retained. Existing receiver/repository/service gates
-cover signature, predecessor and restriction-consent enforcement.
-
-The [historical-key decision](grant-key-reconciliation.md) is defined separately;
-this implementation refuses new signer epochs rather than guessing historical
-authority. Historical-key execution is not enabled by this release.
-
-Recorded gates: **19 focused PostgreSQL/HTTPS integrations**, **108 provider
-tests** without DB environment (**63 integrations skipped** in that run),
-**5 client tests**, both repositories' typechecks/builds and diff checks passed.
-The focused gate covers new revisions plus existing repository, binding/signup,
-account access, rotation and messaging paths; it does not claim all 63 database
-integrations ran. Multi-process test harness budgets do not alter production
-expiry, signature or processing limits.
+The [historical-key decision](grant-key-reconciliation.md) governs signer changes.
+Ordinary update/revocation paths reject a new signer epoch instead of guessing
+historical authority. Acknowledged successor handling in custody/transfer workflows
+is separate from general reconciliation of unacknowledged history.

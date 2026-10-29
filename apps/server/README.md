@@ -6,23 +6,17 @@ This repository is under active development. Use the
 [single public-provider deployment profile](deploy/public/README.md) for a new
 strict-public provider.
 
-## Current alpha and guides
+## Start here
 
-The public alpha runs three strict-public providers against canonical
-`plc.directory`. Independently hosted `haili.app` has a permanent
-owner-controlled canary and enables public provider transfer; the disposable
-`hailproto.app` and `hailproto.dev` providers share another VPS and keep transfer
-disabled. All three completed monitored onboarding, Sender Profile publication
-and reciprocal Grant delivery. The private-PLC POC remains available for
-destructive transfer/recovery rehearsals.
+- [Deploy a new provider](deploy/public/README.md): host/domain, database, HTTPS, monitoring and signup.
+- [Create the first administrator](../../docs/provider-admin-setup.md): vault, monitored account, passkey and explicit operator grant.
+- [Account CLI](../cli/README.md) and [workflows](../cli/docs/cli-workflows.md).
+- [Custody, transfers and recovery](../cli/docs/custody-transitions.md).
+- [Monitor deployment](../plc-monitor/deploy/public/README.md).
 
-- [Single public-provider deployment profile](deploy/public/README.md).
-- [User-device vault/signing client](https://github.com/j4crev/hailproto/tree/main/apps/cli#readme).
-- [Transfer/recovery checkpoints](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/custody-transitions.md#post-export-abandonment-and-recovery).
-- [Public monitor deployment](https://github.com/j4crev/hailproto/blob/main/apps/plc-monitor/deploy/public/README.md).
-
-Original private Alice/Bob identities remain historical POC fixtures. The public
-canaries are real `plc.directory` identities and must not be reused as production users.
+The reference implementation supports public PLC authority and separately gated
+private fixtures. Feature availability depends on configuration; this README is
+not a live deployment inventory.
 
 ## Provider administration
 
@@ -220,7 +214,7 @@ defines compatibility, output/error semantics and bounded read convenience.
 The client version is 0.1.0 and its JSON adds `cliContractVersion: 1`; provider
 response shapes and API paths remain unchanged. Command-specific help, deliberate
 origin/account assertions and a compiled executable are documented in the
-[developer workflows](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md#developer-and-agent-operation-contract-v1).
+[developer workflows](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md#conventions).
 
 Use `Authorization: Bearer <token>` over the configured provider HTTPS origin.
 These paths are the reference provider's client API, not standardized Hail
@@ -286,12 +280,11 @@ lost-response revocation retry, expired/revoked credentials and rejection of
 redirects/insecure credential files. The user signer and vault remain outside
 the provider; no user identity private key is stored there.
 
-### Owner-controlled transfer Offer/status/cancellation (local milestone 5)
+### Owner-controlled transfer Offer/status/cancellation
 
-`POC_SELF_SERVICE_TRANSFER=true` enables a reference account-API slice only on
-the pinned private PLC profile. It is deployed to both migration-39 POC hosts.
-It reuses the existing signed invitation, destination-origin Offer
-delivery and no-fence cancellation services:
+The public managed runtime or explicitly private `POC_SELF_SERVICE_TRANSFER`
+gate enables owner-controlled transfer operations. They reuse signed invitation,
+destination-origin Offer and no-fence cancellation services:
 
 | Operation | Scope | Result |
 | --- | --- | --- |
@@ -320,20 +313,20 @@ which can fence the source, with exact retained retries. No source
 bearer is sent there. The source cancellation endpoint returns a no-fence receipt;
 the client retains it and forwards signed evidence to the existing destination
 cancellation endpoint, reporting completion only after target acknowledgement.
-The client's offline `transfer sign-cutover` now reuses the full-vault private-POC
-signer, binding exact operation/consent/binding output paths in retained state.
-`transfer complete` now uses private-POC signed completion/retirement endpoints
+The client's offline `transfer sign-cutover` uses the owner's full-vault signer, binding exact operation/consent/binding output paths in retained state.
+`transfer complete` uses signed completion/retirement endpoints
 to stage, submit the exact PLC operation, publish/verify the binding, activate and
 retire. Destination credentials use the existing explicit owner-login API; source
 tokens are not exported or forwarded.
 
-| Reference private-POC operation | Authorization | Result |
+| Reference provider operation | Authorization | Result |
 | --- | --- | --- |
 | `POST /.well-known/hail/transfers/completions` | Exact source snapshot plus owner-signed consent/operation/binding | Stage or resume exact retained artifacts, submit cutover, verify address and activate; signed activation receipt |
 | `POST /.well-known/hail/transfers/retirements` | Destination-signed activation receipt verified against current PLC and source fence | Exact idempotent source retirement, HTTP 204 |
 
-Both endpoints require `POC_SELF_SERVICE_TRANSFER=true` on the pinned private PLC
-profile and `application/hail-transfer+json`, without content coding. Completion
+Private execution requires `POC_SELF_SERVICE_TRANSFER=true` on its pinned registry;
+public execution requires the public runtime below. Requests use
+`application/hail-transfer+json` without content coding. Private completion
 accepts `{snapshot, consent: {payload, signature}, operation, binding}` with
 base64url operation/binding bytes, at most 100 MB JSON and a 64 MiB manifest;
 retirement accepts an exact `{payload, signature}` receipt within the existing
@@ -351,106 +344,27 @@ signed activation receipt. Source retirement verifies that receipt against curre
 destination PLC authority and the exported snapshot, retaining it durably. A failed
 step never releases the source fence or reservation. No user private key or bearer
 credential is accepted as replacement for these signatures.
-See the [client workflow](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md#owner-controlled-transfer-offer-review-and-source-cancellation).
+See the [client workflow](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md#transfer-an-owner-controlled-account).
 
-`test/transfer-cancellation.integration.test.ts` covers authenticated route
-scope/account isolation, exact Offer retries, unresolved expiry, source fences,
-credential revocation and signed cancellation receipt/status, including client
-retry after a lost target cleanup acknowledgement. The private-POC migration test
-now exercises client Offer/selection with actual protocol routes and PostgreSQL,
-including lost selection and export responses after durable source transitions,
-before proving actual `hailp` exact cutover signing, legacy signer compatibility,
-API-driven completion/retirement and fresh destination login. Changed signing
-paths and tampered snapshots fail. Completion covers address verification failure,
-expired-consent fresh-write rejection, lost PLC/activation/retirement responses,
-exact active retries after consent expiry and changed-artifact rejection. Adjacent
-fence/transfer tests retain message/status/outbox continuity proof.
-These new transfer tests use in-process
-HTTP route transport; the account-API TLS tests cover HTTPS CLI transport.
+### Lifecycle and transfer configuration
 
-The [milestone-5 custody/return design](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/custody-transitions.md)
-defines owner-controlled ↔ managed transitions, removal of outgoing managed
-identity authority, historical evidence and lifecycle generations. These paths
-remain disabled. Current DID-keyed fences/account uniqueness and insert-only
-activation do not support returning to a former provider. Post-export import
-invalidation alone cannot cancel a signed PLC operation; the design requires
-protective owner-signed PLC state before never-active source resumption, or a
-latest-state reverse transfer after destination activation.
+Serving generations bind credentials, owner challenges, admitted requests and worker
+leases to one account lifecycle. Returns archive retired evidence and atomically
+replace only the DID's current working projection. Stale tokens and workers do not
+regain authority. See [custody, return and recovery rules](../cli/docs/custody-transitions.md).
 
-### Serving/history foundation (local migration 36)
-
-Migration 36 adds separate generation-1 account metadata and append-only retired
-transfer history. It changes no existing signed/account/credential row shape;
-old v2 snapshot imports and bearer authentication remain compatible. Existing
-retired transfers are backfilled, and future retirements archive exact
-fence/export/consumed-authorization records in the same transaction. History
-survives working-row cleanup and rejects update/delete/truncation or conflicting
-archival retries. A matching retained export is required for retirement.
-
-Generation advancement is deliberately constrained to `1` until credentials,
-challenges and all admitted/leased workers enforce generation ownership. This
-does not by itself enable return transfers or release any source fence. It is
-deployed as part of the migration-39 release; migrations 37/38 provide the later
-reviewed generation-advancement path.
-
-The guarded rollback script is
-`migrations/rollback/0036_serving_lifecycle_history.sql`. It requires no later
-migration and exact redundancy with all legacy fence/export/authorization rows
-before dropping only the additive schema. It refuses to discard the sole archive
-copy. Upgrade/repeat/rollback/re-upgrade preservation and legacy import/auth checks
-pass alongside actual signed retirement archival and adjacent transfer/access
-regressions: 32 focused tests on disposable databases. See the
-[migration evidence and next stage](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/lifecycle-history-migration.md).
-
-### Generation-bound return (local migrations 37/38)
-
-Migration 37 binds credentials, owner-login challenges and worker lease tokens
-in side tables without altering signed v2/account/challenge shapes. Native
-transaction-local admission is checked before SQL reads and at the existing
-account-row write guard. HTTP and worker entry points retain their admitted
-generation through asynchronous work; old tokens/challenges/claims cannot gain
-new authority because a logical account ID becomes active again.
-
-Migration 38 archives incoming import/invitation/reservation/public-key evidence
-when an imported account retires, omitting prepared private ciphertext. Together
-with migration 36's outgoing archive, this permits exact retired-slot recycling
-without erasing history. Returning materialization requires the old retired
-checkpoint and the latest signed source snapshot, preserves immutable and
-delivery/reply/outbox checkpoints, revokes old credentials and advances one
-generation under the account lock. Shared collocated Grant ownership is retained;
-conflicts roll the whole transaction back. Attempts/deadlines/retry schedules
-survive, but old lease tokens do not.
-
-`POC_SELF_SERVICE_RETURN=true` requires `POC_SELF_SERVICE_TRANSFER=true` on the
-pinned private PLC. It enables only owner-controlled returns preserving the
-same identity/recovery keys, with a fresh available username. Upgrade all
-serving processes/workers before enabling it; mixed-version operation remains
-generation-1 only. The existing `hailp account transfer …` flow is reused, followed
-by explicit fresh destination login. Both live providers now run migration 39
-with transfer/return enabled, including the real HTTPS round-trip proof.
-
-The native admission adapter currently captures an O(accounts) provider-wide
-generation vector. An unrelated advancement may conservatively invalidate a
-concurrent job; per-DID capture is the throughput upgrade path.
-`migrations/rollback/0037_generation_admission.sql` rolls back 38/37 only before
-advancement and while incoming archive records retain exact legacy copies. It
-refuses rollback after generation 2 or detachment; application downgrade after
-advancement is not supported. See
-[return proof and boundaries](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/generation-bound-return.md).
-
-`POC_MANAGED_TRANSFER=true` additionally enables the managed-custody invitation,
-fence, export, configured-private-PLC completion, activation and retirement path.
-It is disabled by default and requires `POC_ACCOUNT_ACCESS`,
-`POC_SELF_SERVICE_TRANSFER` and `POC_SELF_SERVICE_RETURN` on a non-public PLC.
-Its reads are retained as `poc-local`; this flag cannot enable public-PLC or
-strict-public operation.
+`POC_SELF_SERVICE_RETURN=true` requires the private transfer gate.
+`POC_MANAGED_TRANSFER=true` additionally requires private account access, transfer
+and return gates on a non-public registry. These retain `poc-local` evidence and
+cannot enable strict-public operation. All serving processes must understand
+serving generations and the retained snapshot versions before accepting transfers.
 
 The separate `PUBLIC_MANAGED_TRANSFER` runtime is **disabled by default**. It
 requires `NODE_ENV=production`, `PLC_DIRECTORY_URL=https://plc.directory`,
-`PLC_AUTHORITY_PROFILE=strict-public-v1`, one to three reviewed `PLC_PUBLIC_READERS`, and
-the local deployment operator in `PLC_PROVIDER_OPERATORS`. Each provider keeps
-its configured readers outside its own operator and origin; no peer registry or
-second provider declaration is required at startup. All private account access,
+`PLC_AUTHORITY_PROFILE=strict-public-v1` and the local operator declaration in
+`PLC_PROVIDER_OPERATORS`. Canonical audit reads are the default; explicitly configured
+`PLC_PUBLIC_READERS` provide reviewed ordered fallback. Operator declarations do
+not prove administrative independence. All private account access,
 onboarding, transfer, return and schema-rehearsal gates must be off. Public
 onboarding may remain enabled.
 `PLC_MANAGED_MONITOR_ORIGIN` and `PLC_MANAGED_MONITOR_PUBLIC_KEY` pin the independent
@@ -461,7 +375,7 @@ This runtime wires owner-recovery account access, owner-controlled and managed
 transfer APIs/routes/workers,
 and ordered validated reader fallback for routine resolution and public cutover.
 Public staging rejects private registration history before submission. Activation
-requires a reviewed bootstrap v2 monitor report, a fresh validated reader,
+requires reviewed monitor coverage tied to its bootstrap, a fresh validated reader,
 exact destination roles/state, and retained evidence selected/sealed atomically
 with ownership. The exact current operation/state is also read back directly
 from canonical `plc.directory`. Missing, stale, invalid or gapped evidence blocks
@@ -479,38 +393,19 @@ Owner-controlled completion uses the equivalent two-phase
 `/.well-known/hail/transfers/completions` flow. Retry `hailp account transfer complete` with
 `--monitor-attestation` after the monitor approves the exact operation.
 
-All implementation proof uses injected readers/PLC transport, including strict
-`A → B → A`, submission ambiguity, retries, monitor refusals, reader outages,
-history/Grant continuity, credential revocation and generation fencing. This is
-not public PLC evidence; no deployment flag or registry was switched.
+### Post-export recovery boundary
 
-### Never-active post-export recovery (internal migration 39)
-
-The integration-only `PrivatePocTransferAbandonment` coordinator implements
-independent owner-recovery approvals, staged-target invalidation, protective
-source PLC verification, target release and exact source resumption. It is not
-registered as public routes. An active
-destination is rejected and requires latest-state reverse transfer. Submission,
-invalidation, publication and activation share the import-row serialization
-point; a protective owner-signed successor prevents delayed external PLC replay.
-
-Migration 39 retains signed coordination receipts and original source/target
-evidence, plus retired observation history before old import slots are recycled.
-Nonce tombstones prevent old grants/invitations reopening the abandoned transfer.
-Resumption preserves accepted state, revokes old credentials/leases and advances
-the source generation only after current protective authority, target release
-and source binding verify. Unknown PLC changes or missing counterpart/binding
-proof leave the source fenced. Exact receipts support restart/lost responses.
-The guarded rollback refuses accepted abandonment or sole-copy observation loss.
-Its schema remains in the migration-39 rollout, but the coordinator lives only in
-test support and no public recovery route or command is enabled. See the
-[private recovery proof](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/post-export-recovery.md).
+Never-active private-PLC abandonment is an integration-only coordinator, not a
+public endpoint or CLI command. It requires independent owner approval, target
+invalidation/release and current protective PLC authority before source resumption.
+Active or uncertain targets require forward completion or a new latest-state reverse
+transfer. See [post-export recovery](../cli/docs/custody-transitions.md#post-export-abandonment-and-recovery).
 
 ## API-first account management direction
 
 ### Active Grant revisions
 
-The deployed slice adds active signed Grant updates through owner proposals/import
+Active signed Grant updates are available through owner proposals/import
 and explicit managed signing, plus multiple selected categories without wildcards.
 Expansion, scope switches, expiry extension and consent refresh reverify exact
 current address/profile evidence; restrictions preserve consent without sender
@@ -526,13 +421,11 @@ and [key decision](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/g
 
 ### Address Binding renewal (migration 35)
 
-The deployed slice adds `GET/POST /api/v1/account/binding` and
+The provider exposes `GET/POST /api/v1/account/binding` and
 `hailp binding show/renew`. Reading exposes selected signed expiry and seven-day
 reminder metadata; renewal needs deliberate `account:write` authority, current
 identity/service ownership and an active/public account. Migration 35 expands
-the scope constraint without upgrading existing credentials. Both custody
-profiles passed real HTTPS renewal/retry/history proof on both POC origins;
-the proof covered both custody profiles.
+the scope constraint without upgrading existing credentials. Both custody profiles retain the same renewal and exact-retry contract.
 
 Provider-domain renewals retain the 90-day maximum and immutable signed history.
 Hosting commits before compare-and-select publication; exact retries repair
@@ -540,7 +433,7 @@ verification failures and never reselect a superseded binding. Owner-controlled
 signing stays identity-only; managed signing requires explicit managed custody.
 Expired/unauthorized credentials, changed keys and source fences cannot renew.
 Existing Grants and completed signup evidence are retained. See the
-[renewal contract/proof](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/binding-renewal.md).
+[renewal contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/binding-renewal.md).
 
 ### Passkey browser sessions (migration 54)
 
@@ -553,30 +446,21 @@ use `PASSKEY_ORIGIN=http://localhost:5173` with `PASSKEY_RP_ID=localhost`.
 Sessions use hashed random tokens, a 30-minute idle limit and 12-hour absolute
 expiry. The browser cookie is `HttpOnly`, `SameSite=Lax`, and `Secure` on HTTPS.
 Passkeys and sessions remain provider-local, generation-bound access state and
-are not included in portable custody data. Initial registration requires an
-existing `credentials:write` API credential; owner-proof enrollment and passkey
-management remain later phases described in
+are not included in portable custody data. Initial registration uses a trusted
+onboarding, existing-account or owner-proof
+enrollment capability. Passkey management and replacement enrollment are described in
 [`../../docs/passkey-authentication.md`](../../docs/passkey-authentication.md).
 
 ### Credential lifecycle extension
 
-The deployed API-plus-CLI slice adds `GET /api/v1/account/credentials` for
+The account API exposes `GET /api/v1/account/credentials` for
 account-scoped inventory and optional `scopes` in credential issuance for
 deliberate subsets. Both require `credentials:write`; inventory omits tokens/
 hashes and returns at most 50 entries with an `after`/`next` UUID cursor.
 Scope escalation is 403; changed-scope, cross-account and revoked/expired token
 retries are 409. Existing `{token}` inherited issuance remains supported.
-See the [credential lifecycle contract/proof](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/credential-lifecycle.md)
+See the [credential lifecycle contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/credential-lifecycle.md)
 and [post-expiry access design](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/account-access-recovery.md).
-The migration-34 login/recovery slice described below is deployed to both POC
-providers.
-
-The account response also includes current credential ID/expiry metadata.
-`hailp credential rotate --output <new-private-file>` uses existing issuance,
-account reads and revocation with a retained private rotation sidecar. It verifies
-the replacement and preserves scopes before revoking the original; fresh-process
-retries recover successful issuance/revocation even after response loss. This
-does not authenticate expired credentials or modify identity/recovery authority.
 
 ### Browser batch unsubscribe
 
@@ -627,8 +511,8 @@ review action; complete pending batch reviews before a code rollback.
 guard rejects unsupported registry configurations. Migration 34 adds only a
 provider-local bounded challenge table; it changes no existing credential/custody
 data and is not exported with portable DID state. Existing routes remain usable
-with the access gate disabled. Both POC providers now enable it; both custody
-profiles passed real HTTPS expiry/recovery/rotation/scope proof on each host.
+with the access gate disabled. The public managed runtime also wires this API
+under strict-public authority; private flags must remain off in that configuration.
 
 The client explicitly selects DID, signer and scopes. Owner-controlled identity
 proof and explicit owner-top-recovery proof are accepted only with fresh verified
@@ -645,14 +529,10 @@ rate buckets, bounded retention and protected generic completion responses reuse
 existing provider primitives. See the [recovery contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/account-access-recovery.md)
 for the current behavior.
 
-### Extended CLI slice (migration 33)
+### Private-PLC onboarding
 
-The code adds explicit private-PLC self-service signup, owner-controlled
-or managed identity with owner recovery, scoped credential creation/revocation,
-Grant proposals/listing, sending, inbox/status and invited replies. Both POC
-providers were rolled out on October 9; both custody profiles passed HTTPS
-signup/account/credential smoke checks on each host. Follow the
-[CLI workflows](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md).
+The [CLI workflows](../cli/docs/cli-workflows.md) cover ordinary account operations.
+Private onboarding is a test/rehearsal profile with separate registry guards:
 
 `POC_SELF_SERVICE_ONBOARDING=true` enables `POST /api/v1/onboarding` and
 `POST /api/v1/onboarding/{account_id}` only on the pinned private PLC service
@@ -736,7 +616,7 @@ renewal and managed-migration acceptance conditions.
 
 ## Development
 
-Build the sibling codec first, install dependencies, and create local
+Build the workspace codec and vendored PLC dependency first, install dependencies, and create local
 configuration:
 
 ```bash
@@ -813,7 +693,7 @@ Local revocation commits before publication and immediately remains
 authoritative even if the remote notification needs retries. A revoked Grant ID
 cannot become active again.
 
-## Single-Use Replies (Private-PLC POC)
+## Subscription reply capabilities
 
 Reply authorization follows
 [`../../spec/envelopes.md`](../../spec/envelopes.md#reply-authorization):
@@ -863,7 +743,7 @@ The integration test skips when `DATABASE_URL` is absent.
 
 ## Backend Hardening
 
-The first hardening slice shares one response schedule and bounded validation
+Envelope submission and delivery-status push share one response schedule and bounded validation
 budget between envelope submission and delivery-status push. The provisional
 750 ms response minimum, 10-second processing deadline, and 32-work provider
 gate are separate from the current public-provider calibration.
@@ -873,7 +753,7 @@ and no redirects; the directory base is configured rather than derived from
 an untrusted DID. PLC operation submission remains delegated to the pinned
 official client, preserving onboarding's exact-operation retry semantics.
 
-To exercise the initial response and PLC rotation fixtures without a running
+To exercise response and PLC rotation fixtures without a running
 provider database:
 
 ```bash
@@ -891,101 +771,22 @@ DATABASE_URL=postgresql://hail:password@127.0.0.1:5432/hail \
   bun --bun vitest run test/onboarding-restart.integration.test.ts
 ```
 
-The PLC fixture validates a signed operation-log update and current endpoint
-selection. It does not simulate the fenced provider-state transfer required
-for a real service migration. The first bounded-processing and PLC-read slice
-is deployed to both public POC providers; tested runtime and backup details
-are no longer retained as release documentation. Further sustained-load
-calibration and broader migration failure/recovery coverage remain outstanding. One live
-private-PLC transfer has delivered a previously accepted message exactly once.
+PLC rotation unit fixtures do not simulate complete fenced state transfer. Use
+the transfer integration suites for accepted-state continuity and lifecycle races;
+qualify load and recovery behavior for each deployment separately.
 
-## Portable Provider Cutover (Disposable Rehearsal)
+## Provider cutover
 
-Migrations 13–31 add DID-scoped source write fences, authenticated immutable
-snapshots, destination-owned prepared operational keys, a signed user-consent
-and PLC operation check, and an inactive destination import. The activation
-service verifies two independently witnessed current PLC reads and monitor
-coverage for the exact top-user-key-signed operation, with no fixed wait, and
-the user's externally published Address Binding before importing all state in
-one transaction. It renews the Sender Profile with the destination messaging
-key, normalizes inherited leases, and gives the source a signed retirement
-receipt. The source never receives the destination private key; the snapshot
-contains **no encrypted private-key ciphertext**, raw bearer tokens, or other
-private secrets from the source. One-way authorization hashes such as
-`body_authorizations.token_hash` are retained as intentional continuity data.
+Use the [account transfer workflows](../cli/docs/cli-workflows.md) for supported
+owner-authorized transfers. The [custody reference](../cli/docs/custody-transitions.md)
+describes source fencing, exact snapshots, destination-local keys, serving generations,
+return transfers and the private abandonment boundary. Operator migration entrypoints
+are diagnostics, not an alternative public account ceremony.
 
-Before fencing, the source validates a user-identity-signed Transfer Grant
-naming a **provider domain**, derives that provider's fixed well-known HTTPS
-invitation endpoint, and sends a signed invitation. The destination verifies
-both signatures, prepares keys and returns an inactive signed **Transfer
-Offer** over TLS. The old provider retains origin proof of the offered key.
-The client then directly signs and submits its chosen address under that
-domain to the new provider, which reserves the address atomically in its
-local account namespace and returns a signed receipt. The new provider
-**pushes** a final Transfer Request, signed by the offered key, to the old
-provider's fixed endpoint. The source verifies the exact user selection and
-reservation and consumes the user grant
-atomically with the fence. Neither source messaging nor provider PLC keys can
-issue the user grant or sign the final top-recovery-key PLC operation.
+Run transfer fixtures against isolated disposable source/target databases. Never
+reopen a retired source or restore a stale snapshot to recover an uncertain activation.
 
-The user client can POST its signed grant to the current source's fixed
-`/hail/transfers/grants` endpoint. A `200` returns the origin-verified Offer;
-`202` means invitation delivery remains pending and retrying the **same**
-signed grant retrieves it once available. PostgreSQL-leased source/target
-workers retry pending invitations and final requests after restarts. Rate
-buckets are shared by provider processes. Before fencing, the user can sign
-an exact transfer cancellation: the old provider signs a no-fence receipt,
-and only that receipt allows the target to release an ambiguous submitted
-reservation. Expiry cleanup releases only transfers with no final push.
-
-These commands are operator building blocks, **not a public migration
-procedure**: `transfer:grant` in `../cli` produces a private
-signed domain grant; `migration:invite -- <grant-file> <invitation-file> <offer-file>`
-on the source validates/stores it, sends the invitation to the derived fixed
-well-known HTTPS endpoint, and saves the inactive origin-verified Offer.
-If delivery fails after grant issuance, retry with
-`migration:deliver-invitation -- <local-did> <new-offer-file>` rather than
-reissuing the still-live grant. The user reference client signs and sends an
-Address Selection directly to the new provider; its server reserves the
-address and pushes the final request to the old provider. An ambiguous
-push is retried from the target with `migration:publish-final -- <transfer-id>`.
-The old provider's final-request endpoint returns `204` only after it fences
-the DID; `migration:fence -- <final-request-file> <selection-file> <receipt-file>`
-is an operator diagnostic that still requires origin-proven offer state. Then
-run
-`migration:export` on the source and
-`migration:stage` with separate user-signed consent, exact signed PLC update,
-and fresh user-signed Address Binding. Export and consent files must be private
-(`0600`) and transferred over an authenticated administrative channel.
-The reference client additionally has `transfer:submit-grant` and
-`transfer:cancel` commands. The supported account workflow now lives in
-[`hailp`](../cli/docs/cli-workflows.md); the operator commands above remain
-diagnostic building blocks, not a public transfer procedure.
-The original Alice/Bob POC accounts were created with custodial keys in a private
-directory and **must not be used as portable migration sources**. New user-held
-private-PLC DIDs completed the earlier POC ceremony. Separate
-reference projects now exist at `../cli` for user-controlled
-key generation, encrypted vault recovery and offline signing, and
-`../plc-monitor` for user-run independent PLC monitoring and signed
-coverage attestations. They are reference implementations, not production
-infrastructure. Mobile clients can implement the same signing profile with
-platform-specific secure storage. See the sibling
-`../../docs/portable-custody.md` for the complete trust model.
-
-Test the safe cutover boundaries using two disposable PostgreSQL databases:
-
-```bash
-DATABASE_URL=postgresql://hail:password@127.0.0.1:5432/hail_source \
-TRANSFER_TARGET_DATABASE_URL=postgresql://hail:password@127.0.0.1:5432/hail_target \
-  bun --bun vitest run test/migration-fence.integration.test.ts
-```
-
-The original file-based private-PLC operator ceremony has been retired. New
-private rehearsals use the account API and [`hailp` workflows](../cli/docs/cli-workflows.md);
-the private runtime services and integration fixtures remain for compatibility
-and regression evidence.
-
-### Recipient Trash
+## Recipient Trash
 
 Migration 76 adds `delivered_messages.trashed_at` and account message preferences.
 The provider starts a bounded expiry worker immediately and every 60 seconds.

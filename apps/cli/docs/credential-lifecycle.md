@@ -1,10 +1,7 @@
 # Credential inventory, narrower issuance and rotation
 
-This API-plus-CLI slice is deployed to both POC providers as part of migration 34.
-Inventory, scoped issuance
-and rotation use the existing credential schema; the separate
-[post-expiry login/recovery slice](account-access-recovery.md) adds migration 34
-and an opt-in private-PLC gate. Both are verified on each real HTTPS endpoint.
+Credential inventory, scoped issuance and rotation are account API operations.
+[Owner-proof recovery](account-access-recovery.md) provides fresh access after expiry.
 
 ## Contract
 
@@ -41,7 +38,7 @@ acknowledgement checks reject mismatched prior issuance.
 
 When the selected scopes equal the caller's current inherited set, the client
 sends the old `{token}` request shape for deployed-provider compatibility.
-Narrower scope requests and inventory require this new provider slice; there is
+Narrower scope requests and inventory require provider support; there is
 no fallback that silently widens a requested credential.
 
 ## Resumable rotation
@@ -74,45 +71,8 @@ start/finish issuance; an already issued active replacement can finish revocatio
 without old-token authentication. Migration fences stop progress. This is
 authenticated rotation while access still exists, not post-expiry owner login.
 
-## Regression proof
+## Verification
 
-The existing real-HTTPS CLI/PostgreSQL integration fixture now checks:
-
-- Explicit read-only issuance and order-independent exact retries.
-- A lost HTTPS response **after the database commit**: pending private state
-  retains the original token/scopes; retry returns the same stored credential ID.
-- Changed flags do not overwrite a completed credential file.
-- Read-only credentials cannot inventory/issue; delegated managers cannot add
-  missing scopes, including by reusing a broader existing token.
-- Empty/duplicate/unknown/non-array scopes, mixed revoke/issue inputs, duplicate
-  JSON keys, content encoding and invalid inventory queries are rejected.
-- Cross-account token reuse, expired/revoked token reuse and foreign-account
-  inventory disclosure are rejected.
-- Bounded pagination over more than 50 credentials is complete and duplicate-free;
-  active/expired/revoked metadata includes neither tokens nor token hashes.
-
-Focused command (against a fresh disposable local database):
-
-```bash
-DATABASE_URL=<private-local-test-database-url> bun --bun vitest run \
-  test/credential-rotation.integration.test.ts \
-  test/account-api.integration.test.ts test/self-service.integration.test.ts
-```
-
-Rotation adds real HTTPS CLI process-restart checks for interruption before
-issuance (including recovery with only the sidecar), lost issuance/revocation
-responses, scope/ID/expiry preservation, private files and source-file retention,
-read-only/expired sources, conflicting outputs, cross-account state, expired/
-revoked replacements and a new source fence. Both custody signup fixtures also
-rotate/retry without changing keys, custody or PLC operations.
-Older account responses without current credential metadata are accepted for
-reads but cannot start rotation or write state. An issued replacement can finish
-rotation after the original expires; the original is never authenticated/revived.
-
-October 9 results: the focused gate passed **12 PostgreSQL/HTTPS integration
-tests**, including both custody signup cases and three rotation cases. Client
-tests passed **5 tests**. The provider suite without database environment passed
-**108 tests**, with **57 database integrations skipped**; the focused gate proves
-the changed paths, not all 57 integrations. Provider/client typechecks,
-builds and `git diff --check` passed. Runtime tests use Bun so `Bun.spawn` and
-PostgreSQL integrations execute. The disposable database was removed afterward.
+The provider's `test/credential-rotation.integration.test.ts` and
+`test/account-api.integration.test.ts` exercise exact retries, scope isolation,
+expiry and interrupted rotation. Run integration tests only against disposable databases.

@@ -122,12 +122,9 @@ of guessing an epoch. Grant/subscription commands retain their existing shape.
 
 ## Verification and distribution
 
-First-slice proof exercises actual CLI processes: contextual help/version,
-strict options before side effects, JSON/errors and private selection isolation.
-Read-convenience tests exercise terminal/indeterminate states, deadlines,
-throttling and cursor cycles. Installation proof uses a fresh pinned sibling
-layout, frozen dependency installs, and the same smoke check on a Bun-compiled
-`dist/hailp` executable. See `cli-installation.md` for the reproducible recipe.
+CLI process tests cover help/version, strict options, JSON/errors, private selection,
+wait deadlines and cursor behavior. The [installation guide](cli-installation.md)
+describes a clean workspace build and offline source/binary smoke checks.
 
 ## Ongoing-use additions
 

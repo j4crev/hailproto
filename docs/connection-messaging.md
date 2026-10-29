@@ -1,11 +1,8 @@
-# Connection Messaging — Deployed Preview
+# Connection messaging
 
-Deployed on Haili October 25, 2026 as `3391d82`; see
-[deployment receipts](haili-launch.md) for backup and verification boundaries.
-
-This slice reuses the signed Envelope, immutable detached bodies, body-token
-retrieval, delivery/status pipeline, rich composer, reader and bounded outbound
-worker. No alternative messaging protocol or new dependency was added.
+Connection sends reuse signed envelopes, detached bodies, body-token retrieval,
+delivery/status handling, the rich composer and the bounded outbound worker.
+Forwarding and threaded replies use the same authenticated account surfaces.
 
 ## Authorization And Delivery
 
@@ -17,8 +14,8 @@ is minted. Normal provider-held messaging keys sign messages for both custody mo
 an owner does not need to unlock the identity/recovery key for each ordinary message.
 
 One shared local permission predicate binds both DIDs, ID, epoch, serving generation,
-fences and disconnect tombstones. Native connections use epoch 1 and new IDs on
-reconnect; federation uses the existing canonical epoch. Sender creation and every
+fences and disconnect tombstones. All new local and remote connections use the shared coordinator model and
+its canonical epoch; obsolete native records do not authorize new messages. Sender creation and every
 submission retry check this exact permission. Receiver acceptance uses the same
 locally retained consent and the existing authenticated reception path.
 
@@ -52,8 +49,8 @@ permissions remain separate from a connection disconnect.
   typed body and selected recipients. The original request status/history remains
   available; HTTP acceptance is not mislabeled as confirmed delivery.
 - Feed reads explicitly select subscription delivery. **Conversations** reuses the
-  existing inbox/reader for connection messages. A received connection message offers
-  **Message this connection**, not a single-use reply form. Disconnected history is
+  existing inbox/reader for connection messages. A received connection message offers an inline reply using its connection
+  authorization and signed parent reference, not a subscription reply capability. Disconnected history is
   readable without an active-send action. Sent uses the existing statuses/readers.
 
 The account API reuses the publication status shape on `/connection-messages`:
@@ -82,35 +79,26 @@ private tokens, duplicate reception, restart recovery, missing authority/on-hold
 disconnect before retrieval/during retrieval, immutable recipients, cross-account
 refusal, cancellation, fresh reconnect and historical readability.
 
-## Portable Export — Approved Next Slice
+## Portable history
 
-Portable export remains blocked, not silently enabled by messaging. It will extend
-the existing account-transfer snapshots, checkpoint verification and fenced cutover,
-not add a separate backup/download scheme. Preserve original signed envelopes,
-connections, receipts, canonical IDs/epochs and terminal history. Version-one cutover
-should settle unfinished network work before moving ownership, then prove that only
-the destination can continue it. A coordinator move must continue its checkpointed
-epoch; a local connection becoming remote must retain its identity.
+Configured owner-controlled and managed completion paths export supported connection
+history through the existing signed account snapshot and fenced cutover. Destination
+staging is inert until authenticated handover and PLC/activation checks succeed.
+Original envelopes, consent, IDs/epochs, terminal history and completed handover
+journals remain exact. Missing orchestration, obsolete records and undrained work
+fail closed; no compatibility layer invents missing historical signatures.
 
-**Approved QR policy:** old shareable links and QR codes stop working when the move
-is committed, including the personal never-expiring code. Warn explicitly before
-cutover. Preserve revoked invitation history but do not port active share tokens or
-promise forwarding/old-link continuity. The user creates fresh identity-authorized
-codes at the destination after activation. Preparing/reviewing a move alone should
-not invalidate codes. Existing connections and disconnect/replay protection remain
-intact; no guard is removed until snapshot/import and peer handover prove that.
+Committed moves invalidate all old QR/share codes, including personal codes. Warn
+before cutover, retain historical revocations, and create new destination codes.
+Preparing/reviewing or cancelling a move does not revoke source codes. Retire the
+source and preserve exclusive serving authority before destination messaging resumes.
 
-The local implementation embeds the shared version-3 connection-history checkpoint
-in portable v5 / managed v6 snapshots, retains it inertly on import, and verifies
-source/destination/peer handover preparations. Import/handover staging verifies
-historical consent and control signatures against retained canonical PLC history.
-Unsupported pre-launch records should be explicitly cleaned up rather than given
-a legacy reconciliation layer; see the [development policy](../README.md#pre-launch-development-policy--developers-and-agents).
-Both deployed completion paths orchestrate supported connection-bearing moves;
-missing orchestration, obsolete records and undrained work fail closed. Public
-rollout verification remains; see [portability progress](../spec/connection-portability.md).
+See [custody and transfer behavior](../apps/cli/docs/custody-transitions.md) for
+current implementation boundaries and [connection portability](../spec/connection-portability.md)
+for the checkpoint and handover design. Unrelated-provider interoperability remains
+an independent validation task.
 
-## One Connection Model (Deployed October 26, 2026)
+## One connection model
 
 Same-provider and cross-provider connections now use the same signed invitation,
 confirmation, admission, coordinator event, per-account projection and terminal

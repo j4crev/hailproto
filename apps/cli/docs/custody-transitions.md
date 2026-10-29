@@ -1,13 +1,10 @@
 # Custody changes, managed migration and return transfers
 
-Status: milestone-7 reference design. Both strict-public same-provider custody
-directions and the local configured-registry managed path through source
-retirement are implemented; production cross-provider rollout remains disabled.
-This document specifies the local lifecycle
-and its implementation gates; it does not amend Hail federation formats or settle
-production historical PLC authority. The [protocol custody direction](https://github.com/j4crev/hailproto/blob/main/docs/portable-custody.md#managed-profiles-and-people-or-agents),
-[DID profile](https://github.com/j4crev/hailproto/blob/main/spec/did-profile.md#provider-migration)
-and [historical-key decision](grant-key-reconciliation.md) remain the baseline.
+This reference describes implemented custody and provider-transfer behavior and
+its authority requirements. Public and private execution are separate opt-ins;
+inspect each provider's configuration rather than inferring enablement from this
+file. Normative authority remains in the [DID profile](../../../spec/did-profile.md)
+and [managed custody profile](../../../spec/managed-custody.md).
 
 ## Decisions
 
@@ -84,7 +81,7 @@ changing a direction, key, provider, checkpoint or predecessor is a new action,
 not an exact retry. New signatures are never minted to hide an ambiguous write.
 
 For cross-provider moves, retain destination-origin proof and the source-signed
-invitation/challenge from the current handshake. The new profile's destination
+invitation/challenge from the current handshake. The managed profile's destination
 Offer must bind its proposed identity key and intended custody as well as
 messaging/rotation keys. The owner explicitly selects an address beneath the
 destination's domain. Providers cannot use managed identity signing to approve
@@ -158,12 +155,12 @@ lock; it must not disable the existing fence triggers for unrelated writers.
 ## Managed provider migration
 
 Use the existing fenced transfer serialization and activation machinery, with
-a new explicit manifest/profile version for managed history. The new profile
-must carry source/destination custody, old/new identity public keys and verified
+an explicit managed manifest/profile version carrying source/destination custody,
+old/new identity public keys and verified
 historical checkpoints; its keys table carries public role evidence only.
 Destination-local prepared identity ciphertext is never part of the export.
-The managed snapshot also preserves owner-recovery custody evidence, which is
-absent from today's portable `TRANSFER_TABLES` serialization.
+The managed snapshot also preserves owner-recovery custody evidence. Portable
+and managed snapshot formats retain their separate validation/signature domains.
 
 The order remains owner-approved preparation → origin-confirmed Offer → owner-
 approved address selection → final source fence → immutable export → owner-
@@ -185,279 +182,26 @@ accepted envelope bytes, resetting attempts, extending deadlines or inventing
 semantic status revisions. Old workers remain fenced. Expired work follows the
 existing delivery deadline rules after continuation.
 
-### Native managed migration implementation checklist
+## Production enablement: required versus deferrable
 
-This checklist tracks the narrow MC-12 slice. It remains local-only until every
-item has focused proof; it must not contact public PLC infrastructure or claim
-independent reader/monitor operation.
+Each participating public provider needs key protection, least-privilege access,
+backup/restore, rate and size limits, audit retention, incident ownership and
+external overload alerts. A rehearsal on shared operator infrastructure does not
+prove unrelated-provider interoperability. Keep `PUBLIC_MANAGED_TRANSFER=false`
+until the deployment's controls are verified. Separate private-PLC gates must not
+be used against the public registry.
 
-- [x] Bidirectional same-provider custody rotation with fresh intended-party
-  identity, acknowledged Grant successors, exact retries and atomic generations.
-- [x] Migration 47: durable managed-transfer profile, source/destination custody
-  declarations, fresh destination identity material and guarded rollback.
-- [x] Owner-recovery handshake: one exact A → B intent and address selection;
-  provider identity signatures cannot substitute for owner authorization.
-  The versioned grant, source acknowledgement, selection and exact snapshot-v4
-  approval validators are implemented. Source admission is durable and refuses
-  changed retries; destination ingress returns the exact retained Offer, and the
-  owner vault can sign each owner artifact. The authenticated source API, pinned
-  destination HTTPS route and separate durable managed-Offer retry worker are
-  implemented locally. B now atomically reserves the owner-selected address,
-  signs the exact reservation and durably retries its signed fence request to
-  A. `hailp account managed-transfer offer|status|select` now retains and
-  validates the exact owner-signed grant, source acknowledgement, destination
-  Offer, owner selection and destination reservation across ambiguous retries.
-- [x] Destination Offer: fresh B identity, messaging and rotation keys, with all
-  private material encrypted and retained only at B.
-- [x] Managed snapshot v4: the local exporter carries source-attributed managed
-  custody, serving generation, exact authority/Grant/binding/PLC history and
-  public role metadata only. Its validator rejects history-checkpoint changes;
-  provider/client private keys and bearer credentials are excluded.
-- [x] Source fence/export: the managed source fence validates the exact
-  owner grant, A acknowledgement, B Offer, owner selection, B reservation and
-  B fence request against strict current custody. It refuses active worker
-  leases and unacknowledged active Grant predecessors, then blocks ordinary
-  writes. Export is immutable, source-messaging signed and exact-retryable.
-- [x] Owner-approved cutover evidence and inert staging: the owner vault builds
-  and signs an exact PLC operation that removes A's rotation role, installs B's
-  fresh identity/messaging/rotation roles, preserves top recovery and unrelated
-  PLC state, and enforces the PLC size limit. The owner-recovery approval binds
-  that operation to the exact handshake, snapshot-v4 digest and history
-  checkpoint. B revalidates current strict A authority, every retained artifact
-  and B's prepared private-key possession, creates a B-identity-signed binding,
-  and stores one exact-retryable inactive import. No account is materialized and
-  no PLC operation is submitted by this gate.
-- [x] PLC submission/observation and destination materialization: configured-registry
-  submission reconciles an ambiguous write and requires strict readers to
-  confirm the exact retained operation and destination roles without contacting
-  the public directory. Migration 49 then atomically consumes the reserved
-  address, installs only B's fresh keys and managed-custody record, preserves
-  accepted work/history, creates acknowledged-predecessor Grant successors,
-  advances beyond the source generation and activates the inert import. No
-  credential is transported; fresh access still requires owner-recovery login.
-- [x] Source retirement and exact retry/recovery under lost Offer, export, PLC,
-  activation and retirement responses. B signs the exact retained activation
-  receipt with its current messaging key; A checks current PLC authority,
-  archives once and accepts only byte-identical retirement retries.
-- [x] Disposable-database A → B → A proof including stale workers, terminal
-  Grants, history bytes, changed-artifact refusal and guarded rollback. The
-  return validates A's immutable retired projection, installs fresh A roles at
-  generation 3, preserves terminal Grant bytes, creates the active Grant's next
-  successor, revokes old credentials, rejects stale generation-1 work, retires
-  B exactly and redacts every prepared private-key field from archived imports.
+Public completion stages/submits the exact operation first. If it returns
+`awaiting-monitor`, obtain fresh reviewed coverage for that operation and retry
+with `--monitor-attestation`. Only the monitor report may be refreshed: snapshot,
+approval and PLC operation remain exact. Private transfers reject that option.
+See [CLI workflows](cli-workflows.md#start-a-managed-account-provider-move).
 
-The narrow slice refuses unacknowledged/conflicting Grant predecessors, nullified
-or disputed PLC history, mixed custody, non-strict authority and pre-existing
-destination ownership. Those cases remain separate reconciliation work.
-
-### Managed private-PLC operationalization checklist
-
-Migration 49 is deployed to both POC providers, but the managed completion path
-is deliberately not wired into startup and its federation routes remain disabled.
-Before calling managed migration usable on the private-PLC POC:
-
-- [x] Add one disabled-by-default private-PLC managed-transfer feature flag and
-  reject incompatible registry/profile configuration at startup.
-- [x] Wire managed invitation, reservation, fence, export, staging, configured-
-  registry submission, activation, receipt and retirement services into startup.
-- [x] Add authenticated source export and bounded, exact-artifact destination
-  completion APIs without exposing private keys or source credentials.
-- [x] Add `hailp account managed-transfer export`, cutover signing and completion
-  commands with durable state and byte-identical retry checks.
-- [x] Complete a disposable HTTPS `hailproto.app → hailproto.dev → hailproto.app`
-  managed move against the configured private PLC.
-- [x] Restart providers between phases and deliberately lose Offer, export, PLC,
-  activation and retirement responses; resume only the retained exact artifacts.
-- [x] Verify fresh owner-recovery login, no credential transport, old credential/
-  worker rejection, message and Grant continuity, terminal evidence, and serving
-  generations `1 → 2 → 3`.
-- [x] Retain pre-rollout backups and evidence, roll providers individually, verify
-  external readiness/alerts, and keep managed routes disabled after any failed gate.
-
-Completed October 13, 2026. The live disposable round trip used DID
-`did:plc:j5x2ftke7574uzkjgj547loq`; retained server evidence and verified backups
-are under `/var/backups/hail-poc/pre-managed-operationalization-20261013T004200Z`.
-The live run covered provider restarts and deliberately lost Offer, reservation,
-export, completion/activation and retirement responses. The disposable-PostgreSQL
-proof covers a lost PLC response, non-empty message/active-Grant/terminal-Grant
-continuity and stale-worker rejection. Both providers run source `5d4d219` and
-image `hail-server-ts:poc-managed-operationalization-20261013-fix1`. This remains
-a configured private-PLC POC, not independent/public production evidence.
-
-### Production enablement: required versus deferrable
-
-The private PLC runs the same directory implementation as the public service, so
-it can prove protocol behavior and most operational controls. Its observations
-remain `poc-local`: they do not prove public deployment configuration, operator
-independence, network behavior, limits or reader agreement. The remaining items
-below block public managed migration; owner-controlled public-alpha onboarding is
-already enabled separately.
-
-#### Complete before the public managed-transfer switch
-
-- [x] Freeze and review the enabled managed-custody/read-evidence profile, complete
-  all applicable conformance cases against private fixtures, and version every
-  retained production record.
-- [x] Implement a separate, disabled-by-default public managed-transfer runtime
-  using the strict public resolver and cutover evidence. Keep the private gate
-  incompatible with `https://plc.directory` and test the public path through
-  injected fixtures without weakening that guard.
-- [x] Deploy a separately hosted public monitor with reviewed bootstrap, complete
-  per-DID audit retention, bounded freshness and externally hosted signed email
-  alerts; enroll both public alpha canaries.
-- [x] Add external monitor dead-man supervision for the permanent Haili provider.
-- [x] Exercise live monitor outage refusal and recovery inside the freshness window.
-- [x] Exercise live reader disagreement and audit-gap refusal across separately
-  hosted HTTPS paths.
-- [x] Establish durable off-VPS owner-recovery backups and automated weekly VPS
-  backups for the public alpha.
-- [ ] Establish production provider-key protection, least-privilege operator access,
-  rate/size limits, audit retention and incident ownership for every provider
-  participating in public managed transfer. The disabled Haili baseline now has
-  these controls; the disposable providers do not.
-- [x] Restore the public monitor database and signing key cross-host from encrypted
-  latest state; verify retained rows, canonical polling and fresh attestation.
-- [x] Restore managed-transfer provider state cross-host, including stale
-  credential, challenge, worker, lease and generation rejection.
-- [x] Handle unsupported historical states safely using private/synthetic histories:
-  acknowledged predecessors may migrate; unacknowledged, conflicting, nullified or
-  disputed history must reconcile under a reviewed algorithm or remain blocked with
-  an operator-visible recovery path. Supporting every historical edge case is not a
-  launch requirement.
-- [x] Define and exercise pre-activation abandonment and ambiguous-activation
-  recovery against the private PLC, including delayed replay of signed operations.
-  Automated rollback is optional, but reopening a stale source, relying on expiry,
-  or silently losing accepted state is forbidden.
-- [x] Calibrate and enforce the supported managed-transfer load envelope on private
-  clones, including throttling, size rejection and window recovery. Do not
-  load-test the public PLC; unbounded scale testing is not required.
-- [ ] Prove external overload alerts for every future public transfer provider.
-  Haili supervision is complete; disposable POC providers are not monitored.
-
-The first item completed October 13, 2026. The frozen identifiers are
-`hail-managed-custody-v1` and `hail.plc-read-evidence-v1`; their
-[MC-01–MC-14 review](https://github.com/j4crev/hailproto/blob/main/spec/managed-custody-conformance-v1.md)
-maps each private-fixture proof and explicitly leaves public/deployment evidence
-to the gates below. Provider migration 50 backfills candidate rows, requires new
-managed/onboarding/transition writers to retain the managed profile, and versions
-public onboarding, resolution and cutover evidence independently from custody,
-registry and activation modes. Legacy exact private-POC snapshot retries remain
-readable but cannot be promoted to strict-public evidence.
-
-The second item completed October 13, 2026, in private/injected fixtures only.
-`PUBLIC_MANAGED_TRANSFER` is off by default and requires production strict public
-authority, reviewed readers, the local provider operator declaration and a pinned
-independent monitor. It rejects private-POC gates but may run alongside public
-onboarding. The public runtime uses full
-public cutover evidence and seals its selection atomically with activation; the
-private runtime and registry guards remain separate and unchanged.
-
-For public transfers, first run `hailp account managed-transfer complete --state
-<state> --snapshot <snapshot>` to stage/submit the exact operation. An
-`awaiting-monitor` response does not activate or retire either provider. Obtain a
-fresh reviewed v2 monitor report for that operation, then retry with
-`--monitor-attestation <private-json-file>` (`{payload, signature}`, canonical
-base64url bytes). Only the monitor report may be refreshed; snapshot, approval
-and PLC operation stay exact. Private transfers reject this option. Fixture tests
-exercise both profiles through `A → B → A` and fail closed on missing/invalid/
-stale/gapped/wrong-bootstrap reports, reader outages/disagreement and profile
-mismatch. No public PLC request or deployment change accompanied that fixture gate;
-the later owner-controlled alpha deployment did not enable public managed transfer.
-
-The historical-state and abandonment items were reconfirmed October 21, 2026.
-Managed fixtures migrate exact acknowledged active Grant predecessors and terminal
-history while refusing unacknowledged publication, changed checkpoints, missing
-authority links, regressed audits, invalid nullification annotations and reader
-outages. Public cutover additionally requires exact selected-reader/canonical
-readback agreement. Unsupported states stay fenced with explicit recovery errors.
-Private-PLC abandonment proves both protective-operation-first and delayed
-cutover-first races, target invalidation, stale completion refusal, exact release
-receipts, protective source authority, credential/lease revocation, one serving
-generation and byte-identical restart retries. This is synthetic/private evidence,
-not authorization to enable public managed transfer.
-
-#### Final evidence that requires the public environment
-
-- [x] Bootstrap the monitor against the actual public PLC and prove complete current
-  history, bounded freshness and external signed-alert delivery for enrolled DIDs.
-- [x] Create backed-up, non-user public alpha canaries for both providers and retain
-  their exact genesis/write/readback and onboarding-monitor evidence.
-- [x] Perform low-rate public TLS, strict-public evidence, Sender Profile, Grant and
-  bidirectional message-delivery smoke checks without malformed or high-volume traffic.
-- [x] Add external health supervision and prove public monitor outage recovery.
-- [x] Prove supported managed-transfer service limits without load-testing
-  `plc.directory`.
-- [x] Use a reviewed permanent canary for the managed `provider A → provider B →
-  provider A` round trip before enabling public managed transfer.
-
-The public canary ceremony completed October 21, 2026, using
-`did:plc:pwuipbmf4kbj2ri2s4c4o6jn`: `canary@hailproto.app` moved to
-`canary-app@haili.app` and returned to `canary@hailproto.app`. Both legs used new
-provider keys, owner-approved public PLC operations, canonical readback, reviewed
-v3 monitor attestations, fresh transfer IDs and exact activation receipts. The
-serving generation advanced from 2 to 4; four PLC operations remain canonical
-with no nullified entries. Grants and account history survived both legs. The
-ceremony exposed and fixed v3 retained-attestation acceptance, collocated Grant
-merging, same-address return reservation and equivalent JSONB Grant-evidence
-reconciliation. Both providers returned to `PUBLIC_MANAGED_TRANSFER=false`, and
-`hailproto.app` also returned to custody transitions disabled.
-
-A second bounded public exercise moved managed canary
-`did:plc:ilpqbrfq4mvhx3jhcd6qhiti` from `canary-prov@hailproto.app` to
-`canary-prov-hailproto@haili.app`. Transfer
-`3475f30a-a8a5-4594-a28d-e6ccbb5e5ab6` used owner-recovery approval, exact
-snapshot v4, canonical operation
-`bafyreicjix6offduc2nw7uux45ptgv2s44jr7ilarxpmbnasyjz7u3b34m` and a fresh v3
-monitor attestation. Haili activated generation 2, retained the Sender Profile as
-revision 2 and issued only a fresh owner-recovery credential; the source credential
-became terminal `401` and the old address returned `404`. Both providers returned
-to `PUBLIC_MANAGED_TRANSFER=false` immediately afterward.
-
-The same day, a guarded live monitor outage exceeded the five-minute freshness
-limit. External supervision changed to `down`, fresh attestation failed closed,
-and an independent eight-minute recovery timer restarted the monitor. Supervision
-returned to `ok`; a current poll and fresh attestation then succeeded. Disposable
-PostgreSQL reruns also passed outage, corrupt-audit, disagreement and attestation-
-race refusal. A temporary Cloudflare HTTPS reader then served a valid older prefix
-beside canonical `plc.directory`; both reads validated but diagnostics reported
-their distinct current CIDs as disagreement. The reader next omitted a middle
-audit operation. A disposable monitor clone recorded `invalid-log`, refused to
-sign, and remained blocked after the healthy view returned, requiring reviewed
-recovery as designed. The Worker, key and database were deleted after the drill.
-
-Cross-host monitor restoration then encrypted the live PostgreSQL dump, signing
-key and minimal runtime configuration before transfer. SHA-256
-`32821ca4c9e109878ef3fd3199ef3c9c074cb69bcaf9963675f7de12807b6acc`
-restored under PostgreSQL 14 with 5 monitored DIDs, 5 bootstrap checkpoints,
-8 alerts, 3 approvals and 3 observations. The restored key matched the pinned
-monitor key; canonical polling and fresh attestation succeeded. Plaintext restore
-material was removed afterward.
-
-A one-time encrypted `hailproto.app` snapshot then restored schema 53 and nine
-accounts cross-host, including the returned permanent canary at serving generation
-4. All 23 provider-held operational keys decrypted. Retained older-generation
-credential and challenge rows remained ineligible, a known-token substitution
-could not authenticate the stale credential, and the database admitted generation
-4 while rejecting generation 3 work. The accepted snapshot contained no worker
-lease; the focused managed-orchestration rerun separately re-proved that an active
-lease blocks fencing. Artifact SHA-256 was
-`1c1cbbc7ad2eea3ec6d7d42340f4b4e0d604116c11fc1ccf3ce01631d52ff80d`.
-The plaintext clone, temporary encrypted artifacts and temporary R2 bucket were
-deleted after verification; no recurring backup was added to the disposable provider.
-
-Private-clone load calibration admitted exactly 120 global transfer requests and
-12 authenticated reservation requests per DID per minute. At concurrency 4, the
-120-request boundary measured p50 8.6 ms, p99 63.7 ms and maximum 83.2 ms; request
-121 returned `429`. A 256-request burst admitted 120 and throttled 136 without
-errors. The next request after an aged window succeeded. Account routes returned
-`413` above 16 KiB and `429` with `Retry-After: 60`. External overload alerting
-remains required for any disposable provider promoted to public transfer service.
-
-Hardware-backed/device-keystore integration, cross-platform binaries, automatic
-provider discovery and a polished consumer review UI are valuable follow-up work,
-not universal backend production blockers. They become release requirements only
-when the chosen client platform, custody threat model or product promise depends
-on them.
+Unsupported, unacknowledged, conflicting or nullified history must remain blocked
+unless a reviewed recovery procedure establishes authority. No public PLC load
+test is required; qualify service limits with controlled fixtures and verify
+public connectivity and alerting separately. Hardware-backed client keys and a
+consumer review UI are separate product work, not substitutes for these controls.
 
 ## Historical identity and binding gate
 
@@ -493,18 +237,9 @@ enablement remains gated on operational wiring and the production controls above
 
 This gate covers incoming counterpart evidence as well as local authoring.
 Production cache/finality and historical verification rules still require the
-shared DID-profile specification work; this local design does not define them.
+shared DID-profile specification; this local reference does not redefine them.
 
 ## Return to a former provider
-
-The [migration 36–38 foundation](generation-bound-return.md) captures immutable
-retired history and proves generation-bound stable-owner private-POC returns.
-Migration 49 adds the managed A → B → A materialization proof with fresh provider
-roles. The October 21 public ceremony additionally proves a monitored permanent
-round trip between `hailproto.app` and `haili.app`; both runtimes were disabled
-again afterward. Migration 39 and the private-PLC race rehearsal establish
-coordinated never-active post-export abandonment for the private profile. Public
-abandonment operations remain outside this ceremony's evidence.
 
 Treat A → B → A as two new transfers, not an undo of A → B. A generates fresh
 operational keys and a fresh import/Offer/transfer ID; a retired identity key
@@ -512,14 +247,7 @@ is not reused for a managed return. B supplies the latest fenced serialization
 domain, including work accepted after the first move. A's old export cannot be
 substituted for B's current snapshot.
 
-Current blockers are concrete: fences and authorizations are keyed by DID,
-exports reference the fence's transfer ID, the account's DID is unique, and
-`stageImport()` rejects an existing local account for that DID. Activation
-inserts snapshot-owned rows rather than replacing a retired working projection.
-Removing a fence or deleting old rows to make those constraints disappear
-would destroy evidence and can reactivate old credentials/workers.
-
-Implementation decision: separate immutable lifecycle history from the single
+Separate immutable lifecycle history from the single
 live working projection. Archive each retired transfer's exact export, consumed
 handshake, PLC/custody evidence and retirement receipt under its transfer ID;
 use a serving generation for the current DID-owned projection. Preserve existing
@@ -527,13 +255,13 @@ account/message/Grant identifiers and foreign-key relationships, rather than
 inventing a second live DID account. Old history is readable evidence, not a
 second executable outbox.
 
-A compatibility migration must preserve legacy v2 bytes and retired receipts,
-backfill generation/history links and leave the current active pointer unchanged.
-Credentials, login challenges and worker claims bind their admitted generation;
-revoke old credentials/challenges before reopening the projection. Losing the
-old fence must never make a previous token or lease usable again.
+Credentials, login challenges and worker leases bind their admitted serving
+generation. Authentication and transactional admission reject stale generations,
+even if a token's revocation flag is cleared. Imported leases are cleared while
+attempts, deadlines and retry schedules are retained. Retired outgoing and incoming
+transfer evidence is immutable and cannot become a second executable outbox.
 
-For the first returning materialization, lock the affected DID/account and
+For returning materialization, lock the affected DID/account and
 shared Grant ownership rows, archive the retired projection, validate the
 incoming latest snapshot, then replace only that DID's working domain and
 publish a new active generation atomically. Preserve collocated counterpart
@@ -542,9 +270,10 @@ Retained replay records and revision checkpoints that are still required but
 missing/conflicting in the incoming snapshot block activation. Archive older
 evidence separately; do not merge stale delivery/status rows into current work.
 
-No return path is enabled until its preservation and competing-worker tests
-pass. The required schema/serialization changes need their own reversible
-compatibility migration; this document adds no columns or runtime exceptions.
+Application rollback must preserve generation-aware readers and writers after
+advancement. Schema rollback cannot discard the only surviving archive or undo
+later migrations. Old snapshots retain their exact bytes/signature domains;
+compatibility does not authorize reopening retired state.
 
 ## Post-export abandonment and recovery
 
@@ -592,54 +321,41 @@ authority without recovering lost accepted state. That is an explicit continuity
 loss, not a successful rollback. Neither restoring a database dump nor waiting
 for consent/reservation expiry establishes exclusive ownership.
 
-## Implementation order and executable proof gates
+## Recovery implementation boundary
 
-Steps 1–4 gate identity-changing/managed paths. Stable-owner-identity private-POC
-return and abandonment can proceed with the generation/history work and their
-own proof gates without first enabling identity-key reconciliation. That narrower
-proof still does not settle production historical authority or managed migration.
+The private-PLC `PrivatePocTransferAbandonment` coordinator is an integration-only
+path, not a public route or `hailp` command. It covers a staged, never-active target.
+Independent owner approvals bind source/target, transfer, generation, snapshot,
+prepared cutover CID, nonce and an acceptance window. Resumption additionally binds
+the target invalidation digest and protective operation CID.
 
-1. Implement historical-key verification/reconciliation and the acknowledged
-   active-lineage path. Prove original signatures/digests, terminal tombstones,
-   unavailable receivers, lost acknowledgements and nullified-branch handling.
-2. Implement serving-generation/history migration and exact transition records.
-   Prove byte-preserving upgrade/rollback, current pointer preservation, stale
-   credential/challenge/lease rejection and collocated-account isolation.
-3. Implement same-provider transitions in both directions. Prove new-key
-   possession, top-owner authorization, atomic custody classification, exact
-   PLC retries, binding replacement, preserved consent and no private-key export.
-4. Implement the separately versioned managed transfer profile. Prove old
-   provider `Ip/Mp/Rp` removal, destination-local keys, fresh owner login and
-   unchanged accepted message/status/outbox semantics through interruption.
-5. Prove A → B → A with retained history and concurrent stale A workers/tokens,
-   using work created/acknowledged at B between moves and both custody profiles.
-6. Implement and prove abandonment with races at staging, PLC send, publication,
-   activation and acknowledgement. Delay/replay the original signed operation
-   after invalidation/protective cutover; reject it without opening a second
-   writer. Reject stale completion after invalidation and changed receipts.
-7. Prove active-target reverse transfer from the latest state, including accepted
-   work, delayed status acknowledgements, restart and coordinated backup restore.
+Invalidation retains an exact prepared-target-key receipt while holding the address
+reservation. Release verifies current protective PLC authority, records immutable
+import/handshake/observation evidence and a nonce tombstone, then releases the slot.
+Source resumption verifies the origin-confirmed destination signature, original
+binding and fenced generation, revokes old credentials/leases, advances generation
+and preserves accepted work. Lost replies recover the same signed results.
 
-Completion conditions are one executable owner, preserved accepted-state and
-historical evidence, exact retries and no credential/key forwarding. Negative
-guards already present in the portable implementation are not proof of return
-or post-export recovery. The roadmap's return/rollback item stays open until the
-positive round trips and race tests above are implemented and pass.
+Unknown forks, unavailable counterpart proof and expired/conflicting source bindings
+remain blocked. An active or uncertain target requires forward completion or a new
+reverse transfer. This private recovery path is not general public abandonment.
 
-### Existing implementation seams
+## Connection history and cleanup
 
-In the sibling provider repository, `src/accounts/access.ts` supplies independent
-owner-recovery proof and rejects mixed active custody evidence;
-`src/grants/service.ts` and `src/grants/repository.ts` hold identity-epoch changes;
-`src/migration/transfer.ts` validates portable snapshots and rejects a destination
-that already has the DID; `src/migration/activation.ts` materializes only a fresh
-destination; and `src/migration/fence.ts` permits release only before export.
-Migrations 13, 14 and 21 show the current DID-keyed fence/export/retirement links.
-These are the seams to extend, not alternate services that bypass their guards.
+Settled supported connections survive same-provider custody changes and configured
+provider transfers. Retire old share codes at committed cutover, preserve connection
+IDs/epochs and immutable consent/terminal history, and require fresh destination codes.
+Pending work must drain; missing orchestration or unsupported native records fail closed.
 
-PLC's strict higher-priority fork requirement is implemented in the workspace's
-`did-method-plc/packages/lib/src/data.ts` `assureValidNextOp()` function: its
-recovery signer set is the keys preceding the first nullified operation's
-signer. `test/private-poc-migration.integration.test.ts` and
-`test/migration-fence.integration.test.ts` are the existing forward-transfer,
-expiry, fence and accepted-state regression baselines, not return-proof tests.
+Pre-launch cleanup must inventory exact accounts/pairs and dependent approvals,
+proofs, message targets and envelopes, verify a backup, and preserve referential
+consistency. Recreate removed relationships through fresh consent; do not invent
+historical signatures or erase unrelated messages, keys or recovery material.
+
+## Verification
+
+Provider suites cover custody transitions, managed network orchestration,
+private-PLC migration, serving-history preservation and connection handover.
+Run them against disposable databases. Preservation requires one executable owner,
+exact signed history, stale-token/worker rejection and accepted-work continuity;
+a negative refusal test alone does not prove a successful transfer or recovery.

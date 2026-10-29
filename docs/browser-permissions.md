@@ -35,7 +35,8 @@ The QR contains `https://<this-provider>/permissions#sender=...&did=...`, with
 public data only. This first UI uses its own provider's permission-review page;
 it is not a provider-directory/deep-link standard. Typed addresses can resolve
 other supported public providers. Camera capture inside the browser, existing-DID
-signers, general-purpose permission expansion/editing and Sender Profile authoring are not added.
+signers, general-purpose permission expansion/editing are not part of this approval flow.
+Profile photos and publishing categories have separate account editing surfaces.
 Owner-controlled accounts retain their existing signer workflow.
 
 ## General Subscriptions
@@ -94,26 +95,6 @@ any approval is retained, use code rollback with the table intact; do not delete
 consent records to force a destructive schema downgrade. No pruning is implemented
 for this small pilot; a reviewed retention policy is needed before large volume.
 
-## Proof And Pilot
-
-The PostgreSQL integration check covers real passkey assertions, account/session
-binding, unchanged scopes/keys, denied direct broad writes, exact retries,
-concurrent execution, profile/revision changes, revocation while the peer is
-offline, lost committed replies, expiry, and safe/retained rollback behavior.
-The built Chromium flow covers typed and QR-linked review, no automatic approval,
-virtual passkey confirmation, saved Grant listing and revocation. Its remote
-services are local fixtures; real phone-camera/platform behavior and live Grant
-publication still need the operator pilot.
-
-The PostgreSQL and desktop/mobile-width browser checks also cover an ordinary
-General subscription and refusal of new uncategorized permissions. Unit checks
-cover CLI rejection, directly signed API requests and retained legacy revocation.
-
-For `j4@haili.app`, enter `canary-prov@haili.app`, select its offered `updates`
-category and expiry, and confirm with the existing passkey. This permits the
-canary to send to j4, not the other way around. Do not create this live permission
-from an operator credential merely to pre-populate the GUI test.
-
 ## Unsubscribe from an Inbox message
 
 Managed accounts can unsubscribe inside an opened subscription message. The
@@ -132,4 +113,7 @@ unavailable rather than claiming the user is unsubscribed.
 
 The UI calls this **Unsubscribe** and **Unsubscribed**; wire actions/status remain
 `revoke`/`revoked`. Delivered messages remain readable, and connections are
-unchanged. Message deletion and bulk Inbox unsubscribe are not implemented.
+unchanged. Message deletion uses the separate
+[Trash/deletion flow](../apps/client/README.md#trash-and-deletion). Multi-subscription
+unsubscribe is available on the permissions screen; bulk Inbox unsubscribe remains
+unimplemented.

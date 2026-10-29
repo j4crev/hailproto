@@ -284,6 +284,20 @@ Use `--expected-did unbound` for a pre-signup vault. Backup/import preserve the
 vault bytes but do not copy the separate recovery secret, credentials, pending
 state, signed artifacts, or provider-held managed identity keys.
 
+## Vault verification and recovery boundaries
+
+Vault verification decrypts/imports both keys and checks their public/private match.
+Backup/import verify before writing a new private file and compare exact saved bytes;
+existing outputs are never overwritten. Import requires an independently reviewed
+`--expected-did` (or `unbound`). Compare the public-key fingerprints as well: vault
+DID metadata is not part of the v1 encrypted-key authenticated data. Offline unlock
+does not establish current PLC authority after rotation.
+
+Restoring a managed vault restores owner recovery, not the provider's current
+managed identity key. Keep the shared v1 vault encryption secret out of routine
+signing keystores: it also decrypts recovery material. A local copy is not an
+independent-device backup; retain and test recoverable material away from the provider.
+
 ## Renew an Address Binding
 
 ```bash

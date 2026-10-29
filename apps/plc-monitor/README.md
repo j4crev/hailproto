@@ -1,26 +1,14 @@
 # Independent Hail PLC Monitor
 
-Reference monitor for the Hail portable-custody profile. The deployed public
-alpha runs on a separate VPS with PostgreSQL, validates and retains complete
-per-DID `plc.directory` audit logs,
-records unexpected operations and lost coverage, and signs bounded coverage
-attestations for a provider migration. Migration 3 adds reviewed bootstrap
-checkpoint retention and durable polling readiness; see the candidate
-[PLC read-evidence policy](https://github.com/j4crev/hailproto/blob/main/spec/plc-read-evidence.md).
-It currently monitors the `hailproto.app` and `hailproto.dev` canaries every four
-minutes. Signed alerts go to a Cloudflare Worker that pins the monitor key and
-sends external email; the Worker returned `204` and delivered live enrollment
-alerts. Hosting the monitor on infrastructure controlled by a Hail provider is
-still a **bootstrap convenience**, not independent coverage under
-[`../../spec/account-onboarding.md`](../../spec/account-onboarding.md).
+Reference monitor for the Hail portable-custody profile. It validates and retains
+complete per-DID PLC audit history, detects unexpected operations and lost coverage,
+and signs bounded onboarding/transfer attestations. External signed alerts use a
+separate webhook/email receiver.
 
-The deployed public profile is documented in
-[`deploy/public`](deploy/public/README.md).
-
-This project is intentionally a sibling of `hailproto`, `hail-server-ts`, and
-the pinned official `did-method-plc` checkout. Historical POC DIDs remain only
-in their private directory; the private URL is used in isolated tests and the
-explicitly non-independent POC profile.
+Use the [monitor deployment guide](deploy/public/README.md) for a new host.
+This app belongs to the Hail monorepo and builds with its vendored PLC library.
+Separate hosting does not establish administrative independence: provider-operated
+monitoring must retain its [reduced-assurance boundary](../../spec/alpha-onboarding.md).
 
 ## Implemented Boundary
 
@@ -48,7 +36,7 @@ operator can suppress coverage or alerts.
 
 ## Local Commands
 
-Build the pinned sibling library and codec, then install dependencies:
+Build the pinned vendored library and workspace codec, then install dependencies:
 
 ```bash
 pnpm --dir ../../vendor/did-method-plc --filter @did-plc/lib build
@@ -145,27 +133,14 @@ Migration 5 adds retained per-DID audits and poll timestamps without deleting th
 legacy cursor. New observations no longer need a global sequence. Its rollback
 refuses after any per-DID evidence has been recorded.
 
-## Production deployment status
+## Deployment and verification
 
-The Haili deployment has external dead-man supervision for the monitor process,
-public provider readiness and verified provider backups. Its monitor runs on a
-separate VPS and its email receiver runs on Cloudflare, but the provider and
-monitor remain with the same hosting provider. Correlated hosting-provider
-failure and a cross-host monitor-database restore exercise remain open; this is
-not complete infrastructure-provider independence.
-Review and operation approval are local commands rather than a
-cross-device user interface. A service hosted by the Hail provider may help
-users bootstrap but cannot satisfy the portable-custody rule that the monitor
-be outside the provider's administrative control.
+Review and approval of unexpected operations are local operator commands, not a
+cross-device user interface. Keep monitor readiness, external dead-man supervision,
+backups and restoration tests independent of provider availability.
 
-The remaining portable migration prerequisites are recorded in
-[`../../docs/portable-custody.md`](../../docs/portable-custody.md). Test the monitor against a
-fresh disposable PostgreSQL 14.4 database with:
-
-```bash
-DATABASE_URL=postgresql://monitor:password@127.0.0.1:5432/hail_monitor_test \
-  bun --bun vitest run test/monitor.integration.test.ts
-```
+Run `test/monitor.integration.test.ts` against a fresh disposable PostgreSQL database.
+Current deployment requirements are in the [deployment guide](deploy/public/README.md).
 
 ## Human-readable alert emails
 

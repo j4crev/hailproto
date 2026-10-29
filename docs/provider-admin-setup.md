@@ -2,7 +2,9 @@
 
 This guide bootstraps the first administrator of **your provider**. It uses your
 own domain, monitor and server addresses; none are supplied by the Hail project.
-After setup, everyday invitations happen at your provider's `/admin` page.
+Start with the [new provider setup guide](../apps/server/deploy/public/README.md)
+if the host, HTTPS ingress or monitor is not configured yet. After setup, everyday
+invitations happen at your provider's `/admin` page.
 
 **Three separate operations are required:** reserve the admin address for your
 recovery key, create the account and its passkey, then explicitly grant operator
@@ -36,9 +38,11 @@ Have the following ready:
 - On your computer: an installed repository checkout with its dependencies, Bun,
   `jq`, SSH and SCP. The [CLI installation guide](../apps/cli/docs/cli-installation.md)
   covers prerequisites.
-- On the provider: the current provider image and GUI, schema 74 or newer, public
-  CLI onboarding, passkeys and invited browser signup enabled. The dashboard's
-  email service must also be deployed/configured.
+- On the provider: matching current provider/GUI images and all current migrations,
+  public CLI onboarding, passkeys, alpha signup, email and automatic monitoring
+  configured as in [provider setup](../apps/server/deploy/public/README.md#6-arrange-monitoring-and-signup-admission).
+  Invitation-only CLI admission uses the same signing key as alpha signup. A
+  reserved-name authorization does not substitute for an invitation.
 - From the monitor operator: its identity origin, current public signing key and
   the configured HTTPS alert webhook for this account. The identity origin is
   not necessarily the monitor API hostname. A public `did:key` is not a service
@@ -71,6 +75,7 @@ read -r -p 'Provider HTTPS origin: ' provider_origin
 read -r -p 'Monitor identity HTTPS origin: ' monitor_origin
 read -r -p 'Verified monitor public signing key (did:key:...): ' monitor_key
 read -r -p 'Monitor SSH destination (user@hostname-or-IP): ' monitor_ssh
+read -r -p 'Provider SSH destination for private invitation transfer (user@host): ' provider_ssh
 
 provider_domain=$(bun -e '
   const url = new URL(process.argv[1]);
@@ -145,6 +150,47 @@ A host path such as `/opt/...` is not a container path. The reference container'
 working directory is `/workspace/hailproto/apps/server`; the relative CLI paths
 above are resolved there by `docker exec`.
 
+### Create the administrator's private invitation
+
+Still in the provider privileged console, create one invitation using the running
+provider's configured key. Choose an existing SSH user who will retrieve the file;
+this grants no new SSH or sudo access. The invitation contains a bearer capability,
+so keep it out of logs and share it only with the intended administrator.
+
+```bash
+read -r -p 'Existing provider SSH user for invitation retrieval: ' invitation_owner
+invitation_home=$(getent passwd "$invitation_owner" | cut -d: -f6)
+test -n "$invitation_home" && test -d "$invitation_home"
+invitation_host_dir=$(mktemp -d "$invitation_home/hail-admin-invite.XXXXXX")
+invitation_container_dir=$(docker exec "$provider_container" mktemp -d /tmp/hail-admin-invite.XXXXXX)
+docker exec "$provider_container" bun src/cli/create-signup-invitation.ts "$invitation_container_dir/invitation.json"
+docker cp "$provider_container:$invitation_container_dir/invitation.json" "$invitation_host_dir/invitation.json"
+chown -R "$invitation_owner:$(id -gn "$invitation_owner")" "$invitation_host_dir"
+chmod 700 "$invitation_host_dir"
+chmod 600 "$invitation_host_dir/invitation.json"
+docker exec "$provider_container" rm "$invitation_container_dir/invitation.json"
+docker exec "$provider_container" rmdir "$invitation_container_dir"
+printf 'Private invitation file to download: %s/invitation.json\n' "$invitation_host_dir"
+```
+
+Return to your local terminal and download that file into the private admin directory.
+Enter its printed **path**, not the invitation token:
+
+```bash
+read -r -p 'Absolute provider-host invitation file path: ' invitation_remote_path
+scp "$provider_ssh:$invitation_remote_path" "$admin_dir/invitation.json"
+chmod 600 "$admin_dir/invitation.json"
+admin_invitation=$(jq -er --arg provider "$provider_origin" \
+  'select(.type == "hail.signup.invitation-file" and .provider == $provider) | .invitation' \
+  "$admin_dir/invitation.json")
+```
+
+Keep this token/file private. The CLI currently accepts the token through
+`--invitation`, so use a trusted workstation without shell tracing. Do not paste
+command traces containing it into reports. Remove the host transfer copy after
+verified download; retain local signup state for exact retries. A consumed invitation
+cannot create another account, while the admitted ceremony resumes within its own lifetime.
+
 ## 4. Your computer: start account creation over HTTPS
 
 Return to the **local terminal from step 1**. This runs your local CLI, reads your
@@ -156,6 +202,7 @@ set -o pipefail
 umask 077
 bun "$hail_repo/apps/cli/src/cli/hailp.ts" account create \
   --provider "$provider_origin" --address "$admin_address" --custody managed \
+  --invitation "$admin_invitation" \
   --vault "$admin_dir/vault.json" \
   --state "$admin_dir/signup.json" \
   --credentials "$admin_dir/api.credential.json" \
@@ -295,13 +342,15 @@ here catches copy errors; the provider verifies the signature and exact identity
 
 ## 6. Your computer: finish account creation
 
-Use the **same local settings, vault and signup state** as step 4. Paste this
+Use the **same local settings, invitation, vault and signup state** as step 4. If
+you reopened the terminal, reload `admin_invitation` from the saved invitation file. Paste this
 complete command into your local terminal. The absolute CLI and file paths work
 from any current directory; no shell function needs to be defined.
 
 ```bash
 bun "$hail_repo/apps/cli/src/cli/hailp.ts" account create \
   --provider "$provider_origin" --address "$admin_address" --custody managed \
+  --invitation "$admin_invitation" \
   --vault "$admin_dir/vault.json" \
   --state "$admin_dir/signup.json" \
   --credentials "$admin_dir/api.credential.json" \

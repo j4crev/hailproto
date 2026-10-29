@@ -1,10 +1,5 @@
 # Category Publishing — Controlled Alpha
 
-Status: Deployed to `haili.app` as `15607d57c76dbfba1c4c7a5985cda4e4a8dc07a2`
-on October 25, 2026 UTC. Deployment/read-only verification is recorded in
-[Haili launch](haili-launch.md); authenticated live publishing still needs operator
-confirmation.
-
 ## User Flow
 
 `/compose` now publishes an update to a category, not individually selected
@@ -26,9 +21,9 @@ means fan-out work ended, not that everyone received or read the message.
 Per-subscriber outcomes are private to the sender's account; signed federation
 envelopes still contain exactly one recipient and an individual body capability.
 
-Direct messaging to connections remains unavailable. The low-level account
-message API and CLI remain for existing explicit Grant/reply workflows; the
-ordinary browser publisher no longer exposes that recipient picker.
+Connection messaging uses a separate audience choice in the same composer.
+The account message API and CLI also support explicit Grant/reply workflows;
+category publishing does not expose individual subscription recipients.
 
 ## Account API
 
@@ -86,9 +81,9 @@ Publication grouping/history itself is provider-local and is not exported. It
 must not be mistaken for portable authorization or permission to keep signing
 after cutover.
 
-Apply migration 61 before starting the new worker. Refresh old browser composer
-pages after code rollout; the new form uses an explicit publishing action. No
-new signup, custody or transfer gates are enabled by this release.
+The publication worker requires its schema and cutover guards. Coordinate code
+and schema versions during deployment; enabling publishing does not enable
+signup, custody or transfer gates.
 
 Schema rollback is permitted only while publication tables are empty and no
 later migration exists. Once intent is retained, preserve the tables/triggers
@@ -96,20 +91,3 @@ and finish/cancel pending work before an application-code rollback; older code
 does not run this worker. Do not drop the cutover guard to force a transfer or
 erase publication intent to allow replay under a new audience. No automatic
 history pruning is introduced.
-
-## Local Proof
-
-PostgreSQL checks cover actual signed Grants/envelopes, collocated and remote
-subscriber inventory, category exclusion, immutable audience admission, concurrent
-exact retries, changed-intent refusal, restart/lost-submission recovery with
-byte-identical envelopes, revocation during fan-out, private body capabilities,
-account/scope isolation, cancellation, expiry, alpha limits, cutover refusal and
-empty-versus-retained rollback. The stored Grant scope metadata can be either a
-JSON array or a JSON-encoded string; audience queries handle both without rewriting
-historical records.
-
-Desktop/mobile-width Chromium checks publish a rich body through the real GUI
-proxy to local fixtures, verify General as the default and absence of a recipient
-picker, distinguish queued work from delivery, and compare preview/Sent content.
-These checks do not create production messages or establish real-device or
-public-federation load qualification.

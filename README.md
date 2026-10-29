@@ -47,35 +47,27 @@ be explicitly cleaned up and those relationships recreated under the new design.
 
 ## Status
 
-For current connection messaging and account-move progress, see the short
-[messaging and portability checklist](docs/portability-status.md).
+Hail is a working pre-launch public alpha. The reference provider supports
+category subscriptions, explicit connections, rich messages, forwarding, threaded
+replies, passkey login, managed browser signup, and owner-authorized custody and
+provider transfers. Public identities use canonical `plc.directory` writes and
+validated audit reads. Deployment features remain explicitly configured by each
+operator; running code is not proof of independent operation or recovery readiness.
 
-Hail is a working **public alpha**. Three HTTPS TypeScript providers resolve
-portable identities directly from `plc.directory`. The independently hosted
-`haili.app` permanent canary and the disposable `hailproto.app` and
-`hailproto.dev` canaries have signed monitor onboarding evidence, live Sender
-Profiles and reciprocal Grants; test messages reached terminal `delivered`
-state in both directions between `haili.app` and each alpha provider. The
-canaries also delivered and rendered safe rich text and digest-bound bundled
-PNG headers. Both sender canaries publish verified bundled PNG avatars through
-Sender Profile v2, and the disposable GUI shows avatars and headers in its
-inbox feed without remote image requests. Its minimal composer has also sent
-plain and bundled-header messages over live reciprocal Grants and displayed
-their terminal delivery status. A Sent view reads retained outbound bodies and
-authenticated delivery status without inventing read receipts. Inbox and Sent
-use bounded batch pages, evidence-backed address labels, and explicit guidance
-for held, failed, cancelled, or receipt-indeterminate messages.
+The repository includes TypeScript and Go codecs, shared conformance vectors,
+schema checks and benchmarks. Hail-owned signed objects use deterministic CBOR
+and COSE_Sign1; JSON remains available at authoring and standardized boundaries.
 
-This is real public federation evidence. The permanent `haili.app` provider has
-closed its operational launch gates, but the two disposable providers still
-share one VPS and are not production services. Public managed transfer,
-historical recovery, abandonment, and equivalent recovery/load/security controls
-for every participating provider remain gated. Track the [`haili.app`
-permanent-provider launch](docs/haili-launch.md),
-the detailed [production gate checklist](apps/cli/docs/custody-transitions.md#production-enablement-required-versus-deferrable)
-and the [portable-custody boundary](docs/portable-custody.md).
+For unresolved product work, see the [browser roadmap](docs/browser-client-roadmap.md).
+For transfer authority and provider readiness, see [custody transitions](apps/cli/docs/custody-transitions.md).
 
-The repository includes TypeScript and Go reference codecs, shared conformance vectors, executable schema checks, diagnostic tooling and benchmarks. The intended v0 representation for Hail-owned signed objects and bodies is deterministic CBOR, with COSE_Sign1 for signatures; developer-facing and externally standardized JSON boundaries remain available where appropriate.
+## Deploy your own provider
+
+Start with the [new provider setup guide](apps/server/deploy/public/README.md).
+It covers the host, domain, container stack, HTTPS ingress, monitoring, first
+administrator, registration and ongoing operations. The
+[first administrator walkthrough](docs/provider-admin-setup.md) explains the
+owner-key and monitor ceremony through first dashboard login.
 
 ## Client capabilities
 
@@ -88,12 +80,12 @@ The reference CLI covers account administration and sensitive identity ceremonie
 | Vault backup and recovery | Create, verify, back up and import | Generate, save and verify a recovery kit during signup; no post-signup recovery import |
 | Passkeys and sessions | Browser-mediated passkey login | Sign in, add/rename/revoke passkeys, and sign out all sessions |
 | API credential management | Create, rotate, revoke and recovery login | Approve scoped CLI access; no credential-management UI |
-| Sender Profiles | Create, view and update | Verified avatars and sender/category review; no profile editor |
+| Sender Profiles | Create, view and update | Verified avatars, passkey-confirmed photo editing and publishing-category management |
 | Grants | Create, list, inspect, update and revoke | List scopes/expiry; managed sender approval by address or QR link, with passkey-confirmed creation and revocation |
 | Inbox | List, retrieve and wait with resumable delivery cursors | Paginated feed, safe rich-text rendering, avatars and bundled headers |
 | Conversations | List peers, read messages/threads, mark read/unread, trash and restore | Reply threads and read/unread/trash controls |
 | Diagnostics | Read-only provider/account checks, scope/expiry and workflow prerequisites | — |
-| Compose | Explicit Grant/reply text workflows | Category-wide publications with durable fan-out, rich text, bundled PNG headers and separate work/delivery status |
+| Compose | Explicit Grant/reply text workflows | Category publications and connection messages, forwarding, rich text, bundled PNG headers and separate work/delivery status |
 | Replies | Plain-text replies | Plain-text replies while the capability remains valid |
 | Sent messages | Status and retry by message ID | Paginated Sent view, detail, status and indeterminate retry |
 | Address bindings | View and renew | — |
@@ -101,7 +93,10 @@ The reference CLI covers account administration and sensitive identity ceremonie
 | Provider transfers | Owner-controlled and managed workflows | — |
 | Credential storage | Local encrypted vault and credential files | HttpOnly session cookie and encrypted pending setup; no full-access signup API credential |
 
-Browser onboarding is an [invitation-only, reduced-assurance alpha](docs/public-authentication.md): its monitor shares the provider's operator. The live pilot completed signup, [sender permission approval](docs/browser-permissions.md), message delivery and a one-time reply. Broader platform/phone-camera validation remains open; post-signup browser recovery still requires separate approval.
+Browser onboarding uses the [reduced-assurance alpha profile](docs/public-authentication.md).
+Registration defaults to invitations and can be opened explicitly by an operator.
+Same-operator monitoring is disclosed; broader platform validation and post-signup
+browser recovery remain separate work.
 
 ## Repository layout
 
@@ -116,9 +111,8 @@ Browser onboarding is an [invitation-only, reduced-assurance alpha](docs/public-
 ## Documentation
 
 - [`DESIGN.md`](DESIGN.md): High-level product and protocol design.
-- [`BUILD_ORDER.md`](BUILD_ORDER.md): Recommended specification and implementation sequence.
 - [`docs/portable-custody.md`](docs/portable-custody.md): Key custody, transfer ceremony, recovery checkpoints and POC/production boundaries.
-- [`docs/passkey-authentication.md`](docs/passkey-authentication.md): Passwordless provider login, cross-platform client strategy, recovery boundaries and implementation checklist.
+- [`docs/passkey-authentication.md`](docs/passkey-authentication.md): Passwordless provider login, cross-platform client strategy, recovery boundaries and remaining platform validation.
 - [Key custody and offline operation](docs/portable-custody.md#key-custody-in-plain-language): Signing-role and custody comparisons, offline requirements and binding-expiration rationale.
 - [Managed profiles and API-first clients](docs/portable-custody.md#managed-profiles-and-people-or-agents): Human/agent custody choices, owner-controlled recovery and native/`hailp` API interaction.
 - [Provider deployment runbook](apps/server/deploy/public/README.md): Strict-public provider setup and validation.

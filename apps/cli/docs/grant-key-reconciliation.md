@@ -1,4 +1,4 @@
-# Grant historical-key reconciliation — milestone-4 decision
+# Grant historical-key reconciliation
 
 This defines the boundary before identity rotation over unacknowledged Grant
 predecessors. Historical verification/reconciliation execution is **not implemented**.
