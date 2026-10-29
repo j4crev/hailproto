@@ -3,7 +3,7 @@
   import type {MessageImage} from "./messages.js";
   import DateTime from "./DateTime.svelte";
   let {leading, sender, timestamp, title, preview, header = null, href, selected = false, details}: {
-    leading: Snippet; sender: Snippet; timestamp: string; title: string; preview: string;
+    leading?: Snippet; sender?: Snippet; timestamp: string; title: string; preview: string;
     header?: MessageImage | null; href?: string; selected?: boolean; details?: Snippet;
   } = $props();
 </script>
@@ -17,10 +17,10 @@
   </span>
 {/snippet}
 
-<article class="list-row message-row" class:has-header={!!header} class:is-selected={selected}>
-  <div class="message-leading">{@render leading()}</div>
+<article class="list-row message-row" class:has-header={!!header} class:without-leading={!leading} class:is-selected={selected}>
+  {#if leading}<div class="message-leading">{@render leading()}</div>{/if}
   <div class="message-meta">
-    <strong class="message-sender">{@render sender()}</strong>
+    {#if sender}<strong class="message-sender">{@render sender()}</strong>{/if}
     <span class="list-date"><DateTime format="list" value={timestamp} /></span>
   </div>
   {#if href}<a class="message-link" {href}>{@render content()}</a>
@@ -29,6 +29,9 @@
 
 <style>
   .message-row { padding-block:16px; position:relative; display:grid; grid-template-columns:44px minmax(0,1fr); align-items:center; column-gap:12px; }
+  .message-row.without-leading { grid-template-columns:minmax(0,1fr); }
+  .without-leading .message-meta, .without-leading .message-link, .without-leading .message-content { grid-column:1; }
+  .without-leading.has-header .message-meta { margin:16px; }
   .message-leading { grid-column:1; grid-row:1 / 3; }
   .message-meta, .message-link, .message-content { grid-column:2; min-width:0; }
   .message-row.has-header { padding:0; grid-template-columns:60px minmax(0,1fr); }
@@ -41,7 +44,7 @@
   .message-meta { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
   .message-sender { min-width:0; font-size:13px; }
   .message-sender :global(.address) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .list-date { position:relative; z-index:1; }
+  .list-date { margin-left:auto; position:relative; z-index:1; }
   .message-link { display:block; color:inherit; text-decoration:none; }
   .message-link::after { content:""; position:absolute; inset:0; }
   .message-link:focus-visible::after { outline:2px solid var(--color-brand); outline-offset:-2px; }

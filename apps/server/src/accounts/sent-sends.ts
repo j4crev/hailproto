@@ -40,7 +40,18 @@ export async function sentSends(sql:SQL,session:AccountApiSession,after:string|n
     WHERE (${cursorId??null}::uuid IS NULL OR (id,kind)<(${cursorId??null}::uuid,${cursorKind??null}::text))
       AND (${selection?.id??null}::uuid IS NULL OR (id=${selection?.id??null}::uuid AND kind=${selection?.kind??null}))
     ORDER BY id DESC,kind DESC LIMIT ${PAGE_SIZE+1}`;
+  // Only the detail request needs recipients; feeds keep their existing query cost.
+  const recipients = selection?.kind === "connections" && rows.some(row => row.id === selection.id && row.kind === "connections")
+    ? await sql<{did:string;address:string|null}[]>`
+      SELECT target.recipient_did AS did, pair.peer_address AS address
+      FROM connection_message_targets target
+      JOIN sent_envelopes envelope ON envelope.sender_account_id=target.account_id AND envelope.message_id=target.message_id
+      LEFT JOIN federated_connection_pairs pair ON pair.account_id=target.account_id AND pair.peer_did=target.recipient_did
+      WHERE target.account_id=${session.account_id} AND target.publication_id=${selection.id}
+        AND envelope.sender_did=${session.did}
+      ORDER BY target.recipient_did`
+    : undefined;
   return {messages:rows.slice(0,PAGE_SIZE).map(row=>({messageId:row.id,kind:row.kind,category:row.category,
-    createdAt:row.created_at.toISOString(),body:bodyDocument(row.body_bytes)})),
+    createdAt:row.created_at.toISOString(),body:bodyDocument(row.body_bytes),...(recipients ? {recipients} : {})})),
     next:rows.length>PAGE_SIZE?`${rows[PAGE_SIZE-1]!.id}/${rows[PAGE_SIZE-1]!.kind}`:null};
 }

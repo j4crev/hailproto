@@ -331,7 +331,12 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     const sends=await one.messaging.sentSends(a.session,null);
     expect(sends.messages).toHaveLength(1);
     expect(sends.messages[0]).toMatchObject({messageId:direct.publicationId,kind:"connections"});
-    expect((await one.messaging.sentSends(a.session,null,{id:direct.publicationId,kind:"connections"})).messages).toHaveLength(1);
+    expect(sends.messages[0]).not.toHaveProperty("recipients");
+    const sentDetail=(await one.messaging.sentSends(a.session,null,{id:direct.publicationId,kind:"connections"})).messages;
+    expect(sentDetail).toHaveLength(1);
+    expect(sentDetail[0]!.recipients).toEqual(expect.arrayContaining([{did:b.did,address:b.address},{did:c.did,address:c.address}]));
+    expect(sentDetail[0]!.recipients).toHaveLength(2);
+    expect((await one.messaging.sentSends(c.session,null,{id:direct.publicationId,kind:"connections"})).messages).toEqual([]);
     const copies=await first.db.sql<{envelope_cose:Uint8Array}[]>`SELECT envelope_cose FROM sent_envelopes WHERE message_id IN(
       SELECT message_id FROM connection_message_targets WHERE publication_id=${direct.publicationId})`;
     const payloads=copies.map(row=>inspectSignedPayload('hail.envelope',new Uint8Array(row.envelope_cose)).payload);

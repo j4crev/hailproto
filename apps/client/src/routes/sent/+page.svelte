@@ -1,12 +1,11 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import MessageListRow from "$lib/MessageListRow.svelte";
-  import SelectionAvatar from "$lib/SelectionAvatar.svelte";
   import {showInboxHeaders, loadHeaderPreference} from "$lib/preferences.js";
   let {data}=$props();
   onMount(loadHeaderPreference);
   const audience = (message: {kind: string; category: string | null}) => message.kind === 'category'
-    ? `Category: ${message.category === 'general' ? 'General' : message.category}`
+    ? message.category === 'general' ? 'General' : message.category ?? 'Message'
     : message.kind === 'connections' ? 'Connections' : 'Message';
 </script>
 
@@ -18,8 +17,7 @@
       {#each data.messages as message}
         <MessageListRow timestamp={message.createdAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null}
           href={`/sent/send/${message.kind}/${message.messageId}`}>
-          {#snippet leading()}<SelectionAvatar name={audience(message)} />{/snippet}
-          {#snippet sender()}{audience(message)}{/snippet}
+          {#snippet sender()}{#if message.kind === 'category'}<mark class="inline-block max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{audience(message)}</mark>{/if}{/snippet}
         </MessageListRow>
       {/each}
     </section>

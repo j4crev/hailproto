@@ -228,12 +228,17 @@ export function parseSentFeed(value:unknown) {
 export function parseSentSend(value:unknown) {
   const item=object(value,"sent send");
   if(!["category","connections","message"].includes(item.kind as string))throw new Error("Invalid send kind");
+  if(item.recipients!==undefined&&(!Array.isArray(item.recipients)||item.recipients.length>100))throw new Error("Invalid recipients");
+  const recipients = item.recipients===undefined ? null : (item.recipients as unknown[]).map(value=>{
+    const recipient=object(value,"recipient");
+    return {did:text(recipient.did,"recipient DID"),address:recipient.address===null?null:text(recipient.address,"recipient address")};
+  });
   const content=parseBody(item.body),first=content.blocks[0];
   const title=first?.style==="h1"?first.spans.map(span=>span.text).join("").trim():"";
   const paragraphs=title?content.paragraphs.slice(1):content.paragraphs;
   return {...content,messageId:text(item.messageId,"send ID"),kind:item.kind as "category"|"connections"|"message",
     category:item.category===null?null:text(item.category,"category"),createdAt:text(item.createdAt,"creation time"),
-    title:title||"Untitled message",preview:messagePreview({paragraphs})};
+    title:title||"Untitled message",preview:messagePreview({paragraphs}),recipients};
 }
 
 export function parseSentSends(value:unknown) {
