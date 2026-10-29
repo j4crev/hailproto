@@ -417,6 +417,16 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     const read=await cli(["inbox","show",senderDid,id],"message-owner.credential.json");if(read.exit)throw new Error(read.stderr);
     expect(JSON.parse(read.stdout).body.blocks[0].children[0].text).toBe("CLI message");
     expect(JSON.parse(read.stdout).reply.allowed).toBe(true);
+    // Rehearse startup migration against populated storage with no account
+    // admission context. A DML backfill would trip hail_guard_did_write.
+    const retained=await db.sql`SELECT to_jsonb(m)-'delivery_sequence' AS row FROM delivered_messages m ORDER BY recipient_did,sender_did,message_id`;
+    await db.sql.begin(async tx=>{
+      await tx.unsafe(await Bun.file(new URL("../migrations/rollback/0084_inbox_delivery_cursor.sql",import.meta.url)).text());
+      await tx`DELETE FROM schema_migrations WHERE version=84`;
+    });
+    await db.migrate();
+    expect(await db.sql`SELECT to_jsonb(m)-'delivery_sequence' AS row FROM delivered_messages m ORDER BY recipient_did,sender_did,message_id`).toEqual(retained);
+    expect(await db.sql`SELECT 1 FROM delivered_messages WHERE delivery_sequence IS NULL`).toHaveLength(0);
     const waiting=await cli(["inbox","wait","--from",senderDid,"--timeout","1"],"message-owner.credential.json");
     expect(waiting.exit,waiting.stderr).toBe(0);
     const checkpoint=JSON.parse(waiting.stdout).cursor;

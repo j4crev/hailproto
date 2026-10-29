@@ -1,8 +1,11 @@
 -- Serialize sequence allocation per recipient until commit, including old writers.
 -- A plain sequence alone could skip a delivery whose transaction commits late.
 CREATE SEQUENCE inbox_delivery_sequence;
-ALTER TABLE delivered_messages ADD COLUMN delivery_sequence bigint;
-UPDATE delivered_messages SET delivery_sequence=nextval('inbox_delivery_sequence');
+-- Backfill under the ALTER TABLE lock without invoking message-write guards.
+-- The volatile default gives every retained row its own sequence value.
+ALTER TABLE delivered_messages ADD COLUMN delivery_sequence bigint NOT NULL
+  DEFAULT nextval('inbox_delivery_sequence');
+ALTER TABLE delivered_messages ALTER COLUMN delivery_sequence DROP DEFAULT;
 CREATE FUNCTION hail_assign_delivery_sequence() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended(NEW.recipient_did, 842184));
