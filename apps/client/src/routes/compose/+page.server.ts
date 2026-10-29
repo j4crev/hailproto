@@ -1,6 +1,7 @@
+import {forwardSource, forwardBody} from "$lib/forward.js";
 import { createHash } from "node:crypto";
 import { error,fail,isRedirect,redirect } from "@sveltejs/kit";
-import { encodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url, encodePayload, type HailSpt2Body, type HailSpt3Body } from "@hailproto/codec";
 import { composeBlocks } from "$lib/compose.js";
 import { canaryAccount } from "$lib/server/canary.js";
 import { messageId } from "$lib/server/message-id.js";
@@ -13,6 +14,8 @@ const CATEGORY=/^[a-z0-9][a-z0-9._-]{0,63}$/;
 
 export async function load({url,cookies}) {
   const oldMessage=url.searchParams.get("message");if(oldMessage&&UUID7.test(oldMessage))redirect(303,`/sent/${oldMessage}`);
+  const forwardSender=url.searchParams.get("forwardSender"),forwardMessage=url.searchParams.get("forwardMessage");
+  if((forwardSender||forwardMessage)&&(!forwardSender||!forwardMessage||!UUID7.test(forwardMessage)||url.searchParams.get("audience")!=="connections"))error(400,"Invalid forward source");
   const kind=url.searchParams.get("audience")==="connections"?"connections":"category";
   const {account,client}=await canaryAccount(cookies,url),audiences=publicationAudiences(await client.request("/publications/audiences"));
   const targets=kind==="connections"?connectionMessageTargets(await client.request("/connection-messages/targets")):{maxRecipients:100,connections:[]};
@@ -24,7 +27,12 @@ export async function load({url,cookies}) {
     catch(cause){if(cause instanceof AccountApiError&&cause.status===404)error(404,"Publication unavailable for this account");throw cause;}
     if(status.publicationId!==id)error(502,"Provider returned another publication");}
   const preferred=url.searchParams.get("connection");
-  return {account,...audiences,connections:targets.connections,maxRecipients:kind==="connections"?targets.maxRecipients:audiences.maxRecipients,kind,status,newPublicationId:messageId(),
+  let forward:ReturnType<typeof forwardSource>|null=null;
+  if(forwardSender&&forwardMessage){
+    try {forward=forwardSource(await client.request(`/inbox/${encodeURIComponent(forwardSender)}/${encodeURIComponent(forwardMessage)}`),{sender:forwardSender,messageId:forwardMessage});}
+    catch {error(404,"Original message unavailable for forwarding");}
+  }
+  return {forward,account,...audiences,connections:targets.connections,maxRecipients:kind==="connections"?targets.maxRecipients:audiences.maxRecipients,kind,status,newPublicationId:messageId(),
     defaultConnection:targets.connections.some(t=>t.connectionId===preferred)?preferred:null,defaultCategory:audiences.categories.some(row=>row.category==="general")?"general":""};
 }
 
@@ -33,17 +41,19 @@ export const actions={publish:async({request,cookies,url})=>{
     const {client}=await canaryAccount(cookies,url),form=await request.formData(),field=(name:string)=>{const value=form.get(name);return typeof value==="string"?value:"";};
     const id=field("publicationId"),category=field("category"),mode=field("mode"),title=field("title"),text=field("text"),alt=field("alt"),caption=field("caption"),header=form.get("header"),allowReply=field("allowReply")==="yes";
     const kind=field("audience")==="connections"?"connections":"category",connections=form.getAll("connection");
+    const forwardSender=field("forwardSender"),forwardMessage=field("forwardMessage"),forwarding=form.has("forwardSender")||form.has("forwardMessage");
+    if(forwarding&&(kind!=="connections"||!forwardSender||!UUID7.test(forwardMessage)))return fail(400,{error:"Forwards can only be sent to connections."});
     const keys=[...form.keys()];
-    if(keys.some(key=>!["publicationId","category","mode","title","text","alt","caption","header","allowReply","audience","connection"].includes(key))||
+    if(keys.some(key=>!["forwardSender","forwardMessage","publicationId","category","mode","title","text","alt","caption","header","allowReply","audience","connection"].includes(key))||
       new Set(keys.filter(k=>k!=="connection")).size!==keys.filter(k=>k!=="connection").length||
       !["","category","connections"].includes(field("audience"))||!UUID7.test(id)||(kind==="category"?!CATEGORY.test(category)||connections.length>0:connections.length<1||connections.length>100||connections.some(v=>typeof v!=="string"||!UUID7.test(v))||new Set(connections).size!==connections.length||form.has("category")||form.has("allowReply"))||
-      !['plain','rich'].includes(mode)||!text.trim()||Buffer.byteLength(text)>65536||Buffer.byteLength(title)>128||
+      !['plain','rich'].includes(mode)||(!forwarding&&!text.trim())||Buffer.byteLength(text)>65536||Buffer.byteLength(title)>128||
       Buffer.byteLength(alt)>1024||Buffer.byteLength(caption)>1024)
       return fail(400,{error:"Check the category, mode, title, and message text."});
     const hasHeader=header instanceof File&&header.size>0;
     if(mode==="plain"&&(title||hasHeader))return fail(400,{error:"Titles and headers require rich mode."});
     let body:Record<string,unknown>|undefined;
-    if(mode==="rich"){
+    if(mode==="rich"&&!forwarding){
       const blocks=composeBlocks(title.trim(),text.trim());
       if(hasHeader){
         if(!(header instanceof File)||header.type!=="image/png"||header.size>196608||!alt.trim())return fail(400,{error:"Choose a bounded PNG and provide image alt text."});
@@ -54,6 +64,16 @@ export const actions={publish:async({request,cookies,url})=>{
           size:data.length,digest:{algorithm:"sha-256",value:encodeBase64Url(digest)},width:view.getUint32(16),height:view.getUint32(20),data:encodeBase64Url(data)}]},
           blocks:[{_type:"spt.image",asset:"header",alt:alt.trim(),...(caption.trim()?{caption:caption.trim()}: {})},...blocks]};
       } else body={version:1,profile:"spt-2",blocks};
+    }
+    if(forwarding){
+      try {
+        const source=forwardSource(await client.request(`/inbox/${encodeURIComponent(forwardSender)}/${encodeURIComponent(forwardMessage)}`),{sender:forwardSender,messageId:forwardMessage});
+        body=forwardBody(source,text.trim());
+      } catch {return fail(400,{error:"The original message is unavailable for forwarding. Return to your inbox and try again."});}
+      try {
+        const bytes=body.profile==="spt-3"?encodePayload("hail.body.spt-3",body as unknown as HailSpt3Body):encodePayload("hail.body.spt-2",body as unknown as HailSpt2Body);
+        if(bytes.length>262144)throw new Error("Body too large");
+      } catch {return fail(400,{error:"This forward exceeds the supported message limits. Shorten your note; if it still fails, the original message is too large to forward."});}
     }
     try{
       const result=publicationStatus(await client.request(kind==="connections"?"/connection-messages":"/publications",{publicationId:id,

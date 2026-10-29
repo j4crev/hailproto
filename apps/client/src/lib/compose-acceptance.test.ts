@@ -28,3 +28,30 @@ for(const kind of ["category","connections"] as const){
     expect(await publish()).toMatchObject({status:502,data:{publicationId:id,error:expect.any(String)}});
   });
 }
+
+it('forwards an authenticated inbox source only through connection sends',async()=>{
+  request.mockReset();
+  const body=new FormData();
+  const sender='did:plc:'+'a'.repeat(24);
+  for(const [key,value] of Object.entries({publicationId:id,audience:'connections',mode:'rich',text:'',connection:targetId,forwardSender:sender,forwardMessage:id}))body.set(key,value);
+  const publish=()=>actions.publish({request:new Request('https://example.com/compose',{method:'POST',body}),cookies:{},url:new URL('https://example.com/compose')} as unknown as Parameters<typeof actions.publish>[0]);
+  request.mockResolvedValueOnce({sender,messageId:id,recipient:'did:plc:'+'b'.repeat(24),category:'general',deliveredAt:'2026-10-29T00:00:00Z',body:{version:1,profile:'spt-1',blocks:[{_type:'block',style:'normal',children:[{_type:'span',text:'Original message',marks:[]}],markDefs:[]}]}});
+  request.mockRejectedValueOnce(new Error('Response lost'));
+  expect(await publish()).toMatchObject({status:502,data:{publicationId:id}});
+  expect(request.mock.calls[0][0]).toBe(`/inbox/${encodeURIComponent(sender)}/${id}`);
+  expect(request.mock.calls[1]).toMatchObject(['/connection-messages',{publicationId:id,connections:[targetId],body:{profile:'spt-2'}}]);
+  expect(JSON.stringify(request.mock.calls[1][1])).toContain('Original message');
+  expect(request.mock.calls[1][1]).not.toHaveProperty('replyTo');
+  request.mockClear();
+  body.set('audience','category');body.set('category','general');body.delete('connection');
+  expect(await publish()).toMatchObject({status:400});
+  expect(request).not.toHaveBeenCalled();
+});
+
+it('does not send when the forward source is missing',async()=>{
+  request.mockReset();request.mockRejectedValueOnce(new Error('Not found'));
+  const body=new FormData();
+  for(const [key,value] of Object.entries({publicationId:id,audience:'connections',mode:'rich',text:'Note',connection:targetId,forwardSender:'did:plc:'+'a'.repeat(24),forwardMessage:id}))body.set(key,value);
+  expect(await actions.publish({request:new Request('https://example.com/compose',{method:'POST',body}),cookies:{},url:new URL('https://example.com/compose')} as unknown as Parameters<typeof actions.publish>[0])).toMatchObject({status:400});
+  expect(request).toHaveBeenCalledTimes(1);
+});

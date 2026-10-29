@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {forwardHref} from "$lib/forward.js";
   import {messageDisplayContent} from "$lib/messages.js";
   import {tick} from "svelte";
   import {mailboxRequest} from "$lib/mailbox.js";
@@ -78,6 +79,7 @@
         {/if}
         {#if data.message.connection?.active}<a class="hail-icon-button compact" aria-label="Reply" title="Reply" href={`/compose?audience=connections&connection=${data.message.connection.id}`}><Icon name="reply" /></a>
         {:else if data.message.kind !== 'connection'}<button disabled={!data.canReply} bind:this={replyButton} class="hail-icon-button compact" type="button" aria-label="Reply" title="Reply" aria-expanded={replyOpen} aria-controls="subscription-reply" onclick={openReply}><Icon name="reply" /></button>{/if}
+        <a class="hail-icon-button compact" aria-label="Forward" title="Forward" href={forwardHref(data.message)}><Icon name="forward" /></a>
         <MessageActions compact menu disabled={readPending} messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} />
         {/if}
       </div>

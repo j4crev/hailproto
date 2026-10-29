@@ -131,3 +131,24 @@ until an explicitly scoped cleanup is approved. They are not converted into
 invented federation receipts. Historical snapshot validation preserves original
 bytes only; it cannot reactivate those records. See the
 [cleanup boundary](../spec/connection-portability.md#unified-model-upgrade-boundary).
+
+## Forwarding received messages
+
+The client offers Forward beside Reply for both connection and subscription
+messages. Forwarding opens the connection recipient picker with an optional note
+and a preview. The server reloads the original from the authenticated inbox and
+sends through the existing connection batch endpoint; subscription publication
+and reply capabilities are never copied. Trashed sources cannot be forwarded.
+
+The original subject, rich blocks, links, lists and bundled header image are
+preserved. Literal attribution includes the sender's available hail address, DID,
+message ID and recorded delivery timestamp (labeled “Originally received”, not
+sent time). This is quoted content supplied by the forwarder, not independently
+verified authorship. The normal message size limits still apply, including the
+extra attribution and note.
+
+`MessageReference` identifies a source by sender DID and message ID. It is separate
+from send authorization and can be reused when adding reply composition. This
+change does not introduce a wire-level relationship or thread identifier:
+threaded replies will need an explicit protocol design, rather than inferring
+relationships from forwarded text or repurposing subscription reply authority.
