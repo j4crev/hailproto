@@ -21,7 +21,7 @@
   {#if leading}<div class="message-leading">{@render leading()}</div>{/if}
   <div class="message-meta">
     {#if sender}<strong class="message-sender">{@render sender()}</strong>{/if}
-    <span class="list-date"><DateTime format="list" value={timestamp} /></span>
+    <strong class="list-date"><DateTime format="list" value={timestamp} /></strong>
   </div>
   {#if href}<a class="message-link" {href}>{@render content()}</a>
   {:else}<div class="message-content">{@render content()}</div>{/if}
@@ -50,8 +50,8 @@
   .message-link:focus-visible::after { outline:2px solid var(--color-brand); outline-offset:-2px; }
   .message-subject, .message-preview { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
   .message-subject { margin-top:2px; font-weight:650; }
-  .is-read .message-sender, .is-read .message-subject { font-weight:400; }
-  .muted .message-sender, .muted .message-subject { font-weight:400; color:var(--color-muted); }
+  .is-read .message-sender, .is-read .message-subject, .is-read .list-date { font-weight:400; }
+  .muted .message-sender, .muted .message-subject, .muted .list-date { font-weight:400; color:var(--color-muted); }
   .message-preview { color:var(--color-muted); }
   @media(max-width:640px) { .message-meta { gap:8px; } }
   .message-details { display:block; margin-top:4px; color:var(--color-muted); font-size:11px; }
