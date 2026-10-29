@@ -12,7 +12,7 @@
         {@const current=message.sender===selected.sender&&message.messageId===selected.messageId}
         <li class={['rounded-lg border border-solid p-3',current?'border-brand bg-brand-soft':'border-line']}>
           <a class="text-sm font-semibold [overflow-wrap:anywhere]" href={messageHref(message)} aria-current={current?'page':undefined}>{message.sent?'You':(peer?.did===message.sender?peer.address:null)??message.sender} · <DateTime value={message.createdAt}/></a>
-          <p class="mb-0 mt-2 whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{message.preview}</p>
+          {#if message.preview}<p class="mb-0 mt-2 line-clamp-2 text-sm [overflow-wrap:anywhere]">{message.preview}</p>{/if}
           {#if message.inReplyTo}
             {#if message.parentAvailable}
               {@const parent=thread.messages.find(m=>m.sender===message.inReplyTo?.sender&&m.messageId===message.inReplyTo?.messageId)}

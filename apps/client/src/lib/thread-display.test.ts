@@ -46,3 +46,13 @@ it('shows the known peer address while keeping You and DID fallbacks',()=>{
   expect(mismatch).not.toContain('someone-else@haili.app');
   expect(mismatch).toContain(peer+' ·');
 });
+
+it('keeps body previews compact and omits empty previews',()=>{
+  const message={sender,messageId:id,sent:true,createdAt:'2026-10-29T10:00:00Z',preview:'Actual message body',inReplyTo:{sender:'did:plc:'+'b'.repeat(24),messageId:id},parentAvailable:false};
+  const props={thread:{messages:[message],truncated:false},selected:message};
+  const body=render(MessageThread,{props}).body;
+  expect(body).toContain('Actual message body');
+  expect(body).toContain('line-clamp-2');
+  const empty=render(MessageThread,{props:{...props,thread:{messages:[{...message,preview:''}],truncated:false}}}).body;
+  expect(empty).not.toContain('line-clamp-2');
+});

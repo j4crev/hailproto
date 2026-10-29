@@ -7,6 +7,15 @@ type Reference={sender:string;messageId:string};
 type Row={sender_did:string;message_id:string;recipient_did:string;envelope_cose:Uint8Array;body_bytes:Uint8Array};
 const key=(r:Reference)=>r.sender+"/"+r.messageId;
 
+type PreviewBody={blocks?:{style?:string;children?:{text?:string}[]}[]};
+export function threadBodyPreview(body:PreviewBody):string {
+  const blocks=(body.blocks??[]).filter(block=>block.children?.length);
+  const content=blocks[0]?.style==="h1"?blocks.slice(1):blocks;
+  const text=content.map(block=>block.children!.map(span=>span.text??"").join("").replace(/\s+/g," ").trim()).find(Boolean)??"";
+  const characters=Array.from(text);
+  return characters.length>240?characters.slice(0,239).join("")+"…":text;
+}
+
 // Traverse only this account's visible messages with this exact peer. A shared
 // publication is never a thread identity. Missing parents need not be fetched.
 export async function messageThread(sql:SQL,session:AccountApiSession,root:Reference,peer:string) {
@@ -59,10 +68,9 @@ export async function messageThread(sql:SQL,session:AccountApiSession,root:Refer
   if(frontier.length)truncated=true;
   const messages=[...visited.values()].map(row=>{
     const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
-    const body=bodyDocument(row.body_bytes) as {blocks?:{children?:{text?:string}[]}[]};
+    const body=bodyDocument(row.body_bytes) as PreviewBody;
     const parent=messageParent(envelope);
-    const text=(body.blocks??[]).find(b=>b.children?.length)?.children?.map(s=>s.text??"").join("")??"";
-    const preview=Array.from(text).slice(0,500).join("");
+    const preview=threadBodyPreview(body);
     return {sender:row.sender_did,messageId:row.message_id,sent:row.sender_did===session.did,
       createdAt:new Date(envelope.created_at*1000).toISOString(),preview,inReplyTo:parent,
       parentAvailable:parent?visited.has(key(parent)):false};
