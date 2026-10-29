@@ -1,7 +1,10 @@
 <script lang="ts">
+  import MessageListRow from "$lib/MessageListRow.svelte";
+  import ContactAddress from "$lib/ContactAddress.svelte";
+  import {showInboxHeaders, loadHeaderPreference} from "$lib/preferences.js";
   import DateTime from "$lib/DateTime.svelte";
   import {onMount} from 'svelte';
-  let ready=$state(false);onMount(()=>ready=true);
+  let ready=$state(false);onMount(()=>{ready=true;loadHeaderPreference();});
   import {afterNavigate,invalidateAll} from '$app/navigation';
   import {mailboxRequest} from '$lib/mailbox.js';
   import SelectionAvatar from '$lib/SelectionAvatar.svelte';
@@ -29,15 +32,13 @@
         {#snippet actions()}<button class="hail-button-secondary" disabled={busy||!ready} onclick={restore}>Restore</button>{/snippet}
       </SelectionActions>
     {/if}
-    <section class="grid gap-4" aria-label="Trashed messages">
+    <section class="compact-list" aria-label="Trashed messages">
       {#each data.messages as message (key(message))}
-        <article class="hail-card grid gap-3 p-5" class:is-selected={selected.includes(key(message))}>
-          <div class="flex items-start gap-3">
-            <SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(key(message))} disabled={busy||!ready} label={`Select message from ${message.senderAddress??message.sender}`} ontoggle={()=>toggle(key(message))} />
-            <span class="min-w-0 [overflow-wrap:anywhere]"><strong>{message.senderAddress??message.sender}</strong><span class="mt-1 block text-xs text-muted">Restore to {message.kind==='connection'?'Messages':'Inbox'} · Trashed <DateTime value={message.trashedAt} /></span></span>
-          </div>
-          <p class="m-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{message.preview}</p>
-        </article>
+        <MessageListRow timestamp={message.deliveredAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null} selected={selected.includes(key(message))}>
+          {#snippet leading()}<SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(key(message))} disabled={busy||!ready} label={`Select message from ${message.senderAddress??message.sender}`} ontoggle={()=>toggle(key(message))} />{/snippet}
+          {#snippet sender()}<ContactAddress owner={data.account.did} did={message.sender} address={message.senderAddress} />{/snippet}
+          {#snippet details()}Restore to {message.kind==='connection'?'Messages':'Inbox'} · Trashed <DateTime format="list" value={message.trashedAt} />{/snippet}
+        </MessageListRow>
       {/each}
     </section>
   {:else}<p class="hail-card p-6">Trash is empty.</p>{/if}
@@ -45,6 +46,5 @@
 </div>
 
 <style>
-  .is-selected { border-color:var(--color-brand); }
   @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
 </style>

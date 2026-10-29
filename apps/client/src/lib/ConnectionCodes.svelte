@@ -67,24 +67,31 @@
 {/snippet}
 {#if list}
   <section class="connection-content mt-8 grid gap-5" class:has-selection={selectedConnections.length>0} aria-label="Connection codes">
-    <header class="grid gap-2"><h2 class="m-0 text-2xl">Connect with me</h2></header>
     {#if message}<p class="hail-error" role="status">{message}</p>{/if}
     {#if recoveryNeeded}
       {#if busy}<p class="text-sm text-muted" role="status">Checking your connection change…</p>
       {:else}<button class="hail-button-secondary justify-self-start" onclick={()=>run(check)}>Try again</button>{/if}
     {:else if prepared}<div bind:this={confirmation}><ConnectionApproval {owner} approval={prepared} oncomplete={done} oncancel={cancel} /></div>
     {:else}
-      <section class="hail-card grid min-w-0 gap-4 p-5" aria-label="Your personal code"><h3 class="m-0 text-xl">Share your personal code</h3><p class="m-0 text-sm text-muted">No automatic expiry. Replace if shared unintentionally. Allows immediate connection to you for anyone who scans or uses it.</p>
-        {#if personal}<div class="flex flex-wrap gap-2"><button class="hail-button" aria-expanded={shown===personal.link} aria-controls={`connection-code-${personal.id}`} onclick={()=>shown=shown===personal.link?null:personal.link}>{shown===personal.link?"Hide QR & link":"Show QR & link"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"replace",id:personal.id}))}>Replace</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"revoke",id:personal.id}))}>Revoke</button></div>
-          {#if shown===personal.link}{@render shareCode(personal.link,personal.id)}{/if}
-        {:else}<button class="hail-button justify-self-start" disabled={busy} onclick={()=>run(()=>prepare({action:"create",personal:true,label:"Personal code",expiresAt:null}))}>Create my personal code</button>{/if}
+      <section class="grid min-w-0 gap-4" aria-label="Your personal code">
+        {#if personal}
+          <button class="hail-button justify-self-start" aria-expanded={shown===personal.link} aria-controls={`personal-code-${personal.id}`} onclick={()=>shown=shown===personal.link?null:personal.link}>{shown===personal.link?"Hide QR":"Show QR"}</button>
+          {#if shown===personal.link}
+            <div id={`personal-code-${personal.id}`} class="grid min-w-0 gap-4">
+              <div class="flex flex-wrap gap-2">
+                <button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"replace",id:personal.id}))}>Replace</button>
+                <button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"revoke",id:personal.id}))}>Revoke</button>
+              </div>
+              {@render shareCode(personal.link,personal.id)}
+            </div>
+          {/if}
+        {:else}<button class="hail-button justify-self-start" disabled={busy} onclick={()=>run(()=>prepare({action:"create",personal:true,label:"Personal code",expiresAt:null}))}>Create my QR code</button>{/if}
       </section>
       <form class="hail-card grid gap-4 p-5" onsubmit={event=>{event.preventDefault();void run(()=>prepare({action:"create",personal:false,label:label.trim(),expiresAt:Math.floor(new Date(expiry).getTime()/1000)}));}}>
-        <h3 class="m-0 text-xl">Create an expiring connect link</h3><p class="m-0 text-sm text-muted">Separate from your personal code. Expiry stops new connections; established connections remain.</p>
-        <label class="hail-field">Private label<input bind:value={label} maxlength="80" required placeholder="Conference, website, or friend" disabled={busy||draft!==null} /></label>
-        <label class="hail-field">Expires (your local time)<input type="datetime-local" bind:value={expiry} required disabled={busy||draft!==null} /></label>
-        <p class="m-0 text-sm">Public sharing lets any authenticated holder connect with you.</p>
-        <button class="hail-button justify-self-start" disabled={busy}>Review</button>
+        <h3 class="m-0 text-xl">Create an expiring connect link</h3><p class="m-0 text-sm text-muted">Separate from your QR code. Expiry stops new connections; established connections remain.</p>
+        <label class="hail-field">Purpose<input bind:value={label} maxlength="80" required placeholder="Conference, website, or friend" disabled={busy||draft!==null} /></label>
+        <label class="hail-field">Expires<input type="datetime-local" bind:value={expiry} required disabled={busy||draft!==null} /></label>
+        <button class="hail-button justify-self-start" disabled={busy}>Create</button>
       </form>
       {#each list.codes.filter(code=>!code.personal) as code}<article class="hail-card grid min-w-0 gap-3 p-5"><strong>{code.label}</strong><p class="m-0 text-sm text-muted">Expires <DateTime value={code.expiresAt!*1000} /></p><div class="flex flex-wrap gap-2"><button class="hail-button-secondary" aria-expanded={shown===code.link} aria-controls={`connection-code-${code.id}`} onclick={()=>shown=shown===code.link?null:code.link}>{shown===code.link?"Hide QR & link":"Show QR & link"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"revoke",id:code.id}))}>Revoke</button></div>{#if shown===code.link}{@render shareCode(code.link,code.id)}{/if}</article>{/each}
       {#if draft&&!prepared}<button class="hail-button-secondary justify-self-start" onclick={()=>cancel()}>Discard unsaved review</button>{/if}

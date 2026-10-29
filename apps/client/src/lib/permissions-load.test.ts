@@ -21,3 +21,13 @@ it("keeps subscriptions available with initials when no sender avatar exists",as
   fixture.avatars.mockResolvedValue(new Map());
   expect((await load(event())).permissions.map(permission=>permission.avatar)).toEqual([null,null]);
 });
+it("shows only active, unexpired subscriptions and preserves pagination",async()=>{
+  fixture.request.mockResolvedValue({grants:['ongoing','future','expired','revoked','boundary'].map(grantId=>({grantId,localRole:'grantor'})),next:'next-page'});
+  const now=Math.floor(Date.now()/1000);
+  fixture.grant.mockImplementation(async(grantId:string)=>({localRole:'grantor',digest:'digest',payload:{grant_id:grantId,grantor:fixture.account.did,grantee:'did:plc:'+grantId,consent_context:{grantee_address:grantId+'@example.com'},scope:[{type:'categories',values:['general']}],status:grantId==='revoked'?'revoked':'active',revision:1,expires_at:grantId==='future'?now+3600:grantId==='expired'?now-1:grantId==='boundary'?now:null}}));
+  fixture.avatars.mockResolvedValue(new Map());
+  const result=await load(event());
+  expect(result.permissions.map(permission=>permission.grantId)).toEqual(['ongoing','future']);
+  expect(result.next).toBe('next-page');
+  expect(fixture.avatars.mock.calls[0][1]).toEqual(new Set(['did:plc:ongoing','did:plc:future']));
+});

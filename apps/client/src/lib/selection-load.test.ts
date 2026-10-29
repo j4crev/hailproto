@@ -17,3 +17,9 @@ it('loads connection portraits and preserves the component retry path on API fai
   fixture.request.mockRejectedValue(new Error('Unavailable'));fixture.avatars.mockResolvedValue(new Map());
   expect(await connections(event())).toMatchObject({initialList:null,avatars:{}});
 });
+it('separates Trash subjects from previews while retaining restore identity and dates',async()=>{
+  const block=(style:string,text:string)=>({_type:'block',style,children:[{_type:'span',text,marks:[]}],markDefs:[]});
+  fixture.request.mockResolvedValue({messages:[{sender:'sender',messageId:'message',recipient:'owner',deliveredAt:'2026-10-27T12:00:00Z',trashedAt:'2026-10-28T12:00:00Z',category:null,kind:'connection',body:{version:1,profile:'spt-2',blocks:[block('h1','Weekend plans'),block('normal','See you Saturday.')]}}],next:'next-page'});
+  const result=await trash(event());
+  expect(result).toMatchObject({next:'next-page',messages:[{sender:'sender',messageId:'message',kind:'connection',deliveredAt:'2026-10-27T12:00:00Z',trashedAt:'2026-10-28T12:00:00Z',title:'Weekend plans',preview:'See you Saturday.',avatar:{width:44}}]});
+});

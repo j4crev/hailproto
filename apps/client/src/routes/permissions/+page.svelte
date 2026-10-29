@@ -13,7 +13,8 @@
   let {data}=$props();
   let selectedSubscriptions=$state<string[]>([]);
   let confirmation=$state<HTMLElement>();
-  let selectedPermissions=$derived(data.permissions.filter(permission=>permission.status==="active"&&selectedSubscriptions.includes(permission.grantId)));
+  let activePermissions=$derived(data.permissions.filter(permission=>permission.status==="active"&&(permission.expiresAt===null||permission.expiresAt*1000>now)));
+  let selectedPermissions=$derived(activePermissions.filter(permission=>selectedSubscriptions.includes(permission.grantId)));
   afterNavigate(({from,to})=>{if(from?.url.pathname!==to?.url.pathname||from?.url.search!==to?.url.search){selectedSubscriptions=[];}});
   function toggleSubscription(id:string){selectedSubscriptions=selectedSubscriptions.includes(id)?selectedSubscriptions.filter(value=>value!==id):[...selectedSubscriptions,id];}
   async function unsubscribeSelected(){
@@ -127,17 +128,16 @@
 
 <svelte:head><title>Subscriptions · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 <div class:has-selection={selectedPermissions.length>0} class="[&_h2]:m-0 [&_h2]:text-xl [&_h3]:m-0 [&_p]:m-0 [&_code]:text-xs [&_code]:[overflow-wrap:anywhere] [&_button]:self-start [&_button]:max-w-full [&_button]:whitespace-normal">
-  <header class="mb-8 grid gap-3"><h1 class="hail-title">Subscriptions</h1><p class="text-xs text-muted [overflow-wrap:anywhere]">Managing permissions for <strong>{data.account.address}</strong></p></header>
+  <header class="mb-8"><h1 class="hail-title">Subscriptions</h1></header>
   {#if message}<p class="mb-5! rounded-xl border border-solid border-line bg-brand-soft p-4 text-sm" role="status">{message}</p>{/if}
-  {#if data.account.custodyProfile!=="managed"}<p class="mb-5! rounded-xl bg-warning-soft p-4 text-sm text-warning" role="status">Browser approval currently supports managed accounts only. Your owner-controlled account still uses its existing signer.</p>{/if}
   <div class="grid items-start gap-6 max-w-[860px]">
     <div class="grid min-w-0 gap-6">
       {#if data.account.custodyProfile==="managed"}
         {#if !prepared&&!recoveryNeeded}
-          <section class="hail-card grid min-w-0 gap-4 p-5 sm:p-7"><h2>Allow a sender</h2><p class="text-sm text-muted">Enter a Hail address or scan a sender QR. You’ll review before approving.</p>
-            <label class="hail-field">Potential sender's Hail address<input bind:value={sender} maxlength="254" autocomplete="off" placeholder="sender@business.example" oninput={()=>{pinnedDid=undefined;review=null;draft=null;}} /></label>
+          <section class="hail-card grid min-w-0 gap-4 p-5 sm:p-7" aria-label="Add a subscription"><p class="text-sm text-muted">Enter a Hail address below to start the process of adding a subscription. Alternatively, you can scan the sender’s QR code.</p>
+            <label class="hail-field"><span class="sr-only">Sender’s Hail address</span><input bind:value={sender} maxlength="254" autocomplete="off" placeholder="sender@business.example" oninput={()=>{pinnedDid=undefined;review=null;draft=null;}} /></label>
             {#if pinnedDid}<p class="text-xs text-muted">QR identity pin: <code>{pinnedDid}</code></p>{/if}
-            <button class="hail-button justify-self-start" disabled={busy||!sender.trim()} onclick={()=>run(inspect)}>Review sender</button>
+            <button class="hail-button justify-self-start" disabled={busy||!sender.trim()} onclick={()=>run(inspect)}>Continue</button>
             {#if review}
               <div class="grid gap-2 border-0 border-t border-solid border-line pt-5"><h3>{review.displayName}</h3><p class="text-sm [overflow-wrap:anywhere]">{review.address}</p><code class="text-muted">{review.did}</code><p class="text-sm text-muted">Check the address and identity. A sender chooses their own profile name.</p></div>
               <IdentityWarning address={review.address} did={review.did} previousDids={conflictingIdentities(knownIdentities,review.did,review.address,review.previousDids??[])} />
@@ -172,19 +172,22 @@
         {/if}
         {#if recoveryNeeded&&!busy}<button class="hail-button-secondary justify-self-start" onclick={()=>run(recover)}>Try again</button>{/if}
       {/if}
-      <section class="grid min-w-0 gap-4" aria-label="Issued permissions"><h2>Your subscriptions</h2><p class="text-sm text-muted">A saved permission may take a moment to reach the sender. Unsubscribing keeps messages already delivered.</p>
-        {#if !data.permissions.length}<p class="hail-card p-5 text-sm text-muted">No subscriptions on this page. Add a sender to choose the updates you receive.</p>{/if}
+      <section class="grid min-w-0 gap-4" aria-label="Subscriptions">
+        {#if !activePermissions.length}<p class="text-sm text-muted">{data.next?"No active subscriptions on this page.":"No subscriptions yet"}</p>{/if}
         {#if selectedPermissions.length}
-          <SelectionActions label="Subscription actions" count={selectedPermissions.length} locked={selectionLocked} onclear={()=>selectedSubscriptions=[]}>
+          <SelectionActions label="Subscription actions" count={selectedPermissions.length} locked={selectionLocked} {busy} onclear={()=>selectedSubscriptions=[]} onselectall={selectedPermissions.length<activePermissions.length?()=>selectedSubscriptions=activePermissions.map(permission=>permission.grantId):undefined}>
             {#snippet actions()}<button class="hail-button-secondary" disabled={selectionLocked} onclick={()=>run(unsubscribeSelected)}>Unsubscribe</button>{/snippet}
           </SelectionActions>
         {/if}
         <div class="compact-list">
-        {#each data.permissions as permission (permission.grantId)}<article class="list-row contact-row" class:is-selected={selectedSubscriptions.includes(permission.grantId)&&permission.status==="active"}>
-            <SelectionAvatar name={permission.sender} avatar={permission.avatar} selected={permission.status==="active"&&selectedSubscriptions.includes(permission.grantId)} disabled={selectionLocked} label={`Select subscription to ${permission.sender}: ${subscriptionScopeLabel(permission.scope)}`} ontoggle={data.account.custodyProfile==="managed"&&permission.status==="active"?()=>toggleSubscription(permission.grantId):undefined} />
+        {#each activePermissions as permission (permission.grantId)}<article class="list-row contact-row" class:is-selected={selectedSubscriptions.includes(permission.grantId)}>
+            <SelectionAvatar name={permission.sender} avatar={permission.avatar} selected={selectedSubscriptions.includes(permission.grantId)} disabled={selectionLocked} label={`Select subscription to ${permission.sender}: ${subscriptionScopeLabel(permission.scope)}`} ontoggle={data.account.custodyProfile==="managed"?()=>toggleSubscription(permission.grantId):undefined} />
             <div class="contact-copy"><h3><ContactAddress owner={data.account.did} did={permission.did} address={permission.sender} /></h3>
-          <code class="contact-identity" title={permission.did}>{permission.did}</code><p>{subscriptionScopeLabel(permission.scope)} · {permission.status === "revoked" ? "Unsubscribed" : permission.status}{#if permission.expiresAt!==null}{" · expires "}<DateTime format="list" value={permission.expiresAt*1000} />{:else}{" · ongoing until you unsubscribe"}{/if}</p>
-          {#if permission.expiresAt!==null&&permission.expiresAt*1000<=now}<p class="text-sm text-warning">Expired; it no longer permits messages.</p>{/if}
+          <code class="contact-identity" title={permission.did}>{permission.did}</code>
+          <dl class="subscription-details">
+            <dt>Categories</dt><dd>{subscriptionScopeLabel(permission.scope)}</dd>
+            <dt>Duration</dt><dd>{#if permission.expiresAt===null}Until you unsubscribe{:else}Until <DateTime value={permission.expiresAt*1000} />{/if}</dd>
+          </dl>
           </div>
         </article>{/each}
         </div>
@@ -197,5 +200,8 @@
 </div>
 
 <style>
+  .subscription-details { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:3px 10px; margin:6px 0 0; font-size:12px; }
+  .subscription-details dt { color:var(--color-muted); }
+  .subscription-details dd { margin:0; overflow-wrap:anywhere; }
   @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
 </style>
