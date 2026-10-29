@@ -2,9 +2,9 @@
   import type {Snippet} from "svelte";
   import type {MessageImage} from "./messages.js";
   import DateTime from "./DateTime.svelte";
-  let {isRead = false, leading, sender, timestamp, title, preview, header = null, href, selected = false, details}: {
+  let {isRead = false, leading, sender, timestamp, title, preview, header = null, href, selected = false, muted = false, details}: {
     isRead?: boolean; leading?: Snippet; sender?: Snippet; timestamp: string; title: string; preview: string;
-    header?: MessageImage | null; href?: string; selected?: boolean; details?: Snippet;
+    header?: MessageImage | null; href?: string; selected?: boolean; muted?: boolean; details?: Snippet;
   } = $props();
 </script>
 
@@ -17,7 +17,7 @@
   </span>
 {/snippet}
 
-<article class="list-row message-row" class:is-read={isRead} class:has-header={!!header} class:without-leading={!leading} class:is-selected={selected}>
+<article class="list-row message-row" class:is-read={isRead} class:muted class:has-header={!!header} class:without-leading={!leading} class:is-selected={selected}>
   {#if leading}<div class="message-leading">{@render leading()}</div>{/if}
   <div class="message-meta">
     {#if sender}<strong class="message-sender">{@render sender()}</strong>{/if}
@@ -44,13 +44,14 @@
   .message-meta { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
   .message-sender { min-width:0; font-size:13px; }
   .message-sender :global(.address) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .list-date { margin-left:auto; position:relative; z-index:1; }
+  .list-date { margin-left:auto; }
   .message-link { display:block; color:inherit; text-decoration:none; }
   .message-link::after { content:""; position:absolute; inset:0; }
   .message-link:focus-visible::after { outline:2px solid var(--color-brand); outline-offset:-2px; }
   .message-subject, .message-preview { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
   .message-subject { margin-top:2px; font-weight:650; }
   .is-read .message-sender, .is-read .message-subject { font-weight:400; }
+  .muted .message-sender, .muted .message-subject { font-weight:400; color:var(--color-muted); }
   .message-preview { color:var(--color-muted); }
   @media(max-width:640px) { .message-meta { gap:8px; } }
   .message-details { display:block; margin-top:4px; color:var(--color-muted); font-size:11px; }

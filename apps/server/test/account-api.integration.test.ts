@@ -487,7 +487,8 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     expect(first.messageId).toBe(id);expect(Date.now()-Date.parse(first.trashedAt!)).toBeLessThan(5000);
     await messaging.trash.remove(ownerSession,senderDid,id);
     expect((await messaging.inboxFeed(ownerSession,null,"all",true)).messages[0]!.trashedAt).toBe(first.trashedAt);
-    expect(await messaging.read(ownerSession,senderDid,id)).toBeNull();
+    expect(await messaging.read(ownerSession,senderDid,id)).toMatchObject({trashedAt:first.trashedAt,replyAvailable:false});
+    expect(await messaging.read(senderSession,senderDid,id)).toBeNull();
     expect((await messaging.inbox(ownerSession,null)).messages.some(m=>m.messageId===id)).toBe(false);
     await messaging.trash.remove(ownerSession,senderDid,richId);
     expect(await messaging.trash.restore(ownerSession,[{sender:senderDid,messageId:id},{sender:senderDid,messageId:richId}])).toEqual({restored:2});
@@ -500,6 +501,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     await messaging.trash.remove(ownerSession,senderDid,id);
     await messaging.trash.remove(ownerSession,senderDid,richId);
     await db.sql`UPDATE delivered_messages SET trashed_at=clock_timestamp()-interval '30 days' WHERE message_id=${richId}`;
+    expect(await messaging.read(ownerSession,senderDid,richId)).toBeNull();
     expect(await messaging.trash.restore(ownerSession,[{sender:senderDid,messageId:richId}])).toEqual({restored:0});
     expect((await messaging.trash.purgeExpired()).deleted).toBe(1);
     expect((await messaging.inboxFeed(ownerSession,null,"all",true)).messages.map(m=>m.messageId)).toEqual([id]);

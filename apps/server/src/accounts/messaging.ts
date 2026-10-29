@@ -198,8 +198,8 @@ export class AccountMessaging {
 
   async read(session:AccountApiSession,sender:string,id:string) {
     if(!DID.test(sender)||!ID.test(id))throw new UserGrantError(400,"Invalid message identity");
-    const rows=await this.sql<{envelope_cose:Uint8Array;body_bytes:Uint8Array;is_read:boolean;delivered_at:Date;sender_address:string|null;reply_unused:boolean}[]>`
-      SELECT message.is_read,envelope.envelope_cose,body.body_bytes,message.delivered_at,presentation.grantee_address AS sender_address,
+    const rows=await this.sql<{envelope_cose:Uint8Array;body_bytes:Uint8Array;is_read:boolean;trashed_at:Date|null;delivered_at:Date;sender_address:string|null;reply_unused:boolean}[]>`
+      SELECT message.is_read,message.trashed_at,envelope.envelope_cose,body.body_bytes,message.delivered_at,presentation.grantee_address AS sender_address,
         NOT EXISTS (SELECT 1 FROM sent_envelopes reply LEFT JOIN sent_delivery_status status
           ON status.sender_did=reply.sender_did AND status.message_id=reply.message_id
           WHERE reply.sender_did=${session.did} AND reply.authorization_type='reply' AND reply.reply_to_message_id=${id}
@@ -213,14 +213,14 @@ export class AccountMessaging {
         WHERE lineage.local_account_id=${session.account_id} AND lineage.local_role='grantor'
           AND lineage.grantee_did=message.sender_did ORDER BY consent.revision DESC LIMIT 1
       ) presentation ON true
-      WHERE message.recipient_did=${session.did} AND message.trashed_at IS NULL AND message.sender_did=${sender} AND message.message_id=${id}`;
+      WHERE message.recipient_did=${session.did} AND (message.trashed_at IS NULL OR message.trashed_at>clock_timestamp()-interval '30 days') AND message.sender_did=${sender} AND message.message_id=${id}`;
     if(!rows[0])return null;
     const envelope=inspectSignedPayload("hail.envelope",rows[0].envelope_cose).payload;
     const connection=envelope.authorization.type==="connection"?{id:envelope.authorization.connection_id,epoch:envelope.authorization.epoch,
       active:await connectionMessageAllowed(this.sql,session.did,sender,envelope.authorization)}:null;
-    return {isRead:rows[0].is_read,messageId:id,sender,senderAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,sender,envelope.authorization.connection_id):rows[0].sender_address,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
+    return {trashedAt:rows[0].trashed_at?.toISOString()??null,isRead:rows[0].is_read,messageId:id,sender,senderAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,sender,envelope.authorization.connection_id):rows[0].sender_address,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
       kind:connection?"connection":"subscription",connection,
-      replyAvailable:envelope.reply.allowed&&envelope.reply.until+300>=Math.floor(Date.now()/1000)&&rows[0].reply_unused,
+      replyAvailable:rows[0].trashed_at===null&&envelope.reply.allowed&&envelope.reply.until+300>=Math.floor(Date.now()/1000)&&rows[0].reply_unused,
       deliveredAt:rows[0].delivered_at.toISOString(),body:bodyDocument(rows[0].body_bytes)};
   }
 

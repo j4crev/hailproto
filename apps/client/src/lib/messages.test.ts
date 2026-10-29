@@ -11,6 +11,13 @@ describe("message projections", () => {
     }
     expect(parseMessage(item).isRead).toBe(false);
   });
+  it("preserves Trash state and disables reply authority for trashed messages", () => {
+    const item={messageId:"m",sender:"s",recipient:"r",deliveredAt:"now",category:null,
+      replyAvailable:true,body:{version:1,profile:"spt-1",blocks:[]}};
+    expect(parseMessage(item)).toMatchObject({trashedAt:null,replyAvailable:true});
+    expect(parseMessage({...item,trashedAt:"2026-10-29T12:00:00.000Z"}))
+      .toMatchObject({trashedAt:"2026-10-29T12:00:00.000Z",replyAvailable:false});
+  });
   it("accepts the account API inbox and current spt-1 body", () => {
     expect(parseInbox({ messages: [{ messageId: "m", sender: "did:plc:sender", deliveredAt: "now" }] })[0]?.sender)
       .toBe("did:plc:sender");

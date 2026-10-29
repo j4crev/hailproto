@@ -34,7 +34,7 @@
     {/if}
     <section class="compact-list" aria-label="Trashed messages">
       {#each data.messages as message (key(message))}
-        <MessageListRow timestamp={message.deliveredAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null} selected={selected.includes(key(message))}>
+        <MessageListRow muted href={`/message/${encodeURIComponent(message.sender)}/${encodeURIComponent(message.messageId)}`} timestamp={message.deliveredAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null} selected={selected.includes(key(message))}>
           {#snippet leading()}<SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(key(message))} disabled={busy||!ready} label={`Select message from ${message.senderAddress??message.sender}`} ontoggle={()=>toggle(key(message))} />{/snippet}
           {#snippet sender()}<ContactAddress owner={data.account.did} did={message.sender} address={message.senderAddress} />{/snippet}
           {#snippet details()}Trashed <DateTime format="list" value={message.trashedAt} />{/snippet}

@@ -57,6 +57,7 @@ export function parseSent(value: unknown): SentItem[] {
 }
 
 export interface MessageView extends InboxItem {
+  trashedAt: string | null;
   kind?:"connection";
   connection?:{id:string;epoch:number;active:boolean};
   senderAddress:string|null;
@@ -184,6 +185,7 @@ export function parseMessage(value: unknown): MessageView {
   }
   return {
     ...(message.kind==="connection"?{kind:"connection" as const}:{}),...(connection?{connection}:{}),
+    trashedAt: message.trashedAt == null ? null : text(message.trashedAt, "trash time"),
     isRead: message.isRead === true,
     messageId: text(message.messageId, "message ID"),
     sender: text(message.sender, "sender"),
@@ -195,7 +197,7 @@ export function parseMessage(value: unknown): MessageView {
     header:content.header,
     paragraphs:content.paragraphs,
     replyUntil,
-    replyAvailable:message.replyAvailable===true,
+    replyAvailable:message.trashedAt == null && message.replyAvailable===true,
   };
 }
 
