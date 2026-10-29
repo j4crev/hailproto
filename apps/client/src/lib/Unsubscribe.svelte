@@ -3,7 +3,7 @@
   import {startAuthentication} from "@simplewebauthn/browser";
   import {APPROVAL_STORAGE, approval, permissionRequest, subscriptionScopeLabel, type Approval} from "$lib/permissions.js";
   import type {senderSubscription} from "$lib/server/subscription.js";
-  let {subscription, owner, compact = false}: {subscription: NonNullable<Awaited<ReturnType<typeof senderSubscription>>>; owner: string; compact?: boolean} = $props();
+  let {subscription, owner, compact = false, hideTrigger = false, ondone}: {subscription: NonNullable<Awaited<ReturnType<typeof senderSubscription>>>; owner: string; compact?: boolean; hideTrigger?: boolean; ondone?: () => void} = $props();
   let prepared = $state<Approval | null>(null), requestId = $state<string | null>(null);
   let busy = $state(false), ready = $state(false), done = $state(false), error = $state(""), now = $state(Date.now());
   onMount(() => {ready = true; const timer = setInterval(() => {now = Date.now();}, 1000); return () => clearInterval(timer);});
@@ -15,6 +15,7 @@
     prepared = review;
     if (review.result) {
       done = true;
+      ondone?.();
       try {if (sessionStorage.getItem(APPROVAL_STORAGE) === requestId) sessionStorage.removeItem(APPROVAL_STORAGE);} catch {}
     }
   }
@@ -24,6 +25,7 @@
     try {await action();} catch (cause) {error = cause instanceof Error ? cause.message : "Couldn’t confirm your unsubscribe. Check its status before retrying.";}
     finally {busy = false;}
   }
+  export function open() { return run(prepare); }
   async function prepare() {
     requestId ??= crypto.randomUUID();
     try {sessionStorage.setItem(APPROVAL_STORAGE, requestId);} catch {}
@@ -58,7 +60,7 @@
     {#if now >= Date.parse(prepared.expiresAt)}<p class="m-0 text-sm text-muted">This approval expired. Check its status, then reload the message before starting again.</p>{/if}
   </section>
 {:else}
-  <button class="hail-button-secondary" class:compact disabled={busy || !ready} onclick={() => run(prepare)}>{busy ? 'Checking subscription…' : 'Unsubscribe'}</button>
+  {#if !hideTrigger}<button class="hail-button-secondary" class:compact disabled={busy || !ready} onclick={() => run(prepare)}>{busy ? 'Checking subscription…' : 'Unsubscribe'}</button>{:else if busy}<p class="text-sm text-muted" role="status">Checking subscription…</p>{/if}
   {#if requestId}<button class="hail-button-secondary ml-2" disabled={busy} onclick={() => run(check)}>Check unsubscribe status</button>{/if}
 {/if}
 {#if error}<p class="hail-error mt-4" role="alert">{error}</p>{/if}

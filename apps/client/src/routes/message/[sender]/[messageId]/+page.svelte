@@ -13,6 +13,9 @@
   import RichText from "$lib/RichText.svelte";
   let { data,form } = $props();
   let opened = '';
+  let unsubscribe = $state<Unsubscribe>(), unsubscribed = $state(false);
+  $effect(() => { data.message.sender; data.message.messageId; unsubscribed = false; });
+  const canUnsubscribe = $derived(data.message.kind !== 'connection' && data.account.custodyProfile === 'managed' && !!data.subscription && !unsubscribed);
   let readError = $state(''), readPending = $state(true);
   $effect(() => {
     const message = data.message, key = `${message.sender}/${message.messageId}`;
@@ -76,15 +79,15 @@
         {#if data.message.trashedAt}
           <button class="hail-button-secondary" disabled={restoring} onclick={restore}>Restore</button>
         {:else}
-        {#if data.message.kind !== 'connection' && data.account.custodyProfile === 'managed' && data.subscription}
-          {#key `${data.subscription.grantId}:${data.subscription.revision}`}<Unsubscribe compact subscription={data.subscription} owner={data.account.did} />{/key}
-        {/if}
         {#if data.message.connection?.active}<a class="hail-icon-button compact" aria-label="Reply" title="Reply" href={`/compose?audience=connections&connection=${data.message.connection.id}`}><Icon name="reply" /></a>
         {:else if data.message.kind !== 'connection'}<button disabled={!data.canReply} bind:this={replyButton} class="hail-icon-button compact" type="button" aria-label="Reply" title="Reply" aria-expanded={replyOpen} aria-controls="subscription-reply" onclick={openReply}><Icon name="reply" /></button>{/if}
         <a class="hail-icon-button compact" aria-label="Forward" title="Forward" href={forwardHref(data.message)}><Icon name="forward" /></a>
-        <MessageActions compact menu disabled={readPending} messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} />
+        <MessageActions compact menu onunsubscribe={canUnsubscribe ? () => { void unsubscribe?.open(); } : undefined} disabled={readPending} messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} />
         {/if}
       </div>
+      {#if !data.message.trashedAt && data.message.kind !== 'connection' && data.account.custodyProfile === 'managed' && data.subscription}
+        <div class="w-full empty:hidden">{#key `${data.message.messageId}:${data.subscription.grantId}:${data.subscription.revision}`}<Unsubscribe bind:this={unsubscribe} hideTrigger subscription={data.subscription} owner={data.account.did} ondone={() => { unsubscribed = true; }} />{/key}</div>
+      {/if}
       {#if !data.message.trashedAt && data.message.kind !== 'connection' && data.account.custodyProfile === 'managed'}
         {#if data.subscriptionUnavailable}<p class="w-full text-sm text-muted" role="status">Couldn’t check your subscription. Reload this message to try again.</p>
         {:else if !data.subscription}<p class="w-full text-sm text-muted">You have no active subscription to this sender. This saved message remains available.</p>{/if}
