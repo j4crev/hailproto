@@ -157,9 +157,9 @@ export class AccountConnections {
     });
     return peer?withServingGeneration(peer.id,Number(peer.generation),run):run();
   }
-  async credentialConnections(session:AccountApiSession,connectionId?:string){
+  async credentialConnections(session:AccountApiSession,connectionId?:string,invitations=false){
     const scope=connectionId===undefined?"account:read":"account:write";
-    if(session.passkey_credential_id||!session.scopes.includes(scope))throw new ConnectionError(403);
+    if(session.passkey_credential_id||!session.scopes.includes(scope))throw new ConnectionError(403,undefined,"MISSING_SCOPE");
     if(connectionId!==undefined&&!UUID.test(connectionId))throw new ConnectionError(400);
     return this.sql.begin(async tx=>{
       await tx`SELECT id FROM provider_accounts WHERE id=${session.account_id} FOR UPDATE`;
@@ -172,6 +172,15 @@ export class AccountConnections {
       if(!valid.length)throw new ConnectionError(403);
       const owner=await this.owner(tx as SQL,session.account_id);
       await tx`SELECT hail_assert_unfenced_account(${session.account_id}::uuid)`;
+      if(invitations){
+        if(connectionId!==undefined){
+          const rows=await tx`UPDATE connection_invitations SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE account_id=${session.account_id} AND id=${connectionId} RETURNING id`;
+          if(!rows.length)throw new ConnectionError(404);
+          return {invitationId:connectionId,revoked:true};
+        }
+        const rows=await tx<{id:string;label:string;personal:boolean;expires_at:number|string|null}[]>`SELECT id,label,personal,expires_at FROM connection_invitations WHERE account_id=${session.account_id} AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>extract(epoch FROM clock_timestamp())) ORDER BY id LIMIT 1001`;
+        return {invitations:rows.slice(0,1000).map(r=>({invitationId:r.id,label:r.label,personal:r.personal,expiresAt:r.expires_at===null?null:Number(r.expires_at)})),truncated:rows.length>1000};
+      }
       if(connectionId===undefined)return this.federation.list(session.account_id);
       // A retry can only acknowledge this account's own terminal operation.
       const prior=await tx`SELECT id FROM federated_connection_disconnects
@@ -331,7 +340,7 @@ export class AccountConnections {
     if(initial.connection_id)throw new ConnectionError(409,"This obsolete local approval cannot be resumed. Review a fresh code.");
     const saved=await this.pairTransaction(session,undefined,async tx=>{
       const row=await this.approval(tx,session,id);if(row.result)return row;
-      if(row.expires_at.getTime()<=Date.now())throw new ConnectionError(410,"Approval expired. Review again.");
+      if(row.expires_at.getTime()<=Date.now())throw new ConnectionError(410,"Approval expired. Review again.","APPROVAL_EXPIRED");
       if(session.passkey_credential_id&&!response)throw new ConnectionError(403,"Confirm this exact action with your passkey.");
       if(!session.passkey_credential_id&&(response||!row.owner_payload||!["create","connect"].includes(row.action)))throw new ConnectionError(403,"CLI consent requires the exact owner signature.");
       const intent=decodeDeterministic(new Uint8Array(row.intent_bytes)) as Record<string,unknown>;

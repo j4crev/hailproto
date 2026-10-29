@@ -187,5 +187,28 @@ Use `hailp inbox list --credentials <file>` to find the sender DID and message I
 then run `hailp message delete <sender-did> <message-id> --credentials <file>`
 (or `hailp inbox delete` with the same arguments). Requires `messages:write`.
 Deletion is immediate and permanent, even when web Trash is enabled or the
-message is already in Trash. There is no restore command. Exact retries are safe.
+message is already in Trash. Permanently deleted messages cannot be restored. Exact retries are safe.
 Only your received copy is deleted; other accounts' Sent messages are unaffected.
+
+
+## Ongoing messaging and diagnostics
+
+- `hailp inbox wait --from <did> --timeout 60` waits for incoming deliveries;
+  resume with its returned cursor using `--after` and the same selection.
+- `hailp conversation list`, `show <peer-did>`, and
+  `thread <sender-did> <message-id>` read conversations and reply threads.
+- `hailp conversation mark-read|mark-unread|trash|restore <peer-did>` manages
+  received messages from a peer. Trash refuses when disabled; restoration is
+  limited to the 30-day retention window.
+- `hailp connection invitations` lists outstanding invitation metadata;
+  `revoke-invitation <invitation-id>` withdraws future admission without ending
+  existing connections.
+- `hailp doctor --provider <https-origin>` checks provider capabilities and signup
+  policy. Select credentials to also inspect account state, scopes and expiry;
+  `--scope messages:read` checks a workflow prerequisite.
+
+These additions require the updated provider and migration **0084**. See
+[ongoing messaging](docs/cli-workflows.md#ongoing-messaging) for cursor handling,
+scopes, interruption semantics and examples, and the
+[CLI contract](docs/cli-contract.md#ongoing-use-additions) for structured errors
+and rollout/rollback requirements. Every command has offline `--help`.

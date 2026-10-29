@@ -122,6 +122,14 @@ export function createApp(
     try{return context.json({...await registration.read(),signupAvailable:Boolean(dependencies.signup)});}
     catch{return context.json({error:"Registration policy unavailable"},503);}
   });
+  app.get("/api/v1/capabilities",async context=>{
+    context.header("Cache-Control","no-store");
+    try{return context.json({type:"hailp.capabilities",version:1,
+      features:{inboxWait:Boolean(dependencies.accountApi?.messaging),conversations:Boolean(dependencies.accountApi?.messaging),connectionInvitations:Boolean(dependencies.accountApi?.connections)},
+      signup:{available:Boolean(dependencies.selfServiceOnboarding),mode:registration?(await registration.read()).mode:null},
+      passkeyRequired:["account browser-login","operator administration"]});}
+    catch{return context.json({error:"Provider capabilities unavailable"},503);}
+  });
   const protectedSchedule = new ProtectedResponseSchedule();
   if(dependencies.selfServiceOnboarding)registerSelfServiceOnboarding(app,dependencies.selfServiceOnboarding);
   if(dependencies.signupEmail)registerSignupEmailRoutes(app,dependencies.signupEmail.sql,dependencies.signupEmail.client,config.passkeys?.origin??config.publicOrigin);

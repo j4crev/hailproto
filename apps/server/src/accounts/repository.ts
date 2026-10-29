@@ -94,6 +94,13 @@ export class AccountApiRepository {
       next: rows.length > 50 ? rows[49]!.id : null };
   }
 
+  async authenticationFailure(header:string|undefined):Promise<string|undefined>{
+    const token=/^Bearer (hailp_[A-Za-z0-9_-]{43})$/i.exec(header??"")?.[1];
+    if(!token)return undefined;
+    const rows=await this.sql<{expired:boolean;revoked:boolean}[]>`SELECT expires_at<=now() AS expired,revoked_at IS NOT NULL AS revoked FROM account_api_credentials WHERE token_hash=${tokenHash(token)}`;
+    return rows[0]?.revoked?"CREDENTIAL_REVOKED":rows[0]?.expired?"CREDENTIAL_EXPIRED":undefined;
+  }
+
   async authenticate(header: string | undefined, sessionToken?:string): Promise<AccountApiSession | null> {
     const token = /^Bearer (hailp_[A-Za-z0-9_-]{43})$/i.exec(header ?? "")?.[1];
     if (!token) {

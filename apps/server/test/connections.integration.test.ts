@@ -192,10 +192,18 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     const readonly=await accounts.issue(p.address,false,undefined,["account:read"]);
     const stranger=await accounts.issue(e.address,false,undefined,["account:write"]);
     const cli=(token:string,step="cli-remove",body:unknown={connectionId})=>app.request(origin+"/api/v1/account/connections/"+step,{
-      method:step==="cli-list"?"GET":"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},
-      ...(step==="cli-list"?{}:{body:JSON.stringify(body)})});
+      method:["cli-list","cli-invitations"].includes(step)?"GET":"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},
+      ...(["cli-list","cli-invitations"].includes(step)?{}:{body:JSON.stringify(body)})});
     const listing=await (await cli(credential.token,"cli-list")).json();
     expect(listing.connections.map((c:any)=>c.id)).toContain(connectionId);expect(listing.codes).toBeUndefined();
+    const withdrawnInvitation=await create(p,false);
+    const metadata=await (await cli(credential.token,"cli-invitations")).json();
+    expect(metadata.invitations).toContainEqual(expect.objectContaining({invitationId:withdrawnInvitation.id}));
+    expect(JSON.stringify(metadata)).not.toContain("token");expect(JSON.stringify(metadata)).not.toContain("link");
+    expect((await cli(readonly.token,"cli-revoke-invitation",{connectionId:withdrawnInvitation.id})).status).toBe(403);
+    expect((await cli(stranger.token,"cli-revoke-invitation",{connectionId:withdrawnInvitation.id})).status).toBe(404);
+    for(let retry=0;retry<2;retry++)expect((await cli(credential.token,"cli-revoke-invitation",{connectionId:withdrawnInvitation.id})).status).toBe(200);
+    expect((await service.list(p.session)).connections).toHaveLength(1);
     expect((await cli(readonly.token)).status).toBe(403);
     expect((await cli(stranger.token)).status).toBe(404);
     expect((await cli(credential.token,"cli-remove",{connectionId:"invalid"})).status).toBe(400);

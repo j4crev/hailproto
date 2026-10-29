@@ -322,7 +322,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     expect(JSON.parse(retry.stdout).credentialId).toBe(child.credentialId);
     expect((await cli(["credential", "create", "--output", path, "--scope", "account:read"], "credential-manager.json")).exit).toBe(1);
     expect(JSON.parse(await readFile(path, "utf8"))).toEqual(child);
-    expect((await cli(["credential", "list"], "agent.credential.json")).stderr).toContain("HTTP_403");
+    expect((await cli(["credential", "list"], "agent.credential.json")).stderr).toContain("MISSING_SCOPE");
     const forbiddenPath = join(directory, "forbidden.credential.json");
     expect((await cli(["credential", "create", "--output", forbiddenPath], "agent.credential.json")).exit).toBe(1);
     await expect(readFile(forbiddenPath)).rejects.toThrow();
@@ -417,6 +417,12 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     const read=await cli(["inbox","show",senderDid,id],"message-owner.credential.json");if(read.exit)throw new Error(read.stderr);
     expect(JSON.parse(read.stdout).body.blocks[0].children[0].text).toBe("CLI message");
     expect(JSON.parse(read.stdout).reply.allowed).toBe(true);
+    const waiting=await cli(["inbox","wait","--from",senderDid,"--timeout","1"],"message-owner.credential.json");
+    expect(waiting.exit,waiting.stderr).toBe(0);
+    const checkpoint=JSON.parse(waiting.stdout).cursor;
+    expect(JSON.parse(waiting.stdout).messages.map((m:any)=>m.messageId)).toEqual([id]);
+    const timedOut=await cli(["inbox","wait","--from",senderDid,"--after",checkpoint,"--timeout","1"],"message-owner.credential.json");
+    expect(JSON.parse(timedOut.stdout)).toMatchObject({cursor:checkpoint,messages:[],wait:{timedOut:true}});
     const richId="01a15eb5-0000-7000-8000-000000000001";
     const rich=await app.request(`${origin}/api/v1/account/messages`,{method:"POST",headers:{Authorization:`Bearer ${senderCredential.token}`,"Content-Type":"application/json"},body:JSON.stringify({
       messageId:richId,grantId,category:"updates",body:{version:1,profile:"spt-2",blocks:[
@@ -424,6 +430,27 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
         {_type:"block",style:"normal",children:[{_type:"span",text:"Open update",marks:["link","em"]}],markDefs:[{_key:"link",_type:"spt.link",href:"https://sender.example.com/update"}]},
       ]}})});
     expect(rich.status).toBe(200);
+    // The newly delivered ID predates the checkpoint's message ID.
+    const resumed=await cli(["inbox","wait","--from",senderDid,"--after",checkpoint,"--timeout","1"],"message-owner.credential.json");
+    expect(resumed.exit,resumed.stderr).toBe(0);
+    expect(JSON.parse(resumed.stdout).messages.map((m:any)=>m.messageId)).toEqual([richId]);
+    const conversations=await cli(["conversation","list"],"message-owner.credential.json");
+    expect(JSON.parse(conversations.stdout).conversations).toEqual([expect.objectContaining({peer:senderDid,unread:2})]);
+    expect((await cli(["conversation","mark-read",senderDid],"message-owner.credential.json")).exit).toBe(0);
+    expect((await cli(["conversation","mark-unread",senderDid],"message-owner.credential.json")).exit).toBe(0);
+    const conversation=await cli(["conversation","show",senderDid],"message-owner.credential.json");
+    expect(conversation.exit,conversation.stderr).toBe(0);
+    expect(JSON.parse(conversation.stdout).messages).toHaveLength(2);
+    expect((await cli(["conversation","trash",senderDid],"message-owner.credential.json")).exit).toBe(0);
+    expect(JSON.parse((await cli(["inbox","list"],"message-owner.credential.json")).stdout).messages).toHaveLength(0);
+    expect((await cli(["conversation","restore",senderDid],"message-owner.credential.json")).exit).toBe(0);
+    const conversationSession=(await accounts.authenticate(`Bearer ${ownerMessageCredential.token}`))!;
+    await messaging.trash.saveSettings(conversationSession,false);
+    expect((await cli(["conversation","trash",senderDid],"message-owner.credential.json")).exit).toBe(1);
+    expect(JSON.parse((await cli(["inbox","list"],"message-owner.credential.json")).stdout).messages).toHaveLength(2);
+    await messaging.trash.saveSettings(conversationSession,true);
+    expect((await app.request(`${origin}/api/v1/account/inbox/updates?after=${checkpoint}&from=${otherDid}`,{headers:{Authorization:`Bearer ${ownerMessageCredential.token}`}})).status).toBe(400);
+
     const richRead=await cli(["inbox","show",senderDid,richId],"message-owner.credential.json");
     expect(richRead.exit,richRead.stderr).toBe(0);
     expect(JSON.parse(richRead.stdout)).toMatchObject({senderAddress,replyAvailable:false,
@@ -605,10 +632,10 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     await db.sql`UPDATE account_api_credentials SET created_at=now()-interval '2 days',
       expires_at=now()-interval '1 day' WHERE id=${readonlyCredential.credentialId}`;
     const expired = await cli(["account", "show"], "readonly.credential.json");
-    expect(expired.stderr).toContain("HTTP_401");
+    expect(expired.stderr).toContain("CREDENTIAL_EXPIRED");
     await accounts.revoke(credential.credentialId);
     await accounts.revoke(credential.credentialId);
     const revoked = await cli(["account", "show"]);
-    expect(revoked.stderr).toContain("HTTP_401");
+    expect(revoked.stderr).toContain("CREDENTIAL_REVOKED");
   });
 });

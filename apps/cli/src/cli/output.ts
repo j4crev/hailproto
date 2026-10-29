@@ -9,7 +9,7 @@ export function printResult(result: unknown): void {
 
 export function printError(error: unknown): void {
   console.error(redact(JSON.stringify({ cliContractVersion: 1, error: {
-    code: error instanceof AccountApiError ? `HTTP_${error.status}` : error instanceof CliError ? error.code : "CLIENT_ERROR",
+    code: error instanceof AccountApiError ? error.code : error instanceof CliError ? error.code : "CLIENT_ERROR",
     message: error instanceof Error ? error.message : "Client operation failed",
     ...(error instanceof AccountApiError ? { httpStatus: error.status, retryable: error.status === 429 || error.status === 503,
       ...(error.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: error.retryAfterSeconds }) } : {}),

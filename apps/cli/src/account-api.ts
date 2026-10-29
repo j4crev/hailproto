@@ -22,7 +22,7 @@ function object(value: unknown): JsonObject {
 }
 
 export class AccountApiError extends Error {
-  constructor(readonly status: number, readonly retryAfterSeconds?: number) {
+  constructor(readonly status: number, readonly retryAfterSeconds?: number, readonly code = `HTTP_${status}`) {
     const advice = status === 401 ? "Select a valid credential or explicitly log in; expired/revoked access is terminal" :
       status === 403 ? "The selected credential lacks authority; do not escalate scopes" :
       status === 404 ? "The resource is unavailable to this account" :
@@ -35,6 +35,12 @@ export class AccountApiError extends Error {
 export class AccountApiClient {
   private constructor(private readonly provider: string, private readonly token: string,
     private readonly accountId: string,private readonly sessionOrigin?:string,private readonly transport=provider) {}
+
+  static publicProvider(provider:string){
+    const url=new URL(provider);
+    if(url.protocol!=="https:"||url.origin!==provider||url.username||url.password||isIP(url.hostname)!==0||!/^[a-z0-9.-]+$/.test(url.hostname))throw new ClientError("USAGE_ERROR","Provider must be a canonical HTTPS DNS origin");
+    return new AccountApiClient(provider,"","");
+  }
 
   static signup(provider: string, token: string) {
     const url=new URL(provider);
@@ -81,7 +87,7 @@ export class AccountApiClient {
   }
 
   async request(path: string, bytes?: Uint8Array | JsonObject, namespace = "/api/v1/account",maxResponse=MAX_RESPONSE, signal?: AbortSignal): Promise<JsonObject> {
-    const headers: Record<string, string> = { ...(this.sessionOrigin?{Cookie:`hail_session=${this.token}`,Origin:this.sessionOrigin}:{Authorization:`Bearer ${this.token}`}),
+    const headers: Record<string, string> = { ...(this.sessionOrigin?{Cookie:`hail_session=${this.token}`,Origin:this.sessionOrigin}:this.token?{Authorization:`Bearer ${this.token}`}:{}),
       Accept: "application/json", "Accept-Encoding": "identity", "Cache-Control": "no-store" };
     if (bytes) headers["Content-Type"] = bytes instanceof Uint8Array ? 'application/cose; cose-type="cose-sign1"' : "application/json";
     let response: Response;
@@ -98,7 +104,11 @@ export class AccountApiClient {
         const delay = /^\d+$/.test(retry) ? Number(retry) : Math.ceil((Date.parse(retry) - Date.now()) / 1000);
         if (Number.isFinite(delay) && delay >= 0) seconds = Math.min(delay, 300);
       }
-      void response.body?.cancel(); throw new AccountApiError(response.status, seconds);
+      void response.body?.cancel(); throw new AccountApiError(response.status, seconds, (()=>{
+        const code=response.headers.get("Hail-Error-Code");
+        const statuses:Record<string,number>={CREDENTIAL_EXPIRED:401,CREDENTIAL_REVOKED:401,MISSING_SCOPE:403,PASSKEY_REQUIRED:403,APPROVAL_EXPIRED:410};
+        return code&&statuses[code]===response.status?code:`HTTP_${response.status}`;
+      })());
     }
     const length = response.headers.get("Content-Length");
     if (response.headers.get("Content-Type") !== "application/json" || response.headers.has("Content-Encoding") ||

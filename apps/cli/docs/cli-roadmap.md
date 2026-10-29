@@ -26,6 +26,13 @@ protocol boundary.
   owner-proof login after bearer expiry.
 - Grant creation, inspection, update, submission, and signed revocation.
 - Text send, invited reply, inbox reads, resubmission, and retained status.
+- Incoming delivery waits with resumable cursors, bounded polling and interruption
+  handling (provider migration 84).
+- Peer conversations, reply-thread reads, read/unread state, and received-message
+  trash/restore within the existing retention window.
+- Outstanding Connection invitation metadata and idempotent revocation.
+- Read-only provider/account diagnostics and specific credential, scope and
+  approval error codes. See the [ongoing-use contract](cli-contract.md#ongoing-use-additions).
 - Address Binding renewal.
 - Authenticated Sender Profile creation, inspection and optimistic-revision update.
 - Owner-controlled provider transfer, cancellation before fencing, exact

@@ -53,28 +53,46 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   const handle = async (context: Context, grantId: string | null, action?: string):Promise<Response> => {
     context.header("Cache-Control", "no-store");
     context.header("Vary", "Authorization, Cookie");
-    const problem = (status: 400 | 401 | 403 | 404 | 405 | 409 | 413 | 415 | 429 | 503) => {
+    const problem = (status: 400 | 401 | 403 | 404 | 405 | 409 | 413 | 415 | 429 | 503, code?:string) => {
       const title = ({ 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found",
         405: "Method Not Allowed", 409: "Conflict", 413: "Content Too Large", 415: "Unsupported Media Type",
         429: "Too Many Requests", 503: "Service Unavailable" } as const)[status];
       context.header("Content-Type", "application/problem+json");
-      return context.json({ type: "about:blank", title, status }, status, { "Content-Type": "application/problem+json" });
+      if(code)context.header("Hail-Error-Code",code);
+      return context.json({ type: "about:blank", title, status, ...(code?{code}:{}) }, status, { "Content-Type": "application/problem+json" });
     };
     const client=clientAddress(context.req.raw),ingressRetry=ingress.take(client,600);
     if(ingressRetry!==null){context.header("Retry-After",String(ingressRetry));return problem(429);}
     try {
       const session = await accounts.authenticate(context.req.header("Authorization"),getCookie(context,"hail_session"));
       if (!session) {const retry=anonymous.take(client,120);if(retry!==null){context.header("Retry-After",String(retry));return problem(429);}
-        context.header("WWW-Authenticate", 'Bearer realm="hailp-account"'); return problem(401); }
+        context.header("WWW-Authenticate", 'Bearer realm="hailp-account"'); return problem(401,await accounts.authenticationFailure?.(context.req.header("Authorization"))); }
       const retry=authenticated.take(session.account_id,120);if(retry!==null){context.header("Retry-After",String(retry));return problem(429);}
       if(getCookie(context,"hail_session")&&context.req.method!=="GET"&&context.req.method!=="HEAD"&&
         context.req.header("Origin")!==sessionOrigin)return problem(403);
       return await withServingGeneration<Response>(session.account_id,session.serving_generation??1,async():Promise<Response>=>{
       const query = new URL(context.req.url).searchParams;
+      if(action==="inbox-updates"||action==="conversations"){
+        const operation=context.req.param("operation")??(context.req.param("peer")?"show":"list");
+        const reading=action==="inbox-updates"||operation==="list"||operation==="show";
+        if(!session.scopes.includes(reading?"messages:read":"messages:write"))return problem(403,"MISSING_SCOPE");
+        if(context.req.method!==(reading?"GET":"POST"))return problem(405);
+        if(!messaging)return problem(503);
+        const allowed=action==="inbox-updates"?["after","from"]:operation==="list"?["after","trash"]:reading?["after"]:[];
+        if([...query.keys()].some(k=>!allowed.includes(k)||query.getAll(k).length!==1)||query.has("trash")&&query.get("trash")!=="true")return problem(400);
+        if(!reading){
+          if(session.migration_state)return problem(409);
+          if(context.req.header("Content-Type")!=="application/json"||context.req.header("Content-Encoding"))return problem(415);
+          const bytes=await accountRequestBytes(context.req.raw,1024);if(!bytes)return problem(413);
+          if(new TextDecoder().decode(bytes)!=="{}")return problem(400);
+        }
+        return context.json(action==="inbox-updates"?await messaging.updates(session,query.get("after"),query.get("from")):
+          await messaging.conversations(session,context.req.param("peer")??null,operation,query.get("after"),query.get("trash")==="true"));
+      }
       if (query.size && action !== "list" && action !== "inbox" && action !== "sent" && action !== "sent-read" && action !== "credential" && action !== "trash") return problem(400);
       const method = context.req.method;
       if(action==="connection-address"){
-        if(!session.scopes.includes("messages:read"))return problem(403);
+        if(!session.scopes.includes("messages:read"))return problem(403,"MISSING_SCOPE");
         if(method!=="GET")return problem(405);
         if(!/^did:plc:[a-z2-7]{24}$/.test(grantId!))return problem(400);
         return context.json(await accounts.connectionAddress(session,grantId!));
@@ -82,14 +100,14 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
       if(action?.startsWith("publication-")||action?.startsWith("connection-message-")){
         const kind=action.startsWith("connection-message-")?"connections":"category",operation=kind==="connections"?action.slice("connection-message-".length):action.slice("publication-".length);
         const required=operation==="audiences"?"grants:read":operation==="targets"||operation==="status"||operation==="create"&&method==="GET"?"messages:read":"messages:write";
-        if(!session.scopes.includes(required))return problem(403);
+        if(!session.scopes.includes(required))return problem(403,"MISSING_SCOPE");
         if(!publications)return problem(503);
         if(operation==="create"&&method==="GET")return context.json(await publications.recent(session,kind));
         if(operation==="audiences"||operation==="targets"||operation==="status"){
           if(method!=="GET")return problem(405);
           if(operation==="audiences")return context.json(await publications.audiences(session));
           if(operation==="targets"){
-            if(!session.passkey_credential_id)return problem(403); // Existing message-read bearers do not gain a new contact inventory.
+            if(!session.passkey_credential_id)return problem(403,"PASSKEY_REQUIRED"); // Existing message-read bearers do not gain a new contact inventory.
             return context.json(await publications.connectionTargets(session));
           }
           const found=await publications.status(session,grantId!,kind);return found?context.json(found):problem(404);
@@ -104,7 +122,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         const found=await publications.cancel(session,grantId!,kind);return found?context.json(found):problem(404);
       }
       if(action==="sender-avatar"||action==="sender-avatar-image"){
-        if(!session.scopes.includes("messages:read"))return problem(403);
+        if(!session.scopes.includes("messages:read"))return problem(403,"MISSING_SCOPE");
         if(method!=="GET")return problem(405);
         const did=grantId!;if(!/^did:plc:[a-z2-7]{24}$/.test(did))return problem(400);
         if(!avatarProfiles)return problem(503);
@@ -121,7 +139,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         return context.json({did,avatar:asset?{data:encodeBase64Url(asset.data),width:asset.width,height:asset.height}:null});
       }
       if(action==="sender-profile"){
-        if(!session.scopes.includes("messages:read"))return problem(403);
+        if(!session.scopes.includes("messages:read"))return problem(403,"MISSING_SCOPE");
         if(method!=="GET")return problem(405);
         if(!profileVerifier)return problem(503);
         const did=grantId!;if(!/^did:plc:[a-z2-7]{24}$/.test(did))return problem(400);
@@ -130,7 +148,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           cose:encodeBase64Url(verified.representation),profile:toDiagnosticJson("hail.sender-profile",verified.profile)});
       }
       if(action==="custody-review-owner"||action==="custody-prepare-owner"||action==="custody-prepare"||action==="custody-commit") {
-        if(!session.scopes.includes("account:write"))return problem(403);
+        if(!session.scopes.includes("account:write"))return problem(403,"MISSING_SCOPE");
         if(!custodyTransition)return problem(503);
         if(action==="custody-prepare"||action==="custody-review-owner"||action==="custody-prepare-owner") {
           if(method!=="POST")return problem(405);
@@ -176,7 +194,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         } catch(error) {if(error instanceof SyntaxError||error instanceof HailCodecError)return problem(400);throw error;}
       }
       if(action==="transfer-status"||action==="transfer-offer"||action==="transfer-cancel"||action==="transfer-export") {
-        if(!session.scopes.includes(action==="transfer-status"?"account:read":"account:write"))return problem(403);
+        if(!session.scopes.includes(action==="transfer-status"?"account:read":"account:write"))return problem(403,"MISSING_SCOPE");
         if(!transfer)return problem(503);
         if(action==="transfer-status"){if(method!=="GET")return problem(405);return context.json(await transfer.status(session));}
         if(method!=="POST")return problem(405);
@@ -187,7 +205,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         return context.json(action==="transfer-offer"?await transfer.offer(session,input):action==="transfer-export"?await transfer.exportSnapshot(session,input):await transfer.cancel(session,input));
       }
       if(action==="managed-transfer-status"||action==="managed-transfer-offer"||action==="managed-transfer-export") {
-        if(!session.scopes.includes(action==="managed-transfer-status"?"account:read":"account:write"))return problem(403);
+        if(!session.scopes.includes(action==="managed-transfer-status"?"account:read":"account:write"))return problem(403,"MISSING_SCOPE");
         if(!managedTransfer)return problem(503);
         if(action==="managed-transfer-status"){
           if(method!=="GET")return problem(405);return context.json(await managedTransfer.status(session));
@@ -200,7 +218,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         return context.json(action==="managed-transfer-export"?await managedTransfer.exportSnapshot(session,input):await managedTransfer.offer(session,input));
       }
       if(action==="update-proposal"||action==="managed-update") {
-        if(!session.scopes.includes("grants:write"))return problem(403);
+        if(!session.scopes.includes("grants:write"))return problem(403,"MISSING_SCOPE");
         if(method!=="POST")return problem(405);if(session.migration_state)return problem(409);
         if(!grantId||!GRANT_ID.test(grantId))return problem(400);
         const current=await grants.findCurrentByGrantId(grantId);
@@ -227,7 +245,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         return context.json({type:"hailp.grant-proposal",version:1,grant:toDiagnosticJson("hail.grant",proposed)});
       }
       if(action==="binding") {
-        if(!session.scopes.includes(method==="GET"?"account:read":"account:write"))return problem(403);
+        if(!session.scopes.includes(method==="GET"?"account:read":"account:write"))return problem(403,"MISSING_SCOPE");
         if(!binding)return problem(503);
         if(method==="GET")return context.json(await binding.show(session));
         if(method!=="POST")return problem(405);
@@ -276,7 +294,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
       if(["message-read","message-unread","trash","trash-restore","message-delete","message-purge","message-preferences"].includes(action??"")){
         if(!messaging)return problem(503);
         const reading=method==="GET";
-        if(!session.scopes.includes(reading?"messages:read":"messages:write"))return problem(403);
+        if(!session.scopes.includes(reading?"messages:read":"messages:write"))return problem(403,"MISSING_SCOPE");
         // CLI deletion is always permanent; web deletion always honors the account setting.
         if(action==="message-purge"?Boolean(session.passkey_credential_id):!session.passkey_credential_id)return problem(403);
         if(action==="trash"){
@@ -308,7 +326,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
       }
       const scope = action === "send" || action === "resubmit" ? "messages:write" : ["inbox","read","status","sent","sent-read","thread"].includes(action ?? "") ? "messages:read" : action === "credential" ? "credentials:write" : action === "proposal" || action === "managed-create" || action === "managed-revoke" ? "grants:write" : action === "list" ? "grants:read" :
         grantId === null ? "account:read" : method === "PUT" ? "grants:write" : "grants:read";
-      if (!session.scopes.includes(scope)) return problem(403);
+      if (!session.scopes.includes(scope)) return problem(403,"MISSING_SCOPE");
       if(["send","resubmit","inbox","read","status","sent","sent-read","thread"].includes(action ?? "")) {
         if(!messaging)return problem(503);
         if(action==="send"||action==="resubmit") {
@@ -498,6 +516,9 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/inbox/:sender/:messageId/mark-unread",context=>handle(context,context.req.param("messageId"),"message-unread"));
   app.all("/api/v1/account/inbox/:sender/:messageId/delete",context=>handle(context,context.req.param("messageId"),"message-delete"));
   app.all("/api/v1/account/threads/:sender/:messageId",context=>handle(context,context.req.param("messageId"),"thread"));
+  app.all("/api/v1/account/inbox/updates",context=>handle(context,null,"inbox-updates"));
+  app.all("/api/v1/account/conversations/:peer/:operation",context=>handle(context,null,"conversations"));
+  app.all("/api/v1/account/conversations/:peer?",context=>handle(context,null,"conversations"));
   app.all("/api/v1/account/inbox",context=>handle(context,null,"inbox"));
   app.all("/api/v1/account/inbox/:sender/:messageId",context=>handle(context,context.req.param("messageId"),"read"));
   app.all("/api/v1/account/messages/:messageId/submit",context=>handle(context,context.req.param("messageId"),"resubmit"));

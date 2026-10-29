@@ -44,13 +44,13 @@ export function registerConnectionRoutes(app:Hono,connections:AccountConnections
   app.all("/api/v1/account/connections/:step?",async c=>{
     c.header("Cache-Control","no-store");c.header("Referrer-Policy","no-referrer");c.header("Vary","Cookie");
     const apiStep=c.req.param("step");
-    if(["cli-list","cli-remove","cli-prepare","cli-commit","cli-status"].includes(apiStep??"")){
+    if(["cli-invitations","cli-revoke-invitation","cli-list","cli-remove","cli-prepare","cli-commit","cli-status"].includes(apiStep??"")){
       c.header("Vary","Authorization");
       try{
         if(source.take(clientAddress(c.req.raw),60)!==null)throw new ConnectionError(429);
         if(c.req.header("Cookie")||c.req.header("Origin"))throw new ConnectionError(403);
         const session=await accounts.authenticate(c.req.header("Authorization"));
-        if(!session)throw new ConnectionError(401);
+        if(!session)throw new ConnectionError(401,undefined,await accounts.authenticationFailure?.(c.req.header("Authorization")));
         if(account.take(session.account_id,60)!==null)throw new ConnectionError(429);
         const query=new URL(c.req.url).searchParams;
         if(apiStep==="cli-status"){
@@ -75,7 +75,7 @@ export function registerConnectionRoutes(app:Hono,connections:AccountConnections
           });
         }
         let connectionId:string|undefined;
-        if(apiStep==="cli-list"){if(c.req.method!=="GET")throw new ConnectionError(405);}
+        if(apiStep==="cli-list"||apiStep==="cli-invitations"){if(c.req.method!=="GET")throw new ConnectionError(405);}
         else{
           if(c.req.method!=="POST")throw new ConnectionError(405);
           if(c.req.header("Content-Type")!=="application/json"||c.req.header("Content-Encoding"))throw new ConnectionError(415);
@@ -86,9 +86,9 @@ export function registerConnectionRoutes(app:Hono,connections:AccountConnections
           connectionId=input.connectionId;
         }
         return await withServingGeneration(session.account_id,session.serving_generation??1,
-          async()=>c.json(await connections.credentialConnections(session,connectionId)));
-      }catch(error){return new Response(JSON.stringify({error:"Connection request not accepted"}),{
-        status:error instanceof ConnectionError?error.status:503,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});}
+          async()=>c.json(await connections.credentialConnections(session,connectionId,apiStep==="cli-invitations"||apiStep==="cli-revoke-invitation")));
+      }catch(error){return new Response(JSON.stringify({error:"Connection request not accepted",...(error instanceof ConnectionError&&error.code?{code:error.code}:{})}),{
+        status:error instanceof ConnectionError?error.status:503,headers:{"Content-Type":"application/json","Cache-Control":"no-store",...(error instanceof ConnectionError&&error.code?{"Hail-Error-Code":error.code}:{})}});}
     }
     const supplied=c.req.header("Origin");
     if(supplied!==origin&&!(c.req.method==="GET"&&supplied===undefined))return c.json({error:"Connection origin refused"},403);

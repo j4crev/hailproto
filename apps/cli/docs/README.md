@@ -7,7 +7,8 @@ evidence for maintainers.
 ## Use the CLI
 
 - [CLI workflows](cli-workflows.md): copyable recipes for accounts,
-  credentials, Grants, messaging, backups, bindings, and transfers.
+  credentials, Grants, messaging, inbox waits, conversations, invitation
+  management, diagnostics, backups, bindings, and transfers.
 - [CLI contract](cli-contract.md): stable output, errors, selection, bounds,
   and retry behavior for scripts and agents.
 - [Agent guide](agent-guide.md): account setup, private files, task boundaries,

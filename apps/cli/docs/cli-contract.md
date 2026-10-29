@@ -20,7 +20,7 @@ the provider's `/api/v1` path, and signed-object/file format versions.
   `TRANSPORT_ERROR` means an ambiguous network/TLS/deadline failure;
   `RESPONSE_ERROR` means a malformed provider result; `CLIENT_ERROR` covers
   other local validation, file, cryptographic and lifecycle failures.
-- Provider failures retain `HTTP_<status>` with numeric `httpStatus`, boolean
+- Provider failures use specific codes where available, otherwise `HTTP_<status>`, with numeric `httpStatus`, boolean
   `retryable` (429/503), and optional bounded `retryAfterSeconds`. Actionable
   messages are client-authored; untrusted error bodies are not echoed.
 - Error messages are diagnostic, not stable identifiers. Consumers branch on
@@ -48,7 +48,9 @@ mandatory. Lists and message status retain their existing untagged shapes:
 | Message status | `messageId`, `state: indeterminate/accepted/on-hold/delivered/failed/cancelled`, `revision: positive integer or null` |
 | Grant submission | Exact `grantId/revision/status/digest`, `publication: durable`; not peer acknowledgement |
 
-Each API list returns at most 50 items. Inbox lookup uses sender DID **and**
+Grant, credential and inbox list pages return at most 50 items. Conversation
+list pages return up to 50 peers and show pages up to five messages. Connection
+invitation inventory returns up to 1,000 entries with a `truncated` flag. Inbox lookup uses sender DID **and**
 message ID. Unknown locally sent message IDs return 404; known messages without
 authenticated retained delivery status return `indeterminate`/null revision.
 Status is a provider-local authenticated read, not a new federation status query.
@@ -126,3 +128,24 @@ Read-convenience tests exercise terminal/indeterminate states, deadlines,
 throttling and cursor cycles. Installation proof uses a fresh pinned sibling
 layout, frozen dependency installs, and the same smoke check on a Bun-compiled
 `dist/hailp` executable. See `cli-installation.md` for the reproducible recipe.
+
+## Ongoing-use additions
+
+The provider's additive `/api/v1/capabilities` GET advertises inbox waits,
+conversations, Connection invitation management, signup availability/policy and
+passkey-only actions. These CLI additions require a provider with migration 84.
+Apply the migration before rolling out the new server. Existing inbox readers
+and delivery writers continue working: a database trigger assigns commit-ordered
+per-recipient delivery sequence numbers, including for older writers. Rolling
+back requires stopping new wait consumers first; the rollback removes only the
+added cursor column, trigger and sequence, preserving messages. Saved wait
+cursors are invalid after rollback/reapply.
+
+Errors retain `httpStatus` and `retryable`, while `error.code` can now be
+`CREDENTIAL_EXPIRED`, `CREDENTIAL_REVOKED`, `MISSING_SCOPE`, `PASSKEY_REQUIRED`,
+or `APPROVAL_EXPIRED`. The provider sends these codes in `Hail-Error-Code` and
+its JSON problem response. The CLI accepts only known codes matched to their
+HTTP status, ignores untrusted error text, and falls back to `HTTP_<status>`
+for older providers or unspecified conditions. Do not infer expiry from every
+401 or missing scope from every 403. These terminal conditions do not authorize
+automatic login, scope escalation, or replacing retained approval artifacts.

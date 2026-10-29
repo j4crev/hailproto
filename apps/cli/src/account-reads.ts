@@ -65,3 +65,30 @@ export async function waitForStatus(client: AccountApiClient, id: string, second
   if (!last) throw failure ?? new ClientError("TRANSPORT_ERROR", "Status wait deadline elapsed before any status was observed");
   return { ...last, wait: { completed: false, timedOut: true } };
 }
+
+/** Reuse the last printed cursor after interruption; results may replay, never imply acknowledgement. */
+export async function waitForInbox(client:AccountApiClient,from?:string,after?:string,seconds=60,interval=2,externalSignal?:AbortSignal) {
+  if(from!==undefined&&!DID.test(from)||after!==undefined&&!validCursor("inbox",after)||
+    !Number.isInteger(seconds)||seconds<1||seconds>300||!Number.isInteger(interval)||interval<1||interval>30)
+    throw new ClientError("USAGE_ERROR","Invalid inbox wait selection or bounds");
+  const deadline=AbortSignal.timeout(seconds*1000),signal=externalSignal?AbortSignal.any([deadline,externalSignal]):deadline;
+  let cursor=after;
+  while(!signal.aborted){
+    let delay=interval;
+    try{
+      const query=new URLSearchParams({...from?{from}:{},...cursor?{after:cursor}:{}});
+      const result=await client.request(`/inbox/updates?${query}`,undefined,undefined,undefined,signal);
+      if(!Array.isArray(result.messages)||result.messages.length>50||!validCursor("inbox",result.cursor)||typeof result.hasMore!=="boolean"||
+        result.messages.some(r=>!r||!ID.test(r.messageId)||!DID.test(r.sender)||from!==undefined&&r.sender!==from))
+        throw new ClientError("RESPONSE_ERROR","Invalid inbox update page");
+      cursor=result.cursor;
+      if(result.messages.length)return {...result,contentTrust:"untrusted",wait:{completed:true,timedOut:false,interrupted:false}};
+    }catch(error){
+      if(signal.aborted)break;
+      if(!(error instanceof AccountApiError)||![429,503].includes(error.status))throw error;
+      delay=Math.max(interval,error.retryAfterSeconds??interval);
+    }
+    try{await sleep(delay*1000,undefined,{signal});}catch(error){if(!signal.aborted)throw error;}
+  }
+  return {messages:[],cursor:cursor??null,hasMore:false,wait:{completed:false,timedOut:deadline.aborted,interrupted:externalSignal?.aborted??false}};
+}

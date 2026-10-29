@@ -1,3 +1,5 @@
+import {inboxUpdates} from "./inbox-updates.js";
+import {conversations} from "./conversations.js";
 import {messageThread} from "./message-threads.js";
 import {sentSends} from "./sent-sends.js";
 import { createHash } from "node:crypto";
@@ -109,6 +111,9 @@ export class AccountMessaging {
       return {messageId:id,isRead};
     });
   }
+
+  updates(session:AccountApiSession,after:string|null,from:string|null){return inboxUpdates(this.sql,session,after,from);}
+  conversations(session:AccountApiSession,peer:string|null,action:string,after:string|null,trash=false){return conversations(this.sql,session,this,peer,action,after,trash);}
 
   async inbox(session:AccountApiSession,after:string|null) {
     let cursor:{id:string;sender:string}|null=null;

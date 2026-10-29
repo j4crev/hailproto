@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
+import {doctor} from "../doctor.js";
 import { parseCommand, boundedInteger } from "./options.js";
 import { printResult, printError } from "./output.js";
-import { listPages, waitForStatus } from "../account-reads.js";
+import { listPages, waitForStatus, waitForInbox } from "../account-reads.js";
 import packageInfo from "../../package.json" with { type: "json" };
 import { decodeBase64Url, toDiagnosticJson } from "@hailproto/codec";
 import { AccountApiClient } from "../account-api.js";
@@ -102,14 +103,27 @@ try {
       printResult(await createAccount(values.provider!,values.address!,values.custody as "owner-controlled"|"managed",values.vault!,values.state!,values.credentials!,undefined,
         values["monitor-origin"]?{origin:values["monitor-origin"],publicKey:values["monitor-key"]!,...(values["monitor-attestation"]?{attestationPath:values["monitor-attestation"]}:{})}:undefined,
         values["passkey-enrollment"],values.invitation));
+    } else if(group==="doctor"){
+      const credential=values.credentials??Bun.env.HAILP_CREDENTIAL_FILE;
+      if(!credential&&!values.provider)throw new Error("Doctor requires --provider or a selected credential");
+      const client=credential?await AccountApiClient.fromCredentialFile(credential,{provider:values.provider,accountId:values["account-id"]}):AccountApiClient.publicProvider(values.provider!);
+      printResult(await doctor(client,values.scope,Boolean(credential),values.action));
     } else {
     const credential = values.credentials ?? Bun.env.HAILP_CREDENTIAL_FILE;
     if (!credential) throw new Error("Set --credentials or HAILP_CREDENTIAL_FILE");
     const client = await AccountApiClient.fromCredentialFile(credential, selection);
     let result: unknown;
-    if (group === "account") result = await client.account();
+    if(group==="conversation"){
+      const peer=encodeURIComponent(argument??"");
+      result=command==="thread"?await client.request(`/threads/${peer}/${encodeURIComponent(positionals[3]!)}`):
+        await client.request(`/conversations${command==="list"?"":`/${peer}`}${["list","show"].includes(command!)?`?${new URLSearchParams({...values.after?{after:values.after}:{},...values.trash?{trash:"true"}:{}})}`:`/${command}`}`,
+          ["list","show"].includes(command!)?undefined:{});
+    }
+    else if (group === "account") result = await client.account();
     else if(group==="connection") {
-      if(command==="invite")result=await inviteConnection(client,values.label!,Number(values["expires-at"]),values.vault!,values.state!,values.output!);
+      if(command==="invitations")result=await client.request("/connections/cli-invitations");
+      else if(command==="revoke-invitation")result=await client.request("/connections/cli-revoke-invitation",{connectionId:argument!});
+      else if(command==="invite")result=await inviteConnection(client,values.label!,Number(values["expires-at"]),values.vault!,values.state!,values.output!);
       else if(command==="accept")result=await acceptConnection(client,values.file!,values["expected-did"]!,values.vault!,values.state!);
       else if(command==="status")result=await connectionStatus(client,values.state!);
       else if(command==="send")result=await sendMessage(client,values.file!,values.state!,undefined,undefined,undefined,undefined,argument!);
@@ -127,6 +141,12 @@ try {
     }
     else if((group==="inbox"||group==="message")&&command==="delete")result=
       await client.request(`/inbox/${encodeURIComponent(argument!)}/${encodeURIComponent(positionals[3]!)}/permanent-delete`,{});
+    else if(group==="inbox"&&command==="wait"){
+      const controller=new AbortController(),interrupt=()=>controller.abort();
+      process.once("SIGINT",interrupt);process.once("SIGTERM",interrupt);
+      try{result=await waitForInbox(client,values.from,values.after,boundedInteger(values.timeout,"timeout",300,60),interval,controller.signal);}
+      finally{process.removeListener("SIGINT",interrupt);process.removeListener("SIGTERM",interrupt);}
+    }
     else if(group==="inbox")result=command==="list"?await listPages(client,"inbox",values.after,pages):
       await client.request(`/inbox/${encodeURIComponent(argument!)}/${encodeURIComponent(positionals[3]!)}`);
     else if(group==="message")result=command==="status"?await waitForStatus(client,argument!,wait,interval):

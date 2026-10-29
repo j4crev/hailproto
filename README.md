@@ -90,7 +90,9 @@ The reference CLI covers account administration and sensitive identity ceremonie
 | API credential management | Create, rotate, revoke and recovery login | Approve scoped CLI access; no credential-management UI |
 | Sender Profiles | Create, view and update | Verified avatars and sender/category review; no profile editor |
 | Grants | Create, list, inspect, update and revoke | List scopes/expiry; managed sender approval by address or QR link, with passkey-confirmed creation and revocation |
-| Inbox | List and retrieve messages | Paginated feed, safe rich-text rendering, avatars and bundled headers |
+| Inbox | List, retrieve and wait with resumable delivery cursors | Paginated feed, safe rich-text rendering, avatars and bundled headers |
+| Conversations | List peers, read messages/threads, mark read/unread, trash and restore | Reply threads and read/unread/trash controls |
+| Diagnostics | Read-only provider/account checks, scope/expiry and workflow prerequisites | — |
 | Compose | Explicit Grant/reply text workflows | Category-wide publications with durable fan-out, rich text, bundled PNG headers and separate work/delivery status |
 | Replies | Plain-text replies | Plain-text replies while the capability remains valid |
 | Sent messages | Status and retry by message ID | Paginated Sent view, detail, status and indeterminate retry |
