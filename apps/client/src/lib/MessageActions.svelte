@@ -18,11 +18,13 @@
   onMount(() => { ready = true; });
   $effect(() => { locked = busy || confirming; });
   async function review() {
+    if (busy) return;
     busy = true; error = '';
     try {
       const settings = await mailboxRequest('message-preferences');
       trashEnabled = settings.trashEnabled !== false;
-      confirming = true;
+      if (trashEnabled) await remove();
+      else confirming = true;
     } catch (e) { error = e instanceof Error ? e.message : 'Unable to load deletion settings.'; }
     finally { busy = false; }
   }
