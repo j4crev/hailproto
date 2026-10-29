@@ -139,6 +139,30 @@ describe("SenderProfileService", () => {
     expect(await service.createOrReuse(account.canonicalAddress,definition)).toBe(created);
   });
 
+  it("persists avatar removal in a signed revision without changing other profile fields", async () => {
+    const {account, encryptor, repository, resolver, keys} = await fixture();
+    const service = new SenderProfileService(repository, encryptor, resolver, "https://hailproto.app/hail");
+    const base = {version: 2, display_name: "Alice", description: "About", offers_uncategorized: true,
+      categories: [{id: "general", label: "General"}, {id: "news", label: "News"}]};
+    const first = await service.createOrReuse(account.canonicalAddress, parseSenderProfileDefinition({...base, avatar}), 0);
+    await expect(service.createOrReuse(account.canonicalAddress, parseSenderProfileDefinition(base), 0)).rejects.toBeInstanceOf(SenderProfileConflictError);
+    const removed = await service.createOrReuse(account.canonicalAddress, parseSenderProfileDefinition(base), 1);
+    expect(removed.payload).toMatchObject({...base, revision: 2});
+    expect(removed.payload).not.toHaveProperty("assets");
+    expect(await service.getLatest(account.canonicalAddress)).toBe(removed);
+    expect(first.payload).toHaveProperty("assets");
+    const publicKey = await ed25519PublicKeyFromDidKey(keys.messagingDidKey);
+    const verified = await verifySignedPayload("hail.sender-profile", removed.cose, createWebCryptoVerifier(async () => publicKey));
+    expect(verified.payload).toEqual(removed.payload);
+  });
+
+  it("rejects malformed and oversized avatar bytes before signing", () => {
+    for (const bytes of [Buffer.from("not a PNG"), Buffer.concat([Buffer.from(avatar, "base64url"), Buffer.alloc(32768)])]) {
+      expect(() => parseSenderProfileDefinition({version: 2, display_name: "Alice", offers_uncategorized: false, categories: [],
+        avatar: bytes.toString("base64url")})).toThrow();
+    }
+  });
+
   it("refuses to sign when current PLC state names another messaging key", async () => {
     const { encryptor, repository, resolver } = await fixture();
     resolver.resolve.mockResolvedValue({

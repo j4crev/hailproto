@@ -20,6 +20,20 @@ through the normal passkey approval. Uncategorized subscription creation is no
 longer supported; no migration command or conversion UI is needed. See
 [the staged relationship changes](../../docs/subscriptions-and-connections.md).
 
+## Account profile photo
+
+Account supports uploading, replacing, and removing a public sender avatar with
+fresh passkey verification. JPEG, PNG, and WebP files up to 10 MiB are decoded
+locally, center-cropped, and re-encoded as PNG without original metadata. The
+client reduces dimensions until the image fits the protocol's 32 KiB limit;
+original photos are not uploaded. HEIC is not supported; export it as JPEG first.
+
+The existing account profile API validates the image and saves it in the signed
+v2 sender profile in PostgreSQL. No object storage credentials or database
+migration are required. Profile revision checks prevent overwriting concurrent
+edits. Removing a photo publishes a new profile without an avatar; historical
+signed revisions and copies previously retrieved by other providers can remain.
+
 ## Invited signup
 
 `/signup` presents one screen at a time: address and security email, protection
