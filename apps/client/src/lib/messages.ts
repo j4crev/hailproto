@@ -57,6 +57,7 @@ export function parseSent(value: unknown): SentItem[] {
 }
 
 export interface MessageView extends InboxItem {
+  inReplyTo?:{sender:string;messageId:string}|null;
   trashedAt: string | null;
   kind?:"connection";
   connection?:{id:string;epoch:number;active:boolean};
@@ -191,6 +192,13 @@ export function parseMessage(value: unknown): MessageView {
   if(message.reply!==undefined){const reply=object(message.reply,"reply invitation");
     if(reply.allowed===true&&Number.isSafeInteger(reply.until)&&Number(reply.until)>0)replyUntil=Number(reply.until);
     else if(reply.allowed!==false||reply.until!==undefined)throw new Error("Unsupported reply invitation");}
+  let inReplyTo:MessageView["inReplyTo"];
+  if(message.inReplyTo!==undefined&&message.inReplyTo!==null){
+    const parent=object(message.inReplyTo,"reply parent");
+    if(typeof parent.sender!=="string"||!/^did:plc:[a-z2-7]{24}$/.test(parent.sender)||typeof parent.messageId!=="string"||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(parent.messageId))throw new Error("Invalid reply parent");
+    inReplyTo={sender:parent.sender,messageId:parent.messageId};
+  }
   const content=parseBody(body);
   if(message.kind!==undefined&&message.kind!=="subscription"&&message.kind!=="connection")throw new Error("Unsupported message kind");
   if(message.kind==="connection"&&(message.category!==null||replyUntil!==null||message.replyAvailable===true))throw new Error("Connection messages cannot carry subscription or independent reply authority");
@@ -202,6 +210,7 @@ export function parseMessage(value: unknown): MessageView {
     connection={id:item.id,epoch:Number(item.epoch),active:item.active};
   }
   return {
+    ...(inReplyTo?{inReplyTo}:{}),
     ...(message.kind==="connection"?{kind:"connection" as const}:{}),...(connection?{connection}:{}),
     trashedAt: message.trashedAt == null ? null : text(message.trashedAt, "trash time"),
     isRead: message.isRead === true,

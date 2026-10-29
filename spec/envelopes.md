@@ -21,7 +21,7 @@ Detached body publication and retrieval are defined in [bodies.md](bodies.md). G
 - One envelope authorizes exactly one message delivery.
 - Every semantic envelope field is covered by the sender's signature.
 - The sender signs with its currently authorized `#hail-messaging` key.
-- An envelope uses exactly one authorization mode: version 1 selects a Hail Grant or an earlier reply capability; version 2 selects an explicit active connection epoch.
+- An envelope uses exactly one authorization mode: version 1 selects a Hail Grant or an earlier reply capability; version 2 selects an explicit active connection epoch; version 3 selects reply or connection authorization and includes a signed parent reference.
 - The body exists before envelope submission and is identified by its signed digest and metadata.
 - The body endpoint is derived from the authenticated sender DID service, never supplied by the envelope.
 - The tuple `(from, message_id)` is the delivery and idempotency key.
@@ -96,7 +96,7 @@ This identifies the signed object and provides protocol-level domain separation.
 
 ### `version`
 
-Required. The integer `1` for Grant/reply delivery, or `2` for connection delivery.
+Required. The integer `1` for Grant/reply delivery, `2` for connection delivery, or `3` for threaded replies as defined below.
 Version 2 cannot carry Grant/reply authorization; version 1 cannot carry connection
 authorization. This is a compatibility boundary, not an alternative message format.
 
@@ -511,3 +511,41 @@ Deferred:
 - What production cache lifetime and PLC finality rules replace the POC behavior?
 - Should production retain the POC message-type list or introduce a separately versioned registry?
 - What production envelope size must every conforming implementation accept?
+
+## Threaded replies (version 3)
+
+Version 3 adds a required signed `in_reply_to` map with exactly `sender`
+(a DID) and `message_id` (a UUIDv7). It identifies the immediate parent by
+the original sender's message identity, never by a publication or body digest.
+The parent sender MUST equal the new envelope's `to`; self replies are
+prohibited. Version 3 supports only reply or connection authorization.
+
+For reply authorization, `in_reply_to.message_id` MUST equal
+`authorization.reply_to`. All existing invitation expiry, single-use,
+claim/release, and optional continuation permission rules apply. For connection
+authorization, the same live connection epoch checks apply and `reply.allowed`
+MUST be false. A parent reference confers no authority.
+
+Senders constructing a reply from their inbox verify the exact sender/message
+identity and that the original is delivered and not trashed. Connection replies
+must use the original connection ID and epoch. Receivers can retain a valid
+authorized reply even if its referenced original is no longer locally visible.
+A signed parent is the replying sender's assertion of a relationship, not an
+independent attestation of quoted text or the parent's authorship.
+
+Versions 1 and 2 remain unchanged and reject `in_reply_to`. Ordinary sends
+continue using those versions. Upgrade both peers before using threaded replies:
+older peers reject version 3; there is no automatic downgrade that discards the
+reference. Existing version-1 reply relationships can be reconstructed from
+`(to, authorization.reply_to)`; old connection messages have no parent.
+
+Thread readers scope traversal to the authenticated account and the exact
+sender/recipient pair, bound traversal, and handle cycles and unavailable parents.
+Replies to separate recipient envelopes from one publication are separate
+conversations. Never infer relationships from quoted/forwarded body text.
+
+Quoted reply bodies continue using existing SPT profiles. The client sends
+literal response text followed by a bounded plain-text excerpt, attribution,
+and an image placeholder when appropriate. The excerpt is presentation supplied
+by the replying sender. It carries no delivery capability, asset access token,
+or original envelope.

@@ -26,3 +26,5 @@ bun run --cwd packages/hail-codec-ts vectors:generate
 ```
 
 Review the complete manifest diff. Any changed payload, signature, digest, or negative-vector classification is a protocol-visible change and requires an explanation.
+
+`threads-v3.json` contains signed connection and Subscription reply vectors plus malformed parent/version cases. Regenerate with `bun scripts/generate-thread-vectors.ts`; both codec suites consume the same bytes.

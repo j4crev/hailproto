@@ -306,10 +306,10 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         }
         return context.json(await messaging.trash.remove(session,context.req.param("sender")!,grantId!,action==="message-purge"));
       }
-      const scope = action === "send" || action === "resubmit" ? "messages:write" : ["inbox","read","status","sent","sent-read"].includes(action ?? "") ? "messages:read" : action === "credential" ? "credentials:write" : action === "proposal" || action === "managed-create" || action === "managed-revoke" ? "grants:write" : action === "list" ? "grants:read" :
+      const scope = action === "send" || action === "resubmit" ? "messages:write" : ["inbox","read","status","sent","sent-read","thread"].includes(action ?? "") ? "messages:read" : action === "credential" ? "credentials:write" : action === "proposal" || action === "managed-create" || action === "managed-revoke" ? "grants:write" : action === "list" ? "grants:read" :
         grantId === null ? "account:read" : method === "PUT" ? "grants:write" : "grants:read";
       if (!session.scopes.includes(scope)) return problem(403);
-      if(["send","resubmit","inbox","read","status","sent","sent-read"].includes(action ?? "")) {
+      if(["send","resubmit","inbox","read","status","sent","sent-read","thread"].includes(action ?? "")) {
         if(!messaging)return problem(503);
         if(action==="send"||action==="resubmit") {
           if(method!=="POST")return problem(405);if(session.migration_state)return problem(409);
@@ -324,6 +324,10 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           return context.json(await messaging.send(session,input));
         }
         if(method!=="GET")return problem(405);
+        if(action==="thread") {
+          const found=await messaging.thread(session,context.req.param("sender")!,grantId!);
+          return found?context.json(found):problem(404);
+        }
         if(action==="sent") {
           if([...query.keys()].some(k=>!["after","include"].includes(k))||query.getAll("after").length>1||query.getAll("include").length>1||
             ![null,"body","sends"].includes(query.get("include")))return problem(400);
@@ -493,6 +497,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/inbox/:sender/:messageId/mark-read",context=>handle(context,context.req.param("messageId"),"message-read"));
   app.all("/api/v1/account/inbox/:sender/:messageId/mark-unread",context=>handle(context,context.req.param("messageId"),"message-unread"));
   app.all("/api/v1/account/inbox/:sender/:messageId/delete",context=>handle(context,context.req.param("messageId"),"message-delete"));
+  app.all("/api/v1/account/threads/:sender/:messageId",context=>handle(context,context.req.param("messageId"),"thread"));
   app.all("/api/v1/account/inbox",context=>handle(context,null,"inbox"));
   app.all("/api/v1/account/inbox/:sender/:messageId",context=>handle(context,context.req.param("messageId"),"read"));
   app.all("/api/v1/account/messages/:messageId/submit",context=>handle(context,context.req.param("messageId"),"resubmit"));

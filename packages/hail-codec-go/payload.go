@@ -268,6 +268,9 @@ func envelopeValue(value *Envelope) map[any]any {
 			"available_until": value.Body.AvailableUntil, "access": map[any]any{"type": value.Body.Access.Type, "token": value.Body.Access.Token, "expires_at": value.Body.Access.ExpiresAt},
 		}, "reply": reply,
 	}
+	if value.InReplyTo != nil {
+		result["in_reply_to"] = map[any]any{"sender": value.InReplyTo.Sender, "message_id": value.InReplyTo.MessageID}
+	}
 	if value.Category != "" {
 		result["category"] = value.Category
 	}
@@ -569,7 +572,7 @@ func validatePayloadMap(kind string, m map[any]any) error {
 		return e
 	}
 	v, e := intValue(m["version"], "$.version", 0)
-	if e != nil || v != 1 && !((kind == SenderProfileType || kind == EnvelopeType) && v == 2) {
+	if e != nil || v != 1 && !((kind == SenderProfileType || kind == EnvelopeType) && v == 2) && !(kind == EnvelopeType && v == 3) {
 		if kind == SenderProfileType {
 			return errors.New("$.version must equal 1 or 2")
 		}
@@ -803,7 +806,11 @@ func validateEnvelope(m map[any]any) error {
 		return e
 	}
 	req := []string{"type", "version", "message_id", "from", "to", "authorization", "created_at", "expires_at", "body", "reply"}
-	if e := exact(m, req, []string{"category", "message_type"}, "$"); e != nil {
+	optional := []string{"category", "message_type"}
+	if version == 3 {
+		optional = append(optional, "in_reply_to")
+	}
+	if e := exact(m, req, optional, "$"); e != nil {
 		return e
 	}
 	if e := uuid(m["message_id"], "$.message_id"); e != nil {
@@ -835,8 +842,8 @@ func validateEnvelope(m map[any]any) error {
 			return e
 		}
 	case "reply":
-		if version != 1 {
-			return errors.New("reply authorization uses envelope version 1")
+		if version != 1 && version != 3 {
+			return errors.New("reply authorization uses envelope version 1 or 3")
 		}
 		if e = exact(a, []string{"type", "reply_to"}, nil, "$.authorization"); e != nil {
 			return e
@@ -848,8 +855,8 @@ func validateEnvelope(m map[any]any) error {
 			return errors.New("category prohibited for reply")
 		}
 	case "connection":
-		if version != 2 {
-			return errors.New("connection authorization requires envelope version 2")
+		if version != 2 && version != 3 {
+			return errors.New("connection authorization requires envelope version 2 or 3")
 		}
 		if e = exact(a, []string{"type", "connection_id", "epoch"}, nil, "$.authorization"); e != nil {
 			return e
@@ -865,6 +872,27 @@ func validateEnvelope(m map[any]any) error {
 		}
 	default:
 		return errors.New("unknown authorization type")
+	}
+	if version == 3 {
+		parent, err := mapValue(m["in_reply_to"], "$.in_reply_to")
+		if err != nil {
+			return err
+		}
+		if err = exact(parent, []string{"sender", "message_id"}, nil, "$.in_reply_to"); err != nil {
+			return err
+		}
+		if _, err = did(parent["sender"], "$.in_reply_to.sender"); err != nil {
+			return err
+		}
+		if err = uuid(parent["message_id"], "$.in_reply_to.message_id"); err != nil {
+			return err
+		}
+		if parent["sender"] != m["to"] || m["from"] == m["to"] {
+			return errors.New("parent must be sent by the other participant")
+		}
+		if typ == "reply" && parent["message_id"] != a["reply_to"] {
+			return errors.New("parent must match reply authorization")
+		}
 	}
 	if has(m, "category") {
 		if _, e = category(m["category"], "$.category"); e != nil {

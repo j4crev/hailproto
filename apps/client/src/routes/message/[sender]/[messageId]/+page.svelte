@@ -1,4 +1,7 @@
 <script lang="ts">
+  import QuotedMessage from "$lib/QuotedMessage.svelte";
+  import MessageThread from "$lib/MessageThread.svelte";
+  import {replyExcerpt} from "$lib/reply.js";
   import {forwardHref} from "$lib/forward.js";
   import ForwardedPill from "$lib/ForwardedPill.svelte";
   import {forwardedAttribution, messageDisplayContent} from "$lib/messages.js";
@@ -10,7 +13,6 @@
   import ContactAddress from "$lib/ContactAddress.svelte";
   import MessageActions from "$lib/MessageActions.svelte";
   import Unsubscribe from "$lib/Unsubscribe.svelte";
-  import RichText from "$lib/RichText.svelte";
   let { data,form } = $props();
   let opened = '';
   let failedAvatar = $state(''), avatarImage = $state<HTMLImageElement>();
@@ -88,8 +90,7 @@
         {#if data.message.trashedAt}
           <button class="hail-button-secondary" disabled={restoring} onclick={restore}>Restore</button>
         {:else}
-        {#if data.message.connection?.active}<a class="hail-icon-button compact" aria-label="Reply" title="Reply" href={`/compose?audience=connections&connection=${data.message.connection.id}`}><Icon name="reply" /></a>
-        {:else if data.message.kind !== 'connection'}<button disabled={!data.canReply} bind:this={replyButton} class="hail-icon-button compact" type="button" aria-label="Reply" title="Reply" aria-expanded={replyOpen} aria-controls="subscription-reply" onclick={openReply}><Icon name="reply" /></button>{/if}
+        <button disabled={!data.canReply} bind:this={replyButton} class="hail-icon-button compact" type="button" aria-label="Reply" title="Reply" aria-expanded={replyOpen} aria-controls="message-reply" onclick={openReply}><Icon name="reply" /></button>
         <a class="hail-icon-button compact" aria-label="Forward" title="Forward" href={forwardHref(data.message)}><Icon name="forward" /></a>
         <MessageActions compact menu onunsubscribe={canUnsubscribe ? () => { void unsubscribe?.open(); } : undefined} disabled={readPending} messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} />
         {/if}
@@ -104,19 +105,22 @@
     </div>
   </header>
   <div class="min-h-[220px] px-5 py-8 font-serif text-[18px] leading-[1.7] [overflow-wrap:anywhere] sm:px-7">
-    <RichText blocks={content.blocks} header={data.message.header} />
+    <QuotedMessage blocks={content.blocks} header={data.message.header} />
   </div>
 </article>
 {#if !data.message.trashedAt}
 {#if data.message.kind==='connection' && !data.message.connection?.active}<p class="mt-5 rounded-xl bg-warning-soft p-4 text-sm text-warning">This connection is no longer active. Existing delivered messages remain readable.</p>
-{:else if data.message.kind!=='connection' && data.canReply}
+{:else if data.canReply}
   {#if replyOpen}
-  <form id="subscription-reply" class="hail-card mt-6 grid gap-4 p-5 sm:p-7" method="POST" action="?/reply">
-    <label class="hail-field">Reply<textarea bind:this={replyInput} class="resize-y" name="text" rows="5" maxlength="65536" required></textarea></label>
-    <p class="m-0 text-xs text-muted">This invitation currently allows one reply before <DateTime value={data.message.replyUntil!*1000} />.</p>
-    <label class="flex min-h-11 items-center gap-3 text-sm"><input name="allowReply" type="checkbox" value="yes" /> Allow one reply for 7 days</label>
+  <form id="message-reply" class="hail-card mt-6 grid gap-4 p-5 sm:p-7" method="POST" action="?/reply">
+    <input type="hidden" name="messageId" value={form?.messageId??data.newReplyId}/>
+    <input type="hidden" name="replyUntil" value={form?.replyUntil??data.newReplyUntil}/>
+    <label class="hail-field">Reply<textarea bind:this={replyInput} class="resize-y" name="text" rows="5" maxlength="65536" required value={form?.text??""}></textarea></label>
+    <details><summary class="cursor-pointer text-sm text-muted">Quoted message from {data.message.senderAddress??data.message.sender}</summary><blockquote class="ml-0 whitespace-pre-wrap border-0 border-l-2 border-solid border-brand pl-4 text-sm text-muted">{replyExcerpt(data.message)}</blockquote></details>
+    {#if data.message.kind!=='connection'}<p class="m-0 text-xs text-muted">This invitation currently allows one reply before <DateTime value={data.message.replyUntil!*1000} />.</p>
+    <label class="flex min-h-11 items-center gap-3 text-sm"><input name="allowReply" type="checkbox" value="yes" checked={form?.allowReply??false} /> Allow one reply for 7 days</label>{/if}
     <div class="flex flex-wrap gap-3"><button class="hail-button" type="submit">Send reply</button><button class="hail-button-secondary" type="button" onclick={cancelReply}>Cancel</button></div>
-    {#if form?.error}<p class="hail-error" role="alert">{form.error}</p>{/if}
+
   </form>
   {/if}
 {:else if data.message.replyUntil}
@@ -124,4 +128,6 @@
 {/if}
 
 {/if}
+{#if form?.error}<p class="hail-error" role="alert">{form.error} {#if form.messageId}<a href={`/sent/${form.messageId}`}>Check sent status</a>{/if}</p>{/if}
+<MessageThread thread={data.thread} unavailable={data.threadUnavailable} selected={data.message}/>
 </div>

@@ -121,7 +121,8 @@ type ExpectedBodyDescriptor = {
 type ExpectedReply = { allowed: false } | { allowed: true; until: number };
 type ExpectedEnvelope = {
   type: "hail.envelope";
-  version: 1|2;
+  version: 1|2|3;
+  in_reply_to?:{sender:string;message_id:string};
   message_id: string;
   from: string;
   to: string;
@@ -395,7 +396,8 @@ const baseManifest = JSON.parse(
   readFileSync(new URL("../vectors/v0.json", import.meta.url), "utf8"),
 ) as VectorManifest;
 const connections=JSON.parse(readFileSync(new URL("../vectors/connections-draft.json",import.meta.url),"utf8")) as VectorManifest;
-const manifest:VectorManifest={...baseManifest,positive:[...baseManifest.positive,...connections.positive]};
+const threads=JSON.parse(readFileSync(new URL("../vectors/threads-v3.json",import.meta.url),"utf8")) as VectorManifest;
+const manifest:VectorManifest={...baseManifest,positive:[...baseManifest.positive,...connections.positive,...threads.positive]};
 const positiveByType = new Map<HailPayloadType, PositiveVector>();
 for (const vector of manifest.positive) {
   if (!positiveByType.has(vector.type)) positiveByType.set(vector.type, vector);

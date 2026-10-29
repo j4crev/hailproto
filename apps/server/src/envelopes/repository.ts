@@ -33,13 +33,16 @@ export class EnvelopeRepository {
     return rows[0] ? new Uint8Array(rows[0].envelope_cose) : null;
   }
 
-  async receivedReplyOpportunity(recipientDid: string, messageId: string): Promise<HailEnvelope | null> {
+  async receivedReplyOpportunity(recipientDid: string, messageId: string, senderDid?: string): Promise<HailEnvelope | null> {
     const rows = await this.sql<{ envelope_cose: Uint8Array }[]>`
-      SELECT envelope_cose FROM received_envelopes
-      WHERE recipient_did = ${recipientDid} AND message_id = ${messageId} AND outcome = 'accepted'
+      SELECT e.envelope_cose FROM received_envelopes e
+      WHERE e.recipient_did = ${recipientDid} AND e.message_id = ${messageId} AND e.outcome = 'accepted'
+        AND (${senderDid??null}::text IS NULL OR (e.sender_did=${senderDid??null} AND EXISTS (
+          SELECT 1 FROM delivered_messages d WHERE d.recipient_did=e.recipient_did
+            AND d.sender_did=e.sender_did AND d.message_id=e.message_id AND d.trashed_at IS NULL)))
     `;
-    if (!rows[0]) return null;
-    const payload = inspectSignedPayload("hail.envelope", rows[0].envelope_cose).payload;
+    if (rows.length !== 1) return null;
+    const payload = inspectSignedPayload("hail.envelope", rows[0]!.envelope_cose).payload;
     return payload.to === recipientDid && payload.message_id === messageId ? payload : null;
   }
 
@@ -80,10 +83,11 @@ export class EnvelopeRepository {
       if (!body || body.size !== payload.body.size) throw new Error("Signed body is not published");
       await tx`
         INSERT INTO sent_envelopes (sender_did, message_id, recipient_did, grant_id,
-          reply_to_message_id, authorization_type, envelope_cose, envelope_digest, body_digest, sender_account_id,connection_id,connection_epoch)
+          reply_to_message_id, authorization_type, envelope_cose, envelope_digest, body_digest, sender_account_id,connection_id,connection_epoch,parent_sender,parent_message_id)
         VALUES (${payload.from}, ${payload.message_id}, ${payload.to}, ${grantId}, ${replyTo},
           ${payload.authorization.type}, ${representation}, ${envelopeDigest}, ${payload.body.digest.value}, ${accountId},
-          ${payload.authorization.type==="connection"?payload.authorization.connection_id:null},${payload.authorization.type==="connection"?payload.authorization.epoch:null})
+          ${payload.authorization.type==="connection"?payload.authorization.connection_id:null},${payload.authorization.type==="connection"?payload.authorization.epoch:null},
+          ${payload.in_reply_to?.sender??null},${payload.in_reply_to?.message_id??null})
       `;
       if (payload.reply.allowed) {
         await tx`
@@ -229,14 +233,15 @@ export class EnvelopeRepository {
           (sender_did, message_id, recipient_did, grant_id, reply_to_message_id,
            authorization_type, local_account_id, envelope_cose,
            envelope_digest, payload_digest, signing_public_key, signing_plc_document,
-            signing_plc_data, signing_plc_operation_log, outcome, accepted_at,connection_id,connection_epoch)
+            signing_plc_data, signing_plc_operation_log, outcome, accepted_at,connection_id,connection_epoch,parent_sender,parent_message_id)
         VALUES (${payload.from}, ${payload.message_id}, ${payload.to}, ${grantId}, ${replyTo},
           ${payload.authorization.type},
           ${localAccountId}, ${representation}, ${envelopeDigest}, ${payloadDigest}, ${signingPublicKey},
           ${JSON.stringify(evidence.document)}::jsonb, ${JSON.stringify(evidence.data)}::jsonb,
           ${JSON.stringify(evidence.log)}::jsonb, ${outcome},
            ${outcome === "accepted" ? new Date(now * 1000) : null},
-           ${payload.authorization.type==="connection"?payload.authorization.connection_id:null},${payload.authorization.type==="connection"?payload.authorization.epoch:null})
+           ${payload.authorization.type==="connection"?payload.authorization.connection_id:null},${payload.authorization.type==="connection"?payload.authorization.epoch:null},
+          ${payload.in_reply_to?.sender??null},${payload.in_reply_to?.message_id??null})
         ON CONFLICT (sender_did, message_id) DO NOTHING
         RETURNING payload_digest
       `;

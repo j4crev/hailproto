@@ -361,6 +361,26 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     const sentToB=completed.targets.find(t=>t.recipient===b.did)!;
     expect(await two.messaging.read(b.session,a.did,sentToB.messageId)).toMatchObject({kind:'connection',replyAvailable:false,senderAddress:a.address});
     expect(await second.db.sql`SELECT original_message_id FROM reply_capabilities`).toHaveLength(0);
+    // A reply uses the same connection authority, plus a signed parent. It is
+    // private to B's individual delivery, even though A sent a two-person batch.
+    const threadedId=uuidV7(),threadedRequest={messageId:threadedId,text:'Reply to the private original',
+      connectionId:remoteTarget.connectionId,connectionEpoch:remoteTarget.epoch,recipientDid:a.did,
+      inReplyTo:{sender:a.did,messageId:sentToB.messageId}};
+    expect((await api(b,'messages',threadedRequest)).status).toBe(200);
+    await received();
+    expect(await withFreshServingGenerations(first.db.sql,()=>one.worker.processOne())).toBe('delivered');
+    const threaded=inspectSignedPayload('hail.envelope',(await two.envelopes.sent(b.did,threadedId))!).payload;
+    expect(threaded).toMatchObject({version:3,in_reply_to:{sender:a.did,message_id:sentToB.messageId},reply:{allowed:false}});
+    expect(threaded.authorization.type).toBe('connection');
+    expect((await api(b,'messages',threadedRequest)).status).toBe(200);
+    await received();
+    expect((await api(b,'messages',{...threadedRequest,text:'Different body'})).status).toBe(409);
+    expect((await api(b,'messages',{...threadedRequest,messageId:uuidV7(),inReplyTo:{sender:a.did,messageId:completed.targets.find(t=>t.recipient===c.did)!.messageId}})).status).toBe(409);
+    const conversation=await api(a,'threads/'+b.did+'/'+threadedId);
+    expect(conversation.status).toBe(200);
+    expect((await conversation.json() as any).messages.map((m:any)=>m.messageId)).toEqual([sentToB.messageId,threadedId]);
+    expect((await api(c,'threads/'+b.did+'/'+threadedId)).status).toBe(404);
+    expect((await api(a,'threads/'+b.did+'/'+threadedId,{})).status).toBe(405);
     const stopped={publicationId:uuidV7(),connections:direct.connections,text:'Cancel before materialization'};
     await restarted.createConnections(a.session,stopped);
     await expect(first.db.sql`UPDATE connection_message_batches SET body_bytes=${new Uint8Array([1])} WHERE id=${stopped.publicationId}`).rejects.toThrow('cannot be replaced');

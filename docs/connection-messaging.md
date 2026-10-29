@@ -150,5 +150,35 @@ extra attribution and note.
 `MessageReference` identifies a source by sender DID and message ID. It is separate
 from send authorization and can be reused when adding reply composition. This
 change does not introduce a wire-level relationship or thread identifier:
-threaded replies will need an explicit protocol design, rather than inferring
+threaded replies use the version-3 design below, rather than inferring
 relationships from forwarded text or repurposing subscription reply authority.
+
+### Threaded and quoted replies
+
+Both inbox message types now use the inline reply composer. Connection replies
+send one message through `POST /api/v1/account/messages`, with the original
+`connectionId`, `connectionEpoch`, and `recipientDid`. Subscription replies
+retain `replyTo` and optional `replyUntil`. Both pass
+`inReplyTo: {sender, messageId}`, producing the signed version-3 parent reference
+specified in [envelopes](../spec/envelopes.md#threaded-replies-version-3).
+
+The response is followed by a collapsible quoted excerpt of at most 4096 Unicode
+characters from the immediate parent. Prior quoted replies are omitted using a
+presentation convention; text recognition is never used for thread identity.
+Images remain accessible on the original message. Request identity and any
+continuation deadline survive failed submissions; the sent detail page supports
+retrying the exact retained envelope.
+
+`GET /api/v1/account/threads/:sender/:messageId` requires `messages:read` and a
+visible root belonging to the account. It returns up to 50 chronological message
+summaries, each with its parent and local availability, plus a `truncated` flag.
+Inbox and sent detail pages show these summaries and links to messages/parents.
+Trashed or purged inbox content is excluded without deleting surviving replies.
+
+Apply migration 0082 before running the new server. The derived parent lookup
+columns travel with account exports and are checked against signed envelope
+bytes during import. Old rows need no rewrite: legacy Subscription parent
+references are derived from existing authorization columns. Migration rollback
+refuses once threaded envelopes have been retained. Deploy version-3 readers
+to both peers before sending threaded replies; there is no capability discovery
+or silent downgrade in this change.

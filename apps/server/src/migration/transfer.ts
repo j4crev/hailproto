@@ -262,6 +262,8 @@ export function validateTransferManifest(bytes: Uint8Array): TransferManifest {
       const signed = inspectSignedPayload("hail.envelope", cose);
       if (row[accountField] !== manifest.accountId || row[partyField] !== manifest.did ||
         signed.payload.message_id !== row.message_id ||
+        (row.parent_sender??null)!==(signed.payload.in_reply_to?.sender??null)||
+        (row.parent_message_id??null)!==(signed.payload.in_reply_to?.message_id??null)||
         signed.payload.from !== row.sender_did || signed.payload.to !== row.recipient_did ||
         !Buffer.from(digest(signed.payloadBytes)).equals(Buffer.from(decodeHex(row.envelope_digest, "envelope digest"))) ||
         (table === "received_envelopes" && !Buffer.from(digest(signed.payloadBytes)).equals(

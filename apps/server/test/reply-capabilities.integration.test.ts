@@ -2,6 +2,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { base58btc } from "multiformats/bases/base58";
 import { createWebCryptoSigner, encodeBase64Url, signPayload, type HailEnvelope } from "@hailproto/codec";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {AccountMessaging} from "../src/accounts/messaging.js";
+import type {AccountApiSession} from "../src/accounts/repository.js";
 import { BodyRepository } from "../src/bodies/repository.js";
 import { bodyFromText } from "../src/bodies/service.js";
 import type { ProviderDatabase } from "../src/db/database.js";
@@ -141,6 +143,53 @@ integration("reply capabilities PostgreSQL integration", () => {
     await db.sql`DELETE FROM grant_lineages WHERE grant_id = ${grantId}`;
     await db.sql`DELETE FROM provider_accounts WHERE id IN (${aliceId}, ${bobId})`;
     await db.close();
+  });
+
+  it("delivers v3 quoted replies, keeps retries stable, and scopes threads to visible peer messages",async()=>{
+    const invitation=await original(now+86400),delivery=new DeliveryRepository(db.sql);
+    await db.sql`UPDATE delivery_work SET next_attempt_at=now()-interval '1 second' WHERE sender_did=${alice} AND message_id=${invitation.message_id}`;
+    const initial=await delivery.claimDue();
+    expect(initial?.messageId).toBe(invitation.message_id);
+    await delivery.deliver(initial!,bodyFromText("Invitation to reply"));
+    const session={account_id:bobId,did:bob} as AccountApiSession;
+    const messaging=new AccountMessaging(db.sql,new BodyRepository(db.sql),envelopes,bobService,async(sender,id)=>{
+      await aliceReceiver.receive((await envelopes.sent(sender,id))!);return {messageId:id};
+    });
+    const id=uuidV7(),input={messageId:id,text:"A threaded reply",replyTo:invitation.message_id,
+      inReplyTo:{sender:alice,messageId:invitation.message_id}};
+    await messaging.send(session,input);
+    await messaging.send(session,input);
+    await expect(messaging.send(session,{...input,text:"Changed"})).rejects.toMatchObject({status:409});
+    const reply=await delivery.claimDue();
+    expect(reply?.messageId).toBe(id);
+    expect(reply?.envelope.version).toBe(3);
+    await delivery.deliver(reply!,bodyFromText("A threaded reply"));
+    const thread=await messaging.thread(session,bob,id);
+    expect(thread?.messages.map(m=>m.messageId)).toEqual([invitation.message_id,id]);
+    expect(thread?.messages[1]).toMatchObject({inReplyTo:input.inReplyTo,parentAvailable:true});
+    expect(await messaging.thread({...session,account_id:aliceId,did:alice},bob,id)).not.toBeNull();
+    expect(await messaging.thread({...session,account_id:aliceId,did:alice},alice,id)).toBeNull();
+    await db.sql`UPDATE delivered_messages SET trashed_at=clock_timestamp() WHERE recipient_did=${bob} AND sender_did=${alice} AND message_id=${invitation.message_id}`;
+    const missing=await messaging.thread(session,bob,id);
+    expect(missing?.messages).toHaveLength(1);
+    expect(missing?.messages[0]).toMatchObject({parentAvailable:false});
+    expect(await messaging.thread(session,alice,invitation.message_id)).toBeNull();
+    await expect(messaging.send(session,{...input,messageId:uuidV7()})).rejects.toMatchObject({status:409});
+    await db.sql`UPDATE delivered_messages SET trashed_at=NULL WHERE recipient_did=${bob} AND sender_did=${alice} AND message_id=${invitation.message_id}`;
+    let last=id;
+    for(let i=0;i<51;i++){
+      last=uuidV7();
+      await bobService.createReply(bob,invitation.message_id,bobDigest,null,last,{sender:alice,message_id:invitation.message_id});
+    }
+    const bounded=await messaging.thread(session,bob,last);
+    expect(bounded?.truncated).toBe(true);
+    expect(bounded?.messages).toHaveLength(50);
+    expect(bounded?.messages.some(m=>m.sender===bob&&m.messageId===last)).toBe(true);
+    const rollback=await db.sql.reserve();
+    try{await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0082_message_threads.sql",import.meta.url)).text())).rejects.toThrow("Retained threaded envelopes");}
+    finally{await rollback.unsafe("ROLLBACK");rollback.release();}
+
+    await expect(messaging.send(session,{...input,messageId:uuidV7(),inReplyTo:{sender:bob,messageId:invitation.message_id}})).rejects.toMatchObject({status:409});
   });
 
   it("claims one of two competing replies, holds the claim, releases on failure, and consumes on delivery", async () => {

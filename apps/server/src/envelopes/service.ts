@@ -57,23 +57,29 @@ export class EnvelopeService {
   }
 
   async createReply(senderDid: string, replyTo: string, digestText: string,
-    replyUntil: number | null = null, messageId?: string): Promise<CreatedEnvelope> {
-    const original = await this.envelopes.receivedReplyOpportunity(senderDid, replyTo);
+    replyUntil: number | null = null, messageId?: string, parent?: HailEnvelope["in_reply_to"]): Promise<CreatedEnvelope> {
+    const original = await this.envelopes.receivedReplyOpportunity(senderDid, replyTo, parent?.sender);
     if (!original || !original.reply.allowed || original.reply.until + 300 < this.now() ||
-      original.from === senderDid) throw new EnvelopeAuthorizationError("No unexpired received reply invitation for this sender");
+      original.from === senderDid || parent && (parent.sender !== original.from || parent.message_id !== replyTo)) throw new EnvelopeAuthorizationError("No unexpired received reply invitation for this sender");
     return this.createSigned(senderDid, original.from, { type: "reply", reply_to: replyTo },
-      digestText, undefined, replyUntil,messageId);
+      digestText, undefined, replyUntil,messageId,parent);
   }
 
-  async createConnection(senderDid:string,recipientDid:string,connectionId:string,epoch:number,digestText:string,messageId?:string):Promise<CreatedEnvelope>{
+  async createConnection(senderDid:string,recipientDid:string,connectionId:string,epoch:number,digestText:string,messageId?:string,parent?:HailEnvelope["in_reply_to"]):Promise<CreatedEnvelope>{
     const authorization={type:"connection" as const,connection_id:connectionId,epoch};
     if(!this.connections||!await this.connections.live(senderDid,recipientDid,authorization))throw new EnvelopeAuthorizationError("This exact connection is no longer active");
-    return this.createSigned(senderDid,recipientDid,authorization,digestText,undefined,null,messageId);
+    if(parent){
+      const original=await this.envelopes.receivedReplyOpportunity(senderDid,parent.message_id,parent.sender);
+      if(!original||parent.sender!==recipientDid||original.authorization.type!=="connection"||
+        original.authorization.connection_id!==connectionId||original.authorization.epoch!==epoch)
+        throw new EnvelopeAuthorizationError("Reply source does not belong to this connection");
+    }
+    return this.createSigned(senderDid,recipientDid,authorization,digestText,undefined,null,messageId,parent);
   }
 
   private async createSigned(senderDid: string, recipientDid: string,
     authorization: HailEnvelope["authorization"], digestText: string,
-    category: string | undefined, replyUntil: number | null, messageId?:string): Promise<CreatedEnvelope> {
+    category: string | undefined, replyUntil: number | null, messageId?:string, parent?:HailEnvelope["in_reply_to"]): Promise<CreatedEnvelope> {
     const account = await this.accounts.getAccountByDid(senderDid);
     if (!account || account.state !== "active" || account.activationVerificationMode !== "public") {
       throw new Error("Sender requires public activation");
@@ -94,7 +100,8 @@ export class EnvelopeService {
     }
     const availableUntil = now + 31 * 86400;
     const payload: HailEnvelope = {
-      type: "hail.envelope", version: authorization.type==="connection"?2:1, message_id: messageId ?? uuidV7(now * 1000),
+      type: "hail.envelope", version: parent?3:authorization.type==="connection"?2:1,
+      ...(parent?{in_reply_to:parent}:{}), message_id: messageId ?? uuidV7(now * 1000),
       from: senderDid, to: recipientDid, authorization,
       ...(category !== undefined ? { category } : {}),
       created_at: now, expires_at: now + 7 * 86400,

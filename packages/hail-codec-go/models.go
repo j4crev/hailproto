@@ -204,7 +204,13 @@ type ReplyPermission struct {
 	Until   *int64 `cbor:"until,omitempty"`
 }
 
+type MessageReference struct {
+	Sender    string `cbor:"sender"`
+	MessageID string `cbor:"message_id"`
+}
+
 type Envelope struct {
+	InReplyTo     *MessageReference     `cbor:"in_reply_to,omitempty"`
 	Type          string                `cbor:"type"`
 	Version       int64                 `cbor:"version"`
 	MessageID     string                `cbor:"message_id"`
@@ -377,6 +383,10 @@ func clonePayload(payload Payload) Payload {
 		return &cloned
 	case *Envelope:
 		cloned := *value
+		if value.InReplyTo != nil {
+			parent := *value.InReplyTo
+			cloned.InReplyTo = &parent
+		}
 		cloned.Body.Digest.Value = bytes.Clone(value.Body.Digest.Value)
 		cloned.Body.Access.Token = bytes.Clone(value.Body.Access.Token)
 		if value.Reply.Until != nil {

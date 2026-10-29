@@ -438,7 +438,7 @@ function validateEnvelope(payload: HailRecord): void {
       "body",
       "reply",
     ],
-    ["category", "message_type"],
+    payload.version === 3 ? ["category", "message_type", "in_reply_to"] : ["category", "message_type"],
     "$",
   );
   uuid(payload.message_id, "$.message_id");
@@ -451,17 +451,25 @@ function validateEnvelope(payload: HailRecord): void {
     exactKeys(authorization, ["type", "grant_id"], [], "$.authorization");
     uuid(authorization.grant_id, "$.authorization.grant_id");
   } else if (authorizationType === "reply") {
-    if(payload.version!==1)fail("reply authorization uses envelope version 1","$.version");
+    if(payload.version!==1&&payload.version!==3)fail("reply authorization uses envelope version 1 or 3","$.version");
     exactKeys(authorization, ["type", "reply_to"], [], "$.authorization");
     uuid(authorization.reply_to, "$.authorization.reply_to");
     if (payload.category !== undefined) fail("must be absent for replies", "$.category");
   } else if(authorizationType==="connection"){
-    if(payload.version!==2)fail("connection authorization requires envelope version 2","$.version");
+    if(payload.version!==2&&payload.version!==3)fail("connection authorization requires envelope version 2 or 3","$.version");
     exactKeys(authorization,["type","connection_id","epoch"],[],"$.authorization");
     uuid(authorization.connection_id,"$.authorization.connection_id");integer(authorization.epoch,"$.authorization.epoch",1);
     if(payload.category!==undefined)fail("connections do not use subscription categories","$.category");
   } else {
     fail("unknown authorization type", "$.authorization.type");
+  }
+  if (payload.version === 3) {
+    const parent = record(payload.in_reply_to, "$.in_reply_to");
+    exactKeys(parent, ["sender", "message_id"], [], "$.in_reply_to");
+    did(parent.sender, "$.in_reply_to.sender");
+    uuid(parent.message_id, "$.in_reply_to.message_id");
+    if (parent.sender !== payload.to || payload.from === payload.to) fail("parent must be sent by the other participant", "$.in_reply_to.sender");
+    if (authorizationType === "reply" && parent.message_id !== authorization.reply_to) fail("parent must match reply authorization", "$.in_reply_to.message_id");
   }
   if (payload.category !== undefined) category(payload.category, "$.category");
   if (payload.message_type !== undefined && !MESSAGE_TYPES.has(text(payload.message_type, "$.message_type"))) {
@@ -720,7 +728,7 @@ export function validatePayload<T extends HailPayloadType>(
     return;
   }
   if (payload.type !== expectedType) fail(`must equal ${expectedType}`, "$.type");
-  if (expectedType !== "hail.sender-profile" && !(expectedType==="hail.envelope"&&payload.version===2) && payload.version !== 1) fail("must equal integer 1", "$.version");
+  if (expectedType !== "hail.sender-profile" && !(expectedType==="hail.envelope"&&(payload.version===2||payload.version===3)) && payload.version !== 1) fail("must equal integer 1", "$.version");
 
   switch (expectedType) {
     case "hail.address-binding":

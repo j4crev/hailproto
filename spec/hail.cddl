@@ -141,7 +141,7 @@ hail-connection-confirmation = {
   "key_id": did-url
 }
 
-hail-envelope = hail-envelope-v1 / hail-envelope-v2
+hail-envelope = hail-envelope-v1 / hail-envelope-v2 / hail-envelope-v3
 
 hail-envelope-v1 = {
   "type": "hail.envelope",
@@ -170,6 +170,23 @@ hail-envelope-v2 = {
   "expires_at": timestamp,
   "body": body-descriptor,
   "reply": {"allowed": false}
+}
+
+; Version 3 is a reply with a signed parent, independent of delivery authority.
+hail-envelope-v3 = {
+  "type": "hail.envelope",
+  "version": 3,
+  "message_id": uuidv7,
+  "from": did,
+  "to": did,
+  "in_reply_to": {"sender": did, "message_id": uuidv7},
+  "authorization": {"type": "reply", "reply_to": uuidv7} /
+    {"type": "connection", "connection_id": uuidv7, "epoch": hail-positive},
+  ? "message_type": message-type,
+  "created_at": timestamp,
+  "expires_at": timestamp,
+  "body": body-descriptor,
+  "reply": reply-permission
 }
 
 hail-connection-control = {

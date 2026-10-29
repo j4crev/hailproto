@@ -1,0 +1,31 @@
+import {expect,it} from 'vitest';
+import {render} from 'svelte/server';
+import QuotedMessage from './QuotedMessage.svelte';
+import MessageThread from './MessageThread.svelte';
+import {replyBody} from './reply.js';
+import {parseBody} from './messages.js';
+import {parseThread} from './threads.js';
+import {composeBlocks} from './compose.js';
+const sender='did:plc:'+'a'.repeat(24),id='019a15fd-2bd0-7433-8afa-bd0355e0608d';
+it('renders quotes collapsed, preserves the response, and escapes content',()=>{
+  const source={sender,messageId:id,recipient:'did:plc:'+'b'.repeat(24),category:null,deliveredAt:'2026-10-29T10:00:00Z',body:{version:1,profile:'spt-1',blocks:composeBlocks('','<script>original</script>')}};
+  const parsed=parseBody(replyBody(source,source,'My response'));
+  const {body}=render(QuotedMessage,{props:parsed});
+  expect(body).toContain('My response');
+  expect(body).toContain('Show quoted message');
+  expect(body).toContain('&lt;script>');
+  expect(body).not.toContain('<script>');
+  expect(body).not.toMatch(/<details[^>]*\bopen/);
+});
+it('highlights the selected message and links the original across sent/inbox views',()=>{
+  const parent={sender,messageId:id,sent:true,createdAt:'2026-10-29T10:00:00Z',preview:'Original',inReplyTo:null,parentAvailable:false};
+  const reply={...parent,sender:'did:plc:'+'b'.repeat(24),messageId:'019a15fd-2bd0-7433-8afa-bd0355e0608e',sent:false,inReplyTo:{sender,messageId:id},parentAvailable:true};
+  const thread=parseThread({messages:[parent,reply],truncated:false});
+  const {body}=render(MessageThread,{props:{thread,selected:reply}});
+  expect(body).toContain('aria-current="page"');
+  expect(body).toContain('/sent/'+id);
+  expect(body).toContain('View original');
+  const missing=render(MessageThread,{props:{thread:{messages:[{...reply,parentAvailable:false}],truncated:false},selected:reply}}).body;
+  expect(missing).toContain('Original unavailable');
+  expect(()=>parseThread({messages:[{...reply,messageId:'bad/path'}],truncated:false})).toThrow();
+});

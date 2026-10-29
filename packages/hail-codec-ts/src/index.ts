@@ -40,6 +40,7 @@ export type {
   HailGrantScope,
   HailHoldReason,
   HailMessageType,
+  HailMessageReference,
   HailPayloadByType,
   HailReplyPermission,
   HailSenderCategory,

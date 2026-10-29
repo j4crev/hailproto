@@ -230,6 +230,8 @@ export function validateManagedTransferManifest(bytes: Uint8Array): ManagedTrans
     for (const row of manifest.tables[table]) {
       const signed = inspectSignedPayload("hail.envelope", bytea(row.envelope_cose, "envelope representation"));
       if (row[accountField] !== manifest.accountId || row[partyField] !== manifest.did ||
+        (row.parent_sender??null)!==(signed.payload.in_reply_to?.sender??null)||
+        (row.parent_message_id??null)!==(signed.payload.in_reply_to?.message_id??null)||
         signed.payload.message_id !== row.message_id || signed.payload.from !== row.sender_did ||
         signed.payload.to !== row.recipient_did ||
         !same(sha256(signed.payloadBytes), bytea(row.envelope_digest, "envelope digest")) ||

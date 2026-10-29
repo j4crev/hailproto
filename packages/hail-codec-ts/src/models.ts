@@ -183,9 +183,12 @@ export type HailReplyPermission =
   | { allowed: false }
   | { allowed: true; until: number };
 
+export interface HailMessageReference { sender: string; message_id: string }
+
 export interface HailEnvelope {
   type: "hail.envelope";
-  version: 1 | 2;
+  version: 1 | 2 | 3;
+  in_reply_to?: HailMessageReference;
   message_id: string;
   from: string;
   to: string;
