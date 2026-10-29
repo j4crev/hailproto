@@ -54,7 +54,7 @@
     <div><h1 class="hail-title">{data.view === 'connections' ? 'Messages' : 'Inbox'}</h1><p class="feed-description">{data.view === 'connections' ? 'The latest from your connections' : 'The latest from your subscriptions'}</p></div>
     {#if data.view === 'connections'}<a class="hail-button-secondary" href="/compose?audience=connections"><Icon name="plus" size={18} />New message</a>{/if}
   </header>
-  <div class="feed-layout" class:has-selection={selectedMessages.length > 0}><div class="min-w-0">
+  <div class="feed-layout" class:has-selection={selectedMessages.length > 0}>
   {#if selectedMessages.length}
     <MessageActions messages={selectedMessages} bind:locked={selectionLocked} onclear={() => selected = []} onremoved={removed => { selected = selected.filter(key => !removed.some(message => messageKey(message) === key)); }} />
   {/if}
@@ -73,7 +73,7 @@
     {/if}
   </section>
   {#if data.paged||data.next}<nav aria-label={data.view === 'connections' ? 'Messages pages' : 'Inbox pages'} class="mt-6 flex flex-wrap justify-center gap-3">{#if data.paged}<a class="hail-button-secondary" href={data.view==='connections'?'/?view=connections':'/'}>← Newest messages</a>{/if}{#if data.next}<a class="hail-button-secondary" href={`/?${data.view==='connections'?'view=connections&':''}after=${encodeURIComponent(data.next)}`}>Older messages →</a>{/if}</nav>{/if}
-  </div><aside class="feed-aside"><div class="aside-heading"><Icon name="shield" size={18} /><span>On your terms</span></div><h2>{data.view === 'connections' ? 'Good conversations start here.' : 'An inbox with intention.'}</h2><p>{data.view === 'connections' ? 'Share your connection code to invite someone into your space.' : 'Choose who can reach you and what they can send.'}</p><a href={data.view === 'connections' ? '/connections' : '/permissions'}>{data.view === 'connections' ? 'Your connection codes' : 'Your subscriptions'}<Icon name="arrow" size={16} /></a></aside></div>
+  </div>
 {/if}
 
 <style>
@@ -99,15 +99,9 @@
   .welcome-footer { margin:32px 0 0; padding-top:20px; border-top:1px solid var(--color-line); color:var(--color-muted); font-size:12px; line-height:1.7; }
   .feed-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px; margin-bottom:32px; }
   .feed-description { margin:12px 0 0; font-size:14px; color:var(--color-muted); }
-  .feed-layout { display:grid; grid-template-columns:minmax(0,1fr) 218px; gap:32px; align-items:start; }
-  .feed-aside { margin-top:0; padding:24px 0 24px 24px; border-left:1px solid var(--color-line); }
-  .aside-heading { display:flex; align-items:center; gap:7px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--color-brand); }
-  .feed-aside h2 { font-size:21px; line-height:1.4; letter-spacing:-.03em; margin:18px 0 12px; font-weight:600; }
-  .feed-aside p { font-size:12px; line-height:1.8; color:var(--color-muted); margin:0 0 20px; }
-  .feed-aside a { display:flex; align-items:center; gap:7px; min-height:44px; font-size:11px; font-weight:650; color:var(--color-brand-strong); text-decoration:none; }
-  .feed-aside a:hover { text-decoration:underline; }
+  .feed-layout { min-width:0; }
   .empty-symbol { display:grid; place-items:center; width:76px; height:76px; margin-bottom:14px; border:10px solid var(--color-canvas); border-radius:26px; background:var(--color-brand-soft); color:var(--color-brand); }
-  @media(max-width:1200px) { .feed-layout { grid-template-columns:minmax(0,1fr); max-width:780px; margin:0 auto; } .feed-aside { display:none; } }
+  @media(max-width:1200px) { .feed-layout { max-width:780px; margin:0 auto; } }
   @media(max-width:800px) { .welcome { gap:28px; } .subscription-example { padding:20px; } .welcome-benefits { gap:22px; } }
   @media(max-width:640px) { .welcome { grid-template-columns:1fr; padding:10px 0 32px; gap:32px; } .welcome-copy h1 { font-size:clamp(38px, 12vw, 48px); } .welcome-description { font-size:14px; } .welcome-signin { max-width:none; margin-top:26px; } .welcome-benefits { grid-template-columns:1fr; gap:24px; } .example-topics li { font-size:12px; gap:8px; } .topic-status { font-size:10px; padding:5px 8px; } .feed-heading { gap:16px; margin-bottom:20px; } }
 </style>
