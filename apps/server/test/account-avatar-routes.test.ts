@@ -18,7 +18,7 @@ function fixture(){
     {accountApi:{accounts:{authenticate} as unknown as AccountApiRepository,grants:{} as GrantRepository,service:{} as GrantService,
       profileVerifier:{verify},avatarProfiles:{findCurrentByDid:local,getLatestVerifiedSenderProfile:retained} as unknown as SenderProfileStore & VerifiedSenderProfileStore},
       async checkReadiness(){return {ready:true};}});
-  const request=(path=did,method="GET")=>app.request(`/api/v1/account/senders/${path}/avatar`,{method,headers:{Authorization:"Bearer test"}});
+  const request=(path=did,method="GET",image=false)=>app.request(`/api/v1/account/senders/${path}/avatar${image?"/image":""}`,{method,headers:{Authorization:"Bearer test"}});
   return {session,authenticate,local,retained,verify,request};
 }
 it("loads the current local avatar without identity verification or stale retained data",async()=>{
@@ -50,4 +50,17 @@ it("requires authentication, message read scope, canonical DIDs and GET",async()
   f.session.scopes=[];expect((await f.request()).status).toBe(403);
   f.authenticate.mockResolvedValue(null);expect((await f.request()).status).toBe(401);
   expect(f.local).not.toHaveBeenCalled();expect(f.retained).not.toHaveBeenCalled();expect(f.verify).not.toHaveBeenCalled();
+});
+
+it("serves PNG bytes independently of page data and returns 404 for missing photos",async()=>{
+  const f=fixture();f.local.mockResolvedValue({payload:{version:2,assets:{assets:[avatar]}}});
+  const response=await f.request(did,"GET",true);
+  expect(response.status).toBe(200);expect(response.headers.get("content-type")).toBe("image/png");
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(new Uint8Array(await response.arrayBuffer())).toEqual(avatar.data);
+  f.local.mockResolvedValue({payload:{version:2}});
+  expect((await f.request(did,"GET",true)).status).toBe(404);
+  f.session.scopes=[];expect((await f.request(did,"GET",true)).status).toBe(403);
+  f.authenticate.mockResolvedValue(null);expect((await f.request(did,"GET",true)).status).toBe(401);
+  expect(f.verify).not.toHaveBeenCalled();
 });

@@ -156,7 +156,7 @@ export class AccountApiRepository {
 
   async isManaged(accountId: string) { return (await this.sql`SELECT account_id FROM managed_custody_evidence WHERE account_id=${accountId}`).length === 1; }
 
-  async listGrants(session: AccountApiSession, after: string | null) {
+  async listGrants(session: AccountApiSession, after: string | null, sender: string | null = null) {
     const rows = await this.sql<{ grant_id: string; local_role: string; grantor_did: string;
       grantee_did: string; current_revision: number; current_status: string; expires_at: number | null }[]>`
       SELECT lineage.grant_id, CASE WHEN lineage.local_account_id = ${session.account_id}
@@ -167,6 +167,9 @@ export class AccountApiRepository {
       WHERE (lineage.local_account_id=${session.account_id} OR EXISTS (
         SELECT 1 FROM collocated_grant_receivers local WHERE local.grant_id=lineage.grant_id
           AND local.grantee_account_id=${session.account_id}))
+        AND (${sender}::text IS NULL OR (lineage.local_account_id=${session.account_id}
+          AND lineage.local_role='grantor' AND lineage.grantee_did=${sender}
+          AND lineage.current_status='active' AND (revision.expires_at IS NULL OR revision.expires_at>extract(epoch FROM now()))))
         AND (${after}::uuid IS NULL OR lineage.grant_id > ${after}::uuid)
       ORDER BY lineage.grant_id LIMIT 51`;
     return { grants: rows.slice(0,50).map(row => ({ grantId: row.grant_id, localRole: row.local_role,

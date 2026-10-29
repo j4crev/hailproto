@@ -103,7 +103,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         if(Object.keys(input).length)return problem(400);
         const found=await publications.cancel(session,grantId!,kind);return found?context.json(found):problem(404);
       }
-      if(action==="sender-avatar"){
+      if(action==="sender-avatar"||action==="sender-avatar-image"){
         if(!session.scopes.includes("messages:read"))return problem(403);
         if(method!=="GET")return problem(405);
         const did=grantId!;if(!/^did:plc:[a-z2-7]{24}$/.test(did))return problem(400);
@@ -113,6 +113,11 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         const local=await avatarProfiles.findCurrentByDid(did);
         const profile=local?local.payload:(await avatarProfiles.getLatestVerifiedSenderProfile(did))?.profile;
         const asset=profile?.version===2?profile.assets?.assets.find(asset=>asset.role==="avatar"):undefined;
+        if(action==="sender-avatar-image"){
+          if(!asset)return problem(404);
+          return new Response(Uint8Array.from(asset.data),{headers:{"Content-Type":"image/png","Cache-Control":"no-store",
+            "Vary":"Authorization, Cookie","X-Content-Type-Options":"nosniff"}});
+        }
         return context.json({did,avatar:asset?{data:encodeBase64Url(asset.data),width:asset.width,height:asset.height}:null});
       }
       if(action==="sender-profile"){
@@ -403,10 +408,11 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
       }
       if (action === "list") {
         if (method !== "GET") return problem(405);
-        if ([...query.keys()].some(key => key !== "after")) return problem(400);
-        const after = query.get("after");
-        if (after !== null && !GRANT_ID.test(after)) return problem(400);
-        return context.json(await accounts.listGrants(session, after));
+        if ([...query.keys()].some(key => !["after","sender"].includes(key)) ||
+          query.getAll("after").length>1 || query.getAll("sender").length>1) return problem(400);
+        const after = query.get("after"), sender = query.get("sender");
+        if (after !== null && !GRANT_ID.test(after) || sender !== null && !/^did:plc:[a-z2-7]{24}$/.test(sender)) return problem(400);
+        return context.json(await accounts.listGrants(session, after, sender));
       }
       if (method !== "GET" && !(grantId !== null && method === "PUT")) {
         context.header("Allow", grantId === null ? "GET" : "GET, PUT");
@@ -468,6 +474,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/connection-addresses/:did",context=>handle(context,context.req.param("did"),"connection-address"));
   app.all("/api/v1/account/binding",context=>handle(context,null,"binding"));
   app.all("/api/v1/account/profile",context=>handle(context,null,"profile"));
+  app.all("/api/v1/account/senders/:sender/avatar/image",context=>handle(context,context.req.param("sender"),"sender-avatar-image"));
   app.all("/api/v1/account/senders/:sender/avatar",context=>handle(context,context.req.param("sender"),"sender-avatar"));
   app.all("/api/v1/account/senders/:sender/profile",context=>handle(context,context.req.param("sender"),"sender-profile"));
   app.all("/api/v1/account/messages",context=>handle(context,null,"send"));

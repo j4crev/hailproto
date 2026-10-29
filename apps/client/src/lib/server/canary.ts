@@ -1,3 +1,4 @@
+import {accountRead} from "./account-reads.js";
 import { env } from "$env/dynamic/private";
 import { error,redirect } from "@sveltejs/kit";
 import { AccountApiClient,AccountApiError } from "../../../../cli/src/account-api.js";
@@ -20,7 +21,11 @@ export async function bootstrapAccount() {
   return { account, client };
 }
 
-export async function canaryAccount(cookies?:Cookies,url?:URL) {
+export function canaryAccount(cookies?:Cookies,url?:URL) {
+  return accountRead(cookies?.get("hail_session") ?? "credential-fallback", () => loadAccount(cookies,url));
+}
+
+async function loadAccount(cookies?:Cookies,url?:URL) {
   const session=cookies?.get("hail_session");
   if(session){
     const client=AccountApiClient.fromSession(PROVIDER,session,ORIGIN,API_ORIGIN);
@@ -32,19 +37,8 @@ export async function canaryAccount(cookies?:Cookies,url?:URL) {
 }
 
 export async function senderAvatars(client: AccountApiClient, senderDids: Set<string>) {
-  const avatars=new Map<string,{src:string;width:number;height:number}|null>();
-  await Promise.all([...senderDids].map(async did=>{
-    let avatar:{src:string;width:number;height:number}|null=null;
-    try {
-      const result=await client.request(`/senders/${encodeURIComponent(did)}/avatar`);
-      const asset=result.avatar as {data?:unknown;width?:unknown;height?:unknown}|null;
-      if(result.did===did && asset && typeof asset.data==="string" && /^[A-Za-z0-9_-]+$/.test(asset.data) &&
-        asset.data.length<=43_691 && typeof asset.width==="number" && Number.isSafeInteger(asset.width) && asset.width>0 &&
-        typeof asset.height==="number" && Number.isSafeInteger(asset.height) && asset.height>0)
-        avatar={src:`data:image/png;base64,${Buffer.from(asset.data,"base64url").toString("base64")}`,
-          width:asset.width,height:asset.height};
-    } catch { /* A missing current profile must not hide a message. */ }
-    avatars.set(did,avatar);
-  }));
-  return avatars;
+  // Browser image requests run after page rendering; no API/identity wait here.
+  return new Map([...senderDids].filter(did=>/^did:plc:[a-z2-7]{24}$/.test(did)).map(did=>[did,{
+    src:`/api/v1/account/senders/${encodeURIComponent(did)}/avatar/image`,width:44,height:44,
+  }]));
 }

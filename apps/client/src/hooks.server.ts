@@ -1,3 +1,4 @@
+import {withAccountReads} from "$lib/server/account-reads.js";
 import type { Handle } from "@sveltejs/kit";
 import {isAccountPath,loginPath} from "$lib/auth-routing.js";
 import {isConfigured} from "$lib/server/canary.js";
@@ -6,7 +7,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   if (isAccountPath(event.url.pathname) && !isConfigured(event.cookies)) {
     return new Response(null,{status:303,headers:{location:loginPath(event.url),"cache-control":"no-store","referrer-policy":"no-referrer"}});
   }
-  const response = await resolve(event);
+  const response = await (event.request.method === "GET" ? withAccountReads(() => resolve(event)) : resolve(event));
   response.headers.set("cache-control","no-store");
   // Native same-origin POSTs need a non-null Origin for SvelteKit's CSRF check.
   response.headers.set("referrer-policy",(event.url.pathname.startsWith("/auth/") || (event.url.pathname === "/" && event.url.searchParams.has("next")))?"no-referrer":"same-origin");

@@ -17,8 +17,11 @@ export async function load({url,cookies}) {
   const forwardSender=url.searchParams.get("forwardSender"),forwardMessage=url.searchParams.get("forwardMessage");
   if((forwardSender||forwardMessage)&&(!forwardSender||!forwardMessage||!UUID7.test(forwardMessage)||url.searchParams.get("audience")!=="connections"))error(400,"Invalid forward source");
   const kind=url.searchParams.get("audience")==="connections"?"connections":"category";
-  const {account,client}=await canaryAccount(cookies,url),audiences=publicationAudiences(await client.request("/publications/audiences"));
-  const targets=kind==="connections"?connectionMessageTargets(await client.request("/connection-messages/targets")):{maxRecipients:100,connections:[]};
+  const {account,client}=await canaryAccount(cookies,url);
+  const [audiences,targets]=await Promise.all([
+    client.request("/publications/audiences").then(publicationAudiences),
+    kind==="connections"?client.request("/connection-messages/targets").then(connectionMessageTargets):{maxRecipients:100,connections:[]},
+  ]);
   const endpoint=kind==="connections"?"/connection-messages":"/publications";
   const id=url.searchParams.get("publication");if(id&&!UUID7.test(id))error(400,"Invalid publication ID");
   // A validated provider record confirms durable acceptance, independently of recipient delivery.

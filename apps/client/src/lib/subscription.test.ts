@@ -12,7 +12,7 @@ it("finds the current sender subscription across pages, ignoring unrelated and r
     {grantId: "received", localRole: "grantee", grantee: "sender", status: "active"}], next: "cursor"},
     {grants: [{grantId: "current", localRole: "grantor", grantee: "sender", status: "active"}], next: null}]);
   expect(await senderSubscription(api as never, "owner", "sender")).toMatchObject({grantId: "current", revision: 3, scope: payload.scope[0]});
-  expect(api.request).toHaveBeenLastCalledWith("/grants?after=cursor");
+  expect(api.request).toHaveBeenLastCalledWith("/grants?sender=sender&after=cursor");
   expect(api.grant).toHaveBeenCalledExactlyOnceWith("current");
 });
 it("does not offer expired or unsubscribed permissions", async () => {

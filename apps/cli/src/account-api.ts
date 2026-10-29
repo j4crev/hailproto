@@ -50,8 +50,9 @@ export class AccountApiClient {
     const originUrl=new URL(origin);
     if(originUrl.origin!==origin||originUrl.protocol!=="https:"&&!(originUrl.protocol==="http:"&&originUrl.hostname==="localhost"))
       throw new Error("Invalid session browser origin");
+    // Explicit private Docker transport only; provider and passkey origins remain canonical.
     const transportUrl=new URL(transport);
-    if(transportUrl.origin!==transport||transportUrl.protocol!=="https:"&&!(transportUrl.protocol==="http:"&&transportUrl.hostname==="localhost"))
+    if(transportUrl.origin!==transport||transportUrl.protocol!=="https:"&&!(transportUrl.protocol==="http:"&&transportUrl.hostname==="localhost")&&transport!=="http://provider:3000")
       throw new Error("Invalid account API transport");
     return new AccountApiClient(provider,token,"",origin,transport);
   }
@@ -74,7 +75,7 @@ export class AccountApiClient {
       throw new ClientError("SELECTION_MISMATCH", "Selected provider/account does not match the private credential; select a matching credential file");
     }
     const transport=selection.transport??record.provider,transportUrl=new URL(transport);
-    if(transportUrl.origin!==transport||transportUrl.protocol!=="https:"&&!(transportUrl.protocol==="http:"&&transportUrl.hostname==="localhost"))
+    if(transportUrl.origin!==transport||transportUrl.protocol!=="https:"&&!(transportUrl.protocol==="http:"&&transportUrl.hostname==="localhost")&&transport!=="http://provider:3000")
       throw new Error("Invalid account API transport");
     return new AccountApiClient(record.provider, record.token, record.accountId,undefined,transport);
   }

@@ -4,10 +4,19 @@
     name:string; avatar?:{src:string;width:number;height:number}|null;
     selected?:boolean; disabled?:boolean; label?:string; ontoggle?:()=>void;
   }=$props();
+  let failedSrc = $state(''), image = $state<HTMLImageElement>();
+  $effect(() => {
+    const element=image, src=avatar?.src;
+    if (!element || !src) return;
+    const failed=()=>{failedSrc=src;};
+    element.addEventListener('error',failed);
+    if(element.complete && !element.naturalWidth)failed();
+    return ()=>element.removeEventListener('error',failed);
+  });
 </script>
 {#snippet picture()}
   {#if selected}<Icon name="check" size={24} />
-  {:else if avatar}<img src={avatar.src} alt="" width={avatar.width} height={avatar.height} />
+  {:else if avatar && failedSrc !== avatar.src}<img src={avatar.src} alt="" width={avatar.width} height={avatar.height} bind:this={image} />
   {:else}<span aria-hidden="true">{name.slice(0,2).toUpperCase()}</span>{/if}
 {/snippet}
 {#if ontoggle}

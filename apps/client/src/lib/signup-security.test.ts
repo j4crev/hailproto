@@ -13,7 +13,7 @@ it("keeps the recovery preview off by default and preserves nonce CSP while deny
   try {
     expect(load({ setHeaders } as never)).toEqual({});
     expect(setHeaders).toHaveBeenCalledWith(expect.objectContaining({ "cache-control": "no-store", "referrer-policy": "no-referrer" }));
-    const response = await handle({ event: { url: new URL("https://provider.example/signup/recovery") },
+    const response = await handle({ event: { request: {method:"GET"}, url: new URL("https://provider.example/signup/recovery") },
       resolve: async () => new Response("preview", { headers: { "content-security-policy": "script-src 'nonce-test'" } }),
     } as never);
     expect(response.headers.get("content-security-policy")).toBe("script-src 'nonce-test', connect-src 'none'; form-action 'none'; frame-ancestors 'none'");
@@ -30,7 +30,7 @@ it("keeps invited signup off by default and exposes only public pins, never serv
     const value=await signupLoad({setHeaders,fetch:async()=>Response.json({mode:"invite",signupAvailable:true})} as never);
     expect(value).toEqual({signupMode:"invite",policy:{provider:"https://provider.example",monitorOrigin:"https://monitor.example",monitorKey:"did:key:z6MkTest"}});
     expect(JSON.stringify(value)).not.toContain("private-");
-    const response=await handle({event:{url:new URL("https://provider.example/signup")},resolve:async()=>new Response("signup",{headers:{"content-security-policy":"script-src 'nonce-test'"}})} as never);
+    const response=await handle({event:{request:{method:"GET"},url:new URL("https://provider.example/signup")},resolve:async()=>new Response("signup",{headers:{"content-security-policy":"script-src 'nonce-test'"}})} as never);
     expect(response.headers.get("content-security-policy")).toContain("script-src 'nonce-test', connect-src 'self'; form-action 'none'; frame-ancestors 'none'");
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");

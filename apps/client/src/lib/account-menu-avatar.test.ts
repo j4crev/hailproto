@@ -11,21 +11,15 @@ beforeEach(() => {
   mocks.canaryAccount.mockResolvedValue({account: {did}, client: {profile: mocks.profile}});
   mocks.profile.mockResolvedValue({payload});
 });
-it("supplies the saved avatar to shared navigation on inbox and account pages", async () => {
+it("supplies a same-origin photo URL without waiting for the profile on navigation", async () => {
+  mocks.profile.mockImplementation(()=>new Promise(()=>{}));
   for (const path of ["/", "/account", "/settings"]) {
-    expect(await run(path)).toEqual({hasAccountSession: true, accountAvatar: {did, src: "data:image/png;base64,AQID"}});
+    expect(await run(path)).toEqual({hasAccountSession:true,accountAvatar:{did,src:`/api/v1/account/senders/${encodeURIComponent(did)}/avatar/image`}});
   }
+  expect(mocks.profile).not.toHaveBeenCalled();
 });
-it("returns initials fallback after removal, for legacy profiles, or unavailable profiles", async () => {
-  for (const version of [1, 2]) {
-    mocks.profile.mockResolvedValue({payload: {...payload, version, assets: undefined}});
-    expect((await run()).accountAvatar).toBeNull();
-  }
-  mocks.profile.mockRejectedValue(new Error("Unavailable"));
-  expect((await run()).accountAvatar).toBeNull();
-});
-it("does not expose a different account's avatar", async () => {
-  mocks.profile.mockResolvedValue({payload: {...payload, did: "another"}});
+it("keeps navigation available when account presentation cannot load", async () => {
+  mocks.canaryAccount.mockRejectedValue(new Error("Unavailable"));
   expect((await run()).accountAvatar).toBeNull();
 });
 it("does not fetch private profiles on signed-out or focused authentication pages", async () => {

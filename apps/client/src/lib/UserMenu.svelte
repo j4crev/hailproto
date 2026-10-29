@@ -2,6 +2,15 @@
   import {afterNavigate} from "$app/navigation";
   import Icon from "$lib/Icon.svelte";
   let {address = "Your account", compact = false, avatar = null}: {address?: string; compact?: boolean; avatar?: string | null} = $props();
+  let failedAvatar = $state(''), avatarImage = $state<HTMLImageElement>();
+  $effect(() => {
+    const element=avatarImage, src=avatar;
+    if (!element || !src) return;
+    const failed=()=>{failedAvatar=src;};
+    element.addEventListener('error',failed);
+    if(element.complete && !element.naturalWidth)failed();
+    return ()=>element.removeEventListener('error',failed);
+  });
   const id = $props.id();
   let panel: HTMLDivElement;
   let open = $state(false), signingOut = $state(false), error = $state("");
@@ -24,7 +33,7 @@
   afterNavigate(() => panel?.hidePopover());
 </script>
 <button class:compact class="account-trigger" popovertarget={id} aria-label="Open account menu" aria-expanded={open} aria-controls={id}>
-  <span class="avatar">{#if avatar}<img src={avatar} alt="" />{:else if initials}{initials}{:else}<Icon name="user" />{/if}</span>
+  <span class="avatar">{#if avatar && failedAvatar !== avatar}<img bind:this={avatarImage} src={avatar} alt="" />{:else if initials}{initials}{:else}<Icon name="user" />{/if}</span>
   {#if !compact}<span class="account-label"><strong>{address}</strong><small>Personal account</small></span><span class="account-dots" aria-hidden="true">···</span>{/if}
 </button>
 <div id={id} bind:this={panel} popover="auto" class="account-popover" ontoggle={event => {open = event.newState === "open";}}>

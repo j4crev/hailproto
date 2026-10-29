@@ -4,7 +4,7 @@
   import {forwardedAttribution, messageDisplayContent} from "$lib/messages.js";
   import {tick} from "svelte";
   import {mailboxRequest} from "$lib/mailbox.js";
-  import {goto, invalidateAll} from "$app/navigation";
+  import {goto, invalidate} from "$app/navigation";
   import Icon from "$lib/Icon.svelte";
   import DateTime from "$lib/DateTime.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
@@ -13,6 +13,15 @@
   import RichText from "$lib/RichText.svelte";
   let { data,form } = $props();
   let opened = '';
+  let failedAvatar = $state(''), avatarImage = $state<HTMLImageElement>();
+  $effect(() => {
+    const element=avatarImage, src=data.avatar?.src;
+    if (!element || !src) return;
+    const failed=()=>{failedAvatar=src;};
+    element.addEventListener('error',failed);
+    if(element.complete && !element.naturalWidth)failed();
+    return ()=>element.removeEventListener('error',failed);
+  });
   let unsubscribe = $state<Unsubscribe>(), unsubscribed = $state(false);
   $effect(() => { data.message.sender; data.message.messageId; unsubscribed = false; });
   const canUnsubscribe = $derived(data.message.kind !== 'connection' && data.account.custodyProfile === 'managed' && !!data.subscription && !unsubscribed);
@@ -24,7 +33,7 @@
     opened = key;
     readError = ''; readPending = true;
     void mailboxRequest(`inbox/${encodeURIComponent(message.sender)}/${encodeURIComponent(message.messageId)}/mark-read`, {})
-      .then(() => invalidateAll()).catch(() => { readError = 'Unable to mark this message read. Reload to try again.'; }).finally(() => { readPending = false; });
+      .then(() => invalidate('hail:mailbox')).catch(() => { readError = 'Unable to mark this message read. Reload to try again.'; }).finally(() => { readPending = false; });
   });
   let restoring = $state(false), restoreError = $state('');
   async function restore() {
@@ -64,7 +73,7 @@
 <article class="hail-card overflow-hidden">
   <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line p-5 sm:px-7">
     <div class="flex min-w-0 items-center gap-3">
-      {#if data.avatar}<img class="grid size-[42px] flex-[0_0_42px] place-items-center rounded-[13px] object-cover" src={data.avatar.src} alt="" width={data.avatar.width} height={data.avatar.height} />
+      {#if data.avatar && failedAvatar !== data.avatar.src}<img class="grid size-[42px] flex-[0_0_42px] place-items-center rounded-[13px] object-cover" src={data.avatar.src} bind:this={avatarImage} alt="" width={data.avatar.width} height={data.avatar.height} />
       {:else}<span class="grid size-[42px] flex-[0_0_42px] place-items-center rounded-[13px] bg-brand-soft text-xs font-bold text-brand" aria-hidden="true">{(data.message.senderAddress ?? data.message.sender).slice(0, 2).toUpperCase()}</span>{/if}
       <div class="flex min-w-0 flex-col gap-[5px]">
       <strong class="[overflow-wrap:anywhere]"><ContactAddress owner={data.account.did} did={data.message.sender} address={data.message.senderAddress} /></strong>

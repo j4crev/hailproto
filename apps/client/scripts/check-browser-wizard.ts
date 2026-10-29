@@ -49,6 +49,7 @@ const publicationResult=()=>({publicationId:publicationIntent.publicationId,cate
   targets:[composed,composedOther].map(message=>({messageId:message.messageId,recipient:message.recipient,state:publicationReads>=2?"submitted":"pending",delivery:publicationReads>=2?message.state:null})),
   createdAt:new Date(publicationCreated).toISOString(),expiresAt:new Date(publicationCreated+86400000).toISOString()});
 const readMessages=new Set<string>();
+let avatarGate=Promise.resolve(),releaseAvatars=()=>{},missingAvatars=false;
 let trashEnabled=true;const trashed=new Map<string,string>(),deleted=new Set<string>();
 let incoming=false,replyPosts=0,replied:any=null,recentlyVerified=false,guiProxy:ReturnType<typeof createApp>;
 const textBody=(text:string)=>({version:1,profile:"spt-1",blocks:[{_type:"block",_key:"b1",style:"normal",markDefs:[],children:[{_type:"span",_key:"s1",text,marks:[]}]}]});
@@ -79,6 +80,11 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     catch{return new Response("GUI starting",{status:503});}
   }
   const body=await request.text();requests.push({path,body,authorization:request.headers.get("Authorization")??""});const input=body?JSON.parse(body):{};
+  if(path.endsWith('/avatar/image')){
+    await avatarGate;
+    if(missingAvatars)return new Response(null,{status:404});
+    return new Response(Uint8Array.from(headerPng),{headers:{'Content-Type':'image/png','Cache-Control':'no-store'}});
+  }
   if(path==='/api/v1/account/connection-messages/targets')return json({maxRecipients:100,connections:personalConnection?[
     {connectionId:fixtureConnectionId,recipientDid:peerDid,epoch:1,address:peerAddress},{connectionId:otherConnectionId,recipientDid:otherConnectionDid,epoch:1,address:'other@peer.example.com'}]:[]});
   if(path==='/api/v1/account/connection-messages'){
@@ -583,9 +589,16 @@ try{
   // Follow the same-document route out of sensitive signup into a message.
   // A full Page.navigate here would conceal a leaked signup form-action CSP.
   incoming=true;
+  avatarGate=new Promise<void>(resolve=>{releaseAvatars=resolve;});
+  const accountReadsBefore=requests.filter(r=>r.path==='/api/v1/account').length;
   const messagePath=`/message/${encodeURIComponent(peerDid)}/${incomingId}`;
   await evaluate(`(()=>{const a=document.createElement('a');a.href=${JSON.stringify(messagePath)};a.textContent='Open received test';document.body.append(a);a.click();})()`);
   await wait(async()=>evaluate(`document.querySelector('button[aria-label="Reply"]')?.disabled===false`),"incoming reply action ready");
+  assert.equal(requests.filter(r=>r.path==='/api/v1/account').length-accountReadsBefore,1,'Layout and reader share one account read; marking read does not reload them');
+  assert.equal(requests.filter(r=>r.path===`/api/v1/account/inbox/${encodeURIComponent(peerDid)}/${incomingId}`).length,1,'Message body loads once');
+  assert(await evaluate(`!!document.querySelector('article header img[src*="/avatar/image"]')`),'Reader renders while photo request is pending');
+  releaseAvatars();
+  await wait(async()=>evaluate(`document.querySelector('article header img[src*="/avatar/image"]')?.naturalWidth>0`),'photo loads independently after reader is usable');
   assert.equal(await evaluate(`!!document.querySelector('#subscription-reply')`),false,"Reply form starts collapsed");
   await click("Reply");await wait(()=>has("Send reply"),"reply action opens form");
   assert.equal(await evaluate(`document.activeElement?.getAttribute('name')`),"text","Reply focuses the editor");
@@ -598,7 +611,11 @@ try{
   await click("Send reply");
   await wait(async()=>evaluate("location.pathname.startsWith('/sent/') && !!document.querySelector('[aria-label=\"Status: delivered\"]')"),"native reply form through provider proxy and redirect to Sent");
   assert.equal(replyPosts,1);
+  missingAvatars=true;
   await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("This reply invitation has expired or was already used"),"consumed one-time reply");
+  await wait(async()=>evaluate(`!document.querySelector('article header img[src*="/avatar/image"]')`),'missing photo falls back to initials');
+  assert(!browserErrors.some(error=>/Content Security Policy|Refused to execute|hydration/i.test(error)),"Avatar fallback works under CSP");
+  missingAvatars=false;
   assert.equal(replyPosts,1);
   await cdp("Page.navigate",{url:origin+"/"});await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Inbox'`),"return to inbox");
   assert(readMessages.has(incomingId),'Opening a message persists read state');
@@ -647,7 +664,10 @@ try{
   await evaluate(`document.querySelector('button[aria-label^="Select subscription to"]').click()`);
   assert.equal(allowed!.status,"active");await click("Unsubscribe");await wait(()=>has("Confirm unsubscribe"),"subscription unsubscribe review");
   await click("Cancel");assert.equal(allowed!.status,"active","Cancel leaves subscription active");
-  await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("Unsubscribe"),"Inbox reader offers unsubscribe");
+  await cdp("Page.navigate",{url:origin+messagePath});
+  await wait(async()=>evaluate(`document.querySelector('.action-menu button')?.disabled===false`),'reader actions ready');
+  await evaluate(`document.querySelector('summary[aria-label="More message actions"]').click()`);
+  await wait(()=>has("Unsubscribe"),"Inbox reader menu offers unsubscribe");
   assert(await evaluate(`(()=>{const header=document.querySelector('article > header');const action=[...header.querySelectorAll('button')].find(b=>b.textContent.trim()==='Unsubscribe');return !!action?.checkVisibility()&&!!header.querySelector('mark');})()`),"Reader header contains visible subscription and category controls");
   const beforeReaderReview=approvals.size;
   await click("Unsubscribe");await wait(()=>has("Unsubscribe with my passkey"),"reader unsubscribe confirmation");
@@ -655,6 +675,7 @@ try{
   assert.equal(approvals.size,beforeReaderReview+1);
   assert(await has("updates"));assert(await has("Your past messages and connections will stay."));
   await click("Cancel");assert.equal(allowed!.status,"active");
+  await evaluate(`document.querySelector('summary[aria-label="More message actions"]').click()`);
   await click("Unsubscribe");await wait(()=>has("Unsubscribe with my passkey"),"reader review after cancellation");
   await narrowLayouts();await screenshot("unsubscribe-review");
   await click("Unsubscribe with my passkey");await wait(()=>has("Unsubscribed from"),"passkey-confirmed unsubscribe inside reader");
@@ -770,6 +791,8 @@ try{
   recentlyVerified=false;
   await cdp("Page.navigate",{url:origin+"/account?fresh=1"});await wait(()=>has("Verify with your current passkey before adding"),"security management requires fresh verification");
   assert(await evaluate(`[...document.querySelectorAll('button')].find(b=>b.textContent==='Add passkey').disabled`));
+  // Wait for hydration, not just SSR text, before invoking a browser passkey action.
+  await wait(async()=>evaluate(`document.querySelector('form[aria-label="Profile photo"] fieldset')?.disabled===false`),'account hydration ready');
   await click("Verify to manage");await wait(async()=>evaluate(`location.search==='?fresh=1' && [...document.querySelectorAll('button')].find(b=>b.textContent==='Add passkey')?.disabled===false`),"fresh passkey verification unlocks management");
   generalAvailable=true;
   await cdp("Page.navigate",{url:origin+"/permissions?general-proof=1"});await wait(()=>has("Sender’s Hail address"),"General subscription screen");

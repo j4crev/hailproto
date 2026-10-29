@@ -134,13 +134,14 @@ declared HTTPS links, and one bundled PNG header. Invited managed signup is
 supported separately; post-signup browser recovery import, custody transitions
 and general attachments remain unavailable.
 Sender Profile v2 avatars appear in the inbox and message reader with initials
-as the fallback. Display uses the provider's `/api/v1/account/senders/:did/avatar`
-lookup: the current local profile takes precedence, including photo removal;
+as the fallback. Photos load separately from the provider's authenticated
+`/api/v1/account/senders/:did/avatar/image` endpoint after the page renders.
+The current local profile takes precedence, including photo removal;
 other senders use the last retained verified profile. This lookup performs no
 external profile fetch or PLC verification, so identity-reader timeouts cannot
 hold up navigation just to display a photo. Remote photos reflect the last
 profile retained by normal verification flows; unknown photos show initials.
-Avatar bytes are bundled into page data and never fetched from senders by the browser.
+The browser fetches these PNGs only from its own provider, never from senders.
 Deploy the provider and GUI together for this endpoint; an older provider yields
 initials. No database migration is needed. Fresh profile verification remains
 available for protocol operations that require it.
@@ -168,6 +169,21 @@ the “Show header images” switch in Settings can hide them without contacting
 senders. The preference stays in this browser, with an in-memory fallback when
 storage is blocked.
 The maintained browser client lives in `apps/client` (workspace package `hail-client`).
+
+## Navigation performance
+
+The public Compose deployment uses `HAIL_GUI_API_ORIGIN=http://provider:3000`
+for GUI-to-provider requests on the private Docker network. Public provider and
+passkey origins stay HTTPS. The account client permits this exact internal
+transport, in addition to HTTPS and local development; it never follows redirects.
+No additional ports are published. Revert the transport to the public HTTPS
+origin before rolling back to a client that does not support it.
+
+Concurrent layout/page account reads share a promise within one GET request.
+Nothing is cached across requests or during POST actions. Sender photos load
+independently, and message readers use a sender-filtered subscription query.
+Marking a message read invalidates mailbox data instead of reloading the reader
+and its layout. Account and compose screens fetch independent data in parallel.
 
 ## Navigation and visual checks
 

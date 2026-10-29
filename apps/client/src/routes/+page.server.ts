@@ -3,7 +3,8 @@ import {returnPath} from "$lib/auth-routing.js";
 import { canaryAccount, isConfigured, senderAvatars } from "$lib/server/canary.js";
 import { messageListSummary, parseInboxFeed } from "$lib/messages.js";
 
-export async function load({url,cookies,fetch,setHeaders}) {
+export async function load({url,cookies,fetch,setHeaders,depends=(_key:string)=>{}}) {
+  depends("hail:mailbox");
   if (url.searchParams.has("next")) {setHeaders({"cache-control":"no-store"});return {configured:false as const,returnTo:returnPath(url.searchParams.get("next")),registration:await registration(fetch)};}
   const view=url.searchParams.get("view")==="connections"?"connections":"subscriptions";
   if (!isConfigured(cookies)&&view!=="connections") {setHeaders({"cache-control":"no-store"});return { configured: false as const,returnTo:"/",registration:await registration(fetch) };}

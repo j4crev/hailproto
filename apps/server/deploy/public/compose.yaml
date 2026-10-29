@@ -95,7 +95,8 @@ services:
       PORT: 3000
       ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
       HAIL_GUI_PROVIDER: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
-      HAIL_GUI_API_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
+      # Private Docker transport; public provider/passkey origins stay HTTPS.
+      HAIL_GUI_API_ORIGIN: http://provider:3000
       HAIL_GUI_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
       HAIL_GUI_SIGNUP: ${PUBLIC_ALPHA_SIGNUP:-false}
       ALPHA_SIGNUP_MONITOR_ORIGIN: ${ALPHA_SIGNUP_MONITOR_ORIGIN:-}

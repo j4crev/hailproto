@@ -149,3 +149,20 @@ it("makes CLI message deletion explicitly permanent and sender-scoped",()=>{
     expect(parseCommand([group,"delete","--help"]).help).toContain("Cannot be restored");
   }
 });
+
+it("uses only the explicit private provider transport while retaining public session origin",async()=>{
+  const transport=vi.fn(async()=>new Response("{}",{headers:{"Content-Type":"application/json"}}));vi.stubGlobal("fetch",transport);
+  try{
+    const token=`hails_${"a".repeat(43)}`;
+    const client=AccountApiClient.fromSession("https://haili.app",token,"https://haili.app","http://provider:3000");
+    await client.request("/message-preferences",{trashEnabled:true});
+    const [url,init]=transport.mock.calls[0]! as unknown as [string,RequestInit];
+    expect(url).toBe("http://provider:3000/api/v1/account/message-preferences");
+    expect(new Headers(init.headers).get("Origin")).toBe("https://haili.app");
+    expect(new Headers(init.headers).get("Cookie")).toBe(`hail_session=${token}`);
+    expect(init.redirect).toBe("error");
+    for(const target of ["http://example.com","http://provider:3001","http://provider:3000/path","http://user@provider:3000"])
+      expect(()=>AccountApiClient.fromSession("https://haili.app",token,"https://haili.app",target)).toThrow("transport");
+    expect(()=>AccountApiClient.fromSession("http://provider:3000",token)).toThrow();
+  }finally{vi.unstubAllGlobals();}
+});

@@ -253,6 +253,11 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     expect(retried.exit).toBe(0);
     expect(JSON.parse(retried.stdout).grantId).toBe(grantId);
     expect(JSON.parse((await cli(["grant","list"])).stdout).grants).toHaveLength(1);
+    const filtered=await app.request(`${origin}/api/v1/account/grants?sender=${senderDid}`,{headers:authorization()});
+    expect(await filtered.json()).toMatchObject({grants:[{grantId,localRole:"grantor",grantee:senderDid}],next:null});
+    const unrelated=await app.request(`${origin}/api/v1/account/grants?sender=${otherDid}`,{headers:authorization()});
+    expect(await unrelated.json()).toEqual({grants:[],next:null});
+
     expect((await cli(["grant", "submit", join(directory, "initial.cose")])).exit).toBe(0);
     const shown = await cli(["grant", "show", grantId, "--output", join(directory, "copy.cose")]);
     if (shown.exit) throw new Error(shown.stderr);
@@ -386,6 +391,8 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
       await db.sql`INSERT INTO account_keys (account_id,role,algorithm,public_key,encrypted_private_key,encryption_nonce,encryption_version,kek_id)
         VALUES (${id},'hail-messaging','ed25519',${publicKey},${encrypted.ciphertext},${encrypted.nonce},1,'poc-v1')`;}
     senderCredential=await accounts.issue(senderAddress,false,undefined,[...ALL_ACCOUNT_SCOPES]);
+    const received=await app.request(`${origin}/api/v1/account/grants?sender=${senderDid}`,{headers:{Authorization:`Bearer ${senderCredential.token}`}});
+    expect(await received.json()).toEqual({grants:[],next:null});
     await json("message-sender.credential.json",credentialRecord(senderCredential));
     const ownerMessageCredential=await accounts.issue(address,false,undefined,[...ALL_ACCOUNT_SCOPES]);
     await json("message-owner.credential.json",credentialRecord(ownerMessageCredential));
@@ -558,6 +565,8 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     const retry = await cli(args, "owner.credential.json", true);
     if (retry.exit) throw new Error(retry.stderr);
     expect(JSON.parse(retry.stdout)).toMatchObject({ grantId, status: "revoked", revision: 2 });
+    const filtered=await app.request(`${origin}/api/v1/account/grants?sender=${senderDid}`,{headers:authorization()});
+    expect(await filtered.json()).toEqual({grants:[],next:null});
     expect(await readFile(join(directory, "revoked.cose"))).toEqual(first);
     expect(await db.sql`SELECT revision FROM grant_revisions WHERE grant_id=${grantId}`).toHaveLength(2);
     expect(await db.sql`SELECT revision FROM grant_publications WHERE grant_id=${grantId}`).toHaveLength(2);
