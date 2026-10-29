@@ -64,5 +64,5 @@
 {#if error}<p class="hail-error mt-4" role="alert">{error}</p>{/if}
 
 <style>
-  button.compact { font-size:12px; padding:4px 10px; min-height:36px; }
+  button.compact { font-size:12px; padding:4px 6px; min-height:36px; }
 </style>

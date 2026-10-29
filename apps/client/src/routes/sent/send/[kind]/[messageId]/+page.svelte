@@ -1,5 +1,6 @@
 <script lang="ts">
-  import {messageDisplayContent} from "$lib/messages.js";
+  import ForwardedPill from "$lib/ForwardedPill.svelte";
+  import {forwardedAttribution, messageDisplayContent} from "$lib/messages.js";
   import DateTime from "$lib/DateTime.svelte";
   import RichText from "$lib/RichText.svelte";
   let {data}=$props();
@@ -10,7 +11,7 @@
 <a class="hail-back" href="/sent">← Sent messages</a>
 {#if content.title}<h1 class="mb-5 mt-0 text-2xl font-semibold leading-tight [overflow-wrap:anywhere] sm:text-3xl">{content.title}</h1>{:else}<h1 class="sr-only">Sent message</h1>{/if}
 <article class="hail-card overflow-hidden">
-  <header class="border-0 border-b border-solid border-line p-5 text-xs text-muted sm:px-7">{#if data.message.kind === 'category' && data.message.category}
+  <header class="border-0 border-b border-solid border-line p-5 text-xs text-muted sm:px-7">{#if forwardedAttribution(data.message.blocks)}<div class="mb-3"><ForwardedPill /></div>{/if}{#if !forwardedAttribution(data.message.blocks) && data.message.kind === 'category' && data.message.category}
       <div class="mb-3 flex flex-wrap gap-2"><mark class="max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{data.message.category === 'general' ? 'General' : data.message.category}</mark></div>
     {:else if data.message.recipientSummary?.count === 1}
       <p class="m-0 mb-3 text-sm font-semibold text-ink [overflow-wrap:anywhere]">{data.message.recipientSummary.address ?? data.message.recipientSummary.did}</p>

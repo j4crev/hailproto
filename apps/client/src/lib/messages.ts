@@ -98,6 +98,24 @@ export function messagePreview(message: Pick<MessageView,"paragraphs">, maximum 
   return characters.length <= maximum ? plain : `${characters.slice(0, maximum - 1).join("")}…`;
 }
 
+// Presentation hint only: quoted attribution is not proof of original authorship.
+// Recognize the complete legacy forward preamble, not an incidental phrase.
+export function forwardedAttribution(blocks: MessageBlock[]) {
+  const plain = (block: MessageBlock) => block.spans.map(span => span.text).join("");
+  for (let index = 0; index < blocks.length - 1; index++) {
+    const heading = blocks[index], metadata = blocks[index + 1];
+    if (heading.style !== "normal" || heading.listItem || plain(heading) !== "Forwarded message" ||
+      metadata.style !== "normal" || metadata.listItem) continue;
+    const lines = plain(metadata).split("\n");
+    if (lines.length === 4 && /^From: .+$/.test(lines[0]) && /^Sender DID: did:plc:[a-z2-7]{24}$/.test(lines[1]) &&
+      lines[2].startsWith("Originally received: ") && Number.isFinite(Date.parse(lines[2].slice(21))) &&
+      /^Message ID: [0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(lines[3])) {
+      return {heading, metadata};
+    }
+  }
+  return null;
+}
+
 export function messageDisplayContent(blocks: MessageBlock[]) {
   const first = blocks[0];
   const title = first?.style === "h1" ? first.spans.map(span => span.text).join("").trim() : "";

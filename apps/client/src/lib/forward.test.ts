@@ -2,7 +2,7 @@ import {expect,it} from 'vitest';
 import {encodePayload, type HailSpt2Body} from '@hailproto/codec';
 import {composeBlocks} from './compose.js';
 import {forwardBody,forwardHref,forwardSource} from './forward.js';
-import {parseBody} from './messages.js';
+import {forwardedAttribution,parseBody} from './messages.js';
 
 const source={sender:'did:plc:aaaaaaaaaaaaaaaaaaaaaaaa',senderAddress:'alice@example.com',messageId:'019a15fd-2bd0-7433-8afa-bd0355e0608d',recipient:'did:plc:bbbbbbbbbbbbbbbbbbbbbbbb',deliveredAt:'2026-10-29T10:00:00Z',category:'general',body:{version:1,profile:'spt-2',blocks:composeBlocks('Original subject','**Original** [link](https://example.com)\n\n- List item')}};
 it('preserves subject, rich body and literal provenance without copying reply authority',()=>{
@@ -37,4 +37,13 @@ it('rejects mismatched and trashed sources and encodes local source references',
   const url=new URL(forwardHref(source),'https://example.com');
   expect(url.searchParams.get('forwardSender')).toBe(source.sender);
   expect(url.searchParams.get('audience')).toBe('connections');
+});
+
+it('recognizes complete forwarded attribution, including already-sent messages',()=>{
+  const blocks=parseBody(forwardBody(forwardSource(source,source),'A note\nwith a line break')).blocks;
+  const attribution=forwardedAttribution(blocks);
+  expect(attribution?.heading).toBe(blocks[2]);
+  expect(attribution?.metadata).toBe(blocks[3]);
+  expect(forwardedAttribution(blocks.slice(1))).not.toBeNull();
+  expect(forwardedAttribution(parseBody({version:1,profile:'spt-2',blocks:composeBlocks('','Forwarded message\n\nJust discussing the feature')}).blocks)).toBeNull();
 });
