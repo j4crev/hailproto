@@ -107,3 +107,12 @@ it("separates inbox and connection subjects from body previews", async () => {
   expect(summary(block("h1", "Subject only"))).toEqual({title:"Subject only", preview:""});
   expect(summary()).toEqual({title:"", preview:""});
 });
+
+it("moves only a leading title out of the displayed body", async () => {
+  const {messageDisplayContent, parseBody} = await import("./messages.js");
+  const block = (style:string, text:string) => ({_type:"block",style,children:[{_type:"span",text,marks:[]}],markDefs:[]});
+  const {blocks}=parseBody({version:1,profile:"spt-2",blocks:[block("h1","Message title"),block("normal","Opening paragraph"),block("h1","Later heading")]});
+  expect(messageDisplayContent(blocks)).toEqual({title:"Message title",blocks:blocks.slice(1)});
+  expect(messageDisplayContent(blocks.slice(1))).toEqual({title:"",blocks:blocks.slice(1)});
+  expect(messageDisplayContent([])).toEqual({title:"",blocks:[]});
+});

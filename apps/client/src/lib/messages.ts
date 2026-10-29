@@ -95,6 +95,12 @@ export function messagePreview(message: Pick<MessageView,"paragraphs">, maximum 
   return characters.length <= maximum ? plain : `${characters.slice(0, maximum - 1).join("")}…`;
 }
 
+export function messageDisplayContent(blocks: MessageBlock[]) {
+  const first = blocks[0];
+  const title = first?.style === "h1" ? first.spans.map(span => span.text).join("").trim() : "";
+  return {title, blocks: title ? blocks.slice(1) : blocks};
+}
+
 export function messageListSummary(message: Pick<MessageView,"blocks"|"paragraphs">) {
   const first = message.blocks[0];
   const title = first?.style === "h1" ? first.spans.map(span => span.text).join("").trim() : "";

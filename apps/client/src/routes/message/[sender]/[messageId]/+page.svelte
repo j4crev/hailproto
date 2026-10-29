@@ -1,4 +1,6 @@
 <script lang="ts">
+  import {messageDisplayContent} from "$lib/messages.js";
+  import {tick} from "svelte";
   import Icon from "$lib/Icon.svelte";
   import DateTime from "$lib/DateTime.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
@@ -6,12 +8,29 @@
   import Unsubscribe from "$lib/Unsubscribe.svelte";
   import RichText from "$lib/RichText.svelte";
   let { data,form } = $props();
+  let replyOpen = $state(false), replyInput = $state<HTMLTextAreaElement>(), replyButton = $state<HTMLButtonElement>();
+  $effect(() => {
+    // Reset when navigating between messages; reveal submission errors on return.
+    data.message.sender; data.message.messageId;
+    replyOpen = !!form?.error;
+  });
+  async function openReply() {
+    replyOpen = true;
+    await tick();
+    replyInput?.focus();
+  }
+  function cancelReply() {
+    replyInput?.form?.reset();
+    replyOpen = false;
+    replyButton?.focus();
+  }
+  const content = $derived(messageDisplayContent(data.message.blocks));
 </script>
 
 <svelte:head><title>Message · Haili</title></svelte:head>
 <div class="message-detail mx-auto max-w-[860px]">
 <a class="hail-back" href={data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.kind==='connection'?'Messages':'Inbox'}</a>
-<h1 class="sr-only">Received message</h1>
+{#if content.title}<h1 class="mb-5 mt-0 text-2xl font-semibold leading-tight [overflow-wrap:anywhere] sm:text-3xl">{content.title}</h1>{:else}<h1 class="sr-only">Received message</h1>{/if}
 <article class="hail-card overflow-hidden">
   <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line p-5 sm:px-7">
     <div class="flex min-w-0 items-center gap-3">
@@ -29,7 +48,8 @@
         {#if data.message.kind !== 'connection' && data.account.custodyProfile === 'managed' && data.subscription}
           {#key `${data.subscription.grantId}:${data.subscription.revision}`}<Unsubscribe compact subscription={data.subscription} owner={data.account.did} />{/key}
         {/if}
-        {#if data.message.connection?.active}<a class="hail-icon-button compact" aria-label="Reply" title="Reply" href={`/compose?audience=connections&connection=${data.message.connection.id}`}><Icon name="reply" /></a>{/if}
+        {#if data.message.connection?.active}<a class="hail-icon-button compact" aria-label="Reply" title="Reply" href={`/compose?audience=connections&connection=${data.message.connection.id}`}><Icon name="reply" /></a>
+        {:else if data.message.kind !== 'connection' && data.canReply}<button bind:this={replyButton} class="hail-icon-button compact" type="button" aria-label="Reply" title="Reply" aria-expanded={replyOpen} aria-controls="subscription-reply" onclick={openReply}><Icon name="reply" /></button>{/if}
         <MessageActions compact menu={data.message.kind==='connection'} messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} />
       </div>
       {#if data.message.kind !== 'connection' && data.account.custodyProfile === 'managed'}
@@ -39,18 +59,20 @@
     </div>
   </header>
   <div class="min-h-[220px] px-5 py-8 font-serif text-[18px] leading-[1.7] [overflow-wrap:anywhere] sm:px-7">
-    <RichText blocks={data.message.blocks} header={data.message.header} />
+    <RichText blocks={content.blocks} header={data.message.header} />
   </div>
 </article>
 {#if data.message.kind==='connection' && !data.message.connection?.active}<p class="mt-5 rounded-xl bg-warning-soft p-4 text-sm text-warning">This connection is no longer active. Existing delivered messages remain readable.</p>
 {:else if data.message.kind!=='connection' && data.canReply}
-  <form class="hail-card mt-6 grid gap-4 p-5 sm:p-7" method="POST" action="?/reply">
-    <label class="hail-field">Reply<textarea class="resize-y" name="text" rows="5" maxlength="65536" required></textarea></label>
+  {#if replyOpen}
+  <form id="subscription-reply" class="hail-card mt-6 grid gap-4 p-5 sm:p-7" method="POST" action="?/reply">
+    <label class="hail-field">Reply<textarea bind:this={replyInput} class="resize-y" name="text" rows="5" maxlength="65536" required></textarea></label>
     <p class="m-0 text-xs text-muted">This invitation currently allows one reply before <DateTime value={data.message.replyUntil!*1000} />.</p>
     <label class="flex min-h-11 items-center gap-3 text-sm"><input name="allowReply" type="checkbox" value="yes" /> Allow one reply for 7 days</label>
-    <button class="hail-button justify-self-start">Send reply</button>
+    <div class="flex flex-wrap gap-3"><button class="hail-button" type="submit">Send reply</button><button class="hail-button-secondary" type="button" onclick={cancelReply}>Cancel</button></div>
     {#if form?.error}<p class="hail-error" role="alert">{form.error}</p>{/if}
   </form>
+  {/if}
 {:else if data.message.replyUntil}
   <p class="mt-5 rounded-xl bg-warning-soft p-4 text-sm text-warning">This reply invitation has expired or was already used.</p>
 {/if}
