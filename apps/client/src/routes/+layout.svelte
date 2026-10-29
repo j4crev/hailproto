@@ -1,5 +1,8 @@
 <script lang="ts">
   import "../app.css";
+  import {onMount} from "svelte";
+  import {initializeThemePreference} from "$lib/preferences.js";
+  onMount(initializeThemePreference);
   import {page} from "$app/state";
   import {afterNavigate} from "$app/navigation";
   import Icon from "$lib/Icon.svelte";
@@ -67,7 +70,7 @@
   .sidebar { position:fixed; inset:0 auto 0 max(0px, calc((100vw - 1600px) / 2)); width:260px; display:flex; flex-direction:column; gap:30px; padding:36px 20px 14px; border-right:1px solid var(--color-line); background:var(--color-canvas); overflow-y:auto; }
   .brand { display:flex; align-items:center; gap:11px; color:var(--color-ink); text-decoration:none; font-size:28px; font-weight:750; letter-spacing:-.055em; }
   .sidebar > .brand { padding:0 12px; }
-  .brand-mark { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; background:var(--color-brand); color:white; font-family:Georgia,serif; font-size:32px; font-style:italic; }
+  .brand-mark { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; background:var(--color-brand); color:var(--color-on-brand); font-family:Georgia,serif; font-size:32px; font-style:italic; }
   .brand-caption { display:block; font-size:10px; font-weight:500; letter-spacing:.02em; color:var(--color-muted); }
   .compose-button { justify-content:flex-start; padding-left:18px; min-height:48px; box-shadow:0 4px 10px #0f766e15; }
   nav { display:grid; gap:5px; }

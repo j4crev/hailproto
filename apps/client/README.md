@@ -163,6 +163,14 @@ preference persistence and blocked browser storage. To save screenshots outside
 the repository, set `HAIL_WIZARD_SCREENSHOTS=/tmp/hail-ui-review` when running
 `test:wizard` (combine with `HAIL_WIZARD_MOBILE=true` for the mobile set).
 
+Appearance in Settings offers System (default), Light and Dark. The browser-local
+choice applies before hydration; System follows live OS changes through CSS.
+Shared semantic colors cover icons, text, controls and charts, while QR codes
+retain black-on-white rendering. If storage is blocked, changes last for the visit.
+After building, run `HAIL_WIZARD_THEME_ONLY=true bun run test:wizard` for focused
+appearance checks (add `HAIL_WIZARD_MOBILE=true` for mobile). Unit preference and
+contrast checks run with `bun run test src/lib/theme.test.ts`.
+
 ## Subscriptions and publishing categories
 
 Subscriptions retains `/permissions` so existing sender links and QR codes keep

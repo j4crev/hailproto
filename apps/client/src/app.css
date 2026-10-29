@@ -12,6 +12,9 @@
   --color-brand: #0f766e;
   --color-brand-strong: #115e59;
   --color-brand-soft: #e6f4f1;
+  --color-on-brand: #ffffff;
+  --color-chart-sent: #6366f1;
+  --color-chart-received: #14b8a6;
   --color-danger: #9d3232;
   --color-danger-soft: #fdf0ee;
   --color-warning: #805314;
@@ -19,6 +22,46 @@
   --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, serif;
   --font-mono: ui-monospace, monospace;
+}
+
+:root { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: #111a1c;
+  --color-surface: #1b282b;
+  --color-ink: #e5efed;
+  --color-muted: #a6b9b8;
+  --color-line: #42595c;
+  --color-brand: #5ed6c3;
+  --color-brand-strong: #98e8da;
+  --color-brand-soft: #233f3d;
+  --color-on-brand: #102c29;
+  --color-danger: #ffaaa2;
+  --color-danger-soft: #422a2b;
+  --color-warning: #f3cb83;
+  --color-warning-soft: #3b3223;
+  --color-chart-sent: #a5a7ff;
+  --color-chart-received: #5ed6c3;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+    --color-canvas: #111a1c;
+    --color-surface: #1b282b;
+    --color-ink: #e5efed;
+    --color-muted: #a6b9b8;
+    --color-line: #42595c;
+    --color-brand: #5ed6c3;
+    --color-brand-strong: #98e8da;
+    --color-brand-soft: #233f3d;
+    --color-on-brand: #102c29;
+    --color-danger: #ffaaa2;
+    --color-danger-soft: #422a2b;
+    --color-warning: #f3cb83;
+    --color-warning-soft: #3b3223;
+    --color-chart-sent: #a5a7ff;
+    --color-chart-received: #5ed6c3;
+  }
 }
 
 @layer base {
@@ -50,7 +93,7 @@
 }
 
 @utility hail-button {
-  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-solid border-transparent bg-brand px-4 py-2.5 text-sm font-bold text-white no-underline hover:bg-brand-strong;
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-solid border-transparent bg-brand px-4 py-2.5 text-sm font-bold text-on-brand no-underline hover:bg-brand-strong;
 }
 
 @utility hail-button-secondary {

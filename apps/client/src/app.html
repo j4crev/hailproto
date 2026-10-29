@@ -4,6 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Apply the browser preference before styles paint; system mode is resolved by CSS. -->
+    <script nonce="%sveltekit.nonce%">
+      try {
+        const theme = localStorage.getItem("hail.gui.theme");
+        if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+      } catch { /* CSS follows the system when storage is unavailable. */ }
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

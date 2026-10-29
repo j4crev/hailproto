@@ -499,6 +499,47 @@ try{
   await accountNavigation();
   assert.equal(await evaluate(`document.querySelectorAll("main a").length`),0,"Account has no cross-link cards");
   await narrowLayouts();await screenshot("account");
+  if(process.env.HAIL_WIZARD_THEME_ONLY === "true") {
+  await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/settings"]').click()`);
+  await wait(async()=>evaluate(`document.querySelector('#theme')?.disabled===false`),"appearance settings ready");
+  const appearance=async(value:string)=>{await evaluate(`(()=>{const select=document.querySelector('#theme');select.value=${JSON.stringify(value)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);};
+  const scheme=()=>evaluate(`getComputedStyle(document.documentElement).colorScheme`);
+  await cdp("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"dark"}]});
+  await wait(async()=>await scheme()==="dark","system dark appearance");
+  await appearance("light");assert.equal(await scheme(),"light","explicit light overrides dark OS");
+  await appearance("dark");assert.equal(await scheme(),"dark");
+  assert.equal(await evaluate(`getComputedStyle(document.body).backgroundColor`),"rgb(17, 26, 28)");
+  await narrowLayouts();await screenshot("settings-dark");
+  await cdp("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"light"}]});
+  assert.equal(await scheme(),"dark","explicit dark overrides light OS");
+  // Check the CSP-authorized head script before deferred hydration completes.
+  const prepaint=await cdp("Page.addScriptToEvaluateOnNewDocument",{source:`document.addEventListener('DOMContentLoaded',()=>{window.themeAtDOMContentLoaded=document.documentElement.dataset.theme;},{once:true});`});
+  await evaluate("document.documentElement.dataset.beforeThemeReload='true'");
+  await cdp("Page.reload");
+  await wait(async()=>evaluate(`!document.documentElement.dataset.beforeThemeReload && document.querySelector('#theme')?.disabled===false`),"appearance reload");
+  assert.equal(await evaluate(`window.themeAtDOMContentLoaded`),"dark","theme applied before hydration");
+  assert.equal(await evaluate(`document.querySelector('#theme').value`),"dark");
+  await cdp("Page.removeScriptToEvaluateOnNewDocument",{identifier:prepaint.identifier});
+  await appearance("system");assert.equal(await scheme(),"light");
+  await cdp("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"dark"}]});
+  await wait(async()=>await scheme()==="dark","live system appearance change");
+  // Keep a persisted dark override for the blocked-storage/reload checks.
+  await appearance("dark");
+
+  const blockedThemeStorage=await cdp("Page.addScriptToEvaluateOnNewDocument",{source:`Storage.prototype.getItem=Storage.prototype.setItem=()=>{throw new DOMException('Storage blocked','SecurityError');};`});
+  await cdp("Page.navigate",{url:origin+"/settings"});
+  await wait(async()=>evaluate(`document.querySelector('#theme')?.disabled===false`),"appearance with blocked storage ready");
+  await appearance("light");await wait(()=>has("Applied for this visit."),"appearance with blocked storage feedback");
+  assert.equal(await scheme(),"light");
+  await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/account"]').click()`);
+  await wait(()=>has("Key custody"),"account navigation with blocked storage");
+  assert.equal(await scheme(),"light","in-memory appearance survives client navigation");
+  await cdp("Page.removeScriptToEvaluateOnNewDocument",{identifier:blockedThemeStorage.identifier});
+  await cdp("Page.navigate",{url:origin+"/account"});await wait(()=>has("Key custody"),"persisted dark appearance restored");
+  assert.equal(await scheme(),"dark");await screenshot("account-dark");
+  assert(!browserErrors.some(error=>/Content Security Policy|Refused to execute|hydration/i.test(error)),"Theme has no CSP or hydration errors");
+  passed=true;console.info("PASS: Chromium appearance settings, system changes, persistence, pre-paint initialization and blocked storage");
+  } else {
   // The public homepage now performs the passkey ceremony directly.
   await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
   await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("Your permission."),"signed-out homepage");
@@ -823,6 +864,7 @@ try{
   await screenshot('public-signup');
   passed=true;
   console.info("PASS: Chromium public/private shells, sign-in return paths and QR pins, signup, messaging, permissions and security (local API fixtures only)");
+  }
   }
 }finally{
   socket?.close();chrome?.kill();gui?.kill();server.stop(true);

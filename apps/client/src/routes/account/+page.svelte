@@ -20,5 +20,5 @@
 </div>
 <style>
   .account-banner { height:140px; padding:24px 32px; display:flex; align-items:center; justify-content:space-between; gap:16px; background:var(--color-brand-soft); background-image:radial-gradient(circle at 85% 140%, transparent 80px, #0f766e0b 81px, #0f766e0b 120px, transparent 121px); }
-  .account-avatar { display:grid; place-items:center; width:72px; height:72px; flex-shrink:0; border:5px solid var(--color-surface); border-radius:50%; background:var(--color-brand); color:white; font-size:24px; font-weight:650; }
+  .account-avatar { display:grid; place-items:center; width:72px; height:72px; flex-shrink:0; border:5px solid var(--color-surface); border-radius:50%; background:var(--color-brand); color:var(--color-on-brand); font-size:24px; font-weight:650; }
 </style>

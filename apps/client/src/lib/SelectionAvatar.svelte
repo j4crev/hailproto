@@ -16,5 +16,5 @@
 <style>
   .selection-avatar { position:relative; z-index:1; display:grid; place-items:center; width:44px; height:44px; flex:0 0 44px; padding:0; overflow:hidden; border:0; border-radius:13px; background:var(--color-brand-soft); color:var(--color-brand); font-size:12px; font-weight:800; }
   .selection-avatar img { width:100%; height:100%; object-fit:cover; }
-  .selection-avatar.checked { background:var(--color-brand); color:white; }
+  .selection-avatar.checked { background:var(--color-brand); color:var(--color-on-brand); }
 </style>
