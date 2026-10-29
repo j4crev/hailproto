@@ -44,7 +44,7 @@
 {/snippet}
 {#snippet links()}
   <a class="hail-button compose-button" href="/compose" aria-current={page.url.pathname === "/compose" ? "page" : undefined}><Icon name="plus" />Compose</a>
-  <div class="nav-group"><p class="nav-label">Your space</p><nav aria-label="Main navigation">{#each navigation as item}<a href={item.href} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} />{item.label}{#if active(item.href)}<span class="active-dot" aria-hidden="true"></span>{/if}</a>{/each}</nav></div>
+  <div class="nav-group"><nav aria-label="Main navigation">{#each navigation as item}<a href={item.href} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} />{item.label}{#if active(item.href)}<span class="active-dot" aria-hidden="true"></span>{/if}</a>{/each}</nav></div>
   {#if page.data.account?.providerOperator}<a class="hail-button-secondary" href="/admin">Provider administration</a>{/if}
   <div class="nav-bottom"><span class="alpha-label">Haili alpha <span>·</span> Powered by Hail</span></div>
 {/snippet}
@@ -70,7 +70,6 @@
   .brand-mark { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; background:var(--color-brand); color:white; font-family:Georgia,serif; font-size:32px; font-style:italic; }
   .brand-caption { display:block; font-size:10px; font-weight:500; letter-spacing:.02em; color:var(--color-muted); }
   .compose-button { justify-content:flex-start; padding-left:18px; min-height:48px; box-shadow:0 4px 10px #0f766e15; }
-  .nav-label { margin:0 14px 10px; font-size:10px; font-weight:700; letter-spacing:.13em; text-transform:uppercase; color:var(--color-muted); }
   nav { display:grid; gap:5px; }
   nav a { display:flex; align-items:center; gap:12px; min-height:46px; padding:12px 14px; border-radius:12px; text-decoration:none; font-size:13px; font-weight:600; color:var(--color-muted); }
   nav a:hover { background:var(--color-surface); color:var(--color-brand-strong); }

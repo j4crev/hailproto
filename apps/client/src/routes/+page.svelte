@@ -88,14 +88,14 @@
 {/if}
 
 <style>
-  .message-row { position:relative; display:grid; grid-template-columns:44px minmax(0,1fr); align-items:center; column-gap:12px; }
+  .message-row { padding-block:16px; position:relative; display:grid; grid-template-columns:44px minmax(0,1fr); align-items:center; column-gap:12px; }
   .message-row > :global(.selection-avatar) { grid-column:1; grid-row:1 / 3; }
   .message-meta, .message-link { grid-column:2; min-width:0; }
   .message-row.has-header { padding:0; grid-template-columns:60px minmax(0,1fr); }
-  .has-header > :global(.selection-avatar) { grid-row:1; margin:12px 0 12px 16px; }
+  .has-header > :global(.selection-avatar) { grid-row:1; margin:16px 0 16px 16px; }
   .has-header .message-meta { margin-right:16px; }
   .has-header .message-link { grid-column:1 / -1; }
-  .has-header .message-copy { display:block; padding:16px; }
+  .has-header .message-copy { display:block; padding:20px 16px; }
   .has-header .message-subject, .has-header .message-preview { white-space:normal; overflow-wrap:anywhere; }
   .message-header { display:block; width:100%; height:auto; max-height:320px; object-fit:cover; border-block:1px solid var(--color-line); }
   .message-meta { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
