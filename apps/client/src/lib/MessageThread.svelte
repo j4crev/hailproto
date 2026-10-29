@@ -1,7 +1,7 @@
 <script lang="ts">
   import DateTime from './DateTime.svelte';
   import {messageHref,type MessageThread} from './threads.js';
-  let {thread,selected,unavailable=false}:{thread:MessageThread|null;selected:{sender:string;messageId:string};unavailable?:boolean}=$props();
+  let {thread,selected,peer=null,unavailable=false}:{thread:MessageThread|null;selected:{sender:string;messageId:string};peer?:{did:string;address:string|null}|null;unavailable?:boolean}=$props();
 </script>
 {#if unavailable}<p class="text-sm text-muted" role="status">Conversation unavailable. Reload to try again.</p>{/if}
 {#if thread && (thread.messages.length>1 || thread.messages.some(m=>m.inReplyTo))}
@@ -11,7 +11,7 @@
       {#each thread.messages as message (message.sender+message.messageId)}
         {@const current=message.sender===selected.sender&&message.messageId===selected.messageId}
         <li class={['rounded-lg border border-solid p-3',current?'border-brand bg-brand-soft':'border-line']}>
-          <a class="text-sm font-semibold [overflow-wrap:anywhere]" href={messageHref(message)} aria-current={current?'page':undefined}>{message.sent?'You':message.sender} · <DateTime value={message.createdAt}/></a>
+          <a class="text-sm font-semibold [overflow-wrap:anywhere]" href={messageHref(message)} aria-current={current?'page':undefined}>{message.sent?'You':(peer?.did===message.sender?peer.address:null)??message.sender} · <DateTime value={message.createdAt}/></a>
           <p class="mb-0 mt-2 whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{message.preview}</p>
           {#if message.inReplyTo}
             {#if message.parentAvailable}

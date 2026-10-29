@@ -20,4 +20,4 @@
   <div class="min-h-[220px] px-5 py-8 font-serif text-[18px] leading-[1.7] [overflow-wrap:anywhere] sm:px-7"><QuotedMessage blocks={content.blocks} header={data.message.header}/></div>
 </article>
 
-<MessageThread thread={data.thread} unavailable={data.threadUnavailable} selected={data.message}/>
+<MessageThread peer={{did:data.message.recipient,address:data.message.recipientAddress}} thread={data.thread} unavailable={data.threadUnavailable} selected={data.message}/>

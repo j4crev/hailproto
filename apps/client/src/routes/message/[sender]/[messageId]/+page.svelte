@@ -129,5 +129,5 @@
 
 {/if}
 {#if form?.error}<p class="hail-error" role="alert">{form.error} {#if form.messageId}<a href={`/sent/${form.messageId}`}>Check sent status</a>{/if}</p>{/if}
-<MessageThread thread={data.thread} unavailable={data.threadUnavailable} selected={data.message}/>
+<MessageThread peer={{did:data.message.sender,address:data.message.senderAddress}} thread={data.thread} unavailable={data.threadUnavailable} selected={data.message}/>
 </div>
