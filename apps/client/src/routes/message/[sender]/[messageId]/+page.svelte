@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$lib/Icon.svelte";
   import DateTime from "$lib/DateTime.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
   import MessageActions from "$lib/MessageActions.svelte";
@@ -11,7 +12,6 @@
 <div class="message-detail mx-auto max-w-[860px]">
 <a class="hail-back" href={data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.kind==='connection'?'Messages':'Inbox'}</a>
 <h1 class="sr-only">Received message</h1>
-<MessageActions messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} />
 <article class="hail-card overflow-hidden">
   <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line p-5 sm:px-7">
     <div class="flex min-w-0 items-center gap-3">
@@ -23,22 +23,27 @@
       {#if data.message.senderAddress}<small class="font-mono text-[11px] text-muted [overflow-wrap:anywhere] sm:text-xs">{data.message.sender}</small>{/if}
       </div>
     </div>
-    {#if data.message.kind!=='connection' && data.message.category}<mark class="max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{data.message.category==='general'?'General':data.message.category}</mark>{/if}
-    {#if data.message.kind !== 'connection' && data.account.custodyProfile === 'managed'}
-      <section class="grid w-full min-w-0 justify-items-end gap-3 [&>p]:w-full [&>section]:w-full" aria-label="Sender subscription">
-        {#if data.subscriptionUnavailable}<p class="text-sm text-muted" role="status">Couldn’t check your subscription. Reload this message to try again.</p>
-        {:else if data.subscription}{#key `${data.subscription.grantId}:${data.subscription.revision}`}<Unsubscribe subscription={data.subscription} owner={data.account.did} />{/key}
-        {:else}<p class="text-sm text-muted">You have no active subscription to this sender. This saved message remains available.</p>{/if}
-      </section>
-    {/if}
+    <div class="flex w-full min-w-0 flex-wrap items-center gap-3">
+      {#if data.message.kind!=='connection' && data.message.category}<mark class="max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{data.message.category==='general'?'General':data.message.category}</mark>{/if}
+      <div class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 [&>section]:w-full [&>p]:w-full">
+        {#if data.message.kind !== 'connection' && data.account.custodyProfile === 'managed' && data.subscription}
+          {#key `${data.subscription.grantId}:${data.subscription.revision}`}<Unsubscribe compact subscription={data.subscription} owner={data.account.did} />{/key}
+        {/if}
+        {#if data.message.connection?.active}<a class="hail-button-secondary" aria-label="Reply" title="Reply" href={`/compose?audience=connections&connection=${data.message.connection.id}`}><Icon name="reply" /></a>{/if}
+        <MessageActions compact menu={data.message.kind==='connection'} messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} />
+      </div>
+      {#if data.message.kind !== 'connection' && data.account.custodyProfile === 'managed'}
+        {#if data.subscriptionUnavailable}<p class="w-full text-sm text-muted" role="status">Couldn’t check your subscription. Reload this message to try again.</p>
+        {:else if !data.subscription}<p class="w-full text-sm text-muted">You have no active subscription to this sender. This saved message remains available.</p>{/if}
+      {/if}
+    </div>
   </header>
   <div class="min-h-[220px] px-5 py-8 font-serif text-[18px] leading-[1.7] [overflow-wrap:anywhere] sm:px-7">
     <RichText blocks={data.message.blocks} header={data.message.header} />
   </div>
 </article>
-{#if data.message.connection?.active}<a class="hail-button mt-6" href={`/compose?audience=connections&connection=${data.message.connection.id}`}>Message this connection →</a>
-{:else if data.message.kind==='connection'}<p class="mt-5 rounded-xl bg-warning-soft p-4 text-sm text-warning">This connection is no longer active. Existing delivered messages remain readable.</p>
-{:else if data.canReply}
+{#if data.message.kind==='connection' && !data.message.connection?.active}<p class="mt-5 rounded-xl bg-warning-soft p-4 text-sm text-warning">This connection is no longer active. Existing delivered messages remain readable.</p>
+{:else if data.message.kind!=='connection' && data.canReply}
   <form class="hail-card mt-6 grid gap-4 p-5 sm:p-7" method="POST" action="?/reply">
     <label class="hail-field">Reply<textarea class="resize-y" name="text" rows="5" maxlength="65536" required></textarea></label>
     <p class="m-0 text-xs text-muted">This invitation currently allows one reply before <DateTime value={data.message.replyUntil!*1000} />.</p>
@@ -51,7 +56,3 @@
 {/if}
 
 </div>
-
-<style>
-  @media(max-width:900px) { .message-detail { padding-bottom:180px; } }
-</style>

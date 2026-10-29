@@ -3,7 +3,7 @@
   import {startAuthentication} from "@simplewebauthn/browser";
   import {APPROVAL_STORAGE, approval, permissionRequest, subscriptionScopeLabel, type Approval} from "$lib/permissions.js";
   import type {senderSubscription} from "$lib/server/subscription.js";
-  let {subscription, owner}: {subscription: NonNullable<Awaited<ReturnType<typeof senderSubscription>>>; owner: string} = $props();
+  let {subscription, owner, compact = false}: {subscription: NonNullable<Awaited<ReturnType<typeof senderSubscription>>>; owner: string; compact?: boolean} = $props();
   let prepared = $state<Approval | null>(null), requestId = $state<string | null>(null);
   let busy = $state(false), ready = $state(false), done = $state(false), error = $state(""), now = $state(Date.now());
   onMount(() => {ready = true; const timer = setInterval(() => {now = Date.now();}, 1000); return () => clearInterval(timer);});
@@ -58,7 +58,11 @@
     {#if now >= Date.parse(prepared.expiresAt)}<p class="m-0 text-sm text-muted">This approval expired. Check its status, then reload the message before starting again.</p>{/if}
   </section>
 {:else}
-  <button class="hail-button-secondary" disabled={busy || !ready} onclick={() => run(prepare)}>{busy ? 'Checking subscription…' : 'Unsubscribe'}</button>
+  <button class="hail-button-secondary" class:compact disabled={busy || !ready} onclick={() => run(prepare)}>{busy ? 'Checking subscription…' : 'Unsubscribe'}</button>
   {#if requestId}<button class="hail-button-secondary ml-2" disabled={busy} onclick={() => run(check)}>Check unsubscribe status</button>{/if}
 {/if}
 {#if error}<p class="hail-error mt-4" role="alert">{error}</p>{/if}
+
+<style>
+  button.compact { font-size:12px; padding:4px 10px; min-height:36px; }
+</style>
