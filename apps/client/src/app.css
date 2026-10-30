@@ -4,17 +4,17 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 
 @theme {
-  --color-canvas: #f7f8f5;
+  --color-canvas: #f7f7f8;
   --color-surface: #ffffff;
-  --color-ink: #172b2d;
-  --color-muted: #526568;
-  --color-line: #dce5e3;
-  --color-brand: #0f766e;
-  --color-brand-strong: #115e59;
-  --color-brand-soft: #e6f4f1;
+  --color-ink: #202024;
+  --color-muted: #606068;
+  --color-line: #dedee3;
+  --color-brand: #6d28d9;
+  --color-brand-strong: #5b21b6;
+  --color-brand-soft: #f1ebfc;
   --color-on-brand: #ffffff;
-  --color-chart-sent: #6366f1;
-  --color-chart-received: #14b8a6;
+  --color-chart-sent: #2563eb;
+  --color-chart-received: #6d28d9;
   --color-danger: #9d3232;
   --color-danger-soft: #fdf0ee;
   --color-warning: #805314;
@@ -32,16 +32,16 @@
   --color-ink: #ededed;
   --color-muted: #b3b3b3;
   --color-line: #4a4a4a;
-  --color-brand: #fb923c;
-  --color-brand-strong: #fdba74;
-  --color-brand-soft: #302820;
+  --color-brand: #a78bfa;
+  --color-brand-strong: #c4b5fd;
+  --color-brand-soft: #2b2635;
   --color-on-brand: #141414;
   --color-danger: #ffaaa2;
   --color-danger-soft: #422a2b;
   --color-warning: #f3cb83;
   --color-warning-soft: #3b3223;
-  --color-chart-sent: #a5a7ff;
-  --color-chart-received: #fb923c;
+  --color-chart-sent: #93c5fd;
+  --color-chart-received: #a78bfa;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-theme="dark"]) {
@@ -51,16 +51,16 @@
     --color-ink: #ededed;
     --color-muted: #b3b3b3;
     --color-line: #4a4a4a;
-    --color-brand: #fb923c;
-    --color-brand-strong: #fdba74;
-    --color-brand-soft: #302820;
+    --color-brand: #a78bfa;
+    --color-brand-strong: #c4b5fd;
+    --color-brand-soft: #2b2635;
     --color-on-brand: #141414;
     --color-danger: #ffaaa2;
     --color-danger-soft: #422a2b;
     --color-warning: #f3cb83;
     --color-warning-soft: #3b3223;
-    --color-chart-sent: #a5a7ff;
-    --color-chart-received: #fb923c;
+    --color-chart-sent: #93c5fd;
+    --color-chart-received: #a78bfa;
   }
 }
 
@@ -115,7 +115,7 @@
   .page-heading > p:not(.hail-eyebrow) { margin:0; font-size:14px; color:var(--color-muted); }
   .setting-icon { display:grid; place-items:center; width:42px; height:42px; flex-shrink:0; border-radius:13px; background:var(--color-brand-soft); color:var(--color-brand); }
   .setting-link { display:flex; align-items:center; gap:16px; min-width:0; padding:22px; border:1px solid var(--color-line); border-radius:18px; background:var(--color-surface); text-decoration:none; transition:border-color .15s, box-shadow .15s; }
-  .setting-link:hover { border-color:var(--color-brand); box-shadow:0 4px 20px #172b2d08; }
+  .setting-link:hover { border-color:var(--color-brand); box-shadow:0 4px 20px #20202408; }
   .setting-link > span:not(.setting-icon) { display:grid; gap:5px; min-width:0; }
   .setting-link strong { font-size:14px; }
   .setting-link small { font-size:12px; color:var(--color-muted); }
