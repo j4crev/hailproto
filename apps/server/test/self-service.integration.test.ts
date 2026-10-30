@@ -9,10 +9,10 @@ import {encodeBase64Url,inspectSignedPayload,signPayload,createWebCryptoSigner,t
 import {createHash} from "node:crypto";
 import {importEd25519PrivateKey} from "../src/identity/keys.js";
 import {describe,it,expect,beforeAll,afterAll,vi} from "vitest";
-import {createUserVault,unlockUserIdentity} from "../../cli/src/vault.js";
-import {createAccount} from "../../cli/src/account-creation.js";
-import {AccountApiClient} from "../../cli/src/account-api.js";
-import {createGrant} from "../../cli/src/grant-creation.js";
+import {createUserVault,unlockUserIdentity} from "./client-support/vault.js";
+import {createAccount} from "./client-support/account-creation.js";
+import {AccountApiClient} from "../../../packages/hail-client-support/src/account-api.js";
+import {createGrant} from "./client-support/grant-creation.js";
 import {ProviderDatabase} from "../src/db/database.js";
 import {KeyEncryptor} from "../src/identity/key-encryption.js";
 import {PrivatePocOnboarding} from "../src/onboarding/private-poc.js";
@@ -25,8 +25,8 @@ import {createApp} from "../src/app.js";
 import {PlcHailDidResolver} from "../src/plc/resolver.js";
 import type {PlcDirectoryClient} from "../src/plc/client.js";
 import type {AppConfig} from "../src/config.js";
-import {rotateCredential} from "../../cli/src/credential-rotation.js";
-import {renewBinding,showBinding} from "../../cli/src/binding-renewal.js";
+import {rotateCredential} from "./client-support/credential-rotation.js";
+import {renewBinding,showBinding} from "./client-support/binding-renewal.js";
 import {AccountBinding} from "../src/accounts/binding.js";
 import {PasskeyAuth} from "../src/accounts/passkeys.js";
 

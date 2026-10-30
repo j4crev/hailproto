@@ -1,6 +1,6 @@
 import {afterEach,expect,it,vi} from "vitest";
 vi.mock("$env/dynamic/private",()=>({env:{}}));
-import {AccountApiClient,AccountApiError} from "../../../cli/src/account-api.js";
+import {AccountApiClient,AccountApiError} from "../../../../packages/hail-client-support/src/account-api.js";
 import {canaryAccount} from "./server/canary.js";
 import {withAccountReads} from "./server/account-reads.js";
 const cookies=(suffix="a")=>({get:()=>`hails_${suffix.repeat(43)}`,delete:vi.fn()});

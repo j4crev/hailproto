@@ -18,7 +18,7 @@ import {registerAccountApiRoutes} from "../src/accounts/routes.js";
 import {ManagedAccountTransfer} from "../src/accounts/managed-transfer.js";
 import {AccountApiRepository} from "../src/accounts/repository.js";
 import {AccountAccess} from "../src/accounts/access.js";
-import {accountAccessInput} from "../../cli/src/account-access-proof.js";
+import {accountAccessInput} from "./client-support/account-access-proof.js";
 import {PasskeyAuth} from "../src/accounts/passkeys.js";
 import {bodyFromText} from "../src/bodies/service.js";
 import {ProviderDatabase} from "../src/db/database.js";

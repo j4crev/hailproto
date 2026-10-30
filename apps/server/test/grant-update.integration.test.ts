@@ -6,7 +6,7 @@ import {createWebCryptoSigner,encodeBase64Url,inspectSignedPayload,signPayload,t
 import {base58btc} from "multiformats/bases/base58";
 import {Hono} from "hono";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
-import {createUserVault,unlockUserIdentity} from "../../cli/src/vault.js";
+import {createUserVault,unlockUserIdentity} from "./client-support/vault.js";
 import {ProviderDatabase} from "../src/db/database.js";
 import {AccountApiRepository} from "../src/accounts/repository.js";
 import {registerAccountApiRoutes} from "../src/accounts/routes.js";

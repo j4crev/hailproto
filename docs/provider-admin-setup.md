@@ -35,8 +35,8 @@ with the same values, not the vault-creation command in step 2.
 
 Have the following ready:
 
-- On your computer: an installed repository checkout with its dependencies, Bun,
-  `jq`, SSH and SCP. The [CLI installation guide](../apps/cli/docs/cli-installation.md)
+- On your computer: a repository checkout with the native `apps/cli/dist/hailp`
+  executable built, plus Bun, `jq`, SSH and SCP. The [CLI installation guide](../apps/cli/docs/cli-installation.md)
   covers prerequisites.
 - On the provider: matching current provider/GUI images and all current migrations,
   public CLI onboarding, passkeys, alpha signup, email and automatic monitoring
@@ -87,8 +87,8 @@ admin_address="admin@$provider_domain"
 admin_dir="$HOME/.local/share/hailproto/admin-$provider_domain"
 
 printf 'Account: %s\nPrivate directory: %s\nCLI: %s\n' \
-  "$admin_address" "$admin_dir" "$hail_repo/apps/cli/src/cli/hailp.ts"
-test -f "$hail_repo/apps/cli/src/cli/hailp.ts"
+  "$admin_address" "$admin_dir" "$hail_repo/apps/cli/dist/hailp"
+test -x "$hail_repo/apps/cli/dist/hailp"
 ```
 
 Stop if a command fails. `admin_dir` is a directory you create **on your own
@@ -103,10 +103,10 @@ Run once for a new account:
 
 ```bash
 install -d -m 700 "$admin_dir"
-bun "$hail_repo/apps/cli/src/cli/hailp.ts" vault create \
+"$hail_repo/apps/cli/dist/hailp" vault create \
   --vault "$admin_dir/vault.json" \
   --recovery-file "$admin_dir/recovery-secret.txt"
-bun "$hail_repo/apps/cli/src/cli/hailp.ts" vault verify \
+"$hail_repo/apps/cli/dist/hailp" vault verify \
   --vault "$admin_dir/vault.json" --expected-did unbound \
   < "$admin_dir/recovery-secret.txt"
 jq -r '.recovery.publicDidKey' "$admin_dir/vault.json"
@@ -200,7 +200,7 @@ Use `--backup-verified` only after checking your backup.
 ```bash
 set -o pipefail
 umask 077
-bun "$hail_repo/apps/cli/src/cli/hailp.ts" account create \
+"$hail_repo/apps/cli/dist/hailp" account create \
   --provider "$provider_origin" --address "$admin_address" --custody managed \
   --invitation "$admin_invitation" \
   --vault "$admin_dir/vault.json" \
@@ -348,7 +348,7 @@ complete command into your local terminal. The absolute CLI and file paths work
 from any current directory; no shell function needs to be defined.
 
 ```bash
-bun "$hail_repo/apps/cli/src/cli/hailp.ts" account create \
+"$hail_repo/apps/cli/dist/hailp" account create \
   --provider "$provider_origin" --address "$admin_address" --custody managed \
   --invitation "$admin_invitation" \
   --vault "$admin_dir/vault.json" \

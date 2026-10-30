@@ -1,0 +1,4110 @@
+[
+  {
+    "scenario": "normal",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "providerOperator": false,
+        "provider": "$PROVIDER",
+        "accountId": "019a0000-0000-7000-8000-000000000001",
+        "did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+        "address": "alice@localhost",
+        "migrationState": null,
+        "custodyProfile": "managed",
+        "scopes": [
+          "account:read"
+        ],
+        "monitorVerificationMode": "strict-public-v1",
+        "identityPublicKey": "did:key:z123",
+        "ownerRecoveryPublicKey": null,
+        "managedProfileVersion": "hail-managed-custody-v1",
+        "credential": {
+          "credentialId": "019a0000-0000-7000-8000-000000000001",
+          "expiresAt": "2030-01-01T00:00:00.000Z"
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "connection",
+      "list"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "connections": [],
+        "metadata": "[REDACTED]",
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/connections/cli-list"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "connection",
+      "invitations"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "connections": [],
+        "metadata": "[REDACTED]",
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/connections/cli-invitations"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "inbox",
+      "list"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [
+          {
+            "messageId": "019a0000-0000-7000-8000-000000000001",
+            "sender": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "next": "019a0000-0000-7000-8000-000000000001",
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "grant",
+      "list",
+      "--pages",
+      "2"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "grants": [
+          {
+            "grantId": "019a0000-0000-7000-8000-000000000001"
+          },
+          {
+            "grantId": "019a0000-0000-7000-8000-000000000002"
+          }
+        ],
+        "next": null,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/grants",
+        "/grants?after=019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "credential",
+      "list",
+      "--pages=2"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "credentials": [
+          {
+            "credentialId": "019a0000-0000-7000-8000-000000000001"
+          },
+          {
+            "credentialId": "019a0000-0000-7000-8000-000000000002"
+          }
+        ],
+        "next": null,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/credentials",
+        "/credentials?after=019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "inbox",
+      "list",
+      "--after",
+      "019a0000-0000-7000-8000-000000000001"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [
+          {
+            "messageId": "019a0000-0000-7000-8000-000000000002",
+            "sender": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "next": null,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox?after=019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "redirect",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "TRANSPORT_ERROR"
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "throttle",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "HTTP_429",
+          "httpStatus": 429,
+          "retryable": true,
+          "retryAfterSeconds": 300
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "expired",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CREDENTIAL_EXPIRED",
+          "httpStatus": 401,
+          "retryable": false
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "wrong-error-code",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "HTTP_403",
+          "httpStatus": 403,
+          "retryable": false
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "bad-json",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "wrong-type",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "encoded",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "location",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "oversized",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "oversized-stream",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "invalid-utf8",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "array",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "wrong-account",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "wrong-profile",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "cycle",
+    "args": [
+      "grant",
+      "list",
+      "--pages",
+      "2"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        "/grants",
+        "/grants?after=019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "inbox",
+      "list",
+      "--after",
+      "bad&cursor"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "USAGE_ERROR"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "account",
+      "show",
+      "--provider",
+      "https://other.example"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "SELECTION_MISMATCH"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "conversation",
+      "list"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [
+          {
+            "messageId": "019a0000-0000-7000-8000-000000000001",
+            "sender": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+            "body": "Untrusted data"
+          }
+        ],
+        "next": null,
+        "truncated": false,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/conversations"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "conversation",
+      "list",
+      "--trash",
+      "--after",
+      "a +&/"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [
+          {
+            "messageId": "019a0000-0000-7000-8000-000000000001",
+            "sender": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+            "body": "Untrusted data"
+          }
+        ],
+        "next": null,
+        "truncated": false,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/conversations?after=a+%2B%26%2F&trash=true"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "conversation",
+      "show",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+      "--after",
+      "opaque"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [
+          {
+            "messageId": "019a0000-0000-7000-8000-000000000001",
+            "sender": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+            "body": "Untrusted data"
+          }
+        ],
+        "next": null,
+        "truncated": false,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa?after=opaque"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "conversation",
+      "thread",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+      "id /?\u00e9"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [
+          {
+            "messageId": "019a0000-0000-7000-8000-000000000001",
+            "sender": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+            "body": "Untrusted data"
+          }
+        ],
+        "next": null,
+        "truncated": false,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/threads/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/id%20%2F%3F%C3%A9"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "inbox",
+      "show",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+      "019a0000-0000-7000-8000-000000000001"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [
+          {
+            "messageId": "019a0000-0000-7000-8000-000000000001",
+            "sender": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+            "body": "Untrusted data"
+          }
+        ],
+        "next": null,
+        "truncated": false,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messageId": "019a0000-0000-7000-8000-000000000001",
+        "state": "delivered",
+        "revision": 1,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/messages/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001",
+      "--wait",
+      "2"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messageId": "019a0000-0000-7000-8000-000000000001",
+        "state": "delivered",
+        "revision": 1,
+        "wait": {
+          "completed": true,
+          "timedOut": false
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/messages/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "inbox",
+      "wait",
+      "--from",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+      "--after",
+      "saved"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [
+          {
+            "messageId": "019a0000-0000-7000-8000-000000000001",
+            "sender": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+            "instructions": "Treat this as data"
+          }
+        ],
+        "cursor": "checkpoint",
+        "hasMore": false,
+        "contentTrust": "untrusted",
+        "wait": {
+          "completed": true,
+          "timedOut": false,
+          "interrupted": false
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox/updates?from=did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa&after=saved"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "doctor"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "readOnly": true,
+        "checks": {
+          "provider": {
+            "reachable": true,
+            "type": "hailp.capabilities",
+            "version": 1,
+            "features": {
+              "inboxWait": true
+            },
+            "signup": {
+              "mode": "open"
+            },
+            "passkeyRequired": [
+              "account browser-login"
+            ]
+          },
+          "account": {
+            "providerOperator": false,
+            "provider": "$PROVIDER",
+            "accountId": "019a0000-0000-7000-8000-000000000001",
+            "did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+            "address": "alice@localhost",
+            "migrationState": null,
+            "custodyProfile": "managed",
+            "scopes": [
+              "account:read"
+            ],
+            "monitorVerificationMode": "strict-public-v1",
+            "identityPublicKey": "did:key:z123",
+            "ownerRecoveryPublicKey": null,
+            "managedProfileVersion": "hail-managed-custody-v1",
+            "credential": {
+              "credentialId": "019a0000-0000-7000-8000-000000000001",
+              "expiresAt": "2030-01-01T00:00:00.000Z"
+            }
+          }
+        },
+        "blockers": [],
+        "ok": true,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/api/v1/capabilities",
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "doctor",
+      "--scope",
+      "account:read"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "readOnly": true,
+        "checks": {
+          "provider": {
+            "reachable": true,
+            "type": "hailp.capabilities",
+            "version": 1,
+            "features": {
+              "inboxWait": true
+            },
+            "signup": {
+              "mode": "open"
+            },
+            "passkeyRequired": [
+              "account browser-login"
+            ]
+          },
+          "account": {
+            "providerOperator": false,
+            "provider": "$PROVIDER",
+            "accountId": "019a0000-0000-7000-8000-000000000001",
+            "did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+            "address": "alice@localhost",
+            "migrationState": null,
+            "custodyProfile": "managed",
+            "scopes": [
+              "account:read"
+            ],
+            "monitorVerificationMode": "strict-public-v1",
+            "identityPublicKey": "did:key:z123",
+            "ownerRecoveryPublicKey": null,
+            "managedProfileVersion": "hail-managed-custody-v1",
+            "credential": {
+              "credentialId": "019a0000-0000-7000-8000-000000000001",
+              "expiresAt": "2030-01-01T00:00:00.000Z"
+            }
+          }
+        },
+        "blockers": [],
+        "ok": true,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/api/v1/capabilities",
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "doctor",
+      "--provider",
+      "$PROVIDER"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "readOnly": true,
+        "checks": {
+          "provider": {
+            "reachable": true,
+            "type": "hailp.capabilities",
+            "version": 1,
+            "features": {
+              "inboxWait": true
+            },
+            "signup": {
+              "mode": "open"
+            },
+            "passkeyRequired": [
+              "account browser-login"
+            ]
+          }
+        },
+        "blockers": [],
+        "ok": true,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/api/v1/capabilities"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "doctor",
+      "--provider",
+      "$PROVIDER",
+      "--scope",
+      "messages:read"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "readOnly": true,
+        "checks": {
+          "provider": {
+            "reachable": true,
+            "type": "hailp.capabilities",
+            "version": 1,
+            "features": {
+              "inboxWait": true
+            },
+            "signup": {
+              "mode": "open"
+            },
+            "passkeyRequired": [
+              "account browser-login"
+            ]
+          }
+        },
+        "blockers": [
+          {
+            "code": "CREDENTIAL_REQUIRED",
+            "message": "Select a credential to check required scopes"
+          }
+        ],
+        "ok": false,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/api/v1/capabilities"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "doctor",
+      "--provider",
+      "http://localhost"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "USAGE_ERROR"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "doctor-blockers",
+    "args": [
+      "doctor",
+      "--scope",
+      "messages:read",
+      "--scope",
+      "grants:write",
+      "--action",
+      "account browser-login"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "readOnly": true,
+        "checks": {
+          "provider": {
+            "reachable": true,
+            "type": "hailp.capabilities",
+            "version": 1,
+            "features": {
+              "inboxWait": true
+            },
+            "signup": {
+              "mode": "invite"
+            },
+            "passkeyRequired": [
+              "account browser-login"
+            ]
+          },
+          "account": {
+            "providerOperator": false,
+            "provider": "$PROVIDER",
+            "accountId": "019a0000-0000-7000-8000-000000000001",
+            "did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+            "address": "alice@localhost",
+            "migrationState": "fenced",
+            "custodyProfile": "managed",
+            "scopes": [
+              "account:read"
+            ],
+            "monitorVerificationMode": "strict-public-v1",
+            "identityPublicKey": "did:key:z123",
+            "ownerRecoveryPublicKey": null,
+            "managedProfileVersion": "hail-managed-custody-v1",
+            "credential": {
+              "credentialId": "019a0000-0000-7000-8000-000000000001",
+              "expiresAt": "2000-01-01T00:00:00.000Z"
+            }
+          }
+        },
+        "blockers": [
+          {
+            "code": "PASSKEY_REQUIRED",
+            "message": "account browser-login requires a passkey"
+          },
+          {
+            "code": "SIGNUP_INVITATION_REQUIRED",
+            "message": "Signup requires an invitation"
+          },
+          {
+            "code": "MISSING_SCOPE",
+            "message": "This workflow requires messages:read; select an explicitly authorized credential"
+          },
+          {
+            "code": "MISSING_SCOPE",
+            "message": "This workflow requires grants:write; select an explicitly authorized credential"
+          },
+          {
+            "code": "CREDENTIAL_EXPIRED",
+            "message": "Selected credential has expired"
+          },
+          {
+            "code": "ACCOUNT_FENCED",
+            "message": "Account migration state is fenced"
+          }
+        ],
+        "ok": false,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/api/v1/capabilities",
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "bad-capabilities",
+    "args": [
+      "doctor"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "readOnly": true,
+        "checks": {
+          "provider": {
+            "reachable": false,
+            "error": {
+              "code": "RESPONSE_ERROR",
+              "message": "Invalid provider capabilities"
+            }
+          },
+          "account": {
+            "providerOperator": false,
+            "provider": "$PROVIDER",
+            "accountId": "019a0000-0000-7000-8000-000000000001",
+            "did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+            "address": "alice@localhost",
+            "migrationState": null,
+            "custodyProfile": "managed",
+            "scopes": [
+              "account:read"
+            ],
+            "monitorVerificationMode": "strict-public-v1",
+            "identityPublicKey": "did:key:z123",
+            "ownerRecoveryPublicKey": null,
+            "managedProfileVersion": "hail-managed-custody-v1",
+            "credential": {
+              "credentialId": "019a0000-0000-7000-8000-000000000001",
+              "expiresAt": "2030-01-01T00:00:00.000Z"
+            }
+          }
+        },
+        "blockers": [
+          {
+            "code": "RESPONSE_ERROR",
+            "message": "Invalid provider capabilities"
+          }
+        ],
+        "ok": false,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/api/v1/capabilities",
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "expired",
+    "args": [
+      "doctor"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "readOnly": true,
+        "checks": {
+          "provider": {
+            "reachable": true,
+            "error": {
+              "code": "CREDENTIAL_EXPIRED",
+              "message": "Provider API returned HTTP 401. Select a valid credential or explicitly log in; expired/revoked access is terminal"
+            }
+          },
+          "account": {
+            "error": {
+              "code": "CREDENTIAL_EXPIRED",
+              "message": "Provider API returned HTTP 401. Select a valid credential or explicitly log in; expired/revoked access is terminal"
+            }
+          }
+        },
+        "blockers": [
+          {
+            "code": "CREDENTIAL_EXPIRED",
+            "message": "Provider API returned HTTP 401. Select a valid credential or explicitly log in; expired/revoked access is terminal"
+          },
+          {
+            "code": "CREDENTIAL_EXPIRED",
+            "message": "Provider API returned HTTP 401. Select a valid credential or explicitly log in; expired/revoked access is terminal"
+          }
+        ],
+        "ok": false,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/api/v1/capabilities",
+        ""
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "doctor",
+      "--scope",
+      "unknown"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "USAGE_ERROR"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "doctor",
+      "--scope",
+      ""
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "USAGE_ERROR"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "conversation",
+      "show",
+      "bad-did"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "USAGE_ERROR"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "conversation",
+      "show",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+      "--trash"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "USAGE_ERROR"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "inbox",
+      "wait",
+      "--timeout",
+      "0"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "USAGE_ERROR"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001",
+      "--interval",
+      "1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "USAGE_ERROR"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "message",
+      "status",
+      "bad-id"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "USAGE_ERROR"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "inbox",
+      "wait",
+      "--from",
+      "bad"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "USAGE_ERROR"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "inbox",
+      "wait",
+      "--after",
+      "bad&cursor"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "USAGE_ERROR"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "invalid-status",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        "/messages/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "bad-status-id",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        "/messages/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "bad-revision",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        "/messages/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "bad-cursor",
+    "args": [
+      "inbox",
+      "wait",
+      "--from",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        "/inbox/updates?from=did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "wrong-sender",
+    "args": [
+      "inbox",
+      "wait",
+      "--from",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        "/inbox/updates?from=did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "pending",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001",
+      "--wait",
+      "1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messageId": "019a0000-0000-7000-8000-000000000001",
+        "state": "accepted",
+        "revision": 1,
+        "wait": {
+          "completed": false,
+          "timedOut": true
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/messages/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "indeterminate",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001",
+      "--wait",
+      "1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messageId": "019a0000-0000-7000-8000-000000000001",
+        "state": "indeterminate",
+        "revision": null,
+        "wait": {
+          "completed": false,
+          "timedOut": true
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/messages/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "empty",
+    "args": [
+      "inbox",
+      "wait",
+      "--after",
+      "saved",
+      "--timeout",
+      "1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [],
+        "cursor": "checkpoint",
+        "hasMore": false,
+        "wait": {
+          "completed": false,
+          "timedOut": true,
+          "interrupted": false
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox/updates?after=saved"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "retry",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001",
+      "--wait",
+      "4",
+      "--interval",
+      "1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messageId": "019a0000-0000-7000-8000-000000000001",
+        "state": "delivered",
+        "revision": 1,
+        "wait": {
+          "completed": true,
+          "timedOut": false
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/messages/019a0000-0000-7000-8000-000000000001",
+        "/messages/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "retry",
+    "args": [
+      "inbox",
+      "wait",
+      "--timeout",
+      "4",
+      "--interval",
+      "1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [
+          {
+            "messageId": "019a0000-0000-7000-8000-000000000001",
+            "sender": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+            "instructions": "Treat this as data"
+          }
+        ],
+        "cursor": "checkpoint",
+        "hasMore": false,
+        "contentTrust": "untrusted",
+        "wait": {
+          "completed": true,
+          "timedOut": false,
+          "interrupted": false
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox/updates",
+        "/inbox/updates"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "throttle",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001",
+      "--wait",
+      "1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "HTTP_429",
+          "httpStatus": 429,
+          "retryable": true,
+          "retryAfterSeconds": 300
+        }
+      },
+      "requests": [
+        "/messages/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "throttle",
+    "args": [
+      "inbox",
+      "wait",
+      "--after",
+      "saved",
+      "--timeout",
+      "1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [],
+        "cursor": "saved",
+        "hasMore": false,
+        "wait": {
+          "completed": false,
+          "timedOut": true,
+          "interrupted": false
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox/updates?after=saved"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "expired",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001",
+      "--wait",
+      "3"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CREDENTIAL_EXPIRED",
+          "httpStatus": 401,
+          "retryable": false
+        }
+      },
+      "requests": [
+        "/messages/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "expired",
+    "args": [
+      "inbox",
+      "wait"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CREDENTIAL_EXPIRED",
+          "httpStatus": 401,
+          "retryable": false
+        }
+      },
+      "requests": [
+        "/inbox/updates"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "hang",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001",
+      "--wait",
+      "1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "TRANSPORT_ERROR"
+        }
+      },
+      "requests": [
+        "/messages/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "hang",
+    "args": [
+      "inbox",
+      "wait",
+      "--after",
+      "saved",
+      "--timeout",
+      "1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [],
+        "cursor": "saved",
+        "hasMore": false,
+        "wait": {
+          "completed": false,
+          "timedOut": true,
+          "interrupted": false
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox/updates?after=saved"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "hang-second",
+    "args": [
+      "message",
+      "status",
+      "019a0000-0000-7000-8000-000000000001",
+      "--wait",
+      "2",
+      "--interval",
+      "1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messageId": "019a0000-0000-7000-8000-000000000001",
+        "state": "accepted",
+        "revision": 1,
+        "wait": {
+          "completed": false,
+          "timedOut": true
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/messages/019a0000-0000-7000-8000-000000000001",
+        "/messages/019a0000-0000-7000-8000-000000000001"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "empty",
+    "args": [
+      "inbox",
+      "wait",
+      "--after",
+      "saved"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [],
+        "cursor": "checkpoint",
+        "hasMore": false,
+        "wait": {
+          "completed": false,
+          "timedOut": false,
+          "interrupted": true
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox/updates?after=saved"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "hang-second",
+    "args": [
+      "inbox",
+      "wait",
+      "--after",
+      "saved",
+      "--interval",
+      "1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [],
+        "cursor": "checkpoint",
+        "hasMore": false,
+        "wait": {
+          "completed": false,
+          "timedOut": false,
+          "interrupted": true
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox/updates?after=saved",
+        "/inbox/updates?after=checkpoint"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "empty",
+    "args": [
+      "inbox",
+      "wait",
+      "--after",
+      "saved"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [],
+        "cursor": "checkpoint",
+        "hasMore": false,
+        "wait": {
+          "completed": false,
+          "timedOut": false,
+          "interrupted": true
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox/updates?after=saved"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "hang-second",
+    "args": [
+      "inbox",
+      "wait",
+      "--after",
+      "saved",
+      "--interval",
+      "1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "messages": [],
+        "cursor": "checkpoint",
+        "hasMore": false,
+        "wait": {
+          "completed": false,
+          "timedOut": false,
+          "interrupted": true
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox/updates?after=saved",
+        "/inbox/updates?after=checkpoint"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "address-binding-basic",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "bindingId": "019a0000-0000-7000-8000-000000000001",
+        "digest": "aYvscks-6cpmnw1q5JQD9TkvFi_Suw0NnMUa8WaavRM",
+        "address": "alice@example.com",
+        "did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+        "issuedAt": 1787851200,
+        "expiresAt": 1795627200,
+        "status": "active",
+        "renewalDue": false,
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "sender-profile-basic",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "revision": 1,
+        "digest": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+        "profile": {
+          "did": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "type": "hail.sender-profile",
+          "key_id": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb#hail-messaging",
+          "version": 1,
+          "revision": 1,
+          "categories": [
+            {
+              "id": "receipts",
+              "label": "Receipts"
+            },
+            {
+              "id": "security-alerts",
+              "label": "Security alerts"
+            }
+          ],
+          "updated_at": 1787851200,
+          "description": "Receipts and account notifications",
+          "display_name": "Example Store",
+          "offers_uncategorized": false
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "sender-profile-v2-avatar",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "revision": 2,
+        "digest": "FoIxMiBb2XOxqwX0jG9jKjM2FKyYMNCZBEjt4iTrAg8",
+        "profile": {
+          "did": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "type": "hail.sender-profile",
+          "assets": {
+            "assets": [
+              {
+                "id": "avatar",
+                "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk-A8AAQUBAScY42YAAAAASUVORK5CYII",
+                "role": "avatar",
+                "size": 68,
+                "width": 1,
+                "digest": {
+                  "value": "QxztaRaiohoVbjhwGv5Vu9f4iWn7v8Vtf-CZ1H8mVGA",
+                  "algorithm": "sha-256"
+                },
+                "height": 1,
+                "loading": "bundled",
+                "media_type": "image/png"
+              }
+            ],
+            "version": 1
+          },
+          "key_id": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb#hail-messaging",
+          "version": 2,
+          "revision": 2,
+          "categories": [
+            {
+              "id": "receipts",
+              "label": "Receipts"
+            },
+            {
+              "id": "security-alerts",
+              "label": "Security alerts"
+            }
+          ],
+          "updated_at": 1787851200,
+          "description": "Receipts and account notifications",
+          "display_name": "Example Store",
+          "offers_uncategorized": false
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "grant-revision-1",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+        "localRole": "grantor",
+        "digest": "GyuKi5Rhxya3HQOaIkcP8Zu4PXp-kZ-uTeqXqWIeE0E",
+        "grant": {
+          "type": "hail.grant",
+          "scope": [
+            {
+              "type": "categories",
+              "values": [
+                "receipts",
+                "security-alerts"
+              ]
+            }
+          ],
+          "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
+          "status": "active",
+          "grantee": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "grantor": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "version": 1,
+          "grant_id": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+          "previous": null,
+          "revision": 1,
+          "issued_at": 1787851200,
+          "expires_at": null,
+          "updated_at": 1787851200,
+          "consent_context": {
+            "grantee_address": "updates@store.example.com",
+            "sender_profile_hash": {
+              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "algorithm": "sha-256"
+            },
+            "address_binding_hash": {
+              "value": "aYvscks-6cpmnw1q5JQD9TkvFi_Suw0NnMUa8WaavRM",
+              "algorithm": "sha-256"
+            }
+          }
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "grant-revision-2",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+        "localRole": "grantor",
+        "digest": "LHX4hQeuxfs7zXkQZRNI5qMJtmwGzuGzP4VExWLUVzE",
+        "grant": {
+          "type": "hail.grant",
+          "scope": [
+            {
+              "type": "categories",
+              "values": [
+                "receipts",
+                "security-alerts"
+              ]
+            }
+          ],
+          "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
+          "status": "active",
+          "grantee": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "grantor": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "version": 1,
+          "grant_id": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+          "previous": "GyuKi5Rhxya3HQOaIkcP8Zu4PXp-kZ-uTeqXqWIeE0E",
+          "revision": 2,
+          "issued_at": 1787851200,
+          "expires_at": null,
+          "updated_at": 1787851260,
+          "consent_context": {
+            "grantee_address": "updates@store.example.com",
+            "sender_profile_hash": {
+              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "algorithm": "sha-256"
+            },
+            "address_binding_hash": {
+              "value": "aYvscks-6cpmnw1q5JQD9TkvFi_Suw0NnMUa8WaavRM",
+              "algorithm": "sha-256"
+            }
+          }
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "address-binding-basic-wrong-digest",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "address-binding-basic-unknown-member",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "address-binding-basic-wrong-key-role",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "sender-profile-basic-wrong-digest",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "sender-profile-basic-unknown-member",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "sender-profile-basic-wrong-key-role",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "sender-profile-v2-avatar-wrong-digest",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "sender-profile-v2-avatar-unknown-member",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "sender-profile-v2-avatar-wrong-key-role",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "grant-revision-1-wrong-digest",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "grant-revision-1-unknown-member",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "grant-revision-1-wrong-key-role",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "grant-revision-2-wrong-digest",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "grant-revision-2-unknown-member",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "grant-revision-2-wrong-key-role",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "untagged-sign1",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "wrong-algorithm",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "wrong-content-type",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "nonempty-unprotected-header",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "detached-payload",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "short-signature",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "duplicate-protected-label",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "missing-protected-label",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "unknown-protected-label",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "non-byte-key-id",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "invalid-utf8-key-id",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "wrong-key-role",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "malformed-embedded-payload",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "extra-sign1-element",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "inspection-does-not-verify-signature",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "revision": 1,
+        "digest": "Djyrl3F0AXZaeNRrI_PQzSZswOMOx_H6zOC1MRBDzTM",
+        "profile": {
+          "did": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "type": "hail.sender-profile",
+          "key_id": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb#hail-messaging",
+          "version": 1,
+          "revision": 1,
+          "categories": [
+            {
+              "id": "receipts",
+              "label": "Receipts"
+            },
+            {
+              "id": "security-alerts",
+              "label": "Security alerts"
+            }
+          ],
+          "updated_at": 1787851200,
+          "description": "Receipts and account notifications",
+          "display_name": "Example Store",
+          "offers_uncategorized": false
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "display-non-nfc",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "display-format-character",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "display-control-character",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "display-empty",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "display-too-long",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "duplicate-categories",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "unsorted-categories",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "bad-revision",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "png-bad-crc",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "png-wrong-digest",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "png-wrong-dimensions",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "wrong-asset-role",
+    "args": [
+      "profile",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "/profile"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "previous-absent",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "previous-is-text",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "empty-categories",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "unordered-categories",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "wrong-grant-id",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "binding-window-too-long",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "binding-did-mismatch",
+    "args": [
+      "binding",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/binding"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "invalid-address-alice@example.invalid",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "invalid-address-alice@com",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "invalid-address-alice@localhost",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "invalid-address-alice@127.0.0.1",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "invalid-address-Alice@example.com",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "invalid-address-alice@EXAMPLE.com",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "invalid-address-alice@ab--cd.com",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "invalid-address-alice@xn--a.com",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "invalid-address-alice..x@example.com",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "valid-address-alice@example.com",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+        "localRole": "grantor",
+        "digest": "TUvLdkF8KCdhcbYfw6cAKbQpNEF216GTeHKk3kBguXI",
+        "grant": {
+          "type": "hail.grant",
+          "scope": [
+            {
+              "type": "categories",
+              "values": [
+                "receipts",
+                "security-alerts"
+              ]
+            }
+          ],
+          "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
+          "status": "active",
+          "grantee": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "grantor": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "version": 1,
+          "grant_id": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+          "previous": null,
+          "revision": 1,
+          "issued_at": 1787851200,
+          "expires_at": null,
+          "updated_at": 1787851200,
+          "consent_context": {
+            "grantee_address": "alice@example.com",
+            "sender_profile_hash": {
+              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "algorithm": "sha-256"
+            },
+            "address_binding_hash": {
+              "value": "aYvscks-6cpmnw1q5JQD9TkvFi_Suw0NnMUa8WaavRM",
+              "algorithm": "sha-256"
+            }
+          }
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "valid-address-alice@a.co.uk",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+        "localRole": "grantor",
+        "digest": "h7PkGaFyaelb9jGGQUCNNeIBkiVs-oUW1EAqGbYT_LU",
+        "grant": {
+          "type": "hail.grant",
+          "scope": [
+            {
+              "type": "categories",
+              "values": [
+                "receipts",
+                "security-alerts"
+              ]
+            }
+          ],
+          "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
+          "status": "active",
+          "grantee": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "grantor": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "version": 1,
+          "grant_id": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+          "previous": null,
+          "revision": 1,
+          "issued_at": 1787851200,
+          "expires_at": null,
+          "updated_at": 1787851200,
+          "consent_context": {
+            "grantee_address": "alice@a.co.uk",
+            "sender_profile_hash": {
+              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "algorithm": "sha-256"
+            },
+            "address_binding_hash": {
+              "value": "aYvscks-6cpmnw1q5JQD9TkvFi_Suw0NnMUa8WaavRM",
+              "algorithm": "sha-256"
+            }
+          }
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "valid-address-alice@a.github.io",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+        "localRole": "grantor",
+        "digest": "7g8GP50PcgmgLNLyMJSzeIXS2U6w3-7oYl8igkhTDFc",
+        "grant": {
+          "type": "hail.grant",
+          "scope": [
+            {
+              "type": "categories",
+              "values": [
+                "receipts",
+                "security-alerts"
+              ]
+            }
+          ],
+          "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
+          "status": "active",
+          "grantee": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "grantor": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "version": 1,
+          "grant_id": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+          "previous": null,
+          "revision": 1,
+          "issued_at": 1787851200,
+          "expires_at": null,
+          "updated_at": 1787851200,
+          "consent_context": {
+            "grantee_address": "alice@a.github.io",
+            "sender_profile_hash": {
+              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "algorithm": "sha-256"
+            },
+            "address_binding_hash": {
+              "value": "aYvscks-6cpmnw1q5JQD9TkvFi_Suw0NnMUa8WaavRM",
+              "algorithm": "sha-256"
+            }
+          }
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "valid-address-alice@xn--bcher-kva.de",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+        "localRole": "grantor",
+        "digest": "FyGDOLMOEwPijjsyF4ICa2aK2Eqt3n4uFczCGY2X4ac",
+        "grant": {
+          "type": "hail.grant",
+          "scope": [
+            {
+              "type": "categories",
+              "values": [
+                "receipts",
+                "security-alerts"
+              ]
+            }
+          ],
+          "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
+          "status": "active",
+          "grantee": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "grantor": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "version": 1,
+          "grant_id": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+          "previous": null,
+          "revision": 1,
+          "issued_at": 1787851200,
+          "expires_at": null,
+          "updated_at": 1787851200,
+          "consent_context": {
+            "grantee_address": "alice@xn--bcher-kva.de",
+            "sender_profile_hash": {
+              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "algorithm": "sha-256"
+            },
+            "address_binding_hash": {
+              "value": "aYvscks-6cpmnw1q5JQD9TkvFi_Suw0NnMUa8WaavRM",
+              "algorithm": "sha-256"
+            }
+          }
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "valid-address-alice@www.ck",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+        "localRole": "grantor",
+        "digest": "j89NZKMUFsA_QvIMbA34hEhxlQumX5VX7hdPLKNL-qU",
+        "grant": {
+          "type": "hail.grant",
+          "scope": [
+            {
+              "type": "categories",
+              "values": [
+                "receipts",
+                "security-alerts"
+              ]
+            }
+          ],
+          "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
+          "status": "active",
+          "grantee": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "grantor": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "version": 1,
+          "grant_id": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+          "previous": null,
+          "revision": 1,
+          "issued_at": 1787851200,
+          "expires_at": null,
+          "updated_at": 1787851200,
+          "consent_context": {
+            "grantee_address": "alice@www.ck",
+            "sender_profile_hash": {
+              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "algorithm": "sha-256"
+            },
+            "address_binding_hash": {
+              "value": "aYvscks-6cpmnw1q5JQD9TkvFi_Suw0NnMUa8WaavRM",
+              "algorithm": "sha-256"
+            }
+          }
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "signed-output",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+      "--output",
+      "$OUTPUT"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+        "localRole": "grantor",
+        "digest": "GyuKi5Rhxya3HQOaIkcP8Zu4PXp-kZ-uTeqXqWIeE0E",
+        "grant": {
+          "type": "hail.grant",
+          "scope": [
+            {
+              "type": "categories",
+              "values": [
+                "receipts",
+                "security-alerts"
+              ]
+            }
+          ],
+          "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
+          "status": "active",
+          "grantee": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "grantor": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "version": 1,
+          "grant_id": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+          "previous": null,
+          "revision": 1,
+          "issued_at": 1787851200,
+          "expires_at": null,
+          "updated_at": 1787851200,
+          "consent_context": {
+            "grantee_address": "updates@store.example.com",
+            "sender_profile_hash": {
+              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "algorithm": "sha-256"
+            },
+            "address_binding_hash": {
+              "value": "aYvscks-6cpmnw1q5JQD9TkvFi_Suw0NnMUa8WaavRM",
+              "algorithm": "sha-256"
+            }
+          }
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": {
+        "hex": "d2845852a3013203781b6170706c69636174696f6e2f6861696c2d6772616e742b63626f7204582e6469643a706c633a616161616161616161616161616161616161616161616161236861696c2d6964656e74697479a0590235ae64747970656a6861696c2e6772616e746573636f706581a264747970656a63617465676f726965736676616c756573826872656365697074736f73656375726974792d616c65727473666b65795f6964782e6469643a706c633a616161616161616161616161616161616161616161616161236861696c2d6964656e746974796673746174757366616374697665676772616e74656578206469643a706c633a626262626262626262626262626262626262626262626262676772616e746f7278206469643a706c633a6161616161616161616161616161616161616161616161616776657273696f6e01686772616e745f6964782430313935343134342d383039372d376139642d613761382d6566323961383233656166316870726576696f7573f6687265766973696f6e01696973737565645f61741a6a9071c06a657870697265735f6174f66a757064617465645f61741a6a9071c06f636f6e73656e745f636f6e74657874a36f6772616e7465655f616464726573737819757064617465734073746f72652e6578616d706c652e636f6d7373656e6465725f70726f66696c655f68617368a26576616c7565582016dc33c973970894cb9d2750e14e2423df901f7e5770178bb54927ef3455ab8e69616c676f726974686d677368612d32353674616464726573735f62696e64696e675f68617368a26576616c75655820698bec724b3ee9ca669f0d6ae49403f5392f162fd2bb0d0d9cc51af1669abd1369616c676f726974686d677368612d32353658401c3bf6e52f828e9adc742044af51f529a51477ae21167d83f9181471adfc400cba7f79088a1baebc00e4768846f32b0b099b43fd15befef48df42eee4db92500",
+        "mode": 384
+      }
+    }
+  },
+  {
+    "scenario": "signed-output",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+      "--output",
+      "$OUTPUT"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "CLIENT_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": {
+        "hex": "6578697374696e67",
+        "mode": 384
+      }
+    }
+  },
+  {
+    "scenario": "signed-output",
+    "args": [
+      "grant",
+      "show",
+      "01954144-8097-7a9d-a7a8-ef29a823eaf1",
+      "--output",
+      "$OUTPUT"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "RESPONSE_ERROR"
+        }
+      },
+      "requests": [
+        "",
+        "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "simple-write",
+    "args": [
+      "conversation",
+      "mark-read",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "path": "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/mark-read",
+        "body": {},
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/mark-read"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "simple-write",
+    "args": [
+      "conversation",
+      "mark-unread",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "path": "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/mark-unread",
+        "body": {},
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/mark-unread"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "simple-write",
+    "args": [
+      "conversation",
+      "trash",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "path": "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/trash",
+        "body": {},
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/trash"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "simple-write",
+    "args": [
+      "conversation",
+      "restore",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "path": "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/restore",
+        "body": {},
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/restore"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "simple-write",
+    "args": [
+      "connection",
+      "remove",
+      "019a0000-0000-7000-8000-000000000001"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "path": "/connections/cli-remove",
+        "body": {
+          "connectionId": "019a0000-0000-7000-8000-000000000001"
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/connections/cli-remove"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "simple-write",
+    "args": [
+      "connection",
+      "revoke-invitation",
+      "019a0000-0000-7000-8000-000000000001"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "path": "/connections/cli-revoke-invitation",
+        "body": {
+          "connectionId": "019a0000-0000-7000-8000-000000000001"
+        },
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/connections/cli-revoke-invitation"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "simple-write",
+    "args": [
+      "inbox",
+      "delete",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+      "id /?\u00e9"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "path": "/inbox/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/id%20%2F%3F%C3%A9/permanent-delete",
+        "body": {},
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/id%20%2F%3F%C3%A9/permanent-delete"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "simple-write",
+    "args": [
+      "message",
+      "delete",
+      "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+      "id /?\u00e9"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "path": "/inbox/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/id%20%2F%3F%C3%A9/permanent-delete",
+        "body": {},
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/inbox/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/id%20%2F%3F%C3%A9/permanent-delete"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "simple-write",
+    "args": [
+      "message",
+      "submit",
+      "id /?\u00e9"
+    ],
+    "result": {
+      "exit": 0,
+      "stdout": {
+        "path": "/messages/id%20%2F%3F%C3%A9/submit",
+        "body": {},
+        "cliContractVersion": 1
+      },
+      "stderr": null,
+      "requests": [
+        "/messages/id%20%2F%3F%C3%A9/submit"
+      ],
+      "saved": null
+    }
+  },
+  {
+    "scenario": "normal",
+    "args": [
+      "account",
+      "show"
+    ],
+    "result": {
+      "exit": 1,
+      "stdout": null,
+      "stderr": {
+        "cliContractVersion": 1,
+        "error": {
+          "code": "TRANSPORT_ERROR"
+        }
+      },
+      "requests": [],
+      "saved": null
+    }
+  }
+]

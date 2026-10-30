@@ -8,6 +8,7 @@
 !apps/plc-monitor/src/**
 !apps/plc-monitor/migrations/**
 !packages/hail-codec-ts/**
+!packages/hail-client-support/**
 !vendor/did-method-plc/package.json
 !vendor/did-method-plc/pnpm-lock.yaml
 !vendor/did-method-plc/pnpm-workspace.yaml

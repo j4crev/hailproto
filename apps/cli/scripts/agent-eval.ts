@@ -162,7 +162,8 @@ async function serve() {
     await checked(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
       "-subj", "/CN=source.example.com", "-addext", "subjectAltName=DNS:source.example.com",
       "-addext", "basicConstraints=critical,CA:TRUE", "-keyout", join(directory, "key.pem"), "-out", join(directory, "cert.pem")]);
-    await checked([process.execPath, "build", "--compile", join(cliRoot, "src/cli/hailp.ts"), "--outfile", join(directory, "hailp")]);
+    await checked(["python3", join(cliRoot, "scripts/build.py")]);
+    await copyFile(join(cliRoot, "dist/hailp"), join(directory, "hailp"));
     fixture = Bun.spawn(["docker", "run", "--rm", "--name", `${container}-provider`, "--network", `container:${container}`,
       "--user", `${process.getuid!()}:${process.getgid!()}`, "--volume", `${repoRoot}:${repoRoot}:ro`,
       "--volume", `${directory}:${directory}:rw`, "--env", "DATABASE_URL=postgresql://postgres@127.0.0.1:5432/hail_agent_eval",

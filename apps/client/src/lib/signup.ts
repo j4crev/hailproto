@@ -1,5 +1,5 @@
 import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
-import { bytes, cipher, validateVault, type UserVaultFile } from "../../../cli/src/vault-crypto.js";
+import { bytes, cipher, validateVault, type UserVaultFile } from "../../../../packages/hail-client-support/src/vault-crypto.js";
 import type { PublicOnboardingPreparation } from "../../../server/src/onboarding/public.js";
 import type { Operation } from "@did-plc/lib";
 

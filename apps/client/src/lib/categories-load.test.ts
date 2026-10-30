@@ -1,5 +1,5 @@
 import {expect, it, vi} from "vitest";
-import {AccountApiError} from "../../../cli/src/account-api.js";
+import {AccountApiError} from "../../../../packages/hail-client-support/src/account-api.js";
 const fixture = vi.hoisted(() => ({profile: vi.fn(), account: {did: 'did:plc:' + 'a'.repeat(24), address: 'alice@example.com'}}));
 vi.mock("$lib/server/canary.js", () => ({ORIGIN: "https://example.com", canaryAccount: async () => ({account: fixture.account, client: {profile: fixture.profile}})}));
 import {load} from "../routes/categories/+page.server.js";

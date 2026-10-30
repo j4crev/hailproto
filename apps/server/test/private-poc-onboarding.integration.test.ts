@@ -3,7 +3,7 @@ import { cidForCbor } from "@atproto/common";
 import { formatDidDoc, PlcClientError, type Operation } from "@did-plc/lib";
 import { encodeBase64Url, inspectSignedPayload, type HailAddressBinding } from "@hailproto/codec";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createUserVault, unlockUserVault } from "../../cli/src/vault.js";
+import { createUserVault, unlockUserVault } from "./client-support/vault.js";
 import type { ProviderDatabase } from "../src/db/database.js";
 import { KeyEncryptor } from "../src/identity/key-encryption.js";
 import { ActivationService } from "../src/onboarding/activation.js";

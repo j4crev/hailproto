@@ -5,8 +5,8 @@ import { formatDidDoc, PlcClientError, validateOperationLog, type Operation } fr
 import { encodeBase64Url, decodeBase64Url, inspectSignedPayload } from "@hailproto/codec";
 import { expect, it, vi } from "vitest";
 import { Hono } from "hono";
-import { createUserVault, unlockUserVault } from "../../cli/src/vault.js";
-import { verifyUserVault } from "../../cli/src/vault-crypto.js";
+import { createUserVault, unlockUserVault } from "./client-support/vault.js";
+import { verifyUserVault } from "../../../packages/hail-client-support/src/vault-crypto.js";
 import worker, { AlertDeduplicator, type Env } from "../../plc-monitor/deploy/cloudflare-alert-worker/worker.js";
 import type { DurableStorage, EmailBinding } from "../../plc-monitor/deploy/cloudflare-alert-worker/signup-email.js";
 import { MonitorDatabase } from "../../plc-monitor/src/database.js";

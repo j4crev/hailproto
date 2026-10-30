@@ -5,8 +5,8 @@ import {join} from "node:path";
 import {createSignupBackup,signSignupGenesis,encodeBase64Url} from "./signup-recovery.js";
 import {makeRecoveryPackage,openRecoveryPackage} from "./signup-package.js";
 import {pendingKey,setupToken,type PendingSignup} from "./signup.js";
-import {extractRecoveryVault} from "../../../cli/src/recovery-package.js";
-import {verifyVaultFile,copyVerifiedVault} from "../../../cli/src/vault-backup.js";
+import {extractRecoveryVault} from "../../../../packages/hail-client-support/src/recovery-package.js";
+import {verifyVaultFile,copyVerifiedVault} from "../../../server/test/client-support/vault-backup.js";
 
 it("one saved kit resumes exact signup and imports a v1 recovery vault offline, rejecting swapped or damaged material",async()=>{
   const [owner,provider,messaging]=await Promise.all([createSignupBackup(),createSignupBackup(),createSignupBackup()]);

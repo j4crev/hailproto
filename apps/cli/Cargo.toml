@@ -1,0 +1,40 @@
+[package]
+name = "hail-cli"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "hailp"
+path = "src/main.rs"
+
+[dependencies]
+aes-gcm = "0.10"
+ed25519-dalek = { version = "2", features = ["pkcs8", "rand_core", "zeroize"] }
+p256 = { version = "0.13", features = ["ecdsa"] }
+k256 = { version = "0.13", features = ["ecdsa"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+zeroize = { version = "1", features = ["alloc"] }
+bs58 = "0.5"
+data-encoding = "2"
+rpassword = "7"
+base64 = "0.22"
+sha2 = "0.10"
+unicode-normalization = "0.1"
+unicode-general-category = "1"
+idna = "1"
+psl = "2"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+httpdate = "1"
+regex = { version = "1", default-features = false, features = ["std", "perf"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["rt", "macros", "time", "signal", "net", "io-util", "process"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

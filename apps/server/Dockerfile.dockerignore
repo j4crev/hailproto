@@ -10,10 +10,10 @@ apps/server/src/cli/**
 !apps/server/src/cli/compact-plc-evidence.ts
 !apps/server/migrations/**
 !apps/cli/package.json
-!apps/cli/src/**
 !apps/plc-monitor/package.json
 !apps/client/**
 !packages/hail-codec-ts/**
+!packages/hail-client-support/**
 !vendor/did-method-plc/package.json
 !vendor/did-method-plc/pnpm-lock.yaml
 !vendor/did-method-plc/pnpm-workspace.yaml

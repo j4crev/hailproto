@@ -1,51 +1,53 @@
-# Build and install the TypeScript hailp CLI
+# Build and install hailp
 
-Build from a reviewed monorepo revision and its pinned `vendor/did-method-plc`
-submodule. Dependencies resolve through committed lockfiles. No provider credentials,
-database, vault or live account are needed for installation or offline smoke checks.
+The default executable is native Rust. Linux x86-64 is the supported release
+platform; users need system CA roots and the normal Linux C runtime, but no Bun,
+Node, pnpm or Rust installation to run a release binary.
 
-## Toolchain and checkout
+## Build from source
 
-The clean-install verifier requires Bun 1.4.0, Node 26.7.0 and pnpm 11.11.0, plus
-Git and tar on Linux x64. Node/pnpm build the PLC dependency. The compiled CLI bundles
-the Bun runtime; end users do not need those build tools or sibling repositories.
+Build a reviewed revision with rustup, a C linker and Python 3 installed. Rust
+1.97.1 and Cargo dependencies are pinned in `apps/cli`. No provider credentials,
+database, vault or live account is needed.
 
 ```bash
-git clone --recurse-submodules https://github.com/j4crev/hailproto.git
+git clone https://github.com/j4crev/hailproto.git
 cd hailproto
-# Select a reviewed release and retain its SHA with the installed binary.
-git submodule update --init --recursive
-pnpm --dir vendor/did-method-plc install --frozen-lockfile
-pnpm --dir vendor/did-method-plc --filter @did-plc/lib build
-bun install --frozen-lockfile
-bun run --cwd packages/hail-codec-ts build
-bun run --cwd apps/cli build
-bun run --cwd apps/cli smoke
-bun run --cwd apps/cli smoke -- dist/hailp
+python3 apps/cli/scripts/build.py
 install -Dm755 apps/cli/dist/hailp "$HOME/.local/bin/hailp"
 hailp --version
 hailp account show --help
 ```
 
-Put `$HOME/.local/bin` on PATH. The TypeScript build currently targets
-`bun-linux-x64-baseline` and embeds the package version. HTTPS verification remains
-enabled; keep normal trust configuration and private credentials/vaults separate.
-The package remains private; building a binary is not registry publication.
+Alternatively, run `cargo build --release --locked` inside `apps/cli` and install
+`target/release/hailp` directly. Put `$HOME/.local/bin` on PATH. HTTPS certificate
+verification remains enabled; keep private credentials and vaults separate.
 
-For development, use `bun run --cwd apps/cli hailp -- ...`. Integration tests import
-provider code from the same workspace; no separate provider checkout is required.
+Tagged releases retain `hailp-<version>-linux-x64.tar.gz` and its SHA-256 checksum.
+Verify the checksum before extracting and installing the executable. Builds on
+newer Linux distributions may require a newer glibc; cross-distribution static
+binaries are not currently promised. The package remains private; a local build
+is not registry publication.
 
-## Fresh-environment verification
+## Development
 
-From the repository root:
+Workspace development and test fixtures use Bun 1.4.0, Node 26.7.0 and pnpm
+11.11.0 with the pinned PLC submodule. Install those dependencies, then
+`bun run build:cli` builds the native executable and `bun run test:cli` runs its
+unit and workflow regressions. The `package.json` in this directory only connects
+native builds and test tooling to the monorepo; no TypeScript CLI remains.
+
+Existing credential/vault and retry formats remain supported. When resuming a
+write, preserve its exact arguments and saved files.
+
+## Fresh-install verification
 
 ```bash
-bun run --cwd apps/cli verify:install
+python3 apps/cli/scripts/verify-install.py
 ```
 
-The verifier copies candidate workspace source without `node_modules`/build output,
-archives the checked-out PLC dependency, performs frozen installs and builds, and
-checks help/version/errors plus offline vault creation/verification through source
-and binary. It removes its temporary tree afterward. Registry access or a populated
-cache is required. This is a clean-filesystem check, not a byte-identical build or
-cross-platform distribution guarantee.
+This copies only Rust source and lockfiles into a disposable tree, builds it,
+packages and verifies a checksum, extracts the executable, and checks offline
+help/errors and private vault creation/verification with an empty `PATH`. It needs
+registry access or a populated Cargo cache. It proves an isolated installation
+without Bun/Node at runtime, not byte-identical builds or universal Linux support.

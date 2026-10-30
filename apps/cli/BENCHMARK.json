@@ -1,0 +1,35 @@
+{
+  "platform": "Linux-7.2.8-9-omarchy-x86_64-with-glibc2.44",
+  "architecture": "x86_64",
+  "method": "Warm local process wall time, 3 warmups then 30 samples; no network",
+  "results": [
+    {
+      "binary": "hailp",
+      "bytes": 6387752,
+      "version": {
+        "median_ms": 0.676,
+        "min_ms": 0.582,
+        "samples": 30
+      },
+      "vault_verify": {
+        "median_ms": 1.591,
+        "min_ms": 1.543,
+        "samples": 30
+      }
+    },
+    {
+      "binary": "hailp-typescript",
+      "bytes": 110430384,
+      "version": {
+        "median_ms": 60.725,
+        "min_ms": 55.899,
+        "samples": 30
+      },
+      "vault_verify": {
+        "median_ms": 103.029,
+        "min_ms": 98.914,
+        "samples": 30
+      }
+    }
+  ]
+}

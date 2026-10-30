@@ -1,39 +1,29 @@
 {
-  "name": "hail-cli-ts",
+  "name": "hail-cli",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.4.0",
-  "bin": { "hailp": "src/cli/hailp.ts" },
+  "bin": {
+    "hailp": "dist/hailp"
+  },
   "scripts": {
-    "hailp": "bun src/cli/hailp.ts",
-    "transfer:grant": "bun src/cli/create-transfer-grant.ts",
-    "transfer:submit-grant": "bun src/cli/submit-transfer-grant.ts",
-    "transfer:select": "bun src/cli/select-transfer-address.ts",
-    "transfer:cancel": "bun src/cli/cancel-transfer.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "build": "tsc -p tsconfig.cli.json && bun run build:binary",
-    "build:binary": "bun build --compile --target=bun-linux-x64-baseline src/cli/hailp.ts --outfile dist/hailp",
+    "build": "python3 scripts/build.py",
+    "hailp": "./dist/hailp",
+    "test": "cargo test --locked",
+    "test:workflows": "bun tests/compatibility.ts && bun tests/vault-compatibility.ts && bun tests/transfer-e2e.ts && python3 tests/terminal-input.py target/debug/hailp",
     "smoke": "bun scripts/smoke.ts",
-    "verify:install": "bun scripts/verify-install.ts",
+    "verify:install": "python3 scripts/verify-install.py",
     "eval:agents": "bun scripts/agent-eval.ts",
     "smoke:connections": "bun scripts/connection-smoke.ts",
-    "eval:connections": "bun scripts/connection-eval.ts",
-    "test": "bun --bun vitest run",
-    "vault:create": "bun src/cli/create-vault.ts",
-    "vault:verify": "bun src/cli/verify-vault.ts"
+    "eval:connections": "bun scripts/connection-eval.ts"
   },
-  "dependencies": {
+  "devDependencies": {
+    "@hailproto/codec": "workspace:*",
+    "@hailproto/client-support": "workspace:*",
     "@atproto/common": "0.8.1",
     "@atproto/crypto": "0.5.4",
     "@did-plc/lib": "file:../../vendor/did-method-plc/packages/lib",
-    "@hailproto/codec": "workspace:*",
     "@ipld/dag-cbor": "9.2.7",
     "multiformats": "13.4.2"
-  },
-  "devDependencies": {
-    "@types/bun": "1.4.2",
-    "typescript": "7.0.2",
-    "vitest": "5.0.5"
   }
 }

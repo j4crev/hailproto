@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import packageInfo from "../package.json" with { type: "json" };
 
 // A supplied executable is tested without Bun as its launcher.
-const command = Bun.argv[2] ? [resolve(Bun.argv[2])] : [process.execPath, new URL("../src/cli/hailp.ts", import.meta.url).pathname];
+const command = [Bun.argv[2] ? resolve(Bun.argv[2]) : new URL("../dist/hailp", import.meta.url).pathname];
 async function run(args: string[], input = "") {
   const child = Bun.spawn([...command, ...args], {
     env: { ...process.env, HAILP_CREDENTIAL_FILE: "" }, stdin: "pipe", stdout: "pipe", stderr: "pipe",
@@ -47,4 +47,4 @@ try {
   assert.equal(verified.stderr, "");
   assert.ok(!(created.stdout + created.stderr + verified.stdout + verified.stderr).includes(secret.trim()));
 } finally { await rm(directory, { recursive: true, force: true }); }
-console.info(`hailp ${packageInfo.version} smoke passed (${Bun.argv[2] ? "compiled binary" : "Bun source"})`);
+console.info(`hailp ${packageInfo.version} smoke passed (native binary)`);

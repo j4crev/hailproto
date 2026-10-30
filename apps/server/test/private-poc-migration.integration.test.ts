@@ -9,10 +9,10 @@ import { decodeBase64Url, decodeDeterministic, encodeBase64Url, inspectSignedPay
    createWebCryptoSigner,signPayload,type HailGrant,type HailEnvelope,type HailAddressBinding,type HailSenderProfile } from "@hailproto/codec";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createUserVault, unlockUserVault,unlockUserIdentity } from "../../cli/src/vault.js";
-import { AccountApiClient } from "../../cli/src/account-api.js";
-import { transferOffer,selectTransferAddress,exportTransferSnapshot,completeAccountTransfer,signAccountTransferCutover } from "../../cli/src/account-transfer.js";
-import { loginAccount } from "../../cli/src/account-login.js";
+import { createUserVault, unlockUserVault,unlockUserIdentity } from "./client-support/vault.js";
+import { AccountApiClient } from "../../../packages/hail-client-support/src/account-api.js";
+import { transferOffer,selectTransferAddress,exportTransferSnapshot,completeAccountTransfer,signAccountTransferCutover } from "./client-support/account-transfer.js";
+import { loginAccount } from "./client-support/account-login.js";
 import { AccountAccess } from "../src/accounts/access.js";
 import {PasskeyAuth} from "../src/accounts/passkeys.js";
 import { PrivatePocTransferCompletion } from "../src/migration/poc-completion.js";

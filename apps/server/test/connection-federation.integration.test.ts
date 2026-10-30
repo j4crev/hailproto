@@ -70,7 +70,7 @@ import {registerConnectionSourceRoutes,registerManagedTransferRoutes} from '../s
 import {encodeManagedHandshake,managedHandshakeSignatureInput,managedHandshakeDigest,type ManagedTransferGrant,type ManagedTransferAddressSelection,type ManagedTransferApproval} from '../src/migration/managed-handshake.js';
 import {connectionCancellationInput} from '../src/migration/connection-cancellation.js';
 import {AccountAccess} from '../src/accounts/access.js';
-import {accountAccessInput} from '../../cli/src/account-access-proof.js';
+import {accountAccessInput} from './client-support/account-access-proof.js';
 import {virtualPasskey} from './support/virtual-passkey.js';
 import {MigrationFenceService} from '../src/migration/fence.js';
 import {MigrationTransferService} from '../src/migration/transfer.js';

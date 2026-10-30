@@ -30,6 +30,20 @@ jobs:
           pnpm --dir vendor/did-method-plc --filter @did-plc/lib build
           bun install --frozen-lockfile
           bun run --cwd packages/hail-codec-ts build
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
+      - name: Verify native CLI parity
+        working-directory: apps/cli
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+          cargo build --release --locked
+          bun tests/compatibility.ts target/release/hailp
+          bun tests/vault-compatibility.ts target/release/hailp
+          bun tests/transfer-e2e.ts target/release/hailp
+          python3 tests/terminal-input.py target/release/hailp
+          python3 scripts/verify-install.py
       - name: Build and verify hailp
         working-directory: apps/cli
         run: |

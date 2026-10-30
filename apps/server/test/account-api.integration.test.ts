@@ -6,8 +6,8 @@ import { createWebCryptoSigner, encodeBase64Url, signPayload, type HailAddressBi
   type HailSenderProfile } from "@hailproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createUserVault, unlockUserVault } from "../../cli/src/vault.js";
-import { signGrantRevocation } from "../../cli/src/grant-revocation.js";
+import { createUserVault, unlockUserVault } from "./client-support/vault.js";
+import { signGrantRevocation } from "./client-support/grant-revocation.js";
 import { AccountApiRepository } from "../src/accounts/repository.js";
 import { createApp } from "../src/app.js";
 import type { AppConfig } from "../src/config.js";

@@ -3,6 +3,7 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+target/
 .env
 apps/*/deploy/**/secrets/
 apps/plc-monitor/deploy/cloudflare-alert-worker/.dev.vars*

@@ -14,6 +14,7 @@ COPY apps/server/package.json ./apps/server/package.json
 COPY apps/cli/package.json ./apps/cli/package.json
 COPY apps/plc-monitor/package.json ./apps/plc-monitor/package.json
 COPY packages/hail-codec-ts ./packages/hail-codec-ts
+COPY packages/hail-client-support ./packages/hail-client-support
 COPY --from=plc-lib-build /workspace/hailproto/vendor/did-method-plc ./vendor/did-method-plc
 RUN bun install --frozen-lockfile
 RUN bun run --cwd packages/hail-codec-ts build
@@ -25,6 +26,7 @@ COPY apps/server/package.json ./apps/server/package.json
 COPY apps/cli/package.json ./apps/cli/package.json
 COPY apps/plc-monitor/package.json ./apps/plc-monitor/package.json
 COPY --from=build /workspace/hailproto/packages/hail-codec-ts ./packages/hail-codec-ts
+COPY --from=build /workspace/hailproto/packages/hail-client-support ./packages/hail-client-support
 COPY --from=build /workspace/hailproto/vendor/did-method-plc ./vendor/did-method-plc
 RUN bun install --production --frozen-lockfile
 

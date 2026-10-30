@@ -27,6 +27,8 @@ jobs:
           pnpm --dir vendor/did-method-plc install --frozen-lockfile
           pnpm --dir vendor/did-method-plc --filter @did-plc/lib build
           bun install --frozen-lockfile
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
       - name: Verify workspace
         run: |
           bun run typecheck
@@ -36,3 +38,16 @@ jobs:
         run: |
           docker build -f apps/server/Dockerfile .
           docker build -f apps/plc-monitor/Dockerfile .
+      - name: Verify native CLI
+        working-directory: apps/cli
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+          cargo build --release --locked
+          bun tests/compatibility.ts target/release/hailp
+          bun tests/vault-compatibility.ts target/release/hailp
+          bun tests/transfer-e2e.ts target/release/hailp
+          python3 tests/terminal-input.py target/release/hailp
+          bun scripts/smoke.ts target/release/hailp
+          python3 scripts/verify-install.py

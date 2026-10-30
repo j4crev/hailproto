@@ -14,8 +14,8 @@ import type { KeyEncryptor } from "../src/identity/key-encryption.js";
 import { OnboardingRepository } from "../src/onboarding/repository.js";
 import type { HailDidResolver } from "../src/plc/resolver.js";
 import type { VerifiedSenderProfile } from "../src/profiles/store.js";
-import { createUserVault, unlockUserVault } from "../../cli/src/vault.js";
-import { signGrantRevocation } from "../../cli/src/grant-revocation.js";
+import { createUserVault, unlockUserVault } from "./client-support/vault.js";
+import { signGrantRevocation } from "./client-support/grant-revocation.js";
 
 const integration = process.env.DATABASE_URL ? describe : describe.skip;
 function didKey(key: CryptoKey): Promise<string> {

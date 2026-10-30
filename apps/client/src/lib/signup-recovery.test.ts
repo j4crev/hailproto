@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { createSignupBackup, encodeBase64Url, verifySignupBackup, signSignupGenesis } from "./signup-recovery.js";
-import { unlockUserVault } from "../../../cli/src/vault.js";
+import { unlockUserVault } from "../../../server/test/client-support/vault.js";
 import { assureValidSig, didForCreateOp } from "@did-plc/lib";
 import { cidForCbor } from "@atproto/common";
 import type { PublicOnboardingPreparation } from "../../../server/src/onboarding/public.js";

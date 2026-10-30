@@ -1,4 +1,4 @@
-import type {AccountApiClient} from "../../../../cli/src/account-api.js";
+import type {AccountApiClient} from "../../../../../packages/hail-client-support/src/account-api.js";
 
 // Resolve by verified DID, not the message's display address or historic Grant.
 export async function senderSubscription(client: Pick<AccountApiClient, "request" | "grant">, owner: string, sender: string) {

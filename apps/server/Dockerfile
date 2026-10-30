@@ -17,11 +17,11 @@ COPY apps/cli/package.json ./apps/cli/package.json
 COPY apps/plc-monitor/package.json ./apps/plc-monitor/package.json
 COPY apps/client/package.json ./apps/client/package.json
 COPY packages/hail-codec-ts ./packages/hail-codec-ts
+COPY packages/hail-client-support ./packages/hail-client-support
 COPY --from=plc-lib-build /workspace/hailproto/vendor/did-method-plc ./vendor/did-method-plc
 RUN bun install --frozen-lockfile
 RUN bun run --cwd packages/hail-codec-ts build
 COPY apps/client ./apps/client
-COPY apps/cli/src ./apps/cli/src
 RUN bun run --cwd apps/client build
 
 FROM oven/bun:1.4.0 AS dependencies
@@ -32,6 +32,7 @@ COPY apps/cli/package.json ./apps/cli/package.json
 COPY apps/plc-monitor/package.json ./apps/plc-monitor/package.json
 COPY apps/client/package.json ./apps/client/package.json
 COPY --from=build /workspace/hailproto/packages/hail-codec-ts ./packages/hail-codec-ts
+COPY --from=build /workspace/hailproto/packages/hail-client-support ./packages/hail-client-support
 COPY --from=build /workspace/hailproto/vendor/did-method-plc ./vendor/did-method-plc
 RUN bun install --production --frozen-lockfile
 
@@ -40,6 +41,7 @@ WORKDIR /workspace/hailproto/apps/server
 ENV NODE_ENV=production
 COPY --from=dependencies /workspace/hailproto/node_modules /workspace/hailproto/node_modules
 COPY --from=dependencies /workspace/hailproto/packages/hail-codec-ts /workspace/hailproto/packages/hail-codec-ts
+COPY --from=dependencies /workspace/hailproto/packages/hail-client-support /workspace/hailproto/packages/hail-client-support
 COPY --from=dependencies /workspace/hailproto/apps/server/package.json ./package.json
 COPY --from=dependencies /workspace/hailproto/apps/server/node_modules ./node_modules
 COPY --from=dependencies /workspace/hailproto/apps/client/node_modules /workspace/hailproto/apps/client/node_modules

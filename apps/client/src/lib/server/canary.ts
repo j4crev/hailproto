@@ -1,7 +1,7 @@
 import {accountRead} from "./account-reads.js";
 import { env } from "$env/dynamic/private";
 import { error,redirect } from "@sveltejs/kit";
-import { AccountApiClient,AccountApiError } from "../../../../cli/src/account-api.js";
+import { AccountApiClient,AccountApiError } from "../../../../../packages/hail-client-support/src/account-api.js";
 import {loginPath} from "$lib/auth-routing.js";
 
 export const PROVIDER = env.HAIL_GUI_PROVIDER?.replace(/\/$/,"")||"https://haili.app";

@@ -101,9 +101,10 @@ browser recovery remain separate work.
 ## Repository layout
 
 - [`apps/server`](apps/server): TypeScript provider server, account APIs, delivery workers and custody-transfer runtime.
-- [`apps/cli`](apps/cli): `hailp` reference CLI (`hail-cli-ts`), encrypted user vault and owner-authorized onboarding, recovery and transfer workflows.
+- [`apps/cli`](apps/cli): Native Rust `hailp` CLI, encrypted user vault and owner-authorized onboarding, recovery and transfer workflows.
 - [`apps/client`](apps/client): Browser client for inbox, safe rich-message rendering, composing, replies and sent-message status.
 - [`apps/plc-monitor`](apps/plc-monitor): PLC history monitor, durable coverage and alerting, and signed onboarding/transfer attestations.
+- [`packages/hail-client-support`](packages/hail-client-support): Shared browser vault/recovery and server-side web account transport.
 - [`packages/hail-codec-ts`](packages/hail-codec-ts): TypeScript reference codec.
 - [`packages/hail-codec-go`](packages/hail-codec-go): Go reference codec.
 - [`vendor/did-method-plc`](vendor/did-method-plc): pinned upstream submodule; maintained outside Hail.

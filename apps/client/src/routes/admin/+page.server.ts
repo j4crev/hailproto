@@ -1,7 +1,7 @@
 import type {OperatorStats} from "../../../../server/src/operator/stats.js";
 import {error} from "@sveltejs/kit";
 import {canaryAccount} from "$lib/server/canary.js";
-import {AccountApiError} from "../../../../cli/src/account-api.js";
+import {AccountApiError} from "../../../../../packages/hail-client-support/src/account-api.js";
 
 type Invitation={id:string;email:string|null;created_at:string;expires_at:string;status:string;delivery:string};
 export async function load({cookies,url}){
