@@ -55,7 +55,7 @@
 <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
   <form class="hail-card min-w-0 p-5 sm:p-7" onsubmit={save}>
     <fieldset class="m-0 grid min-w-0 gap-6 border-0 p-0" disabled={busy || !ready || !!data.account.migrationState}>
-      <div class="grid gap-2"><h2 class="m-0 text-xl">{data.revision ? 'Sender profile' : 'Start publishing'}</h2><p class="m-0 text-sm text-muted">Your name, description, and categories are public.</p></div>
+      <div class="grid gap-2"><h2 class="m-0 text-xl">Sender profile</h2><p class="m-0 text-sm text-muted">Your name, description, and categories are public.</p></div>
       <label class="hail-field">Sender name<input bind:value={name} maxlength="128" required autocomplete="off" placeholder="Your name or publication" /></label>
       <label class="hail-field">Description (optional)<input bind:value={description} maxlength="1024" /></label>
       <section class="grid min-w-0 gap-4" aria-label="Publishing categories">

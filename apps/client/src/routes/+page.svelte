@@ -48,7 +48,7 @@
     <div><h2>Choose the topics. Not just the sender.</h2><p>Subscribe to the categories a sender offers; so saying yes to one kind of update doesn’t mean saying yes to all of them.</p></div>
     <div><h2>Your yes isn’t forever.</h2><p>Revoke a sender’s permission to stop new messages under it. You don’t have to wait for the sender to remove you.</p></div>
   </section>
-  <p class="welcome-footer">Built on Hail, an open messaging protocol. Haili is currently an invitation-only alpha.</p>
+  <p class="welcome-footer">Built on Hail, an open messaging protocol.{#if data.registration?.mode === "invite"} Haili is currently an invitation-only alpha.{/if}</p>
 {:else}
   <header class="feed-heading">
     <div><h1 class="hail-title">{data.view === 'connections' ? 'Messages' : 'Inbox'}</h1><p class="feed-description">{data.view === 'connections' ? 'The latest from your connections' : 'The latest from your subscriptions'}</p></div>

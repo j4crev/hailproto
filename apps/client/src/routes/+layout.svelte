@@ -50,13 +50,13 @@
   <a class="hail-button compose-button" href="/compose" aria-current={page.url.pathname === "/compose" ? "page" : undefined}><Icon name="plus" />Compose</a>
   <div class="nav-group"><nav aria-label="Main navigation">{#each navigation as item}<a href={item.href} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} />{item.label}{#if active(item.href)}<span class="active-dot" aria-hidden="true"></span>{/if}</a>{/each}</nav></div>
   {#if page.data.account?.providerOperator}<a class="hail-button-secondary" href="/admin">Provider administration</a>{/if}
-  <div class="nav-bottom"><span class="alpha-label">Haili alpha <span>·</span> Powered by Hail</span></div>
+  <div class="nav-bottom"><span class="alpha-label">Powered by Hail</span></div>
 {/snippet}
 <!-- Full navigation prevents signup/recovery CSP from leaking into the app. -->
 <div class:focused class="app-shell" data-sveltekit-reload={!page.data.hasAccountSession || page.url.pathname === "/signup" || page.url.pathname === "/signup/recovery"}>
   <a class="skip-link" href="#main-content">Skip to content</a>
   {#if focused}
-    <header class="public-header">{@render brand()}{#if page.url.pathname !== "/"}<a class="hail-button-secondary" href="/">{page.data.hasAccountSession ? "Back to inbox" : "Home"}</a>{:else}<span class="alpha-badge">Invitation-only alpha</span>{/if}</header>
+    <header class="public-header">{@render brand()}{#if page.url.pathname !== "/"}<a class="hail-button-secondary" href="/">{page.data.hasAccountSession ? "Back to inbox" : "Home"}</a>{:else if page.data.registration?.mode === "invite"}<span class="alpha-badge">Invitation-only alpha</span>{/if}</header>
   {:else}
     <aside class="sidebar">{@render brand()}{@render links()}<div class="sidebar-account"><UserMenu {address} {avatar} /></div></aside>
     <header class="mobile-header"><button class="icon-button" onclick={openDrawer} aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="mobile-navigation"><Icon name="menu" /></button>{@render brand()}<UserMenu {address} {avatar} compact /></header>
@@ -81,7 +81,6 @@
   .active-dot { width:5px; height:5px; border-radius:50%; background:var(--color-brand); margin-left:auto; }
   .nav-bottom { margin-top:auto; display:grid; gap:24px; }
   .alpha-label { padding:0 14px; font-size:10px; color:var(--color-muted); }
-  .alpha-label span { margin:0 5px; }
   .sidebar-account { border-top:1px solid var(--color-line); padding-top:10px; }
   main { min-width:0; padding:48px clamp(24px,4vw,64px) 80px; }
   .skip-link { position:fixed; top:8px; left:8px; z-index:20; padding:12px; background:var(--color-surface); color:var(--color-brand-strong); transform:translateY(-150%); }

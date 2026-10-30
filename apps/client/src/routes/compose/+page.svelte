@@ -5,7 +5,16 @@
   import { composeBlocks,formatLines } from "$lib/compose.js";
   import {parseBody} from "$lib/messages.js";
   import RichText from "$lib/RichText.svelte";
+  import Icon from "$lib/Icon.svelte";
   let {data,form}=$props();
+  let sentToast=$state(false);
+  const sentPublication=$derived(!form?.error ? data.status?.publicationId : null);
+  $effect(()=>{
+    sentToast=Boolean(sentPublication);
+    if(!sentPublication)return;
+    const timer=setTimeout(()=>{sentToast=false;},5000);
+    return ()=>clearTimeout(timer);
+  });
   let mode=$state("rich"),title=$state(""),text=$state(""),alt=$state(""),caption=$state(""),preview=$state<string|null>(null);
   let editor=$state<HTMLTextAreaElement>();
   let category=$state(untrack(()=>data.defaultCategory));
@@ -37,9 +46,9 @@
 
 <svelte:head><title>{data.forward?"Forward a message":data.kind==="connections"?"Send a message":"Send a hail"} · Haili</title></svelte:head>
 <header class="mb-8 grid gap-2"><h1 class="hail-title">{data.forward?"Forward a message":data.kind==="connections"?"Send a message":"Send a hail"}</h1><p class="m-0 text-sm text-muted [overflow-wrap:anywhere]">From {data.account.address}</p><p class="m-0 text-xs text-muted">{data.kind==="connections"?"Each connection receives a separate, private message.":"Send to everyone subscribed to a category."}</p>{#if !data.forward}<nav class="mt-3 flex flex-wrap gap-2" aria-label="Compose audience"><a class={data.kind==='category'?'hail-button':'hail-button-secondary'} href="/compose" aria-current={data.kind==='category'?'page':undefined}>Subscribers</a><a class={data.kind==='connections'?'hail-button':'hail-button-secondary'} href="/compose?audience=connections" aria-current={data.kind==='connections'?'page':undefined}>Connections</a></nav>{/if}</header>
-{#if data.status && !form?.error}
-  <p class="mb-5 text-sm" role="status">Message sent.</p>
-{/if}
+<div role="status" aria-atomic="true">
+  {#if sentToast}<div class="sent-toast"><Icon name="check" /><span>Message sent.</span></div>{/if}
+</div>
 {#if form?.error}<div class="mb-5"><p class="hail-error" role="alert">{form.error}</p>{#if retryPublication}<a class="hail-back mt-2" href={batchUrl(retryPublication)}>Check original {data.kind==='connections'?'message batch':'publication'} status →</a>{/if}</div>{/if}
 <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
   <form class="hail-card grid min-w-0 gap-6 p-5 sm:p-7" method="POST" use:enhance action={data.kind==='connections'?'?/publish&audience=connections':'?/publish'} enctype="multipart/form-data">
@@ -64,3 +73,7 @@
   </form>
   <section class="hail-card min-h-[260px] min-w-0 p-5 sm:p-7 xl:sticky xl:top-8 xl:min-h-[360px]" aria-label="Message preview"><p class="hail-eyebrow">Preview</p><div class="mt-5 font-serif text-[17px] leading-[1.65] [overflow-wrap:anywhere]">{#if forwarded}<RichText blocks={forwarded.blocks} header={forwarded.header}/>{:else}{#if mode==='rich'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-cover" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}{#if mode==='plain'}<p class="whitespace-pre-wrap">{text}</p>{:else}<RichText {blocks}/>{/if}{#if !text&&(mode==='plain'||!title&&!preview)}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}{/if}</div></section>
 </div>
+
+<style>
+  .sent-toast { position:fixed; z-index:30; bottom:calc(24px + env(safe-area-inset-bottom, 0px)); left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:12px; width:max-content; max-width:calc(100vw - 32px); padding:16px 24px; border:1px solid var(--color-brand); border-radius:14px; background:var(--color-brand-soft); color:var(--color-brand-strong); box-shadow:0 8px 28px #0003; font-size:15px; font-weight:600; pointer-events:none; }
+</style>
