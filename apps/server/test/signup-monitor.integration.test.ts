@@ -31,7 +31,7 @@ import type { PlcDirectoryClient } from "../src/plc/client.js";
 import { PlcHailDidResolver } from "../src/plc/resolver.js";
 import { VerifiedPublicPlcResolver } from "../src/plc/public-resolver.js";
 
-it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false,customDomain:false},{packageFlow:true,publicSignup:false,customDomain:false},{packageFlow:true,publicSignup:true,customDomain:false},{packageFlow:true,publicSignup:false,customDomain:true},{packageFlow:true,publicSignup:true,customDomain:true}])("automates monitored signup ($packageFlow, public: $publicSignup, custom: $customDomain) with restart and terminal authority", async ({packageFlow,publicSignup,customDomain}) => {
+it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false,customDomain:false},{packageFlow:true,publicSignup:false,customDomain:false},{packageFlow:true,publicSignup:true,customDomain:false},{packageFlow:true,publicSignup:false,customDomain:true},{packageFlow:true,publicSignup:true,customDomain:true},{packageFlow:true,publicSignup:true,customDomain:true,standalone:true}])("automates monitored signup ($packageFlow, public: $publicSignup, custom: $customDomain, standalone: $standalone) with restart and terminal authority", async ({packageFlow,publicSignup,customDomain,standalone}) => {
   const admin = new SQL(process.env.DATABASE_URL!), suffix = randomUUID().replaceAll("-", ""), providerSchema = `signup_provider_${suffix}`, monitorSchema = `signup_monitor_${suffix}`;
   await admin.unsafe(`CREATE SCHEMA "${providerSchema}"`); await admin.unsafe(`CREATE SCHEMA "${monitorSchema}"`);
   const databaseUrl = (schema: string) => { const url = new URL(process.env.DATABASE_URL!); url.searchParams.set("options", `-csearch_path=${schema}`); return url.toString(); };
@@ -184,7 +184,14 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
       const domains=new CustomDomains(db.sql,providerOrigin,async()=>[[verificationValue]],async()=>"provider.example.com");
       let customAuthorization: {addressAuthorization:string}|{} = {};
       let address=`browser-${suffix}@provider.example.com`;
-      if(customDomain){
+      if(standalone){
+        address=`alice@standalone-${suffix}.com`;
+        const setup=await domains.standalone.start(address);
+        verificationValue=setup.verificationValue;
+        expect((await domains.standalone.verify(setup.token)).verified).toBe(true);
+        expect(await db.sql`SELECT id FROM account_custom_domains WHERE domain=${setup.domain}`).toHaveLength(0);
+        customAuthorization={addressAuthorization:setup.token};
+      }else if(customDomain){
         const session={account_id:prepared.accountId,canonical_address:prepared.address,did:genesis.did,
           credential_id:randomUUID(),credential_expires_at:new Date(Date.now()+86400000),migration_state:null,
           scopes:["account:read" as const],passkey_credential_id:randomUUID(),serving_generation:1};
@@ -196,7 +203,7 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
       let coordinator=new SignupCoordinator(db.sql,onboarding,monitoring,providerOrigin,policy,inviteKey,domains);
       const accounts=new AccountApiRepository(db.sql),signupApp=new Hono();
       // Forward through a stable route while replacing the controller to simulate restart.
-      registerSignupRoutes(signupApp,{prepare:(...args)=>coordinator.prepare(...args),status:(...args)=>coordinator.status(...args),
+      registerSignupRoutes(signupApp,{domainSetup:domains.standalone,prepare:(...args)=>coordinator.prepare(...args),status:(...args)=>coordinator.status(...args),
         verifyBackup:(...args)=>coordinator.verifyBackup(...args),checkAddress:(...args)=>coordinator.checkAddress(...args),advance:(...args)=>coordinator.advance(...args),complete:(...args)=>coordinator.complete(...args)} as SignupCoordinator,accounts,providerOrigin);
       registerSignupEmailRoutes(signupApp,db.sql,email,providerOrigin);
       const call=(path:string,body?:unknown,cookie?:string)=>signupApp.request(`${providerOrigin}/api/v1/${path}`,{
@@ -222,7 +229,8 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
         expect(await db.sql`SELECT token_hash FROM provider_signup_admissions WHERE token_hash=${createHash("sha256").update(setupToken).digest()}`).toHaveLength(0);
         expect(await db.sql`SELECT id FROM account_signup_ceremonies WHERE id=${id}`).toHaveLength(0);
         expect(await db.sql`SELECT id FROM provider_accounts WHERE canonical_address=${address}`).toHaveLength(0);
-        expect((await db.sql`SELECT consumed_at FROM custom_address_authorizations WHERE canonical_address=${address}`)[0].consumed_at).toBeNull();
+        const authority=standalone?await db.sql`SELECT consumed_at FROM standalone_domain_signups WHERE canonical_address=${address}`:await db.sql`SELECT consumed_at FROM custom_address_authorizations WHERE canonical_address=${address}`;
+        expect(authority[0].consumed_at).toBeNull();
       }
       const created=await call("signup",publicSignup||customDomain?publicRequest:request);expect(created.status).toBe(200);
       if(customDomain)await expect(coordinator.checkAddress({address:request.address,invitation:invite,...customAuthorization})).rejects.toMatchObject({status:403});
@@ -245,9 +253,13 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
           createHash("sha256").update(setupToken).digest(),true,true,tx))).rejects.toThrow("matching consumed signup authorization");
         expect(saved.addressAuthorizationDigest).toBeTypeOf("string");expect(saved.addressAuthorization).toBeUndefined();
       }
+      if(standalone){
+        expect((await db.sql`SELECT account_id FROM account_custom_domains WHERE domain=${address.split("@")[1]}`)[0].account_id).toBe(setup.accountId);
+        await db.sql`UPDATE provider_registration_settings SET mode='invite' WHERE singleton=true`;
+      }
       expect(setup.state).toBe(packageFlow?"recovery-required":"prepared");expect((await call("signup",request)).status).toBe(200);
       expect((await call("signup",{...request,address:`other-${suffix}@${address.split("@")[1]}`})).status).toBe(409);
-      expect((await call("signup",{...request,signupId:randomUUID()})).status).toBe(409); // No second admission.
+      expect((await call("signup",{...request,signupId:randomUUID()})).status).toBe(standalone?403:409); // No second admission.
       expect((await call(`signup/${id}/advance`,{operation:genesis.operation,enrollmentToken})).status).toBe(packageFlow?409:400);
       expect((await db.sql<{operation_bytes:Uint8Array|null}[]>`SELECT operation_bytes FROM account_signup_ceremonies WHERE id=${id}`)[0]!.operation_bytes).toBeNull();
       const browserOwner=await unlockUserVault(browserVault.vault,browserVault.recoverySecret),p=setup.preparation;
@@ -358,6 +370,12 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
       expect((await call("signup",request)).status).toBe(403);
       await expect(passkeys.recoveryOptions(enrollmentToken)).rejects.toMatchObject({status:401});
       expect(await accounts.authenticate(undefined,session.token)).not.toBeNull();
+      if(standalone){
+        const owner=(await accounts.authenticate(undefined,session.token))!;
+        const owned=await domains.list(owner);
+        expect(owned.domains).toHaveLength(1);
+        expect((await domains.authorizeAddress(owner,owned.domains[0]!.id,`second@${owned.domains[0]!.domain}`)).address).toBe(`second@${owned.domains[0]!.domain}`);
+      }
       expect(await db.sql`SELECT id FROM account_api_credentials`).toHaveLength(0);
       expect((await db.sql<{signup_token_hash:Uint8Array|null}[]>`SELECT signup_token_hash FROM public_onboarding_preparations WHERE account_id=${setup.accountId}`)[0]!.signup_token_hash).toBeNull();
       await expect(db.sql`UPDATE account_signup_ceremonies SET completed_at=NULL,completed_by=NULL WHERE id=${id}`).rejects.toThrow("cannot be replaced");

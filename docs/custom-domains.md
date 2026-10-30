@@ -3,14 +3,16 @@
 Status: incremental implementation. Provider-side DNS discovery, domain
 registration, and authorized custom-domain browser signup are implemented.
 Custom-domain binding renewal and domain-loss safeguards are implemented.
-Domain withdrawal/reassignment and a live pilot remain pending; no live domain
-or deployment has been changed.
+The existing custom-domain flow has been deployed and the user confirmed sending
+and replying from their custom address. Standalone signup is implemented locally;
+its deployment and live pilot remain pending. Domain withdrawal/reassignment is deferred.
 
 ## Agreed product model
 
 - [x] Use separate accounts for `j4@haili.app` and `j4@j4crev.com`: distinct
   DIDs, Sender Profiles, inboxes, permissions, recovery material, and logins.
-- [x] Start domain administration from an existing native-domain account.
+- [x] Allow domain administration from an existing active account, or bootstrap
+  directly into a custom-domain account while public registration is enabled.
   Domain administration must not confer access to another account's keys or inbox.
 - [x] Keep login, passkeys, and Hail service hosting on the provider origin.
 - [x] Use DNS delegation without requiring a webserver on the custom domain.
@@ -87,7 +89,7 @@ claiming DNS-delegation support.
 ### Registration implementation notes
 
 Migration 0087 adds provider-local `account_custom_domains`. Registration requires
-an active native-domain account signed in through its passkey session. This does
+an active public account signed in through its passkey session (native or custom domain). This does
 not require a provider-operator role and gives no access to another account's
 messages or signing keys. These administration records are not transferred with
 account snapshots; domain administration transfer remains future work.
@@ -121,12 +123,12 @@ The Settings UI has not been exercised in a live browser or deployed.
 ### Exact-address authorization implementation notes
 
 Migration 0088 stores provider-local address authorizations. A passkey-authenticated
-native account can request `POST /api/v1/account/custom-domains/:id/authorize-address`
+account can request `POST /api/v1/account/custom-domains/:id/authorize-address`
 with `{"address":"alice@example.com"}` under its verified domain. The response
 contains `authorizationId`, the canonical `address`, a one-time `token`, and
 `expiresAt`. This endpoint does not create an account. The authorization also
 satisfies admission for this exact custom address, including on invite-only
-providers: an existing native account administering a verified domain may create
+providers: an existing active account administering a verified domain may create
 separate accounts under it. It cannot admit a native address or another custom
 address. General browser/CLI signup still follows the provider’s invite/public
 policy. Settings passes the token to `/signup` in a temporary URL
@@ -271,3 +273,69 @@ References: [address binding](../spec/address-binding.md),
 [Sender Profiles](../spec/sender-profile.md),
 [RFC 7033](https://www.rfc-editor.org/rfc/rfc7033.html), and
 [RFC 8552](https://www.rfc-editor.org/rfc/rfc8552.html).
+
+
+## Standalone custom-domain signup
+
+A publisher can start at `/signup` → **Address domain** → **Use a custom domain…**, without creating a
+provider-native account. This entry point requires public registration and the
+existing browser signup configuration. Existing authenticated domain administration
+continues to work under invite-only registration.
+
+- [x] Provide anonymous, public-mode-only domain setup for an exact address.
+- [x] Issue independent ownership TXT challenge and setup bearer; store hashes only.
+- [x] Check ownership and provider routing before handing off to account signup.
+- [x] Recheck public mode and both DNS records at account reservation.
+- [x] Atomically consume authority, admit signup, reserve the account, and assign
+  the domain to that new account. Verification alone never reserves a domain.
+- [x] Reuse recovery-package verification, security email, monitor, and passkeys.
+- [x] Let the new active account manage its domain and authorize additional separate
+  accounts through Settings → Custom domains.
+- [x] Preserve native signup, existing invite-only custom authorization, and exact
+  admitted retries after registration switches back to invite-only.
+- [x] Bound anonymous requests, pending setups, and DNS check frequency.
+- [x] Add database and browser regression coverage and guarded rollback.
+
+`POST /api/v1/domain-signup` accepts only `{ "address": "publisher@example.com" }`.
+It returns a `haild_` bearer, DNS record names/values, and a 24-hour setup expiry.
+`GET /api/v1/domain-signup` resumes status using that bearer;
+`POST /api/v1/domain-signup/verify` accepts `{}` with the same bearer. Mutations
+require the provider Origin; responses are no-store. Verification lasts 15 minutes
+and consumption checks DNS again. Keep both TXT records until account reservation;
+afterward the ownership challenge can be removed, but routing must remain.
+
+The single signup wizard has six steps for provider-native addresses. Choosing
+**Use a custom domain…** beside the username reveals the domain field and adds
+**Verify domain** as step two of seven. Username and security email carry forward;
+Back navigation preserves them. `/signup/domain` redirects to `/signup` for older
+bookmarks. Existing authenticated-domain links still use the fragment handoff and
+skip the DNS step because the domain has already been verified.
+
+The browser retains temporary DNS setup and the entered security email in same-tab
+session storage, scoped to the provider, until account reservation succeeds.
+The existing encrypted pending setup and recovery package then retain the exact
+address authority. No recovery keys go into session storage.
+
+Migration 0089 adds `standalone_domain_signups`. Expired unconsumed rows are pruned
+when a new attempt starts; consumed records are retained as admission evidence.
+At reservation, ordinary domain and consumed address-authorization records are
+created, so existing binding renewal and domain management use their usual
+provenance. A unique verified-domain constraint prevents competing setups from
+claiming the same domain; any failure rolls back account creation and admission.
+There are no periodic DNS checks or new domain transfer semantics.
+
+Rollback of 0089 refuses to discard any saved setup or admission evidence. An
+empty table can be rolled back and migrated again. Earlier binaries can continue
+using ordinary domain/account records but cannot resume unconsumed standalone
+setups; keep the new server version while those setups are in progress.
+
+Standalone validation: server and client typechecks pass (zero Svelte warnings),
+23 focused unit tests pass, and six affected database suites pass against disposable
+PostgreSQL 18.6 with no skipped tests: domain registration, address authorization,
+registration policy, monitored signup, public onboarding, and standalone domains.
+Coverage includes standalone activation, passkey login, domain administration,
+renewal, public-mode closure, DNS failure, expiry, atomic rollback, competing claims,
+and migration reversal. The fresh-built Chromium regression passes, including
+standalone DNS display, same-tab reload, six/seven-step switching, preserved
+address/email on Back navigation, DNS expiry before recovery-key generation, and
+existing invite-only custom-address handoffs.

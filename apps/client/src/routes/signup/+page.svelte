@@ -1,5 +1,6 @@
 <script lang="ts">
   import {onMount,onDestroy} from "svelte";
+  import SignupDomainRecords from "$lib/SignupDomainRecords.svelte";
   import CopyButton from "$lib/CopyButton.svelte";
   import {startRegistration,startAuthentication} from "@simplewebauthn/browser";
   import {decodeBase64Url} from "@hailproto/codec/base64url";
@@ -8,9 +9,13 @@
     type PendingSignup,type SignupSummary} from "$lib/signup.js";
   import {makeRecoveryPackage,openRecoveryPackage,recoveryOperationDigest} from "$lib/signup-package.js";
   let {data}=$props();
-  type Screen="address"|"protection"|"save"|"verify"|"email"|"publish"|"activating"|"passkey"|"signin"|"expired"|"done"|"resume";
+  type Screen="address"|"domain"|"protection"|"save"|"verify"|"email"|"publish"|"activating"|"passkey"|"signin"|"expired"|"done"|"resume";
   let screen=$state<Screen>("address"),local=$state(""),email=$state(""),invitation=$state(""),consent=$state(false);
   let customAddress=$state(""),addressAuthorization=$state<string|undefined>(undefined);
+  type DomainSetup={address:string;token:string;verificationValue:string;verificationName:string;delegationName:string;delegationValue:string;expiresAt:string;verified:boolean};
+  let domainChoice=$state("native"),domain=$state(""),domainSetup=$state<DomainSetup|null>(null);
+  const domainStorage=$derived("hail-domain-setup:"+data.policy.provider);
+  const needsDns=$derived(domainChoice==="custom");
   let secret=$state(""),enteredSecret=$state(""),downloaded=$state(false);
   let file=$state<File|null>(null),cached=$state(false),pending=$state<PendingSignup|null>(null),summary=$state<SignupSummary|null>(null);
   let busy=$state(false),message=$state(""),code=$state(""),emailVerified=$state(false),label=$state("Hail passkey");
@@ -18,12 +23,13 @@
   let key:CryptoKey|null=null,epoch=0;
   const urls=new Set<string>();
   const maxActivationAttempts=24;
-  const phases=["Your address","Protection","Recovery file","Security email","Create account","Passkey"];
-  const phase=$derived(screen==="address"||screen==="resume"?0:screen==="protection"?1:screen==="save"||screen==="verify"?2:screen==="email"?3:screen==="publish"||screen==="activating"?4:5);
-  const headings:Record<Screen,string>={address:"Create your Hail address",protection:"How your account is protected",save:"Save your recovery file",verify:"Check your recovery file",
+  const phases=$derived(["Your address",...(needsDns?["Verify domain"]:[]),"Protection","Recovery file","Security email","Create account","Passkey"]);
+  const basePhase=$derived(screen==="address"||screen==="resume"?0:screen==="protection"?1:screen==="save"||screen==="verify"?2:screen==="email"?3:screen==="publish"||screen==="activating"?4:5);
+  const phase=$derived(screen==="domain"?1:basePhase+(needsDns&&basePhase>0?1:0));
+  const headings:Record<Screen,string>={address:"Create your Hail address",domain:"Verify your domain",protection:"How your account is protected",save:"Save your recovery file",verify:"Check your recovery file",
     email:"Verify your security email",publish:"Ready to create your account",activating:"Creating your account",passkey:"Create your passkey",signin:"Try your new passkey",expired:"Continue with your existing account",done:"Your account is ready",resume:"Continue your setup"};
   function go(next:Screen){screen=next;message="";file=null;requestAnimationFrame(()=>document.getElementById("signup-heading")?.focus());}
-  function clearMemory(){epoch++;secret="";enteredSecret="";pending=null;summary=null;key=null;packageText="";invitation="";code="";addressAuthorization=undefined;customAddress="";
+  function clearMemory(){epoch++;secret="";enteredSecret="";pending=null;summary=null;key=null;packageText="";invitation="";code="";addressAuthorization=undefined;customAddress="";domainSetup=null;
     for(const url of urls)URL.revokeObjectURL(url);urls.clear();}
   onDestroy(clearMemory);
   onMount(()=>{
@@ -37,6 +43,7 @@
         if(cached)message="An unfinished setup is already saved. Continue it before starting this account.";
       }else{screen="resume";message="This custom-address setup link is invalid. Return to Custom domains to start again.";}
     }
+    if(!cached&&!address&&!authorization&&data.signupMode==="public")void run(restoreDomain);
     const hide=()=>{clearMemory();screen="resume";};
     const timer=setInterval(()=>{now=Date.now();if(screen==="activating"&&!busy&&now>=retryAt&&attempts<maxActivationAttempts&&document.visibilityState==="visible")void run(advance);},1000);
     window.addEventListener("pagehide",hide);
@@ -47,7 +54,7 @@
     if(current!==epoch)throw new Error("Setup page closed");
     return result;
   }
-  async function run(action:()=>Promise<void>){
+  async function run(action:()=>Promise<unknown>){
     if(busy||Date.now()<retryAt)return;
     busy=true;message="";
     try{await action();}catch(error){
@@ -66,10 +73,58 @@
     if(current!==epoch)throw new Error("Setup page closed");
     localStorage.setItem(PENDING_STORAGE,sealed);cached=true;
   }
+  async function domainRequest(body?:unknown,verify=false,token?:string){
+    const current=epoch;
+    const response=await fetch(`/api/v1/domain-signup${verify?"/verify":""}`,{
+      method:body===undefined?"GET":"POST",credentials:"omit",cache:"no-store",redirect:"error",
+      headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},
+      ...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(20_000),
+    });
+    const result=await response.json();
+    if(current!==epoch)throw new Error("Setup page closed");
+    if(!response.ok){const error=new SignupRequestError(response.status,60);error.message=result.error??"Unable to check DNS. Try again.";throw error;}
+    return result;
+  }
+  function saveDomain(){try{sessionStorage.setItem(domainStorage,JSON.stringify({...domainSetup,email}));}catch{message="Keep this tab open to retain your DNS setup.";}}
+  async function restoreDomain(){
+    let saved;
+    try{saved=JSON.parse(sessionStorage.getItem(domainStorage)??"null");}catch{return;}
+    if(!saved)return;
+    if(!/^haild_[A-Za-z0-9_-]{43}$/.test(saved.token)||!/^hail-domain-verify=[A-Za-z0-9_-]{43}$/.test(saved.verificationValue)||
+      !validSignupAddress(saved.address,data.policy.provider,saved.token)||!Number.isFinite(Date.parse(saved.expiresAt))||Date.parse(saved.expiresAt)<=Date.now()){
+      sessionStorage.removeItem(domainStorage);return;
+    }
+    domainChoice="custom";[local,domain]=saved.address.split("@");email=typeof saved.email==="string"?saved.email:"";
+    domainSetup={...saved,verified:false};go(email?"domain":"address");
+    const current=await domainRequest(undefined,false,saved.token);
+    domainSetup={...saved,...current};saveDomain();
+  }
+  function editAddress(){customAddress="";addressAuthorization=undefined;go("address");}
+  function changeDomain(){customAddress="";addressAuthorization=undefined;domainSetup=null;sessionStorage.removeItem(domainStorage);}
   async function chooseAddress(){
+    if(needsDns){
+      const address=`${local}@${domain}`;
+      if(!domainSetup||domainSetup.address!==address||Date.parse(domainSetup.expiresAt)<=Date.now()){domainSetup=await domainRequest({address});}
+      if(domainSetup)[local,domain]=domainSetup.address.split("@");
+      customAddress="";addressAuthorization=undefined;saveDomain();go("domain");return;
+    }
+    await checkAddress();
+  }
+  async function checkAddress(){
     const result=await request("/api/v1/signup/check-address",{address:customAddress||`${local}@${new URL(data.policy.provider).hostname}`,invitation,...(addressAuthorization?{addressAuthorization}:{})},setupToken());
-    if(result.available!==true){message="That address is already taken. Please choose another.";return;}
-    go("protection");
+    if(result.available!==true){message="That address is already taken. Please choose another.";return false;}
+    go("protection");return true;
+  }
+  async function verifyDomain(){
+    if(!domainSetup)return;
+    const updated:DomainSetup={...domainSetup,...await domainRequest({},true,domainSetup.token)};domainSetup=updated;saveDomain();
+    message=updated.verified?"DNS verified. Continue account setup within 15 minutes.":"Both DNS records must be visible before continuing. Check the records and retry after one minute.";
+  }
+  async function continueDomain(){
+    if(!domainSetup)return;
+    const updated:DomainSetup={...domainSetup,...await domainRequest(undefined,false,domainSetup.token)};domainSetup=updated;saveDomain();
+    if(!updated.verified){go("domain");message="Check DNS again before continuing.";return;}
+    customAddress=updated.address;addressAuthorization=updated.token;invitation="";return checkAddress();
   }
   async function prepareAndSign(raw:Uint8Array){
     if(!pending||!key)return;
@@ -78,6 +133,7 @@
     if(!summary)summary=checkSummary(await request("/api/v1/signup",{signupId:p.signupId,address:p.address,
       recoveryKey:p.vault.recovery.publicDidKey,identityKey:p.vault.identity.publicDidKey,enrollmentHash:await enrollmentHash(p.enrollmentToken),
       invitation:p.invitation,...(p.addressAuthorization?{addressAuthorization:p.addressAuthorization}:{}),backupVerified:p.version===1,managedAccepted:true,alphaMonitoringAccepted:true},p.token),p);
+    if(needsDns)sessionStorage.removeItem(domainStorage);
     if(!pending.operation){
       if(!summary.preparation)throw new Error("Preparation unavailable");
       const signed=await signSignupGenesis(p.vault,raw,summary.preparation,{...data.policy,address:p.address,addressAuthorization:p.addressAuthorization});
@@ -91,6 +147,7 @@
   }
   async function generate(){
     if(!consent)return;
+    if(needsDns&&!pending&&!await continueDomain())return;
     go("save");
     if(pending){const raw=decodeBase64Url(secret||enteredSecret.trim(),32);try{await prepareAndSign(raw);}finally{raw.fill(0);}return;}
     const current=epoch,generated=await createSignupBackup();
@@ -164,7 +221,7 @@
     const restored=fromPackage?await openRecoveryPackage(text,secretText,data.policy):
       {key:await pendingKey(secretText),pending:await openPending(text,await pendingKey(secretText),data.policy)};
     if(current!==epoch)throw new Error("Setup page closed");
-    pending=restored.pending;key=restored.key;await persist();summary=null;
+    pending=restored.pending;if(pending.address.split("@")[1]!==new URL(data.policy.provider).hostname)domainChoice="custom";key=restored.key;await persist();summary=null;
     try{summary=checkSummary(await request(`/api/v1/signup/${pending.signupId}`,undefined,pending.token),pending);}
     catch(error){if(!(error instanceof SignupRequestError&&[401,404].includes(error.status)))throw error;}
     // An older unsigned file may predate a successful publication. Recover the
@@ -194,20 +251,34 @@
     {#key screen}<div class="signup-page">
       {#if screen==="address"}
         <form onsubmit={e=>{e.preventDefault();void run(chooseAddress);}}>
-          {#if !customAddress&&(data.signupMode==="invite"||invitation)}<label>Invitation<input type="password" bind:value={invitation} required={data.signupMode==="invite"} autocomplete="off" maxlength="2048" /></label>{/if}
+          {#if !customAddress&&!needsDns&&(data.signupMode==="invite"||invitation)}<label>Invitation<input type="password" bind:value={invitation} required={data.signupMode==="invite"} autocomplete="off" maxlength="2048" /></label>{/if}
           {#if customAddress}<p>Your Hail address: <strong>{customAddress}</strong></p><p>This is a separate account with its own inbox, recovery file, and passkey login.</p>
-          {:else}<label>Your Hail address<div class="address-input"><input bind:value={local} required pattern={'[a-z0-9][a-z0-9._\\-]{0,63}'} maxlength="64" autocomplete="username" /><span>@{new URL(data.policy.provider).hostname}</span></div></label>{/if}
+          {:else}<div class="address-field">
+            <div class="address-input">
+              <label class="username-field">Your Hail address<input bind:value={local} required pattern={'[a-z0-9][a-z0-9._\\-]{0,63}'} maxlength="64" autocomplete="username" /></label>
+              {#if data.signupMode==="public"}<label class="domain-choice"><span class="sr-only">Address domain</span><select aria-label="Address domain" disabled={busy} bind:value={domainChoice} onchange={changeDomain}><option value="native">@{new URL(data.policy.provider).hostname}</option><option value="custom">Use a custom domain…</option></select></label>
+              {:else}<span>@{new URL(data.policy.provider).hostname}</span>{/if}
+            </div>
+            {#if needsDns}<label>Domain name<input bind:value={domain} required maxlength="253" placeholder="example.com" /></label>{/if}
+          </div>{/if}
           <label>Security email<input type="email" bind:value={email} required autocomplete="email" maxlength="254" /></label>
           <p>Use an email address outside Hail for security alerts.</p>
           <button class="hail-button" disabled={busy||now<retryAt}>Continue</button>
         </form>
-        <button class="text-link" onclick={()=>go("resume")}>Continue an interrupted setup</button>
+        <button class="text-link resume-link" onclick={()=>go("resume")}>Continue an interrupted setup</button>
+      {:else if screen==="domain"&&domainSetup}
+        <SignupDomainRecords setup={domainSetup} />
+        <div class="actions domain-actions">
+          <button class="hail-button-secondary" disabled={busy} onclick={editAddress}>Back</button>
+          <button class="hail-button-secondary" disabled={busy||now<retryAt} onclick={()=>run(verifyDomain)}>Check DNS</button>
+          <button class="hail-button" disabled={busy||now<retryAt||!domainSetup.verified} onclick={()=>run(continueDomain)}>Continue</button>
+        </div>
       {:else if screen==="protection"}
         <ul><li>Hail manages your everyday messaging.</li><li>You hold the recovery keys that control your identity.</li><li>Your address and identity details become permanently public.</li></ul>
         <p>Alpha limitation: Hail also runs the security monitor and could suppress alerts. Recovery is time-sensitive.</p>
         <details><summary>Learn more</summary><p>Hail holds the keys used to manage your account and messaging; you keep the owner recovery keys. Your public identity includes your address, identity keys and service endpoint.</p><p>Keep your recovery file and secret separately. Your browser handles recovery keys during setup; compromised page code or your device could steal them. Passkeys and email alerts do not replace owner recovery, and a backup alone does not guarantee protection.</p></details>
         <label class="check"><input type="checkbox" bind:checked={consent} /> I understand and agree.</label>
-        <div class="actions"><button class="hail-button-secondary" disabled={busy} onclick={()=>go("address")}>Back</button><button class="hail-button" disabled={busy||!consent||now<retryAt} onclick={()=>run(generate)}>Set up recovery</button></div>
+        <div class="actions"><button class="hail-button-secondary" disabled={busy} onclick={()=>needsDns?go("domain"):go("address")}>Back</button><button class="hail-button" disabled={busy||!consent||now<retryAt} onclick={()=>run(generate)}>Set up recovery</button></div>
       {:else if screen==="save"}
         <p>Save this file and keep its secret separately. You need both to use your recovery keys.</p>
         {#if packageText}<button class="hail-button" disabled={busy} onclick={download}>Download recovery file</button>{:else}<p>Your original setup is saved in this browser. Keep the secret below while we finish preparing your file.</p><button class="hail-button" disabled={busy||now<retryAt} onclick={()=>run(generate)}>Retry preparing recovery file</button>{/if}
@@ -263,6 +334,7 @@
 </div>
 <style>
   .signup-shell{max-width:600px;margin:0 auto}.signup-progress{font-size:.875rem;color:var(--color-muted);margin:0 0 12px}.signup-dots{display:flex;gap:8px;list-style:none;margin:0 0 24px;padding:0}.signup-dots li{height:5px;flex:1;border-radius:8px;background:var(--color-line)}.signup-dots li.current,.signup-dots li.past{background:var(--color-brand)}
-  .signup-card{padding:32px;display:grid;gap:20px}.signup-card h1,.signup-card p{margin:0}.signup-page,.signup-page form{display:grid;gap:20px}.signup-page{animation:arrive .18s ease-out}.signup-page p,.signup-page li{font-size:.9375rem;line-height:1.6}.signup-page ul{margin:0;padding-left:20px}.signup-page li+li{margin-top:10px}.signup-page label{display:grid;gap:8px;font-size:.875rem}.signup-page input:not([type=checkbox]){width:100%;min-width:0;box-sizing:border-box;padding:12px;border:1px solid var(--color-line);border-radius:8px;font:inherit}.signup-page .check{display:flex;align-items:flex-start;line-height:1.5}.check input{margin-top:4px}.address-input{display:flex;align-items:center;gap:8px}.address-input span{white-space:nowrap}.actions{display:flex;justify-content:space-between;gap:12px}.signup-page button,.signup-page a{justify-self:start}.signup-page button:disabled{opacity:.55;cursor:not-allowed}.signup-page code{display:block;overflow-wrap:anywhere;padding:16px;background:var(--color-canvas);border-radius:8px;user-select:all}.signup-page pre{font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}.signup-page summary{cursor:pointer;font-size:.875rem}.signup-page details p{margin-top:12px}.account-address{font-weight:600;overflow-wrap:anywhere}.text-link{background:none;border:0;padding:0;color:var(--color-brand-strong);font:inherit;text-decoration:underline;cursor:pointer}.signup-message{padding:14px;border:1px solid var(--color-line);border-radius:8px;line-height:1.6;font-size:.875rem}
-  @keyframes arrive{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:translateX(0)}}@media(prefers-reduced-motion:reduce){.signup-page{animation:none}}@media(max-width:540px){.signup-card{padding:20px}.address-input{flex-wrap:wrap}.address-input input{flex:1;min-width:130px}}
+  .signup-card{padding:32px;display:grid;gap:20px}.signup-card h1,.signup-card p{margin:0}.signup-page,.signup-page form{display:grid;gap:20px}.signup-page{animation:arrive .18s ease-out}.signup-page p,.signup-page li{font-size:.9375rem;line-height:1.6}.signup-page ul{margin:0;padding-left:20px}.signup-page li+li{margin-top:10px}.signup-page label{display:grid;gap:8px;font-size:.875rem}.signup-page input:not([type=checkbox]){width:100%;min-width:0;box-sizing:border-box;padding:12px;border:1px solid var(--color-line);border-radius:8px;font:inherit}.signup-page .check{display:flex;align-items:flex-start;line-height:1.5}.check input{margin-top:4px}.address-input{display:flex;align-items:end;gap:8px}.address-input>span{padding-bottom:12px}.username-field{flex:1;min-width:0}.domain-choice{max-width:55%}.domain-choice select{width:100%;padding:12px 8px;border:1px solid var(--color-line);border-radius:8px;background:var(--color-surface);color:var(--color-ink);font:inherit}.domain-actions{flex-wrap:wrap}.address-input span{white-space:nowrap}.actions{display:flex;justify-content:space-between;gap:12px}.signup-page button,.signup-page a{justify-self:start}.signup-page button:disabled{opacity:.55;cursor:not-allowed}.signup-page code{display:block;overflow-wrap:anywhere;padding:16px;background:var(--color-canvas);border-radius:8px;user-select:all}.signup-page pre{font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}.signup-page summary{cursor:pointer;font-size:.875rem}.signup-page details p{margin-top:12px}.account-address{font-weight:600;overflow-wrap:anywhere}.text-link{background:none;border:0;padding:0;color:var(--color-brand-strong);font:inherit;text-decoration:underline;cursor:pointer}.signup-message{padding:14px;border:1px solid var(--color-line);border-radius:8px;line-height:1.6;font-size:.875rem}
+  .address-field{display:grid;gap:6px}.signup-page .resume-link{font-size:.8125rem;color:var(--color-muted)}.resume-link:hover,.resume-link:focus-visible{color:var(--color-ink)}
+  @keyframes arrive{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:translateX(0)}}@media(prefers-reduced-motion:reduce){.signup-page{animation:none}}@media(max-width:540px){.signup-card{padding:20px}.address-input{flex-wrap:wrap}.address-input .username-field{min-width:130px}.address-input input{flex:1;min-width:0}}
 </style>

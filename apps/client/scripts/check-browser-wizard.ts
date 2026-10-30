@@ -72,6 +72,12 @@ const reserved=Bun.serve({hostname:"127.0.0.1",port:0,fetch:()=>new Response()})
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{"Cache-Control":"no-store","Content-Type":"application/json"}});
 function summary(){return {type:"hail.signup",version:1,signupId:setupId,accountId:prepared.accountId,address:prepared.address,did,state,
   expiresAt:new Date(Date.now()+86400_000).toISOString(),preparation:prepared,enrollmentExpiresAt:new Date(Date.now()+600_000).toISOString()};}
+const standaloneToken="haild_"+"S".repeat(43);
+let standaloneVerified=false;
+const standaloneSetup=()=>({address:"publisher@publisher.example.com",token:standaloneToken,
+  verificationName:"_hail-domain-verify.publisher.example.com",verificationValue:"hail-domain-verify="+"V".repeat(43),
+  delegationName:"_hail-provider.publisher.example.com",delegationValue:"v=hail1; provider=provider.example.com",
+  expiresAt:new Date(Date.now()+86400000).toISOString(),verified:standaloneVerified});
 let signupMode:"invite"|"public"="invite";
 const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   const path=new URL(request.url).pathname;
@@ -295,6 +301,13 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
       if(request.method==="POST"){assert(["invite","public"].includes(input.mode));signupMode=input.mode;}
       return json({mode:signupMode});
     }
+  }
+  if(path.startsWith("/api/v1/domain-signup")){
+    assert.equal(signupMode,"public");
+    if(request.method==="GET"||path.endsWith("/verify"))assert.equal(request.headers.get("Authorization"),`Bearer ${standaloneToken}`);
+    else assert.equal(input.address,"publisher@publisher.example.com");
+    if(path.endsWith("/verify"))standaloneVerified=true;
+    return json({...standaloneSetup(),ownership:standaloneVerified,delegation:standaloneVerified});
   }
   if(path==="/api/v1/signup/check-address")return json({address:input.address,available:true});
   if(path==="/api/v1/signup"){
@@ -997,6 +1010,44 @@ try{
   await wait(()=>has('Create your Hail address'),'public signup form');
   assert.equal(await evaluate(`document.querySelector('input[maxlength="2048"]')===null`),true,'Public signup does not require an invitation');
   await screenshot('public-signup');
+  assert(await has('Step 1 of 6'));
+  await wait(async()=>evaluate(`document.querySelector('select[aria-label="Address domain"]')?.disabled===false`),'address selector ready');
+  await evaluate(`{const select=document.querySelector('select[aria-label="Address domain"]');select.value='custom';select.dispatchEvent(new Event('change',{bubbles:true}));}`);
+  await wait(()=>has('Step 1 of 7'),'custom selection adds DNS step');
+  await fill('Your Hail address','publisher');await fill('Domain name','publisher.example.com');await fill('Security email','publisher@example.net');await click('Continue');
+  await wait(()=>has('_hail-domain-verify.publisher.example.com'),'standalone DNS records');
+  assert(await has('Step 2 of 7'));
+  assert.equal(await evaluate(`document.querySelectorAll('dl dt').length`),4);
+  assert.equal(await evaluate(`document.querySelectorAll('button[aria-label^="Copy "]').length`),4);
+  assert(await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Continue').disabled`));
+  await click('Back');await wait(()=>has('Create your Hail address'),'back retains address inputs');
+  assert.equal(await evaluate(`document.querySelector('input[type="email"]').value`),'publisher@example.net');
+  assert.equal(await evaluate(`document.querySelector('input[maxlength="64"]').value`),'publisher');
+  await evaluate(`{const select=document.querySelector('select');select.value='native';select.dispatchEvent(new Event('change',{bubbles:true}));}`);
+  await wait(()=>has('Step 1 of 6'),'native selection removes DNS step');
+  assert(await evaluate(`document.querySelector('input[maxlength="253"]')===null`));
+  await evaluate(`{const select=document.querySelector('select');select.value='custom';select.dispatchEvent(new Event('change',{bubbles:true}));}`);
+  await wait(()=>has('Step 1 of 7'),'custom selection restores seven steps');await click('Continue');
+  await wait(()=>has('_hail-domain-verify.publisher.example.com'),'DNS setup recreated');
+  await cdp('Page.reload');await wait(()=>has('_hail-domain-verify.publisher.example.com'),'restore DNS setup in same wizard');
+  await click('Check DNS');await wait(()=>has('DNS verified.'),'standalone DNS verification');
+  await click('Continue');await wait(()=>has('How your account is protected'),'standalone enters existing recovery flow');
+  assert(await has('Step 3 of 7'));
+  assert(await evaluate(`location.pathname==='/signup'&&location.hash===''`));
+  const standaloneCheck=JSON.parse(requests.filter(r=>r.path==='/api/v1/signup/check-address').at(-1)!.body);
+  assert.equal(standaloneCheck.addressAuthorization,standaloneToken);assert.equal(standaloneCheck.address,'publisher@publisher.example.com');
+  standaloneVerified=false;
+  await evaluate(`document.querySelector('input[type="checkbox"]').click()`);await click('Set up recovery');
+  await wait(()=>has('Check DNS again before continuing.'),'expired DNS proof returns to verification before creating recovery keys');
+  assert(await evaluate(`localStorage.getItem('hail.pending-signup.v1')===null`));
+  await click('Check DNS');await wait(()=>has('DNS verified.'),'refresh expired DNS proof');await click('Continue');
+  await wait(()=>has('How your account is protected'),'resume after refreshed DNS proof');
+  await click('Back');await wait(()=>has('Verify your domain'),'protection returns to DNS');
+  await click('Back');await wait(()=>has('Create your Hail address'),'edit address after DNS');
+  assert.equal(await evaluate(`document.querySelector('input[type="email"]').value`),'publisher@example.net');
+  // Clear temporary DNS setup before exercising the separate authenticated-domain handoff.
+  await evaluate(`sessionStorage.clear()`);
+
   signupMode='invite';
   await cdp("Page.navigate",{url:origin+'/'});
   await wait(()=>has('Your permission.'),'return home before custom signup');

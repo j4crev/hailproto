@@ -95,7 +95,7 @@ integration("custom domain registration", () => {
     await expect(domains.verify(first, pending.id)).rejects.toMatchObject({ status: 409 });
   });
 
-  it("requires a native public account and refuses fenced writers", async () => {
+  it("requires an active public account and refuses fenced writers", async () => {
     await expect(domains.start({ ...first, passkey_credential_id: null }, "denied.example.com")).rejects.toMatchObject({ status: 403 });
     await expect(domains.start({ ...first, canonical_address: "first@other.example.com" }, "denied.example.com")).rejects.toMatchObject({ status: 403 });
     await expect(domains.start(first, "haili.app")).rejects.toMatchObject({ status: 400 });
@@ -103,6 +103,13 @@ integration("custom domain registration", () => {
     await db.sql`INSERT INTO provider_migration_fences(did,account_id,transfer_id,destination_service_base,state)
       VALUES(${fenced.did},${fenced.account_id},${randomUUID()},'https://other.example.com/hail','fenced')`;
     await expect(domains.start(fenced, "denied.example.com")).rejects.toThrow();
+  });
+
+  it("allows an active custom-domain account to administer domains", async()=>{
+    const owner=await account("custom-owner");
+    owner.canonical_address="owner@publisher.example.com";
+    await db.sql`UPDATE provider_accounts SET canonical_address=${owner.canonical_address} WHERE id=${owner.account_id}`;
+    expect((await domains.start(owner,"new-publisher.example.com")).status).toBe("pending");
   });
 
   it("caps registrations per account and permits removing pending attempts", async () => {

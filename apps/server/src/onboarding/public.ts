@@ -95,7 +95,8 @@ export class PublicOnboarding {
       if (!transaction || !signupHash || !this.alphaMonitoring || profile !== "managed") {
         throw new Error("Custom-domain onboarding requires an authorized signup transaction");
       }
-      const admission = await sql`SELECT capability.id FROM custom_address_authorizations capability
+      const admission = await sql`SELECT capability.id FROM (SELECT id,signup_id,canonical_address,provider_origin,signup_token_hash,request_digest,consumed_at FROM custom_address_authorizations
+          UNION ALL SELECT id,signup_id,canonical_address,provider_origin,signup_token_hash,request_digest,consumed_at FROM standalone_domain_signups) capability
         JOIN account_signup_ceremonies ceremony ON ceremony.id=capability.signup_id
         WHERE capability.canonical_address=${address} AND capability.provider_origin=${new URL(this.serviceBase).origin}
           AND capability.signup_token_hash=${signupHash} AND capability.consumed_at IS NOT NULL

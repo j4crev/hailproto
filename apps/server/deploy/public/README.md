@@ -67,7 +67,15 @@ also requires the provider-issued `_hail-domain-verify` challenge. After verific
 Settings → Custom domains can authorize a separate signup for an exact custom
 address without an additional invitation, even in invite-only mode. General
 native-address signup still follows the provider’s registration policy. See the
-[implementation checklist](../../../../docs/custom-domains.md). Upgrade resolvers
+[implementation checklist](../../../../docs/custom-domains.md). With public registration enabled,
+new publishers can choose **Use a custom domain…** beside the username at `/signup`,
+prove both TXT records in the added verification step, and
+create their custom account directly without a provider-native account. The new
+account owns the domain administration record. Keep both TXT records until account
+setup starts; afterward remove only `_hail-domain-verify`, keeping `_hail-provider`.
+The DNS setup lasts 24 hours, with 15 minutes to begin signup after verification.
+If registration closes before admission, standalone signup stops; already-admitted
+setups can continue through their existing recovery and passkey flow. Upgrade resolvers
 before advertising DNS-only addresses: old WebFinger-only clients cannot discover
 them. Neither record changes website hosting or SMTP email routing.
 

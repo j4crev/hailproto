@@ -1,3 +1,4 @@
+import { registerStandaloneDomainRoutes } from "../accounts/standalone-domain-routes.js";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { SQL } from "bun";
@@ -39,6 +40,7 @@ export class SignupCoordinator {
   constructor(private readonly sql:SQL,private readonly onboarding:PublicOnboarding,private readonly monitor:SignupMonitorService,
     private readonly origin:string,private readonly policy:AlphaMonitoringPolicy,invitationKey:string,
     private readonly domains:CustomDomains=new CustomDomains(sql,origin)){this.registration=new RegistrationPolicy(sql,origin,invitationKey);}
+  get domainSetup(){return this.domains.standalone;}
   private readonly registration:RegistrationPolicy;
 
   private async row(id:string,token:string,sql=this.sql):Promise<SignupRow>{
@@ -131,7 +133,9 @@ export class SignupCoordinator {
           const row=await this.row(input.signupId as string,token,tx);
           if(row.recovery_package!==!input.backupVerified||!equal(row.request_digest,digest))throw new SignupError(409,"Signup retry differs from its original intent");
           if(!row.account_id){
-            await this.prepareAccount(row,tx);
+            const prepared=await this.prepareAccount(row,tx);
+            if(await this.domains.standalone.exists(authorization as string,tx))
+              await this.domains.standalone.attach(tx,authorization as string,row.id,prepared.account_id!);
           }
         }
       });
@@ -302,6 +306,7 @@ export class SignupCoordinator {
 }
 
 export function registerSignupRoutes(app:Hono,signup:SignupCoordinator,accounts:AccountApiRepository,origin:string){
+  registerStandaloneDomainRoutes(app,signup.domainSetup,origin);
   const rate=new FixedWindowRateLimit();
   app.all("/api/v1/signup/:id?/:step?",async context=>{
     context.header("Cache-Control","no-store");

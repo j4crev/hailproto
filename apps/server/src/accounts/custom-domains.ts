@@ -1,21 +1,12 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { domainToASCII } from "node:url";
 import type { SQL } from "bun";
 import { canonicalizeHailAddress } from "../identity/address.js";
 import { discoverProvider, lookupTxt, type ProviderDiscovery } from "../discovery/delegation.js";
 import { tokenHash, type AccountApiSession } from "./repository.js";
 
-export class CustomDomainError extends Error {
-  constructor(readonly status: 400 | 403 | 404 | 409 | 429 | 503, message: string) { super(message); }
-}
-
-export function canonicalDomain(input: string): string {
-  if (/[\s/@:#?%\\]/u.test(input) || input.length > 1024) throw new CustomDomainError(400, "Enter a domain name.");
-  const domain = domainToASCII(input).toLowerCase();
-  try { canonicalizeHailAddress(`a@${domain}`); }
-  catch { throw new CustomDomainError(400, "Enter a public domain name without a scheme, path, or trailing dot."); }
-  return domain;
-}
+export { CustomDomainError, canonicalDomain } from "./domain-proof.js";
+import { CustomDomainError, canonicalDomain } from "./domain-proof.js";
+import { StandaloneDomains } from "./standalone-domains.js";
 
 interface DomainRow {
   id: string; account_id: string; domain: string; provider_host: string;
@@ -42,12 +33,14 @@ function summary(row: DomainRow) {
 }
 
 export class CustomDomains {
+  readonly standalone: StandaloneDomains;
   private readonly host: string;
   private readonly origin: string;
   constructor(private readonly sql: SQL, origin: string,
     private readonly txt: typeof lookupTxt = lookupTxt,
     private readonly discover: ProviderDiscovery = discoverProvider) {
     this.host = new URL(origin).hostname; this.origin = new URL(origin).origin;
+    this.standalone = new StandaloneDomains(sql, this.origin, txt, discover);
   }
 
   private async writer(tx: SQL, session: AccountApiSession) {
@@ -55,8 +48,8 @@ export class CustomDomains {
     const rows = await tx`SELECT id FROM provider_accounts WHERE id=${session.account_id} AND did=${session.did}
       AND canonical_address=${session.canonical_address} AND onboarding_state='active'
       AND activation_verification_mode='public' FOR UPDATE`;
-    if (!rows.length || session.canonical_address.split("@")[1] !== this.host) {
-      throw new CustomDomainError(403, "Manage domains from an active native-domain account.");
+    if (!rows.length) {
+      throw new CustomDomainError(403, "Manage domains from an active account.");
     }
     await tx`SELECT hail_assert_unfenced_account(${session.account_id}::uuid)`;
   }
@@ -161,6 +154,7 @@ export class CustomDomains {
 
   /** Read-only preflight; actual signup must still consume inside reservation. */
   async checkAddressAuthorization(token: string, address: string) {
+    if(await this.standalone.exists(token))return this.standalone.check(token,address);
     if (!/^haild_[A-Za-z0-9_-]{43}$/.test(token)) throw new CustomDomainError(400, "Invalid address authorization.");
     const rows = await this.sql`SELECT auth.id FROM custom_address_authorizations auth
       JOIN account_custom_domains domain ON domain.id=auth.domain_id AND domain.account_id=auth.account_id
@@ -170,7 +164,7 @@ export class CustomDomains {
         AND auth.consumed_at IS NULL AND auth.expires_at>clock_timestamp() AND domain.verified_at IS NOT NULL
         AND domain.domain=split_part(${address},'@',2) AND domain.provider_host=${this.host}
         AND owner.onboarding_state='active' AND owner.activation_verification_mode='public'
-        AND split_part(owner.canonical_address,'@',2)=${this.host} AND generation.generation=auth.account_generation
+        AND generation.generation=auth.account_generation
         AND NOT EXISTS(SELECT 1 FROM provider_migration_fences fence WHERE fence.account_id=owner.id)`;
     if (!rows.length) throw new CustomDomainError(403, "The address authorization is expired, used, or no longer valid.");
   }
@@ -229,6 +223,7 @@ export class CustomDomains {
     let address: string;
     try { address = canonicalizeHailAddress(addressInput); }
     catch { throw new CustomDomainError(400, "Invalid Hail address."); }
+    if(await this.standalone.exists(token,tx))return this.standalone.consume(tx,token,address,signupId,signupTokenHash,requestDigest);
     // Find the owner first, then lock in the same account/domain/authorization
     // order as issuance. No token is consumed before all checks pass.
     const found = (await tx<AddressAuthorization[]>`SELECT * FROM custom_address_authorizations WHERE token_hash=${tokenHash(token)}`)[0];
@@ -245,7 +240,7 @@ export class CustomDomains {
     await tx`SELECT hail_assert_unfenced_account(${found.account_id}::uuid)`;
     const owner = (await tx`SELECT a.id FROM provider_accounts a JOIN account_serving_generations g ON g.account_id=a.id
       WHERE a.id=${found.account_id} AND g.generation=${found.account_generation} AND a.onboarding_state='active'
-        AND a.activation_verification_mode='public' AND split_part(a.canonical_address,'@',2)=${this.host}`)[0];
+        AND a.activation_verification_mode='public'`)[0];
     const domain = (await tx<DomainRow[]>`SELECT * FROM account_custom_domains WHERE id=${found.domain_id}
       AND account_id=${found.account_id} AND verified_at IS NOT NULL FOR UPDATE`)[0];
     if (!owner || !domain || domain.domain !== address.split("@")[1] || domain.provider_host !== this.host) throw new CustomDomainError(403, "Domain administration authority is no longer current.");
