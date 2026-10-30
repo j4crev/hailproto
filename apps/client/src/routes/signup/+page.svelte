@@ -20,7 +20,7 @@
   const maxActivationAttempts=24;
   const phases=["Your address","Protection","Recovery file","Security email","Create account","Passkey"];
   const phase=$derived(screen==="address"||screen==="resume"?0:screen==="protection"?1:screen==="save"||screen==="verify"?2:screen==="email"?3:screen==="publish"||screen==="activating"?4:5);
-  const headings:Record<Screen,string>={address:"Choose your Hail address",protection:"How your account is protected",save:"Save your recovery file",verify:"Check your recovery file",
+  const headings:Record<Screen,string>={address:"Create your Hail address",protection:"How your account is protected",save:"Save your recovery file",verify:"Check your recovery file",
     email:"Verify your security email",publish:"Ready to create your account",activating:"Creating your account",passkey:"Create your passkey",signin:"Try your new passkey",expired:"Continue with your existing account",done:"Your account is ready",resume:"Continue your setup"};
   function go(next:Screen){screen=next;message="";file=null;requestAnimationFrame(()=>document.getElementById("signup-heading")?.focus());}
   function clearMemory(){epoch++;secret="";enteredSecret="";pending=null;summary=null;key=null;packageText="";invitation="";code="";addressAuthorization=undefined;customAddress="";

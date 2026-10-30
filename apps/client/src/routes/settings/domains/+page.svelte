@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CopyButton from "$lib/CopyButton.svelte";
   import { PENDING_STORAGE } from "$lib/signup.js";
   import { invalidateAll } from "$app/navigation";
   let { data } = $props();
@@ -55,7 +56,7 @@
       <label class="hail-field"><span>Domain name</span><input bind:value={domain} placeholder="example.com" required maxlength="253" disabled={busy} /></label>
       <button class="hail-button" disabled={busy || !domain}>Add domain</button>
     </form>
-    <p class="m-0 text-sm text-muted">DNS records leave your website and email routing unchanged. Verification is checked on request, not monitored continuously.</p>
+    <p class="m-0 text-sm text-muted">Verification is checked on request, not monitored continuously.</p>
     {#if message}<p role="status" class="m-0">{message}</p>{/if}
   </section>
   {#each data.domains as item (item.id)}
@@ -63,7 +64,7 @@
       <h2 class="m-0 text-lg">{item.domain}</h2>
       {#if item.lastVerifiedAt}
         <p class="m-0">Registered · Last verified {new Date(item.lastVerifiedAt).toLocaleString()}</p>
-        <p class="m-0 text-sm text-muted">Keep the provider routing record in DNS. The verification challenge has been consumed and may be removed. Domain removal and ownership transfer are not available yet.</p>
+        <p class="m-0 text-sm text-muted">You can remove the ownership verification TXT record named <code class="break-all">{item.verificationName}</code>. Keep the provider routing TXT record named <code class="break-all">{item.delegationName}</code>. Domain removal and ownership transfer are not available yet.</p>
         {#if data.signupAvailable}
           <form class="grid gap-3" onsubmit={event=>{event.preventDefault();void createAccount(item.id,item.domain);}}>
             <label class="hail-field"><span>New address at @{item.domain}</span><input bind:value={localParts[item.id]} required pattern={'[a-z0-9][a-z0-9._\\-]{0,63}'} maxlength="64" disabled={busy} /></label>
@@ -73,8 +74,17 @@
         {/if}
       {:else}
         <p class="m-0">{item.status === "expired" ? "Challenge expired" : "Awaiting DNS verification"}</p>
-        <div class="grid gap-2 text-sm"><strong>Ownership · TXT</strong><code class="break-all">{item.verificationName}</code>
-          {#if challenge?.id === item.id}<code class="break-all select-all">{challenge.value}</code><span>Expires {new Date(item.challengeExpiresAt).toLocaleString()}</span>
+        <div class="grid gap-2 text-sm">
+          <strong>Ownership · TXT</strong>
+          <dl class="m-0 grid gap-2">
+            <dt>Name:</dt>
+            <dd class="m-0 flex min-w-0 items-center gap-2"><code class="min-w-0 flex-1 break-all select-all">{item.verificationName}</code><CopyButton value={item.verificationName} label="Copy ownership record name" /></dd>
+            {#if challenge?.id === item.id}
+              <dt>Value:</dt>
+              <dd class="m-0 flex min-w-0 items-center gap-2"><code class="min-w-0 flex-1 break-all select-all">{challenge.value}</code><CopyButton value={challenge.value} label="Copy ownership record value" /></dd>
+            {/if}
+          </dl>
+          {#if challenge?.id === item.id}<span>Expires {new Date(item.challengeExpiresAt).toLocaleString()}</span>
           {:else}<p class="m-0">If you already added the challenge, check DNS. Otherwise generate a new challenge; it replaces the previous value.</p>{/if}
         </div>
         <div class="flex flex-wrap gap-3">
@@ -83,7 +93,15 @@
           <button class="hail-button-secondary" disabled={busy} onclick={() => run(async () => { await request(`/${item.id}/remove`, {}); if (challenge?.id === item.id) challenge = null; })}>Remove pending domain</button>
         </div>
       {/if}
-      <div class="grid gap-2 text-sm"><strong>Provider routing · TXT</strong><code class="break-all">{item.delegationName}</code><code class="break-all select-all">{item.delegationValue}</code></div>
+      <div class="grid gap-2 text-sm">
+        <strong>Provider routing · TXT</strong>
+        <dl class="m-0 grid gap-2">
+          <dt>Name:</dt>
+          <dd class="m-0 flex min-w-0 items-center gap-2"><code class="min-w-0 flex-1 break-all select-all">{item.delegationName}</code><CopyButton value={item.delegationName} label="Copy routing record name" /></dd>
+          <dt>Value:</dt>
+          <dd class="m-0 flex min-w-0 items-center gap-2"><code class="min-w-0 flex-1 break-all select-all">{item.delegationValue}</code><CopyButton value={item.delegationValue} label="Copy routing record value" /></dd>
+        </dl>
+      </div>
     </section>
   {/each}
 </div>

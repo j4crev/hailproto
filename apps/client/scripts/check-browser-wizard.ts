@@ -428,7 +428,7 @@ try{
   await cdp("Page.navigate",{url:origin+"/signup/recovery"});await wait(()=>has("Recovery setup preview"),"local recovery preview presentation");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Recovery preview overflows viewport");
   await cdp("Page.navigate",{url:origin+"/signup#invitation="+invitation});
-  await wait(()=>has("Choose your Hail address"),"signup render");
+  await wait(()=>has("Create your Hail address"),"signup render");
   await wait(async()=>evaluate(`location.hash==='' && document.querySelector('input[maxlength="2048"]')?.value==='fixture-invitation'`),"signup hydration");
   assert.equal(await evaluate(`document.querySelector('[aria-label="Signup steps"] [aria-current=step]').textContent.trim()`),"Your address");
   assert.equal(await evaluate("document.querySelector('nav[aria-label=\"Main navigation\"]')===null"),true,"Signup keeps a focused shell");
@@ -462,7 +462,7 @@ try{
   assert.equal(publicationAttempts,0,"Explicit publication confirmation is required");
   const stored=await evaluate("localStorage.getItem('hail.pending-signup.v1')");assert(!stored.includes(secret)&&!stored.includes(setupToken));
   // A clean browser can reopen the one downloaded package before publication.
-  await evaluate("localStorage.clear()");await cdp("Page.reload");await wait(()=>has("Choose your Hail address"),"clean browser");
+  await evaluate("localStorage.clear()");await cdp("Page.reload");await wait(()=>has("Create your Hail address"),"clean browser");
   await click("Continue an interrupted setup");await upload("Recovery file or pending setup file",packagePath);
   await fill("Saved recovery secret",secret);await click("Continue setup");await wait(()=>has("Ready to create your account"),"resume original identity");
   await click("Create my account");await wait(()=>has("This may take a few minutes"),"monitor wait");await noPrematureSignIn();
@@ -498,7 +498,7 @@ try{
     await screenshot('admin-registration');
     authenticated=false;await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
     await cdp("Page.navigate",{url:origin});await wait(()=>has('Create an account'),'public homepage link');
-    await cdp("Page.navigate",{url:origin+"/signup"});await wait(()=>has('Choose your Hail address'),'public signup');
+    await cdp("Page.navigate",{url:origin+"/signup"});await wait(()=>has('Create your Hail address'),'public signup');
     assert.equal(await evaluate(`document.querySelector('input[maxlength="2048"]')===null`),true);
     await screenshot('public-signup');passed=true;
     console.info('PASS: Chromium invite signup, admin public registration switch and public signup presentation (local API fixtures)');
@@ -994,7 +994,7 @@ try{
   const loggedOut=await cdp("Network.getCookies",{urls:[origin]});assert(!loggedOut.cookies.some((cookie:any)=>cookie.name==='hail_session'),"Sign-out clears session cookie");
   await wait(()=>has('Create an account'),'public homepage signup link');
   await cdp("Page.navigate",{url:origin+"/signup"});
-  await wait(()=>has('Choose your Hail address'),'public signup form');
+  await wait(()=>has('Create your Hail address'),'public signup form');
   assert.equal(await evaluate(`document.querySelector('input[maxlength="2048"]')===null`),true,'Public signup does not require an invitation');
   await screenshot('public-signup');
   signupMode='invite';
