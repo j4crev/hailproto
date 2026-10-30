@@ -171,7 +171,7 @@ From another network:
 
 ```bash
 curl --fail --silent --show-error https://your-provider.example/health/ready
-curl --fail --silent --show-error https://your-provider.example/auth/login
+curl --fail --silent --show-error https://your-provider.example/
 ```
 
 Verify the tunnel connector is ready, requests are not cached/challenged, and direct

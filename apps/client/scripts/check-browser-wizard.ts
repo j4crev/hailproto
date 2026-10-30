@@ -669,7 +669,7 @@ try{
   await screenshot("feed");
   const settings=async()=>{await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/settings"]').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"reading settings ready");};
   const feed=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/';document.body.append(a);a.click();a.remove();})()`);await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Inbox'`),"feed navigation");};
-  await settings();await accountNavigation();assert.equal(await evaluate(`document.querySelectorAll("main a").length`),0,"Settings has no cross-link cards");await narrowLayouts();await screenshot("settings");
+  await settings();await accountNavigation();assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll("main a"),a=>a.getAttribute("href"))`),["/settings/domains"],"Settings links to custom-domain management");await narrowLayouts();await screenshot("settings");
   await evaluate(`document.querySelector('#show-headers').click()`);await wait(async()=>evaluate(`localStorage.getItem('hail.gui.showInboxHeaders')==='false' && document.querySelector('#show-headers')?.disabled===false`),"preference saved");
   await feed();await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"hide feed headers through settings");
   await evaluate("document.documentElement.dataset.beforePreferenceReload='true'");
