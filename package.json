@@ -12,13 +12,11 @@
   "scripts": {
     "build": "bun run --cwd packages/hail-codec-ts build && bun run --filter 'hail-*' build",
     "build:cli": "bun run --cwd apps/cli build",
-    "build:cli:rust": "bun run build:cli",
-    "test:cli:rust": "bun run test:cli",
     "bench:ts": "bun run --cwd packages/hail-codec-ts bench",
     "bench:go": "mise exec -- go -C packages/hail-codec-go test -run=^$ -bench=. -benchmem ./...",
     "bench:sizes": "bun run --cwd packages/hail-codec-ts bench:sizes",
-    "test": "bun run test:ts && bun run test:go",
-    "test:ts": "bun run --cwd packages/hail-codec-ts build && bun run --filter '*' test",
+    "test": "bun run test:workspaces && bun run test:go",
+    "test:workspaces": "bun run --cwd packages/hail-codec-ts build && bun run --filter '*' test",
     "test:go": "mise exec -- go -C packages/hail-codec-go test ./...",
     "typecheck": "bun run --cwd packages/hail-codec-ts build && bun run --filter '*' typecheck",
     "test:cli": "bun run --cwd apps/cli test && bun run --cwd apps/cli test:workflows"
