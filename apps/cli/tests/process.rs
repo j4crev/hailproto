@@ -60,6 +60,27 @@ fn offline_help_version_and_usage() {
 }
 
 #[test]
+fn help_commands_are_alphabetical() {
+    for prefix in ["", "account", "account transfer", "connection"] {
+        let mut args: Vec<_> = prefix.split_whitespace().collect();
+        args.push("--help");
+        let result = run(&args);
+        assert!(result.status.success(), "{prefix}");
+        let text = String::from_utf8(result.stdout).unwrap();
+        let commands: Vec<_> = text
+            .lines()
+            .filter_map(|line| line.strip_prefix("  hailp "))
+            .map(|line| line.split(['<', '[']).next().unwrap().trim())
+            .collect();
+        assert!(commands.len() > 1, "{prefix}");
+        assert!(
+            commands.windows(2).all(|pair| pair[0] < pair[1]),
+            "Commands out of order for {prefix:?}: {commands:?}"
+        );
+    }
+}
+
+#[test]
 fn read_and_poll_command_contracts_are_offline() {
     for command in [
         "doctor",

@@ -696,9 +696,14 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
 
 pub fn help(prefix: &str) -> String {
     let mut text = String::from("hailp — Hail Protocol account CLI\n\n");
-    for (name, positional, options, description) in COMMANDS.iter().filter(|(name, _, _, _)| {
-        prefix.is_empty() || *name == prefix || name.starts_with(&format!("{prefix} "))
-    }) {
+    let mut commands: Vec<_> = COMMANDS
+        .iter()
+        .filter(|(name, _, _, _)| {
+            prefix.is_empty() || *name == prefix || name.starts_with(&format!("{prefix} "))
+        })
+        .collect();
+    commands.sort_unstable_by_key(|(name, _, _, _)| *name);
+    for (name, positional, options, description) in commands {
         let flags = options
             .split_whitespace()
             .map(|flag| {
