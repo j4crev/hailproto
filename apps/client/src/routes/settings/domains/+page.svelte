@@ -67,7 +67,7 @@
         {#if data.signupAvailable}
           <form class="grid gap-3" onsubmit={event=>{event.preventDefault();void createAccount(item.id,item.domain);}}>
             <label class="hail-field"><span>New address at @{item.domain}</span><input bind:value={localParts[item.id]} required pattern={'[a-z0-9][a-z0-9._\\-]{0,63}'} maxlength="64" disabled={busy} /></label>
-            <p class="m-0 text-sm text-muted">Continue setup within 15 minutes. The provider’s invitation policy still applies. Signing in to the new account will switch your current session.</p>
+            <p class="m-0 text-sm text-muted">Continue setup within 15 minutes. No separate signup invitation is needed for this address. Signing in to the new account will switch your current session.</p>
             <button class="hail-button" disabled={busy}>Create separate account</button>
           </form>
         {/if}

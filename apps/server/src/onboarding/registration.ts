@@ -40,6 +40,24 @@ export class RegistrationPolicy {
     };
     return transaction?run(transaction):this.sql.begin(tx=>run(tx as unknown as SQL));
   }
+  /** Only an already-consumed, exact custom-address capability can admit here.
+   * Caller consumes authority and reserves the account in this same transaction. */
+  async admitCustomAddress(tx:SQL,signupId:string,address:string,tokenHash:Uint8Array,digest:Uint8Array):Promise<null>{
+    if(!(await tx`SELECT id FROM custom_address_authorizations
+      WHERE signup_id=${signupId} AND canonical_address=${address} AND provider_origin=${this.origin}
+        AND signup_token_hash=${tokenHash} AND request_digest=${digest} AND consumed_at IS NOT NULL`).length)
+      throw new RegistrationError(403,"Exact custom-address authority is required");
+    const prior=(await tx`SELECT *,expires_at>clock_timestamp() AS live FROM provider_signup_admissions WHERE token_hash=${tokenHash}`)[0];
+    if(prior){
+      if(prior.channel!=="browser"||prior.invitation_id!==null||!Buffer.from(prior.request_digest).equals(Buffer.from(digest)))
+        throw new RegistrationError(409,"Signup retry differs from its admitted request");
+      if(!prior.live)throw new RegistrationError(410,"Setup authority expired; retain your original artifacts");
+      return null;
+    }
+    await tx`INSERT INTO provider_signup_admissions(token_hash,channel,request_digest,invitation_id)
+      VALUES(${tokenHash},'browser',${digest},NULL)`;
+    return null;
+  }
   async requireLive(tokenHash:Uint8Array,channel:"browser"|"cli"){
     if(!(await this.sql`SELECT token_hash FROM provider_signup_admissions WHERE token_hash=${tokenHash} AND channel=${channel} AND expires_at>clock_timestamp()`).length)
       throw new RegistrationError(410,"Setup authority expired or missing; retain your original artifacts");

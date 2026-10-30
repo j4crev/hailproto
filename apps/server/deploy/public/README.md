@@ -64,8 +64,9 @@ For a custom domain hosted by this provider, the same record names your provider
 instead of the custom domain, for example
 `_hail-provider.j4crev.com TXT "v=hail1; provider=haili.app"`. Domain registration
 also requires the provider-issued `_hail-domain-verify` challenge. After verification,
-Settings → Custom domains can authorize a separate custom-address signup, subject
-to the provider’s registration policy. See the
+Settings → Custom domains can authorize a separate signup for an exact custom
+address without an additional invitation, even in invite-only mode. General
+native-address signup still follows the provider’s registration policy. See the
 [implementation checklist](../../../../docs/custom-domains.md). Upgrade resolvers
 before advertising DNS-only addresses: old WebFinger-only clients cannot discover
 them. Neither record changes website hosting or SMTP email routing.

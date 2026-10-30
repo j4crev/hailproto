@@ -35,6 +35,12 @@ integration("shared registration admission",()=>{
     expect(results.filter(result=>result.status==="fulfilled")).toHaveLength(1);
     expect(results.filter(result=>result.status==="rejected")).toHaveLength(1);
   });
+  it("cannot admit a custom address without consumed exact-address authority",async()=>{
+    const token=randomBytes(32),digest=randomBytes(32);
+    await expect(db.sql.begin(tx=>policy.admitCustomAddress(tx,randomUUID(),"alice@custom.example.com",token,digest))).rejects.toMatchObject({status:403});
+    expect(await db.sql`SELECT token_hash FROM provider_signup_admissions WHERE token_hash=${token}`).toHaveLength(0);
+    await expect(policy.admit(token,digest,"browser","haild_"+"A".repeat(43))).rejects.toMatchObject({status:403});
+  });
   it("audits authorized changes and lets existing public admissions resume after switching to invite",async()=>{
     await expect(policy.update(randomUUID(),{mode:"public"})).rejects.toMatchObject({status:403});
     await expect(policy.update(account,{mode:"unknown"})).rejects.toMatchObject({status:400});

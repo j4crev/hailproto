@@ -997,6 +997,19 @@ try{
   await wait(()=>has('Choose your Hail address'),'public signup form');
   assert.equal(await evaluate(`document.querySelector('input[maxlength="2048"]')===null`),true,'Public signup does not require an invitation');
   await screenshot('public-signup');
+  signupMode='invite';
+  await cdp("Page.navigate",{url:origin+'/'});
+  await wait(()=>has('Your permission.'),'return home before custom signup');
+  const domainAuthorization='haild_'+'D'.repeat(43),customAddress='alice@custom.example.com';
+  await cdp("Page.navigate",{url:origin+'/signup#'+new URLSearchParams({address:customAddress,addressAuthorization:domainAuthorization})});
+  await wait(async()=>evaluate(`location.hash==='' && document.body.innerText.includes('alice@custom.example.com')`),'custom signup hydration');
+  assert.equal(await evaluate(`document.querySelector('input[maxlength="2048"]')===null`),true,'Authorized custom signup needs no invitation in invite-only mode');
+  await fill('Security email','custom-owner@example.net');await click('Continue');
+  await wait(()=>has('How your account is protected'),'custom address accepted without invitation');
+  const checked=JSON.parse(requests.filter(r=>r.path==='/api/v1/signup/check-address').at(-1)!.body);
+  assert.equal(checked.address,customAddress);assert.equal(checked.addressAuthorization,domainAuthorization);assert.equal(checked.invitation,'');
+  await cdp("Page.navigate",{url:origin+'/signup'});
+  await wait(async()=>evaluate(`!!document.querySelector('input[maxlength="2048"]')`),'native signup still requires invitation');
   passed=true;
   console.info("PASS: Chromium public/private shells, sign-in return paths and QR pins, signup, messaging, permissions and security (local API fixtures only)");
   }

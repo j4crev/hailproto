@@ -176,7 +176,7 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
 
     const browserVault=await createUserVault();
     try{
-      const inviteKey=encodeBase64Url(randomBytes(32)),invite=publicSignup?"":createSignupInvitation(providerOrigin,inviteKey);
+      const inviteKey=encodeBase64Url(randomBytes(32)),invite=publicSignup||customDomain?"":createSignupInvitation(providerOrigin,inviteKey);
       if(publicSignup)await db.sql`UPDATE provider_registration_settings SET mode='public' WHERE singleton=true`;
       const setupToken=`hailp_${encodeBase64Url(randomBytes(32))}`,enrollmentToken=`hailp_${encodeBase64Url(randomBytes(32))}`,id=randomUUID();
       const policy={profile:"reduced-assurance-alpha-v1" as const,monitorOrigin,monitorPublicKey:signer.publicDidKey};
@@ -206,25 +206,28 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
         identityKey:browserVault.vault.identity.publicDidKey,enrollmentHash:encodeBase64Url(createHash("sha256").update(enrollmentToken).digest()),
         invitation:invite,backupVerified:!packageFlow,managedAccepted:true,alphaMonitoringAccepted:true};
       expect(await coordinator.checkAddress({address:request.address,invitation:invite,...customAuthorization})).toEqual({address:request.address,available:true});
-      await expect(coordinator.checkAddress({address:request.address,invitation:"invalid"})).rejects.toMatchObject({status:403});
+      await expect(coordinator.checkAddress({address:request.address,invitation:"invalid"})).rejects.toMatchObject({status:customDomain?400:403});
       await expect(coordinator.checkAddress({address:"elsewhere@other.example",invitation:invite})).rejects.toMatchObject({status:400});
-      if(!publicSignup)await expect(coordinator.prepare({...request,invitation:""},setupToken)).rejects.toMatchObject({status:403});
+      if(!publicSignup&&!customDomain)await expect(coordinator.prepare({...request,invitation:""},setupToken)).rejects.toMatchObject({status:403});
       const {invitation:omittedInvitation,...publicRequest}=request;
       if(customDomain){
         const {addressAuthorization,...unauthorized}=request as typeof request & {addressAuthorization:string};
         await expect(coordinator.prepare(unauthorized,setupToken)).rejects.toMatchObject({status:400});
         await expect(coordinator.prepare({...request,address:`browser-${suffix}@provider.example.com`},setupToken)).rejects.toMatchObject({status:400});
+        await expect(coordinator.prepare({...request,addressAuthorization:"haild_"+"X".repeat(43)},setupToken)).rejects.toMatchObject({status:403});
+        await expect(coordinator.prepare({...request,address:`other@${address.split("@")[1]}`},setupToken)).rejects.toMatchObject({status:403});
         const original=onboarding.prepare.bind(onboarding);
         const fault=vi.spyOn(onboarding,"prepare").mockImplementationOnce(async(...args)=>{await original(...args);throw new Error("Reservation response failure");});
         try{await expect(coordinator.prepare(request,setupToken)).rejects.toThrow("Reservation response failure");}finally{fault.mockRestore();}
+        expect(await db.sql`SELECT token_hash FROM provider_signup_admissions WHERE token_hash=${createHash("sha256").update(setupToken).digest()}`).toHaveLength(0);
         expect(await db.sql`SELECT id FROM account_signup_ceremonies WHERE id=${id}`).toHaveLength(0);
         expect(await db.sql`SELECT id FROM provider_accounts WHERE canonical_address=${address}`).toHaveLength(0);
         expect((await db.sql`SELECT consumed_at FROM custom_address_authorizations WHERE canonical_address=${address}`)[0].consumed_at).toBeNull();
       }
-      const created=await call("signup",publicSignup?publicRequest:request);expect(created.status).toBe(200);
+      const created=await call("signup",publicSignup||customDomain?publicRequest:request);expect(created.status).toBe(200);
       if(customDomain)await expect(coordinator.checkAddress({address:request.address,invitation:invite,...customAuthorization})).rejects.toMatchObject({status:403});
       else expect(await coordinator.checkAddress({address:request.address,invitation:invite})).toEqual({address:request.address,available:false});
-      if(publicSignup){
+      if(publicSignup&&!customDomain){
         await db.sql`UPDATE provider_registration_settings SET mode='invite' WHERE singleton=true`;
         await expect(coordinator.prepare({...request,signupId:randomUUID()},`hailp_${encodeBase64Url(randomBytes(32))}`)).rejects.toMatchObject({status:403});
       }
@@ -234,6 +237,7 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
         expect(setup.accountId).not.toBe(prepared.accountId);
         expect(setup.preparation.userRecoveryKey).not.toBe(prepared.userRecoveryKey);
         expect(setup.preparation.userIdentityKey).not.toBe(prepared.userIdentityKey);
+        expect((await db.sql`SELECT invitation_id FROM provider_signup_admissions WHERE token_hash=${createHash("sha256").update(setupToken).digest()}`)[0].invitation_id).toBeNull();
         const saved=(await db.sql`SELECT request FROM account_signup_ceremonies WHERE id=${id}`)[0].request;
         await expect(onboarding.prepare(address,request.recoveryKey,request.identityKey,false,"managed",monitorOrigin,signer.publicDidKey,
           createHash("sha256").update(setupToken).digest(),true,true)).rejects.toThrow("authorized signup transaction");

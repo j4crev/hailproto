@@ -124,8 +124,12 @@ Migration 0088 stores provider-local address authorizations. A passkey-authentic
 native account can request `POST /api/v1/account/custom-domains/:id/authorize-address`
 with `{"address":"alice@example.com"}` under its verified domain. The response
 contains `authorizationId`, the canonical `address`, a one-time `token`, and
-`expiresAt`. This endpoint does not create an account or bypass provider signup
-admission policy. Settings passes the token to `/signup` in a temporary URL
+`expiresAt`. This endpoint does not create an account. The authorization also
+satisfies admission for this exact custom address, including on invite-only
+providers: an existing native account administering a verified domain may create
+separate accounts under it. It cannot admit a native address or another custom
+address. General browser/CLI signup still follows the provider’s invite/public
+policy. Settings passes the token to `/signup` in a temporary URL
 fragment, never a query string or HTTP request URL. Signup immediately removes
 the fragment and retains the token only in memory and encrypted setup/recovery
 files. Do not copy that fragment into logs or share it. Existing unfinished setup
@@ -156,7 +160,8 @@ rolls back consumption so the original setup can safely retry. Migration/custody
 fences and generation checks remain effective, including for administrators who
 have advanced beyond generation one.
 
-Native onboarding remains unchanged. Custom signup requires the exact address
+Native onboarding remains unchanged. Custom signup needs no separate invitation
+or emailed code; security email is still verified during signup. It requires the exact address
 authorization; supplying it for a native address is rejected. Admission, capability
 consumption, account/key reservation, and ceremony linkage commit together. A
 failure rolls them all back; exact retries retain the same account and keys.

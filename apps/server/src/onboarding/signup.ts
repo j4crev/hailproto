@@ -74,12 +74,12 @@ export class SignupCoordinator {
       typeof input.address!=="string"||typeof input.invitation!=="string"||input.invitation.length>2048||
       hasAuthorization&&(typeof input.addressAuthorization!=="string"||!/^haild_[A-Za-z0-9_-]{43}$/.test(input.addressAuthorization)))
       throw new SignupError(400);
-    await this.registration.check(input.invitation);
     let address:string;
     try{address=canonicalizeHailAddress(input.address);}catch{throw new SignupError(400,"Invalid address");}
     const custom=address.split("@")[1]!==new URL(this.origin).hostname;
     if(custom!==hasAuthorization)throw new SignupError(400,"Custom addresses require exact-address authorization");
     if(custom)await this.domains.checkAddressAuthorization(input.addressAuthorization as string,address);
+    else await this.registration.check(input.invitation);
     const held=await this.sql`SELECT 1 FROM provider_accounts WHERE canonical_address=${address}
       UNION ALL SELECT 1 FROM transfer_address_reservations WHERE canonical_address=${address}
       UNION ALL SELECT 1 FROM provider_reserved_names WHERE local_part=split_part(${address}, '@', 1) LIMIT 1`;
@@ -115,7 +115,12 @@ export class SignupCoordinator {
     const prior=(await this.sql<SignupRow[]>`SELECT * FROM account_signup_ceremonies WHERE id=${input.signupId}`)[0];
     if(!prior){
       await this.sql.begin(async tx=>{
-        const invitationId=await this.registration.admit(signupHash,digest,"browser",input.invitation as string,tx as unknown as SQL);
+        // Keep custom authority consumption, admission and reservation atomic.
+        // This never issues a reusable invitation for another address.
+        if(custom)await this.domains.consumeAddressAuthorization(tx,authorization as string,request.address,input.signupId as string,signupHash,digest);
+        const invitationId=custom
+          ?await this.registration.admitCustomAddress(tx,input.signupId as string,request.address,signupHash,digest)
+          :await this.registration.admit(signupHash,digest,"browser",input.invitation as string,tx as unknown as SQL);
         if((await tx`SELECT id FROM account_api_credentials WHERE token_hash IN (${signupHash},${enrollmentHash})`).length||
           (await tx`SELECT id FROM account_passkey_enrollment_capabilities WHERE token_hash IN (${signupHash},${enrollmentHash})`).length)
           throw new SignupError(409,"Existing account credentials cannot be used as setup authority");
@@ -126,7 +131,6 @@ export class SignupCoordinator {
           const row=await this.row(input.signupId as string,token,tx);
           if(row.recovery_package!==!input.backupVerified||!equal(row.request_digest,digest))throw new SignupError(409,"Signup retry differs from its original intent");
           if(!row.account_id){
-            await this.domains.consumeAddressAuthorization(tx,authorization as string,request.address,row.id,signupHash,digest);
             await this.prepareAccount(row,tx);
           }
         }
