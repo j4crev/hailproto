@@ -10,16 +10,16 @@
   let {data}=$props();
   type Screen="address"|"protection"|"save"|"verify"|"email"|"publish"|"activating"|"passkey"|"signin"|"expired"|"done"|"resume";
   let screen=$state<Screen>("address"),local=$state(""),email=$state(""),invitation=$state(""),consent=$state(false);
-  let secret=$state(""),enteredSecret=$state(""),secretSaved=$state(false),downloaded=$state(false);
+  let secret=$state(""),enteredSecret=$state(""),downloaded=$state(false);
   let file=$state<File|null>(null),cached=$state(false),pending=$state<PendingSignup|null>(null),summary=$state<SignupSummary|null>(null);
   let busy=$state(false),message=$state(""),code=$state(""),emailVerified=$state(false),label=$state("Hail passkey");
   let retryAt=$state(0),emailRetryAt=$state(0),now=$state(Date.now()),attempts=$state(0),packageText=$state("");
   let key:CryptoKey|null=null,epoch=0;
   const urls=new Set<string>();
   const maxActivationAttempts=24;
-  const phases=["Your address","Protection","Recovery kit","Security email","Create account","Passkey"];
+  const phases=["Your address","Protection","Recovery file","Security email","Create account","Passkey"];
   const phase=$derived(screen==="address"||screen==="resume"?0:screen==="protection"?1:screen==="save"||screen==="verify"?2:screen==="email"?3:screen==="publish"||screen==="activating"?4:5);
-  const headings:Record<Screen,string>={address:"Choose your Hail address",protection:"How your account is protected",save:"Save your recovery kit",verify:"Check your saved recovery kit",
+  const headings:Record<Screen,string>={address:"Choose your Hail address",protection:"How your account is protected",save:"Save your recovery file",verify:"Check your recovery file",
     email:"Verify your security email",publish:"Ready to create your account",activating:"Creating your account",passkey:"Create your passkey",signin:"Try your new passkey",expired:"Continue with your existing account",done:"Your account is ready",resume:"Continue your setup"};
   function go(next:Screen){screen=next;message="";file=null;requestAnimationFrame(()=>document.getElementById("signup-heading")?.focus());}
   function clearMemory(){epoch++;secret="";enteredSecret="";pending=null;summary=null;key=null;packageText="";invitation="";code="";
@@ -170,7 +170,7 @@
     if(["passkey-enrollment","sign-in-required","enrollment-expired"].includes(summary?.state??"")){selectAccountScreen();return;}
     if(summary?.state==="awaiting-monitor"){go("activating");attempts=0;retryAt=Date.now()+1000;return;}
     if(!fromPackage&&pending.version===2&&summary?.state==="recovery-required"){go("verify");return;}
-    if(!fromPackage&&pending.version===1){secret=secretText;downloaded=false;secretSaved=false;go("save");return;}
+    if(!fromPackage&&pending.version===1){secret=secretText;downloaded=false;go("save");return;}
     go("email");await sendCode();
   }
 </script>
@@ -189,31 +189,30 @@
           {#if data.signupMode==="invite"||invitation}<label>Invitation<input type="password" bind:value={invitation} required={data.signupMode==="invite"} autocomplete="off" maxlength="2048" /></label>{/if}
           <label>Your Hail address<div class="address-input"><input bind:value={local} required pattern={'[a-z0-9][a-z0-9._\\-]{0,63}'} maxlength="64" autocomplete="username" /><span>@{new URL(data.policy.provider).hostname}</span></div></label>
           <label>Security email<input type="email" bind:value={email} required autocomplete="email" maxlength="254" /></label>
-          <p>Use an existing email address outside Hail for security alerts. We’ll verify it later.</p>
+          <p>Use an email address outside Hail for security alerts.</p>
           <button class="hail-button" disabled={busy||now<retryAt}>Continue</button>
         </form>
         <button class="text-link" onclick={()=>go("resume")}>Continue an interrupted setup</button>
       {:else if screen==="protection"}
-        <p>Hail handles everyday messaging. You keep the recovery keys that control your identity.</p>
-        <ul><li>Keep an encrypted recovery file and its secret in separate places.</li><li>Your address, identity keys and service endpoint become permanently public when you create the account.</li><li>During this alpha, Hail also operates the monitor. It cannot independently protect you against Hail suppressing alerts. Recovery is time-sensitive.</li></ul>
-        <details><summary>How recovery works</summary><p>Your browser temporarily handles recovery keys. Compromised page code or your device could steal them. Your recovery file and secret must stay separate. Passkeys and email alerts do not replace owner recovery, and a backup alone does not guarantee protection.</p></details>
-        <label class="check"><input type="checkbox" bind:checked={consent} /> I accept managed custody, the alpha limitations and permanent publication, and will save and verify my recovery kit.</label>
+        <ul><li>Hail manages your everyday messaging.</li><li>You hold the recovery keys that control your identity.</li><li>Your address and identity details become permanently public.</li></ul>
+        <p>Alpha limitation: Hail also runs the security monitor and could suppress alerts. Recovery is time-sensitive.</p>
+        <details><summary>Learn more</summary><p>Hail holds the keys used to manage your account and messaging; you keep the owner recovery keys. Your public identity includes your address, identity keys and service endpoint.</p><p>Keep your recovery file and secret separately. Your browser handles recovery keys during setup; compromised page code or your device could steal them. Passkeys and email alerts do not replace owner recovery, and a backup alone does not guarantee protection.</p></details>
+        <label class="check"><input type="checkbox" bind:checked={consent} /> I understand and agree.</label>
         <div class="actions"><button class="hail-button-secondary" disabled={busy} onclick={()=>go("address")}>Back</button><button class="hail-button" disabled={busy||!consent||now<retryAt} onclick={()=>run(generate)}>Set up recovery</button></div>
       {:else if screen==="save"}
-        <p>Save this one file. It contains your encrypted recovery keys and lets you continue an interrupted setup.</p>
-        {#if packageText}<button class="hail-button" disabled={busy} onclick={download}>Download recovery kit</button>{:else}<p>Your original setup is saved in this browser. Keep the secret below while we finish preparing your kit.</p><button class="hail-button" disabled={busy||now<retryAt} onclick={()=>run(generate)}>Retry preparing recovery kit</button>{/if}
+        <p>Save this file and keep its secret separately. You need both to use your recovery keys.</p>
+        {#if packageText}<button class="hail-button" disabled={busy} onclick={download}>Download recovery file</button>{:else}<p>Your original setup is saved in this browser. Keep the secret below while we finish preparing your file.</p><button class="hail-button" disabled={busy||now<retryAt} onclick={()=>run(generate)}>Retry preparing recovery file</button>{/if}
         {#if secret}<div><p>Recovery secret</p><div class="flex min-w-0 items-center gap-1"><code class="min-w-0 flex-1" data-recovery-secret>{secret}</code><CopyButton value={secret} label="Copy recovery secret" /></div></div>{/if}
-        <p>Save the secret in a password manager or on paper, separately from the file. Anyone with both can unlock your recovery keys.</p>
-        <label class="check"><input type="checkbox" bind:checked={secretSaved} /> I saved the secret separately.</label>
-        <button class="hail-button" disabled={busy||!downloaded||!secretSaved} onclick={()=>{secret="";go("verify");}}>Continue</button>
+        <p>Keep the secret in a password manager or on paper. Anyone with both the file and secret can unlock your recovery keys.</p>
+        <button class="hail-button" disabled={busy||!downloaded} onclick={()=>{secret="";go("verify");}}>Continue</button>
       {:else if screen==="verify"}
-        <p>Open the file you just saved and enter the secret from your separate copy. This checks that your recovery kit works.</p>
+        <p>Choose the file you saved and paste your saved secret. This check stays in your browser.</p>
         <form onsubmit={e=>{e.preventDefault();void run(verifyPackage);}}>
-          <label>Saved recovery kit<input type="file" required accept=".json,application/json" onchange={e=>file=e.currentTarget.files?.[0]??null} /></label>
+          <label>Saved recovery file<input type="file" required accept=".json,application/json" onchange={e=>file=e.currentTarget.files?.[0]??null} /></label>
           <label>Saved recovery secret<input type="password" required bind:value={enteredSecret} autocomplete="off" spellcheck="false" maxlength="43" /></label>
-          <button class="hail-button" disabled={busy||now<retryAt}>Verify and continue</button>
+          <button class="hail-button" disabled={busy||now<retryAt}>Check and continue</button>
         </form>
-        <button class="text-link" onclick={download}>Download the same kit again</button>
+        <button class="text-link" onclick={download}>Download the same file again</button>
       {:else if screen==="email"}
         <p>Enter the code sent to <strong>{pending?.email}</strong>. This email receives security alerts; it cannot reset your recovery keys.</p>
         <form onsubmit={e=>{e.preventDefault();void run(verifyEmail);}}>
@@ -222,31 +221,30 @@
         </form>
         <button class="text-link" disabled={busy||now<emailRetryAt||now<retryAt} onclick={()=>run(()=>sendCode(true))}>{now<emailRetryAt?`Resend in ${Math.ceil((emailRetryAt-now)/1000)}s`:"Resend code"}</button>
       {:else if screen==="publish"}
-        <p class="account-address">{pending?.address}</p><p>Your recovery kit and security email are verified. Creating your account publishes its identity permanently.</p>
+        <p class="account-address">{pending?.address}</p><p>Creating your account makes your address and identity details permanently public.</p>
         <details><summary>Public identity details</summary><p>Provider: {data.policy.provider}<br />Monitor: {data.policy.monitorOrigin} (same operator)</p><pre>{JSON.stringify(pending?.operation,null,2)}</pre></details>
         <button class="hail-button" disabled={busy||now<retryAt} onclick={()=>run(publish)}>Create my account</button>
       {:else if screen==="activating"}
-        <p>We’re publishing your identity, connecting monitoring and checking security-alert delivery. You don’t need to repeat these steps.</p>
-        {#if attempts<maxActivationAttempts}<p role="status">This can take a few minutes. Keep this page open; we’ll continue automatically when the checks finish.</p>{:else}<p>This is taking longer than expected. Your original setup is saved; you can check again or return later with your recovery kit.</p><button class="hail-button" disabled={busy||now<retryAt} onclick={()=>{attempts=0;void run(advance);}}>Check again</button>{/if}
+        {#if attempts<maxActivationAttempts}<p role="status">This may take a few minutes—keep this page open.</p>{:else}<p>This is taking longer than expected. Your original setup is saved; you can check again or return later with your recovery file.</p><button class="hail-button" disabled={busy||now<retryAt} onclick={()=>{attempts=0;void run(advance);}}>Check again</button>{/if}
       {:else if screen==="passkey"}
         <p>Use your device or password manager to create a passkey for everyday sign-in.</p>
         <form onsubmit={e=>{e.preventDefault();void run(enroll);}}><label>Passkey name<input bind:value={label} required maxlength="80" /></label><button class="hail-button" disabled={busy||now<retryAt}>Create passkey</button></form>
         <button class="text-link" disabled={busy||now<retryAt} onclick={()=>run(checkEnrollment)}>Already created it? Check status</button>
       {:else if screen==="signin"}
-        <p>Sign in once to confirm your passkey works and finish setup. Keep the recovery kit you already saved.</p>
+        <p>Sign in with your new passkey to finish setup.</p>
         <button class="hail-button" disabled={busy||now<retryAt} onclick={()=>run(finish)}>Sign in and finish</button>
       {:else if screen==="expired"}
-        <p>The passkey setup window expired. Keep your recovery kit and contact the provider to continue with this identity. Starting over would create a different identity.</p>
+        <p>The passkey setup window expired. Keep your recovery file and contact the provider to continue with this identity. Starting over would create a different identity.</p>
         <button class="hail-button-secondary" disabled={busy||now<retryAt} onclick={()=>run(checkEnrollment)}>Check passkey status</button>
         <a href="/?next=%2F">Sign in with an existing passkey</a>
       {:else if screen==="resume"}
-        <p>{cached?"Encrypted setup was found in this browser. Enter your recovery secret, or choose your saved kit.":"Open your recovery kit and enter its separate secret to continue."} Older pending setup files are also accepted.</p>
-        <form onsubmit={e=>{e.preventDefault();void run(restore);}}><label>Recovery kit or pending setup file<input type="file" required={!cached} accept=".json,application/json" onchange={e=>file=e.currentTarget.files?.[0]??null} /></label><label>Saved recovery secret<input type="password" required bind:value={enteredSecret} autocomplete="off" spellcheck="false" maxlength="43" /></label><button class="hail-button" disabled={busy||now<retryAt}>Continue setup</button></form>
-        <p>Setup access lasts 24 hours. After that, keep your kit and contact the provider. This screen resumes signup; it does not recover an existing account.</p>
+        <p>{cached?"Encrypted setup was found in this browser. Enter your recovery secret, or choose your saved file.":"Open your recovery file and enter its separate secret to continue."} Older pending setup files are also accepted.</p>
+        <form onsubmit={e=>{e.preventDefault();void run(restore);}}><label>Recovery file or pending setup file<input type="file" required={!cached} accept=".json,application/json" onchange={e=>file=e.currentTarget.files?.[0]??null} /></label><label>Saved recovery secret<input type="password" required bind:value={enteredSecret} autocomplete="off" spellcheck="false" maxlength="43" /></label><button class="hail-button" disabled={busy||now<retryAt}>Continue setup</button></form>
+        <p>Setup access lasts 24 hours. After that, keep your file and contact the provider. This screen resumes signup; it does not recover an existing account.</p>
         <a href="/?next=%2F">Already finished? Sign in</a>
         {#if !cached}<button class="text-link" onclick={()=>go("address")}>Back</button>{/if}
       {:else if screen==="done"}
-        <p>Keep your recovery kit and secret separately. Your temporary setup access has been retired.</p><a class="hail-button" href="/">Open your inbox</a>
+        <a class="hail-button" href="/">Open your inbox</a>
       {/if}
     </div>{/key}
     {#if busy&&screen!=="activating"}<p role="status">Working…</p>{/if}

@@ -56,7 +56,7 @@ export async function openPending(text:string,key:CryptoKey,policy:SignupPolicy)
 
 export class SignupRequestError extends Error {
   constructor(readonly status:number,readonly retryAfter:number){
-    super(status===410?"Setup authority expired. Keep your recovery kit and setup file; do not start a replacement identity. Contact the provider.":
+    super(status===410?"Setup authority expired. Keep your recovery file and setup file; do not start a replacement identity. Contact the provider.":
       status===403?"Invitation or setup authority refused or retired. If you already finished, sign in with your passkey.":
       status===409?"The address, invitation or retained signup state conflicts. Keep this setup file; do not replace keys or retry with different intent.":
       status===429?"Too many attempts. Wait before retrying with the same setup.":
