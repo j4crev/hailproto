@@ -4,6 +4,7 @@ import { ProviderDatabase } from "../db/database.js";
 import { SafeHttpsTransport } from "../discovery/safe-fetch.js";
 import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
 import { AddressVerifier } from "../discovery/verifier.js";
+import { providerDiscoveryForOrigin } from "../discovery/delegation.js";
 import { GrantRepository } from "../grants/repository.js";
 import { GrantService, type GrantDefinition } from "../grants/service.js";
 import { KeyEncryptor } from "../identity/key-encryption.js";
@@ -62,6 +63,7 @@ if (!grantorAddress || !granteeAddress || !definitionPath) {
 }
 const input = definition(parseJsonWithoutDuplicateKeys(await Bun.file(definitionPath).text()));
 const config = loadConfig();
+const addressDiscovery = providerDiscoveryForOrigin(config.publicOrigin);
 const database = new ProviderDatabase(config.databaseUrl);
 
 try {
@@ -75,7 +77,7 @@ try {
     new GrantRepository(database.sql),
     new KeyEncryptor(config.keyEncryptionKey),
     resolver,
-    new AddressVerifier(plc, transport.fetch, transport.validateTarget,undefined,resolver),
+    new AddressVerifier(plc, transport.fetch, transport.validateTarget,undefined,resolver,addressDiscovery),
     new SenderProfileVerifier(
       resolver,
       transport.fetch,

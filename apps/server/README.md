@@ -9,6 +9,7 @@ strict-public provider.
 ## Start here
 
 - [Deploy a new provider](deploy/public/README.md): host/domain, database, HTTPS, monitoring and signup.
+- [Provider DNS discovery](deploy/public/README.md#dns-discovery-for-your-provider): native-domain and custom-domain routing records.
 - [Create the first administrator](../../docs/provider-admin-setup.md): vault, monitored account, passkey and explicit operator grant.
 - [Account CLI](../cli/README.md) and [workflows](../cli/docs/cli-workflows.md).
 - [Custody, transfers and recovery](../cli/docs/custody-transitions.md).

@@ -6,6 +6,11 @@ Start with the [new provider setup guide](../apps/server/deploy/public/README.md
 if the host, HTTPS ingress or monitor is not configured yet. After setup, everyday
 invitations happen at your provider's `/admin` page.
 
+Complete the [provider DNS discovery setup](../apps/server/deploy/public/README.md#dns-discovery-for-your-provider)
+as part of domain setup. Remote lookups use DNS discovery; your provider can go
+directly to WebFinger for its own exact native domain. The provider routing
+record is separate from administrator account authorization.
+
 **Three separate operations are required:** reserve the admin address for your
 recovery key, create the account and its passkey, then explicitly grant operator
 permission. An account named `admin` does not automatically have that permission.

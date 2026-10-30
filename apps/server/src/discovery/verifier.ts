@@ -12,6 +12,7 @@ import { PlcHailDidResolver } from "../plc/resolver.js";
 import type { HailDidResolver, PlcResolutionEvidence } from "../plc/resolver.js";
 import { ADDRESS_BINDING_REL, COSE_SIGN1_MEDIA_TYPE } from "./routes.js";
 import { parseJsonWithoutDuplicateKeys } from "./strict-json.js";
+import type { ProviderDiscovery } from "./delegation.js";
 
 const MAX_WEBFINGER_BYTES = 65_536;
 const MAX_BINDING_BYTES = 16_384;
@@ -115,16 +116,20 @@ export class AddressVerifier {
     private readonly validateTarget: NetworkTargetValidator,
     private readonly now: () => Date = () => new Date(),
     private readonly resolver: HailDidResolver = new PlcHailDidResolver(plc),
+    // Production entry points inject DNS discovery; isolated/local fixtures may omit it.
+    private readonly discoverProvider?: ProviderDiscovery,
   ) {}
 
   async verify(addressInput: string): Promise<VerifiedAddress> {
     const address = canonicalizeHailAddress(addressInput);
     const resource = `acct:${address}`;
-    const webfinger = new URL(`https://${address.slice(address.indexOf("@") + 1)}/.well-known/webfinger`);
+    const signal = AbortSignal.timeout(10_000);
+    const domain = address.slice(address.indexOf("@") + 1);
+    const provider = await this.discoverProvider?.(domain, signal);
+    const webfinger = new URL(`https://${provider ?? domain}/.well-known/webfinger`);
     webfinger.searchParams.set("resource", resource);
     webfinger.searchParams.set("rel", ADDRESS_BINDING_REL);
 
-    const signal = AbortSignal.timeout(10_000);
     const webfingerResponse = await this.fetchWebFinger(webfinger, signal);
     if (webfingerResponse.status !== 200) throw new Error("WebFinger lookup did not return 200");
     if (webfingerResponse.headers.get("content-type") !== "application/jrd+json") {

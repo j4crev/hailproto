@@ -61,6 +61,8 @@ import type {PasskeyAuth} from "./accounts/passkeys.js";
 import {registerPasskeyRoutes} from "./accounts/passkey-routes.js";
 import type {AccountConnections} from "./accounts/connections.js";
 import {registerConnectionRoutes} from "./accounts/connection-routes.js";
+import { registerCustomDomainRoutes } from "./accounts/custom-domain-routes.js";
+import type { CustomDomains } from "./accounts/custom-domains.js";
 
 export interface ReadinessResult {
   ready: boolean;
@@ -102,6 +104,7 @@ export interface AppDependencies {
   accountAccess?: { access: AccountAccess; sql: SQL };
   servingSql?:SQL;
   passkeys?:PasskeyAuth;
+  customDomains?: CustomDomains;
 }
 
 const defaultDependencies: AppDependencies = {
@@ -144,6 +147,7 @@ export function createApp(
     const { accounts, grants, service, messaging, binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,publications } = dependencies.accountApi;
     registerAccountApiRoutes(app, accounts, grants, service, config.publicOrigin,messaging,binding,transfer,custodyTransition,managedTransfer,profiles,profileVerifier,config.passkeys?.origin,publications,dependencies.accountApi.avatarProfiles);
     if(dependencies.accountApi.connections)registerConnectionRoutes(app,dependencies.accountApi.connections,accounts,config.passkeys?.origin??config.publicOrigin);
+    if(dependencies.customDomains)registerCustomDomainRoutes(app,dependencies.customDomains,accounts,config.passkeys?.origin??config.publicOrigin);
     if(dependencies.passkeys)registerPasskeyRoutes(app,dependencies.passkeys,accounts);
     if(dependencies.passkeys&&dependencies.signup&&dependencies.signupEmail&&config.alphaSignup)
       registerOperatorRoutes(app,accounts,new OperatorInvitations(dependencies.signupEmail.sql,config.publicOrigin,

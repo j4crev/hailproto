@@ -29,7 +29,7 @@ Hail addresses are aliases. Hail Grants, Hail Envelopes, and durable relationshi
 - **Hail address**: A case-insensitive human-readable alias such as `alice@example.com`.
 - **Address domain**: The domain portion of a Hail address, such as `example.com`.
 - **Address binding**: A signed statement associating one canonical Hail address with one DID for a limited period.
-- **Address authority**: The domain that publishes the address mapping over authenticated HTTPS.
+- **Address authority**: The address domain, publishing mappings through its own authenticated HTTPS endpoint or a DNS-delegated WebFinger provider.
 - **DID controller**: The entity authorized to use a verification method in the resolved DID document.
 
 ## Address Syntax And Canonicalization
@@ -56,7 +56,7 @@ To construct the RFC 7565 `acct:` URI, prefix the canonical address with `acct:`
 
 An address is verified only when both sides agree:
 
-1. The address domain's authenticated WebFinger JRD selects one Address Binding representation.
+1. The address domain selects a WebFinger authority through DNS delegation below, or its own authenticated HTTPS endpoint when delegation is absent. That authority's authenticated WebFinger JRD selects one Address Binding representation.
 2. That representation contains the canonical address and DID and is signed by the DID's authorized `#hail-identity` key.
 
 Conceptually:
@@ -73,6 +73,66 @@ A DID can claim an address it does not own, and a domain can point an address at
 Because every Hail identity uses PLC, the address domain and PLC rotation authority are separate trust anchors. Domain control alone cannot rotate the named DID's keys or service, and PLC control alone cannot publish the domain's WebFinger mapping. A compromised domain can redirect the address to another DID, but it cannot inherit grants or message history bound to the original DID.
 
 ## Discovery
+
+### DNS Provider Delegation
+
+Before constructing the WebFinger endpoint, query TXT records at
+`_hail-provider.<canonical-address-domain>`. A domain can delegate all its Hail
+local parts without operating an HTTPS server:
+
+```dns
+_hail-provider.j4crev.com. TXT "v=hail1; provider=haili.app"
+```
+
+A provider resolving its own exact, locally configured native address domain may
+skip this TXT lookup and use that domain's HTTPS WebFinger endpoint directly.
+This exception comes from provider configuration, never from the input address,
+a suffix match, or a previously hosted custom-domain registration. Remote domains,
+native-domain subdomains, and hosted custom domains still require DNS discovery.
+Explicit domain registration and delegation checks must always query DNS.
+All HTTPS, binding, and DID verification requirements remain in force; ordinary
+A/AAAA resolution for HTTPS is not bypassed. Remote resolvers still use the
+published delegation, so operators must keep it consistent with native hosting.
+
+Concatenate character strings within each TXT RR, never across RRs. The RRset
+must contain exactly one record with the exact grammar
+`v=hail1; provider=<hostname>`, at most 512 UTF-8 bytes. The hostname must be a
+lowercase canonical ASCII A-label public DNS domain accepted by Hail's address
+domain rules. Reject URLs, ports, paths, address literals, unknown versions,
+additional fields, and multiple records. These are Hail draft conventions, not
+registered WebFinger discovery extensions.
+
+For valid delegation, request `https://<hostname>/.well-known/webfinger`, retaining
+the original address in `resource` and requiring that original JRD subject. Do not
+recursively query the provider's `_hail-provider` record. Existing HTTPS redirect,
+public-network, signature, representation, and exact address/DID checks apply.
+The DID's Hail service need not share the discovery provider's hostname.
+
+Only DNS absence (NXDOMAIN or NOERROR/NODATA) permits the domain-hosted WebFinger
+path below. DNS timeouts, SERVFAIL, malformed or ambiguous records, and failure
+of an advertised provider fail discovery without fallback. DNS and HTTP retrievals
+share the existing 10-second response deadline.
+
+The initial profile accepts unsigned DNS through the configured recursive
+resolver. Operators should use a DNSSEC-validating resolver; bogus DNSSEC must
+not be treated as absence. Hail does not itself validate DNSSEC. HTTPS authenticates
+the selected provider, not the original DNS delegation. DNS-response integrity
+is therefore an additional trust dependency: tampering can substitute an
+attacker's DID but cannot transfer the original DID's keys, history, or grants.
+
+Delegated discovery caches must additionally expire at the remaining DNS TTL of
+the delegation and any DNS aliases used to obtain it. Implementations without
+those TTLs must not application-cache delegated verification results. Recursive
+DNS caching remains permitted. No periodic polling or per-message DNS check is
+required.
+
+Upgrade resolvers before advertising DNS-only addresses: older WebFinger-only
+implementations cannot discover them. Signed binding and message formats remain
+unchanged. Provider-private registration challenges such as
+`_hail-domain-verify.<domain> TXT "hail-domain-verify=<random-token>"` authorize
+registration at a provider; they do not replace public delegation.
+
+### WebFinger Request
 
 Hail address discovery uses WebFinger, defined by RFC 7033, with an `acct` URI defined by RFC 7565. The permanent Hail Address Binding link relation is:
 
@@ -119,11 +179,11 @@ Conceptual response:
 
 The `rel` request parameter is a response filter, not a guarantee that the returned JRD contains only that relation. A verifier requires the JRD `subject` to exactly equal the canonical `acct:` URI and selects exactly one link whose `rel` equals the Hail relation and whose parsed `type` is equivalent to the Hail COSE media type above. No match or multiple matches fail address verification.
 
-The WebFinger response proves that the address domain selected the binding resource. The binding `href` may use a different origin, allowing delegated providers and CDNs, but the client must first obtain that URL from the address domain's authenticated WebFinger response.
+The WebFinger response selects the binding resource under the authority established above. The binding `href` may use a different origin, allowing providers and CDNs, but the client must first obtain that URL from the selected authority's authenticated WebFinger response.
 
 ### WebFinger Retrieval
 
-A verifier sends the WebFinger request to the canonical address domain over HTTPS. It may follow at most three WebFinger redirects, as permitted by RFC 7033. Every redirect target must use HTTPS, contain a public ASCII DNS hostname in canonical IDNA A-label form, contain no username, password, or fragment, and pass the network-address checks below. The verifier follows the supplied `Location` URI rather than reconstructing or appending query parameters.
+A verifier sends the WebFinger request to the DNS-selected provider, or the canonical address domain when delegation is absent, over HTTPS. It may follow at most three WebFinger redirects, as permitted by RFC 7033. Every redirect target must use HTTPS, contain a public ASCII DNS hostname in canonical IDNA A-label form, contain no username, password, or fragment, and pass the network-address checks below. The verifier follows the supplied `Location` URI rather than reconstructing or appending query parameters.
 
 The complete redirect chain shares a 10-second response deadline, with a 5-second connection timeout for each connection. Every TLS connection requires normal hostname and certificate validation. Every DNS result and connection address is checked to reject IP-address hostnames, loopback, link-local, private, reserved, or otherwise non-public addresses and to prevent DNS rebinding. Requests send no `Authorization`, `Cookie`, or `Referer` fields and use `Accept-Encoding: identity`.
 
@@ -191,7 +251,7 @@ Given a user-supplied Hail address, a verifier:
 
 1. Normalizes the address according to the Hail address profile.
 2. Constructs its canonical `acct:` URI.
-3. Performs WebFinger discovery against the address domain over HTTPS.
+3. Resolves DNS provider delegation and performs WebFinger discovery against the selected authority over HTTPS.
 4. Requires the WebFinger `subject` to equal the canonical `acct:` URI.
 5. Selects exactly one supported Hail Address Binding link.
 6. Validates the selected `href` and fetches the binding without redirects under the binding retrieval profile.
@@ -212,7 +272,7 @@ Every regular PLC operation contains an `alsoKnownAs` array, but the array may b
 
 Clients ignore any `alsoKnownAs` value for Hail discovery and must not treat it as proof of address ownership. The field is a unilateral DID-controller assertion: the PLC directory does not verify it against the named domain, it may become stale after address reassignment, and every prior value remains public in PLC history. It also cannot represent a trustworthy primary address because one DID may have multiple Hail addresses.
 
-Authenticated WebFinger plus the signed, expiring Address Binding supplies the current two-sided authorization that `alsoKnownAs` lacks. Keeping Hail addresses out of PLC avoids a permanent address history while preserving address changes and multiple-address support. A future reverse-discovery mechanism would need an explicit trust, privacy, staleness, and primary-address model rather than assigning semantics to `alsoKnownAs` retroactively.
+WebFinger authenticated under the selected discovery authority plus the signed, expiring Address Binding supplies the current two-sided authorization that `alsoKnownAs` lacks, subject to the DNS trust dependency for delegated discovery. Keeping Hail addresses out of PLC avoids a permanent address history while preserving address changes and multiple-address support. A future reverse-discovery mechanism would need an explicit trust, privacy, staleness, and primary-address model rather than assigning semantics to `alsoKnownAs` retroactively.
 
 ## Publisher Activation
 

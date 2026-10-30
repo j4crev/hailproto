@@ -35,6 +35,42 @@ public endpoint. Correct persistent cloud-init aliases as well as `/etc/hosts`.
 
 ## 2. Configure identity, secrets and feature gates
 
+### DNS discovery for your provider
+
+Publish this TXT record for your native address domain, substituting your domain:
+
+```dns
+_hail-provider.haili.app. TXT "v=hail1; provider=haili.app"
+```
+
+Use one record, the exact lowercase format above, and a public hostname without
+`https://`, a port, or a path. A self-reference is intentional: discovery does
+not recurse. Remote providers check this record when discovering your users.
+Your own provider skips the TXT lookup for its exact configured native domain
+and goes directly to that domain's HTTPS WebFinger endpoint. All other domains,
+including custom domains hosted on your server and native-domain subdomains,
+still use DNS discovery. Custom-domain registration always checks DNS explicitly.
+Absent records retain domain-hosted HTTPS WebFinger; malformed records and DNS
+failures stop discovery. Your provider must still serve WebFinger and signed
+bindings at its HTTPS origin. This discovers an address's DID; later account
+activities and delivery use that DID's PLC-resolved Hail service and permissions.
+
+Allow outbound DNS to your configured recursive resolver and HTTPS to remote
+providers. Prefer a DNSSEC-validating resolver. Hail currently accepts unsigned
+DNS, so the resolver is part of the discovery trust boundary. Recursive caching
+honors DNS TTLs; no application cache or scheduled domain checks are used.
+
+For a custom domain hosted by this provider, the same record names your provider
+instead of the custom domain, for example
+`_hail-provider.j4crev.com TXT "v=hail1; provider=haili.app"`. Domain registration
+also requires the provider-issued `_hail-domain-verify` challenge. Registration
+does not yet enable custom-account signup; see the
+[implementation checklist](../../../../docs/custom-domains.md). Upgrade resolvers
+before advertising DNS-only addresses: old WebFinger-only clients cannot discover
+them. Neither record changes website hosting or SMTP email routing.
+
+### Provider configuration
+
 Edit the private `.env`:
 
 | Setting | Value |

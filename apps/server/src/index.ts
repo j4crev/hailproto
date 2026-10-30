@@ -35,6 +35,8 @@ import { TransferCleanup } from "./migration/cleanup.js";
 import { AccountApiRepository } from "./accounts/repository.js";
 import { GrantService } from "./grants/service.js";
 import { AddressVerifier } from "./discovery/verifier.js";
+import { providerDiscoveryForOrigin } from "./discovery/delegation.js";
+import { CustomDomains } from "./accounts/custom-domains.js";
 import { SenderProfileVerifier } from "./profiles/verifier.js";
 import { PrivatePocOnboarding } from "./onboarding/private-poc.js";
 import { PublicOnboarding } from "./onboarding/public.js";
@@ -83,6 +85,7 @@ import {ConnectionReconstruction} from './migration/connection-reconstruction.js
 import {ConnectionTransferOrchestration} from './migration/connection-orchestration.js';
 
 const config = loadConfig();
+const addressDiscovery = providerDiscoveryForOrigin(config.publicOrigin);
 const database = new ProviderDatabase(config.databaseUrl);
 const plc = createPlcDirectoryClient(config.plcDirectoryUrl);
 const onboardingRepository = new OnboardingRepository(database.sql);
@@ -136,7 +139,7 @@ if (schemaRehearsal && (config.plcDirectoryUrl !== "http://plc:2582" ||
 await database.migrate();
 
 const publicManaged=createPublicManagedRuntime(config,database.sql,plc,onboardingRepository,encryptor,transport,
-  new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver),undefined,connectionOrchestration);
+  new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver,addressDiscovery),undefined,connectionOrchestration);
 const managedTargetKeys=publicManaged?.targetKeys??targetKeys;
 const managedResolver=publicManaged?.resolver??(config.pocManagedTransfer?new PrivatePocManagedResolver(resolver):undefined);
 const managedAuthorization=publicManaged?.authorization??(managedResolver?new ManagedTransferAuthorization(database.sql,managedResolver,
@@ -150,7 +153,7 @@ const managedFence=publicManaged?.fence??(managedResolver?new ManagedMigrationFe
 const managedExporter=publicManaged?.exporter??(managedResolver?new ManagedMigrationExportService(database.sql,onboardingRepository,encryptor,
   managedResolver,config.hailServiceBase,undefined,"poc-local"):undefined);
 const managedActivation=publicManaged?.activation??(managedResolver?new ManagedMigrationActivation(database.sql,encryptor,managedResolver,
-  new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,managedResolver),config.hailServiceBase,
+  new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,managedResolver,addressDiscovery),config.hailServiceBase,
    config.plcDirectoryUrl,"poc-local"):undefined);
 const managedCompletion=publicManaged?.completion??(managedResolver&&managedActivation?new ManagedMigrationCompletion(
   new ManagedMigrationStageService(database.sql,managedResolver,targetKeys,config.hailServiceBase,undefined,"poc-local"),
@@ -279,7 +282,7 @@ if(!schemaRehearsal&&publicManaged) {
     new PortablePlcSubmission(database.sql,plc,config.plcDirectoryUrl,config.hailServiceBase),
     new PortableAddressPublication(database.sql,publicResolver,gate,config.plcDirectoryUrl,config.hailServiceBase),
     new PortableMigrationActivation(database.sql,encryptor,publicResolver,gate,
-      new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,publicResolver),
+      new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,publicResolver,addressDiscovery),
        config.hailServiceBase,config.plcDirectoryUrl,undefined,'public',true),config.hailServiceBase,'public',connectionOrchestration);
 } else if(!schemaRehearsal&&process.env.POC_SELF_SERVICE_TRANSFER==="true") {
   const encryptor=new KeyEncryptor(config.keyEncryptionKey),gate=new PrivatePocCutoverGate(database.sql,
@@ -287,7 +290,7 @@ if(!schemaRehearsal&&publicManaged) {
   transferCompletion=new PrivatePocTransferCompletion(database.sql,new MigrationTransferService(database.sql,onboardingRepository,encryptor,resolver,config.hailServiceBase,process.env.POC_SELF_SERVICE_RETURN==="true"),
     new PrivatePocPlcSubmission(database.sql,plc,config.plcDirectoryUrl,config.hailServiceBase),
     new PrivatePocAddressPublication(database.sql,resolver,gate,config.plcDirectoryUrl,config.hailServiceBase),
-    new PortableMigrationActivation(database.sql,encryptor,resolver,gate,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver),
+    new PortableMigrationActivation(database.sql,encryptor,resolver,gate,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver,addressDiscovery),
        config.hailServiceBase,config.plcDirectoryUrl,undefined,"private-poc",process.env.POC_SELF_SERVICE_RETURN==="true"),config.hailServiceBase,connectionOrchestration);
 }
 const app = createApp(config, schemaRehearsal ? {
@@ -301,7 +304,7 @@ const app = createApp(config, schemaRehearsal ? {
   ...(config.alphaSignup?(()=>{
     const policy={profile:"reduced-assurance-alpha-v1" as const,monitorOrigin:config.alphaSignup.monitorOrigin,monitorPublicKey:config.signupMonitor!.publicKey};
     const onboarding=new PublicOnboarding(database.sql,plc,resolver,new KeyEncryptor(config.keyEncryptionKey),config.plcDirectoryUrl,
-      config.hailServiceBase,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver),policy);
+      config.hailServiceBase,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver,addressDiscovery),policy);
     return {signup:new SignupCoordinator(database.sql,onboarding,new SignupMonitorService(database.sql,new SignupEmailClient(config.signupEmail!),
       new SignupMonitorClient(config.signupMonitor!)),config.publicOrigin,policy,config.alphaSignup.invitationKey)};
   })():{}),
@@ -312,10 +315,10 @@ const app = createApp(config, schemaRehearsal ? {
     if(config.nodeEnv!=="production"||!config.publicPlcAuthority)throw new Error("Public self-service onboarding requires production strict public PLC authority");
     return {selfServiceOnboarding:{sql:database.sql,...(config.alphaSignup?{invitationKey:config.alphaSignup.invitationKey}:{}),profile:"strict-public-v1" as const,
       onboarding:new PublicOnboarding(database.sql,plc,resolver,new KeyEncryptor(config.keyEncryptionKey),config.plcDirectoryUrl,
-        config.hailServiceBase,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver)),provider:config.publicOrigin}};
+        config.hailServiceBase,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver,addressDiscovery)),provider:config.publicOrigin}};
   })() : process.env.POC_SELF_SERVICE_ONBOARDING === "true" ? {selfServiceOnboarding:{sql:database.sql,
     onboarding:new PrivatePocOnboarding(database.sql,plc,new KeyEncryptor(config.keyEncryptionKey),config.plcDirectoryUrl,config.hailServiceBase),
-    activation:new ActivationService(onboardingRepository,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver),config.hailServiceBase,"public"),provider:config.publicOrigin,profile:"private-poc" as const}} : {}),
+    activation:new ActivationService(onboardingRepository,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver,addressDiscovery),config.hailServiceBase,"public"),provider:config.publicOrigin,profile:"private-poc" as const}} : {}),
   accountApi: { accounts: new AccountApiRepository(database.sql), grants: grantRepository,
      ...(connections?{connections}:{}),
     ...(managedAuthorization&&managedDelivery&&managedFence&&managedExporter?{managedTransfer:new ManagedAccountTransfer(
@@ -324,7 +327,7 @@ const app = createApp(config, schemaRehearsal ? {
       if(config.nodeEnv!=="production"||!config.publicPlcAuthority||config.plcDirectoryUrl!=="https://plc.directory")
         throw new Error("Public custody transitions require production strict public PLC authority");
       return {custodyTransition:new SameProviderCustodyTransition(database.sql,plc,resolver,new KeyEncryptor(config.keyEncryptionKey),
-        config.hailServiceBase,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver))};})():{}),
+        config.hailServiceBase,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver,addressDiscovery))};})():{}),
     ...(publicManaged||process.env.POC_SELF_SERVICE_TRANSFER==="true"?{transfer:new AccountTransfer(database.sql,
       new TransferGrantSubmission(database.sql,resolver,config.hailServiceBase,onboardingRepository,new KeyEncryptor(config.keyEncryptionKey),
         new TransferInvitationService(database.sql,resolver,config.hailServiceBase),invitationDelivery,transferRateLimit),
@@ -332,16 +335,17 @@ const app = createApp(config, schemaRehearsal ? {
       {fence:new MigrationFenceService(database.sql,resolver,config.hailServiceBase),snapshots:new MigrationTransferService(database.sql,onboardingRepository,
         new KeyEncryptor(config.keyEncryptionKey),resolver,config.hailServiceBase)})}:{}),
     binding:new AccountBinding(database.sql,resolver,new KeyEncryptor(config.keyEncryptionKey),config.publicOrigin,
-       new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver)),
+       new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver,addressDiscovery)),
      messaging,publications,
     avatarProfiles:onboardingRepository,
     profiles:new SenderProfileService(onboardingRepository,new KeyEncryptor(config.keyEncryptionKey),resolver,config.hailServiceBase),
     profileVerifier,
     service: new GrantService(onboardingRepository, grantRepository, new KeyEncryptor(config.keyEncryptionKey),
-       resolver, new AddressVerifier(plc, transport.fetch, transport.validateTarget,undefined,resolver),
+       resolver, new AddressVerifier(plc, transport.fetch, transport.validateTarget,undefined,resolver,addressDiscovery),
       profileVerifier,
       config.hailServiceBase) },
   discoveryStore: onboardingRepository,
+  customDomains: new CustomDomains(database.sql, config.publicOrigin),
   senderProfileStore: onboardingRepository,
   grantReceiver: new GrantReceiver(
     onboardingRepository,
