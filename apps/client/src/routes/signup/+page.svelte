@@ -1,5 +1,6 @@
 <script lang="ts">
   import {onMount,onDestroy} from "svelte";
+  import CopyButton from "$lib/CopyButton.svelte";
   import {startRegistration,startAuthentication} from "@simplewebauthn/browser";
   import {decodeBase64Url} from "@hailproto/codec/base64url";
   import {createSignupBackup,signSignupGenesis,encodeBase64Url} from "$lib/signup-recovery.js";
@@ -201,10 +202,10 @@
       {:else if screen==="save"}
         <p>Save this one file. It contains your encrypted recovery keys and lets you continue an interrupted setup.</p>
         {#if packageText}<button class="hail-button" disabled={busy} onclick={download}>Download recovery kit</button>{:else}<p>Your original setup is saved in this browser. Keep the secret below while we finish preparing your kit.</p><button class="hail-button" disabled={busy||now<retryAt} onclick={()=>run(generate)}>Retry preparing recovery kit</button>{/if}
-        {#if secret}<div><p>Recovery secret</p><code data-recovery-secret>{secret}</code></div>{/if}
+        {#if secret}<div><p>Recovery secret</p><div class="flex min-w-0 items-center gap-1"><code class="min-w-0 flex-1" data-recovery-secret>{secret}</code><CopyButton value={secret} label="Copy recovery secret" /></div></div>{/if}
         <p>Save the secret in a password manager or on paper, separately from the file. Anyone with both can unlock your recovery keys.</p>
         <label class="check"><input type="checkbox" bind:checked={secretSaved} /> I saved the secret separately.</label>
-        <button class="hail-button" disabled={busy||!downloaded||!secretSaved} onclick={()=>{secret="";go("verify");}}>I’ve saved both</button>
+        <button class="hail-button" disabled={busy||!downloaded||!secretSaved} onclick={()=>{secret="";go("verify");}}>Continue</button>
       {:else if screen==="verify"}
         <p>Open the file you just saved and enter the secret from your separate copy. This checks that your recovery kit works.</p>
         <form onsubmit={e=>{e.preventDefault();void run(verifyPackage);}}>

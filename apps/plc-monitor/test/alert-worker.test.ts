@@ -263,6 +263,7 @@ it("sends provider invitations only through authenticated pinned-origin requests
   expect((await request()).status).toBe(204);expect((await request()).status).toBe(204);expect(send).toHaveBeenCalledTimes(1);
   expect(send.mock.calls[0]![0]).toMatchObject({to:input.email,subject:"You're invited to Hail"});
   expect(send.mock.calls[0]![0].text).toContain(input.url);
+  expect(send.mock.calls[0]![0]).toHaveProperty("html",expect.stringContaining(`<a href="${input.url}">Join Now</a>`));
   expect((await request({...input,email:"other@example.com"})).status).toBe(409);
   send.mockRejectedValueOnce(new Error("ambiguous email failure"));
   const second={...input,id:crypto.randomUUID()};

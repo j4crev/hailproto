@@ -3,7 +3,7 @@ import { CID } from "multiformats/cid";
 import { hash } from "../../src/http.js";
 
 export interface EmailBinding {
-  send(message: { to: string; from: { email: string; name: string }; subject: string; text: string }): Promise<{ messageId: string }>;
+  send(message: { to: string; from: { email: string; name: string }; subject: string; text: string; html?: string }): Promise<{ messageId: string }>;
 }
 export interface EmailEnvironment { EMAIL: EmailBinding; SIGNUP_SENDER: string; SIGNUP_ORIGIN: string; }
 export interface DurableStorage {
@@ -192,7 +192,9 @@ async function sendSignupInvitation(input:unknown,storage:DurableStorage,env:Ema
   if(!(await storage.getAlarm()))await storage.setAlarm(now+hour);
   if(result)return new Response(null,{status:result,headers:{"Cache-Control":"no-store"}});
   try{
+    const escapeHtml=(value:string)=>value.replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[char]!);
     await sendEmail(env,{to:email,from:env.SIGNUP_SENDER,subject:"You're invited to Hail",
+      html:`<p>You've been invited to create an account at ${escapeHtml(url.origin)}.</p><p><a href="${escapeHtml(url.href)}">Join Now</a></p><p>This single-use invitation expires ${new Date(row.expiresAt*1000).toISOString()}. Keep the link private. It allows signup only, not access to an existing account.</p><p>If you weren't expecting this invitation, you can ignore it.</p>`,
       text:`You've been invited to create an account at ${url.origin}.\n\n${url.href}\n\nThis single-use invitation expires ${new Date(row.expiresAt*1000).toISOString()}. Keep the link private. It allows signup only, not access to an existing account.\n\nIf you weren't expecting this invitation, you can ignore it.`});
     await storage.put(key,{digest,state:"sent",expiresAt:row.expiresAt*1000} satisfies InvitationRecord);
     return new Response(null,{status:204,headers:{"Cache-Control":"no-store"}});

@@ -417,12 +417,16 @@ try{
   assert.equal(publicationAttempts,0);assert.equal(prepareCalls,1);
   secret=await evaluate("document.querySelector('[data-recovery-secret]').textContent");assert.equal(secret.length,43);
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Recovery screen overflows viewport");
+  await evaluate(`Object.defineProperty(navigator, "clipboard", {configurable:true, value:{writeText:async value=>{window.copiedValue=value;}}});document.querySelector('button[aria-label="Copy recovery secret"]').click()`);
+  await wait(()=>has("Copied to clipboard."),"recovery secret copy feedback");
+  assert.equal(await evaluate("window.copiedValue"),secret);
+  assert.equal(await evaluate("document.querySelector('input[type=checkbox]').checked"),false,"Copying does not confirm the secret was saved");
   await click("Download recovery kit");
   const packagePath=join(work,"hail-recovery-package.json");
   await wait(async()=>{try{return (await readdir(work)).includes("hail-recovery-package.json");}catch{return false;}},"single recovery download");
   const kit=JSON.parse(await readFile(packagePath,"utf8"));assert(/^did:plc:[a-z2-7]{24}$/.test(kit.vault.did));
   await evaluate(`document.querySelector('input[type=checkbox]').click()`);
-  await click("I’ve saved both");await wait(()=>has("Check your saved recovery kit"),"verify screen");
+  await click("Continue");await wait(()=>has("Check your saved recovery kit"),"verify screen");
   assert.equal(await evaluate("document.querySelector('[data-recovery-secret]')===null"),true,"Generated secret is no longer shown during verification");
   // Reload before verification: use the original downloaded kit, with no second save.
   await cdp("Page.reload");await wait(()=>has("Encrypted setup was found"),"unverified setup resume");
