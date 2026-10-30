@@ -7,7 +7,7 @@ export interface SignupPolicy { provider:string; monitorOrigin:string; monitorKe
 export interface PendingSignup {
   type:"hail.pending-signup"; version:1|2; policy:SignupPolicy; signupId:string; address:string;
   token:string; enrollmentToken:string; invitation:string; vault:UserVaultFile;
-  email:string;
+  email:string; addressAuthorization?:string;
   operation:Operation|null; did:string|null;
 }
 export interface SignupSummary {
@@ -25,14 +25,22 @@ export async function pendingKey(secret:string){
   const raw=decodeBase64Url(secret,32);
   try{return await cipher(raw);}finally{raw.fill(0);}
 }
+// This validates retained intent; the provider verifies the capability and DNS.
+export function validSignupAddress(address:string,provider:string,authorization?:string):boolean{
+  const parts=address.split("@"),host=parts[1];
+  if(parts.length!==2||!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(parts[0]??""))return false;
+  if(host===new URL(provider).hostname)return authorization===undefined;
+  return typeof authorization==="string"&&/^haild_[A-Za-z0-9_-]{43}$/.test(authorization)&&
+    !!host&&host.length<=253&&host.includes(".")&&host.split(".").every(label=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
+}
 export function validatePending(value:PendingSignup,policy:SignupPolicy):PendingSignup{
-  if(!value||Object.keys(value).length!==12||Object.keys(value).some(key=>!["type","version","policy","signupId","address","token","enrollmentToken","invitation","vault","email","operation","did"].includes(key))||
+  if(!value||Object.keys(value).length!==(value.addressAuthorization===undefined?12:13)||Object.keys(value).some(key=>!["type","version","policy","signupId","address","token","enrollmentToken","invitation","vault","email","operation","did","addressAuthorization"].includes(key))||
     value.type!=="hail.pending-signup"||![1,2].includes(value.version)||!uuid.test(value.signupId)||
     !token.test(value.token)||!token.test(value.enrollmentToken)||value.token===value.enrollmentToken||
     typeof value.invitation!=="string"||value.invitation.length>2048||
     typeof value.email!=="string"||value.email.length>254||(value.version===1?!value.email.includes("@"):value.email!==""&&!value.email.includes("@"))||
     typeof value.address!=="string"||!new RegExp(`^[a-z0-9][a-z0-9._-]{0,63}@`).test(value.address)||
-    value.address.split("@").length!==2||value.address.split("@")[1]!==new URL(policy.provider).hostname||
+    !validSignupAddress(value.address,policy.provider,value.addressAuthorization)||(value.addressAuthorization!==undefined&&value.version!==2)||
     value.policy?.provider!==policy.provider||value.policy?.monitorOrigin!==policy.monitorOrigin||value.policy?.monitorKey!==policy.monitorKey||
     (value.did!==null&&!/^did:plc:[a-z2-7]{24}$/.test(value.did))||
     (value.operation!==null&&(!value.operation||value.operation.type!=="plc_operation"||typeof value.operation.sig!=="string")))

@@ -229,6 +229,7 @@ const migrations: readonly Migration[] = [
   {version:85,name:"display-preferences",url:new URL("../../migrations/0085_display_preferences.sql",import.meta.url)},
   {version:86,name:"handover-delivery-cursor",url:new URL("../../migrations/0086_handover_delivery_cursor.sql",import.meta.url)},
   {version:87,name:"custom-domains",url:new URL("../../migrations/0087_custom_domains.sql",import.meta.url)},
+  {version:88,name:"custom-address-authorizations",url:new URL("../../migrations/0088_custom_address_authorizations.sql",import.meta.url)},
 ];
 
 export class ProviderDatabase {

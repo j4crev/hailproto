@@ -72,7 +72,7 @@ export class PublicOnboarding {
 
   async prepare(addressInput: string, recovery: string, identity: string, backupChecked: boolean,
     profile: "owner-controlled" | "managed", monitorOrigin: string, monitorPublicKey: string,
-    signupHash?: Uint8Array, alphaMonitoringAccepted = false, provisional = false): Promise<PublicOnboardingPreparation> {
+    signupHash?: Uint8Array, alphaMonitoringAccepted = false, provisional = false, transaction?: SQL): Promise<PublicOnboardingPreparation> {
     if (provisional && (backupChecked || !this.alphaMonitoring || !signupHash)) throw new Error("Provisional setup requires an unverified invited alpha ceremony");
     const assurance = this.alphaMonitoring?.profile ?? "independent";
     if (this.alphaMonitoring ? profile !== "managed" || !alphaMonitoringAccepted ||
@@ -89,13 +89,26 @@ export class PublicOnboarding {
       throw new Error("Public onboarding requires an external canonical HTTPS monitor origin");
     }
     const address = canonicalizeHailAddress(addressInput);
-    if (address.slice(address.indexOf("@") + 1) !== new URL(this.serviceBase).hostname) {
-      throw new Error("Public onboarding address must belong to the provider domain");
+    const sql = transaction ?? this.sql;
+    const custom = address.split("@")[1] !== new URL(this.serviceBase).hostname;
+    if (custom) {
+      if (!transaction || !signupHash || !this.alphaMonitoring || profile !== "managed") {
+        throw new Error("Custom-domain onboarding requires an authorized signup transaction");
+      }
+      const admission = await sql`SELECT capability.id FROM custom_address_authorizations capability
+        JOIN account_signup_ceremonies ceremony ON ceremony.id=capability.signup_id
+        WHERE capability.canonical_address=${address} AND capability.provider_origin=${new URL(this.serviceBase).origin}
+          AND capability.signup_token_hash=${signupHash} AND capability.consumed_at IS NOT NULL
+          AND ceremony.token_hash=${signupHash} AND ceremony.request_digest=capability.request_digest
+          AND ceremony.request->>'address'=${address} AND ceremony.recovery_package=${provisional}
+          AND ceremony.request->>'recoveryKey'=${recovery} AND ceremony.request->>'identityKey'=${identity}
+          AND ceremony.completed_at IS NULL AND ceremony.expires_at>clock_timestamp()`;
+      if (!admission.length) throw new Error("Custom address lacks matching consumed signup authorization");
     }
     const preparationTable = provisional ? "public_onboarding_drafts" : "public_onboarding_preparations";
-    const prior = await this.sql<(PreparationRow & { canonical_address: string; onboarding_state: string })[]>`
+    const prior = await sql<(PreparationRow & { canonical_address: string; onboarding_state: string })[]>`
       SELECT preparation.*, account.canonical_address, account.onboarding_state
-      FROM provider_accounts account JOIN ${this.sql.unsafe(preparationTable)} preparation ON preparation.account_id = account.id
+      FROM provider_accounts account JOIN ${sql.unsafe(preparationTable)} preparation ON preparation.account_id = account.id
       WHERE account.canonical_address = ${address}`;
     if (prior[0]) {
       const row = prior[0];
@@ -108,10 +121,10 @@ export class PublicOnboarding {
       }
       return this.result(row, address);
     }
-    const accountId = await providerRoleAccountId(this.sql, address, recovery) ?? randomUUID();
+    const accountId = (custom ? undefined : await providerRoleAccountId(sql, address, recovery)) ?? randomUUID();
     const generated = await generateAccountKeys(accountId, this.encryptor);
     if (profile === "managed") identity = generated.identityDidKey;
-    await this.sql.begin(async tx => {
+    const write = async (tx: SQL) => {
       const created = await tx`INSERT INTO provider_accounts (id, tenant_id, canonical_address, onboarding_state)
         VALUES (${accountId}, ${randomUUID()}, ${address}, 'reserved') ON CONFLICT (canonical_address) DO NOTHING RETURNING id`;
       if (created.length !== 1) throw new Error("Public address is already reserved");
@@ -126,7 +139,8 @@ export class PublicOnboarding {
         VALUES (${accountId}, ${recovery}, ${identity}, ${generated.rotationDidKey}, ${generated.messagingDidKey},
           ${monitorOrigin}, ${monitorPublicKey}, ${profile}, ${profile === "managed" ? MANAGED_CUSTODY_PROFILE_VERSION : null},
            CASE WHEN ${provisional} THEN NULL ELSE clock_timestamp() END, ${signupHash ?? null}, ${assurance})`;
-    });
+    };
+    if (transaction) await write(transaction); else await this.sql.begin(write);
     return { accountId, address, userRecoveryKey: recovery, userIdentityKey: identity,
       providerRotationKey: generated.rotationDidKey, providerMessagingKey: generated.messagingDidKey,
       sourceServiceBase: this.serviceBase, custodyProfile: profile,

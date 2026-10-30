@@ -40,6 +40,11 @@ it("signs exactly reviewed managed genesis with official PLC-compatible DID, CID
       sourceServiceBase: `${expected.provider}/hail`, custodyProfile: "managed", managedProfileVersion: "hail-managed-custody-v1",
       monitorOrigin: expected.monitorOrigin, monitorPublicKey: expected.monitorKey, monitorAssurance: "reduced-assurance-alpha-v1",
     };
+    const customExpected={...expected,address:"alice@j4crev.com",addressAuthorization:"haild_"+"A".repeat(43)};
+    const customPrepared={...prepared,address:customExpected.address};
+    expect((await signSignupGenesis(owner.vault,owner.recoverySecret,customPrepared,customExpected)).did).toMatch(/^did:plc:/);
+    await expect(signSignupGenesis(owner.vault,owner.recoverySecret,customPrepared,{...customExpected,addressAuthorization:undefined})).rejects.toThrow();
+    await expect(signSignupGenesis(owner.vault,owner.recoverySecret,{...customPrepared,address:"bob@j4crev.com"},customExpected)).rejects.toThrow();
     const signed = await signSignupGenesis(owner.vault, owner.recoverySecret, prepared, expected);
     expect(await assureValidSig([owner.vault.recovery.publicDidKey], signed.operation)).toBe(owner.vault.recovery.publicDidKey);
     expect(await didForCreateOp(signed.operation)).toBe(signed.did);

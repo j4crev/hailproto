@@ -24,7 +24,7 @@ export function registerCustomDomainRoutes(app: Hono, domains: CustomDomains, ac
         () => domains.list(session).then(result => c.json(result)));
       if (c.req.method !== "POST") return c.json({ error: "Use POST for this operation." }, 405);
       if (session.migration_state) throw new CustomDomainError(409, "Account is being transferred.");
-      if (id && (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id) || !["verify", "remove"].includes(action ?? ""))) {
+      if (id && (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id) || !["verify", "remove", "authorize-address"].includes(action ?? ""))) {
         throw new CustomDomainError(404, "Operation not found.");
       }
       if (c.req.header("Content-Type") !== "application/json" || c.req.header("Content-Encoding")) return c.json({ error: "Use JSON." }, 415);
@@ -34,10 +34,12 @@ export function registerCustomDomainRoutes(app: Hono, domains: CustomDomains, ac
       try {
         input = parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as Record<string, unknown>;
         if (!input || typeof input !== "object" || Array.isArray(input) ||
-          (id ? Object.keys(input).length !== 0 : Object.keys(input).join(",") !== "domain" || typeof input.domain !== "string")) throw new Error();
+          (action === "authorize-address" ? Object.keys(input).join(",") !== "address" || typeof input.address !== "string" :
+            id ? Object.keys(input).length !== 0 : Object.keys(input).join(",") !== "domain" || typeof input.domain !== "string")) throw new Error();
       } catch { throw new CustomDomainError(400, "Invalid domain request."); }
       return await withServingGeneration(session.account_id, session.serving_generation ?? 1, async () =>
-        c.json(!id ? await domains.start(session, input.domain as string) : action === "verify" ?
+        c.json(!id ? await domains.start(session, input.domain as string) : action === "authorize-address" ?
+          await domains.authorizeAddress(session, id, input.address as string) : action === "verify" ?
           await domains.verify(session, id) : await domains.removePending(session, id)));
     } catch (error) {
       if (error instanceof CustomDomainError) {

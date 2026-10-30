@@ -18,10 +18,11 @@ import { SignupMonitorError, type SignupMonitorService } from "./monitor.js";
 import { OnboardingRepository } from "./repository.js";
 import type { AlphaMonitoringPolicy, PublicOnboarding, PublicOnboardingPreparation } from "./public.js";
 import {RegistrationPolicy,RegistrationError} from "./registration.js";
+import { CustomDomains, CustomDomainError } from "../accounts/custom-domains.js";
 
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/,TOKEN=/^hailp_[A-Za-z0-9_-]{43}$/;
 const equal=(a:Uint8Array,b:Uint8Array)=>a.length===b.length&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
-interface SignupRequest {address:string;recoveryKey:string;identityKey:string;enrollmentHash:string;invitationDigest:string;}
+interface SignupRequest {address:string;recoveryKey:string;identityKey:string;enrollmentHash:string;invitationDigest:string;addressAuthorizationDigest?:string;}
 interface SignupRow {
   recovery_package:boolean;recovery_operation_digest:Uint8Array|null;backup_confirmed_at:Date|null;publication_started_at:Date|null;
   id:string;token_hash:Uint8Array;enrollment_hash:Uint8Array;request_digest:Uint8Array;request:SignupRequest|string;
@@ -36,7 +37,8 @@ const decoded=<T>(value:T|string):T=>typeof value==="string"?JSON.parse(value) a
 
 export class SignupCoordinator {
   constructor(private readonly sql:SQL,private readonly onboarding:PublicOnboarding,private readonly monitor:SignupMonitorService,
-    private readonly origin:string,private readonly policy:AlphaMonitoringPolicy,invitationKey:string){this.registration=new RegistrationPolicy(sql,origin,invitationKey);}
+    private readonly origin:string,private readonly policy:AlphaMonitoringPolicy,invitationKey:string,
+    private readonly domains:CustomDomains=new CustomDomains(sql,origin)){this.registration=new RegistrationPolicy(sql,origin,invitationKey);}
   private readonly registration:RegistrationPolicy;
 
   private async row(id:string,token:string,sql=this.sql):Promise<SignupRow>{
@@ -49,29 +51,35 @@ export class SignupCoordinator {
     if(!row.live||row.expires_at.getTime()<=Date.now())throw new SignupError(410,"Setup authority expired; retain the recovery kit and original signup artifacts for provider assistance or existing owner-proof access");
     return row;
   }
-  private async prepareAccount(row:SignupRow):Promise<SignupRow>{
+  private async prepareAccount(row:SignupRow,transaction?:SQL):Promise<SignupRow>{
     if(row.account_id)return row;
     const request=decoded(row.request);
     const prepared=await this.onboarding.prepare(request.address,request.recoveryKey,request.identityKey,!row.recovery_package,"managed",
-      this.policy.monitorOrigin,this.policy.monitorPublicKey,row.token_hash,true,row.recovery_package);
-    await this.sql`UPDATE account_signup_ceremonies c SET account_id=${prepared.accountId},account_generation=g.generation,
+      this.policy.monitorOrigin,this.policy.monitorPublicKey,row.token_hash,true,row.recovery_package,transaction);
+    const sql=transaction??this.sql;
+    await sql`UPDATE account_signup_ceremonies c SET account_id=${prepared.accountId},account_generation=g.generation,
       preparation=(${JSON.stringify(prepared)}::text)::jsonb FROM account_serving_generations g
       WHERE c.id=${row.id} AND g.account_id=${prepared.accountId} AND g.generation=1 AND c.account_id IS NULL
         AND c.completed_at IS NULL AND c.expires_at>clock_timestamp() RETURNING c.id`;
-    const current=await this.rowById(row.id);
+    const current=await this.rowById(row.id,sql);
     if(current.account_id!==prepared.accountId||Number(current.account_generation)!==1)throw new SignupError(403);
     return current;
   }
-  private async rowById(id:string):Promise<SignupRow>{return (await this.sql<SignupRow[]>`SELECT * FROM account_signup_ceremonies WHERE id=${id}`)[0]!;}
+  private async rowById(id:string,sql=this.sql):Promise<SignupRow>{return (await sql<SignupRow[]>`SELECT * FROM account_signup_ceremonies WHERE id=${id}`)[0]!;}
 
   async checkAddress(input:Record<string,unknown>){
     if(!Object.hasOwn(input,"invitation"))input={...input,invitation:""};
-    if(Object.keys(input).length!==2||typeof input.address!=="string"||typeof input.invitation!=="string"||input.invitation.length>2048)
+    const hasAuthorization=Object.hasOwn(input,"addressAuthorization");
+    if(Object.keys(input).length!==(hasAuthorization?3:2)||Object.keys(input).some(key=>!["address","invitation","addressAuthorization"].includes(key))||
+      typeof input.address!=="string"||typeof input.invitation!=="string"||input.invitation.length>2048||
+      hasAuthorization&&(typeof input.addressAuthorization!=="string"||!/^haild_[A-Za-z0-9_-]{43}$/.test(input.addressAuthorization)))
       throw new SignupError(400);
     await this.registration.check(input.invitation);
     let address:string;
     try{address=canonicalizeHailAddress(input.address);}catch{throw new SignupError(400,"Invalid address");}
-    if(address.split("@")[1]!==new URL(this.origin).hostname)throw new SignupError(400,"Choose an address at this provider");
+    const custom=address.split("@")[1]!==new URL(this.origin).hostname;
+    if(custom!==hasAuthorization)throw new SignupError(400,"Custom addresses require exact-address authorization");
+    if(custom)await this.domains.checkAddressAuthorization(input.addressAuthorization as string,address);
     const held=await this.sql`SELECT 1 FROM provider_accounts WHERE canonical_address=${address}
       UNION ALL SELECT 1 FROM transfer_address_reservations WHERE canonical_address=${address}
       UNION ALL SELECT 1 FROM provider_reserved_names WHERE local_part=split_part(${address}, '@', 1) LIMIT 1`;
@@ -81,6 +89,11 @@ export class SignupCoordinator {
   async prepare(input:Record<string,unknown>,token:string){
     if(!Object.hasOwn(input,"invitation"))input={...input,invitation:""};
     const allowed=["signupId","address","recoveryKey","identityKey","enrollmentHash","invitation","backupVerified","managedAccepted","alphaMonitoringAccepted"];
+    const authorization=input.addressAuthorization;
+    if(Object.hasOwn(input,"addressAuthorization")){
+      if(typeof authorization!=="string"||!/^haild_[A-Za-z0-9_-]{43}$/.test(authorization))throw new SignupError(400,"Invalid address authorization");
+      allowed.push("addressAuthorization");
+    }
     if(Object.keys(input).length!==allowed.length||Object.keys(input).some(key=>!allowed.includes(key))||
       typeof input.signupId!=="string"||!UUID.test(input.signupId)||!TOKEN.test(token)||
       typeof input.address!=="string"||typeof input.recoveryKey!=="string"||input.recoveryKey.length>256||
@@ -95,6 +108,9 @@ export class SignupCoordinator {
     if(equal(enrollmentHash,signupHash))throw new SignupError(400,"Passkey enrollment and signup authority must be separate");
     const request:SignupRequest={address:canonicalizeHailAddress(input.address),recoveryKey:input.recoveryKey,identityKey:input.identityKey,
       enrollmentHash:input.enrollmentHash,invitationDigest:createHash("sha256").update(input.invitation).digest("base64url")};
+    const custom=request.address.split("@")[1]!==new URL(this.origin).hostname;
+    if(custom!==(typeof authorization==="string"))throw new SignupError(400,"Custom addresses require exact-address authorization");
+    if(custom)request.addressAuthorizationDigest=createHash("sha256").update(authorization as string).digest("base64url");
     const digest=new Uint8Array(createHash("sha256").update(JSON.stringify(request)).digest());
     const prior=(await this.sql<SignupRow[]>`SELECT * FROM account_signup_ceremonies WHERE id=${input.signupId}`)[0];
     if(!prior){
@@ -106,6 +122,14 @@ export class SignupCoordinator {
         await tx`INSERT INTO account_signup_ceremonies(id,invitation_id,token_hash,enrollment_hash,request_digest,request,recovery_package)
           VALUES(${input.signupId as string},${invitationId},${signupHash},${enrollmentHash},${digest},(${JSON.stringify(request)}::text)::jsonb,${!input.backupVerified})
           ON CONFLICT (id) DO NOTHING`;
+        if(custom){
+          const row=await this.row(input.signupId as string,token,tx);
+          if(row.recovery_package!==!input.backupVerified||!equal(row.request_digest,digest))throw new SignupError(409,"Signup retry differs from its original intent");
+          if(!row.account_id){
+            await this.domains.consumeAddressAuthorization(tx,authorization as string,request.address,row.id,signupHash,digest);
+            await this.prepareAccount(row,tx);
+          }
+        }
       });
     }
     let row=await this.row(input.signupId,token);
@@ -311,7 +335,7 @@ export function registerSignupRoutes(app:Hono,signup:SignupCoordinator,accounts:
       throw new SignupError(404);
     }catch(error){
       const postgres=error as {code?:unknown;errno?:unknown}|null;
-      const status=error instanceof SignupError||error instanceof RegistrationError||error instanceof SignupMonitorError||error instanceof SignupEmailError?error.status:
+      const status=error instanceof SignupError||error instanceof RegistrationError||error instanceof SignupMonitorError||error instanceof SignupEmailError||error instanceof CustomDomainError?error.status:
         postgres?.code==="23505"||postgres?.errno==="23505"?409:503;
       if(status===202||status===503)context.header("Retry-After","15");
       return new Response(JSON.stringify({error:error instanceof SignupError||error instanceof RegistrationError?error.message:"Signup not completed; retain the original setup state"}),{

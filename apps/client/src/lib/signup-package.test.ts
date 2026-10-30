@@ -8,19 +8,20 @@ import {pendingKey,setupToken,type PendingSignup} from "./signup.js";
 import {extractRecoveryVault} from "../../../../packages/hail-client-support/src/recovery-package.js";
 import {verifyVaultFile,copyVerifiedVault} from "../../../server/test/client-support/vault-backup.js";
 
-it("one saved kit resumes exact signup and imports a v1 recovery vault offline, rejecting swapped or damaged material",async()=>{
+it.each([false,true])("custom %s: one saved kit resumes exact signup and imports a v1 recovery vault offline, rejecting swapped or damaged material",async(custom)=>{
   const [owner,provider,messaging]=await Promise.all([createSignupBackup(),createSignupBackup(),createSignupBackup()]);
   const dir=await mkdtemp(join(tmpdir(),"hail-package-"));
   try{
     const policy={provider:"https://provider.example",monitorOrigin:"https://monitor.example",monitorKey:messaging.vault.identity.publicDidKey};
-    const address="alice@provider.example",secret=encodeBase64Url(owner.recoverySecret),key=await pendingKey(secret);
+    const authorization=custom?{addressAuthorization:"haild_"+"A".repeat(43)}:{};
+    const address=custom?"alice@j4crev.com":"alice@provider.example",secret=encodeBase64Url(owner.recoverySecret),key=await pendingKey(secret);
     const signed=await signSignupGenesis(owner.vault,owner.recoverySecret,{
       accountId:crypto.randomUUID(),address,userRecoveryKey:owner.vault.recovery.publicDidKey,userIdentityKey:provider.vault.identity.publicDidKey,
       providerRotationKey:provider.vault.recovery.publicDidKey,providerMessagingKey:messaging.vault.identity.publicDidKey,
       sourceServiceBase:policy.provider+"/hail",custodyProfile:"managed",managedProfileVersion:"hail-managed-custody-v1",
       monitorAssurance:"reduced-assurance-alpha-v1",monitorOrigin:policy.monitorOrigin,monitorPublicKey:policy.monitorKey
-    },{...policy,address});
-    const pending:PendingSignup={type:"hail.pending-signup",version:2,policy,signupId:crypto.randomUUID(),address,email:"alice@example.net",
+    },{...policy,address,...authorization});
+    const pending:PendingSignup={type:"hail.pending-signup",version:2,policy,signupId:crypto.randomUUID(),address,...authorization,email:"alice@example.net",
       token:setupToken(),enrollmentToken:setupToken(),invitation:"invitation",vault:owner.vault,operation:signed.operation,did:signed.did};
     const text=await makeRecoveryPackage(pending,key);
     for(const value of [secret,pending.token,pending.enrollmentToken,pending.email])expect(text).not.toContain(value);
@@ -28,6 +29,10 @@ it("one saved kit resumes exact signup and imports a v1 recovery vault offline, 
     await expect(openRecoveryPackage(text,"A".repeat(43),policy)).rejects.toThrow();
     await expect(openRecoveryPackage(text,secret,{...policy,monitorKey:"changed"})).rejects.toThrow();
     await expect(openRecoveryPackage(text,secret,policy,{...pending,signupId:crypto.randomUUID()})).rejects.toThrow();
+    if(custom){
+      expect(text).not.toContain(authorization.addressAuthorization);
+      await expect(openRecoveryPackage(text,secret,policy,{...pending,addressAuthorization:"haild_"+"B".repeat(43)})).rejects.toThrow();
+    }
     const file=JSON.parse(text);
     for(const changed of [
       {...file,vault:{...file.vault,did:"did:plc:"+"a".repeat(24)}},

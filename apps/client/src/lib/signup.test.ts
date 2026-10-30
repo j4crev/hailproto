@@ -1,6 +1,6 @@
 import {expect,it,vi} from "vitest";
 import {createSignupBackup,encodeBase64Url} from "./signup-recovery.js";
-import {checkSummary,enrollmentHash,openPending,pendingKey,sealPending,setupToken,signupRequest,SignupRequestError,type PendingSignup} from "./signup.js";
+import {validSignupAddress,validatePending,checkSummary,enrollmentHash,openPending,pendingKey,sealPending,setupToken,signupRequest,SignupRequestError,type PendingSignup} from "./signup.js";
 
 const policy={provider:"https://provider.example",monitorOrigin:"https://monitor.example",monitorKey:"did:key:z6MkTest"};
 it("round-trips encrypted pending setup without retaining its recovery secret; refuses wrong secret, mutation, bound vault and policy changes",async()=>{
@@ -14,6 +14,13 @@ it("round-trips encrypted pending setup without retaining its recovery secret; r
     expect(key.extractable).toBe(false);
     for(const sensitive of [secret,pending.token,pending.enrollmentToken,pending.invitation,pending.email,pending.vault.recovery.ciphertext])expect(text).not.toContain(sensitive);
     expect(await openPending(text,key,policy)).toEqual(pending);
+    const custom={...pending,version:2 as const,address:"alice@j4crev.com",addressAuthorization:"haild_"+"A".repeat(43)};
+    const sealed=await sealPending(custom,key);
+    expect(sealed).not.toContain(custom.addressAuthorization);
+    expect(await openPending(sealed,key,policy)).toEqual(custom);
+    for(const bad of [{...custom,addressAuthorization:undefined},{...custom,version:1 as const},{...custom,address:pending.address},
+      {...custom,address:"alice@evil.com/path"},{...custom,addressAuthorization:"invalid"}])expect(()=>validatePending(bad,policy)).toThrow();
+    expect(validSignupAddress("alice@j4crev.com",policy.provider,custom.addressAuthorization)).toBe(true);
     const publicPending={...pending,invitation:""};
     expect(await openPending(await sealPending(publicPending,key),key,policy)).toEqual(publicPending);
     expect(await sealPending(pending,key)).not.toBe(text); // fresh nonce per checkpoint

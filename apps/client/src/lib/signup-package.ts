@@ -19,7 +19,7 @@ export async function openRecoveryPackage(text:string, secret:string, policy:Sig
     if(JSON.stringify({...pending.vault,did:pending.did})!==JSON.stringify(vault)||
        JSON.stringify(pending.operation)!==JSON.stringify(file.operation)||
        expected&&(pending.signupId!==expected.signupId||pending.token!==expected.token||
-         pending.enrollmentToken!==expected.enrollmentToken||pending.address!==expected.address||
+         pending.addressAuthorization!==expected.addressAuthorization||pending.enrollmentToken!==expected.enrollmentToken||pending.address!==expected.address||
          JSON.stringify(pending.operation)!==JSON.stringify(expected.operation)))throw new Error("This is not the saved package for this setup");
     return {pending,key};
   } finally {raw.fill(0);}

@@ -59,14 +59,17 @@ export class MigrationFenceService {
       throw new Error("Current PLC state does not authorize this provider as the source");
     }
     return this.sql.begin(async (tx) => {
-      const accounts = await tx<{ id: string; onboarding_state: string; activation_verification_mode: string | null }[]>`
-        SELECT id, onboarding_state, activation_verification_mode FROM provider_accounts
+      const accounts = await tx<{ id: string; canonical_address: string; onboarding_state: string; activation_verification_mode: string | null }[]>`
+        SELECT id, canonical_address, onboarding_state, activation_verification_mode FROM provider_accounts
         WHERE did = ${did} FOR UPDATE
       `;
       const account = accounts[0];
       if (!account || account.onboarding_state !== "active" ||
         account.activation_verification_mode !== "public") {
         throw new Error("Migration source DID requires public activation");
+      }
+      if (account && account.canonical_address.split("@")[1] !== new URL(this.sourceServiceBase).hostname) {
+        throw new Error("Custom-domain provider transfer is not supported yet");
       }
       const custody = await tx<{ user_recovery_public_key: string; user_identity_public_key: string }[]>`
         SELECT user_recovery_public_key, user_identity_public_key

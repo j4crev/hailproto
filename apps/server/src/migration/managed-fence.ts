@@ -55,12 +55,15 @@ export class ManagedMigrationFenceService {
       throw new Error("Managed fence requires strict current source authority");
     }
     return this.sql.begin(async (tx) => {
-      const account = (await tx<{ id: string; onboarding_state: string; activation_verification_mode: string | null;
+      const account = (await tx<{ id: string; canonical_address: string; onboarding_state: string; activation_verification_mode: string | null;
         owner_recovery_public_key: string; provider_identity_public_key: string; verification_mode: string }[]>`
-        SELECT account.id,account.onboarding_state,account.activation_verification_mode,
+        SELECT account.id,account.canonical_address,account.onboarding_state,account.activation_verification_mode,
           managed.owner_recovery_public_key,managed.provider_identity_public_key,managed.verification_mode
         FROM provider_accounts account JOIN managed_custody_evidence managed ON managed.account_id=account.id
         WHERE account.did=${did} FOR UPDATE OF account`)[0];
+      if (account && account.canonical_address.split("@")[1] !== new URL(this.sourceServiceBase).hostname) {
+        throw new Error("Custom-domain provider transfer is not supported yet");
+      }
       const held = account ? await tx<{ role: string; public_key: string }[]>`
         SELECT role,public_key FROM account_keys WHERE account_id=${account.id}` : [];
       if (!account || account.onboarding_state !== "active" || account.activation_verification_mode !== "public" ||

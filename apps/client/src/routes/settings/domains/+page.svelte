@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { PENDING_STORAGE } from "$lib/signup.js";
   import { invalidateAll } from "$app/navigation";
   let { data } = $props();
   let domain = $state(""), busy = $state(false), message = $state("");
+  let localParts = $state<Record<string,string>>({});
   let challenge = $state<{ id: string; value: string } | null>(null);
   async function request(path: string, body: unknown) {
     const response = await fetch(`/api/v1/account/custom-domains${path}`, {
@@ -29,9 +31,17 @@
   async function verify(id: string) {
     await run(async () => {
       const result = await request(`/${id}/verify`, {});
-      message = result.status === "verified" ? "Domain registered. Custom-address account creation is coming in a later release." :
+      message = result.status === "verified" ? "Domain registered." :
         `Ownership ${result.ownership ? "confirmed" : "not yet confirmed"}; provider routing ${result.delegation ? "confirmed" : "not yet confirmed"}. Check the records and retry after one minute.`;
       if (result.status === "verified") challenge = null;
+    });
+  }
+  async function createAccount(id:string,domain:string){
+    await run(async()=>{
+      if(localStorage.getItem(PENDING_STORAGE))throw new Error("Continue your unfinished setup at /signup before starting another account.");
+      const result=await request(`/${id}/authorize-address`,{address:`${localParts[id]}@${domain}`});
+      // Fragments stay out of HTTP requests; signup removes it immediately.
+      location.assign(`/signup#${new URLSearchParams({address:result.address,addressAuthorization:result.token})}`);
     });
   }
 </script>
@@ -40,7 +50,7 @@
 <div class="mx-auto grid max-w-[860px] gap-6">
   <header class="page-heading"><a href="/settings">Settings</a><h1 class="hail-title">Custom domains</h1></header>
   <section class="hail-card grid gap-4 p-6 sm:p-8">
-    <p class="m-0">Register a domain you control with {data.provider}. Domain registration is available now; creating separate accounts at that domain will follow in a later release.</p>
+    <p class="m-0">Register a domain you control with {data.provider}. Each custom address creates a separate account with its own inbox, recovery file, and login.</p>
     <form class="grid gap-3" onsubmit={event => { event.preventDefault(); void start(domain); }}>
       <label class="hail-field"><span>Domain name</span><input bind:value={domain} placeholder="example.com" required maxlength="253" disabled={busy} /></label>
       <button class="hail-button" disabled={busy || !domain}>Add domain</button>
@@ -54,6 +64,13 @@
       {#if item.lastVerifiedAt}
         <p class="m-0">Registered · Last verified {new Date(item.lastVerifiedAt).toLocaleString()}</p>
         <p class="m-0 text-sm text-muted">Keep the provider routing record in DNS. The verification challenge has been consumed and may be removed. Domain removal and ownership transfer are not available yet.</p>
+        {#if data.signupAvailable}
+          <form class="grid gap-3" onsubmit={event=>{event.preventDefault();void createAccount(item.id,item.domain);}}>
+            <label class="hail-field"><span>New address at @{item.domain}</span><input bind:value={localParts[item.id]} required pattern={'[a-z0-9][a-z0-9._\\-]{0,63}'} maxlength="64" disabled={busy} /></label>
+            <p class="m-0 text-sm text-muted">Continue setup within 15 minutes. The provider’s invitation policy still applies. Signing in to the new account will switch your current session.</p>
+            <button class="hail-button" disabled={busy}>Create separate account</button>
+          </form>
+        {/if}
       {:else}
         <p class="m-0">{item.status === "expired" ? "Challenge expired" : "Awaiting DNS verification"}</p>
         <div class="grid gap-2 text-sm"><strong>Ownership · TXT</strong><code class="break-all">{item.verificationName}</code>

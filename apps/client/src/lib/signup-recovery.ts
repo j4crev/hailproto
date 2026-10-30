@@ -1,3 +1,4 @@
+import { validSignupAddress } from "./signup.js";
 import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
 import { createUserVault, verifyUserVault, type UserVaultFile } from "../../../../packages/hail-client-support/src/vault-crypto.js";
 import { cipher, unseal } from "../../../../packages/hail-client-support/src/vault-crypto.js";
@@ -31,11 +32,11 @@ export async function createSignupBackup() {
 }
 
 export async function signSignupGenesis(vault: UserVaultFile, secret: Uint8Array,
-  prepared: PublicOnboardingPreparation, expected: { provider: string; address: string; monitorOrigin: string; monitorKey: string }) {
+  prepared: PublicOnboardingPreparation, expected: { provider: string; address: string; monitorOrigin: string; monitorKey: string; addressAuthorization?:string }) {
   const provider = new URL(expected.provider);
   if (provider.protocol !== "https:" || provider.origin !== expected.provider ||
     !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(prepared.accountId) ||
-    prepared.address !== expected.address.toLowerCase() || !prepared.address.endsWith(`@${provider.hostname}`) ||
+    prepared.address !== expected.address.toLowerCase() || !validSignupAddress(prepared.address,expected.provider,expected.addressAuthorization) ||
     prepared.custodyProfile !== "managed" || prepared.managedProfileVersion !== "hail-managed-custody-v1" ||
     prepared.monitorAssurance !== "reduced-assurance-alpha-v1" || prepared.monitorOrigin !== expected.monitorOrigin ||
     prepared.monitorPublicKey !== expected.monitorKey || prepared.userRecoveryKey !== vault.recovery.publicDidKey ||

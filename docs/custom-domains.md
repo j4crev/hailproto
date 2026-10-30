@@ -1,8 +1,9 @@
 # Custom domain support checklist
 
 Status: incremental implementation. Provider-side DNS discovery and domain
-registration are implemented. Custom-domain account creation is not enabled,
-and no live domain or deployment has been changed.
+registration and authorized custom-domain browser signup are implemented.
+Lifecycle renewal and a live pilot remain pending; no live domain or deployment
+has been changed.
 
 ## Agreed product model
 
@@ -71,13 +72,15 @@ claiming DNS-delegation support.
 - [x] Add Settings → Custom domains with record instructions, manual verification,
   challenge replacement, pending-domain removal, and last-verified status.
 - [x] Document native-domain and custom-domain DNS records in provider setup guides.
-- [ ] Issue single-use, expiring authorization for an exact custom address.
-- [ ] Reuse onboarding with explicit domain authorization rather than removing
+- [x] Issue single-use, expiring authorization for an exact custom address
+  (backend API and atomic signup integration).
+- [x] Reuse onboarding with explicit domain authorization rather than removing
   native-domain restrictions globally. Create independent DID, recovery, and
   passkey state; retain provider-origin authentication.
-- [ ] Host the binding before WebFinger selection, activate only after public
+- [x] Host the binding before WebFinger selection, activate only after public
   verification, and make partial failure/retry behavior safe.
-- [ ] Extend settings with custom-account creation and pilot with `j4@j4crev.com`.
+- [x] Extend settings with custom-account creation.
+- [ ] Complete lifecycle support, then pilot with `j4@j4crev.com`.
 
 ### Registration implementation notes
 
@@ -113,6 +116,86 @@ no skipped tests. Server typechecking and client Svelte checking passed (zero
 client errors or warnings). The disposable database was removed afterward.
 The Settings UI has not been exercised in a live browser or deployed.
 
+### Exact-address authorization implementation notes
+
+Migration 0088 stores provider-local address authorizations. A passkey-authenticated
+native account can request `POST /api/v1/account/custom-domains/:id/authorize-address`
+with `{"address":"alice@example.com"}` under its verified domain. The response
+contains `authorizationId`, the canonical `address`, a one-time `token`, and
+`expiresAt`. This endpoint does not create an account or bypass provider signup
+admission policy. Settings passes the token to `/signup` in a temporary URL
+fragment, never a query string or HTTP request URL. Signup immediately removes
+the fragment and retains the token only in memory and encrypted setup/recovery
+files. Do not copy that fragment into logs or share it. Existing unfinished setup
+must be continued before creating another account.
+
+Tokens contain 256 random bits, expire after 15 minutes for first use, and are
+stored only as hashes. They authorize only the named address at this provider,
+under the issuing administrator's current serving generation. Replacements have
+a one-minute cooldown and invalidate previous tokens. At most 20 unconsumed,
+unexpired authorizations may exist per administrator. Consumed authorizations
+cannot be replaced. Issuance checks current DNS delegation explicitly, without
+using the native-domain discovery bypass.
+
+`CustomDomains.consumeAddressAuthorization` is an internal transaction method,
+not a public redemption endpoint. Signup calls it inside the
+same transaction as admission and account reservation, with a server-computed
+request digest covering the exact recovery/identity/setup intent. Never accept
+an arbitrary client-supplied digest as evidence of that intent. First consumption
+rechecks DNS, domain ownership state, address availability, and administrator
+serving/fence state. Its bounded DNS query occurs inside the transaction to keep
+consumption and reservation atomic; issuance does its network work outside locks.
+
+A successful consumption binds the token to one signup UUID, setup-token hash,
+and request digest. Identical retries can return the original authorization after
+its issuance expiry; the caller must still enforce the signup ceremony's own
+expiry and completed-state rules. Changed intent is rejected. A failed transaction
+rolls back consumption so the original setup can safely retry. Migration/custody
+fences and generation checks remain effective, including for administrators who
+have advanced beyond generation one.
+
+Native onboarding remains unchanged. Custom signup requires the exact address
+authorization; supplying it for a native address is rejected. Admission, capability
+consumption, account/key reservation, and ceremony linkage commit together. A
+failure rolls them all back; exact retries retain the same account and keys.
+The server stores only an authorization digest in signup intent. Lower-level
+onboarding requires matching consumed authority, ceremony, and recovery/identity
+keys within that transaction; ordinary direct custom-address preparation fails.
+
+The browser validates the exact custom address and provider before signing and
+retains authorization in the encrypted recovery package. Older native setup files
+remain supported. Accounts have independent DIDs, keys, passkeys, inboxes and
+permissions. Signing in to the new account replaces the current browser session;
+account switching remains deferred. Provider-reserved local names (such as
+`admin`) remain unavailable on custom domains under the existing database policy.
+
+Custom-domain source accounts cannot begin portable or managed provider-transfer
+fencing. No transfer implementation or background DNS checks have been added.
+Binding publication and activation reuse the existing monitored signup pipeline;
+production activation still verifies public discovery before selecting the address.
+
+Apply rollback 0088 before 0087, after reverting application consumers; rollback
+refuses to discard issued or consumed authorizations without an explicit
+export/removal decision. Custom recovery packages require this client version
+for setup resumption; their independently verified recovery vault remains usable
+offline through the existing tools.
+
+Authorization validation: 60 focused tests and server typechecking passed.
+Authorization and domain-registration database suites passed against disposable
+PostgreSQL 18.6 with no skipped tests, including rollback and concurrent claims.
+The disposable database was removed. No live provider or domain was changed.
+
+Signup integration validation: 61 focused server tests and 9 client tests passed,
+as did server typechecking and client Svelte checking (zero errors or warnings).
+Six database suites passed against disposable PostgreSQL 18.6: custom-domain
+registration, exact-address authorization, monitored signup, public onboarding,
+portable migration fencing, and managed network orchestration. These cover native
+and custom invite/public signup, rollback after account/key creation, exact retries,
+independent recovery and passkey login, encrypted package compatibility, and
+rejection of custom-domain transfers before fencing. No database tests were
+skipped. The disposable database was removed. UI browser verification and a live
+DNS/provider pilot remain outstanding.
+
 ## Slice 3: Lifecycle completion
 
 - [ ] Authorize custom-domain binding renewal under existing custody rules.
@@ -122,8 +205,8 @@ The Settings UI has not been exercised in a live browser or deployed.
   Never transfer the old DID, keys, messages, or permissions to a new domain owner.
 - [ ] Preserve provider login and existing DID-authorized conversations after
   domain loss; expired discovery must not appear currently verified.
-- [ ] Audit custody changes and reject unsupported custom-domain transfers
-  before changing state. Domain-transfer implementation remains deferred.
+- [x] Reject unsupported custom-domain provider transfers before fencing the account.
+- [ ] Audit remaining custody changes. Domain-transfer implementation remains deferred.
 - [ ] Prove cross-provider discovery, messaging, account separation, renewal,
   domain-loss behavior, and unchanged native-domain onboarding.
 

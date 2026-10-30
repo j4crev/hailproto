@@ -4,12 +4,13 @@
   import {startRegistration,startAuthentication} from "@simplewebauthn/browser";
   import {decodeBase64Url} from "@hailproto/codec/base64url";
   import {createSignupBackup,signSignupGenesis,encodeBase64Url} from "$lib/signup-recovery.js";
-  import {PENDING_STORAGE,setupToken,pendingKey,sealPending,openPending,enrollmentHash,signupRequest,checkSummary,SignupRequestError,
+  import {PENDING_STORAGE,validSignupAddress,setupToken,pendingKey,sealPending,openPending,enrollmentHash,signupRequest,checkSummary,SignupRequestError,
     type PendingSignup,type SignupSummary} from "$lib/signup.js";
   import {makeRecoveryPackage,openRecoveryPackage,recoveryOperationDigest} from "$lib/signup-package.js";
   let {data}=$props();
   type Screen="address"|"protection"|"save"|"verify"|"email"|"publish"|"activating"|"passkey"|"signin"|"expired"|"done"|"resume";
   let screen=$state<Screen>("address"),local=$state(""),email=$state(""),invitation=$state(""),consent=$state(false);
+  let customAddress=$state(""),addressAuthorization=$state<string|undefined>(undefined);
   let secret=$state(""),enteredSecret=$state(""),downloaded=$state(false);
   let file=$state<File|null>(null),cached=$state(false),pending=$state<PendingSignup|null>(null),summary=$state<SignupSummary|null>(null);
   let busy=$state(false),message=$state(""),code=$state(""),emailVerified=$state(false),label=$state("Hail passkey");
@@ -22,13 +23,20 @@
   const headings:Record<Screen,string>={address:"Choose your Hail address",protection:"How your account is protected",save:"Save your recovery file",verify:"Check your recovery file",
     email:"Verify your security email",publish:"Ready to create your account",activating:"Creating your account",passkey:"Create your passkey",signin:"Try your new passkey",expired:"Continue with your existing account",done:"Your account is ready",resume:"Continue your setup"};
   function go(next:Screen){screen=next;message="";file=null;requestAnimationFrame(()=>document.getElementById("signup-heading")?.focus());}
-  function clearMemory(){epoch++;secret="";enteredSecret="";pending=null;summary=null;key=null;packageText="";invitation="";code="";
+  function clearMemory(){epoch++;secret="";enteredSecret="";pending=null;summary=null;key=null;packageText="";invitation="";code="";addressAuthorization=undefined;customAddress="";
     for(const url of urls)URL.revokeObjectURL(url);urls.clear();}
   onDestroy(clearMemory);
   onMount(()=>{
     try{cached=!!localStorage.getItem(PENDING_STORAGE);if(cached)screen="resume";}catch{message="Browser storage is unavailable. Allow local storage to continue safely.";}
     const params=new URLSearchParams(location.hash.slice(1));invitation=params.get("invitation")??"";
     if(location.hash)history.replaceState(null,"",location.pathname);
+    const address=params.get("address"),authorization=params.get("addressAuthorization");
+    if(address||authorization){
+      if(address&&authorization&&validSignupAddress(address,data.policy.provider,authorization)){
+        customAddress=address;addressAuthorization=authorization;
+        if(cached)message="An unfinished setup is already saved. Continue it before starting this account.";
+      }else{screen="resume";message="This custom-address setup link is invalid. Return to Custom domains to start again.";}
+    }
     const hide=()=>{clearMemory();screen="resume";};
     const timer=setInterval(()=>{now=Date.now();if(screen==="activating"&&!busy&&now>=retryAt&&attempts<maxActivationAttempts&&document.visibilityState==="visible")void run(advance);},1000);
     window.addEventListener("pagehide",hide);
@@ -59,7 +67,7 @@
     localStorage.setItem(PENDING_STORAGE,sealed);cached=true;
   }
   async function chooseAddress(){
-    const result=await request("/api/v1/signup/check-address",{address:`${local}@${new URL(data.policy.provider).hostname}`,invitation},setupToken());
+    const result=await request("/api/v1/signup/check-address",{address:customAddress||`${local}@${new URL(data.policy.provider).hostname}`,invitation,...(addressAuthorization?{addressAuthorization}:{})},setupToken());
     if(result.available!==true){message="That address is already taken. Please choose another.";return;}
     go("protection");
   }
@@ -69,10 +77,10 @@
     await persist();
     if(!summary)summary=checkSummary(await request("/api/v1/signup",{signupId:p.signupId,address:p.address,
       recoveryKey:p.vault.recovery.publicDidKey,identityKey:p.vault.identity.publicDidKey,enrollmentHash:await enrollmentHash(p.enrollmentToken),
-      invitation:p.invitation,backupVerified:p.version===1,managedAccepted:true,alphaMonitoringAccepted:true},p.token),p);
+      invitation:p.invitation,...(p.addressAuthorization?{addressAuthorization:p.addressAuthorization}:{}),backupVerified:p.version===1,managedAccepted:true,alphaMonitoringAccepted:true},p.token),p);
     if(!pending.operation){
       if(!summary.preparation)throw new Error("Preparation unavailable");
-      const signed=await signSignupGenesis(p.vault,raw,summary.preparation,{...data.policy,address:p.address});
+      const signed=await signSignupGenesis(p.vault,raw,summary.preparation,{...data.policy,address:p.address,addressAuthorization:p.addressAuthorization});
       if(current!==epoch||!pending)throw new Error("Setup page closed");
       pending.operation=signed.operation;pending.did=signed.did;
       await persist();
@@ -90,7 +98,7 @@
       if(current!==epoch)return;
       secret=encodeBase64Url(generated.recoverySecret);key=await pendingKey(secret);
       pending={type:"hail.pending-signup",version:2,policy:data.policy,signupId:crypto.randomUUID(),
-        address:`${local}@${new URL(data.policy.provider).hostname}`,email,token:setupToken(),enrollmentToken:setupToken(),invitation,
+        address:customAddress||`${local}@${new URL(data.policy.provider).hostname}`,...(addressAuthorization?{addressAuthorization}:{}),email,token:setupToken(),enrollmentToken:setupToken(),invitation,
         vault:generated.vault,operation:null,did:null};
       // Preserve original intent before making any provider request.
       await persist();await prepareAndSign(generated.recoverySecret);
@@ -187,7 +195,8 @@
       {#if screen==="address"}
         <form onsubmit={e=>{e.preventDefault();void run(chooseAddress);}}>
           {#if data.signupMode==="invite"||invitation}<label>Invitation<input type="password" bind:value={invitation} required={data.signupMode==="invite"} autocomplete="off" maxlength="2048" /></label>{/if}
-          <label>Your Hail address<div class="address-input"><input bind:value={local} required pattern={'[a-z0-9][a-z0-9._\\-]{0,63}'} maxlength="64" autocomplete="username" /><span>@{new URL(data.policy.provider).hostname}</span></div></label>
+          {#if customAddress}<p>Your Hail address: <strong>{customAddress}</strong></p><p>This is a separate account with its own inbox, recovery file, and passkey login.</p>
+          {:else}<label>Your Hail address<div class="address-input"><input bind:value={local} required pattern={'[a-z0-9][a-z0-9._\\-]{0,63}'} maxlength="64" autocomplete="username" /><span>@{new URL(data.policy.provider).hostname}</span></div></label>{/if}
           <label>Security email<input type="email" bind:value={email} required autocomplete="email" maxlength="254" /></label>
           <p>Use an email address outside Hail for security alerts.</p>
           <button class="hail-button" disabled={busy||now<retryAt}>Continue</button>

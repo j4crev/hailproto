@@ -8,7 +8,8 @@ const origin = "https://haili.app";
 const session = { account_id: "a", passkey_credential_id: "passkey", serving_generation: 1, migration_state: null } as AccountApiSession;
 function fixture(authenticated: AccountApiSession | null = session) {
   const domains = { start: vi.fn(async () => ({ status: "pending" })), list: vi.fn(async () => ({ domains: [] })),
-    verify: vi.fn(async () => ({ status: "verified" })), removePending: vi.fn(async () => ({ removed: true })) };
+    verify: vi.fn(async () => ({ status: "verified" })), removePending: vi.fn(async () => ({ removed: true })),
+    authorizeAddress: vi.fn(async () => ({ token: "test-only", address: "j4@j4crev.com" })) };
   const accounts = { authenticate: vi.fn(async () => authenticated) };
   const app = new Hono();
   registerCustomDomainRoutes(app, domains as unknown as CustomDomains, accounts as unknown as AccountApiRepository, origin);
@@ -17,6 +18,19 @@ function fixture(authenticated: AccountApiSession | null = session) {
 const headers = { Origin: origin, "Content-Type": "application/json", Cookie: "hail_session=session" };
 
 describe("custom domain HTTP boundaries", () => {
+  it("issues exact-address authorization only through the authenticated mutation surface", async () => {
+    const { app, domains } = fixture(), id = "11111111-1111-4111-8111-111111111111";
+    const url = `${origin}/api/v1/account/custom-domains/${id}/authorize-address`;
+    const response = await app.request(url, { method: "POST", headers, body: '{"address":"j4@j4crev.com"}' });
+    expect(response.status).toBe(200); expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(domains.authorizeAddress).toHaveBeenCalledWith(session, id, "j4@j4crev.com");
+    for (const body of ['{}', '{"address":"a@example.com","domain":"example.com"}', '{"address":42}']) {
+      expect((await app.request(url, { method: "POST", headers, body })).status).toBe(400);
+    }
+    expect((await app.request(url, { method: "POST", headers: { ...headers, Origin: "https://other.example.com" }, body: '{"address":"j4@j4crev.com"}' })).status).toBe(403);
+    expect((await app.request(url, { headers })).status).toBe(405);
+    expect(domains.authorizeAddress).toHaveBeenCalledOnce();
+  });
   it("accepts same-origin passkey sessions and returns private responses", async () => {
     const { app, domains, accounts } = fixture();
     const response = await app.request(`${origin}/api/v1/account/custom-domains`, { method: "POST", headers, body: '{"domain":"j4crev.com"}' });

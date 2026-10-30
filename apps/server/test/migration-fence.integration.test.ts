@@ -142,7 +142,7 @@ integration("fenced transfer and concurrent cutover", () => {
     await source.sql`
       INSERT INTO provider_accounts (id, tenant_id, canonical_address, did, onboarding_state,
         activated_at, activation_binding_digest, activation_verification_mode)
-      VALUES (${id}, ${randomUUID()}, ${`migration-${id}@example.com`}, ${did}, 'active', now(),
+      VALUES (${id}, ${randomUUID()}, ${`migration-${id}@source.example.com`}, ${did}, 'active', now(),
         ${randomBytes(32)}, 'public')
     `;
     for (const key of keys.keys.filter((entry) => entry.role !== "hail-identity")) {
@@ -321,6 +321,16 @@ integration("fenced transfer and concurrent cutover", () => {
   afterAll(async () => {
     if (source) await source.close();
     if (target) await target.close();
+  });
+
+  it("rejects custom-domain sources before fencing or changing their account", async () => {
+    const original=(await source.sql`SELECT canonical_address FROM provider_accounts WHERE id=${id}`)[0].canonical_address;
+    try {
+      await source.sql`UPDATE provider_accounts SET canonical_address='alice@custom-domain.com' WHERE id=${id}`;
+      await expect(fenceService.begin(signedOffer,signedOffer,signedOffer)).rejects.toThrow("Custom-domain provider transfer");
+      expect(await fenceService.get(did)).toBeNull();
+      expect((await source.sql`SELECT onboarding_state FROM provider_accounts WHERE id=${id}`)[0].onboarding_state).toBe("active");
+    } finally { await source.sql`UPDATE provider_accounts SET canonical_address=${original} WHERE id=${id}`; }
   });
 
   it("rejects an unauthenticated destination request before fencing", async () => {

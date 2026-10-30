@@ -188,6 +188,12 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
     const bytes=encodeManagedHandshake(grantValue),signed={payloadBytes:bytes,
       signature:await owner.sign(managedHandshakeSignatureInput(grantValue.type,bytes))},body=JSON.stringify({
         payload:encodeBase64Url(signed.payloadBytes),signature:encodeBase64Url(signed.signature)});
+    try {
+      await source.sql`UPDATE provider_accounts SET canonical_address='alice@custom-domain.com' WHERE id=${accountId}`;
+      await expect(fence.begin(signed,signed,signed)).rejects.toThrow("Custom-domain provider transfer");
+      expect(await source.sql`SELECT did FROM provider_migration_fences WHERE account_id=${accountId}`).toHaveLength(0);
+      expect((await source.sql`SELECT onboarding_state FROM provider_accounts WHERE id=${accountId}`)[0].onboarding_state).toBe("active");
+    } finally { await source.sql`UPDATE provider_accounts SET canonical_address='alice@a.example.com' WHERE id=${accountId}`; }
     const call=(path:string,method="GET",payload?:string,token=credential.token)=>app.request(`${sourceOrigin}${path}`,{
       method,headers:{Authorization:`Bearer ${token}`,...(payload?{"Content-Type":"application/json"}:{})},...(payload?{body:payload}:{})});
     expect((await call("/api/v1/account/transfers/managed/offer","POST",body,"wrong")).status).toBe(401);
