@@ -63,8 +63,9 @@ honors DNS TTLs; no application cache or scheduled domain checks are used.
 For a custom domain hosted by this provider, the same record names your provider
 instead of the custom domain, for example
 `_hail-provider.j4crev.com TXT "v=hail1; provider=haili.app"`. Domain registration
-also requires the provider-issued `_hail-domain-verify` challenge. Registration
-does not yet enable custom-account signup; see the
+also requires the provider-issued `_hail-domain-verify` challenge. After verification,
+Settings → Custom domains can authorize a separate custom-address signup, subject
+to the provider’s registration policy. See the
 [implementation checklist](../../../../docs/custom-domains.md). Upgrade resolvers
 before advertising DNS-only addresses: old WebFinger-only clients cannot discover
 them. Neither record changes website hosting or SMTP email routing.
@@ -224,8 +225,8 @@ Follow [First provider administrator: vault to dashboard](../../../../docs/provi
 5. Complete onboarding, enroll/test a passkey, and grant explicit operator permission.
 
 Reserved names (`admin`, `ops`, `alerts`, `abuse`, `security`, `support`) are not
-accounts and confer no privilege automatically. The provider uses one served domain;
-custom hosted domains are not supported. The reserved administrator uses CLI signup;
+accounts and confer no privilege automatically. They remain reserved on custom
+domains too. The reserved native-domain administrator uses CLI signup;
 the browser address picker intentionally excludes reserved names.
 
 After first login, `/admin` can issue private signup links or send email invitations

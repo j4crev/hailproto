@@ -81,7 +81,8 @@ claiming DNS-delegation support.
 - [x] Host the binding before WebFinger selection, activate only after public
   verification, and make partial failure/retry behavior safe.
 - [x] Extend settings with custom-account creation.
-- [ ] Complete lifecycle support, then pilot with `j4@j4crev.com`.
+- [ ] Verify the browser flow and pilot with `j4@j4crev.com`. Withdrawal,
+  reassignment, and transfers remain deferred.
 
 ### Registration implementation notes
 
