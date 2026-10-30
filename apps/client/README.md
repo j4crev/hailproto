@@ -166,8 +166,7 @@ explains hold and terminal failure reasons; only indeterminate submissions expos
 an idempotent retry control.
 The inbox presents messages as feed cards and shows bundled headers by default;
 the “Show header images” switch in Settings can hide them without contacting
-senders. The preference stays in this browser, with an in-memory fallback when
-storage is blocked.
+senders. The preference syncs to the account; browser storage is only a cache.
 The maintained browser client lives in `apps/client` (workspace package `hail-client`).
 
 ## Navigation performance
@@ -200,14 +199,25 @@ live at `/settings`.
 
 The browser wizard checks those interactions at desktop and mobile widths,
 including direct homepage login, protected new routes, account-menu logout,
-preference persistence and blocked browser storage. To save screenshots outside
+account preference persistence and blocked browser storage. To save screenshots outside
 the repository, set `HAIL_WIZARD_SCREENSHOTS=/tmp/hail-ui-review` when running
 `test:wizard` (combine with `HAIL_WIZARD_MOBILE=true` for the mobile set).
 
-Appearance in Settings offers System (default), Light and Dark. The browser-local
+Appearance in Settings offers System (default), Light and Dark. The cached
 choice applies before hydration; System follows live OS changes through CSS.
 Shared semantic colors cover icons, text, controls and charts, while QR codes
-retain black-on-white rendering. If storage is blocked, changes last for the visit.
+retain black-on-white rendering. Appearance and header-image preferences sync to
+account storage on navigation and window focus, and save even if browser storage
+is blocked. The first browser seeds unset account preferences from its existing
+choices; later browsers use account values. Failed saves retain the last confirmed
+selection and show an error. The local cache records its account owner so another
+account cannot inherit those choices during initialization.
+
+Deploy migration 85 and the provider runtime before the client. The additive
+columns preserve Trash and allow older clients to continue updating it. Roll back
+the client and provider first; export display preferences before using the schema
+rollback if those values need to be restored. Preferences remain provider-local,
+like Trash, rather than transferring between providers.
 After building, run `HAIL_WIZARD_THEME_ONLY=true bun run test:wizard` for focused
 appearance checks (add `HAIL_WIZARD_MOBILE=true` for mobile). Unit preference and
 contrast checks run with `bun run test src/lib/theme.test.ts`.
@@ -241,8 +251,8 @@ select one or more messages (or the current page) and choose **Restore selected*
 the original subscription/connection classification sends each back to Inbox or
 Messages. Expired messages cannot be restored.
 
-**Settings → Use Trash** is saved to the provider account, unlike the local header
-image preference. Disabling it requires confirmation, immediately purges existing
+**Settings → Use Trash** is saved to the provider account, alongside appearance
+and header-image preferences. Disabling it requires confirmation, immediately purges existing
 Trash, and makes subsequent deletions permanent. This removes the recipient's
 message and unreferenced recipient body bytes, not another account's Sent copy.
 Delivery receipts and replay protection remain. Encrypted operational backups

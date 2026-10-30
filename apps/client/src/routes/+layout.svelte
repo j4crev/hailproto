@@ -1,8 +1,17 @@
 <script lang="ts">
   import "../app.css";
   import {onMount} from "svelte";
-  import {initializeThemePreference} from "$lib/preferences.js";
-  onMount(initializeThemePreference);
+  import {initializeThemePreference, syncAccountPreferences, clearPreferenceAccount} from "$lib/preferences.js";
+  onMount(() => {
+    const cleanup = initializeThemePreference();
+    const refresh = () => {
+      const did = page.data.account?.did;
+      if (did) void syncAccountPreferences(did).catch(() => {});
+      else clearPreferenceAccount();
+    };
+    window.addEventListener("focus", refresh);
+    return () => {cleanup(); window.removeEventListener("focus", refresh);};
+  });
   import {page} from "$app/state";
   import {afterNavigate} from "$app/navigation";
   import Icon from "$lib/Icon.svelte";
@@ -28,7 +37,12 @@
     : page.url.pathname === href || page.url.pathname.startsWith(href + "/");
   function closeDrawer() { drawer?.close(); drawerOpen = false; }
   function openDrawer() { drawer?.showModal(); drawerOpen = true; }
-  afterNavigate(closeDrawer);
+  afterNavigate(() => {
+    closeDrawer();
+    const did = page.data.account?.did;
+    if (did) void syncAccountPreferences(did).catch(() => {});
+    else clearPreferenceAccount();
+  });
   $effect(() => {
     if (!drawerOpen) return;
     const previous = document.body.style.overflow;

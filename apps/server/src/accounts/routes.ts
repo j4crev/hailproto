@@ -310,8 +310,11 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         const input=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
         if(!input||typeof input!=="object"||Array.isArray(input))return problem(400);
         if(action==="message-preferences"){
-          if(Object.keys(input).length!==1||!("trashEnabled" in input))return problem(400);
-          return context.json(await messaging.trash.saveSettings(session,input.trashEnabled));
+          if("trashEnabled" in input){
+            if(Object.keys(input).length!==1)return problem(400);
+            return context.json(await messaging.trash.saveSettings(session,input.trashEnabled));
+          }
+          return context.json(await messaging.trash.saveDisplaySettings(session,input));
         }
         if(action==="trash-restore"){
           if(Object.keys(input).length!==1||!("messages" in input))return problem(400);

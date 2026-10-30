@@ -519,7 +519,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     expect((await messaging.inboxFeed(ownerSession,null)).messages.find(m=>m.messageId===id)?.isRead).toBe(true);
     await messaging.setRead(ownerSession,senderDid,id,false);
     expect((await messaging.read(ownerSession,senderDid,id))?.isRead).toBe(false);
-    expect(await messaging.trash.settings(ownerSession)).toEqual({trashEnabled:true});
+    expect(await messaging.trash.settings(ownerSession)).toEqual({trashEnabled:true,theme:null,showHeaderImages:null});
     // Old message age does not shorten a newly started Trash retention window.
     await db.sql`UPDATE delivered_messages SET delivered_at=clock_timestamp()-interval '90 days' WHERE message_id=${id}`;
     await messaging.trash.remove(senderSession,senderDid,id);

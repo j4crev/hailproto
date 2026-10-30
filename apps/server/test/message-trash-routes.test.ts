@@ -11,8 +11,9 @@ it('requires authenticated scoped same-origin web access for Trash mutations',as
   let authenticated=true;
   const accounts={authenticate:vi.fn(async()=>authenticated?session:null)} as unknown as AccountApiRepository;
   const remove=vi.fn(async()=>({state:'trashed'})),restore=vi.fn(async()=>({restored:1})),saveSettings=vi.fn(async()=>({trashEnabled:false}));
+  const saveDisplaySettings=vi.fn(async()=>({theme:'dark',showHeaderImages:true}));
   const setRead=vi.fn(async()=>({isRead:true}));
-  const messaging={setRead,trash:{remove,restore,saveSettings,settings:async()=>({trashEnabled:true})},inboxFeed:async()=>({messages:[],next:null})} as unknown as AccountMessaging;
+  const messaging={setRead,trash:{remove,restore,saveSettings,saveDisplaySettings,settings:async()=>({trashEnabled:true})},inboxFeed:async()=>({messages:[],next:null})} as unknown as AccountMessaging;
   const origin='https://example.com',app=createApp({publicOrigin:origin,providerId:'test',passkeys:{origin}} as AppConfig,
     {accountApi:{accounts,grants:{} as GrantRepository,service:{} as GrantService,messaging},async checkReadiness(){return {ready:true};}});
   const path='/api/v1/account/inbox/did:plc:'+ 'b'.repeat(24)+'/019a0000-0000-7000-8000-000000000001/delete';
@@ -34,6 +35,10 @@ it('requires authenticated scoped same-origin web access for Trash mutations',as
   expect((await post(path,{permanent:true})).status).toBe(400);
   expect((await post('/api/v1/account/message-preferences',{trashEnabled:false})).status).toBe(200);
   expect(saveSettings).toHaveBeenCalledWith(session,false);
+  expect((await post('/api/v1/account/message-preferences',{theme:'dark'})).status).toBe(200);
+  expect(saveDisplaySettings).toHaveBeenCalledWith(session,{theme:'dark'});
+  expect((await post('/api/v1/account/message-preferences',{theme:'dark',trashEnabled:false})).status).toBe(400);
+  expect(saveSettings).toHaveBeenCalledTimes(1);
   expect((await post('/api/v1/account/trash/restore',{messages:[]})).status).toBe(200);
   expect(restore).toHaveBeenCalledWith(session,[]);
   expect((await app.request('/api/v1/account/trash?unknown=1',{headers})).status).toBe(400);

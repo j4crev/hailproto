@@ -8,8 +8,8 @@ type BodyReference={sender_did:string;body_digest:Uint8Array;media_type:string;p
 export class MessageTrash {
   constructor(private readonly sql:SQL){}
   async settings(session:AccountApiSession){
-    const rows=await this.sql<{trash_enabled:boolean}[]>`SELECT trash_enabled FROM account_message_preferences WHERE account_id=${session.account_id}`;
-    return {trashEnabled:rows[0]?.trash_enabled??true};
+    const rows=await this.sql<{trash_enabled:boolean;theme:string|null;show_header_images:boolean|null}[]>`SELECT trash_enabled,theme,show_header_images FROM account_message_preferences WHERE account_id=${session.account_id}`;
+    return {trashEnabled:rows[0]?.trash_enabled??true,theme:rows[0]?.theme??null,showHeaderImages:rows[0]?.show_header_images??null};
   }
   private async lock(tx:SQL,session:AccountApiSession){
     const rows=await tx`SELECT id FROM provider_accounts WHERE id=${session.account_id} AND did=${session.did} AND onboarding_state='active' FOR UPDATE`;
@@ -34,6 +34,26 @@ export class MessageTrash {
         await this.cleanBodies(tx as SQL,session.did,removed);
       }
       return {trashEnabled:enabled};
+    });
+  }
+  async saveDisplaySettings(session:AccountApiSession,input:Record<string,unknown>){
+    const {theme,showHeaderImages,initialize=false}=input;
+    if(Object.keys(input).some(k=>!['theme','showHeaderImages','initialize'].includes(k)) ||
+      (theme===undefined&&showHeaderImages===undefined) ||
+      ('theme' in input && !['system','light','dark'].includes(theme as string)) ||
+      ('showHeaderImages' in input && typeof showHeaderImages!=='boolean') || typeof initialize!=='boolean')
+      throw new UserGrantError(400,"Invalid display preferences");
+    return this.sql.begin(async tx=>{
+      await this.lock(tx as SQL,session);
+      const rows=await tx`INSERT INTO account_message_preferences(account_id,theme,show_header_images)
+        VALUES(${session.account_id},${theme??null},${showHeaderImages??null})
+        ON CONFLICT(account_id) DO UPDATE SET
+          theme=CASE WHEN ${initialize} THEN COALESCE(account_message_preferences.theme,EXCLUDED.theme)
+            ELSE COALESCE(EXCLUDED.theme,account_message_preferences.theme) END,
+          show_header_images=CASE WHEN ${initialize} THEN COALESCE(account_message_preferences.show_header_images,EXCLUDED.show_header_images)
+            ELSE COALESCE(EXCLUDED.show_header_images,account_message_preferences.show_header_images) END
+        RETURNING theme,show_header_images`;
+      return {theme:rows[0]!.theme,showHeaderImages:rows[0]!.show_header_images};
     });
   }
   async remove(session:AccountApiSession,sender:string,id:string,permanent=false){

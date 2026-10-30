@@ -226,6 +226,7 @@ const migrations: readonly Migration[] = [
   {version:82,name:"message-threads",url:new URL("../../migrations/0082_message_threads.sql",import.meta.url)},
   {version:83,name:"connection-cli-approvals",url:new URL("../../migrations/0083_connection_cli_approvals.sql",import.meta.url)},
   {version:84,name:"inbox-delivery-cursor",url:new URL("../../migrations/0084_inbox_delivery_cursor.sql",import.meta.url)},
+  {version:85,name:"display-preferences",url:new URL("../../migrations/0085_display_preferences.sql",import.meta.url)},
 ];
 
 export class ProviderDatabase {

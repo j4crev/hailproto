@@ -50,6 +50,7 @@ const publicationResult=()=>({publicationId:publicationIntent.publicationId,cate
   createdAt:new Date(publicationCreated).toISOString(),expiresAt:new Date(publicationCreated+86400000).toISOString()});
 const readMessages=new Set<string>();
 let avatarGate=Promise.resolve(),releaseAvatars=()=>{},missingAvatars=false;
+let displayPreferences: {theme:string|null;showHeaderImages:boolean|null}={theme:null,showHeaderImages:null};
 let trashEnabled=true;const trashed=new Map<string,string>(),deleted=new Set<string>();
 let incoming=false,replyPosts=0,replied:any=null,recentlyVerified=false,guiProxy:ReturnType<typeof createApp>;
 const textBody=(text:string)=>({version:1,profile:"spt-1",blocks:[{_type:"block",_key:"b1",style:"normal",markDefs:[],children:[{_type:"span",_key:"s1",text,marks:[]}]}]});
@@ -100,8 +101,11 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   }
   if(connectionMessageIntent&&path===`/api/v1/account/connection-messages/${connectionMessageIntent.publicationId}`){connectionMessageReads++;return json(connectionMessageResult());}
   if(path==='/api/v1/account/message-preferences'){
-    if(request.method==='POST'){trashEnabled=input.trashEnabled;if(!trashEnabled){for(const id of trashed.keys())deleted.add(id);trashed.clear();}}
-    return json({trashEnabled});
+    if(request.method==='POST'){
+      if('trashEnabled' in input){trashEnabled=input.trashEnabled;if(!trashEnabled){for(const id of trashed.keys())deleted.add(id);trashed.clear();}}
+      for(const key of ['theme','showHeaderImages'] as const)if(key in input&&(!input.initialize||displayPreferences[key]===null))Object.assign(displayPreferences,{[key]:input[key]});
+    }
+    return json({trashEnabled,...displayPreferences});
   }
   const readAction=path.match(/^\/api\/v1\/account\/inbox\/([^/]+)\/([^/]+)\/mark-(read|unread)$/);
   if(readAction){
@@ -544,13 +548,13 @@ try{
   if(process.env.HAIL_WIZARD_THEME_ONLY === "true") {
   await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/settings"]').click()`);
   await wait(async()=>evaluate(`document.querySelector('#theme')?.disabled===false`),"appearance settings ready");
-  const appearance=async(value:string)=>{await evaluate(`(()=>{const select=document.querySelector('#theme');select.value=${JSON.stringify(value)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);};
+  const appearance=async(value:string)=>{await evaluate(`(()=>{const select=document.querySelector('#theme');select.value=${JSON.stringify(value)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);await wait(async()=>evaluate(`document.querySelector('#theme')?.disabled===false && document.documentElement.dataset.theme===${JSON.stringify(value)}`),'account appearance saved');};
   const scheme=()=>evaluate(`getComputedStyle(document.documentElement).colorScheme`);
   await cdp("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"dark"}]});
   await wait(async()=>await scheme()==="dark","system dark appearance");
   await appearance("light");assert.equal(await scheme(),"light","explicit light overrides dark OS");
   await appearance("dark");assert.equal(await scheme(),"dark");
-  assert.equal(await evaluate(`getComputedStyle(document.body).backgroundColor`),"rgb(17, 26, 28)");
+  assert.equal(await evaluate(`getComputedStyle(document.body).backgroundColor`),"rgb(20, 20, 20)");
   await narrowLayouts();await screenshot("settings-dark");
   await cdp("Emulation.setEmulatedMedia",{features:[{name:"prefers-color-scheme",value:"light"}]});
   assert.equal(await scheme(),"dark","explicit dark overrides light OS");
@@ -571,14 +575,24 @@ try{
   const blockedThemeStorage=await cdp("Page.addScriptToEvaluateOnNewDocument",{source:`Storage.prototype.getItem=Storage.prototype.setItem=()=>{throw new DOMException('Storage blocked','SecurityError');};`});
   await cdp("Page.navigate",{url:origin+"/settings"});
   await wait(async()=>evaluate(`document.querySelector('#theme')?.disabled===false`),"appearance with blocked storage ready");
-  await appearance("light");await wait(()=>has("Applied for this visit."),"appearance with blocked storage feedback");
+  await appearance("light");assert.equal(displayPreferences.theme,"light");
+  await evaluate(`document.querySelector('#show-headers').click()`);
+  await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false && document.querySelector('#show-headers')?.checked===false`),"header account save with blocked storage");
+  assert.equal(displayPreferences.showHeaderImages,false);
+  assert(!(await has("Saved in this browser.")) && !(await has("Saved to your account.")),"No redundant storage labels");
   assert.equal(await scheme(),"light");
   await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/account"]').click()`);
   await wait(()=>has("Key custody"),"account navigation with blocked storage");
   assert.equal(await scheme(),"light","in-memory appearance survives client navigation");
   await cdp("Page.removeScriptToEvaluateOnNewDocument",{identifier:blockedThemeStorage.identifier});
-  await cdp("Page.navigate",{url:origin+"/account"});await wait(()=>has("Key custody"),"persisted dark appearance restored");
-  assert.equal(await scheme(),"dark");await screenshot("account-dark");
+  await cdp("Page.navigate",{url:origin+"/account"});await wait(()=>has("Key custody"),"account appearance restored");
+  await wait(async()=>await scheme()==="light","account appearance survives blocked storage");await screenshot("account-light");
+  await evaluate(`localStorage.clear()`);
+  await cdp("Page.navigate",{url:origin+"/settings"});
+  await wait(async()=>evaluate(`document.querySelector('#theme')?.disabled===false && document.querySelector('#theme')?.value==='light' && document.querySelector('#show-headers')?.checked===false`),"both preferences restored without a local cache");
+  displayPreferences={theme:'dark',showHeaderImages:true};
+  await evaluate(`window.dispatchEvent(new Event('focus'))`);
+  await wait(async()=>evaluate(`document.querySelector('#theme')?.value==='dark' && document.querySelector('#show-headers')?.checked===true`),"another device's preferences synchronize on focus");
   assert(!browserErrors.some(error=>/Content Security Policy|Refused to execute|hydration/i.test(error)),"Theme has no CSP or hydration errors");
   passed=true;console.info("PASS: Chromium appearance settings, system changes, persistence, pre-paint initialization and blocked storage");
   } else {
@@ -638,7 +652,7 @@ try{
   const settings=async()=>{await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/settings"]').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"reading settings ready");};
   const feed=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/';document.body.append(a);a.click();a.remove();})()`);await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Inbox'`),"feed navigation");};
   await settings();await accountNavigation();assert.equal(await evaluate(`document.querySelectorAll("main a").length`),0,"Settings has no cross-link cards");await narrowLayouts();await screenshot("settings");
-  await evaluate(`document.querySelector('#show-headers').click()`);await wait(()=>has("Saved on this browser."),"preference saved");
+  await evaluate(`document.querySelector('#show-headers').click()`);await wait(async()=>evaluate(`localStorage.getItem('hail.gui.showInboxHeaders')==='false' && document.querySelector('#show-headers')?.disabled===false`),"preference saved");
   await feed();await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"hide feed headers through settings");
   await evaluate("document.documentElement.dataset.beforePreferenceReload='true'");
   await cdp("Page.reload");await wait(async()=>evaluate(`!document.documentElement.dataset.beforePreferenceReload && !!document.querySelector('[aria-label="Messages"]') && !document.querySelector(${JSON.stringify(feedImage)})`),"persist hidden header preference");
@@ -647,14 +661,14 @@ try{
   await evaluate(`document.querySelector('[aria-label="Inbox pages"] a[href="/"]').click()`);
   await wait(async()=>evaluate("location.search==='' && !!document.querySelector('[aria-label=\"Inbox pages\"] a[href*=after]')"),"newest feed page");
   await settings();assert.equal(await evaluate(`document.querySelector('#show-headers').checked`),false);
-  await evaluate(`document.querySelector('#show-headers').click()`);await feed();
+  await evaluate(`document.querySelector('#show-headers').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),'header preference saved');await feed();
   await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"show feed headers again");
   const blockedStorage=await cdp("Page.addScriptToEvaluateOnNewDocument",{source:`Storage.prototype.getItem=Storage.prototype.setItem=()=>{throw new DOMException('Storage blocked','SecurityError');};`});
   await cdp("Page.navigate",{url:origin+"/settings"});await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"settings works with blocked storage");
-  await evaluate(`document.querySelector('#show-headers').click()`);await wait(()=>has("Applied for this visit."),"storage failure feedback");
+  await evaluate(`document.querySelector('#show-headers').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false && document.querySelector('#show-headers')?.checked===false`),"account saves with blocked storage");
   await feed();await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"in-memory header preference survives navigation without storage");
   await cdp("Page.removeScriptToEvaluateOnNewDocument",{identifier:blockedStorage.identifier});
-  await cdp("Page.navigate",{url:origin+"/"});await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"restore normal feed preferences");
+  await cdp("Page.navigate",{url:origin+"/"});await wait(async()=>evaluate(`!!document.querySelector('[aria-label="Messages"]') && !document.querySelector(${JSON.stringify(feedImage)})`),"account preference survives blocked storage");
   await evaluate(`[...document.querySelectorAll('nav a')].find(a=>a.textContent.trim()==='Subscriptions').click()`);
   await wait(()=>has("No subscriptions yet"),"allowed-sender list");
   assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Subscriptions");
