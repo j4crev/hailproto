@@ -22,7 +22,8 @@ COPY --from=plc-lib-build /workspace/hailproto/vendor/did-method-plc ./vendor/di
 RUN bun install --frozen-lockfile
 RUN bun run --cwd packages/hail-codec-ts build
 COPY apps/client ./apps/client
-RUN bun run --cwd apps/client build
+# Leave memory for the live provider while adapter-node packages the GUI.
+RUN NODE_OPTIONS=--max-old-space-size=512 bun run --cwd apps/client build
 
 FROM oven/bun:1.4.0 AS dependencies
 WORKDIR /workspace/hailproto
