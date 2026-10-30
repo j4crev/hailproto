@@ -1,9 +1,10 @@
 # Custom domain support checklist
 
-Status: incremental implementation. Provider-side DNS discovery and domain
-registration and authorized custom-domain browser signup are implemented.
-Lifecycle renewal and a live pilot remain pending; no live domain or deployment
-has been changed.
+Status: incremental implementation. Provider-side DNS discovery, domain
+registration, and authorized custom-domain browser signup are implemented.
+Custom-domain binding renewal and domain-loss safeguards are implemented.
+Domain withdrawal/reassignment and a live pilot remain pending; no live domain
+or deployment has been changed.
 
 ## Agreed product model
 
@@ -198,17 +199,58 @@ DNS/provider pilot remain outstanding.
 
 ## Slice 3: Lifecycle completion
 
-- [ ] Authorize custom-domain binding renewal under existing custody rules.
-- [ ] Recheck delegation when creating accounts and renewing bindings; do not
+- [x] Authorize custom-domain binding renewal under existing custody rules.
+- [x] Recheck delegation when creating accounts and renewing bindings; do not
   introduce background polling or per-message domain checks.
 - [ ] Implement domain withdrawal and reassignment with cache-expiry safeguards.
   Never transfer the old DID, keys, messages, or permissions to a new domain owner.
-- [ ] Preserve provider login and existing DID-authorized conversations after
-  domain loss; expired discovery must not appear currently verified.
+- [x] Preserve provider login and existing DID authority after domain loss;
+  expired discovery must not appear currently verified.
+- [ ] Exercise existing cross-provider conversations during the live domain-loss pilot.
 - [x] Reject unsupported custom-domain provider transfers before fencing the account.
 - [ ] Audit remaining custody changes. Domain-transfer implementation remains deferred.
 - [ ] Prove cross-provider discovery, messaging, account separation, renewal,
   domain-loss behavior, and unchanged native-domain onboarding.
+
+### Renewal and domain-loss behavior
+
+`POST /api/v1/account/binding` reuses existing scoped credential and custody
+checks. Native addresses skip DNS delegation. A custom address additionally needs
+its original consumed admission linked to this account and a still-registered
+local domain. The issuance token and signup ceremony may have expired or retired;
+they establish provenance, not current login authority. The domain administrator
+does not sign for or receive access to the custom account.
+
+Renewal checks current delegation with the bounded DNS resolver before signing
+and again before selecting the hosted artifact. Missing or changed delegation
+returns a conflict; DNS failures return a retryable service error. Neither permits
+selection of new authority. The existing public signed-binding verifier checks
+the result through delegated WebFinger after publication. If that final check
+fails after publication, retain and retry the same artifact; the selected binding
+may already have committed. DNS can change between any two requests, so this is
+operation-time verification, not a continuous guarantee.
+
+Domain loss does not delete accounts, revoke passkeys/credentials, alter keys, or
+rewrite DID grants. Existing selected bindings retain their original expiry;
+there is no scheduled withdrawal. An expired selected binding is omitted from
+WebFinger, without fallback to older bindings. Binding status describes expiry
+and selection, not continuous DNS verification. Restoring delegation allows an
+authorized account to renew after expiry without creating a replacement identity.
+
+Domain withdrawal and reassignment remain intentionally unimplemented. Before
+adding them, define how to retire local address claims and wait out discovery
+caches while retaining old DID-authorized conversations and preventing any key,
+inbox, or permission inheritance by the next domain owner.
+
+Renewal validation: the monitored signup suite exercises real custom accounts,
+scoped renewal, signed delegated WebFinger discovery, DNS absence/redirection/
+failure, staged-but-unselected retry, post-publication verification failure,
+expired issuance authority, removed local domain authority, expiry and recovery,
+and continued passkey login. The self-service suite covers unchanged native
+managed/owner-controlled renewal with a DNS resolver that fails if called.
+Both database suites and server typechecking passed against disposable PostgreSQL
+with no skipped tests. The disposable database was removed; no live provider,
+domain records, or deployment was changed.
 
 ## Later work
 

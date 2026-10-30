@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createWebCryptoSigner, createWebCryptoVerifier, decodeBase64Url, encodeBase64Url, inspectSignedPayload,
   signPayload, toDiagnosticJson, validatePayload, verifySignedPayload, type HailAddressBinding } from "@hailproto/codec";
+import { discoverProvider, type ProviderDiscovery } from "../discovery/delegation.js";
 import type { SQL } from "bun";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import { importEd25519PrivateKey } from "../identity/keys.js";
@@ -11,12 +12,12 @@ import { retainPublicSigningAuthority } from "../plc/signing-authority.js";
 import type { AddressVerificationService } from "../onboarding/activation.js";
 import type { AccountApiSession } from "./repository.js";
 
-export class BindingError extends Error { constructor(readonly status:400|403|409,message:string){super(message);} }
+export class BindingError extends Error { constructor(readonly status:400|403|409|503,message:string){super(message);} }
 interface Row {id:string;cose:Uint8Array;representation_digest:Uint8Array;selected_at:Date|null;published_at:Date|null;}
 const equal=(a:Uint8Array,b:Uint8Array)=>Buffer.from(a).equals(Buffer.from(b));
 export class AccountBinding {
   constructor(private readonly sql:SQL,private readonly resolver:HailDidResolver,private readonly encryptor:KeyEncryptor,private readonly origin:string,
-    private readonly verifier:AddressVerificationService){}
+    private readonly verifier:AddressVerificationService,private readonly discover:ProviderDiscovery=discoverProvider){}
   async show(session:AccountApiSession) {
     const rows=await this.sql<Row[]>`SELECT id,cose,representation_digest,selected_at,published_at FROM address_bindings
       WHERE account_id=${session.account_id} AND canonical_address=${session.canonical_address} AND did=${session.did}
@@ -30,13 +31,13 @@ export class AccountBinding {
       status:row.selected_at?(binding.expires_at<=now?"expired":"active"):"superseded",renewalDue:binding.expires_at-now<=7*86400};
   }
   private async writer(tx:SQL,session:AccountApiSession,key:string) {
-    if(session.canonical_address.split("@")[1]!==new URL(this.origin).hostname)throw new BindingError(409,"Renewal currently requires a provider-domain address");
     const account=await tx`SELECT id FROM provider_accounts WHERE id=${session.account_id} AND did=${session.did}
       AND canonical_address=${session.canonical_address} AND onboarding_state='active' AND activation_verification_mode='public' FOR UPDATE`;
     if(!account.length||(await tx`SELECT did FROM provider_migration_fences WHERE account_id=${session.account_id}`).length)throw new BindingError(409,"Account cannot renew its address");
     const credential=await tx`SELECT id FROM account_api_credentials WHERE id=${session.credential_id} AND account_id=${session.account_id}
       AND revoked_at IS NULL AND expires_at>clock_timestamp() AND scopes ? 'account:write' FOR SHARE`;
     if(!credential.length)throw new BindingError(403,"Current credential cannot renew an address");
+    await this.customDomainAuthority(tx,session);
     const current=await this.resolver.resolve(session.did);
     const keys=await tx<{role:string;public_key:string}[]>`SELECT role,public_key FROM account_keys WHERE account_id=${session.account_id}`;
     if(current.did!==session.did||current.serviceBase!==`${this.origin}/hail`||current.identityDidKey!==key||
@@ -45,6 +46,24 @@ export class AccountBinding {
       managed: (await tx`SELECT account_id FROM managed_custody_evidence WHERE account_id=${session.account_id}`).length === 1,
       resolved: current,
     };
+  }
+  private async customDomainAuthority(tx:SQL,session:AccountApiSession) {
+    const domain=session.canonical_address.split("@")[1]!,host=new URL(this.origin).hostname;
+    if(domain===host)return; // Native renewal does not depend on DNS delegation.
+    // Original account admission establishes provenance. The administrator's
+    // login, generation and expired issuance token do not control this identity.
+    const registered=await tx`SELECT domain.id FROM account_custom_domains domain
+      JOIN custom_address_authorizations capability ON capability.domain_id=domain.id
+      JOIN account_signup_ceremonies ceremony ON ceremony.id=capability.signup_id
+      WHERE domain.domain=${domain} AND domain.provider_host=${host} AND domain.verified_at IS NOT NULL
+        AND capability.provider_origin=${this.origin} AND capability.canonical_address=${session.canonical_address}
+        AND capability.consumed_at IS NOT NULL AND ceremony.account_id=${session.account_id}
+        AND ceremony.request_digest=capability.request_digest FOR SHARE OF domain`;
+    if(!registered.length)throw new BindingError(409,"Custom address has no registered domain authority");
+    let provider:string|null;
+    try {provider=await this.discover(domain,AbortSignal.timeout(10_000));}
+    catch {throw new BindingError(503,"DNS delegation could not be checked; retry the same renewal");}
+    if(provider!==host)throw new BindingError(409,"Custom domain must currently delegate to this provider");
   }
   async renew(session:AccountApiSession,input:Record<string,unknown>) {
     if(Object.keys(input).length!==3||typeof input.previous!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(input.previous)||

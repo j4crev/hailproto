@@ -1,3 +1,4 @@
+import { exerciseCustomDomainRenewal } from "./client-support/custom-domain-renewal.js";
 import { createHash, generateKeyPairSync, randomBytes, randomUUID, sign } from "node:crypto";
 import { SQL } from "bun";
 import { cidForCbor } from "@atproto/common";
@@ -81,7 +82,8 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
     const reader = (name: string) => ({ origin: `https://reader-${name}.example.com`, operator: `reader-${name}`,
       resolver: new PlcHailDidResolver(plc), audit: (did: string) => plc.getAuditableLog(did), health: async () => ({ lastCommittedOpTime: new Date().toISOString() }) });
     const resolver = new VerifiedPublicPlcResolver(db.sql, [reader("one"), reader("two")], ["provider"], [providerOrigin]), repository = new OnboardingRepository(db.sql);
-    const onboarding = new PublicOnboarding(db.sql, plc, resolver, new KeyEncryptor(encodeBase64Url(randomBytes(32))), "https://plc.directory", serviceBase,
+    const encryptor=new KeyEncryptor(encodeBase64Url(randomBytes(32)));
+    const onboarding = new PublicOnboarding(db.sql, plc, resolver, encryptor, "https://plc.directory", serviceBase,
       { async verify(address) {
         const account = await repository.getAccountByAddress(address), binding = await repository.getBindingForAccount(account.id), current = await resolver.resolve(account.did!);
         return { address, did: account.did!, serviceBase, identityDidKey: current.identityDidKey, messagingDidKey: current.messagingDidKey,
@@ -359,6 +361,7 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
         await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0078_registration_policy.sql",import.meta.url)).text())).rejects.toThrow("retain admission and audit evidence");
         if(packageFlow)await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0073_signup_recovery_package.sql",import.meta.url)).text())).rejects.toThrow("rollback would discard");
       }finally{await rollback.unsafe("ROLLBACK");rollback.release();}
+       if(customDomain)await exerciseCustomDomainRenewal(db,encryptor,resolver,plc,providerOrigin,address,()=>signIn(3));
        await db.migrate();
        const generationVault=await createUserVault();try{
         const retiredToken=`hailp_${encodeBase64Url(randomBytes(32))}`,retiredId=randomUUID();

@@ -77,7 +77,7 @@ integration("self-service custody profiles and credentials",()=>{
       return {address:account!.canonicalAddress,did:peer!,serviceBase:base,identityDidKey:resolved.identityDidKey,messagingDidKey:resolved.messagingDidKey,
         plcEvidence:resolved.evidence,verifiedAt:new Date(),binding:inspectSignedPayload("hail.address-binding",binding.cose).payload,representation:binding.cose,digest:binding.digest};}},
       {async verify(){return verifiedProfile!;}},base);
-    const binding=new AccountBinding(db.sql,resolver,encryptor,origin,addressVerifier);
+    const binding=new AccountBinding(db.sql,resolver,encryptor,origin,addressVerifier,async()=>{throw new Error("Native renewal must not query delegation DNS");});
     const app=createApp({publicOrigin:origin,hailServiceBase:base,providerId:"test"} as AppConfig,{accountApi:{accounts,grants,service,binding},discoveryStore:repository,
       selfServiceOnboarding:{sql:db.sql,onboarding,activation,provider:origin,invitationKey},async checkReadiness(){return {ready:true};}});
     vi.stubGlobal("fetch",(input:RequestInfo|URL,init?:RequestInit)=>app.fetch(input instanceof Request?input:new Request(String(input),init)));
