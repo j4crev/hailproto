@@ -56,9 +56,9 @@
     }finally{enteredSecret="";busy=false;}
   }
   function download(){
-    if(!packageText)return;
+    if(!packageText||!pending)return;
     const url=URL.createObjectURL(new Blob([packageText],{type:"application/json"}));urls.add(url);
-    const a=document.createElement("a");a.href=url;a.download="hail-recovery-package.json";a.click();downloaded=true;
+    const a=document.createElement("a");a.href=url;a.download=`${pending.address.toLowerCase().replace(/[^a-z0-9_-]/g,"_").slice(0,200)}-hail-recovery-package.json`;a.click();downloaded=true;
   }
   async function persist(){
     if(!pending||!key)throw new Error("No setup");

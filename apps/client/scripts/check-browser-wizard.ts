@@ -445,8 +445,8 @@ try{
   assert.equal(await evaluate("document.querySelector('input[type=checkbox]')===null"),true,"Saving recovery does not require a redundant checkbox");
   assert.equal(await evaluate("[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Continue').disabled"),true,"Downloading is still required");
   await click("Download recovery file");
-  const packagePath=join(work,"hail-recovery-package.json");
-  await wait(async()=>{try{return (await readdir(work)).includes("hail-recovery-package.json");}catch{return false;}},"single recovery download");
+  const packagePath=join(work,"alice_provider_example_com-hail-recovery-package.json");
+  await wait(async()=>{try{return (await readdir(work)).includes("alice_provider_example_com-hail-recovery-package.json");}catch{return false;}},"single recovery download");
   const kit=JSON.parse(await readFile(packagePath,"utf8"));assert(/^did:plc:[a-z2-7]{24}$/.test(kit.vault.did));
   await click("Continue");await wait(()=>has("Check your recovery file"),"verify screen");
   assert.equal(await evaluate("document.querySelector('[data-recovery-secret]')===null"),true,"Generated secret is no longer shown during verification");

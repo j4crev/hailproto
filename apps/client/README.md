@@ -42,7 +42,8 @@ passkey creation/sign-in. Progress checks run automatically while activation is
 pending, respecting retry delays and pausing after twelve attempts or a terminal
 error. The user can resume with the same identity; retries never create new keys.
 
-New signups download **one** `hail-recovery-package.json` and keep its random
+New signups download **one** address-prefixed recovery package, such as
+`j4_j4crev_com-hail-recovery-package.json`, and keep its random
 secret separately. The package contains a DID-bound v1 vault, its exact signed
 genesis, and encrypted temporary setup authority. Reopening the actual saved
 package and entering the separately saved secret verifies it before publication.

@@ -45,6 +45,7 @@
   .message-sender { min-width:0; font-size:13px; }
   .message-sender :global(.address) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .list-date { margin-left:auto; }
+  .message-row:not(.is-read):not(.muted) .list-date { color:var(--color-ink); }
   .message-link { display:block; color:inherit; text-decoration:none; }
   .message-link::after { content:""; position:absolute; inset:0; }
   .message-link:focus-visible::after { outline:2px solid var(--color-brand); outline-offset:-2px; }

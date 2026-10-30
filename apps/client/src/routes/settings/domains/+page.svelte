@@ -76,12 +76,12 @@
         <p class="m-0">{item.status === "expired" ? "Challenge expired" : "Awaiting DNS verification"}</p>
         <div class="grid gap-2 text-sm">
           <strong>Ownership · TXT</strong>
-          <dl class="m-0 grid gap-2">
+          <dl class="m-0 grid grid-cols-[max-content_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
             <dt>Name:</dt>
-            <dd class="m-0 flex min-w-0 items-center gap-2"><code class="min-w-0 flex-1 break-all select-all">{item.verificationName}</code><CopyButton value={item.verificationName} label="Copy ownership record name" /></dd>
+            <dd class="m-0 flex min-w-0 items-center gap-2"><code class="min-w-0 break-all select-all">{item.verificationName}</code><CopyButton value={item.verificationName} label="Copy ownership record name" /></dd>
             {#if challenge?.id === item.id}
               <dt>Value:</dt>
-              <dd class="m-0 flex min-w-0 items-center gap-2"><code class="min-w-0 flex-1 break-all select-all">{challenge.value}</code><CopyButton value={challenge.value} label="Copy ownership record value" /></dd>
+              <dd class="m-0 flex min-w-0 items-center gap-2"><code class="min-w-0 break-all select-all">{challenge.value}</code><CopyButton value={challenge.value} label="Copy ownership record value" /></dd>
             {/if}
           </dl>
           {#if challenge?.id === item.id}<span>Expires {new Date(item.challengeExpiresAt).toLocaleString()}</span>
@@ -95,11 +95,11 @@
       {/if}
       <div class="grid gap-2 text-sm">
         <strong>Provider routing · TXT</strong>
-        <dl class="m-0 grid gap-2">
+        <dl class="m-0 grid grid-cols-[max-content_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
           <dt>Name:</dt>
-          <dd class="m-0 flex min-w-0 items-center gap-2"><code class="min-w-0 flex-1 break-all select-all">{item.delegationName}</code><CopyButton value={item.delegationName} label="Copy routing record name" /></dd>
+          <dd class="m-0 flex min-w-0 items-center gap-2"><code class="min-w-0 break-all select-all">{item.delegationName}</code><CopyButton value={item.delegationName} label="Copy routing record name" /></dd>
           <dt>Value:</dt>
-          <dd class="m-0 flex min-w-0 items-center gap-2"><code class="min-w-0 flex-1 break-all select-all">{item.delegationValue}</code><CopyButton value={item.delegationValue} label="Copy routing record value" /></dd>
+          <dd class="m-0 flex min-w-0 items-center gap-2"><code class="min-w-0 break-all select-all">{item.delegationValue}</code><CopyButton value={item.delegationValue} label="Copy routing record value" /></dd>
         </dl>
       </div>
     </section>
