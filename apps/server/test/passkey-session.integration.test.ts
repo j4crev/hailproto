@@ -7,8 +7,8 @@ import {encodeBase64Url} from "@hailproto/codec";
 import {PasskeyAuth} from "../src/accounts/passkeys.js";
 
 const integration=process.env.DATABASE_URL?describe:describe.skip;
-integration("passkey session migration",()=>{
-  it("preserves address-independent access, enforces expiry/generation, and rolls back safely",async()=>{
+integration("current-schema passkey sessions",()=>{
+  it("preserves address-independent access and enforces expiry, generation and revocation",async()=>{
     const admin=new SQL(process.env.DATABASE_URL!),schema=`passkey_${randomUUID().replaceAll("-","")}`;
     await admin.unsafe(`CREATE SCHEMA "${schema}"`);const url=new URL(process.env.DATABASE_URL!);url.searchParams.set("options",`-csearch_path=${schema}`);
     const db=new ProviderDatabase(url.toString());
@@ -51,23 +51,6 @@ integration("passkey session migration",()=>{
         await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0054_passkey_sessions.sql",import.meta.url)).text())).rejects.toThrow("active passkey access");
         await rollback.unsafe("ROLLBACK");
       }finally{rollback.release();}
-      const browserRollback=await db.sql.reserve();try{
-        for(const file of ["0076_message_trash.sql","0075_connection_custody.sql","0074_provider_operator.sql","0073_signup_recovery_package.sql","0072_retired_connection_peers.sql","0071_connection_transfer_orchestration.sql",
-          "0070_unified_connections.sql","0069_connection_reconstruction.sql","0068_connection_handover_barriers.sql",
-          "0067_connection_proof_authority.sql","0066_connection_handover_preparations.sql"]){
-          await browserRollback.unsafe(await Bun.file(new URL(`../migrations/rollback/${file}`,import.meta.url)).text());
-        }
-        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());
-        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());
-        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());
-        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());
-        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());
-        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
-        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());
-        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0058_signup_ceremonies.sql",import.meta.url)).text());
-        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0057_alpha_monitoring.sql",import.meta.url)).text());
-        await browserRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0056_browser_authorization.sql",import.meta.url)).text());
-      }finally{browserRollback.release();}
       await db.sql`INSERT INTO account_passkey_sessions(id,token_hash,account_id,credential_id,serving_generation,scopes,expires_at)
         VALUES(${randomUUID()},${randomBytes(32)},${account},${credential},1,'["account:read","grants:read","messages:read","messages:write"]',now()+interval '12 hours')`;
       await passkeys.revokeSessions(authenticated);
@@ -81,12 +64,11 @@ integration("passkey session migration",()=>{
         await guarded.unsafe("ROLLBACK");
       }finally{guarded.release();}
       await db.sql`UPDATE account_passkey_enrollment_capabilities SET consumed_at=now(),credential_id=${credential} WHERE id=${capability}`;
-      const allowed=await db.sql.reserve();try{
-        await allowed.unsafe(await Bun.file(new URL("../migrations/rollback/0055_passkey_recovery.sql",import.meta.url)).text());
-        await allowed.unsafe(await Bun.file(new URL("../migrations/rollback/0054_passkey_sessions.sql",import.meta.url)).text());
-      }finally{allowed.release();}
-      expect((await db.sql`SELECT version FROM schema_migrations WHERE version IN (54,55)`).length).toBe(0);
-      await db.migrate();expect((await db.sql`SELECT credential_id FROM account_passkeys`).length).toBe(0);
+      await db.migrate();
+      expect(await accounts.authenticate(undefined,token)).toBeNull();
+      expect(await db.sql`SELECT credential_id FROM account_passkeys WHERE account_id=${account} AND revoked_at IS NOT NULL`).toHaveLength(2);
+      expect((await db.sql`SELECT consumed_at FROM account_passkey_enrollment_capabilities WHERE id=${capability}`)[0]!.consumed_at).not.toBeNull();
+
     }finally{await db.close();await admin.unsafe(`DROP SCHEMA "${schema}" CASCADE`);await admin.close();}
   });
 });

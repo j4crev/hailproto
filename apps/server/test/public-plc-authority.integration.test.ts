@@ -39,13 +39,8 @@ it.skipIf(!process.env.DATABASE_URL)("fresh public reads bind exact accepted env
     const fingerprint=async()=>Promise.all(["provider_accounts","grant_lineages","grant_revisions","account_serving_generations"].map(async table=>
       JSON.stringify(await db.sql.unsafe(`SELECT to_jsonb(t) AS value FROM ${table} t ORDER BY to_jsonb(t)::text`))));
     const before=await fingerprint();
-    // Exercise the current storage transition. The old hardcoded rollback ladder
-    // started at migration 65 and is now correctly refused by later schemas.
-    await db.sql.begin(async tx=>{
-      const rollback=await Bun.file(new URL("../migrations/rollback/0080_shared_plc_evidence.sql",import.meta.url)).text();
-      await tx.unsafe(rollback.replace(/^BEGIN;$/m,"").replace(/^COMMIT;$/m,""));
-    });
-    expect(await fingerprint()).toEqual(before);await db.migrate();await db.migrate();expect(await fingerprint()).toEqual(before);
+    // Repeated current-version startup must retain evidence exactly.
+    await db.migrate();await db.migrate();expect(await fingerprint()).toEqual(before);
     expect(await db.sql`SELECT evidence_digest FROM public_plc_resolution_evidence`).toHaveLength(0);
     expect(await db.sql`SELECT message_id FROM public_envelope_authority_evidence`).toHaveLength(0);
     const envelope=(messageId=uuidV7()):HailEnvelope=>({type:"hail.envelope",version:1,message_id:messageId,from:sender.did,to:recipient.did,

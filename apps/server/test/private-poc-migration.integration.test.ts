@@ -181,6 +181,13 @@ integration("private PLC transfer between disposable POC providers", () => {
       expect(await new EnvelopeRepository(db.sql).accept({payload,representation,payloadDigest:digest,envelopeDigest:digest,localAccountId:prepared.accountId,signingPublicKey:peerKeys.messagingDidKey,evidence:peerEvidence,now:timestamp})).toBe("accepted");
       return payload;
     };
+    // Retained delivered history must survive provider-local cursor reassignment.
+    const archivedMessage=await seedMessage(source),archivedDelivery=new DeliveryRepository(source.sql);
+    expect(await archivedDelivery.deliver((await archivedDelivery.claimDue())!,messageBody)).toBe("delivered");
+    const archivedSigner=new DeliveryStatusSigner(source.sql,sourceRepo,sourceEncryptor,resolver,oldBase);
+    await archivedSigner.signCurrent(peerDid,archivedMessage.message_id);
+    expect(await new TerminalStatusPublisher(source.sql,archivedSigner,resolver,async()=>new Response(null,{status:204}),()=>{}).publishOne()).toBe("acknowledged");
+    await target.sql`SELECT setval('inbox_delivery_sequence',1000)`;
     const firstMessage=await seedMessage(source),oldDeliveryClaim=(await new DeliveryRepository(source.sql).claimDue())!;
     const oldPublication=(await new GrantRepository(source.sql).claimDuePublication(60000))!;
     let resumeOldRequest!:()=>void;
@@ -287,7 +294,7 @@ integration("private PLC transfer between disposable POC providers", () => {
           sourceMessagingPublicKey: signedSnapshot.sourceMessagingPublicKey }), { mode: 0o600 }),
       ]);
       const runClient = async (operation=paths.operation) => {
-        const child = Bun.spawn(["bun", "src/cli/hailp.ts","account","transfer","sign-cutover",
+        const child = Bun.spawn(["./target/debug/hailp","account","transfer","sign-cutover",
           "--vault",paths.vault,"--state",paths.state,"--snapshot",paths.snapshot,
           "--consent",paths.consent,"--operation",operation,"--binding",paths.binding],
         { cwd: new URL("../../cli/", import.meta.url).pathname,
@@ -299,16 +306,16 @@ integration("private PLC transfer between disposable POC providers", () => {
         if(code!==0)throw new Error(stderr);
       };
       await runClient();
-      await expect(runClient(join(ceremony,"competing-operation.json"))).rejects.toThrow("paths changed");
+      await expect(runClient(join(ceremony,"competing-operation.json"))).rejects.toThrow('"code":"CLIENT_ERROR"');
       const firstOperation = await readFile(paths.operation);
       const firstConsent = await readFile(paths.consent);
       const firstBinding = await readFile(paths.binding);
       await rm(paths.operation);
-      await expect(runClient()).rejects.toThrow("restore the originals");
+      await expect(runClient()).rejects.toThrow('"code":"CLIENT_ERROR"');
       await writeFile(paths.operation,firstOperation,{mode:0o600});
       const originalSnapshot=await readFile(paths.snapshot);
       await writeFile(paths.snapshot,JSON.stringify({...JSON.parse(originalSnapshot.toString("utf8")),digest:encodeBase64Url(new Uint8Array(32))}));
-      await expect(runClient()).rejects.toThrow("snapshot digest mismatch");
+      await expect(runClient()).rejects.toThrow('"code":"CLIENT_ERROR"');
       await writeFile(paths.snapshot,originalSnapshot);
       await runClient();
       expect(await readFile(paths.operation)).toEqual(firstOperation);
@@ -442,6 +449,9 @@ integration("private PLC transfer between disposable POC providers", () => {
     const acknowledgedEtag=`"${encodeBase64Url(betaGrant.grant.digest)}"`;
     await withFreshServingGenerations(target.sql,()=>new GrantRepository(target.sql).acknowledgePublication({grantId:grant.grant_id,revision:1,leaseToken:betaGrant.leaseToken,etag:acknowledgedEtag,httpStatus:201}));
 
+    // Owner presentation choices can change at B and must return to A intact.
+    await withFreshServingGenerations(target.sql,()=>target.sql`UPDATE delivered_messages SET is_read=true,trashed_at=clock_timestamp()
+      WHERE recipient_did=${genesis.did} AND sender_did=${peerDid} AND message_id=${archivedMessage.message_id}`);
     const backFence=new MigrationFenceService(target.sql,resolver,newBase),backSourceRoutes=new Hono();
     const backKeys=new PreparedMigrationTarget(source.sql,sourceEncryptor,oldBase,true),backReceiver=new TransferInvitationReceiver(source.sql,resolver,backKeys);
     const backGate=new PrivatePocCutoverGate(source.sql,{origin:registry,resolver,audit:did=>plc.getAuditableLog(did)},registry,oldBase);
@@ -481,6 +491,18 @@ integration("private PLC transfer between disposable POC providers", () => {
       expect((await selectTransferAddress(backApi,username,join(ceremony,"vault.json"),backState,secret)).requestAcknowledged).toBe(true);
       await exportTransferSnapshot(backApi,backState,backSnapshot);
       const reviewed=JSON.parse(await readFile(backSnapshot,"utf8"));
+      const returnManifest=JSON.parse(new TextDecoder().decode(decodeBase64Url(reviewed.manifest)));
+      // Provider-local cursor and mutable presentation state are not immutable
+      // message content. The retired export itself remains unchanged.
+      expect(returnManifest.tables.delivered_messages.length).toBeGreaterThan(0);
+      await validateReturningEvidence(source.sql,returnManifest);
+      const localState=structuredClone(returnManifest);
+      for(const row of localState.tables.delivered_messages){row.delivery_sequence=Number(row.delivery_sequence)+1000;row.is_read=!row.is_read;row.trashed_at=new Date().toISOString();}
+      await validateReturningEvidence(source.sql,localState);
+      const missingMessage=structuredClone(returnManifest);missingMessage.tables.delivered_messages=missingMessage.tables.delivered_messages.filter((row:any)=>row.message_id!==archivedMessage.message_id);
+      await expect(validateReturningEvidence(source.sql,missingMessage)).rejects.toThrow("delivered_messages history");
+      const alteredMessage=structuredClone(returnManifest);alteredMessage.tables.delivered_messages.find((row:any)=>row.message_id===archivedMessage.message_id)!.body_digest="\\x"+"ff".repeat(32);
+      await expect(validateReturningEvidence(source.sql,alteredMessage)).rejects.toThrow("delivered_messages history");
       const missingWork=JSON.parse(new TextDecoder().decode(decodeBase64Url(reviewed.manifest)));
       missingWork.tables.delivery_work=[];
       await expect(validateReturningEvidence(source.sql,missingWork)).rejects.toThrow("delivery responsibility");
@@ -488,6 +510,10 @@ integration("private PLC transfer between disposable POC providers", () => {
       await expect(completeAccountTransfer(backState,backSnapshot)).rejects.toThrow("HTTP 503");
       expect(await completeAccountTransfer(backState,backSnapshot)).toMatchObject({destinationActive:true,sourceRetired:true,did:genesis.did});
       expect(log).toHaveLength(3);
+      const restoredMessage=(await source.sql`SELECT is_read,trashed_at,body_digest FROM delivered_messages
+        WHERE recipient_did=${genesis.did} AND sender_did=${peerDid} AND message_id=${archivedMessage.message_id}`)[0]!;
+      expect(restoredMessage.is_read).toBe(true);expect(restoredMessage.trashed_at).not.toBeNull();
+      expect(new Uint8Array(restoredMessage.body_digest)).toEqual(hash(messageBody));
       const generation=(await source.sql<{generation:string}[]>`SELECT generation FROM account_serving_generations WHERE account_id=${prepared.accountId}`)[0]!.generation;
       expect(Number(generation)).toBe(2);
       const rollbackConnection=await source.sql.reserve();

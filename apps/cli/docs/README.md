@@ -5,6 +5,8 @@ first three pages below; the remaining files explain current security and lifecy
 
 ## Use the CLI
 
+- [Quickstart](cli-quickstart.md): sign in to an existing web account and read your inbox.
+- [Command reference](cli-reference.md): every command, required flags and option meanings.
 - [CLI workflows](cli-workflows.md): copyable recipes for accounts,
   credentials, Grants, messaging, inbox waits, conversations, invitation
   management, diagnostics, backups, bindings, and transfers.

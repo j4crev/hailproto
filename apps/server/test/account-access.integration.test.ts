@@ -1,3 +1,4 @@
+import { createLocalTlsFixture } from "./client-support/tls.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -55,10 +56,10 @@ integration("post-expiry owner account access", () => {
     await (await unlockUserIdentity(fixture.vault.vault,fixture.vault.recoverySecret)).signAccountAccess(challenge) :
     await (await unlockUserVault(fixture.vault.vault,fixture.vault.recoverySecret)).signAccountRecovery(challenge));
   const login = async (fixture:typeof fixtures[number], name:string, signer:"identity"|"owner-recovery", vaultFile?:string, scopes=["account:read"]) => {
-    const child = Bun.spawn(["bun","src/cli/hailp.ts","account","login","--provider",origin,"--did",fixture.vault.vault.did!,
+    const child = Bun.spawn(["./target/debug/hailp","account","login","--provider",origin,"--did",fixture.vault.vault.did!,
       "--signer",signer,"--vault",vaultFile ?? join(directory,`${fixture.mode}.vault.json`),"--state",join(directory,`${name}.state.json`),
       "--credentials",join(directory,`${name}.credential.json`),...scopes.flatMap(scope=>["--scope",scope])], {
-      cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,NODE_EXTRA_CA_CERTS:join(directory,"cert.pem")},
+      cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost"},
       stdin:"pipe",stdout:"pipe",stderr:"pipe"});
     child.stdin.write(`${encodeBase64Url(fixture.vault.recoverySecret)}\n`); child.stdin.end();
     const [code,stdout,stderr]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
@@ -68,9 +69,9 @@ integration("post-expiry owner account access", () => {
   };
   const recoverPasskey=async(fixture:typeof fixtures[number],name:string,signer:"identity"|"owner-recovery")=>{
     const statePath=join(directory,`${name}.passkey-recovery.json`),output=join(directory,`${name}.passkey-enrollment.json`),
-      child=Bun.spawn(["bun","src/cli/hailp.ts","account","passkey-recover",
+      child=Bun.spawn(["./target/debug/hailp","account","passkey-recover",
       "--provider",origin,"--did",fixture.vault.vault.did!,"--signer",signer,"--vault",join(directory,`${fixture.mode}.vault.json`),"--state",statePath,"--output",output],{
-      cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,NODE_EXTRA_CA_CERTS:join(directory,"cert.pem")},stdin:"pipe",stdout:"pipe",stderr:"pipe"});
+      cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost"},stdin:"pipe",stdout:"pipe",stderr:"pipe"});
     child.stdin.write(`${encodeBase64Url(fixture.vault.recoverySecret)}\n`);child.stdin.end();
     const [code,stdout,stderr]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
     return {code,stdout,stderr,state:JSON.parse(await readFile(statePath,"utf8")),enrollment:JSON.parse(await readFile(output,"utf8"))};
@@ -78,9 +79,7 @@ integration("post-expiry owner account access", () => {
   beforeAll(async()=>{
     db=new ProviderDatabase(process.env.DATABASE_URL!);await db.migrate();await db.migrate();accounts=new AccountApiRepository(db.sql);
     directory=await mkdtemp(join(tmpdir(),"hail-access-"));
-    const cert=Bun.spawn(["openssl","req","-x509","-newkey","rsa:2048","-nodes","-days","1","-subj","/CN=localhost",
-      "-addext","subjectAltName=DNS:localhost","-addext","basicConstraints=critical,CA:TRUE","-keyout",join(directory,"key.pem"),"-out",join(directory,"cert.pem")],{stdout:"pipe",stderr:"pipe"});
-    if(await cert.exited!==0)throw new Error(await new Response(cert.stderr).text());
+    await createLocalTlsFixture(directory);
     server=Bun.serve({hostname:"localhost",port:0,tls:{cert:Bun.file(join(directory,"cert.pem")),key:Bun.file(join(directory,"key.pem"))},async fetch(request){
       const response=await app.fetch(request),path=new URL(request.url).pathname;
       if (response.ok && path.endsWith("/prepare") && tamper) {
@@ -142,7 +141,7 @@ integration("post-expiry owner account access", () => {
     expect(record.scopes).toEqual(["account:read"]);expect(record.expiresAt).toBe(session!.credential_expires_at.toISOString());
     expect((await login(fixture,mode,signer,vaultFile)).code).toBe(0);
     const changed=await login(fixture,mode,signer,vaultFile,["credentials:write"]);
-    expect(changed.code).toBe(1);expect(changed.stderr).toContain("Login state differs");
+    expect(changed.code).toBe(1);expect(JSON.parse(changed.stderr).error.code).toBe("CLIENT_ERROR");
     expect(changed.state.token).toBe(record.token);
     expect(await accounts.authenticate(`Bearer ${old.token}`)).toBeNull();expect(JSON.stringify(logs.get(fixture.vault.vault.did!))).toBe(before);
     expect(await db.sql`SELECT role FROM account_keys WHERE account_id=${fixture.id} AND public_key=${fixture.vault.vault.recovery.publicDidKey}`).toHaveLength(0);

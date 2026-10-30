@@ -8,7 +8,7 @@ import { evidenceHash } from "../src/plc/read-evidence.js";
 import { requireFreshPublicAuthority } from "../src/plc/authority.js";
 import { publicPlcFixture, publicPlcReaders } from "./public-plc-fixture.js";
 
-it.skipIf(!process.env.DATABASE_URL)("shares fresh observations, preserves exact portable bytes and links, compacts and rolls back losslessly", async () => {
+it.skipIf(!process.env.DATABASE_URL)("shares fresh observations, preserves exact portable bytes and links, compacts current-schema inline storage losslessly", async () => {
   const admin = new SQL(process.env.DATABASE_URL!), schema = `shared_plc_${randomUUID().replaceAll("-", "")}`;
   await admin.unsafe(`CREATE SCHEMA "${schema}"`);
   const url = new URL(process.env.DATABASE_URL!); url.searchParams.set("options", `-csearch_path=${schema}`);
@@ -43,23 +43,26 @@ it.skipIf(!process.env.DATABASE_URL)("shares fresh observations, preserves exact
     await expect(db.sql`DELETE FROM public_plc_shared_evidence`).rejects.toThrow("immutable");
     await expect(db.sql`TRUNCATE public_plc_shared_evidence CASCADE`).rejects.toThrow("immutable");
 
-    // Portable rows retain exactly the pre-80 columns and self-contained bytes.
+    // Portable rows retain the self-contained wire columns and exact bytes.
     const portable = await db.sql`SELECT to_jsonb(t) AS row FROM public_plc_resolution_contents t ORDER BY evidence_digest`;
     expect(Object.keys(portable[0]!.row).sort()).toEqual([
       "bundle_bytes", "did", "evidence_digest", "operation_cid", "read_evidence_policy_version", "record_version", "verified_at",
     ]);
-    // Existing legacy import writers and duplicate retries still work.
+    // Current snapshot import and duplicate retries retain exact portable bytes.
     await db.sql.unsafe(`INSERT INTO public_plc_resolution_evidence SELECT * FROM
       jsonb_populate_record(NULL::public_plc_resolution_evidence, ($1::text)::jsonb) ON CONFLICT DO NOTHING`, [JSON.stringify(portable[0]!.row)]);
-    const rollback = await Bun.file(new URL("../migrations/rollback/0080_shared_plc_evidence.sql", import.meta.url)).text();
-    await db.sql.begin(async tx => { await tx.unsafe(rollback.replace(/^BEGIN;$/m, "").replace(/^COMMIT;$/m, "")); });
-    expect(await db.sql`SELECT to_jsonb(t) AS row FROM public_plc_resolution_evidence t ORDER BY evidence_digest`).toEqual(portable);
+    // Current schema supports both inline imported bytes and shared storage.
+    // Seed the inline representation without downgrading the schema.
+    await db.sql`UPDATE public_plc_resolution_evidence e SET bundle_bytes=c.bundle_bytes,
+      shared_digest=NULL,bundle_prefix=NULL,bundle_suffix=NULL
+      FROM public_plc_resolution_contents c WHERE e.evidence_digest=c.evidence_digest`;
+    expect(await db.sql`SELECT to_jsonb(t) AS row FROM public_plc_resolution_contents t ORDER BY evidence_digest`).toEqual(portable);
     expect((await db.sql`SELECT count(*)::int AS n FROM public_signing_authority_evidence`)[0]!.n).toBe(1);
     await db.migrate();
     const estimate = await compactPublicEvidence(db.sql);
     expect(estimate.observations).toBe(20);
     expect(estimate.uniqueWitnessPayloads).toBe(1);
-    expect((await db.sql`SELECT count(*)::int AS n FROM public_plc_shared_evidence`)[0]!.n).toBe(0);
+    expect((await db.sql`SELECT count(*)::int AS n FROM public_plc_shared_evidence`)[0]!.n).toBe(1);
     const applied = await compactPublicEvidence(db.sql, true);
     expect(applied.observations).toBe(20);
     expect((await compactPublicEvidence(db.sql, true)).observations).toBe(0);

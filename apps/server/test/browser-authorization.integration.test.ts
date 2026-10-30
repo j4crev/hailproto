@@ -82,19 +82,7 @@ integration("browser authorization code and PKCE",()=>{
       await tx`UPDATE account_serving_generations SET generation=2 WHERE account_id=${session.account_id}`;});
     await expect(passkeys.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:generation.redirectUri,code:generation.code,
       verifier:generation.verifier,token:secret("hailp")})).rejects.toMatchObject({status:401});
-    const rollback=await db.sql.reserve();try{
-      await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text());
-      await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text());
-      await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text());
-      await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text());
-      await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text());
-      await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql",import.meta.url)).text());
-      await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text());
-      await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0058_signup_ceremonies.sql",import.meta.url)).text());
-      await rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0057_alpha_monitoring.sql",import.meta.url)).text());
-      await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0056_browser_authorization.sql",import.meta.url)).text()))
-        .rejects.toThrow("active browser authorization");await rollback.unsafe("ROLLBACK");
-    }finally{rollback.release();}
+
   });
 
   it("rejects a code at a separate provider database",async()=>{

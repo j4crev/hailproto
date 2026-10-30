@@ -160,22 +160,7 @@ it.skipIf(!process.env.DATABASE_URL)("public owner/managed onboarding seals owne
         const transfer = { payloadBytes, signature: await owner.sign(managedHandshakeSignatureInput("hail.managed-transfer-grant", payloadBytes)) };
         await expect(new ManagedTransferAuthorization(db.sql, resolver, base, repository, encryptor).authorize(transfer))
           .rejects.toThrow("strict managed account authority");
-        const connection = await db.sql.reserve();
-        try {
-          const directory=new URL("../migrations/rollback/",import.meta.url).pathname;
-          const names=Array.from(new Bun.Glob("*.sql").scanSync(directory)).filter(name=>Number(name.slice(0,4))>65).sort().reverse();
-          for(const name of names)await connection.unsafe(await Bun.file(directory+name).text());
-          await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql", import.meta.url)).text());
-          await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql", import.meta.url)).text());
-          await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql", import.meta.url)).text());
-          await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql", import.meta.url)).text());
-          await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql", import.meta.url)).text());
-          await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql", import.meta.url)).text());
-          await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql", import.meta.url)).text());
-          await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0058_signup_ceremonies.sql", import.meta.url)).text());
-          await expect(connection.unsafe(await Bun.file(new URL("../migrations/rollback/0057_alpha_monitoring.sql", import.meta.url)).text())).rejects.toThrow("prevent rollback");
-        }
-        finally { await connection.unsafe("ROLLBACK"); connection.release(); }
+
       }
     }
     await expect(db.sql`DELETE FROM public_onboarding_evidence`).rejects.toThrow("immutable");

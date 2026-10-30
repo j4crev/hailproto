@@ -1,3 +1,4 @@
+import { createLocalTlsFixture } from "./client-support/tls.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -79,9 +80,9 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     ({ type: "hailp.api-credential", version: 1, provider: origin, ...value });
 
   async function cli(args: string[], filename = "owner.credential.json", secret = false) {
-    const child = Bun.spawn(["bun", "src/cli/hailp.ts", ...args, "--credentials", join(directory, filename)], {
+    const child = Bun.spawn(["./target/debug/hailp", ...args, "--credentials", join(directory, filename)], {
       cwd: new URL("../../cli/", import.meta.url).pathname,
-      env: { ...Bun.env, NODE_EXTRA_CA_CERTS: join(directory, "cert.pem") },
+      env: { ...Bun.env, SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost" },
       stdin: "pipe", stdout: "pipe", stderr: "pipe",
     });
     if (secret) child.stdin.write(`${encodeBase64Url(vault.recoverySecret)}\n`);
@@ -99,11 +100,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     accounts = new AccountApiRepository(db.sql);
     grants = new GrantRepository(db.sql);
     directory = await mkdtemp(join(tmpdir(), "hailp-api-"));
-    const openssl = Bun.spawn(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-      "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost",
-      "-addext", "basicConstraints=critical,CA:TRUE", "-keyout", join(directory, "key.pem"),
-      "-out", join(directory, "cert.pem")], { stdout: "pipe", stderr: "pipe" });
-    if (await openssl.exited !== 0) throw new Error(await new Response(openssl.stderr).text());
+    await createLocalTlsFixture(directory);
     const tls = { cert: Bun.file(join(directory, "cert.pem")), key: Bun.file(join(directory, "key.pem")) };
     receiver = Bun.serve({ hostname: "localhost", port: 0, tls,
       fetch() { redirectedRequests++; return Response.json({}); } });
@@ -290,7 +287,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     const refused = await cli(["grant", "revoke", grantId, "--vault", join(directory, "vault.json"),
       "--output", join(directory, "wrong.cose")], "sender.credential.json", true);
     expect(refused.exit).toBe(1);
-    expect(refused.stderr).toContain("authoritative grantor");
+    expect(JSON.parse(refused.stderr).error.code).toBe("CLIENT_ERROR");
     const bad = Uint8Array.from(signedGrant);
     bad[bad.length - 1] = bad[bad.length - 1]! ^ 1;
     expect((await app.request(grantUrl(), { method: "PUT", headers: { ...authorization(),
@@ -625,7 +622,8 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
       "Content-Type": 'application/cose; cose-type="cose-sign1"' }, body: new Uint8Array(262_145) })).status).toBe(413);
     const hidden = await cli(["account", "show"], credential.token);
     expect(hidden.exit).toBe(1);
-    expect(hidden.stderr).toContain("[REDACTED]");
+    expect(JSON.parse(hidden.stderr).error.code).toBe("CLIENT_ERROR");
+    expect(hidden.stdout + hidden.stderr).not.toContain(credential.token);
   });
 
   it("rejects redirects, insecure credential files, expired credentials and revoked credentials", async () => {

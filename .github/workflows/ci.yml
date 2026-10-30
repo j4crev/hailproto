@@ -1,6 +1,7 @@
 name: ci
 
 on:
+  workflow_call:
   pull_request:
   push:
     branches: [main]
@@ -11,6 +12,15 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_PASSWORD: hail-test-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@v5
         with:
@@ -38,6 +48,13 @@ jobs:
         run: |
           docker build -f apps/server/Dockerfile .
           docker build -f apps/plc-monitor/Dockerfile .
+      - name: Verify browser recovery cryptography and wizard
+        env:
+          CHROMIUM: google-chrome
+          OPENCODE_TMP_DIR: ${{ runner.temp }}
+        run: |
+          bun run --cwd apps/client test:browser
+          bun run --cwd apps/client test:wizard
       - name: Verify native CLI
         working-directory: apps/cli
         run: |
@@ -51,3 +68,9 @@ jobs:
           python3 tests/terminal-input.py target/release/hailp
           bun scripts/smoke.ts target/release/hailp
           python3 scripts/verify-install.py
+          python3 scripts/generate-reference.py --check
+          python3 scripts/check-release.py --binary target/release/hailp
+      - name: Verify database integration (no skipped tests)
+        env:
+          DATABASE_TEST_ADMIN_URL: postgresql://postgres:hail-test-only@127.0.0.1:5432/postgres
+        run: bun scripts/test-database-integration.ts

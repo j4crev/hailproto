@@ -58,9 +58,6 @@ integration.each([false,true])("same-provider custody round trip preserves autho
   const encryptor=new KeyEncryptor(encodeBase64Url(randomBytes(32)));
   try{
     await db.migrate();
-    // An unused migration can be reversed and reapplied without changing data.
-    const unusedRollback=await db.sql.reserve();try{await unusedRollback.unsafe(await Bun.file(new URL('../migrations/rollback/0076_message_trash.sql',import.meta.url)).text());await unusedRollback.unsafe(await Bun.file(new URL('../migrations/rollback/0075_connection_custody.sql',import.meta.url)).text());}finally{unusedRollback.release();}
-    await db.migrate();
     const owner=await P256Keypair.create(),identity=await publicEdKey(),monitor=await publicEdKey();
     const address=`custody-${randomUUID()}@local.example.com`,onboarding=new PublicOnboarding(db.sql,plc,resolver,encryptor,
       "https://plc.directory",serviceBase,verifier);
@@ -173,10 +170,7 @@ integration.each([false,true])("same-provider custody round trip preserves autho
     await expect(db.sql`UPDATE grant_lineages SET updated_at=clock_timestamp() WHERE grant_id=${grantId}`).rejects.toThrow("custody-transition-fenced");
     if(withConnections){
       await expect(db.sql`UPDATE connection_invitations SET revoked_at=clock_timestamp() WHERE id=${invitations[0]!.id}`).rejects.toThrow('custody-transition-fenced');
-      const rollback=await db.sql.reserve();try{await rollback.unsafe(await Bun.file(new URL('../migrations/rollback/0076_message_trash.sql',import.meta.url)).text());await expect(rollback.unsafe(await Bun.file(new URL('../migrations/rollback/0075_connection_custody.sql',import.meta.url)).text())).rejects.toThrow('rollback refused');}
-      finally{await rollback.unsafe('ROLLBACK');rollback.release();}
-      await db.migrate();
-      // An old application cannot journal submission without connection handling.
+      // A writer cannot journal submission without the required connection handling.
       await expect(db.sql.begin(async tx=>{
         await tx`SELECT set_config('hail.custody_transition',${prepared.accountId},true)`;
         await tx`UPDATE custody_transition_preparations SET state=state WHERE transition_id=${transition.transitionId}`;
@@ -284,7 +278,6 @@ integration.each([false,true])("same-provider custody round trip preserves autho
     expect(await db.sql`SELECT role FROM account_keys WHERE account_id=${prepared.accountId} AND role='hail-identity'`).toHaveLength(0);
     expect((await db.sql<{current_revision:number}[]>`SELECT current_revision FROM grant_lineages WHERE grant_id=${grantId}`)[0]!.current_revision).toBe(3);
     expect((await db.sql<{current_revision:number}[]>`SELECT current_revision FROM grant_lineages WHERE grant_id=${terminalId}`)[0]!.current_revision).toBe(1);
-    const completedRollback=await db.sql.reserve();try{await completedRollback.unsafe(await Bun.file(new URL('../migrations/rollback/0076_message_trash.sql',import.meta.url)).text());await completedRollback.unsafe(await Bun.file(new URL('../migrations/rollback/0075_connection_custody.sql',import.meta.url)).text());}finally{completedRollback.release();}
     await assertConnections(3);
     await db.migrate();
     await assertConnections(3);

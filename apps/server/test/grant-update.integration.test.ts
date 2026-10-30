@@ -1,3 +1,4 @@
+import { createLocalTlsFixture } from "./client-support/tls.js";
 import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
 import {join} from "node:path";
@@ -34,17 +35,15 @@ integration("active Grant updates and consent refresh through HTTPS hailp",()=>{
     const bytes=await signPayload("hail.sender-profile",payload,createWebCryptoSigner(payload.key_id,senderMessaging.privateKey));
     profile={...profile,profile:payload,representation:bytes,digest:hash(bytes),verifiedAt:new Date()};};
   const cli=async(fixture:typeof fixtures[number],args:string[])=>{
-    const child=Bun.spawn(["bun","src/cli/hailp.ts",...args,"--credentials",join(directory,`${fixture.id}.credential.json`)],{
-      cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,NODE_EXTRA_CA_CERTS:join(directory,"cert.pem")},stdin:"pipe",stdout:"pipe",stderr:"pipe"});
+    const child=Bun.spawn(["./target/debug/hailp",...args,"--credentials",join(directory,`${fixture.id}.credential.json`)],{
+      cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost"},stdin:"pipe",stdout:"pipe",stderr:"pipe"});
     child.stdin.write(`${encodeBase64Url(fixture.vault.recoverySecret)}\n`);child.stdin.end();
     const [code,stdout,stderr]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
     expect(stdout+stderr).not.toContain(fixture.token);expect(stdout+stderr).not.toContain(encodeBase64Url(fixture.vault.recoverySecret));return {code,stdout,stderr};};
   beforeAll(async()=>{
     db=new ProviderDatabase(process.env.DATABASE_URL!);await db.migrate();accounts=new AccountApiRepository(db.sql);grants=new GrantRepository(db.sql);
     directory=await mkdtemp(join(tmpdir(),"hail-grant-update-"));
-    const cert=Bun.spawn(["openssl","req","-x509","-newkey","rsa:2048","-nodes","-days","1","-subj","/CN=localhost","-addext","subjectAltName=DNS:localhost",
-      "-addext","basicConstraints=critical,CA:TRUE","-keyout",join(directory,"key.pem"),"-out",join(directory,"cert.pem")],{stdout:"pipe",stderr:"pipe"});
-    if(await cert.exited!==0)throw new Error(await new Response(cert.stderr).text());
+    await createLocalTlsFixture(directory);
     server=Bun.serve({hostname:"localhost",port:0,tls:{cert:Bun.file(join(directory,"cert.pem")),key:Bun.file(join(directory,"key.pem"))},async fetch(request){
       const response=await app.fetch(request),path=new URL(request.url).pathname;
       if(changeEvidence&&path.endsWith("/proposals")&&response.ok){changeEvidence=false;await refreshProfile();}

@@ -1,3 +1,4 @@
+import { createLocalTlsFixture } from "./client-support/tls.js";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, stat, writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
@@ -21,9 +22,9 @@ integration("resumable credential rotation over real HTTPS", () => {
   const record = (credential: unknown) => ({ type: "hailp.api-credential", version: 1, provider: origin, ...credential as object });
   const save = (name: string, value: unknown) => writeFile(join(directory, name), JSON.stringify(value), { mode: 0o600 });
   const rotate = async (source: string, output: string) => {
-    const child = Bun.spawn(["bun", "src/cli/hailp.ts", "credential", "rotate", "--credentials", join(directory, source), "--output", join(directory, output)], {
+    const child = Bun.spawn(["./target/debug/hailp", "credential", "rotate", "--credentials", join(directory, source), "--output", join(directory, output)], {
       cwd: new URL("../../cli/", import.meta.url).pathname,
-      env: { ...Bun.env, NODE_EXTRA_CA_CERTS: join(directory, "cert.pem") }, stdout: "pipe", stderr: "pipe",
+      env: { ...Bun.env, SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost" }, stdout: "pipe", stderr: "pipe",
     });
     const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
     for (const name of [source, output, `${output}.rotation.json`]) {
@@ -35,10 +36,7 @@ integration("resumable credential rotation over real HTTPS", () => {
   beforeAll(async () => {
     db = new ProviderDatabase(process.env.DATABASE_URL!); await db.migrate(); accounts = new AccountApiRepository(db.sql);
     directory = await mkdtemp(join(tmpdir(), "hail-rotation-"));
-    const certificate = Bun.spawn(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-      "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost", "-addext", "basicConstraints=critical,CA:TRUE",
-      "-keyout", join(directory, "key.pem"), "-out", join(directory, "cert.pem")], { stdout: "pipe", stderr: "pipe" });
-    if (await certificate.exited !== 0) throw new Error(await new Response(certificate.stderr).text());
+    await createLocalTlsFixture(directory);
     const app = new Hono();
     server = Bun.serve({ hostname: "localhost", port: 0, tls: { cert: Bun.file(join(directory, "cert.pem")), key: Bun.file(join(directory, "key.pem")) },
       async fetch(request) {

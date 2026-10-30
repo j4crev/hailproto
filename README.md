@@ -82,6 +82,8 @@ browser recovery remain separate work.
 
 ## Documentation
 
+- [Production readiness](docs/production-readiness.md): release checklist and verification evidence.
+- [Install hailp](apps/cli/docs/cli-installation.md), [CLI quickstart](apps/cli/docs/cli-quickstart.md), and [command reference](apps/cli/docs/cli-reference.md).
 - [`DESIGN.md`](DESIGN.md): High-level product and protocol design.
 - [`docs/portable-custody.md`](docs/portable-custody.md): Key custody, transfer ceremony, recovery checkpoints and POC/production boundaries.
 - [`docs/passkey-authentication.md`](docs/passkey-authentication.md): Passwordless provider login, cross-platform client strategy, recovery boundaries and remaining platform validation.

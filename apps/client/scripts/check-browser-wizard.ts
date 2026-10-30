@@ -52,6 +52,7 @@ const readMessages=new Set<string>();
 let avatarGate=Promise.resolve(),releaseAvatars=()=>{},missingAvatars=false;
 let displayPreferences: {theme:string|null;showHeaderImages:boolean|null}={theme:null,showHeaderImages:null};
 let trashEnabled=true;const trashed=new Map<string,string>(),deleted=new Set<string>();
+let connectionReplied:any=null;
 let incoming=false,replyPosts=0,replied:any=null,recentlyVerified=false,guiProxy:ReturnType<typeof createApp>;
 const textBody=(text:string)=>({version:1,profile:"spt-1",blocks:[{_type:"block",_key:"b1",style:"normal",markDefs:[],children:[{_type:"span",_key:"s1",text,marks:[]}]}]});
 const connectionReply=()=>({isRead:readMessages.has(connectionIncomingId),messageId:connectionIncomingId,sender:peerDid,senderAddress:peerAddress,recipient:did,category:null,kind:'connection',
@@ -170,10 +171,26 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     return connectionApprovals.has(step)?json(connectionApprovals.get(step)):json({},404);
   }
   if(path===`/api/v1/account/inbox/${encodeURIComponent(peerDid)}/${incomingId}`||path===`/api/v1/account/inbox/${peerDid}/${incomingId}`)return json(incomingMessage());
+  if(path==="/api/v1/account/messages"&&input.connectionId){
+    assert(personalConnection);
+    assert.deepEqual(Object.keys(input).sort(),['body','connectionEpoch','connectionId','inReplyTo','messageId','recipientDid']);
+    assert.equal(input.connectionId,fixtureConnectionId);assert.equal(input.connectionEpoch,1);assert.equal(input.recipientDid,peerDid);
+    assert.deepEqual(input.inReplyTo,{sender:peerDid,messageId:connectionIncomingId});
+    const body=fromDiagnosticJson("hail.body.spt-2",input.body);encodePayload("hail.body.spt-2",body);
+    assert(body.blocks.some(block=>block.style==='normal'&&block.children.some(span=>span.text==='Browser connection reply')));
+    assert.equal(connectionReplied,null);
+    connectionReplied={messageId:input.messageId,sender:did,recipient:peerDid,recipientAddress:peerAddress,category:null,kind:'connection',
+      createdAt:new Date().toISOString(),state:'delivered',revision:2,reason:null,retryAt:null,body:input.body};
+    return json({messageId:input.messageId,state:'delivered'});
+  }
   if(path==="/api/v1/account/messages"){
-    assert.equal(input.replyTo,incomingId);assert.equal(input.text,"Browser transport reply");assert.equal(replyPosts,0);replyPosts++;
+    assert.equal(input.replyTo,incomingId);
+    assert.deepEqual(input.inReplyTo,{sender:peerDid,messageId:incomingId});
+    const replyBody=fromDiagnosticJson("hail.body.spt-2",input.body);encodePayload("hail.body.spt-2",replyBody);
+    assert(replyBody.blocks.some(block=>block.style==='normal'&&block.children.some(span=>span.text==="Browser transport reply")));
+    assert.equal(replyPosts,0);replyPosts++;
     replied={messageId:input.messageId,sender:did,recipient:peerDid,recipientAddress:peerAddress,category:null,createdAt:new Date().toISOString(),
-      state:"delivered",revision:2,reason:null,retryAt:null,body:textBody(input.text)};return json({messageId:input.messageId,state:"delivered"});
+      state:"delivered",revision:2,reason:null,retryAt:null,body:input.body};return json({messageId:input.messageId,state:"delivered"});
   }
   if(path==="/api/v1/account/publications/audiences")return json({maxRecipients:100,categories:sendingGrant?[{category:"general",subscribers:2},{category:"updates",subscribers:1}]:[]});
   if(path==="/api/v1/account/publications"){
@@ -195,6 +212,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     ...(connectionMessageIntent?[{messageId:connectionMessageIntent.publicationId,kind:"connections",category:null,createdAt:connectionSent[0].createdAt,body:connectionSent[0].body,
       recipientSummary:{count:connectionSent.length,address:null,did:null},recipients:connectionSent.map(message=>({did:message.recipient,address:message.recipientAddress}))}]:[]),
     ...(publicationIntent?[{messageId:publicationIntent.publicationId,kind:"category",category:publicationIntent.category,createdAt:new Date(publicationCreated).toISOString(),body:publicationIntent.body}]:[]),
+    ...(connectionReplied?[{...connectionReplied,kind:"message",recipientSummary:{count:1,address:connectionReplied.recipientAddress,did:connectionReplied.recipient}}]:[]),
     ...(replied?[{...replied,kind:"message",recipientSummary:{count:1,address:replied.recipientAddress,did:replied.recipient}}]:[])
   ];
   const sentQuery=new URL(request.url).searchParams;
@@ -203,8 +221,8 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     const send=sentSends.find(message=>message.messageId===path.split('/').at(-1)&&message.kind===sentQuery.get("kind"));
     return send?json(send):json({},404);
   }
-  for(const message of [replied,composed,composedOther,...connectionSent])if(message&&path===`/api/v1/account/sent/${message.messageId}`)return json(message);
-  if(path==="/api/v1/account/sent")return json({messages:[...connectionSent,composed,composedOther,replied].filter(Boolean),next:null});
+  for(const message of [connectionReplied,replied,composed,composedOther,...connectionSent])if(message&&path===`/api/v1/account/sent/${message.messageId}`)return json(message);
+  if(path==="/api/v1/account/sent")return json({messages:[...connectionSent,composed,composedOther,replied,connectionReplied].filter(Boolean),next:null});
   if(path==="/api/v1/auth/passkeys")return json({recentlyVerified,sessions:[],passkeys:[{credentialId:credential.id,label:"Primary passkey",deviceType:"multiDevice",backedUp:true,
     current:true,createdAt:new Date().toISOString(),lastUsedAt:null}]});
   if(path.startsWith("/api/v1/account/permissions/")){
@@ -617,11 +635,11 @@ try{
   assert(await evaluate(`!!document.querySelector('article header img[src*="/avatar/image"]')`),'Reader renders while photo request is pending');
   releaseAvatars();
   await wait(async()=>evaluate(`document.querySelector('article header img[src*="/avatar/image"]')?.naturalWidth>0`),'photo loads independently after reader is usable');
-  assert.equal(await evaluate(`!!document.querySelector('#subscription-reply')`),false,"Reply form starts collapsed");
+  assert.equal(await evaluate(`!!document.querySelector('#message-reply')`),false,"Reply form starts collapsed");
   await click("Reply");await wait(()=>has("Send reply"),"reply action opens form");
   assert.equal(await evaluate(`document.activeElement?.getAttribute('name')`),"text","Reply focuses the editor");
   await click("Cancel");assert.equal(await evaluate(`document.activeElement?.getAttribute('aria-label')`),"Reply","Cancel restores reply focus");
-  assert.equal(await evaluate(`!!document.querySelector('#subscription-reply')`),false);
+  assert.equal(await evaluate(`!!document.querySelector('#message-reply')`),false);
   await click("Reply");await wait(()=>has("Send reply"),"reply can reopen after cancellation");
   assert.deepEqual(await styles("article",["borderRadius","overflow"]),["18px","hidden"]);
   assert.deepEqual(await styles("article > div",["fontSize","lineHeight"]),["18px","30.6px"]);
@@ -881,10 +899,16 @@ try{
   connectionIncoming=true;
   await cdp('Page.navigate',{url:origin+'/?view=connections'});await wait(()=>has('A personal connection reply'),'connection message uses existing reader preview');
   assert(!await has('One-time reply browser transport test'));
-  await evaluate(`document.querySelector('a[href*="${connectionIncomingId}"]').click()`);await wait(async()=>evaluate(`!!document.querySelector('a[aria-label="Reply"][href*="audience=connections&connection="]')`),'standing connection response action');
+  await evaluate(`document.querySelector('a[href*="${connectionIncomingId}"]').click()`);await wait(async()=>evaluate(`document.querySelector('button[aria-label="Reply"]')?.disabled===false`),'standing connection response action');
   assert(await evaluate(`![...document.querySelectorAll('article button')].some(b=>b.textContent.trim()==='Unsubscribe')`),"Connection messages never offer unsubscribe");
   assert(!await evaluate(`!!document.querySelector('form[action="?/reply"]')`));
-  await evaluate(`document.querySelector('a[href*="audience=connections&connection="]').click()`);await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]:checked').length===1`),'connection response preselects the same active connection');
+  await click('Reply');await wait(()=>has('Send reply'),'connection reply opens inline');
+  assert.equal(await evaluate(`document.activeElement?.getAttribute('name')`),'text');
+  assert(!await evaluate(`!!document.querySelector('input[name="allowReply"]')`),'Connection replies do not offer a one-time reply invitation');
+  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Browser connection reply';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await click('Send reply');
+  await wait(async()=>evaluate(`location.pathname.startsWith('/sent/') && !!document.querySelector('[aria-label="Status: delivered"]')`),'connection reply delivered through provider proxy');
+  assert(connectionReplied);assert.equal(replyPosts,1,'Connection replies do not consume one-time invitations');
   const selectConnection=async()=>{
     await wait(async()=>evaluate(`document.querySelector('[aria-label="Your connections"] button[aria-pressed]')?.disabled===false`),'connection selection ready');
     await evaluate(`document.querySelector('[aria-label="Your connections"] button[aria-pressed]').click()`);
@@ -893,6 +917,7 @@ try{
   await click("Remove connection");await wait(()=>has("Confirm connection removal"),"disconnect review");await click("Remove connection");await wait(()=>has("No connections yet."),"disconnect saved");
   assert(!personalConnection);assert.equal(allowed!.status,"active");
   await cdp('Page.navigate',{url:origin+`/message/${encodeURIComponent(peerDid)}/${connectionIncomingId}`});await wait(()=>has('This connection is no longer active.'),'disconnected historical messages remain readable without a standing send action');
+  assert(await evaluate(`document.querySelector('button[aria-label="Reply"]')?.disabled===true`),'Disconnected messages cannot be replied to');
   const savedConnectionReview=[...connectionApprovals.values()].find(row=>row.action==="connect")!;
   await evaluate(`sessionStorage.setItem('hail.connection-approval.v1',${JSON.stringify(savedConnectionReview.requestId)})`);
   await cdp("Page.navigate",{url:origin+"/connect"});await wait(()=>has("It was not reopened."),"historical success does not masquerade as a live connection");assert(!personalConnection);

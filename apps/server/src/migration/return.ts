@@ -51,6 +51,14 @@ function validateRetainedHistory(previous:HistoryTables,currentTables:HistoryTab
             if(typeof actual[field]==="string")actual[field]=parseJsonWithoutDuplicateKeys(actual[field]);
           }
       }
+      if(name==="delivered_messages"){
+        // Cursor allocation belongs to the destination provider, not message history.
+        // Read/trash state may change while the owner uses the other provider.
+        // The original export remains immutable; import retains the current state.
+        for(const field of ["delivery_sequence","is_read","trashed_at"]){
+          delete expected[field];if(actual)delete actual[field];
+        }
+      }
       if(!actual||!isDeepStrictEqual(actual,expected))throw new Error(`Returning snapshot loses or conflicts with retained ${table} history`);
     }
   }

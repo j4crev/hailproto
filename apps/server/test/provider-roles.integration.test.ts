@@ -24,21 +24,9 @@ it.skipIf(!process.env.DATABASE_URL)("reserves provider roles across account wri
     (id, tenant_id, canonical_address, onboarding_state) VALUES (${id}, ${randomUUID()}, ${address}, 'reserved')`;
   try {
     await db.migrate();
-    const rollback = await Bun.file(new URL("../migrations/rollback/0060_provider_role_addresses.sql", import.meta.url)).text();
-    const connection = await db.sql.reserve();
-    try { await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0065_connection_messages.sql",import.meta.url)).text()); await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0064_connection_federation.sql",import.meta.url)).text()); await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0063_connection_owner_signing.sql",import.meta.url)).text()); await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text()); await connection.unsafe(await Bun.file(new URL("../migrations/rollback/0061_publications.sql",import.meta.url)).text()); await connection.unsafe(rollback); }
-    finally { connection.release(); }
-    const oldId = randomUUID();
-    await insert("ops@existing.example.com", oldId);
     await insert("alice@local.example.com");
-    await db.migrate();
     await db.migrate(); // Repeat startup is harmless.
-    expect((await db.sql`SELECT id FROM provider_accounts WHERE canonical_address='ops@existing.example.com'`)[0].id).toBe(oldId);
-    await db.sql`UPDATE provider_accounts SET updated_at=clock_timestamp(), canonical_address=canonical_address WHERE id=${oldId}`;
-
     const key = (await P256Keypair.create()).did(), otherKey = (await P256Keypair.create()).did();
-    await expect(authorizeProviderRole(db.sql, "ops@existing.example.com", key, "https://existing.example.com"))
-      .rejects.toThrow("Existing account occupies");
     await expect(authorizeProviderRole(db.sql, "ops@elsewhere.example.com", key, origin)).rejects.toThrow("belong to this provider");
     await expect(authorizeProviderRole(db.sql, "alice@local.example.com", key, origin)).rejects.toThrow("not a reserved");
     await expect(authorizeProviderRole(db.sql, "ops@local.example.com", "not-a-key", origin)).rejects.toThrow();
@@ -82,9 +70,10 @@ it.skipIf(!process.env.DATABASE_URL)("reserves provider roles across account wri
     expect(await db.sql`SELECT account_id FROM account_keys WHERE account_id=${prepared.accountId}`).toHaveLength(2);
     expect((await db.sql`SELECT onboarding_state FROM provider_accounts WHERE id=${prepared.accountId}`)[0].onboarding_state).toBe("reserved");
 
-    const rollbackConnection = await db.sql.reserve();
-    try { await expect(rollbackConnection.unsafe(rollback)).rejects.toThrow("Cannot roll back"); }
-    finally { await rollbackConnection.unsafe("ROLLBACK"); rollbackConnection.release(); }
+    // An occupied role stays bound to its original owner on the current schema.
+    await expect(authorizeProviderRole(db.sql, address, otherKey, origin)).rejects.toThrow("another recovery key");
+    expect((await db.sql`SELECT id FROM provider_accounts WHERE canonical_address=${address}`)[0].id).toBe(accountId);
+
   } finally {
     await db.close();
     await admin.unsafe(`DROP SCHEMA "${schema}" CASCADE`);

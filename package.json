@@ -18,6 +18,7 @@
     "test": "bun run test:workspaces && bun run test:go",
     "test:workspaces": "bun run --cwd packages/hail-codec-ts build && bun run --filter '*' test",
     "test:go": "mise exec -- go -C packages/hail-codec-go test ./...",
+    "test:integration": "bun scripts/test-database-integration.ts",
     "typecheck": "bun run --cwd packages/hail-codec-ts build && bun run --filter '*' typecheck",
     "test:cli": "bun run --cwd apps/cli test && bun run --cwd apps/cli test:workflows"
   },

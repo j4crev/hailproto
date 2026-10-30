@@ -6,6 +6,10 @@ Grants, profiles, connections, custody transitions and provider transfers. It do
 not invoke Bun or Node at runtime. See [CLI workflows](docs/cli-workflows.md)
 for usage and the [installation guide](docs/cli-installation.md) for setup.
 
+For existing web accounts, start with the [CLI quickstart](docs/cli-quickstart.md).
+The [complete command reference](docs/cli-reference.md) lists every command and
+option, with parser-required flags and shared option explanations.
+
 ## Build and install
 
 Linux x86-64 is the supported release platform. Install Rust through rustup; the
