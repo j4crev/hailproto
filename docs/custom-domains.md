@@ -3,12 +3,11 @@
 Status: Slice 2 is complete and deployed, including standalone custom-domain
 signup. The user confirmed custom-address sending and replies and independently
 onboarded a custom-domain user without a provider-native account. Slice 3 remains
-partial. The nonexpiring Address Binding v2 and migration-retirement withdrawal
-changes, including the same-provider custody authority checks, are local work,
-not yet deployed. Administrator-initiated domain withdrawal, cooperative
-reassignment, and account closure with inbox erasure are now local work as well.
-Forced takeover of an existing registration, custom-domain provider transfer,
-and the live domain-loss pilot remain deferred.
+partial. Nonexpiring Address Binding v2, migration-retirement withdrawal,
+same-provider custody authority checks, administrator-initiated domain withdrawal,
+cooperative reassignment, and account closure with inbox erasure are deployed to
+Haili. Forced takeover of an existing registration, custom-domain provider transfer,
+migration-snapshot inbox erasure, and the live domain-loss pilot remain deferred.
 
 ## Agreed product model
 
@@ -218,7 +217,7 @@ DNS/provider pilot subsequently succeeded; see the completed Slice 2 checklist.
 - [x] Recheck delegation when creating accounts and publishing bindings; do not
   introduce background polling or per-message domain checks.
 - [x] Implement local migration-retirement publication tombstones that hide both
-  WebFinger mappings and public COSE artifacts. This work is not yet deployed.
+  WebFinger mappings and public COSE artifacts. Deployed to Haili.
 - [x] Integrate shared withdrawal into account closure, revoke local access, and
   erase the provider inbox. Accounts with migration snapshots are rejected until
   snapshot erasure is supported.
@@ -429,6 +428,15 @@ lookup after address reuse, inbox and shared-blob erasure, credential revocation
 background-status cancellation, snapshot refusal, concurrent address reservation,
 and guarded rollback. Tests use controlled DNS/PLC transport and local fixtures;
 no live PLC operation, provider deployment, or DNS change was performed.
+
+Production deployment on 2026-10-31: `d75169f70a9317096da71ebb4e3659968f822b15`.
+The installed operations wrapper verified an encrypted database backup, retained
+the previous image, and replaced the GUI and provider before new-provider startup
+applied migrations. Both containers are healthy; public readiness and homepage
+checks returned 200, and unauthenticated deletion/withdrawal requests returned 401.
+No live account deletion, domain withdrawal, or address reassignment was performed
+as a deployment check. The configured production PLC reader diagnostic remained
+healthy; no disposable identity was created.
 
 ## Later work
 
