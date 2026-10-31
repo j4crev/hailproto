@@ -226,9 +226,7 @@ pub fn sign(args: &Args, managed: bool) -> Result<Value, Error> {
             &bytes,
             t::text(&user.vault["identity"]["publicDidKey"])?,
         )?;
-        if p["address"] != reservation["address"]
-            || p["did"] != user.vault["did"]
-        {
+        if p["address"] != reservation["address"] || p["did"] != user.vault["did"] {
             return Err(t::invalid());
         }
     } else {

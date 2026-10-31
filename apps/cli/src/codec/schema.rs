@@ -90,14 +90,7 @@ pub fn validate(kind: &str, p: &V) -> Result<(), Error> {
         "hail.address-binding" => {
             exact(
                 p,
-                &[
-                    "version",
-                    "type",
-                    "address",
-                    "did",
-                    "issued_at",
-                    "key_id",
-                ],
+                &["version", "type", "address", "did", "issued_at", "key_id"],
                 &[],
             )?;
             ensure(p.field("version").uint(1)? == 2)?;
