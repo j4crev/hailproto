@@ -160,10 +160,36 @@ export type HailMessageType =
   | "package-update"
   | "calendar-event";
 
+/** Immutable fixed-roster descriptor; its signature alone grants no delivery permission. */
+export interface HailConversation {
+  type:"hail.conversation";
+  version:1;
+  conversation_id:string;
+  from:string;
+  membership_revision:1;
+  participants:string[];
+  created_at:number;
+  admission_until:number;
+}
+
+/** Recipient-specific renewal request signed by the original creator. */
+export interface HailConversationRevival {
+  type:"hail.conversation-revival";
+  version:1;
+  conversation_id:string;
+  descriptor_hash:HailDigest;
+  from:string;
+  to:string;
+  request_id:string;
+  issued_at:number;
+  expires_at:number;
+}
+
 export type HailEnvelopeAuthorization =
   | { type: "grant"; grant_id: string }
   | { type: "reply"; reply_to: string }
-  | { type:"connection";connection_id:string;epoch:number };
+  | { type:"connection";connection_id:string;epoch:number }
+  | { type:"conversation";creator:string;conversation_id:string;membership_revision:1;descriptor_hash:HailDigest };
 
 export interface HailBodyDescriptor {
   digest: HailDigest;
@@ -186,7 +212,9 @@ export interface HailMessageReference { sender: string; message_id: string }
 
 export interface HailEnvelope {
   type: "hail.envelope";
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
+  conversation_message_id?:string;
+  conversation_introduction?:{descriptor:Uint8Array;connection_id:string;epoch:number};
   in_reply_to?: HailMessageReference;
   message_id: string;
   from: string;
@@ -319,6 +347,8 @@ export interface HailPayloadByType {
   "hail.connection-confirmation": HailConnectionConfirmation;
   "hail.connection-grant": HailConnectionGrant;
   "hail.connection-control": HailConnectionControl;
+  "hail.conversation": HailConversation;
+  "hail.conversation-revival": HailConversationRevival;
   "hail.envelope": HailEnvelope;
   "hail.delivery-status": HailDeliveryStatus;
   "hail.body.spt-1": HailSptBody;

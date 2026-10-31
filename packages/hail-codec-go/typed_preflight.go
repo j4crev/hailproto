@@ -46,6 +46,24 @@ func validateTypedPayload(payload Payload) (string, error) {
 	case Envelope:
 		kind, value = EnvelopeType, reflect.ValueOf(typed)
 		validate = func() error { return preflightEnvelope(&typed) }
+	case Conversation:
+		kind, value = ConversationType, reflect.ValueOf(typed)
+		validate = func() error { return validatePayloadMap(ConversationType, conversationValue(&typed)) }
+	case *Conversation:
+		if typed == nil {
+			return "", errors.New("nil conversation")
+		}
+		kind, value = ConversationType, reflect.ValueOf(*typed)
+		validate = func() error { return validatePayloadMap(ConversationType, conversationValue(typed)) }
+	case ConversationRevival:
+		kind, value = ConversationRevivalType, reflect.ValueOf(typed)
+		validate = func() error { return validatePayloadMap(ConversationRevivalType, conversationRevivalValue(&typed)) }
+	case *ConversationRevival:
+		if typed == nil {
+			return "", errors.New("nil conversation revival")
+		}
+		kind, value = ConversationRevivalType, reflect.ValueOf(*typed)
+		validate = func() error { return validatePayloadMap(ConversationRevivalType, conversationRevivalValue(typed)) }
 	case ConnectionInvitation:
 		kind, value = ConnectionInvitationType, reflect.ValueOf(typed)
 		validate = func() error { return validatePayloadMap(ConnectionInvitationType, connectionInvitationValue(&typed)) }
@@ -267,6 +285,9 @@ func preflightGrant(v *Grant) error {
 }
 
 func preflightEnvelope(v *Envelope) error {
+	if v.Version == 4 {
+		return validatePayloadMap(EnvelopeType, envelopeValue(v))
+	}
 	if v.Type != EnvelopeType || v.Version != 1 && v.Version != 2 && v.Version != 3 {
 		return errors.New("invalid envelope type or version")
 	}

@@ -15,6 +15,7 @@ export async function submitEnvelope(sender:string,id:string,repository:Envelope
   if(inspected.payload.from!==sender||inspected.payload.message_id!==id)throw new Error("Stored envelope does not match sender/message");
   if(inspected.payload.authorization.type==="connection"&&(!connections||!await connections.live(sender,inspected.payload.to,inspected.payload.authorization)))
     throw new EnvelopeAuthorizationError("This exact connection is no longer active");
+  if(inspected.payload.authorization.type==='conversation'&&!await repository.conversationSendAllowed(inspected.payload))throw new EnvelopeAuthorizationError("Conversation participation is no longer active");
   const destination=await resolver.resolve(inspected.payload.to);
   const url=new URL(`${destination.serviceBase}/envelopes`);await transport.validateTarget(url);
   const response=await transport.fetch(new Request(url,{method:"POST",body:Uint8Array.from(bytes),redirect:"manual",

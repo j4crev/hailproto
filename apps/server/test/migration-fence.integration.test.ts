@@ -759,7 +759,7 @@ integration("fenced transfer and concurrent cutover", () => {
     expect(manifest.did).toBe(did);
     expect(manifest.custodyProfile).toBe("portable");
     expect(manifest.tables.account_keys).toHaveLength(2);
-    expect(manifest.version).toBe(5);
+    expect(manifest.version).toBe(7);
     expect(manifest.tables.public_plc_resolution_evidence).toHaveLength(1);
     expect(manifest.tables.public_signing_authority_evidence).toHaveLength(1);
     expect(manifest.tables.public_grant_authority_evidence).toHaveLength(1);
@@ -796,7 +796,7 @@ integration("fenced transfer and concurrent cutover", () => {
     expect(()=>validateTransferManifest(new TextEncoder().encode(JSON.stringify(damagedHistory))))
       .toThrow("missing or unreferenced resolution evidence");
     const legacy=JSON.parse(new TextDecoder().decode(snapshot.bytes));legacy.version=2;
-    delete legacy.connections;delete legacy.connectionCheckpointDigest;delete legacy.sourceGeneration;
+    delete legacy.conversations;delete legacy.conversationCheckpointDigest;delete legacy.connections;delete legacy.connectionCheckpointDigest;delete legacy.sourceGeneration;
     for(const table of ["public_plc_resolution_evidence","public_envelope_authority_evidence",
       "public_grant_authority_evidence","public_signing_authority_evidence"])delete legacy.tables[table];
     expect(validateTransferManifest(new TextEncoder().encode(JSON.stringify(legacy))).version).toBe(2);

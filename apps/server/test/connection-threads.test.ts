@@ -28,3 +28,15 @@ it('does not truncate large conversations before choosing the oldest unread',()=
   const nodes=Array.from({length:200},(_,i)=>node(String(i),{sent:false,isRead:i===0,parentSender:i?'me':null,parentId:i?String(i-1):null,at:new Date(Date.UTC(2026,0,1,0,i)).toISOString()}));
   const [group]=groupConnectionMessages(nodes);expect(group!.unread).toBe(199);expect(group!.representative!.messageId).toBe('1');expect(group!.messages).toHaveLength(200);
 });
+
+it('groups fixed-roster logical messages while isolating private replies and other creators',()=>{
+  const groups=groupConnectionMessages([
+    node('root-a',{conversation:'alice/group',batch:'initial'}),node('root-b',{conversation:'alice/group',batch:'initial',recipient:'bob'}),
+    node('reply-all',{sender:'bob',sent:false,conversation:'alice/group',parentSender:'me',parentId:'logical-root'}),
+    node('private',{sender:'bob',sent:false,parentSender:'me',parentId:'root-b'}),
+    node('same-id',{sender:'carol',sent:false,conversation:'carol/group'}),
+  ]);
+  expect(groups).toHaveLength(3);
+  expect(groups.find(g=>g.all.some(n=>n.messageId==='root-a'))!.messages.map(n=>n.messageId)).not.toContain('private');
+  expect(groups.find(g=>g.all.some(n=>n.messageId==='root-a'))!.messages).toHaveLength(2);
+});

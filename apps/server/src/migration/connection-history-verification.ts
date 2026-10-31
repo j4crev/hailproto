@@ -1,3 +1,4 @@
+import type {ConversationHistory} from './conversation-history.js';
 import {createHash} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import {cidForCbor} from '@atproto/common';
@@ -28,18 +29,18 @@ function bytes(value:unknown,max=16384):Uint8Array {
   if(typeof value!=='string'||!/^\\x(?:[0-9a-f]{2})+$/.test(value)||value.length>2+max*2)throw new Error('Invalid historical connection bytes');
   return new Uint8Array(Buffer.from(value.slice(2),'hex'));
 }
-type ProofKind=Extract<HailSignedPayloadType,'hail.connection-invitation'|'hail.connection-confirmation'|'hail.connection-control'|'hail.connection-grant'|'hail.address-binding'>;
+type ProofKind=Extract<HailSignedPayloadType,'hail.connection-invitation'|'hail.connection-confirmation'|'hail.connection-control'|'hail.connection-grant'|'hail.address-binding'|'hail.conversation'>;
 
 // The configured resolver establishes today's canonical chain. Historical COSE
 // must name a key in its retained, still-canonical prefix, not today's rotated key
 // and not an arbitrary key guessed from every past operation. No live rows change.
 // Call after structural manifest/checkpoint validation; this is the authority pass.
-export async function verifyConnectionHistoryAuthority(history:ConnectionHistory,resolver:HailDidResolver,now=new Date()):Promise<void> {
+export async function verifyConnectionHistoryAuthority(history:ConnectionHistory,resolver:HailDidResolver,now=new Date(),conversations?:ConversationHistory):Promise<void> {
   // ponytail: one bounded verification pass; checkpoint verification can be paged
   // if large histories cannot finish within the 30-second staging budget.
   const deadline=AbortSignal.timeout(30_000);
   const current=new Map<string,Promise<{state:DocumentData;cids:string[]}>>(),authorities=new Map<string,Promise<DocumentData>>();
-  const bundles=new Map(history.tables.public_plc_resolution_evidence.map(r=>[r.evidence_digest,r]));
+  const bundles=new Map([...history.tables.public_plc_resolution_evidence,...(conversations?.tables.public_plc_resolution_evidence??[])].map(r=>[r.evidence_digest,r]));
   const canonical=(did:string)=>{
     let pending=current.get(did);
     if(!pending){pending=(async()=>{
@@ -95,13 +96,17 @@ export async function verifyConnectionHistoryAuthority(history:ConnectionHistory
   };
   async function signed<T extends ProofKind>(kind:T,cose:Uint8Array,evidence:unknown){
     const inspected=inspectSignedPayload(kind,cose),p=inspected.payload;
-    const did='grantor' in p?p.grantor:'from' in p?p.from:p.did,role=kind==='hail.connection-control'?'hail-messaging':'hail-identity';
+    const did='grantor' in p?p.grantor:'from' in p?p.from:p.did,role=(kind==='hail.connection-control'||kind==='hail.conversation')?'hail-messaging':'hail-identity';
     const state=await authority(evidence,did),key=state.verificationMethods[role];
     if(typeof key!=='string')throw new Error('Historical connection signing role is missing');
     await verifySignedPayload(kind,cose,createWebCryptoVerifier(async kid=>{
       if(kid!==did+'#'+role)throw new Error('Historical connection signing purpose differs');return ed25519PublicKeyFromDidKey(key);
     }));
     return {payload:p,state,key};
+  }
+  for(const descriptor of conversations?.tables.conversation_descriptors??[]){
+    const checked=await signed('hail.conversation',bytes(descriptor.descriptor_cose),descriptor.signing_evidence);
+    if(checked.key!==descriptor.signing_key)throw Error('Historical conversation signing key differs');
   }
   for(const invitation of history.tables.connection_invitations){
     const checked=await signed('hail.connection-invitation',bytes(invitation.cose),invitation.signing_evidence);
@@ -184,8 +189,8 @@ export async function verifyConnectionHistoryAuthority(history:ConnectionHistory
     const snapshot=bytes(exported?.manifest_bytes,67108864),digest=hash(snapshot),m=parseJsonWithoutDuplicateKeys(new TextDecoder('utf-8',{fatal:true}).decode(snapshot)) as any;
     if(!same(digest,cancel.snapshot_digest)||!same(digest,bytes(exported.manifest_digest,32))||m.did!==history.did||m.accountId!==history.accountId||m.transferId!==row.transfer_id||
       m.sourceServiceBase!==cancel.source_service_base||m.destinationServiceBase!==cancel.destination_service_base||m.destinationMessagingPublicKey!==archive.destinationKey||exported.source_messaging_public_key!==source.key||
-      ![5,6].includes(m.version)||!await crypto.subtle.verify('Ed25519',await ed25519PublicKeyFromDidKey(source.key),Uint8Array.from(bytes(exported.signature,64)),
-        m.version===6?managedSnapshotSignatureInput(digest,6):transferSnapshotSignatureInput(digest,5)))throw new Error('Historical cancellation lost its exact source snapshot');
+      ![5,6,7,8].includes(m.version)||!await crypto.subtle.verify('Ed25519',await ed25519PublicKeyFromDidKey(source.key),Uint8Array.from(bytes(exported.signature,64)),
+        (m.version===6||m.version===8)?managedSnapshotSignatureInput(digest,m.version):transferSnapshotSignatureInput(digest,m.version as 5|7)))throw new Error('Historical cancellation lost its exact source snapshot');
     await verifyConnectionCancellation({...cancelSigned,signature:bytes(row.destination_signature,64)},m.destinationMessagingPublicKey,'destination-cancelled');
     const peers=new Set<string>(m.connections?.tables.federated_connection_pairs.filter((p:any)=>p.state!=='empty').map((p:any)=>p.peer_did)??[]),seen=new Set<string>();
     if(!Array.isArray(archive.releases)||archive.releases.length!==peers.size)throw new Error('Historical cancellation lost peer releases');

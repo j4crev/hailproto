@@ -310,6 +310,8 @@ const CDDL_RULES = {
   "hail.connection-confirmation": "hail-connection-confirmation",
   "hail.connection-grant": "hail-connection-grant",
   "hail.connection-control": "hail-connection-control",
+  "hail.conversation": "hail-conversation",
+  "hail.conversation-revival": "hail-conversation-revival",
   "hail.envelope": "hail-envelope",
   "hail.delivery-status": "hail-delivery-status",
   "hail.body.spt-1": "hail-body-spt-1",
@@ -318,6 +320,8 @@ const CDDL_RULES = {
 } as const satisfies Readonly<Record<HailPayloadType, string>>;
 
 const REQUIRED_KEYS = {
+  "hail.conversation": ["type","version","conversation_id","from","membership_revision","participants","created_at","admission_until"],
+  "hail.conversation-revival": ["type","version","conversation_id","descriptor_hash","from","to","request_id","issued_at","expires_at"],
   "hail.connection-control": ["type","version","operation","from","to","request_id","connection_id","epoch","state","proof_hash","issued_at","expires_at","key_id"],
   "hail.connection-invitation": ["type","version","invitation_id","from","token_hash","issued_at","expires_at","key_id"],
   "hail.connection-confirmation": ["type","version","confirmation_id","from","to","invitation_id","invitation_hash","issued_at","expires_at","key_id"],
@@ -395,7 +399,8 @@ const baseManifest = JSON.parse(
 ) as VectorManifest;
 const connections=JSON.parse(readFileSync(new URL("../vectors/connections-draft.json",import.meta.url),"utf8")) as VectorManifest;
 const threads=JSON.parse(readFileSync(new URL("../vectors/threads-v3.json",import.meta.url),"utf8")) as VectorManifest;
-const manifest:VectorManifest={...baseManifest,positive:[...baseManifest.positive,...connections.positive,...threads.positive]};
+const conversations=JSON.parse(readFileSync(new URL("../vectors/conversations-v1.json",import.meta.url),"utf8")) as VectorManifest;
+const manifest:VectorManifest={...baseManifest,positive:[...baseManifest.positive,...connections.positive,...threads.positive,...conversations.positive]};
 const positiveByType = new Map<HailPayloadType, PositiveVector>();
 for (const vector of manifest.positive) {
   if (!positiveByType.has(vector.type)) positiveByType.set(vector.type, vector);

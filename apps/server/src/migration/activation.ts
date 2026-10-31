@@ -123,7 +123,7 @@ export class PortableMigrationActivation {
     if (!assessment.eligible) throw new Error("PLC cutover assessment is not eligible");
     const manifest = validateTransferManifest(pending.manifest_bytes);
     await requireConnectionImportPhase(this.sql,manifest,'committed');
-    if(manifest.connections)await verifyConnectionHistoryAuthority(manifest.connections,this.resolver,this.now());
+    if(manifest.connections)await verifyConnectionHistoryAuthority(manifest.connections,this.resolver,this.now(),manifest.conversations);
     if (manifest.tables.portable_custody_evidence[0]?.monitor_verification_mode !==
       (this.profile === "public" ? "independent" : "poc-local")) {
       throw new Error("Cutover evidence does not match the selected PLC trust profile");

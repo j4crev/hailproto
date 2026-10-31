@@ -12,7 +12,7 @@
     "test:browser": "bun scripts/check-browser-signup.ts",
     "test:wizard": "bun run build && bun scripts/check-browser-wizard.ts",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "test:conversations": "bun run build && bun scripts/check-browser-conversations.ts"
+    "test:conversations": "bun run build && bun scripts/check-browser-conversations.ts && bun scripts/check-browser-conversations.ts --shared"
   },
   "dependencies": {
     "@atproto/common": "0.8.1",

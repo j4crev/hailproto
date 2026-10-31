@@ -8,30 +8,52 @@ import {uuidV7} from "../identity/uuid-v7.js";
 import {bodyDocument,outboundBody,type AccountMessaging} from "./messaging.js";
 import type {AccountApiSession} from "./repository.js";
 import type {ConnectionMessagingAuthority,ConnectionMessageTarget} from "./connection-authorization.js";
+import {conversationState,changeConversationMembership,conversationIdentity,lockOwner} from './conversation-memberships.js';
 
 const ID=/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const CATEGORY=/^[a-z0-9][a-z0-9._-]{0,63}$/;
 const LOCK=684245163;
 type Kind="category"|"connections";
 type Publication={account_id:string;id:string;sender_did:string;serving_generation:number|string;category:string|null;
-  manifest:Uint8Array|null;kind:Kind;
+  manifest:Uint8Array|null;kind:Kind;conversation_context:Uint8Array|null;
   body_bytes:Uint8Array;request_digest:Uint8Array;reply_until:number|string|null;created_at:Date;expires_at:Date;cancelled_at:Date|null};
 const digest=(category:string,body:Uint8Array,replies:boolean)=>new Uint8Array(createHash("sha256")
   .update(encodeDeterministic({category,body,allowReplies:replies})).digest());
 const connectionDigest=(ids:string[],body:Uint8Array)=>new Uint8Array(createHash("sha256").update(encodeDeterministic({connections:ids,body})).digest());
+type SharedContext={creator:string;conversationId:string;logicalId:string;introduction:boolean;parent?:{sender:string;message_id:string}};
+type SharedTarget={connectionId:string|null;epoch:number|null;recipientDid:string;address:string};
+const sharedDigest=(context:Uint8Array,manifest:Uint8Array,body:Uint8Array)=>new Uint8Array(createHash('sha256').update(encodeDeterministic({context,manifest,body})).digest());
 
 export class AccountPublications {
-  constructor(private readonly sql:SQL,private readonly messaging:Pick<AccountMessaging,"send">,private readonly connections?:ConnectionMessagingAuthority){}
+  constructor(private readonly sql:SQL,private readonly messaging:Pick<AccountMessaging,"send"> & Partial<Pick<AccountMessaging,'ensureConversation'|'sendConversation'>>,private readonly connections?:ConnectionMessagingAuthority){}
 
   async connectionTargets(session:AccountApiSession,sql=this.sql){
     if(!this.connections)throw new UserGrantError(409,"Connection messaging is unavailable");
     return {maxRecipients:100,connections:await this.connections.targets(session,sql)};
   }
   async createConnections(session:AccountApiSession,input:Record<string,unknown>){
-    if(Object.keys(input).some(k=>!["publicationId","connections","text","body"].includes(k))||typeof input.publicationId!=="string"||!ID.test(input.publicationId)||
+    if(Object.keys(input).some(k=>!["publicationId","connections","text","body","delivery"].includes(k))||typeof input.publicationId!=="string"||!ID.test(input.publicationId)||
+      (input.delivery!==undefined&&!['shared','private'].includes(input.delivery as string))||
       !Array.isArray(input.connections)||!input.connections.length||input.connections.length>100||input.connections.some(id=>typeof id!=="string"||!ID.test(id))||
       new Set(input.connections).size!==input.connections.length||("text" in input)===("body" in input))throw new UserGrantError(400,"Choose between 1 and 100 distinct connections and one message body");
     const id=input.publicationId,ids=[...input.connections as string[]].sort(),body=outboundBody(input),requestDigest=connectionDigest(ids,body);
+    const prior=(await this.sql<Publication[]>`SELECT * FROM connection_message_batches WHERE account_id=${session.account_id} AND id=${id}`)[0];
+    // Retrying a pre-rollout private batch keeps its original audience semantics.
+    const shared=input.delivery==='shared'||input.delivery===undefined&&(prior?!!prior.conversation_context:ids.length>1);
+    if(shared){
+      if(ids.length<2)throw new UserGrantError(400,'Shared conversations require at least two other participants');
+      if(prior){
+        if(!prior.conversation_context||!Buffer.from(prior.body_bytes).equals(Buffer.from(body))||Number(prior.serving_generation)!==(session.serving_generation??1))throw new UserGrantError(409,'Message batch ID has another intent');
+        const targets=decodeDeterministic(new Uint8Array(prior.manifest!)) as unknown as SharedTarget[];
+        if(JSON.stringify(targets.map(t=>t.connectionId).sort())!==JSON.stringify(ids))throw new UserGrantError(409,'Message batch ID has another audience');
+        return (await this.status(session,id,'connections'))!;
+      }
+      const targets=(await this.connectionTargets(session)).connections.filter(t=>ids.includes(t.connectionId)).sort((a,b)=>a.recipientDid.localeCompare(b.recipientDid));
+      if(targets.length!==ids.length)throw new UserGrantError(409,'A selected connection changed');
+      if(!this.messaging.ensureConversation)throw new UserGrantError(409,'Shared conversation messaging unavailable');
+      return this.createSharedBatch(session,id,body,{creator:session.did,conversationId:id,logicalId:id,introduction:true},targets);
+    }
+    if(prior?.conversation_context)throw new UserGrantError(409,'Shared conversation cannot be retried as private copies');
     await this.sql.begin(async tx=>{
       await tx`SELECT hail_assert_unfenced_account(${session.account_id}::uuid)`;
       if(!(await tx`SELECT a.id FROM provider_accounts a JOIN account_serving_generations g ON g.account_id=a.id WHERE a.id=${session.account_id}
@@ -53,6 +75,51 @@ export class AccountPublications {
       await tx`UPDATE connection_message_batches SET sealed=true WHERE account_id=${session.account_id} AND id=${id}`;
     });
     return (await this.status(session,id,"connections"))!;
+  }
+
+  async replyConversation(session:AccountApiSession,input:Record<string,unknown>){
+    if(Object.keys(input).some(k=>!['publicationId','creator','conversationId','sender','messageId','text','body'].includes(k))||
+      typeof input.publicationId!=='string'||!ID.test(input.publicationId)||typeof input.sender!=='string'||!/^did:plc:[a-z2-7]{24}$/.test(input.sender)||
+      typeof input.messageId!=='string'||!ID.test(input.messageId))throw new UserGrantError(400,'Invalid shared reply');
+    const identity=conversationIdentity(input),state=await conversationState(this.sql,session,identity);
+    if(!state||state.state!=='active')throw new UserGrantError(409,'Rejoin this conversation before replying');
+    const parent=(await this.sql<{conversation_message_id:string}[]>`SELECT e.conversation_message_id FROM received_envelopes e JOIN delivered_messages d
+      ON d.recipient_did=e.recipient_did AND d.sender_did=e.sender_did AND d.message_id=e.message_id
+      WHERE e.local_account_id=${session.account_id} AND e.sender_did=${input.sender} AND e.message_id=${input.messageId} AND d.trashed_at IS NULL
+        AND e.conversation_creator=${identity.creator} AND e.conversation_id=${identity.conversationId}
+      UNION ALL SELECT e.conversation_message_id FROM sent_envelopes e WHERE e.sender_account_id=${session.account_id}
+        AND e.sender_did=${session.did} AND e.sender_did=${input.sender} AND e.message_id=${input.messageId}
+        AND e.conversation_creator=${identity.creator} AND e.conversation_id=${identity.conversationId}`)[0];
+    if(!parent)throw new UserGrantError(409,'Shared reply source unavailable');
+    return this.createSharedBatch(session,input.publicationId,outboundBody(input),{...identity,logicalId:input.publicationId,introduction:false,
+      parent:{sender:input.sender,message_id:parent.conversation_message_id}},state.participants.filter(did=>did!==session.did).map(did=>({recipientDid:did,address:did,connectionId:null,epoch:null})));
+  }
+
+  private async createSharedBatch(session:AccountApiSession,id:string,body:Uint8Array,context:SharedContext,targets:SharedTarget[]){
+    const bytes=encodeDeterministic(context as never),manifest=encodeDeterministic(targets as never),requestDigest=sharedDigest(bytes,manifest,body);
+    await this.sql.begin(async tx=>{
+      await lockOwner(tx as SQL,session);
+      if(!(await tx`SELECT a.id FROM provider_accounts a JOIN account_serving_generations g ON g.account_id=a.id WHERE a.id=${session.account_id} AND a.did=${session.did}
+        AND a.onboarding_state='active' AND g.generation=${session.serving_generation??1}`).length)throw new UserGrantError(409,'Current account required');
+      const prior=(await tx<Publication[]>`SELECT * FROM connection_message_batches WHERE account_id=${session.account_id} AND id=${id}`)[0];
+      if(prior){if(!Buffer.from(prior.request_digest).equals(Buffer.from(requestDigest)))throw new UserGrantError(409,'Message batch ID already has another intent');return;}
+      const active=await tx<{publication_id:string}[]>`SELECT publication_id FROM publication_targets WHERE account_id=${session.account_id} AND state='pending'
+        UNION ALL SELECT publication_id FROM connection_message_targets WHERE account_id=${session.account_id} AND state='pending'`;
+      if(new Set(active.map(r=>r.publication_id)).size>=5)throw new UserGrantError(409,'Finish or cancel open message batches first');
+      if(context.introduction){
+        if(!this.messaging.ensureConversation)throw new UserGrantError(409,'Shared conversation messaging unavailable');
+        await this.messaging.ensureConversation(session.did,context.conversationId,[session.did,...targets.map(t=>t.recipientDid)],tx as SQL);
+      }
+      const state=await conversationState(tx as SQL,session,context);
+      if(state?.state!=='active'||targets.length!==state.participants.length-1||targets.some(t=>t.recipientDid===session.did||!state.participants.includes(t.recipientDid)))throw new UserGrantError(409,'Conversation membership changed');
+      await tx`INSERT INTO connection_message_batches(account_id,id,sender_did,serving_generation,body_bytes,manifest,request_digest,conversation_context)
+        VALUES(${session.account_id},${id},${session.did},${session.serving_generation??1},${body},${manifest},${requestDigest},${bytes})`;
+      for(const t of targets)await tx`INSERT INTO connection_message_targets(account_id,publication_id,connection_id,connection_epoch,recipient_did,message_id)
+        VALUES(${session.account_id},${id},${t.connectionId},${t.epoch},${t.recipientDid},${uuidV7()})`;
+      await tx`UPDATE connection_message_batches SET sealed=true WHERE account_id=${session.account_id} AND id=${id}`;
+      await changeConversationMembership(tx as SQL,session,context,'open');
+    });
+    return (await this.status(session,id,'connections'))!;
   }
 
   private async subscribers(session:Pick<AccountApiSession,"account_id"|"did">,category:string|null,sql=this.sql){
@@ -112,9 +179,9 @@ export class AccountPublications {
 
   async status(session:Pick<AccountApiSession,"account_id">,id:string,kind:Kind="category"){
     if(!ID.test(id))throw new UserGrantError(400,"Invalid publication ID");
-    const parent=(await this.sql<Publication[]>`SELECT account_id,id,sender_did,serving_generation,category,body_bytes,request_digest,reply_until,created_at,expires_at,cancelled_at,NULL::bytea AS manifest,'category' AS kind
+    const parent=(await this.sql<Publication[]>`SELECT account_id,id,sender_did,serving_generation,category,body_bytes,request_digest,reply_until,created_at,expires_at,cancelled_at,NULL::bytea AS manifest,NULL::bytea AS conversation_context,'category' AS kind
       FROM account_publications WHERE account_id=${session.account_id} AND id=${id} AND sealed AND ${kind}='category'
-      UNION ALL SELECT account_id,id,sender_did,serving_generation,NULL::text,body_bytes,request_digest,NULL::bigint,created_at,expires_at,cancelled_at,manifest,'connections'
+      UNION ALL SELECT account_id,id,sender_did,serving_generation,NULL::text,body_bytes,request_digest,NULL::bigint,created_at,expires_at,cancelled_at,manifest,conversation_context,'connections'
       FROM connection_message_batches WHERE account_id=${session.account_id} AND id=${id} AND sealed AND ${kind}='connections'`)[0];
     if(!parent)return null;
     const targets=await this.sql<{message_id:string;recipient_did:string;state:string;delivery:string|null}[]>`
@@ -180,12 +247,12 @@ export class AccountPublications {
     const result=await this.exclusive(async()=>{
       const row=(await this.sql<(Publication&{message_id:string;grant_id:string|null;connection_id:string|null;connection_epoch:number|string|null;recipient_did:string;attempts:number;expired:boolean})[]>`
         SELECT publication.account_id,publication.id,publication.sender_did,publication.serving_generation,publication.category,publication.body_bytes,
-          publication.request_digest,publication.reply_until,publication.created_at,publication.expires_at,publication.cancelled_at,NULL::bytea AS manifest,'category' AS kind,
+          publication.request_digest,publication.reply_until,publication.created_at,publication.expires_at,publication.cancelled_at,NULL::bytea AS manifest,NULL::bytea AS conversation_context,'category' AS kind,
           target.message_id,target.grant_id,NULL::uuid AS connection_id,NULL::bigint AS connection_epoch,target.recipient_did,target.attempts,publication.expires_at<=clock_timestamp() AS expired,target.next_attempt_at
         FROM account_publications publication JOIN publication_targets target ON target.account_id=publication.account_id AND target.publication_id=publication.id
         WHERE publication.sealed AND target.state='pending' AND (target.next_attempt_at<=clock_timestamp() OR publication.expires_at<=clock_timestamp())
         UNION ALL SELECT publication.account_id,publication.id,publication.sender_did,publication.serving_generation,NULL::text,publication.body_bytes,
-          publication.request_digest,NULL::bigint,publication.created_at,publication.expires_at,publication.cancelled_at,publication.manifest,'connections',
+          publication.request_digest,NULL::bigint,publication.created_at,publication.expires_at,publication.cancelled_at,publication.manifest,publication.conversation_context,'connections',
           target.message_id,NULL::uuid,target.connection_id,target.connection_epoch,target.recipient_did,target.attempts,publication.expires_at<=clock_timestamp(),target.next_attempt_at
         FROM connection_message_batches publication JOIN connection_message_targets target ON target.account_id=publication.account_id AND target.publication_id=publication.id
         WHERE publication.sealed AND target.state='pending' AND (target.next_attempt_at<=clock_timestamp() OR publication.expires_at<=clock_timestamp())
@@ -203,14 +270,20 @@ export class AccountPublications {
           return true;
         }
         const manifest=row.kind==="connections"?decodeDeterministic(new Uint8Array(row.manifest!)) as unknown as ConnectionMessageTarget[]:null;
-        const expected=manifest?connectionDigest(manifest.map(t=>t.connectionId).sort(),new Uint8Array(row.body_bytes)):digest(row.category!,new Uint8Array(row.body_bytes),row.reply_until!==null);
-        if(!Buffer.from(expected).equals(Buffer.from(row.request_digest))||manifest&&!manifest.some(t=>t.connectionId===row.connection_id&&t.recipientDid===row.recipient_did&&t.epoch===Number(row.connection_epoch)))
+        const context=row.conversation_context?decodeDeterministic(new Uint8Array(row.conversation_context)) as unknown as SharedContext:null;
+        const expected=context?sharedDigest(new Uint8Array(row.conversation_context!),new Uint8Array(row.manifest!),new Uint8Array(row.body_bytes)):manifest?connectionDigest(manifest.map(t=>t.connectionId).sort(),new Uint8Array(row.body_bytes)):digest(row.category!,new Uint8Array(row.body_bytes),row.reply_until!==null);
+        if(!Buffer.from(expected).equals(Buffer.from(row.request_digest))||manifest&&!manifest.some(t=>t.connectionId===row.connection_id&&t.recipientDid===row.recipient_did&&(t.epoch===null?row.connection_epoch===null:t.epoch===Number(row.connection_epoch))))
           throw new Error("Persisted publication intent digest does not match");
         let state="submitted";
         try{
           const bytes=new Uint8Array(row.body_bytes),profile=validateBodyBytes(bytes);
           const content=profile==="spt-1"?{text:decodePayload("hail.body.spt-1",bytes).blocks[0]!.children[0]!.text}:{body:bodyDocument(bytes)};
-          await this.messaging.send({did:row.sender_did},{messageId:row.message_id,...content,...(row.kind==="connections"?
+          if(context){
+            if(!this.messaging.sendConversation)throw new Error('Shared conversation worker unavailable');
+            await this.messaging.sendConversation(row.sender_did,{messageId:row.message_id,recipient:row.recipient_did,creator:context.creator,conversationId:context.conversationId,
+              logicalId:context.logicalId,body:bytes,...(context.parent?{parent:context.parent}:{}),
+              ...(context.introduction?{introduction:{connection_id:row.connection_id!,epoch:Number(row.connection_epoch)}}:{})});
+          }else await this.messaging.send({did:row.sender_did},{messageId:row.message_id,...content,...(row.kind==="connections"?
             {connectionId:row.connection_id,connectionEpoch:Number(row.connection_epoch),recipientDid:row.recipient_did}:
             {grantId:row.grant_id,category:row.category,...(row.reply_until===null?{}:{replyUntil:Number(row.reply_until)})})});
         }catch(error){

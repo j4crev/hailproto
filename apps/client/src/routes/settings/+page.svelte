@@ -37,6 +37,7 @@
 <div class="mx-auto max-w-[860px]">
   <header class="page-heading"><h1 class="hail-title">Settings</h1></header>
   <p><a href="/settings/domains">Manage custom domains</a></p>
+  <p><a href="/settings/conversations">Shared conversation preferences</a></p>
   <section class="hail-card grid gap-6 p-6 sm:p-8" aria-label="Preferences">
     <div class="grid gap-3">
       <label class="hail-field" for="theme"><span>Appearance</span>

@@ -57,6 +57,7 @@ export function parseSent(value: unknown): SentItem[] {
 }
 
 export interface MessageView extends InboxItem {
+  sharedConversation?:{creator:string;conversationId:string;messageId:string;state:'active'|'expired'|'left';expiresAt:string;participants:string[];canRevive:boolean};
   conversation?:{unreadCount:number;lastActivity:string;messages:{sender:string;messageId:string;isRead:boolean}[]};
   inReplyTo?:{sender:string;messageId:string}|null;
   trashedAt: string | null;
@@ -214,6 +215,15 @@ export function parseMessage(value: unknown): MessageView {
   if(message.kind!==undefined&&message.kind!=="subscription"&&message.kind!=="connection")throw new Error("Unsupported message kind");
   if(message.kind==="connection"&&(message.category!==null||replyUntil!==null||message.replyAvailable===true))throw new Error("Connection messages cannot carry subscription or independent reply authority");
   let connection:MessageView["connection"];
+  let sharedConversation:MessageView['sharedConversation'];
+  if(message.sharedConversation!==undefined&&message.sharedConversation!==null){
+    const s=object(message.sharedConversation,'shared conversation'),did=/^did:plc:[a-z2-7]{24}$/,id=/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    if(message.kind!=='connection'||typeof s.creator!=='string'||!did.test(s.creator)||typeof s.conversationId!=='string'||!id.test(s.conversationId)||
+      typeof s.messageId!=='string'||!id.test(s.messageId)||!['active','expired','left'].includes(s.state as string)||typeof s.expiresAt!=='string'||!Number.isFinite(Date.parse(s.expiresAt))||
+      !Array.isArray(s.participants)||s.participants.length<3||s.participants.length>101||s.participants.some(v=>typeof v!=='string'||!did.test(v))||
+      new Set(s.participants).size!==s.participants.length||!s.participants.includes(s.creator)||typeof s.canRevive!=='boolean')throw new Error('Invalid shared conversation');
+    sharedConversation=s as unknown as NonNullable<MessageView['sharedConversation']>;
+  }
   if(message.connection!==undefined&&message.connection!==null){
     const item=object(message.connection,"connection authorization");
     if(message.kind!=="connection"||typeof item.id!=="string"||!/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(item.id)||
@@ -223,7 +233,7 @@ export function parseMessage(value: unknown): MessageView {
   return {
     ...(conversation?{conversation}:{}),
     ...(inReplyTo?{inReplyTo}:{}),
-    ...(message.kind==="connection"?{kind:"connection" as const}:{}),...(connection?{connection}:{}),
+    ...(message.kind==="connection"?{kind:"connection" as const}:{}),...(connection?{connection}:{}),...(sharedConversation?{sharedConversation}:{}),
     trashedAt: message.trashedAt == null ? null : text(message.trashedAt, "trash time"),
     isRead: message.isRead === true,
     messageId: text(message.messageId, "message ID"),

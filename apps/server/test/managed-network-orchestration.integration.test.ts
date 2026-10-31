@@ -260,9 +260,9 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
       destinationMessagingPublicKey:offer.destination_messaging_key,state:"fenced"});
     const manifest=validateManagedTransferManifest(exported.bytes);
     const apiExport=await call("/api/v1/account/transfers/managed/export","POST",JSON.stringify({transferId:offer.transfer_id}));
-    expect(apiExport.status).toBe(200);expect(await apiExport.json()).toMatchObject({type:"hail.managed-migration-transfer",version:6,
+    expect(apiExport.status).toBe(200);expect(await apiExport.json()).toMatchObject({type:"hail.managed-migration-transfer",version:8,
       manifest:encodeBase64Url(exported.bytes),digest:encodeBase64Url(exported.digest),signature:encodeBase64Url(exported.signature)});
-    expect(manifest).toMatchObject({version:6,custodyProfile:"managed",did,sourceGeneration:1,
+    expect(manifest).toMatchObject({version:8,custodyProfile:"managed",did,sourceGeneration:1,
       ownerRecoveryPublicKey:owner.did(),sourceIdentityPublicKey:keys.identityDidKey,
       destinationIdentityPublicKey:offer.destination_identity_key});
     expect(manifest.tables.managed_custody_evidence[0]?.managed_profile_version).toBe("hail-managed-custody-v1");

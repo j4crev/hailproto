@@ -233,6 +233,11 @@ const migrations: readonly Migration[] = [
   {version:89,name:"standalone-domain-signup",url:new URL("../../migrations/0089_standalone_domain_signup.sql",import.meta.url)},
   {version:90,name:"nonexpiring-address-bindings",url:new URL("../../migrations/0090_nonexpiring_address_bindings.sql",import.meta.url)},
   {version:91,name:"address-release",url:new URL("../../migrations/0091_address_release.sql",import.meta.url)},
+  {version:92,name:"conversation-introduction-preferences",url:new URL("../../migrations/0092_conversation_introduction_preferences.sql",import.meta.url)},
+  {version:93,name:"conversation-memberships",url:new URL("../../migrations/0093_conversation_memberships.sql",import.meta.url)},
+  {version:94,name:"conversation-envelopes",url:new URL("../../migrations/0094_conversation_envelopes.sql",import.meta.url)},
+  {version:95,name:"conversation-batches",url:new URL("../../migrations/0095_conversation_batches.sql",import.meta.url)},
+  {version:96,name:"conversation-revival-outbox",url:new URL("../../migrations/0096_conversation_revival_outbox.sql",import.meta.url)},
 ];
 
 export class ProviderDatabase {

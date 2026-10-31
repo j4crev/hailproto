@@ -119,6 +119,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         let input:unknown;try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}catch{return problem(400);}
         if(!input||typeof input!=="object"||Array.isArray(input))return problem(400);
         if(operation==="create")return context.json(kind==="connections"?await publications.createConnections(session,input as Record<string,unknown>):await publications.create(session,input as Record<string,unknown>),202);
+        if(operation==='reply-all')return context.json(await publications.replyConversation(session,input as Record<string,unknown>),202);
         if(Object.keys(input).length)return problem(400);
         const found=await publications.cancel(session,grantId!,kind);return found?context.json(found):problem(404);
       }
@@ -516,6 +517,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/publications/:publicationId/cancel",context=>handle(context,context.req.param("publicationId"),"publication-cancel"));
   app.all("/api/v1/account/publications/:publicationId",context=>handle(context,context.req.param("publicationId"),"publication-status"));
   app.all("/api/v1/account/connection-messages/targets",context=>handle(context,null,"connection-message-targets"));
+  app.all('/api/v1/account/connection-messages/reply-all',context=>handle(context,null,'connection-message-reply-all'));
   app.all("/api/v1/account/connection-messages",context=>handle(context,null,"connection-message-create"));
   app.all("/api/v1/account/connection-messages/:publicationId/cancel",context=>handle(context,context.req.param("publicationId"),"connection-message-cancel"));
   app.all("/api/v1/account/connection-messages/:publicationId",context=>handle(context,context.req.param("publicationId"),"connection-message-status"));

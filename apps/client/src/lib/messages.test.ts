@@ -132,3 +132,14 @@ it("moves only a leading title out of the displayed body", async () => {
   expect(messageDisplayContent(blocks.slice(1))).toEqual({title:"",blocks:blocks.slice(1)});
   expect(messageDisplayContent([])).toEqual({title:"",blocks:[]});
 });
+
+it('parses shared permission independently from a direct connection and rejects invalid rosters',()=>{
+  const did=(letter:string)=>'did:plc:'+letter.repeat(24),id='019a0000-0000-7000-8000-000000000001';
+  const shared={creator:did('a'),conversationId:id,messageId:id,state:'active',expiresAt:'2028-10-31T00:00:00Z',participants:[did('a'),did('b'),did('c')],canRevive:false};
+  const source={messageId:id,sender:did('b'),recipient:did('c'),deliveredAt:'2026-10-31T00:00:00Z',kind:'connection',category:null,replyUntil:null,replyAvailable:false,sharedConversation:shared,
+    body:{version:1,profile:'spt-1',blocks:[{_type:'block',style:'normal',children:[{_type:'span',text:'Group reply',marks:[]}],markDefs:[]}]}};
+  expect(parseMessage(source)).toMatchObject({sharedConversation:shared,replyAvailable:false});
+  expect(parseMessage(source).connection).toBeUndefined();
+  expect(()=>parseMessage({...source,sharedConversation:{...shared,participants:[did('a'),did('b'),did('b')]}})).toThrow('Invalid shared conversation');
+  expect(parseMessage({...source,sharedConversation:{...shared,state:'left'}}).sharedConversation?.state).toBe('left');
+});

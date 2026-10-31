@@ -10,6 +10,8 @@ const (
 	ConnectionConfirmationType = "hail.connection-confirmation"
 	ConnectionGrantType        = "hail.connection-grant"
 	ConnectionControlType      = "hail.connection-control"
+	ConversationType           = "hail.conversation"
+	ConversationRevivalType    = "hail.conversation-revival"
 	EnvelopeType               = "hail.envelope"
 	DeliveryStatusType         = "hail.delivery-status"
 	BodySPT1Type               = "hail.body.spt-1"
@@ -176,11 +178,15 @@ type ConnectionControl struct {
 func (ConnectionControl) PayloadType() string { return ConnectionControlType }
 
 type EnvelopeAuthorization struct {
-	Type         string `cbor:"type"`
-	GrantID      string `cbor:"grant_id,omitempty"`
-	ReplyTo      string `cbor:"reply_to,omitempty"`
-	ConnectionID string `cbor:"connection_id,omitempty"`
-	Epoch        int64  `cbor:"epoch,omitempty"`
+	Creator            string  `cbor:"creator,omitempty"`
+	ConversationID     string  `cbor:"conversation_id,omitempty"`
+	MembershipRevision int64   `cbor:"membership_revision,omitempty"`
+	DescriptorHash     *Digest `cbor:"descriptor_hash,omitempty"`
+	Type               string  `cbor:"type"`
+	GrantID            string  `cbor:"grant_id,omitempty"`
+	ReplyTo            string  `cbor:"reply_to,omitempty"`
+	ConnectionID       string  `cbor:"connection_id,omitempty"`
+	Epoch              int64   `cbor:"epoch,omitempty"`
 }
 
 type BearerAccess struct {
@@ -209,19 +215,21 @@ type MessageReference struct {
 }
 
 type Envelope struct {
-	InReplyTo     *MessageReference     `cbor:"in_reply_to,omitempty"`
-	Type          string                `cbor:"type"`
-	Version       int64                 `cbor:"version"`
-	MessageID     string                `cbor:"message_id"`
-	From          string                `cbor:"from"`
-	To            string                `cbor:"to"`
-	Authorization EnvelopeAuthorization `cbor:"authorization"`
-	Category      string                `cbor:"category,omitempty"`
-	MessageType   string                `cbor:"message_type,omitempty"`
-	CreatedAt     int64                 `cbor:"created_at"`
-	ExpiresAt     int64                 `cbor:"expires_at"`
-	Body          BodyDescriptor        `cbor:"body"`
-	Reply         ReplyPermission       `cbor:"reply"`
+	ConversationMessageID    string                    `cbor:"conversation_message_id,omitempty"`
+	ConversationIntroduction *ConversationIntroduction `cbor:"conversation_introduction,omitempty"`
+	InReplyTo                *MessageReference         `cbor:"in_reply_to,omitempty"`
+	Type                     string                    `cbor:"type"`
+	Version                  int64                     `cbor:"version"`
+	MessageID                string                    `cbor:"message_id"`
+	From                     string                    `cbor:"from"`
+	To                       string                    `cbor:"to"`
+	Authorization            EnvelopeAuthorization     `cbor:"authorization"`
+	Category                 string                    `cbor:"category,omitempty"`
+	MessageType              string                    `cbor:"message_type,omitempty"`
+	CreatedAt                int64                     `cbor:"created_at"`
+	ExpiresAt                int64                     `cbor:"expires_at"`
+	Body                     BodyDescriptor            `cbor:"body"`
+	Reply                    ReplyPermission           `cbor:"reply"`
 }
 
 func (Envelope) PayloadType() string { return EnvelopeType }
@@ -382,6 +390,16 @@ func clonePayload(payload Payload) Payload {
 		return &cloned
 	case *Envelope:
 		cloned := *value
+		if value.Authorization.DescriptorHash != nil {
+			d := *value.Authorization.DescriptorHash
+			d.Value = bytes.Clone(d.Value)
+			cloned.Authorization.DescriptorHash = &d
+		}
+		if value.ConversationIntroduction != nil {
+			i := *value.ConversationIntroduction
+			i.Descriptor = bytes.Clone(i.Descriptor)
+			cloned.ConversationIntroduction = &i
+		}
 		if value.InReplyTo != nil {
 			parent := *value.InReplyTo
 			cloned.InReplyTo = &parent
@@ -392,6 +410,14 @@ func clonePayload(payload Payload) Payload {
 			until := *value.Reply.Until
 			cloned.Reply.Until = &until
 		}
+		return &cloned
+	case *Conversation:
+		cloned := *value
+		cloned.Participants = append([]string(nil), value.Participants...)
+		return &cloned
+	case *ConversationRevival:
+		cloned := *value
+		cloned.DescriptorHash.Value = bytes.Clone(value.DescriptorHash.Value)
 		return &cloned
 	case *DeliveryStatus:
 		cloned := *value

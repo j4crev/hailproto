@@ -1,3 +1,4 @@
+import {reconstructConversations} from './conversation-history.js';
 import {createHash} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import type {SQL} from 'bun';
@@ -268,6 +269,7 @@ export async function reconstructConnections(sql:SQL,manifest:Manifest,generatio
     const result=decodeConnectionHandoverResult({payloadBytes:new Uint8Array(row.peer_commit_payload),signature:new Uint8Array(row.peer_commit_signature)});
     await applyConnectionTerminals(sql,manifest.accountId,peer,result.terminal_ids);
   }
+  if(manifest.conversations)await reconstructConversations(sql,manifest.conversations);
   const historyBytes=new TextEncoder().encode(JSON.stringify(history));
   const archive=(await sql<{history_bytes:Uint8Array;history_digest:Uint8Array}[]>`SELECT history_bytes,history_digest FROM connection_history_archives WHERE account_id=${manifest.accountId} AND transfer_id=${manifest.transferId}`)[0];
   if(archive){if(!same(archive.history_bytes,historyBytes)||!same(archive.history_digest,connectionHistoryDigest(history)))throw new Error('Connection history archive conflicts with retained bytes');}

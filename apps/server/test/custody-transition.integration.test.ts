@@ -163,7 +163,10 @@ integration.each([[false,false],[true,false],[true,true]])("same-provider custod
     }
 
     const discover=vi.fn(async():Promise<string|null>=>"local.example.com");
-    const service=new SameProviderCustodyTransition(db.sql,plc,resolver,encryptor,serviceBase,verifier,()=>new Date(),discover);
+    let custodyClockOffset=0;
+    const service=new SameProviderCustodyTransition(db.sql,plc,resolver,encryptor,serviceBase,verifier,()=>new Date(Date.now()+custodyClockOffset),discover);
+    let preparationFailure:unknown;const prepareOwner=service.prepareOwner.bind(service);
+    vi.spyOn(service,'prepareOwner').mockImplementation(async(...args)=>{try{return await prepareOwner(...args);}catch(error){preparationFailure=error;throw error;}});
     if(withConnections){
       // In-flight disconnects must settle before preparation can fence their worker.
       await expect(db.sql.begin(async tx=>{
@@ -270,6 +273,7 @@ integration.each([[false,false],[true,false],[true,true]])("same-provider custod
         {ciphertext:key.encrypted_private_key,nonce:key.encryption_nonce,encryptionVersion:1,kekId:'poc-v1'});
       try{await addCode(2,await importEd25519PrivateKey(raw),transition.newIdentityKey,true);}finally{raw.fill(0);}
     }
+    custodyClockOffset=-2000;
     const nextIdentity=await publicEdKey(),review=await service.reviewOwner(prepared.accountId,nextIdentity.didKey);
     expect(review.direction).toBe("managed-to-owner");expect(review.activeGrants).toHaveLength(1);
     const ownerBinding=await signPayload("hail.address-binding",review.binding,
@@ -282,10 +286,15 @@ integration.each([[false,false],[true,false],[true,true]])("same-provider custod
     const reviewResponse=await app.request("https://local.example.com/api/v1/account/custody/owner-controlled/review",{method:"POST",
       headers:{Authorization:`Bearer ${reverseToken}`,"Content-Type":"application/json"},body:JSON.stringify({newIdentityKey:nextIdentity.didKey})});
     expect(reviewResponse.status).toBe(200);expect((await reviewResponse.json() as {direction:string}).direction).toBe("managed-to-owner");
+    custodyClockOffset=0; // A signed review must survive crossing a wall-clock second.
+    for(const issuedAt of [review.binding.issued_at-901,review.binding.issued_at+900]){
+      const stale=await signPayload('hail.address-binding',{...review.binding,issued_at:issuedAt},createWebCryptoSigner(`${did}#hail-identity`,nextIdentity.pair.privateKey));
+      await expect(service.prepareOwner(prepared.accountId,nextIdentity.didKey,stale,ownerGrants)).rejects.toThrow('expired or is not yet valid');
+    }
     const reversePreparedResponse=await app.request("https://local.example.com/api/v1/account/custody/owner-controlled",{method:"POST",
       headers:{Authorization:`Bearer ${reverseToken}`,"Content-Type":"application/json"},body:JSON.stringify({newIdentityKey:nextIdentity.didKey,
         binding:encodeBase64Url(ownerBinding),grants:ownerGrants.map(value=>({grantId:value.grantId,cose:encodeBase64Url(value.cose)}))})});
-    expect(reversePreparedResponse.status,await reversePreparedResponse.clone().text()).toBe(200);
+    expect(reversePreparedResponse.status,String(preparationFailure??await reversePreparedResponse.clone().text())).toBe(200);
     const reverse=await service.prepareOwner(prepared.accountId,nextIdentity.didKey,ownerBinding,ownerGrants);
     expect(reverse.direction).toBe("managed-to-owner");expect(reverse.generationFrom).toBe(2);
     const reverseOperation=await signOperation(reverse.unsignedOperation,owner),reverseBytes=new TextEncoder().encode(JSON.stringify(reverseOperation));

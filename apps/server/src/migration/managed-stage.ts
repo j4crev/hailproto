@@ -150,7 +150,7 @@ export class ManagedMigrationStageService {
     const operationDigest = await this.validateOperation(operationBytes, manifest, approval.previous_operation_cid,
       approval.operation_cid, resolved.evidence.data as DocumentData, resolved.evidence.log);
     await this.target.assertOwnership(prepared);
-    if(manifest.connections)await verifyConnectionHistoryAuthority(manifest.connections,this.resolver);
+    if(manifest.connections)await verifyConnectionHistoryAuthority(manifest.connections,this.resolver,new Date(),manifest.conversations);
     const destinationBinding = await this.target.createManagedDestinationBinding(prepared,
       approval.destination_address, approval.issued_at);
     const bindingDigest = sha256(destinationBinding);

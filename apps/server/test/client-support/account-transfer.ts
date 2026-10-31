@@ -206,7 +206,7 @@ async function retainedSelection(state:State) {
   return {offer,selection,reservation};
 }
 function snapshotMatches(manifest:Record<string,unknown>,state:State,offer:Record<string,any>) {
-  if(![2,3,5].includes(manifest.version as number)||manifest.custodyProfile!=="portable"||manifest.did!==state.did||manifest.accountId!==state.accountId||manifest.transferId!==offer.transfer_id||
+  if(![2,3,5,7].includes(manifest.version as number)||manifest.custodyProfile!=="portable"||manifest.did!==state.did||manifest.accountId!==state.accountId||manifest.transferId!==offer.transfer_id||
     manifest.sourceServiceBase!==`${state.provider}/hail`||manifest.destinationServiceBase!==`${state.destination}/hail`||
     manifest.destinationRotationPublicKey!==offer.destination_rotation_key||manifest.destinationMessagingPublicKey!==offer.destination_messaging_key)throw new Error("Snapshot differs from the retained account/Offer");
 }

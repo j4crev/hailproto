@@ -384,6 +384,34 @@ function validateConnectionConfirmation(payload:HailRecord):void {
   keyId(payload.key_id,actor,"hail-identity","$.key_id");
 }
 
+function validateConversation(payload:HailRecord):void {
+  exactKeys(payload,["type","version","conversation_id","from","membership_revision","participants","created_at","admission_until"],[],"$");
+  uuid(payload.conversation_id,"$.conversation_id");
+  const creator=did(payload.from,"$.from");
+  if(payload.membership_revision!==1)fail("fixed roster requires revision 1","$.membership_revision");
+  const members=array(payload.participants,"$.participants");
+  if(members.length<3||members.length>101)fail("requires 3 to 101 participants","$.participants");
+  let previous="";
+  for(const [index,member] of members.entries()){
+    const current=did(member,`$.participants[${index}]`);
+    if(current<=previous)fail("participants must be unique and sorted by DID","$.participants");
+    previous=current;
+  }
+  if(!members.includes(creator))fail("creator must be a participant","$.participants");
+  const created=integer(payload.created_at,"$.created_at"),until=integer(payload.admission_until,"$.admission_until");
+  if(until<=created||until-created>604800)fail("admission window must be positive and at most 7 days","$.admission_until");
+}
+
+function validateConversationRevival(payload:HailRecord):void {
+  exactKeys(payload,["type","version","conversation_id","descriptor_hash","from","to","request_id","issued_at","expires_at"],[],"$");
+  uuid(payload.conversation_id,"$.conversation_id");
+  uuid(payload.request_id,"$.request_id");
+  digest(payload.descriptor_hash,"$.descriptor_hash");
+  if(did(payload.from,"$.from")===did(payload.to,"$.to"))fail("revival requires a distinct recipient","$.to");
+  const issued=integer(payload.issued_at,"$.issued_at"),expires=integer(payload.expires_at,"$.expires_at");
+  if(expires<=issued||expires-issued>86400)fail("revival window must be positive and at most 24 hours","$.expires_at");
+}
+
 function validateConnectionControl(payload:HailRecord):void {
   exactKeys(payload,["type","version","operation","from","to","request_id","connection_id","epoch","state","proof_hash","issued_at","expires_at","key_id"],[],"$");
   const actor=did(payload.from,"$.from");did(payload.to,"$.to");
@@ -435,7 +463,8 @@ function validateEnvelope(payload: HailRecord): void {
       "body",
       "reply",
     ],
-    payload.version === 3 ? ["category", "message_type", "in_reply_to"] : ["category", "message_type"],
+    payload.version === 4 ? ["message_type","in_reply_to","conversation_message_id","conversation_introduction"] :
+      payload.version === 3 ? ["category", "message_type", "in_reply_to"] : ["category", "message_type"],
     "$",
   );
   uuid(payload.message_id, "$.message_id");
@@ -457,8 +486,30 @@ function validateEnvelope(payload: HailRecord): void {
     exactKeys(authorization,["type","connection_id","epoch"],[],"$.authorization");
     uuid(authorization.connection_id,"$.authorization.connection_id");integer(authorization.epoch,"$.authorization.epoch",1);
     if(payload.category!==undefined)fail("connections do not use subscription categories","$.category");
+  } else if(authorizationType==="conversation"){
+    if(payload.version!==4)fail("conversation authorization requires envelope version 4","$.version");
+    exactKeys(authorization,["type","creator","conversation_id","membership_revision","descriptor_hash"],[],"$.authorization");
+    did(authorization.creator,"$.authorization.creator");uuid(authorization.conversation_id,"$.authorization.conversation_id");
+    if(authorization.membership_revision!==1)fail("fixed roster requires revision 1","$.authorization.membership_revision");
+    digest(authorization.descriptor_hash,"$.authorization.descriptor_hash");
+    uuid(payload.conversation_message_id,"$.conversation_message_id");
+    if(payload.from===payload.to)fail("distinct conversation participants required","$.to");
+    if(payload.conversation_introduction!==undefined){
+      const intro=record(payload.conversation_introduction,"$.conversation_introduction");
+      exactKeys(intro,["descriptor","connection_id","epoch"],[],"$.conversation_introduction");
+      uuid(intro.connection_id,"$.conversation_introduction.connection_id");integer(intro.epoch,"$.conversation_introduction.epoch",1);
+      if(!(intro.descriptor instanceof Uint8Array)||intro.descriptor.length<1||intro.descriptor.length>16384)fail("invalid signed descriptor bytes","$.conversation_introduction.descriptor");
+      if(payload.from!==authorization.creator||payload.in_reply_to!==undefined||payload.conversation_message_id!==authorization.conversation_id)fail("only the creator can introduce the root message","$.conversation_introduction");
+      const expected=record(authorization.descriptor_hash,"$.authorization.descriptor_hash");
+      if(!Buffer.from(createHash("sha256").update(intro.descriptor).digest()).equals(Buffer.from(expected.value as Uint8Array)))fail("descriptor hash mismatch","$.authorization.descriptor_hash");
+    }
   } else {
     fail("unknown authorization type", "$.authorization.type");
+  }
+  if(payload.version===4&&payload.in_reply_to!==undefined){
+    const parent=record(payload.in_reply_to,"$.in_reply_to");exactKeys(parent,["sender","message_id"],[],"$.in_reply_to");
+    did(parent.sender,"$.in_reply_to.sender");uuid(parent.message_id,"$.in_reply_to.message_id");
+    if(parent.sender===payload.from&&parent.message_id===payload.conversation_message_id)fail("conversation message cannot reply to itself","$.in_reply_to");
   }
   if (payload.version === 3) {
     const parent = record(payload.in_reply_to, "$.in_reply_to");
@@ -504,7 +555,7 @@ function validateEnvelope(payload: HailRecord): void {
   }
   const reply = record(payload.reply, "$.reply");
   const allowed = boolean(reply.allowed, "$.reply.allowed");
-  if(authorizationType==="connection"&&allowed)fail("connection messages do not issue independent reply capabilities","$.reply.allowed");
+  if((authorizationType==="connection"||authorizationType==="conversation")&&allowed)fail("connection/conversation messages do not issue independent reply capabilities","$.reply.allowed");
   exactKeys(reply, ["allowed", ...(allowed ? ["until"] : [])], [], "$.reply");
   if (allowed && integer(reply.until, "$.reply.until") <= createdAt) {
     fail("must be after created_at", "$.reply.until");
@@ -725,7 +776,7 @@ export function validatePayload<T extends HailPayloadType>(
     return;
   }
   if (payload.type !== expectedType) fail(`must equal ${expectedType}`, "$.type");
-  if (expectedType !== "hail.address-binding" && expectedType !== "hail.sender-profile" && !(expectedType==="hail.envelope"&&(payload.version===2||payload.version===3)) && payload.version !== 1) fail("must equal integer 1", "$.version");
+  if (expectedType !== "hail.address-binding" && expectedType !== "hail.sender-profile" && !(expectedType==="hail.envelope"&&(payload.version===2||payload.version===3||payload.version===4)) && payload.version !== 1) fail("must equal integer 1", "$.version");
 
   switch (expectedType) {
     case "hail.address-binding":
@@ -745,6 +796,10 @@ export function validatePayload<T extends HailPayloadType>(
       validateConnectionGrant(payload);break;
     case "hail.connection-control":
       validateConnectionControl(payload);break;
+    case "hail.conversation":
+      validateConversation(payload);break;
+    case "hail.conversation-revival":
+      validateConversationRevival(payload);break;
     case "hail.envelope":
       validateEnvelope(payload);
       break;

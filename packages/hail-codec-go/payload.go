@@ -73,6 +73,10 @@ func DecodePayload(payloadType string, data []byte) (Payload, error) {
 		out = &ConnectionGrant{}
 	case ConnectionControlType:
 		out = &ConnectionControl{}
+	case ConversationType:
+		out = &Conversation{}
+	case ConversationRevivalType:
+		out = &ConversationRevival{}
 	case EnvelopeType:
 		out = &Envelope{}
 	case DeliveryStatusType:
@@ -148,6 +152,20 @@ func payloadValue(payload Payload) (map[any]any, string, error) {
 		return connectionControlValue(value), ConnectionControlType, nil
 	case Envelope:
 		return envelopeValue(&value), EnvelopeType, nil
+	case Conversation:
+		return conversationValue(&value), ConversationType, nil
+	case *Conversation:
+		if value == nil {
+			return nil, "", errors.New("nil conversation")
+		}
+		return conversationValue(value), ConversationType, nil
+	case ConversationRevival:
+		return conversationRevivalValue(&value), ConversationRevivalType, nil
+	case *ConversationRevival:
+		if value == nil {
+			return nil, "", errors.New("nil conversation revival")
+		}
+		return conversationRevivalValue(value), ConversationRevivalType, nil
 	case *Envelope:
 		if value == nil {
 			return nil, "", errors.New("nil envelope payload")
@@ -245,6 +263,18 @@ func grantValue(value *Grant) map[any]any {
 
 func envelopeValue(value *Envelope) map[any]any {
 	authorization := map[any]any{"type": value.Authorization.Type}
+	if value.Authorization.Creator != "" {
+		authorization["creator"] = value.Authorization.Creator
+	}
+	if value.Authorization.ConversationID != "" {
+		authorization["conversation_id"] = value.Authorization.ConversationID
+	}
+	if value.Authorization.MembershipRevision != 0 {
+		authorization["membership_revision"] = value.Authorization.MembershipRevision
+	}
+	if value.Authorization.DescriptorHash != nil {
+		authorization["descriptor_hash"] = digestValue(*value.Authorization.DescriptorHash)
+	}
 	if value.Authorization.GrantID != "" {
 		authorization["grant_id"] = value.Authorization.GrantID
 	}
@@ -270,6 +300,13 @@ func envelopeValue(value *Envelope) map[any]any {
 	}
 	if value.InReplyTo != nil {
 		result["in_reply_to"] = map[any]any{"sender": value.InReplyTo.Sender, "message_id": value.InReplyTo.MessageID}
+	}
+	if value.ConversationMessageID != "" {
+		result["conversation_message_id"] = value.ConversationMessageID
+	}
+	if value.ConversationIntroduction != nil {
+		i := value.ConversationIntroduction
+		result["conversation_introduction"] = map[any]any{"descriptor": i.Descriptor, "connection_id": i.ConnectionID, "epoch": i.Epoch}
 	}
 	if value.Category != "" {
 		result["category"] = value.Category
@@ -576,7 +613,7 @@ func validatePayloadMap(kind string, m map[any]any) error {
 		if e != nil || v != 2 {
 			return errors.New("address-binding version must equal 2")
 		}
-	} else if e != nil || v != 1 && !((kind == SenderProfileType || kind == EnvelopeType) && v == 2) && !(kind == EnvelopeType && v == 3) {
+	} else if e != nil || v != 1 && !((kind == SenderProfileType || kind == EnvelopeType) && v == 2) && !(kind == EnvelopeType && (v == 3 || v == 4)) {
 		if kind == SenderProfileType {
 			return errors.New("$.version must equal 1 or 2")
 		}
@@ -597,6 +634,10 @@ func validatePayloadMap(kind string, m map[any]any) error {
 		return validateConnectionGrant(m)
 	case ConnectionControlType:
 		return validateConnectionControl(m)
+	case ConversationType:
+		return validateConversation(m)
+	case ConversationRevivalType:
+		return validateConversationRevival(m)
 	case EnvelopeType:
 		return validateEnvelope(m)
 	case DeliveryStatusType:
@@ -807,6 +848,9 @@ func validateEnvelope(m map[any]any) error {
 	if version == 3 {
 		optional = append(optional, "in_reply_to")
 	}
+	if version == 4 {
+		optional = []string{"message_type", "in_reply_to", "conversation_message_id", "conversation_introduction"}
+	}
 	if e := exact(m, req, optional, "$"); e != nil {
 		return e
 	}
@@ -866,6 +910,13 @@ func validateEnvelope(m map[any]any) error {
 		}
 		if has(m, "category") {
 			return errors.New("connections do not use subscription categories")
+		}
+	case "conversation":
+		if version != 4 {
+			return errors.New("conversation requires envelope version 4")
+		}
+		if e = validateConversationEnvelope(m, a); e != nil {
+			return e
 		}
 	default:
 		return errors.New("unknown authorization type")

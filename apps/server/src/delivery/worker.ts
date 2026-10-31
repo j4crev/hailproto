@@ -18,7 +18,7 @@ export class DeliveryWorker {
       await this.store.fail(claim, "delivery-expired");
       return "failed";
     }
-    if(claim.envelope.authorization.type==="connection"){
+    if(claim.envelope.authorization.type==="connection"||claim.envelope.authorization.type==='conversation'){
       try{
         if(!this.store.authorizeConnection)throw new Error("Connection verification unavailable");
         if(!await this.store.authorizeConnection(claim)){await this.store.fail(claim,"receiver-policy-rejected");return "failed";}

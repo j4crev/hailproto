@@ -211,7 +211,7 @@ export class UnlockedUserVault {
       const keys=[value.owner_recovery_key,value.source_identity_key,value.destination_rotation_key,
         value.destination_identity_key,value.destination_messaging_key];
       if(value.owner_recovery_key!==this.vault.recovery.publicDidKey||new Set(keys).size!==keys.length||
-        value.selection_digest.length!==32||![4,6].includes(value.snapshot_version)||value.snapshot_digest.length!==32||
+        value.selection_digest.length!==32||![4,6,8].includes(value.snapshot_version)||value.snapshot_digest.length!==32||
         value.history_checkpoint_digest.length!==32||!Number.isSafeInteger(value.source_generation)||value.source_generation<1||
         !value.previous_operation_cid||!value.operation_cid||value.previous_operation_cid===value.operation_cid)
         throw new Error("Managed transfer approval must bind the exact v4 cutover and current owner");

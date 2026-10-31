@@ -29,7 +29,7 @@ export async function messageThread(sql:SQL,session:AccountApiSession,root:Refer
           COALESCE(e.parent_message_id,e.reply_to_message_id) AS parent_id
         FROM sent_envelopes e JOIN detached_bodies b
           ON b.sender_account_id=e.sender_account_id AND b.digest=e.body_digest
-        WHERE e.sender_account_id=${session.account_id} AND e.sender_did=${session.did} AND e.recipient_did=${peer}
+        WHERE e.sender_account_id=${session.account_id} AND e.sender_did=${session.did} AND e.recipient_did=${peer} AND e.authorization_type<>'conversation'
         UNION ALL
         SELECT e.sender_did,e.message_id,e.recipient_did,e.envelope_cose,b.body_bytes,d.is_read,
           COALESCE(e.parent_sender,CASE WHEN e.authorization_type='reply' THEN e.recipient_did END),
@@ -38,7 +38,7 @@ export async function messageThread(sql:SQL,session:AccountApiSession,root:Refer
         JOIN verified_body_contents b ON b.recipient_did=d.recipient_did AND b.sender_did=d.sender_did
           AND b.digest=d.body_digest AND b.media_type=d.media_type AND b.profile=d.profile
         WHERE e.local_account_id=${session.account_id} AND e.recipient_did=${session.did}
-          AND e.sender_did=${peer} AND d.trashed_at IS NULL
+          AND e.sender_did=${peer} AND d.trashed_at IS NULL AND e.authorization_type<>'conversation'
       ), frontier AS (
         SELECT value->>'sender' AS sender,(value->>'messageId')::uuid AS id
         FROM jsonb_array_elements(${JSON.stringify(frontier)}::text::jsonb)

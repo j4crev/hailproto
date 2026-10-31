@@ -1,3 +1,4 @@
+import {pruneConversationState} from './accounts/conversation-memberships.js';
 import { createApp } from "./app.js";
 import {PasskeyAuth} from "./accounts/passkeys.js";
 import { loadConfig } from "./config.js";
@@ -218,7 +219,7 @@ setInterval(async()=>{
 let connectionRunning=false;
 if(connections?.federation)setInterval(async()=>{
   if(connectionRunning)return;connectionRunning=true;
-  try{await withFreshServingGenerations(database.sql,()=>connections.federation!.workOne());}
+  try{await withFreshServingGenerations(database.sql,()=>connections.federation!.workOne());await withFreshServingGenerations(database.sql,()=>connections.workConversationRevival());}
   catch(error){console.error(JSON.stringify({level:"error",message:"connection federation worker failed",error:error instanceof Error?error.message:"unknown error"}));}
   finally{connectionRunning=false;}
 },1_000);
@@ -226,7 +227,7 @@ if(connections?.federation)setInterval(async()=>{
 let trashCleanupRunning=false;
 async function cleanTrash(){
   if(trashCleanupRunning)return;trashCleanupRunning=true;
-  try{await messaging.trash.purgeExpired();}
+  try{await messaging.trash.purgeExpired();await withFreshServingGenerations(database.sql,()=>pruneConversationState(database.sql));}
   catch(error){console.error(JSON.stringify({level:"error",message:"Trash cleanup failed",error:error instanceof Error?error.message:"unknown error"}));}
   finally{trashCleanupRunning=false;}
 }
@@ -365,7 +366,7 @@ const app = createApp(config, schemaRehearsal ? {
   ),
   bodyStore: new BodyRepository(database.sql),
   envelopeReceiver: new EnvelopeReceiver(
-    onboardingRepository, new EnvelopeRepository(database.sql), resolver, config.hailServiceBase,
+    onboardingRepository, new EnvelopeRepository(database.sql), resolver, config.hailServiceBase,undefined,connectionAuthority,
   ),
   deliveryStatusSigner: statusSigner,
   deliveryStatusReceiver: new DeliveryStatusReceiver(database.sql, onboardingRepository, resolver, config.hailServiceBase),

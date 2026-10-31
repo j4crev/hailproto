@@ -73,7 +73,7 @@ export async function recoverConnection(requestId:string):Promise<ConnectApprova
   return next;
 }
 export async function connectionRequest(step="",body?:unknown){
-  if(!["","prepare","commit","review"].includes(step)&&!UUID.test(step))throw new Error("Invalid connection action.");
+  if(!["","prepare","commit","review","conversation-preferences","conversation-membership","conversation-revive"].includes(step)&&!UUID.test(step))throw new Error("Invalid connection action.");
   const response=await fetch("/api/v1/account/connections"+(step?"/"+step:""),{method:body===undefined?"GET":"POST",
     credentials:"same-origin",cache:"no-store",redirect:"error",signal:AbortSignal.timeout(45_000),
     headers:body===undefined?{}:{"Content-Type":"application/json"},...(body===undefined?{}:{body:JSON.stringify(body)})});

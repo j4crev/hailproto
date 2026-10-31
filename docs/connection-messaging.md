@@ -170,3 +170,165 @@ references are derived from existing authorization columns. Migration rollback
 refuses once threaded envelopes have been retained. Deploy version-3 readers
 to both peers before sending threaded replies; there is no capability discovery
 or silent downgrade in this change.
+
+## Shared conversations implementation checklist
+
+Status: shared compose defaults, provider admission/delivery, Reply all, recipient
+leases/leave, creator revival, and versioned portable state are implemented.
+The earlier private-copy behavior remains available as an explicit compose choice.
+See [protocol and rollout details](../spec/shared-conversations.md).
+Conversation membership grants scoped delivery permission; it does not create
+connections or infer transitive trust between participants.
+
+### Compose, replies and audience
+
+- [x] Make shared conversation the default when composing to multiple connections.
+  Retain **Send private copies** as an explicit alternative.
+- [x] Add **Reply** and **Reply all**, clearly showing the audience before sending.
+  Reply all reaches authorized conversation participants even when they are not
+  direct connections of the replying sender.
+- [x] Keep private replies under direct-message authority. A conversation grant
+  alone does not authorize a separate private exchange between non-connections.
+  Do not automatically quote private replies into later shared messages.
+- [x] Preserve existing private-copy batches and replies as private history; do
+  not retroactively turn their local conversation grouping into shared membership.
+- [x] Start with a fixed participant roster. Adding a participant creates a new
+  conversation subject to normal admission rules, not an expansion of old grants.
+  Do not automatically disclose prior history to newly introduced participants.
+
+### Automatic admission and provider authorization
+
+- [x] Add a disclosed global preference allowing connections to introduce shared
+  conversations, with per-connection overrides. The agreed product default is on
+  for accounts without a saved choice; preserve all explicit global and individual
+  opt-outs. Explain this introduction policy to existing and new users at rollout.
+  Settings → Shared conversations saves explicit global and per-connection choices;
+  the default is on. Overrides bind to the exact connection ID/epoch, with null
+  meaning inherit. Reconnection uses the global policy until a new override is set.
+- [x] Admit recipients automatically according to those settings, without a manual
+  Join/Accept step in the normal flow. A disallowed introduction must not authorize
+  messages from the other participants.
+- [x] Define signed fixed-roster conversation descriptors and creator-only revival
+  requests in both codecs, with shared vectors and cross-object binding validation.
+  See [shared conversation control objects](../spec/shared-conversations.md).
+  Version 1 fixes roster policy, permits 3–101 members, bounds initial admission to
+  7 days and revival requests to 24 hours; these windows are separate from leases.
+- [x] Bind the descriptor to each initial signed message. Existing connections
+  authorize the creator's initial deliveries; the creator's signature alone does
+  not grant other participants access to a recipient.
+- [x] Store a recipient-controlled grant scoped to the conversation and roster,
+  with active/expired/left state and lease timestamps. Creating the conversation
+  supplies the creator's own consent to receive participant replies.
+- [x] Introduce versioned conversation envelope authorization and shared logical
+  message identity while retaining single-recipient envelopes, unique delivery
+  IDs, per-recipient body tokens and the existing durable delivery machinery.
+  Keep reply-parent references separate from delivery authority.
+- [x] On each delivery, verify the sender signature, participant membership,
+  conversation/revision binding, current recipient grant, expiry and local policy.
+  Conversation IDs are lookup keys, never bearer capabilities. Persist permission
+  rather than requiring a new grant exchange or user approval for every reply.
+- [x] Define authenticated admission acknowledgments and bounded pending delivery
+  when a reply races the original introduction. Missing authority must not count
+  as acceptance; preserve honest per-recipient delivery outcomes.
+- [x] Define federation freshness, revocation barriers and retry semantics before
+  body retrieval and final delivery. Carry grants, descriptors and relevant
+  revocation/replay state through supported account migration.
+- [x] Distinguish disconnecting a connection from leaving a conversation in
+  authorization and UI. Existing conversation consent survives disconnect; Leave
+  revokes it. There is no global sender-blocking feature yet.
+- [ ] When global sender blocking is introduced, make its denial override shared
+  permissions at admission, revival, body retrieval and final delivery.
+
+### Recipient inactivity, leave and revival
+
+- [x] Implement independent recipient leases rather than a single global
+  conversation expiry. Use 24 calendar months from admission or the recipient's last
+  qualifying activity as the personal-conversation default; keep the
+  duration a stated policy rather than a hard-coded protocol constant.
+- [x] Renew a recipient's lease when they open the conversation or send to everyone.
+  Incoming messages, background fetching and bulk mark-read actions do not renew
+  it. Coalesce activity writes where practical without weakening expiry rules.
+- [x] Keep archive, content retention and delivery permission independent. Archiving
+  does not revoke permission, and expired permission need not erase saved history.
+- [x] Add **Leave conversation** to revoke local permission immediately while
+  retaining readable history. Keep a compact left/revocation record rather than
+  deleting all evidence and permitting replay-based readmission.
+- [x] Allow only the original creator to **Revive conversation** after inactivity
+  expiry. Send a fresh signed, short-lived, replay-protected revival request for
+  the same conversation and fixed roster; an old descriptor cannot revive grants.
+- [x] Automatically renew an expired recipient's grant only when the creator still
+  has a qualifying active connection and that recipient's current global and
+  per-connection settings permit the introduction. No manual acceptance is needed.
+- [x] Never let creator revival re-add someone who manually left. Rejoining that
+  conversation requires the recipient's explicit action.
+- [x] Make repeated revival requests idempotent: replay must not repeatedly extend
+  a lease. Revival must not reset still-active participants' inactivity clocks.
+- [x] Show the creator a revival action with per-recipient status. It is available
+  from retained shared history; only expired grants renew. Explain creator-only
+  revival without revealing recipients' last-opened timestamps.
+- [x] Report partial delivery honestly when some participants remain expired,
+  have left or cannot be readmitted. If the creator is unavailable or no longer
+  authorized, retain expiry; another participant may start a new conversation
+  under normal admission rules, not take over revival authority.
+
+### Storage, compatibility and verification
+
+- [x] Add local introduction-preference storage and browser-session-only GET/POST
+  `/api/v1/account/connections/conversation-preferences`, with Origin checks,
+  account isolation, live-session and migration-fence checks, and strict inputs.
+  Migration 0092 is additive; rollback refuses once choices have been retained.
+  Apply it before deploying the new settings page. Migrations 0093–0096 supply shared authority and delivery; the settings page
+  now describes live admission behavior.
+- [x] Include introduction preferences and exact-epoch overrides in authenticated
+  portable v7 / managed v8 snapshots, alongside grants, leave/replay state and
+  terminal outboxes. Older snapshot formats remain readable.
+- [x] Verify default allowance, preserved explicit allow/deny and inheritance, account isolation,
+  stale/disconnected/reconnected overrides, session/Origin restrictions, persistence,
+  migration fences, stale serving generations and empty/populated rollback behavior.
+- [x] Separate immutable descriptors, compact per-recipient permission state and
+  message history. Deduplicate descriptors within a provider where practical.
+- [x] Define safe garbage collection after grant expiry and bounded retry/retention
+  windows, including cleanup of unused descriptors. Replay receipts expire after request expiry plus five minutes. Leave/expired
+  rows remain while retained protocol history references them; unused descriptors
+  can be collected after the admission window. Total history retention remains
+  a separate storage policy.
+- [x] Require fresh authorized admission/revival after cleanup. Neither retained
+  messages nor replayed signed descriptors may reconstruct active permission.
+- [x] Specify schema and wire-version rollout, unsupported-peer behavior, migration
+  and rollback boundaries. Do not silently downgrade shared sends to private
+  copies or broaden existing connection/subscription authority.
+- [ ] Complete the rollout adversarial matrix: verify same-provider and federated automatic admission, policy denial,
+  non-connection reply-all, forged/replayed descriptors, roster substitution,
+  admission races, expiry boundaries, recipient-only lease renewal, immediate
+  leave, creator-only revival, replay-safe cleanup and portable revocation state.
+- [x] Verify shared/private thread isolation and historical private copies; browser
+  checks cover multi-recipient defaults, preserved private selection, Reply all
+  without a connection (including own sent messages), leave/rejoin, expired-state
+  controls, creator revival and mobile layout. Existing per-recipient status
+  reporting remains intact; archive/read state does not revoke consent.
+
+Implemented regression evidence: independent-provider Reply all between
+non-connections; creator revival with renewed/left outcomes; same-provider policy
+denial and admission races; expired Rejoin rejection; replay-stable leases;
+private/shared thread separation; post-acceptance leave checks; cleanup without
+readmission; atomic initial queueing; exact checkpoint validation; fresh and returning
+provider consent reconstruction; empty rollback and populated rollback refusal.
+The full 55-suite database regression run and focused reruns cover these changes;
+codec, server/client unit tests, type checks, CLI tests and browser checks also run.
+Follow-up hardening remains tracked in the broader adversarial matrix and future
+global sender-blocking policy; organization authority is a separate future slice.
+
+### Future organization and contractor authority
+
+- [ ] Extend explicit scoped authority to organization relationships without
+  treating trust as transitive. Define directional organization permissions;
+  accepting messages from a partner does not imply reciprocal acceptance.
+- [ ] Bind organizational authority to organization identity and current verified
+  membership/delegation evidence. A domain address alone is not employment or
+  delivery authorization.
+- [ ] Define whether opting into a managed work account delegates communication
+  policy to its organization, and disclose that scope. Personal accounts retain
+  their own consent boundary.
+- [ ] Support explicit contractor-DID guest permissions scoped to projects, teams
+  or selected employees, optionally with a stated expiry. Require the contractor's
+  corresponding consent; do not imply employment or organization-wide access.

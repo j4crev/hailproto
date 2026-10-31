@@ -18,11 +18,12 @@ export function registerConnectionRoutes(app:Hono,connections:AccountConnections
       if(source.take(clientAddress(c.req.raw),120)!==null)throw new ConnectionError(429);
       if(c.req.header("Authorization")||c.req.header("Cookie")||c.req.header("Origin"))throw new ConnectionError(403);
       if(c.req.header("Content-Type")!=="application/json"||c.req.header("Content-Encoding"))throw new ConnectionError(415);
-      const step=c.req.param("step");if(!["state","admit","commit","disconnect","sync","handover","handover-freeze","handover-abort","handover-commit","handover-complete"].includes(step))throw new ConnectionError(404);
+      const step=c.req.param("step");if(!["state","admit","commit","disconnect","sync","handover","handover-freeze","handover-abort","handover-commit","handover-complete","conversation-revival"].includes(step))throw new ConnectionError(404);
       const bytes=await accountRequestBytes(c.req.raw,131072);if(!bytes)throw new ConnectionError(413);
       let input:Record<string,unknown>;
       try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as Record<string,unknown>;
         if(!input||typeof input!=="object"||Array.isArray(input))throw new Error();}catch{throw new ConnectionError(400);}
+      if(step==='conversation-revival')return c.json(await connections.receiveConversationRevival(input));
       return c.json(await connections.federation!.handle(step as "state"|"admit"|"commit"|"disconnect"|"sync"|"handover"|"handover-freeze"|"handover-abort"|"handover-commit"|"handover-complete",input));
     }catch(error){return new Response(JSON.stringify({error:"Connection exchange not accepted"}),{status:error instanceof ConnectionError?error.status:503,
       headers:{"Content-Type":"application/json","Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});}
@@ -100,6 +101,8 @@ export function registerConnectionRoutes(app:Hono,connections:AccountConnections
       if(account.take(session.account_id,60)!==null)throw new ConnectionError(429,"Wait before retrying connection requests.");
       return await withServingGeneration(session.account_id,session.serving_generation??1,async()=>{
         const step=c.req.param("step");
+        if(step==="conversation-preferences"&&new URL(c.req.url).searchParams.size)throw new ConnectionError(400);
+        if(c.req.method==="GET"&&step==="conversation-preferences")return c.json(await connections.conversationPreferences(session));
         if(c.req.method==="GET")return c.json(step?await connections.status(session,step):await connections.list(session));
         if(c.req.method!=="POST")throw new ConnectionError(405);
         if(c.req.header("Content-Type")!=="application/json"||c.req.header("Content-Encoding"))throw new ConnectionError(415);
@@ -107,6 +110,9 @@ export function registerConnectionRoutes(app:Hono,connections:AccountConnections
         let input:Record<string,unknown>;
         try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as Record<string,unknown>;
           if(!input||typeof input!=="object"||Array.isArray(input))throw new Error();}catch{throw new ConnectionError(400);}
+        if(step==="conversation-preferences")return c.json(await connections.conversationPreferences(session,input));
+        if(step==='conversation-membership')return c.json(await connections.conversationMembership(session,input));
+        if(step==='conversation-revive')return c.json(await connections.conversationRevival(session,input));
         if(step==="review")return c.json(await connections.review(session,input));
         if(step==="prepare")return c.json(await connections.prepare(session,input));
         if(step==="commit"){

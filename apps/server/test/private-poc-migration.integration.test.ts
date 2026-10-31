@@ -288,7 +288,7 @@ integration("private PLC transfer between disposable POC providers", () => {
         writeFile(paths.vault, JSON.stringify(client.vault), { mode: 0o600 }),
         writeFile(paths.state,retainedTransferState,{mode:0o600}),
         writeFile(paths.snapshot, JSON.stringify({ type: "hail.portable-migration-transfer",
-          version: 5, manifest: encodeBase64Url(signedSnapshot.bytes),
+          version: 7, manifest: encodeBase64Url(signedSnapshot.bytes),
           digest: encodeBase64Url(signedSnapshot.digest),
           signature: encodeBase64Url(signedSnapshot.signature),
           sourceMessagingPublicKey: signedSnapshot.sourceMessagingPublicKey }), { mode: 0o600 }),

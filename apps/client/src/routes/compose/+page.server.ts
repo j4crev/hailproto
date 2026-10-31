@@ -43,26 +43,26 @@ export const actions={publish:async({request,cookies,url})=>{
   try {
     const {client}=await canaryAccount(cookies,url),form=await request.formData(),field=(name:string)=>{const value=form.get(name);return typeof value==="string"?value:"";};
     const id=field("publicationId"),category=field("category"),mode=field("mode"),title=field("title"),text=field("text"),alt=field("alt"),caption=field("caption"),header=form.get("header"),allowReply=field("allowReply")==="yes";
-    const kind=field("audience")==="connections"?"connections":"category",connections=form.getAll("connection");
+    const kind=field("audience")==="connections"?"connections":"category",connections=form.getAll("connection"),delivery=field("delivery");
     const forwardSender=field("forwardSender"),forwardMessage=field("forwardMessage"),forwarding=form.has("forwardSender")||form.has("forwardMessage");
-    if(forwarding&&(kind!=="connections"||!forwardSender||!UUID7.test(forwardMessage)))return fail(400,{error:"Forwards can only be sent to connections."});
+    if(forwarding&&(kind!=="connections"||!forwardSender||!UUID7.test(forwardMessage)))return fail(400,{delivery,error:"Forwards can only be sent to connections."});
     const keys=[...form.keys()];
-    if(keys.some(key=>!["forwardSender","forwardMessage","publicationId","category","mode","title","text","alt","caption","header","allowReply","audience","connection"].includes(key))||
+    if(keys.some(key=>!["forwardSender","forwardMessage","publicationId","category","mode","title","text","alt","caption","header","allowReply","audience","connection","delivery"].includes(key))||
       new Set(keys.filter(k=>k!=="connection")).size!==keys.filter(k=>k!=="connection").length||
       !["","category","connections"].includes(field("audience"))||!UUID7.test(id)||(kind==="category"?!CATEGORY.test(category)||connections.length>0:connections.length<1||connections.length>100||connections.some(v=>typeof v!=="string"||!UUID7.test(v))||new Set(connections).size!==connections.length||form.has("category")||form.has("allowReply"))||
-      !['plain','rich'].includes(mode)||(!forwarding&&!text.trim())||Buffer.byteLength(text)>65536||Buffer.byteLength(title)>128||
+      !['','shared','private'].includes(delivery)||!['plain','rich'].includes(mode)||(!forwarding&&!text.trim())||Buffer.byteLength(text)>65536||Buffer.byteLength(title)>128||
       Buffer.byteLength(alt)>1024||Buffer.byteLength(caption)>1024)
-      return fail(400,{error:"Check the category, mode, title, and message text."});
+      return fail(400,{delivery,error:"Check the category, mode, title, and message text."});
     const hasHeader=header instanceof File&&header.size>0;
-    if(kind==="connections"&&hasHeader)return fail(400,{error:"Header images are available for subscriber publications only."});
-    if(mode==="plain"&&(title||hasHeader))return fail(400,{error:"Titles and headers require rich mode."});
+    if(kind==="connections"&&hasHeader)return fail(400,{delivery,error:"Header images are available for subscriber publications only."});
+    if(mode==="plain"&&(title||hasHeader))return fail(400,{delivery,error:"Titles and headers require rich mode."});
     let body:Record<string,unknown>|undefined;
     if(mode==="rich"&&!forwarding){
       const blocks=composeBlocks(title.trim(),text.trim());
       if(hasHeader){
-        if(!(header instanceof File)||header.type!=="image/png"||header.size>196608||!alt.trim())return fail(400,{error:"Choose a bounded PNG and provide image alt text."});
+        if(!(header instanceof File)||header.type!=="image/png"||header.size>196608||!alt.trim())return fail(400,{delivery,error:"Choose a bounded PNG and provide image alt text."});
         const data=new Uint8Array(await header.arrayBuffer());
-        if(data.length<24)return fail(400,{error:"The header is not a valid PNG."});
+        if(data.length<24)return fail(400,{delivery,error:"The header is not a valid PNG."});
         const view=new DataView(data.buffer,data.byteOffset,data.byteLength),digest=new Uint8Array(createHash("sha256").update(data).digest());
         body={version:1,profile:"spt-3",assets:{version:1,assets:[{id:"header",role:"header",media_type:"image/png",loading:"bundled",
           size:data.length,digest:{algorithm:"sha-256",value:encodeBase64Url(digest)},width:view.getUint32(16),height:view.getUint32(20),data:encodeBase64Url(data)}]},
@@ -73,19 +73,19 @@ export const actions={publish:async({request,cookies,url})=>{
       try {
         const source=forwardSource(await client.request(`/inbox/${encodeURIComponent(forwardSender)}/${encodeURIComponent(forwardMessage)}`),{sender:forwardSender,messageId:forwardMessage});
         body=forwardBody(source,text.trim());
-      } catch {return fail(400,{error:"The original message is unavailable for forwarding. Return to your inbox and try again."});}
+      } catch {return fail(400,{delivery,error:"The original message is unavailable for forwarding. Return to your inbox and try again."});}
       try {
         const bytes=body.profile==="spt-3"?encodePayload("hail.body.spt-3",body as unknown as HailSpt3Body):encodePayload("hail.body.spt-2",body as unknown as HailSpt2Body);
         if(bytes.length>262144)throw new Error("Body too large");
-      } catch {return fail(400,{error:"This forward exceeds the supported message limits. Shorten your note; if it still fails, the original message is too large to forward."});}
+      } catch {return fail(400,{delivery,error:"This forward exceeds the supported message limits. Shorten your note; if it still fails, the original message is too large to forward."});}
     }
     try{
       const result=publicationStatus(await client.request(kind==="connections"?"/connection-messages":"/publications",{publicationId:id,
-        ...(kind==="connections"?{connections}:{category,allowReplies:allowReply}),...(body?{body}:{text:text.trim()})}),kind);
+        ...(kind==="connections"?{connections,...(delivery?{delivery}: {})}:{category,allowReplies:allowReply}),...(body?{body}:{text:text.trim()})}),kind);
       if(result.publicationId!==id)throw new Error("Provider acknowledged another publication");
     }catch{
       // A lost acceptance response must not cause another publication or another audience snapshot.
-      return fail(502,{error:`${kind==='connections'?'Message batch':'Publication'} not confirmed; it may already be queued. Check this original request before trying again.`,publicationId:id});
+      return fail(502,{delivery,error:`${kind==='connections'?'Message batch':'Publication'} not confirmed; it may already be queued. Check this original request before trying again.`,publicationId:id});
     }
     redirect(303,`/compose?${kind==="connections"?"audience=connections&":""}publication=${id}`);
   } catch(error){

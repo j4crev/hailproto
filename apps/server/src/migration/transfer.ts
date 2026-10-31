@@ -1,3 +1,4 @@
+import {collectConversationHistory,conversationHistoryDigest,type ConversationHistory} from './conversation-history.js';
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { cidForCbor } from "@atproto/common";
@@ -23,7 +24,7 @@ import {validateSnapshotConnections} from "./connection-snapshot.js";
 import {verifyConnectionHistoryAuthority} from "./connection-history-verification.js";
 import {encodeBase64Url} from "@hailproto/codec";
 
-const context = (version: 2 | 3 | 5) => new TextEncoder().encode(`hail-migration-snapshot-v${version}\0`);
+const context = (version: 2 | 3 | 5 | 7) => new TextEncoder().encode(`hail-migration-snapshot-v${version}\0`);
 
 export const TRANSFER_TABLES = [
   "provider_accounts", "account_keys", "portable_custody_evidence", "plc_operation_evidence", "address_bindings",
@@ -43,8 +44,9 @@ type TransferTables = Record<TransferTable, Record<string, unknown>[]> &
   Partial<Record<AuthorityTable, Record<string, unknown>[]>>;
 
 export interface TransferManifest {
-  version: 2 | 3 | 5;
+  version: 2 | 3 | 5 | 7;
   sourceGeneration?:number;
+  conversations?:ConversationHistory;conversationCheckpointDigest?:string;
   connections?:ConnectionHistory;
   connectionCheckpointDigest?:string;
   transferId: string;
@@ -75,7 +77,7 @@ interface ExportRow {
 
 function digest(bytes: Uint8Array): Uint8Array { return new Uint8Array(createHash("sha256").update(bytes).digest()); }
 
-function signatureInput(hash: Uint8Array, version: 2 | 3 | 5): Uint8Array<ArrayBuffer> {
+function signatureInput(hash: Uint8Array, version: 2 | 3 | 5 | 7): Uint8Array<ArrayBuffer> {
   const prefix = context(version);
   const message = new Uint8Array(prefix.length + hash.length);
   message.set(prefix);
@@ -163,7 +165,7 @@ export function validateTransferManifest(bytes: Uint8Array): TransferManifest {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid transfer manifest");
   const manifest = value as TransferManifest;
   const tables = manifest.version !== 2 ? [...TRANSFER_TABLES, ...TRANSFER_AUTHORITY_TABLES] : TRANSFER_TABLES;
-  if (![2, 3, 5].includes(manifest.version) ||
+  if (![2, 3, 5, 7].includes(manifest.version) ||
     !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(manifest.transferId) ||
     !/^did:plc:[a-z2-7]{24}$/.test(manifest.did) ||
     !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(manifest.accountId) ||
@@ -392,12 +394,13 @@ export class MigrationTransferService {
       const capturedAt=new Date().toISOString();
       const sourceGeneration=Number((await tx<{generation:number|string}[]>`SELECT generation FROM account_serving_generations WHERE account_id=${fence.accountId}`)[0]?.generation);
       const connections=await collectConnectionHistory(tx as SQL,{accountId:fence.accountId,did:fence.did,sourceGeneration,sourceServiceBase:this.serviceBase},capturedAt);
-      const manifest: TransferManifest = { version: 5, did: fence.did, accountId: fence.accountId,
+      const conversations=await collectConversationHistory(tx as SQL,{accountId:fence.accountId,did:fence.did,sourceGeneration,sourceServiceBase:this.serviceBase},capturedAt);
+      const manifest: TransferManifest = { version: 7, did: fence.did, accountId: fence.accountId,
         transferId: fence.transferId, sourceServiceBase: this.serviceBase,
         destinationServiceBase: fence.destinationServiceBase,
         destinationRotationPublicKey: fence.destinationRotationPublicKey,
         destinationMessagingPublicKey: fence.destinationMessagingPublicKey,
-        custodyProfile: "portable", capturedAt, tables,sourceGeneration,connections,
+        custodyProfile: "portable", capturedAt, tables,sourceGeneration,connections,conversations,conversationCheckpointDigest:encodeBase64Url(conversationHistoryDigest(conversations)),
         connectionCheckpointDigest:encodeBase64Url(connectionHistoryDigest(connections)) };
       const bytes = new TextEncoder().encode(JSON.stringify(manifest));
       validateTransferManifest(bytes);
@@ -472,7 +475,7 @@ export class MigrationTransferService {
       rotationPublicKey: manifest.destinationRotationPublicKey,
       messagingPublicKey: manifest.destinationMessagingPublicKey,
     });
-    if(manifest.connections)await verifyConnectionHistoryAuthority(manifest.connections,this.resolver);
+    if(manifest.connections)await verifyConnectionHistoryAuthority(manifest.connections,this.resolver,new Date(),manifest.conversations);
     await this.sql.begin(async (tx) => {
       const reservation = await tx<{ canonical_address: string; state: string }[]>`
         SELECT canonical_address, state FROM transfer_address_reservations

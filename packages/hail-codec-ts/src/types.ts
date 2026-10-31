@@ -18,6 +18,8 @@ export type HailPayloadType =
   | "hail.connection-confirmation"
   | "hail.connection-grant"
   | "hail.connection-control"
+  | "hail.conversation"
+  | "hail.conversation-revival"
   | "hail.envelope"
   | "hail.delivery-status"
   | "hail.body.spt-1"

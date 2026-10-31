@@ -6,6 +6,9 @@ import { retainPublicEnvelopeAuthority } from "../plc/envelope-authority.js";
 import { validateBodyBytes, type BodyProfile } from "../bodies/service.js";
 import {connectionMessageAllowed} from "../accounts/connection-authorization.js";
 import {EnvelopeAuthorizationError} from "./service.js";
+import {admitConversation,conversationMessageAllowed,lockOwner} from "../accounts/conversation-memberships.js";
+import type {HailConversation,VerifiedHailObject} from "@hailproto/codec";
+import {requireFreshPublicAuthority} from '../plc/authority.js';
 
 export interface PublishedBodyInfo { size: number; senderAccountId: string; profile: BodyProfile; }
 export interface EnvelopeDecision {
@@ -19,6 +22,7 @@ export interface EnvelopeDecision {
   recipientEvidence?: PlcResolutionEvidence;
   recipientServiceBase?: string;
   now: number;
+  conversationDescriptor?:VerifiedHailObject<HailConversation>;
 }
 
 export type EnvelopeOutcome = "accepted" | "duplicate" | "conflict" | "unauthorized" | "message-expired";
@@ -31,6 +35,31 @@ export class EnvelopeRepository {
       SELECT envelope_cose FROM sent_envelopes WHERE sender_did = ${senderDid} AND message_id = ${messageId}
     `;
     return rows[0] ? new Uint8Array(rows[0].envelope_cose) : null;
+  }
+
+  async conversationSendAllowed(payload:HailEnvelope){
+    const a=payload.authorization;
+    return a.type!=='conversation'||conversationMessageAllowed(this.sql,payload.from,payload.to,{creator:a.creator,conversationId:a.conversation_id},a.descriptor_hash.value);
+  }
+
+  async conversationForSender(sender:string,creator:string,id:string,sql:SQL=this.sql){
+    const row=(await sql<{descriptor_cose:Uint8Array;descriptor_hash:Uint8Array;account_id:string;active:boolean}[]>`
+      SELECT d.descriptor_cose,d.descriptor_hash,m.account_id,m.state='active' AND m.expires_at>clock_timestamp() AS active
+      FROM conversation_descriptors d JOIN conversation_memberships m USING(creator_did,conversation_id)
+      JOIN provider_accounts a ON a.id=m.account_id
+      WHERE a.did=${sender} AND a.closed_at IS NULL AND a.onboarding_state='active'
+        AND d.creator_did=${creator} AND d.conversation_id=${id}
+        AND NOT EXISTS(SELECT 1 FROM provider_migration_fences WHERE account_id=a.id)`)[0];
+    return row?{...row,descriptor:inspectSignedPayload('hail.conversation',new Uint8Array(row.descriptor_cose)).payload}:null;
+  }
+
+  async createConversation(descriptor:VerifiedHailObject<HailConversation>,accountId:string,signingKey:string,evidence:PlcResolutionEvidence,transaction?:SQL){
+    const create=async(tx:SQL)=>{
+      await lockOwner(tx,{account_id:accountId,did:descriptor.payload.from});
+      await requireFreshPublicAuthority(tx,evidence,{did:descriptor.payload.from,role:'hail-messaging',key:signingKey},new Date());
+      return admitConversation(tx,{account_id:accountId,did:descriptor.payload.from},descriptor,{signingKey,evidence});
+    };
+    return transaction?create(transaction):this.sql.begin(tx=>create(tx as SQL));
   }
 
   async receivedReplyOpportunity(recipientDid: string, messageId: string, senderDid?: string): Promise<HailEnvelope | null> {
@@ -70,6 +99,9 @@ export class EnvelopeRepository {
     await this.sql.begin(async (tx) => {
       if(payload.authorization.type==="connection"&&!await connectionMessageAllowed(tx as SQL,payload.from,payload.to,payload.authorization,true))
         throw new EnvelopeAuthorizationError("Connection ended before envelope persistence");
+      if(payload.authorization.type==="conversation"&&!await conversationMessageAllowed(tx as SQL,payload.from,payload.to,
+        {creator:payload.authorization.creator,conversationId:payload.authorization.conversation_id},payload.authorization.descriptor_hash.value,true))
+        throw new EnvelopeAuthorizationError("Conversation participation ended before envelope persistence");
       const accounts = await tx<{ id: string }[]>`
         SELECT id FROM provider_accounts WHERE id = ${accountId} AND did = ${payload.from}
           AND onboarding_state = 'active' AND activation_verification_mode = 'public' FOR UPDATE
@@ -83,11 +115,14 @@ export class EnvelopeRepository {
       if (!body || body.size !== payload.body.size) throw new Error("Signed body is not published");
       await tx`
         INSERT INTO sent_envelopes (sender_did, message_id, recipient_did, grant_id,
-          reply_to_message_id, authorization_type, envelope_cose, envelope_digest, body_digest, sender_account_id,connection_id,connection_epoch,parent_sender,parent_message_id)
+          reply_to_message_id, authorization_type, envelope_cose, envelope_digest, body_digest, sender_account_id,connection_id,connection_epoch,parent_sender,parent_message_id,
+          conversation_creator,conversation_id,conversation_descriptor_hash,conversation_message_id)
         VALUES (${payload.from}, ${payload.message_id}, ${payload.to}, ${grantId}, ${replyTo},
           ${payload.authorization.type}, ${representation}, ${envelopeDigest}, ${payload.body.digest.value}, ${accountId},
           ${payload.authorization.type==="connection"?payload.authorization.connection_id:null},${payload.authorization.type==="connection"?payload.authorization.epoch:null},
-          ${payload.in_reply_to?.sender??null},${payload.in_reply_to?.message_id??null})
+          ${payload.in_reply_to?.sender??null},${payload.in_reply_to?.message_id??null},
+          ${payload.authorization.type==='conversation'?payload.authorization.creator:null},${payload.authorization.type==='conversation'?payload.authorization.conversation_id:null},
+          ${payload.authorization.type==='conversation'?payload.authorization.descriptor_hash.value:null},${payload.conversation_message_id??null})
       `;
       if (payload.reply.allowed) {
         await tx`
@@ -109,7 +144,12 @@ export class EnvelopeRepository {
     });
   }
 
-  async candidate(authorization: HailEnvelope["authorization"], from: string, to: string): Promise<boolean> {
+  async candidate(authorization: HailEnvelope["authorization"], from: string, to: string,payload?:HailEnvelope): Promise<boolean> {
+    if(authorization.type==='conversation'){
+      if(await conversationMessageAllowed(this.sql,to,from,{creator:authorization.creator,conversationId:authorization.conversation_id},authorization.descriptor_hash.value))return true;
+      const intro=payload?.conversation_introduction;
+      return !!intro&&from===authorization.creator&&await connectionMessageAllowed(this.sql,to,from,{type:'connection',connection_id:intro.connection_id,epoch:intro.epoch},false,true);
+    }
     if(authorization.type==="connection")return connectionMessageAllowed(this.sql,to,from,authorization,false,true);
     if (authorization.type === "reply") {
       const rows = await this.sql<{ original_message_id: string }[]>`
@@ -128,6 +168,26 @@ export class EnvelopeRepository {
 
   async accept(input: EnvelopeDecision, signal?: AbortSignal): Promise<EnvelopeOutcome> {
     const { payload, localAccountId, payloadDigest } = input;
+    if(payload.authorization.type==='conversation'){
+      const authorization=payload.authorization;
+      return this.sql.begin(async tx=>{
+        signal?.throwIfAborted();
+        const owner={account_id:localAccountId,did:payload.to};
+        if(!(await tx`SELECT id FROM provider_accounts WHERE id=${localAccountId} AND did=${payload.to}`).length)return 'unauthorized';
+        const intro=payload.conversation_introduction;
+        if(intro&&input.conversationDescriptor)await admitConversation(tx as SQL,owner,input.conversationDescriptor,
+          {signingKey:input.signingPublicKey,evidence:input.evidence,connection:{type:'connection',connection_id:intro.connection_id,epoch:intro.epoch}});
+        const permitted=await conversationMessageAllowed(tx as SQL,payload.to,payload.from,{creator:authorization.creator,conversationId:authorization.conversation_id},authorization.descriptor_hash.value,true);
+        const previous=await this.previousOutcome(tx as SQL,payload,payloadDigest);if(previous)return previous;
+        // A reply may race initial admission. Do not permanently reserve its ID
+        // while membership is unknown: an exact retry can succeed after admission.
+        if(!permitted)return 'unauthorized';
+        const now=Number((await tx<{instant:string}[]>`SELECT extract(epoch FROM clock_timestamp()) AS instant`)[0]!.instant);
+        const outcome=now>Math.min(payload.expires_at+300,payload.body.available_until,payload.body.access.expires_at)?'message-expired':'accepted';
+        const inserted=await this.insertReceived(tx as SQL,input,null,null,outcome,now);
+        return inserted?outcome:(await this.previousOutcome(tx as SQL,payload,payloadDigest))??'conflict';
+      });
+    }
     if(payload.authorization.type==="connection")return this.sql.begin(async tx=>{
       signal?.throwIfAborted();
       if(!(await tx`SELECT id FROM provider_accounts WHERE id=${localAccountId} AND did=${payload.to}`).length)return "unauthorized";
@@ -233,7 +293,8 @@ export class EnvelopeRepository {
           (sender_did, message_id, recipient_did, grant_id, reply_to_message_id,
            authorization_type, local_account_id, envelope_cose,
            envelope_digest, payload_digest, signing_public_key, signing_plc_document,
-            signing_plc_data, signing_plc_operation_log, outcome, accepted_at,connection_id,connection_epoch,parent_sender,parent_message_id)
+            signing_plc_data, signing_plc_operation_log, outcome, accepted_at,connection_id,connection_epoch,parent_sender,parent_message_id,
+            conversation_creator,conversation_id,conversation_descriptor_hash,conversation_message_id)
         VALUES (${payload.from}, ${payload.message_id}, ${payload.to}, ${grantId}, ${replyTo},
           ${payload.authorization.type},
           ${localAccountId}, ${representation}, ${envelopeDigest}, ${payloadDigest}, ${signingPublicKey},
@@ -241,7 +302,9 @@ export class EnvelopeRepository {
           ${JSON.stringify(evidence.log)}::jsonb, ${outcome},
            ${outcome === "accepted" ? new Date(now * 1000) : null},
            ${payload.authorization.type==="connection"?payload.authorization.connection_id:null},${payload.authorization.type==="connection"?payload.authorization.epoch:null},
-          ${payload.in_reply_to?.sender??null},${payload.in_reply_to?.message_id??null})
+          ${payload.in_reply_to?.sender??null},${payload.in_reply_to?.message_id??null},
+          ${payload.authorization.type==='conversation'?payload.authorization.creator:null},${payload.authorization.type==='conversation'?payload.authorization.conversation_id:null},
+          ${payload.authorization.type==='conversation'?payload.authorization.descriptor_hash.value:null},${payload.conversation_message_id??null})
         ON CONFLICT (sender_did, message_id) DO NOTHING
         RETURNING payload_digest
       `;

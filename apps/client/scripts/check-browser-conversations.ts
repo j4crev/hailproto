@@ -1,9 +1,10 @@
 import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {strict as assert} from 'node:assert';
+const sharedMode=process.argv.includes('--shared');
 const work=await mkdtemp('/tmp/haili-layout-');
 const reserve=Bun.serve({hostname:'127.0.0.1',port:0,fetch:()=>new Response()});
 const fixturePort=reserve.port!;reserve.stop(true);
-const fixture=Bun.spawn(['bun','scripts/preview-design.ts'],{cwd:new URL('..',import.meta.url).pathname,env:{...process.env,HAIL_DESIGN_PORT:String(fixturePort),HAIL_DESIGN_EXTRA_REPLIES:"35"},stdout:'ignore',stderr:'inherit'});
+const fixture=Bun.spawn(['bun','scripts/preview-design.ts'],{cwd:new URL('..',import.meta.url).pathname,env:{...process.env,HAIL_DESIGN_PORT:String(fixturePort),HAIL_DESIGN_EXTRA_REPLIES:sharedMode?"0":"35",HAIL_DESIGN_SHARED_CONVERSATIONS:sharedMode?"1":"0"},stdout:'ignore',stderr:'inherit'});
 const chrome=Bun.spawn([process.env.CHROMIUM??'chromium','--headless','--disable-gpu','--disable-background-networking','--no-first-run','--no-default-browser-check','--remote-debugging-port=0',`--user-data-dir=${work}`,'about:blank'],{stdout:'ignore',stderr:'ignore'});
 let socket:WebSocket|undefined;
 const wait=async(fn:()=>Promise<any>)=>{for(let n=0;n<150;n++){if(await fn())return;await Bun.sleep(100);}throw new Error('Timed out');};
@@ -26,7 +27,7 @@ async function navigate(path:string,title:string){
 
 const api=async()=>await(await fetch(origin+'/api/v1/account/inbox?kind=connections')).json();
 const grouped=async()=>await(await fetch(origin+'/api/v1/account/connection-inbox')).json();
-for(const width of [1440,390,320]){
+if(!sharedMode)for(const width of [1440,390,320]){
  const initial=await api();
  for(const m of initial.messages.filter((m:any)=>!m.body.blocks.some((b:any)=>b.children?.some((s:any)=>s.text==='The photos turned out beautifully')))){
   await fetch(`${origin}/api/v1/account/inbox/${encodeURIComponent(m.sender)}/${m.messageId}/mark-unread`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
@@ -80,5 +81,46 @@ for(const width of [1440,390,320]){
  await evaluate(`document.getElementById(${JSON.stringify(openId)}).querySelector('button.row-button').click()`);
  await wait(async()=> (await grouped()).messages[0].conversation.unreadCount===38);
  console.log('PASS: 40 unread replies load in bounded batches on scroll, with independent read state and sent original at '+width);
+}
+if(sharedMode){
+  const all=await api(),maya=all.messages.find((m:any)=>m.sharedConversation&&!m.connection);
+  assert(maya,'Fixture includes a non-connection participant');
+  await cdp('Emulation.setDeviceMetricsOverride',{width:390,height:900,deviceScaleFactor:1,mobile:true});
+  await navigate(`/conversation/${encodeURIComponent(maya.sender)}/${maya.messageId}`,'Saturday at the market?');
+  const button=(name:string)=>`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()===${JSON.stringify(name)})`;
+  await wait(async()=>evaluate(`Boolean(${button('Reply all')})`));
+  assert(await evaluate(`${button('Reply all')}.disabled===false`));
+  await evaluate(`${button('Reply all')}.click()`);
+  await wait(async()=>evaluate(`document.querySelector('form.reply-form')?.action.endsWith('?/replyAll')`));
+  assert(await evaluate(`document.querySelector('form.reply-form').textContent.includes('all other participants')`));
+  await evaluate(`${button('Cancel')}.click()`);
+  await evaluate(`${button('Leave conversation')}.click()`);
+  await wait(async()=>evaluate(`Boolean(${button('Rejoin conversation')})`));
+  assert(await evaluate(`${button('Reply all')}.disabled`));
+  await evaluate(`${button('Rejoin conversation')}.click()`);
+  await wait(async()=>evaluate(`Boolean(${button('Leave conversation')})`));
+  await fetch(origin+'/api/v1/account/fixture-expire',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  await navigate(`/conversation/${encodeURIComponent(maya.sender)}/${maya.messageId}`,'Saturday at the market?');
+  await wait(async()=>evaluate(`document.body.textContent.includes('Your participation expired')`));
+  assert(await evaluate(`!${button('Rejoin conversation')}`));
+  await evaluate(`${button('Revive expired participation')}.click()`);
+  await wait(async()=>evaluate(`document.querySelector('[aria-label="Revival status"]')?.textContent.includes('renewed')`));
+  assert(await evaluate(`${button('Reply all')}.disabled===false`));
+  assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`));
+  const own=(await(await fetch(origin+'/api/v1/account/sent')).json()).messages[0];
+  await navigate(`/conversation/${encodeURIComponent(own.sender)}/${own.messageId}`,'Saturday at the market?');
+  await wait(async()=>evaluate(`Boolean(${button('Reply all')})`));
+  await evaluate(`${button('Reply all')}.click()`);
+  await wait(async()=>evaluate(`document.querySelector('form.reply-form')?.action.endsWith('?/replyAll')`));
+  await navigate('/compose?audience=connections','Send a message');
+  await evaluate(`document.querySelectorAll('input[name="connection"]').forEach(input=>input.click())`);
+  await wait(async()=>evaluate(`Boolean(document.querySelector('select[name="delivery"]'))`));
+  assert.equal(await evaluate(`document.querySelector('select[name="delivery"]').value`),'shared');
+  assert(await evaluate(`Array.from(document.querySelector('select[name="delivery"]').options).some(o=>o.value==='private')`));
+  await evaluate(`(()=>{const select=document.querySelector('select[name="delivery"]');select.value='private';select.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('input[name="connection"]').click();})()`);
+  await wait(async()=>evaluate(`!document.querySelector('select[name="delivery"]')`));
+  await evaluate(`document.querySelector('input[name="connection"]').click()`);
+  await wait(async()=>evaluate(`document.querySelector('select[name="delivery"]')?.value==='private'`));
+  console.log('PASS: shared default, non-connection Reply all, leave/rejoin, creator revival and mobile layout');
 }
 }finally{socket?.close();chrome.kill();fixture.kill();await Promise.all([chrome.exited,fixture.exited]);await rm(work,{recursive:true,force:true});}

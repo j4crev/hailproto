@@ -228,7 +228,7 @@ export async function collectConnectionHistory(tx:SQL,owner:ConnectionHistoryOwn
     const columns=CONNECTION_HISTORY_COLUMNS[table].split(" ");
     const projection=columns.map(c=>`'${c}',t."${c}"`).join(",");
     // Identifiers/projections are internal constants, never manifest input.
-    const where=table==="account_connections"?"$1::uuid IN(t.account_a,t.account_b)":"t.account_id=$1::uuid";
+    const where=table==="account_connections"?"$1::uuid IN(t.account_a,t.account_b)":"t.account_id=$1::uuid"+(table==='connection_message_batches'?' AND t.conversation_context IS NULL':table==='connection_message_targets'?' AND EXISTS(SELECT 1 FROM connection_message_batches b WHERE b.account_id=t.account_id AND b.id=t.publication_id AND b.conversation_context IS NULL)':'');
     const order=table==='connection_handover_barriers'?'t.plan_digest':table==='connection_import_handovers'?'t.transfer_id,t.peer_did':table==='connection_transfer_aborts'?'t.transfer_id':
       columns.map(c=>`t."${c}"`).filter(c=>c.endsWith('"id"')||c.endsWith('"connection_id"')||c.endsWith('"recipient_did"')||c.endsWith('"digest"')).join(',');
     const rows=await tx.unsafe<{row:Row}[]>(`SELECT jsonb_build_object(${projection}) AS row FROM "${table}" t WHERE ${where} ORDER BY ${order}`,[owner.accountId]);

@@ -13,6 +13,7 @@ import { EnvelopeAuthorizationError,type EnvelopeService } from "../envelopes/se
 import { UserGrantError } from "../grants/service.js";
 import type { AccountApiSession } from "./repository.js";
 import {connectionMessageAllowed} from "./connection-authorization.js";
+import {conversationState} from './conversation-memberships.js';
 
 import {MessageTrash} from "./message-trash.js";
 
@@ -55,9 +56,17 @@ export class AccountMessaging {
   async submit(sender:string,id:string){
     try{return await this.submitEnvelope(sender,id);}catch(error){if(error instanceof EnvelopeAuthorizationError)throw new UserGrantError(409,error.message);throw error;}
   }
-  private async connectionAddress(accountId:string,peer:string,id:string){
+  private async connectionAddress(accountId:string,peer:string,id?:string){
     const row=(await this.sql<{address:string}[]>`SELECT peer_address AS address FROM federated_connection_pairs WHERE account_id=${accountId} AND peer_did=${peer} LIMIT 1`)[0];
     return row?.address??null;
+  }
+
+  private async sharedConversation(session:AccountApiSession,envelope:import('@hailproto/codec').HailEnvelope){
+    const a=envelope.authorization;if(a.type!=='conversation')return undefined;
+    const state=await conversationState(this.sql,session,{creator:a.creator,conversationId:a.conversation_id});
+    if(!state)return undefined;
+    const {descriptorHash,...view}=state;
+    return {...view,messageId:envelope.conversation_message_id!};
   }
 
   async send(session:Pick<AccountApiSession,"did">,input:Record<string,unknown>) {
@@ -98,6 +107,33 @@ export class AccountMessaging {
         payload.authorization.type!=="grant"||payload.authorization.grant_id!==input.grantId||payload.category!==(input.category||undefined))||
       (input.replyUntil===undefined||input.replyUntil===null ? payload.reply.allowed : !payload.reply.allowed||payload.reply.until!==input.replyUntil))throw new UserGrantError(409,"Message ID has another request");
     return this.submit(session.did,input.messageId);
+  }
+
+  ensureConversation(sender:string,id:string,participants:string[],transaction?:SQL){return this.service.ensureConversation(sender,id,participants,transaction);}
+
+  async sendConversation(sender:string,input:{messageId:string;recipient:string;creator:string;conversationId:string;logicalId:string;body:Uint8Array;
+    parent?:{sender:string;message_id:string};introduction?:{connection_id:string;epoch:number}}){
+    const digest=new Uint8Array(createHash('sha256').update(input.body).digest());
+    let stored=await this.envelopes.sent(sender,input.messageId);
+    if(!stored){
+      await this.bodies.publish(sender,input.body);
+      try{await this.service.createConversationMessage(sender,input.recipient,input.creator,input.conversationId,input.logicalId,encodeBase64Url(digest),input.messageId,input.parent,input.introduction);}
+      catch(error){stored=await this.envelopes.sent(sender,input.messageId);if(!stored){if(error instanceof EnvelopeAuthorizationError)throw new UserGrantError(409,error.message);throw error;}}
+      stored=await this.envelopes.sent(sender,input.messageId);
+    }
+    const p=inspectSignedPayload('hail.envelope',stored!).payload,a=p.authorization;
+    if(a.type!=='conversation'||a.creator!==input.creator||a.conversation_id!==input.conversationId||p.conversation_message_id!==input.logicalId||p.to!==input.recipient||
+      p.in_reply_to?.sender!==input.parent?.sender||p.in_reply_to?.message_id!==input.parent?.message_id||
+      p.conversation_introduction?.connection_id!==input.introduction?.connection_id||p.conversation_introduction?.epoch!==input.introduction?.epoch||
+      !Buffer.from(p.body.digest.value).equals(Buffer.from(digest)))throw new UserGrantError(409,'Message ID has another request');
+    const retained=(await this.sql<{current_state:string;current_revision:number}[]>`SELECT current_state,current_revision FROM sent_delivery_status WHERE sender_did=${sender} AND message_id=${input.messageId}`)[0];
+    if(retained)return {messageId:input.messageId,state:retained.current_state,revision:retained.current_revision};
+    const result=await this.submit(sender,input.messageId);
+    // A generic receipt does not establish admission. Keep the frozen envelope
+    // in the bounded outbox until an authenticated status arrives, including when
+    // a reply races a different participant's initial admission.
+    if('accepted' in result&&result.accepted===false)throw new Error('Conversation delivery is awaiting authenticated acceptance');
+    return result;
   }
 
   async setRead(session:AccountApiSession,sender:string,id:string,isRead:boolean) {
@@ -152,12 +188,12 @@ export class AccountMessaging {
       ) presentation ON true
        WHERE message.recipient_did=${session.did}
          AND ((${trash}=false AND message.trashed_at IS NULL) OR (${trash}=true AND message.trashed_at>clock_timestamp()-interval '30 days'))
-         AND (${channel}='all' OR (${channel}='connections')=(envelope.authorization_type='connection'))
+         AND (${channel}='all' OR (${channel}='connections')=(envelope.authorization_type IN ('connection','conversation')))
         AND (${after}::text IS NULL OR (message.message_id,message.sender_did)<(${cursor?.id??null}::uuid,${cursor?.sender??null}::text))
       ORDER BY message.message_id DESC,message.sender_did DESC LIMIT ${PAGE_SIZE+1}`;
     return {messages:await Promise.all(rows.slice(0,PAGE_SIZE).map(async row=>{const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
-      return {isRead:row.is_read,messageId:row.message_id,sender:row.sender_did,senderAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,row.sender_did,envelope.authorization.connection_id):row.sender_address,recipient:session.did,
-        trashedAt:row.trashed_at?.toISOString()??null,category:envelope.category??null,inReplyTo:messageParent(envelope),kind:envelope.authorization.type==="connection"?"connection":"subscription",deliveredAt:row.delivered_at.toISOString(),body:bodyDocument(row.body_bytes)};})),
+      return {isRead:row.is_read,messageId:row.message_id,sender:row.sender_did,senderAddress:["connection","conversation"].includes(envelope.authorization.type)?await this.connectionAddress(session.account_id,row.sender_did):row.sender_address,recipient:session.did,
+        trashedAt:row.trashed_at?.toISOString()??null,category:envelope.category??null,inReplyTo:messageParent(envelope),kind:["connection","conversation"].includes(envelope.authorization.type)?"connection":"subscription",sharedConversation:await this.sharedConversation(session,envelope),deliveredAt:row.delivered_at.toISOString(),body:bodyDocument(row.body_bytes)};})),
       next:rows.length>PAGE_SIZE?Buffer.from(JSON.stringify({id:rows[PAGE_SIZE-1]!.message_id,
         sender:rows[PAGE_SIZE-1]!.sender_did})).toString("base64url"):null};
   }
@@ -196,8 +232,8 @@ export class AccountMessaging {
       WHERE envelope.sender_did=${session.did} AND (${after}::uuid IS NULL OR envelope.message_id<${after}::uuid)
       ORDER BY envelope.message_id DESC LIMIT ${PAGE_SIZE+1}`;
     return {messages:await Promise.all(rows.slice(0,PAGE_SIZE).map(async row=>{const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
-      return {messageId:row.message_id,sender:session.did,recipient:row.recipient_did,recipientAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,row.recipient_did,envelope.authorization.connection_id):row.recipient_address,
-        createdAt:row.created_at.toISOString(),category:envelope.category??null,inReplyTo:messageParent(envelope),kind:envelope.authorization.type==="connection"?"connection":"subscription",...statusDetails(row.payload_bytes),body:bodyDocument(row.body_bytes)};})),
+      return {messageId:row.message_id,sender:session.did,recipient:row.recipient_did,recipientAddress:["connection","conversation"].includes(envelope.authorization.type)?await this.connectionAddress(session.account_id,row.recipient_did):row.recipient_address,
+        createdAt:row.created_at.toISOString(),category:envelope.category??null,inReplyTo:messageParent(envelope),kind:["connection","conversation"].includes(envelope.authorization.type)?"connection":"subscription",sharedConversation:await this.sharedConversation(session,envelope),...statusDetails(row.payload_bytes),body:bodyDocument(row.body_bytes)};})),
       next:rows.length>PAGE_SIZE?rows[PAGE_SIZE-1]!.message_id:null};
   }
 
@@ -218,8 +254,8 @@ export class AccountMessaging {
       WHERE envelope.sender_did=${session.did} AND envelope.message_id=${id}`;
     if(!rows[0])return null;
     const row=rows[0],envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
-    return {messageId:id,sender:session.did,recipient:row.recipient_did,recipientAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,row.recipient_did,envelope.authorization.connection_id):row.recipient_address,
-      createdAt:row.created_at.toISOString(),category:envelope.category??null,inReplyTo:messageParent(envelope),kind:envelope.authorization.type==="connection"?"connection":"subscription",...statusDetails(row.payload_bytes),body:bodyDocument(row.body_bytes)};
+    return {messageId:id,sender:session.did,recipient:row.recipient_did,recipientAddress:["connection","conversation"].includes(envelope.authorization.type)?await this.connectionAddress(session.account_id,row.recipient_did):row.recipient_address,
+      createdAt:row.created_at.toISOString(),category:envelope.category??null,inReplyTo:messageParent(envelope),kind:["connection","conversation"].includes(envelope.authorization.type)?"connection":"subscription",sharedConversation:await this.sharedConversation(session,envelope),...statusDetails(row.payload_bytes),body:bodyDocument(row.body_bytes)};
   }
 
   async read(session:AccountApiSession,sender:string,id:string) {
@@ -242,10 +278,16 @@ export class AccountMessaging {
       WHERE message.recipient_did=${session.did} AND (message.trashed_at IS NULL OR message.trashed_at>clock_timestamp()-interval '30 days') AND message.sender_did=${sender} AND message.message_id=${id}`;
     if(!rows[0])return null;
     const envelope=inspectSignedPayload("hail.envelope",rows[0].envelope_cose).payload;
-    const connection=envelope.authorization.type==="connection"?{id:envelope.authorization.connection_id,epoch:envelope.authorization.epoch,
+    let connection=envelope.authorization.type==="connection"?{id:envelope.authorization.connection_id,epoch:envelope.authorization.epoch,
       active:await connectionMessageAllowed(this.sql,session.did,sender,envelope.authorization)}:null;
-    return {trashedAt:rows[0].trashed_at?.toISOString()??null,isRead:rows[0].is_read,messageId:id,sender,senderAddress:envelope.authorization.type==="connection"?await this.connectionAddress(session.account_id,sender,envelope.authorization.connection_id):rows[0].sender_address,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
-      inReplyTo:messageParent(envelope),kind:connection?"connection":"subscription",connection,
+    if(envelope.authorization.type==='conversation'){
+      const pair=(await this.sql<{connection_id:string;epoch:number|string}[]>`SELECT connection_id,epoch FROM federated_connection_pairs
+        WHERE account_id=${session.account_id} AND peer_did=${sender} AND hail_connection_message_allowed(${session.did},${sender},connection_id,epoch)`)[0];
+      if(pair)connection={id:pair.connection_id,epoch:Number(pair.epoch),active:true};
+    }
+    return {trashedAt:rows[0].trashed_at?.toISOString()??null,isRead:rows[0].is_read,messageId:id,sender,senderAddress:["connection","conversation"].includes(envelope.authorization.type)?await this.connectionAddress(session.account_id,sender):rows[0].sender_address,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
+      inReplyTo:messageParent(envelope),kind:connection||envelope.authorization.type==='conversation'?"connection":"subscription",connection,
+      sharedConversation:await this.sharedConversation(session,envelope),
       replyAvailable:rows[0].trashed_at===null&&envelope.reply.allowed&&envelope.reply.until+300>=Math.floor(Date.now()/1000)&&rows[0].reply_unused,
       deliveredAt:rows[0].delivered_at.toISOString(),body:bodyDocument(rows[0].body_bytes)};
   }

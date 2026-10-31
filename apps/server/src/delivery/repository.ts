@@ -3,6 +3,7 @@ import { inspectSignedPayload, type HailCancellationReason, type HailEnvelope, t
 import type { SQL } from "bun";
 import { bodyDigest, validateBodyBytes } from "../bodies/service.js";
 import {connectionMessageAllowed,type ConnectionMessagingAuthority} from "../accounts/connection-authorization.js";
+import {conversationMessageAllowed} from "../accounts/conversation-memberships.js";
 
 export interface DeliveryClaim {
   senderDid: string;
@@ -28,6 +29,9 @@ export class DeliveryRepository {
   constructor(private readonly sql: SQL,private readonly connections?:Pick<ConnectionMessagingAuthority,"live">) {}
 
   async authorizeConnection(claim:DeliveryClaim){
+    const a=claim.envelope.authorization;
+    if(a.type==='conversation')return conversationMessageAllowed(this.sql,claim.envelope.to,claim.envelope.from,
+      {creator:a.creator,conversationId:a.conversation_id},a.descriptor_hash.value);
     if(claim.envelope.authorization.type!=="connection")return true;
     if(!this.connections)throw new Error("Connection authorization is unavailable");
     return this.connections.live(claim.envelope.to,claim.envelope.from,claim.envelope.authorization);
@@ -82,6 +86,12 @@ export class DeliveryRepository {
       }
       if(envelope.authorization.type==="connection"&&(!authorized||!await connectionMessageAllowed(tx as SQL,envelope.to,envelope.from,envelope.authorization,true))){
         await this.finish(tx as SQL,claim,"failed","receiver-policy-rejected");return "unauthorized" as const;
+      }
+      if(envelope.authorization.type==='conversation'){
+        const a=envelope.authorization;
+        if(!authorized||!await conversationMessageAllowed(tx as SQL,envelope.to,envelope.from,{creator:a.creator,conversationId:a.conversation_id},a.descriptor_hash.value,true)){
+          await this.finish(tx as SQL,claim,'failed','receiver-policy-rejected');return 'unauthorized' as const;
+        }
       }
       await tx`
         INSERT INTO verified_body_provenance

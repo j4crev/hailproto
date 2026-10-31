@@ -143,6 +143,47 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     expect(await db.sql`SELECT id FROM account_connections WHERE id<>${obsoleteId}`).toHaveLength(0);
     const preserve=await db.sql.reserve();try{await expect(preserve.unsafe(await Bun.file(new URL('../migrations/rollback/0070_unified_connections.sql',import.meta.url)).text())).rejects.toThrow('Retained unified local connections');}finally{await preserve.unsafe('ROLLBACK');preserve.release();}
     expect((await service.list(a.session)).connections).toHaveLength(1);expect((await service.list(e.session)).connections).toHaveLength(0);
+    // Introduction consent is a separate local policy: existing connections
+    // default on without overwriting explicit choices; browser/API checks apply.
+    const preferencesApp=new Hono();registerConnectionRoutes(preferencesApp,service,accounts,origin);
+    const preferencePath=origin+'/api/v1/account/connections/conversation-preferences';
+    const preferenceCall=(body?:unknown,user=a,headers:Record<string,string>={})=>preferencesApp.request(preferencePath,{
+      method:body===undefined?'GET':'POST',headers:{Origin:origin,'Content-Type':'application/json',Cookie:'hail_session='+user.token,...headers},
+      ...(body===undefined?{}:{body:JSON.stringify(body)})});
+    const readPreferences=async(user=a)=>(await preferenceCall(undefined,user)).json();
+    const savePreference=async(body:unknown)=>expect((await preferenceCall(body)).status).toBe(200);
+    const preferenceConnection={connectionId:connections[0]!.id,epoch:1};
+    expect(await readPreferences()).toMatchObject({allowIntroductions:true,configured:false,connections:[{...preferenceConnection,override:null,effectiveAllowIntroductions:true}]});
+    expect((await preferencesApp.request(preferencePath)).status).toBe(401);
+    expect((await preferenceCall({allowIntroductions:true},a,{Origin:'https://evil.example.com'})).status).toBe(403);
+    expect((await preferenceCall(undefined,a,{Authorization:'Bearer bogus'})).status).toBe(403);
+    await expect(service.conversationPreferences({...a.session,passkey_credential_id:null})).rejects.toMatchObject({status:403});
+    // Empty rollback is supported and preserves existing connection state.
+    await expect(db.sql.begin(async tx=>{
+      await tx.unsafe(await Bun.file(new URL('../migrations/rollback/0092_conversation_introduction_preferences.sql',import.meta.url)).text());
+      expect((await tx`SELECT id FROM federated_connection_pairs WHERE state='active'`).length).toBe(2);
+      throw Error('empty preference rollback verified');
+    })).rejects.toThrow('empty preference rollback verified');
+    for(const input of [{},{allowIntroductions:'true'},{allowIntroductions:true,extra:true},{...preferenceConnection,override:'allow'},
+      {...preferenceConnection,override:null,epoch:0},{...preferenceConnection,override:true,epoch:1.5}])
+      expect((await preferenceCall(input)).status).toBe(400);
+    expect((await preferenceCall({...preferenceConnection,override:true},e)).status).toBe(409);
+    expect((await preferenceCall({...preferenceConnection,epoch:2,override:true})).status).toBe(409);
+    await savePreference({allowIntroductions:false});
+    await savePreference({...preferenceConnection,override:true});
+    expect(await readPreferences()).toMatchObject({allowIntroductions:false,connections:[{override:true,effectiveAllowIntroductions:true}]});
+    expect(await readPreferences(b)).toMatchObject({allowIntroductions:true,configured:false,connections:[{override:null,effectiveAllowIntroductions:true}]});
+    await savePreference({allowIntroductions:true});
+    await savePreference({...preferenceConnection,override:false});
+    expect(await readPreferences()).toMatchObject({allowIntroductions:true,configured:true,connections:[{override:false,effectiveAllowIntroductions:false}]});
+    await savePreference({...preferenceConnection,override:null});
+    expect(await readPreferences()).toMatchObject({connections:[{override:null,effectiveAllowIntroductions:true}]});
+    await savePreference({allowIntroductions:false});
+    await savePreference({...preferenceConnection,override:true});
+    await savePreference({...preferenceConnection,override:true}); // Exact retry remains one choice.
+    expect((await db.sql`SELECT * FROM connection_conversation_preferences WHERE account_id=${a.id}`).length).toBe(1);
+    await expect(db.sql.begin(async tx=>tx.unsafe(await Bun.file(new URL('../migrations/rollback/0092_conversation_introduction_preferences.sql',import.meta.url)).text())))
+      .rejects.toThrow('Retained conversation introduction preferences');
     const copies=await db.sql<{id:string;count:number}[]>`SELECT id,count(*)::integer AS count FROM federated_connection_attempts GROUP BY id`;
     expect(copies).toHaveLength(2);expect(copies.every(r=>r.count===2)).toBe(true);
     const revoke=await service.prepare(a.session,{requestId:randomUUID(),action:"revoke",id:expiring.id});
@@ -153,6 +194,8 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     await service.commit(b.session,disconnect.requestId,b.assertion(disconnect.options!.challenge));
     expect((await db.sql<{allowed:boolean}[]>`SELECT hail_connection_message_permission(${a.did},${b.did},${connections[0]!.id},1) AS allowed`)[0]!.allowed).toBe(false);
     expect((await db.sql<{allowed:boolean}[]>`SELECT hail_connection_message_permission(${b.did},${a.did},${connections[0]!.id},1) AS allowed`)[0]!.allowed).toBe(false);
+    expect(await readPreferences()).toMatchObject({connections:[]});
+    expect((await preferenceCall({...preferenceConnection,override:false})).status).toBe(409);
     await service.commit(b.session,uncommitted.requestId,b.assertion(uncommitted.options!.challenge));await drain();
     expect((await service.list(a.session)).connections).toHaveLength(0);
     expect((await service.commit(b.session,crossed[0]!.requestId)).result).toMatchObject({connectionId:connections[0]!.id});
@@ -168,6 +211,8 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     await service.commit(b.session,reconnect.requestId,b.assertion(reconnect.options!.challenge));
     await drain();
     expect((await service.list(a.session)).connections).toHaveLength(1);
+    expect(await readPreferences()).toMatchObject({allowIntroductions:false,connections:[{override:null,effectiveAllowIntroductions:false}]});
+    expect((await preferenceCall({...preferenceConnection,override:true})).status).toBe(409);
     // Owner-held inviter is offline after creating its standing signed invitation.
     const ownerCode=await create(o,true),ownerScan=scan(ownerCode.link);
     const browserPrepare=await call("prepare",{requestId:randomUUID(),action:"create",personal:false,label:"Owner API",expiresAt:Math.floor(Date.now()/1000)+3600},o);
@@ -287,6 +332,7 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     const rollback=await db.sql.reserve();try{await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0062_connection_preview.sql",import.meta.url)).text())).rejects.toThrow("prevents schema rollback");}finally{await rollback.unsafe("ROLLBACK");rollback.release();}
     await db.sql`UPDATE account_passkeys SET revoked_at=now() WHERE credential_id=${a.credential}`;
     await expect(service.list(a.session)).rejects.toMatchObject({status:403});
+    await expect(service.conversationPreferences(a.session,{allowIntroductions:true})).rejects.toMatchObject({status:403});
     // Bearer access is a distinct owner-signature channel; browser passkeys and
     // managed signing are never synthesized or bypassed by a credential.
     const ownerAccess=await accounts.issue(o.address,false,undefined,["account:read","account:write"]);

@@ -5,7 +5,7 @@ import {UserGrantError} from '../grants/service.js';
 import {bodyDocument} from './messaging.js';
 import {threadBodyPreview} from './message-threads.js';
 
-export type ConnectionNode={sender:string;messageId:string;recipient:string;sent:boolean;visible:boolean;isRead:boolean;at:string;parentSender:string|null;parentId:string|null;batch:string|null};
+export type ConnectionNode={sender:string;messageId:string;recipient:string;sent:boolean;visible:boolean;isRead:boolean;at:string;parentSender:string|null;parentId:string|null;batch:string|null;conversation?:string|null};
 export const connectionKey=(m:{sender:string;messageId:string})=>m.sender+'/'+m.messageId;
 // Union only authenticated envelope links and this account's own batch targets.
 // Metadata-only, linear-space grouping happens before pagination/body loading.
@@ -20,11 +20,13 @@ export function groupConnectionMessages(nodes:ConnectionNode[]) {
   };
   const join=(a:string,b:string)=>{const x=find(a),y=find(b);if(x!==y)parents.set(x<y?y:x,x<y?x:y);};
   const known=new Set(nodes.map(connectionKey));
+  const byKey=new Map(nodes.map(n=>[connectionKey(n),n]));
   for(const node of nodes){
     const key=connectionKey(node);find(key);
     // Missing parents cannot connect unrelated peers by an unverified reference.
     const parent=node.parentSender&&node.parentId?node.parentSender+'/'+node.parentId:null;
-    if(parent&&known.has(parent))join(key,parent);
+    if(parent&&known.has(parent)&&!node.conversation&&!byKey.get(parent)?.conversation)join(key,parent);
+    if(node.conversation)join(key,'conversation/'+node.conversation);
     if(node.sent&&node.batch)join(key,'batch/'+node.batch);
   }
   const grouped=new Map<string,ConnectionNode[]>();
@@ -41,18 +43,18 @@ export function groupConnectionMessages(nodes:ConnectionNode[]) {
 }
 
 async function graph(sql:SQL,session:AccountApiSession) {
-  const rows=await sql<{sender:string;message_id:string;recipient:string;sent:boolean;visible:boolean;is_read:boolean;at:Date;parent_sender:string|null;parent_id:string|null;batch:string|null}[]>`
+  const rows=await sql<{sender:string;message_id:string;recipient:string;sent:boolean;visible:boolean;is_read:boolean;at:Date;parent_sender:string|null;parent_id:string|null;batch:string|null;conversation_creator:string|null;conversation_id:string|null}[]>`
     SELECT e.sender_did AS sender,e.message_id,e.recipient_did AS recipient,true AS sent,true AS visible,true AS is_read,e.created_at AS at,
-      e.parent_sender,e.parent_message_id AS parent_id,t.publication_id::text AS batch
+      e.parent_sender,e.parent_message_id AS parent_id,t.publication_id::text AS batch,e.conversation_creator,e.conversation_id
     FROM sent_envelopes e LEFT JOIN connection_message_targets t ON t.account_id=e.sender_account_id AND t.message_id=e.message_id
-    WHERE e.sender_account_id=${session.account_id} AND e.sender_did=${session.did} AND e.authorization_type='connection'
+    WHERE e.sender_account_id=${session.account_id} AND e.sender_did=${session.did} AND e.authorization_type IN ('connection','conversation')
     UNION ALL
     SELECT e.sender_did,e.message_id,e.recipient_did,false,d.message_id IS NOT NULL AND d.trashed_at IS NULL,COALESCE(d.is_read,true),
-      COALESCE(d.delivered_at,e.created_at),e.parent_sender,e.parent_message_id,NULL
+      COALESCE(d.delivered_at,e.created_at),e.parent_sender,e.parent_message_id,NULL,e.conversation_creator,e.conversation_id
     FROM received_envelopes e LEFT JOIN delivered_messages d ON d.recipient_did=e.recipient_did AND d.sender_did=e.sender_did AND d.message_id=e.message_id
-    WHERE e.local_account_id=${session.account_id} AND e.recipient_did=${session.did} AND e.authorization_type='connection' AND e.outcome='accepted'`;
+    WHERE e.local_account_id=${session.account_id} AND e.recipient_did=${session.did} AND e.authorization_type IN ('connection','conversation') AND e.outcome='accepted'`;
   return groupConnectionMessages(rows.map(r=>({sender:r.sender,messageId:r.message_id,recipient:r.recipient,sent:r.sent,visible:r.visible,isRead:r.is_read,
-    at:r.at.toISOString(),parentSender:r.parent_sender,parentId:r.parent_id,batch:r.batch})));
+    at:r.at.toISOString(),parentSender:r.parent_sender,parentId:r.parent_id,batch:r.batch,conversation:r.conversation_id?r.conversation_creator+'/'+r.conversation_id:null})));
 }
 
 export async function connectionInbox(sql:SQL,session:AccountApiSession,messaging:AccountMessaging,after:string|null) {

@@ -108,7 +108,7 @@ export class ManagedMigrationActivation {
     if(!pending||pending.state!=="staged"||pending.custody_profile!=="managed")throw new Error("No inactive managed import to materialize");
     const manifest=validateManagedTransferManifest(pending.manifest_bytes);
     await requireConnectionImportPhase(this.sql,manifest,'committed');
-    if(manifest.connections)await verifyConnectionHistoryAuthority(manifest.connections,this.resolver,this.now());
+    if(manifest.connections)await verifyConnectionHistoryAuthority(manifest.connections,this.resolver,this.now(),manifest.conversations);
     if(manifest.transferId!==transferId||manifest.did!==pending.did||manifest.destinationServiceBase!==this.serviceBase||
       !same(sha(pending.manifest_bytes),pending.manifest_digest))throw new Error("Managed import differs from its retained snapshot");
     const assessment=this.gate?await this.gate.assess(transferId,signedMonitor):undefined;

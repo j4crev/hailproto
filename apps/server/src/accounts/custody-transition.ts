@@ -1,3 +1,4 @@
+import {collectConversationHistory,conversationHistoryDigest} from '../migration/conversation-history.js';
 import { requireCustomDomainAuthority } from "./custom-domain-authority.js";
 import { discoverProvider, type ProviderDiscovery } from "../discovery/delegation.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -103,7 +104,7 @@ export class SameProviderCustodyTransition {
     await requireCustomDomainAuthority(tx,accountId,account.canonical_address,new URL(this.serviceBase).origin,this.discover);
   }
 
-  async reviewOwner(accountId:string,newIdentityKey:string):Promise<OwnerCustodyReview> {
+  async reviewOwner(accountId:string,newIdentityKey:string,reviewedAt?:number):Promise<OwnerCustodyReview> {
     await this.sql.begin(tx=>this.domainAuthority(tx,accountId));
     await ed25519PublicKeyFromDidKey(newIdentityKey);
     const account=(await this.sql<{did:string;canonical_address:string;onboarding_state:string;activation_verification_mode:string}[]>`
@@ -123,7 +124,7 @@ export class SameProviderCustodyTransition {
     const previousOperationCid=(await cidForCbor(log.at(-1)!)).toString();
     const expectedState=def.documentData.parse({...currentState,verificationMethods:{...currentState.verificationMethods,"hail-identity":newIdentityKey}});
     const generation=number((await this.sql<{generation:number|string|bigint}[]>`SELECT generation FROM account_serving_generations WHERE account_id=${accountId}`)[0]!.generation,"serving generation");
-    const now=Math.floor(this.now().getTime()/1000),activeGrants=[] as OwnerCustodyReview["activeGrants"];
+    const now=reviewedAt??Math.floor(this.now().getTime()/1000),activeGrants=[] as OwnerCustodyReview["activeGrants"];
     for(const grant of (await this.grants(this.sql,accountId)).filter(row=>row.current_status==="active")) {
       if(grant.publication_state!=="acknowledged"||!grant.destination_service_base||!grant.acknowledged_etag)
         throw new Error("Every active authoritative Grant needs an acknowledged predecessor");
@@ -145,7 +146,11 @@ export class SameProviderCustodyTransition {
     await this.sql.begin(tx=>this.domainAuthority(tx,accountId));
     const prior=(await this.sql<TransitionRow[]>`SELECT * FROM custody_transition_preparations WHERE account_id=${accountId} AND state<>'complete'`)[0];
     if(prior)return this.preparation(prior);
-    const review=await this.reviewOwner(accountId,newIdentityKey);
+    // Rebuild current authority at the timestamp the owner actually signed.
+    // Comparing to a newly generated second would reject every delayed review.
+    const reviewedAt=inspectSignedPayload('hail.address-binding',bindingCose).payload.issued_at,now=Math.floor(this.now().getTime()/1000);
+    if(reviewedAt<now-900||reviewedAt>now+300)throw new Error('Owner custody review expired or is not yet valid');
+    const review=await this.reviewOwner(accountId,newIdentityKey,reviewedAt);
     const verifier=createWebCryptoVerifier(async kid=>{if(kid!==`${review.did}#hail-identity`)throw new Error("Owner signer differs");
       return ed25519PublicKeyFromDidKey(newIdentityKey);});
     const binding=(await verifySignedPayload("hail.address-binding",bindingCose,verifier)).payload;
@@ -439,7 +444,8 @@ export class SameProviderCustodyTransition {
   private async connectionCheckpoint(sql:SQL,accountId:string,did:string,generation:number) {
     await sql`SELECT hail_assert_connection_source_drained(${accountId}::uuid)`;
     const history=await collectConnectionHistory(sql,{accountId,did,sourceGeneration:generation,sourceServiceBase:this.serviceBase},this.now().toISOString());
-    return {sha256:connectionHistoryDigest(history),share_policy:history.sharePolicy};
+    const conversations=await collectConversationHistory(sql,{accountId,did,sourceGeneration:generation,sourceServiceBase:this.serviceBase},history.capturedAt);
+    return {sha256:connectionHistoryDigest(history),share_policy:history.sharePolicy,conversation_sha256:conversationHistoryDigest(conversations)};
   }
 
   private async grants(sql:SQL,accountId:string):Promise<GrantRow[]> {

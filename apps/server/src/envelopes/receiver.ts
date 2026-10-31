@@ -4,6 +4,7 @@ import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import type { AccountRecord } from "../onboarding/repository.js";
 import type { HailDidResolver } from "../plc/resolver.js";
 import type { EnvelopeRepository, EnvelopeOutcome } from "./repository.js";
+import type {ConnectionMessagingAuthority} from "../accounts/connection-authorization.js";
 
 export interface EnvelopeAccounts { getAccountByDid(did: string): Promise<AccountRecord | null>; }
 
@@ -14,6 +15,7 @@ export class EnvelopeReceiver {
     private readonly resolver: HailDidResolver,
     private readonly serviceBase: string,
     private readonly now: () => number = () => Math.floor(Date.now() / 1000),
+    private readonly connections?:Pick<ConnectionMessagingAuthority,"live">,
   ) {}
 
   async receive(representation: Uint8Array, signal?: AbortSignal): Promise<EnvelopeOutcome | "ignored"> {
@@ -24,7 +26,7 @@ export class EnvelopeReceiver {
       if (payload.from === payload.to ||
         payload.created_at > this.now() + 300 || representation.length > 16_384) return "ignored";
       // The claimed fields are used only for a cheap preliminary lookup, never for a durable mutation.
-      if (!await this.store.candidate(payload.authorization, payload.from, payload.to)) return "ignored";
+      if (!await this.store.candidate(payload.authorization, payload.from, payload.to,payload)) return "ignored";
       signal?.throwIfAborted();
       const sender = await this.resolver.resolve(payload.from);
       signal?.throwIfAborted();
@@ -36,6 +38,17 @@ export class EnvelopeReceiver {
         }),
       );
       signal?.throwIfAborted();
+      let conversationDescriptor;
+      if(payload.authorization.type==='conversation'&&payload.conversation_introduction){
+        const intro=payload.conversation_introduction,authorization=payload.authorization;
+        conversationDescriptor=await verifySignedPayload('hail.conversation',intro.descriptor,createWebCryptoVerifier(async kid=>{
+          if(kid!==payload.from+'#hail-messaging')throw new Error('Wrong conversation creator');
+          return ed25519PublicKeyFromDidKey(sender.messagingDidKey);
+        }));
+        const d=conversationDescriptor.payload;
+        if(d.from!==authorization.creator||d.conversation_id!==authorization.conversation_id||!d.participants.includes(payload.to)||
+          d.created_at>payload.created_at+300||!this.connections||!await this.connections.live(payload.to,payload.from,{type:'connection',connection_id:intro.connection_id,epoch:intro.epoch}))return 'ignored';
+      }
       const recipient = await this.resolver.resolve(payload.to);
       signal?.throwIfAborted();
       if (recipient.serviceBase !== this.serviceBase) return "ignored";
@@ -53,6 +66,7 @@ export class EnvelopeReceiver {
         recipientEvidence: recipient.evidence,
         recipientServiceBase: this.serviceBase,
         now: this.now(),
+        ...(conversationDescriptor?{conversationDescriptor}:{}),
       }, signal);
     } catch {
       return "ignored";

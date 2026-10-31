@@ -19,6 +19,9 @@ import type {PasskeyAuth} from "./passkeys.js";
 import type {RemoteConnectionReview} from "./connection-review.js";
 import {ConnectionFederation} from "./connection-federation.js";
 import {ConnectionError} from "./connection-error.js";
+import {conversationPreferences,saveConversationPreferences} from "./conversation-preferences.js";
+import {conversationIdentity,conversationState,changeConversationMembership,reviveConversation} from './conversation-memberships.js';
+import {connectionMessageAllowed} from './connection-authorization.js';
 export {ConnectionError} from "./connection-error.js";
 
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
@@ -192,6 +195,115 @@ export class AccountConnections {
       if(!pair)throw new ConnectionError(404);
       return this.federation.disconnect(tx as SQL,owner,pair.id,connectionId,uuidV7());
     });
+  }
+  async conversationPreferences(session:AccountApiSession,input?:Record<string,unknown>){
+    if(!session.passkey_credential_id)throw new ConnectionError(403,"Sign in with your passkey to manage conversation preferences.");
+    return this.pairTransaction(session,undefined,async tx=>input===undefined
+      ?conversationPreferences(tx,session):saveConversationPreferences(tx,session,input));
+  }
+  async conversationMembership(session:AccountApiSession,input:Record<string,unknown>){
+    if(!session.passkey_credential_id)throw new ConnectionError(403,'Sign in with your passkey first.');
+    if(Object.keys(input).sort().join(',')!=='action,conversationId,creator'||!['inspect','open','leave','rejoin'].includes(input.action as string))throw new ConnectionError(400);
+    const identity=conversationIdentity(input);
+    return this.pairTransaction(session,undefined,async tx=>{
+      const state=input.action==='inspect'?await conversationState(tx,session,identity):await changeConversationMembership(tx,session,identity,input.action as 'open'|'leave'|'rejoin');
+      if(!state)throw new ConnectionError(404,'Conversation unavailable.');
+      const {descriptorHash,...view}=state;return view;
+    });
+  }
+
+  async conversationRevival(session:AccountApiSession,input:Record<string,unknown>){
+    if(!session.passkey_credential_id)throw new ConnectionError(403);
+    if(Object.keys(input).sort().join(',')!=='conversationId,operationId'||typeof input.operationId!=='string'||!UUID.test(input.operationId))throw new ConnectionError(400);
+    const identity=conversationIdentity({creator:session.did,conversationId:input.conversationId});let operationId=input.operationId;
+    await this.pairTransaction(session,undefined,async tx=>{
+      const previous=(await tx<{conversation_id:string}[]>`SELECT conversation_id FROM conversation_revival_batches WHERE account_id=${session.account_id} AND id=${operationId}`)[0];
+      if(previous){if(previous.conversation_id!==identity.conversationId)throw new ConnectionError(409,'Revival ID has another conversation.');return;}
+      const state=await conversationState(tx,session,identity);
+      if(!state)throw new ConnectionError(404,'Only the original creator can revive this conversation.');
+      if(state.state==='left')throw new ConnectionError(409,'Rejoin the conversation before reviving it.');
+      const recent=(await tx<{id:string}[]>`SELECT id FROM conversation_revival_batches WHERE account_id=${session.account_id} AND conversation_id=${identity.conversationId}
+        AND created_at>clock_timestamp()-interval '24 hours' ORDER BY created_at DESC LIMIT 1`)[0];
+      if(recent){operationId=recent.id;return;}
+      const pending=await tx`SELECT DISTINCT batch_id FROM conversation_revival_targets WHERE account_id=${session.account_id} AND outcome='pending'`;
+      if(pending.length>=5)throw new ConnectionError(409,'Wait for pending revivals to finish.');
+      const key=await new OnboardingRepository(tx).getKey(session.account_id,'hail-messaging'),resolved=await this.resolver.resolve(session.did);
+      if(resolved.messagingDidKey!==key.publicKey||resolved.serviceBase!==this.origin+'/hail')throw new ConnectionError(409,'Messaging authority changed.');
+      await requireFreshPublicAuthority(tx,resolved.evidence,{did:session.did,role:'hail-messaging',key:key.publicKey,serviceBase:resolved.serviceBase},new Date());
+      const secret=await this.encryptor.decrypt(session.account_id,key.role,key.algorithm,key.publicKey,key);
+      try{
+        const signer=createWebCryptoSigner(session.did+'#hail-messaging',await importEd25519PrivateKey(secret)),instant=now();
+        await tx`INSERT INTO conversation_revival_batches(account_id,id,creator_did,conversation_id,serving_generation)
+          VALUES(${session.account_id},${operationId},${session.did},${identity.conversationId},${session.serving_generation??1})`;
+        for(const recipient of state.participants.filter(did=>did!==session.did)){
+          const pair=(await tx<{connection_id:string;epoch:number|string}[]>`SELECT connection_id,epoch FROM federated_connection_pairs WHERE account_id=${session.account_id} AND peer_did=${recipient}
+            AND hail_connection_message_allowed(${session.did},${recipient},connection_id,epoch)`)[0];
+          const requestId=uuidV7(),cose=await signPayload('hail.conversation-revival',{type:'hail.conversation-revival',version:1,from:session.did,to:recipient,
+            conversation_id:identity.conversationId,descriptor_hash:{algorithm:'sha-256',value:state.descriptorHash},request_id:requestId,issued_at:instant,expires_at:instant+86400},signer);
+          await tx`INSERT INTO conversation_revival_targets(account_id,batch_id,recipient_did,request_id,request_cose,connection_id,connection_epoch,outcome,expires_at)
+            VALUES(${session.account_id},${operationId},${recipient},${requestId},${cose},${pair?.connection_id??null},${pair?Number(pair.epoch):null},${pair?'pending':'denied'},${new Date((instant+86400)*1000)})`;
+        }
+      }finally{secret.fill(0);}
+      if(state.state==='expired')await changeConversationMembership(tx,session,identity,'revive');
+    });
+    const targets=await this.sql<{recipient_did:string;outcome:string}[]>`SELECT recipient_did,outcome FROM conversation_revival_targets WHERE account_id=${session.account_id} AND batch_id=${operationId} ORDER BY recipient_did`;
+    return {operationId,conversationId:identity.conversationId,targets:targets.map(t=>({recipient:t.recipient_did,outcome:t.outcome}))};
+  }
+
+  async receiveConversationRevival(input:Record<string,unknown>){
+    if(Object.keys(input).sort().join(',')!=='connectionId,cose,epoch'||typeof input.cose!=='string'||input.cose.length>21846||
+      typeof input.connectionId!=='string'||!UUID.test(input.connectionId)||!Number.isSafeInteger(input.epoch)||Number(input.epoch)<1)throw new ConnectionError(400);
+    const cose=decodeBase64Url(input.cose);if(encodeBase64Url(cose)!==input.cose)throw new ConnectionError(400);
+    const {inspectSignedPayload}=await import('@hailproto/codec');
+    const inspected=inspectSignedPayload('hail.conversation-revival',cose),r=inspected.payload;
+    const sender=await this.resolver.resolve(r.from),recipient=await this.resolver.resolve(r.to);
+    if(recipient.serviceBase!==this.origin+'/hail')throw new ConnectionError(403);
+    const verified=await verifySignedPayload('hail.conversation-revival',cose,createWebCryptoVerifier(async kid=>{
+      if(kid!==r.from+'#hail-messaging')throw new ConnectionError(403);return ed25519PublicKeyFromDidKey(sender.messagingDidKey);
+    }));
+    const connection={type:'connection' as const,connection_id:input.connectionId,epoch:Number(input.epoch)};
+    const owner=(await this.sql<{id:string}[]>`SELECT id FROM provider_accounts WHERE did=${r.to} AND onboarding_state='active' AND closed_at IS NULL`)[0];
+    if(!owner)throw new ConnectionError(404);
+    // Remote disconnect must be observed before issuing a new lease.
+    const locallyConnected=await connectionMessageAllowed(this.sql,r.to,r.from,connection);
+    if(locallyConnected&&!await this.federation.messageState(r.to,r.from,connection.connection_id,connection.epoch))throw new ConnectionError(409);
+    return this.sql.begin(async tx=>{
+      await requireFreshPublicAuthority(tx,sender.evidence,{did:r.from,role:'hail-messaging',key:sender.messagingDidKey},new Date());
+      await requireFreshPublicAuthority(tx,recipient.evidence,{did:r.to,serviceBase:this.origin+'/hail'},new Date());
+      return {requestId:r.request_id,...await reviveConversation(tx as SQL,{account_id:owner.id,did:r.to},verified,connection)};
+    });
+  }
+
+  async workConversationRevival(){
+    const connection=await this.sql.reserve();let locked=false;
+    try{
+      locked=(await connection<{locked:boolean}[]>`SELECT pg_try_advisory_lock(684245164) AS locked`)[0]!.locked;if(!locked)return false;
+      const row=(await this.sql<{account_id:string;batch_id:string;recipient_did:string;request_id:string;request_cose:Uint8Array;connection_id:string;connection_epoch:number|string;expires_at:Date;attempts:number;serving_generation:number|string}[]>`
+        SELECT t.*,b.serving_generation FROM conversation_revival_targets t JOIN conversation_revival_batches b ON b.account_id=t.account_id AND b.id=t.batch_id
+        WHERE t.outcome='pending' AND (t.next_attempt_at<=clock_timestamp() OR t.expires_at<=clock_timestamp())
+          AND NOT EXISTS(SELECT 1 FROM provider_migration_fences WHERE account_id=t.account_id)
+        ORDER BY t.next_attempt_at LIMIT 1`)[0];
+      if(!row)return false;
+      return withServingGeneration(row.account_id,Number(row.serving_generation),async()=>{
+        let outcome='expired';
+        if(row.expires_at.getTime()>Date.now()){
+          try{
+            const input={cose:encodeBase64Url(new Uint8Array(row.request_cose)),connectionId:row.connection_id,epoch:Number(row.connection_epoch)};
+            const destination=await this.resolver.resolve(row.recipient_did);
+            const result=destination.serviceBase===this.origin+'/hail'?await this.receiveConversationRevival(input):
+              this.remote?(await this.remote.exchange(row.recipient_did,'conversation-revival',input)).wire:null;
+            if(!result||result.requestId!==row.request_id||!['renewed','active','left','denied'].includes(result.outcome as string))throw new Error('Invalid revival response');
+            outcome=result.outcome as string;
+          }catch{
+            await this.sql`UPDATE conversation_revival_targets SET attempts=attempts+1,next_attempt_at=clock_timestamp()+${Math.min(300,5*2**Math.min(row.attempts,6))}*interval '1 second'
+              WHERE account_id=${row.account_id} AND batch_id=${row.batch_id} AND recipient_did=${row.recipient_did}`;return true;
+          }
+        }
+        await this.sql`UPDATE conversation_revival_targets SET outcome=${outcome},attempts=attempts+1
+          WHERE account_id=${row.account_id} AND batch_id=${row.batch_id} AND recipient_did=${row.recipient_did}`;
+        return true;
+      });
+    }finally{try{if(locked)await connection`SELECT pg_advisory_unlock(684245164)`;}finally{connection.release();}}
   }
   async list(session:AccountApiSession){
     return this.pairTransaction(session,undefined,async tx=>{

@@ -15,6 +15,8 @@ start =
   hail-connection-confirmation /
   hail-connection-grant /
   hail-connection-control /
+  hail-conversation /
+  hail-conversation-revival /
   hail-envelope /
   hail-delivery-status /
   hail-body-spt-1 /
@@ -35,6 +37,30 @@ bearer-token = bstr .size 32
 digest = {
   "algorithm": "sha-256",
   "value": sha256
+}
+
+; Fixed-roster conversation control objects; these are not delivery grants.
+hail-conversation = {
+  "type": "hail.conversation",
+  "version": 1,
+  "conversation_id": uuidv7,
+  "from": did,
+  "membership_revision": 1,
+  "participants": [3*101 did],
+  "created_at": timestamp,
+  "admission_until": timestamp
+}
+
+hail-conversation-revival = {
+  "type": "hail.conversation-revival",
+  "version": 1,
+  "conversation_id": uuidv7,
+  "descriptor_hash": digest,
+  "from": did,
+  "to": did,
+  "request_id": uuidv7,
+  "issued_at": timestamp,
+  "expires_at": timestamp
 }
 
 hail-address-binding = {
@@ -140,7 +166,24 @@ hail-connection-confirmation = {
   "key_id": did-url
 }
 
-hail-envelope = hail-envelope-v1 / hail-envelope-v2 / hail-envelope-v3
+hail-envelope = hail-envelope-v1 / hail-envelope-v2 / hail-envelope-v3 / hail-envelope-v4
+
+hail-envelope-v4 = {
+  "type": "hail.envelope",
+  "version": 4,
+  "message_id": uuidv7,
+  "from": did,
+  "to": did,
+  "authorization": {"type": "conversation", "creator": did, "conversation_id": uuidv7, "membership_revision": 1, "descriptor_hash": digest},
+  "conversation_message_id": uuidv7,
+  ? "conversation_introduction": {"descriptor": bstr, "connection_id": uuidv7, "epoch": hail-positive},
+  ? "in_reply_to": {"sender": did, "message_id": uuidv7},
+  ? "message_type": message-type,
+  "created_at": timestamp,
+  "expires_at": timestamp,
+  "body": body-descriptor,
+  "reply": {"allowed": false}
+}
 
 hail-envelope-v1 = {
   "type": "hail.envelope",

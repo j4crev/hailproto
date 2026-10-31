@@ -5,6 +5,7 @@ import {threadBodyPreview} from '../../server/src/accounts/message-threads.js';
 import {createWebCryptoSigner, signPayload, encodeBase64Url, type HailGrant, type HailSenderProfile} from '@hailproto/codec';
 import {uuidV7} from '../../server/src/identity/uuid-v7.js';
 
+const sharedMode=process.env.HAIL_DESIGN_SHARED_CONVERSATIONS==='1';
 const port = Number(process.env.HAIL_DESIGN_PORT || 4173);
 const origin = `http://localhost:${port}`;
 const did = 'did:plc:' + 'a'.repeat(24);
@@ -52,6 +53,14 @@ for(const [hours,sender,text] of [[0.8,senders[3],'I can bring a picnic blanket.
 for(let index=0;index<Math.min(100,Number(process.env.HAIL_DESIGN_EXTRA_REPLIES)||0);index++){
   messages.push({...firstConnection,sender:maya.did,senderAddress:maya.address,messageId:uuidV7(),deliveredAt:date(0.15-index/1000),body:body('Saturday at the market?',`Another detail for Saturday (${index+1}).`),isRead:false});
 }
+const sharedConversation={creator:did,conversationId:uuidV7(),messageId:uuidV7(),state:'active',expiresAt:new Date(started+730*86400000).toISOString(),participants:[did,senders[3].did,maya.did],canRevive:true};
+if(sharedMode){
+  for(const m of messages.filter(m=>m.kind==='connection'&&m.messageId!==messages[4].messageId)){
+    Object.assign(m,{sharedConversation});
+    if(m.sender===maya.did)Object.assign(m,{connection:undefined});
+  }
+  for(const m of sent)Object.assign(m,{sharedConversation});
+}
 const fixtureGroups=()=>groupConnectionMessages([
   ...messages.filter(m=>m.kind==='connection').map(m=>({sender:m.sender,messageId:m.messageId,recipient:did,sent:false,visible:!trash.has(m.messageId)&&!deleted.has(m.messageId),isRead:m.isRead,at:m.deliveredAt,
     parentSender:m.messageId===messages[4].messageId?null:did,parentId:m.messageId===messages[4].messageId?null:sent[0].messageId,batch:null})),
@@ -97,6 +106,16 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
     }
     return json(preferences);
   }
+  if(sharedMode&&path==='/api/v1/account/connections/conversation-membership'){
+    if(input.action==='leave')sharedConversation.state='left';
+    if(input.action==='rejoin'){if(sharedConversation.state!=='left')return json({},409);sharedConversation.state='active';}
+    return json(sharedConversation);
+  }
+  if(sharedMode&&path==='/api/v1/account/connections/conversation-revive'){
+    sharedConversation.state='active';
+    return json({operationId:input.operationId,targets:[{recipient:maya.did,outcome:'renewed'},{recipient:senders[3].did,outcome:'active'}]});
+  }
+  if(sharedMode&&path==='/api/v1/account/fixture-expire'){sharedConversation.state='expired';return json({});}
   const action = path.match(/^\/api\/v1\/account\/inbox\/([^/]+)\/([^/]+)\/(mark-read|mark-unread|delete)$/);
   if(action && request.method==='POST') {
     const m = messages.find(m=>m.sender===action[1]&&m.messageId===action[2]);if(!m)return json({},404);
@@ -139,7 +158,7 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
   if(path==='/api/v1/account/custom-domains')return json({provider:origin,domains:[]});
   if(path==='/api/v1/account/connections')return json({preview:true,codes:[],connections:[{id:connectionId,did:senders[3].did,address:senders[3].address,connectedAt:date(240),remote:true}],pendingConnections:[]});
   if(path==='/api/v1/account/publications/audiences')return json({maxRecipients:100,categories:[{category:'general',subscribers:12},{category:'essays',subscribers:8}]});
-  if(path==='/api/v1/account/connection-messages/targets')return json({maxRecipients:100,connections:[{connectionId,recipientDid:senders[3].did,epoch:1,address:senders[3].address}]});
+  if(path==='/api/v1/account/connection-messages/targets')return json({maxRecipients:100,connections:[{connectionId,recipientDid:senders[3].did,epoch:1,address:senders[3].address},...(sharedMode?[{connectionId:sharedConversation.conversationId,recipientDid:maya.did,epoch:1,address:maya.address}]:[])]});
   if(path==='/api/v1/auth/passkeys')return json({recentlyVerified:false,sessions:[],passkeys:[]});
   if(path==='/api/v1/registration')return json({mode:'invite',signupAvailable:false});
   return json({},404);

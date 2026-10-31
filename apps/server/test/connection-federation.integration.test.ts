@@ -1,3 +1,4 @@
+import {collectConversationHistory,reconstructConversations} from '../src/migration/conversation-history.js';
 import {CustomDomains} from "../src/accounts/custom-domains.js";
 import {AddressVerifier} from "../src/discovery/verifier.js";
 import {registerDiscoveryRoutes} from "../src/discovery/routes.js";
@@ -97,7 +98,7 @@ import {PortableMigrationActivation} from '../src/migration/activation.js';
 import {signPortableMigrationConsent} from '../src/migration/consent.js';
 import {encode as encodeDagCbor} from '@ipld/dag-cbor';
 
-it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"])("federates independent providers: %s",async(mode)=>{
+it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss","shared conversations"])("federates independent providers: %s",async(mode)=>{
   const admin=new SQL(process.env.DATABASE_URL!),users=[] as User[],providers=[] as Provider[];
   type User={id:string;did:string;address:string;managed:boolean;keys:Awaited<ReturnType<typeof generateAccountKeys>>;session:AccountApiSession;token:string;
     assertion:(challenge:string)=>any;provider:Provider;evidence:PlcResolutionEvidence;recoveryPublicKey:string;recoveryKey:P256Keypair};
@@ -296,11 +297,11 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
       const service=new EnvelopeService(accounts,new GrantRepository(sql),envelopes,p.encryptor,resolver,p.origin+'/hail',undefined,authority);
       const messaging=new AccountMessaging(sql,bodies,envelopes,service,(sender,id)=>submitEnvelope(sender,id,envelopes,resolver,statuses,{fetch:network,validateTarget:validate},authority));
       const publications=new AccountPublications(sql,messaging,authority),delivery=new DeliveryRepository(sql,authority),retriever=new BodyRetriever(resolver,network,validate);
-      const schedule=new ProtectedResponseSchedule({minimumResponseMs:1,processingDeadlineMs:10000,maxInFlight:32});
+      const schedule=new ProtectedResponseSchedule({minimumResponseMs:mode==='shared conversations'?100:1,processingDeadlineMs:10000,maxInFlight:32});
       const grants=new GrantRepository(sql),grantService=new GrantService(accounts,grants,p.encryptor,resolver,{async verify(){throw new Error('No fixture subscription discovery');}},{async verify(){throw new Error('No fixture publisher profile');}},p.origin+'/hail');
       registerAccountApiRoutes(p.app,p.accounts,grants,grantService,p.origin,messaging,undefined,undefined,undefined,undefined,undefined,undefined,p.origin,publications);
       registerBodyRoutes(p.app,bodies);
-      registerEnvelopeRoutes(p.app,new EnvelopeReceiver(accounts,envelopes,resolver,p.origin+'/hail'),undefined,schedule);
+      registerEnvelopeRoutes(p.app,new EnvelopeReceiver(accounts,envelopes,resolver,p.origin+'/hail',undefined,authority),mode==='shared conversations'?signer:undefined,schedule);
       return {accounts,bodies,envelopes,authority,service,messaging,publications,delivery,retriever,worker:new DeliveryWorker(delivery,retriever),statuses,signer,schedule};
     };
     const one=stack(first),two=stack(second);
@@ -385,7 +386,59 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
     const local=await prepare(c,ac.link);await commit(c,local);await drain(6);
     const targets=(await one.publications.connectionTargets(a.session)).connections,localTarget=targets.find(t=>t.recipientDid===c.did)!,remoteTarget=targets.find(t=>t.recipientDid===b.did)!;
     expect(localTarget.epoch).toBe(1);expect(remoteTarget.connectionId).toBe(newId);
-    const direct={publicationId:uuidV7(),connections:[localTarget.connectionId,remoteTarget.connectionId],text:'Private connection message to two people'};
+    if(mode==='shared conversations'){
+      const root=uuidV7(),identity={creator:a.did,conversationId:root};
+      const settle=async()=>{
+        for(let i=0;i<6;i++){
+          for(const p of [first,second])await p.db.sql`UPDATE connection_message_targets SET next_attempt_at=now() WHERE state='pending'`;
+          for(const [p,st] of [[first,one],[second,two]] as const){
+            for(let n=0;n<2;n++)await withFreshServingGenerations(p.db.sql,()=>st.publications.workOne());
+          }
+          await received();
+          for(const [p,st] of [[first,one],[second,two]] as const)for(let n=0;n<3;n++)await withFreshServingGenerations(p.db.sql,()=>st.worker.processOne());
+        }
+      };
+      await one.publications.createConnections(a.session,{publicationId:root,connections:[localTarget.connectionId,remoteTarget.connectionId],text:'Everyone can reply all'});
+      await settle();
+      const initial=(await one.publications.status(a.session,root,'connections'))!;
+      expect(initial.counts.submitted).toBe(2);
+      const bobRoot=initial.targets.find(t=>t.recipient===b.did)!.messageId;
+      expect(await two.messaging.read(b.session,a.did,bobRoot)).toMatchObject({sharedConversation:{...identity,state:'active'}});
+      expect((await two.publications.connectionTargets(b.session)).connections.some(t=>t.recipientDid===c.did)).toBe(false);
+      const reply=uuidV7();
+      await two.publications.replyConversation(b.session,{publicationId:reply,...identity,sender:a.did,messageId:bobRoot,text:'Cross-provider reply all'});
+      await settle();
+      const replied=(await two.publications.status(b.session,reply,'connections'))!;
+      expect(replied.counts.submitted).toBe(2);
+      const toCarol=replied.targets.find(t=>t.recipient===c.did)!.messageId;
+      expect(await one.messaging.read(c.session,b.did,toCarol)).toMatchObject({sharedConversation:{...identity,state:'active'}});
+      await first.service.conversationMembership(c.session,{...identity,action:'leave'});
+      await second.db.sql`UPDATE conversation_memberships SET expires_at=clock_timestamp()-interval '1 second' WHERE account_id=${b.id}`;
+      const operationId=uuidV7();await first.service.conversationRevival(a.session,{conversationId:root,operationId});
+      for(let n=0;n<3;n++)await withFreshServingGenerations(first.db.sql,()=>first.service.workConversationRevival());
+      const revived=await first.service.conversationRevival(a.session,{conversationId:root,operationId});
+      expect(revived.targets.find(t=>t.recipient===b.did)?.outcome).toBe('renewed');
+      expect(revived.targets.find(t=>t.recipient===c.did)?.outcome).toBe('left');
+      const owner={accountId:b.id,did:b.did,sourceGeneration:1,sourceServiceBase:second.origin+'/hail'},capturedAt=new Date().toISOString();
+      const history=await collectConnectionHistory(second.db.sql,owner,capturedAt),conversations=await collectConversationHistory(second.db.sql,owner,capturedAt);
+      await verifyConnectionHistoryAuthority(history,resolver,new Date(),conversations);
+      expect(conversations.tables.connection_message_batches).toHaveLength(1);
+      await first.db.sql`INSERT INTO account_conversation_preferences(account_id,allow_introductions) VALUES(${c.id},false)`;
+      const carolOwner={accountId:c.id,did:c.did,sourceGeneration:1,sourceServiceBase:first.origin+'/hail'},carolHistory=await collectConversationHistory(first.db.sql,carolOwner,capturedAt);
+      const accountRow=(await first.db.sql<{row:Record<string,unknown>}[]>`SELECT to_jsonb(a) AS row FROM provider_accounts a WHERE id=${c.id}`)[0]!.row;
+      await third.db.sql.unsafe('INSERT INTO provider_accounts SELECT * FROM jsonb_populate_record(NULL::provider_accounts,($1::text)::jsonb)',[JSON.stringify(accountRow)]);
+      await third.db.sql.begin(tx=>reconstructConversations(tx,carolHistory));
+      expect((await third.db.sql`SELECT state FROM conversation_memberships WHERE account_id=${c.id}`)[0]!.state).toBe('left');
+      expect((await third.db.sql`SELECT allow_introductions FROM account_conversation_preferences WHERE account_id=${c.id}`)[0]!.allow_introductions).toBe(false);
+      await third.db.sql`UPDATE conversation_memberships SET state='active',left_at=NULL WHERE account_id=${c.id}`;
+      await third.db.sql`UPDATE account_conversation_preferences SET allow_introductions=true WHERE account_id=${c.id}`;
+      await third.db.sql.begin(tx=>reconstructConversations(tx,carolHistory));
+      expect((await third.db.sql`SELECT state FROM conversation_memberships WHERE account_id=${c.id}`)[0]!.state).toBe('left');
+      expect((await third.db.sql`SELECT allow_introductions FROM account_conversation_preferences WHERE account_id=${c.id}`)[0]!.allow_introductions).toBe(false);
+      return;
+    }
+
+    const direct={delivery:'private' as const,publicationId:uuidV7(),connections:[localTarget.connectionId,remoteTarget.connectionId],text:'Private connection message to two people'};
     expect((await first.app.request(first.origin+'/api/v1/account/connection-messages/targets')).status).toBe(401);
     expect((await api(a,'connection-messages',direct,{Origin:'https://foreign.example'})).status).toBe(403);
     const readOnly=await first.accounts.issue(a.address,false,undefined,['messages:read']);
@@ -491,7 +544,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
     expect(firstPage.messages).toHaveLength(5);expect(secondPage.messages).toHaveLength(2);expect(secondPage.next).toBeNull();
     expect(new Set([...firstPage.messages,...secondPage.messages].map(m=>m.messageId)).size).toBe(7);
     expect((await api(a,'connection-inbox?after=invalid')).status).toBe(400);
-    const stopped={publicationId:uuidV7(),connections:direct.connections,text:'Cancel before materialization'};
+    const stopped={delivery:'private' as const,publicationId:uuidV7(),connections:direct.connections,text:'Cancel before materialization'};
     await restarted.createConnections(a.session,stopped);
     await expect(first.db.sql`UPDATE connection_message_batches SET body_bytes=${new Uint8Array([1])} WHERE id=${stopped.publicationId}`).rejects.toThrow('cannot be replaced');
     await expect(first.db.sql`UPDATE connection_message_targets SET recipient_did=${d.did} WHERE publication_id=${stopped.publicationId}`).rejects.toThrow('cannot be replaced');
@@ -939,7 +992,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
       destination_service_base:targetBase,destination_address:selection.address,owner_recovery_key:c.recoveryPublicKey,source_identity_key:c.keys.identityDidKey,
       destination_rotation_key:offer.destination_rotation_key,destination_identity_key:offer.destination_identity_key,destination_messaging_key:offer.destination_messaging_key,
       grant_digest:managedHandshakeDigest(signedGrant.payloadBytes),offer_digest:managedHandshakeDigest(offered.payloadBytes),selection_digest:managedHandshakeDigest(selected.payloadBytes),
-      snapshot_version:6,snapshot_digest:exported.digest,history_checkpoint_digest:decodeBase64Url(exactManifest.historyCheckpointDigest),source_generation:1,
+      snapshot_version:exactManifest.version,snapshot_digest:exported.digest,history_checkpoint_digest:decodeBase64Url(exactManifest.historyCheckpointDigest),source_generation:1,
       previous_operation_cid:previous,operation_cid:operationCid,issued_at:stamp,expires_at:stamp+900});
     let plcWrites=0;
     const plc={async getOperationLog(){return c.evidence.log as any;},async sendOperation(_did:string,op:any){plcWrites++;const log=[...c.evidence.log,op] as any;
@@ -953,7 +1006,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
     const actualActivation=new ManagedMigrationActivation(second.db.sql,second.encryptor,managedResolver,addressVerifier,targetBase,'http://plc.fixture:2582','poc-local');
     const actualCompletion=()=>new ManagedMigrationCompletion(stager,new ManagedMigrationPlcSubmission(second.db.sql,plc,managedResolver,targetBase),actualActivation,false,
       new ConnectionTransferOrchestration(second.db.sql,second.encryptor,resolver,targetBase,network,allowed,second.service.federation));
-    const completionInput={snapshot:{type:'hail.managed-migration-transfer',version:6,manifest:encodeBase64Url(exported.bytes),digest:encodeBase64Url(exported.digest),signature:encodeBase64Url(exported.signature),sourceMessagingPublicKey:exported.sourceMessagingPublicKey},
+    const completionInput={snapshot:{type:'hail.managed-migration-transfer',version:exactManifest.version,manifest:encodeBase64Url(exported.bytes),digest:encodeBase64Url(exported.digest),signature:encodeBase64Url(exported.signature),sourceMessagingPublicKey:exported.sourceMessagingPublicKey},
       approval:encodeSignedRecord(ownerApproval),operation:encodeBase64Url(operationBytes)};
     lostFreeze=1;
     await expect(withFreshServingGenerations(second.db.sql,()=>actualCompletion().complete(completionInput))).rejects.toThrow();
@@ -1076,7 +1129,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
           identityDidKey:a.keys.identityDidKey,messagingDidKey:offer.destination_messaging_key,plcEvidence:state.evidence,verifiedAt:new Date(),binding:inspectSignedPayload('hail.address-binding',binding).payload,representation:binding,digest:new Uint8Array(createHash('sha256').update(binding).digest())};}},
         activation=new PortableMigrationActivation(target.db.sql,target.encryptor,resolver,gate,verifier,targetBase,registry,undefined,'public',true),imports=new MigrationTransferService(target.db.sql,new OnboardingRepository(target.db.sql),target.encryptor,resolver,targetBase,true),
         completion=new PortableTransferCompletion(target.db.sql,imports,new PortablePlcSubmission(target.db.sql,plc as any,registry,targetBase),new PortableAddressPublication(target.db.sql,resolver,gate,registry,targetBase),activation,targetBase,'public',targetOrchestration),
-        input={snapshot:{type:'hail.portable-migration-transfer',version:5,manifest:encodeBase64Url(snapshot.bytes),digest:encodeBase64Url(snapshot.digest),signature:encodeBase64Url(snapshot.signature),sourceMessagingPublicKey:snapshot.sourceMessagingPublicKey},
+        input={snapshot:{type:'hail.portable-migration-transfer',version:validateTransferManifest(snapshot.bytes).version,manifest:encodeBase64Url(snapshot.bytes),digest:encodeBase64Url(snapshot.digest),signature:encodeBase64Url(snapshot.signature),sourceMessagingPublicKey:snapshot.sourceMessagingPublicKey},
           consent:encodeSignedRecord(consent),operation:encodeBase64Url(operationBytes),binding:encodeBase64Url(binding)};
       if(returning){
         for(const field of ['user_identity_public_key','user_recovery_public_key','monitor_verification_mode','monitor_public_key']){

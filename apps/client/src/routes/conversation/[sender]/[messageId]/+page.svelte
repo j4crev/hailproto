@@ -1,6 +1,7 @@
 <script lang="ts">
   import {tick} from 'svelte';
-  import {invalidate} from '$app/navigation';
+  import {invalidate,invalidateAll} from '$app/navigation';
+  import {connectionRequest} from '$lib/connections.js';
   import {enhance,applyAction} from '$app/forms';
   import MessageListRow from '$lib/MessageListRow.svelte';
   import SelectionAvatar from '$lib/SelectionAvatar.svelte';
@@ -29,6 +30,32 @@
     return()=>observer.disconnect();
   });
   let replyInput=$state<HTMLTextAreaElement>();
+  let replyAll=$state(false),membershipSaving=$state(false);
+  let revival=$state<{operationId:string;targets:{recipient:string;outcome:string}[]}|null>(null);
+  async function revive(){
+    const shared=message?.sharedConversation;if(!shared?.canRevive)return;
+    membershipSaving=true;error='';
+    try{revival=await connectionRequest('conversation-revive',{operationId:revival?.operationId??data.newRevivalId,conversationId:shared.conversationId});await invalidateAll();}
+    catch(e){error=e instanceof Error?e.message:'Unable to revive this conversation.';}
+    finally{membershipSaving=false;}
+  }
+  let openedConversation='';
+  $effect(()=>{
+    const shared=data.message.sharedConversation,key=shared?shared.creator+'/'+shared.conversationId:'';
+    if(key&&key!==openedConversation){revival=null;openedConversation=key;void recordOpen(data.message);}
+  });
+  async function recordOpen(value:MessageView|SentMessageView){
+    const s=value.sharedConversation;if(!s||s.state!=='active')return;
+    try{await connectionRequest('conversation-membership',{action:'open',creator:s.creator,conversationId:s.conversationId});}
+    catch{error='Unable to record conversation activity. Reopen it to try again.';}
+  }
+  async function membership(action:'leave'|'rejoin'){
+    const s=message?.sharedConversation;if(!s)return;
+    membershipSaving=true;error='';
+    try{await connectionRequest('conversation-membership',{action,creator:s.creator,conversationId:s.conversationId});await invalidateAll();}
+    catch(e){error=e instanceof Error?e.message:'Unable to change participation.';}
+    finally{membershipSaving=false;}
+  }
   let request=0;
   $effect(()=>{
     request++;pagingError=false;
@@ -59,6 +86,7 @@
       heading?.querySelector<HTMLElement>('.expanded-header')?.focus({preventScroll:true});
       if(heading && (heading.getBoundingClientRect().top<80||heading.getBoundingClientRect().top>window.innerHeight-100))heading.scrollIntoView({block:'start'});
       await markRead(row,value);
+      await recordOpen(value);
     }catch{error='Unable to open this message. Try again.';}
     finally{if(token===request)pending=false;}
   }
@@ -91,11 +119,24 @@
     await invalidate('hail:mailbox');
   }
   const content=$derived(message?messageDisplayContent(message.blocks):null);
-  async function reply(){replyOpen=true;await tick();replyInput?.focus();}
+  async function reply(all=false){replyAll=all;replyOpen=true;await tick();replyInput?.focus();}
 </script>
 <svelte:head><title>{conversationSubject || 'Messages'} · Haili</title></svelte:head>
 <a class="hail-back" href="/?view=connections">← Inbox</a>
 <h1 class="hail-title conversation-subject" class:sr-only={!conversationSubject}>{conversationSubject || 'Messages'}</h1>
+{#if message?.sharedConversation}
+  {@const shared=message.sharedConversation}
+  <section class="mb-5 grid gap-2" aria-label="Shared conversation">
+    <p class="m-0 text-sm">Shared conversation · {shared.participants.length} participants · {shared.state}</p>
+    <details class="text-sm"><summary>Participants</summary><ul>{#each shared.participants as did}<li class="break-words">{did===data.account.did?'You':did}</li>{/each}</ul></details>
+    {#if shared.state==='active'}<button class="hail-button-secondary justify-self-start" disabled={membershipSaving||sending} onclick={()=>membership('leave')}>Leave conversation</button>
+    {:else}<p class="m-0 text-sm text-muted">{shared.state==='left'?'You left this conversation. Saved messages remain readable.':'Your participation expired through inactivity.'}</p>{#if shared.state==='left'}<button class="hail-button-secondary justify-self-start" disabled={membershipSaving||sending} onclick={()=>membership('rejoin')}>Rejoin conversation</button>{/if}{/if}
+    {#if shared.canRevive && shared.state!=='left'}<button class="hail-button-secondary justify-self-start" disabled={membershipSaving||sending} onclick={revive}>{revival?'Refresh revival status':'Revive expired participation'}</button>
+      <p class="m-0 text-xs text-muted">Expired participants can be readmitted under their current settings. People who left stay out.</p>
+    {:else if !shared.canRevive}<p class="m-0 text-xs text-muted">Only the original creator can revive other participants’ expired permissions.</p>{/if}
+    {#if revival}<ul class="text-sm" aria-label="Revival status">{#each revival.targets as target}<li class="break-words">{target.recipient}: {target.outcome}</li>{/each}</ul>{/if}
+  </section>
+{/if}
 {#if error}<p class="hail-error" role="alert">{error}</p>{/if}
 {#if replyFailure.error}<p class="hail-error" role="alert">{replyFailure.error}</p>{/if}
 {#if pending}<p class="text-sm text-muted" role="status">Opening message…</p>{/if}
@@ -119,8 +160,9 @@
         </div>
         <div class="message-tools">
 
+            {#if message.sharedConversation}<button class="hail-button-secondary" disabled={message.sharedConversation.state!=='active'||sending} onclick={()=>reply(true)}>Reply all</button>{/if}
             {#if !row.sent}
-              <button class="hail-icon-button compact" title="Reply" aria-label="Reply" disabled={!message.connection?.active||sending} aria-expanded={replyOpen} onclick={reply}><Icon name="reply" /></button>
+              <button class="hail-icon-button compact" title="Reply privately" aria-label="Reply privately" disabled={!message.connection?.active||sending} aria-expanded={replyOpen&&!replyAll} onclick={()=>reply(false)}><Icon name="reply" /></button>
               <a class="hail-icon-button compact" title="Forward" aria-label="Forward" href={forwardHref(message as MessageView)}><Icon name="forward" /></a>
               <MessageActions compact menu disabled={readPending||sending} messages={[message]} onmarkedunread={()=>markedUnread(row)} returnTo="/?view=connections" />
             {:else}<a class="text-xs text-muted" href={`/sent/${row.messageId}`}>Delivery details</a>{/if}
@@ -128,12 +170,12 @@
       </header>
       <div class="expanded-body">
         <div class="reading-body"><QuotedMessage blocks={content.blocks} header={message.header} /></div>
-        {#if !row.sent && !message.connection?.active}<p class="text-sm text-muted">This connection is no longer active. Saved messages remain readable.</p>{/if}
-        {#if replyOpen && !row.sent && message.connection?.active}
-          <form class="reply-form" method="POST" action={`/message/${encodeURIComponent(row.sender)}/${row.messageId}?/reply`} use:enhance={()=>{sending=true;return async({result})=>{sending=false;if(result.type==='failure')replyFailure=result.data??{};else await applyAction(result);};}}>
+        {#if !row.sent && !message.connection?.active}<p class="text-sm text-muted">{message.sharedConversation?'Private replies require an active connection to this person.':'This connection is no longer active. Saved messages remain readable.'}</p>{/if}
+        {#if replyOpen && (replyAll?message.sharedConversation?.state==='active':!row.sent&&message.connection?.active)}
+          <form class="reply-form" method="POST" action={`/message/${encodeURIComponent(row.sender)}/${row.messageId}?/${replyAll?'replyAll':'reply'}`} use:enhance={()=>{sending=true;return async({result})=>{sending=false;if(result.type==='failure')replyFailure=result.data??{};else await applyAction(result);};}}>
             <input type="hidden" name="messageId" value={replyFailure.messageId??data.newReplyId} />
-            <label class="hail-field">Reply to {row.senderAddress??row.sender}<textarea bind:this={replyInput} name="text" rows="5" maxlength="65536" required value={replyFailure.text??''}></textarea></label>
-            <p class="m-0 text-xs text-muted">Only this person will receive your reply.</p>
+            <label class="hail-field">{replyAll?'Reply to everyone':'Reply to '+(row.senderAddress??row.sender)}<textarea bind:this={replyInput} name="text" rows="5" maxlength="65536" required value={replyFailure.text??''}></textarea></label>
+            <p class="m-0 text-xs text-muted">{replyAll?'Your reply will be sent to all other participants. People who left or whose permission expired will not receive it.':'Only this person will receive your reply.'}</p>
             <div class="flex gap-3"><button class="hail-button" disabled={sending}>Send reply</button><button class="hail-button-secondary" type="button" disabled={sending} onclick={()=>replyOpen=false}>Cancel</button></div>
           </form>
         {/if}
