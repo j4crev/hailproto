@@ -10,6 +10,7 @@
   import {goto, invalidate} from "$app/navigation";
   import Icon from "$lib/Icon.svelte";
   import DateTime from "$lib/DateTime.svelte";
+  import IdentityDetails from "$lib/IdentityDetails.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
   import MessageActions from "$lib/MessageActions.svelte";
   import Unsubscribe from "$lib/Unsubscribe.svelte";
@@ -67,20 +68,20 @@
 </script>
 
 <svelte:head><title>Message · Haili</title></svelte:head>
-<div class="message-detail mx-auto max-w-[860px]">
-<a class="hail-back" href={data.message.trashedAt?'/trash':data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.trashedAt?'Trash':data.message.kind==='connection'?'Messages':'Inbox'}</a>
-{#if content.title}<h1 class="mb-5 mt-0 text-2xl font-semibold leading-tight [overflow-wrap:anywhere] sm:text-3xl">{content.title}</h1>{:else}<h1 class="sr-only">Received message</h1>{/if}
+<div class="message-detail mx-auto max-w-[800px]">
+<a class="hail-back" href={data.message.trashedAt?'/trash':data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.trashedAt?'Trash':data.message.kind==='connection'?'Inbox':'Feed'}</a>
+{#if content.title}<h1 class="reader-title">{content.title}</h1>{:else}<h1 class="sr-only">Received message</h1>{/if}
 {#if restoreError}<p class="hail-error" role="alert">{restoreError}</p>{/if}
 {#if readError}<p class="hail-error" role="alert">{readError}</p>{/if}
-<article class="hail-card overflow-hidden">
-  <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line p-5 sm:px-7">
-    <div class="flex min-w-0 items-center gap-3">
+<article class="reader-panel overflow-hidden">
+  <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line pb-5">
+    <div class="flex min-w-0 w-full items-start gap-3">
       {#if data.avatar && failedAvatar !== data.avatar.src}<img class="grid size-[42px] flex-[0_0_42px] place-items-center rounded-[13px] object-cover" src={data.avatar.src} bind:this={avatarImage} alt="" width={data.avatar.width} height={data.avatar.height} />
       {:else}<span class="grid size-[42px] flex-[0_0_42px] place-items-center rounded-[13px] bg-brand-soft text-xs font-bold text-brand" aria-hidden="true">{(data.message.senderAddress ?? data.message.sender).slice(0, 2).toUpperCase()}</span>{/if}
-      <div class="flex min-w-0 flex-col gap-[5px]">
+      <div class="flex min-w-0 flex-1 flex-col gap-1">
       <strong class="[overflow-wrap:anywhere]"><ContactAddress owner={data.account.did} did={data.message.sender} address={data.message.senderAddress} /></strong>
       <span class="text-xs text-muted"><DateTime value={data.message.deliveredAt} /></span>
-      {#if data.message.senderAddress}<small class="font-mono text-[11px] text-muted [overflow-wrap:anywhere] sm:text-xs">{data.message.sender}</small>{/if}
+      {#if data.message.senderAddress}<IdentityDetails did={data.message.sender} />{/if}
       </div>
     </div>
     <div class="flex w-full min-w-0 flex-wrap items-center gap-1">
@@ -104,7 +105,7 @@
       {/if}
     </div>
   </header>
-  <div class="min-h-[220px] px-5 py-8 font-serif text-[18px] leading-[1.7] [overflow-wrap:anywhere] sm:px-7">
+  <div class="reading-body">
     <QuotedMessage blocks={content.blocks} header={data.message.header} />
   </div>
 </article>

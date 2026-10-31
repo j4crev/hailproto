@@ -60,9 +60,9 @@ it("synchronizes other tabs, deletion and storage clearing, and removes its list
   cleanup(); expect(listeners.size).toBe(0);
 });
 
-it("keeps dark text, alerts and filled controls above 4.5:1 contrast", () => {
+it.each(["light", "dark"])("keeps %s text, alerts and filled controls above 4.5:1 contrast", theme => {
   const css = readFileSync(new URL("../app.css", import.meta.url), "utf8");
-  const dark = css.match(/:root\[data-theme="dark"\] \{([^}]+)\}/)![1];
+  const dark = theme === "dark" ? css.match(/:root\[data-theme="dark"\] \{([^}]+)\}/)![1] : css.match(/@theme \{([^}]+)\}/)![1];
   const colors = Object.fromEntries([...dark.matchAll(/--color-([\w-]+): (#[\da-f]{6})/g)].map(match => [match[1], match[2]]));
   const luminance = (hex: string) => {
     const channels = hex.slice(1).match(/../g)!.map(value => {

@@ -20,8 +20,8 @@
   let drawer = $state<HTMLDialogElement>();
   let drawerOpen = $state(false);
   const navigation = [
-    {href: "/", label: "Inbox", icon: "feed"},
-    {href: "/?view=connections", label: "Messages", icon: "chat"},
+    {href: "/", label: "Feed", icon: "feed"},
+    {href: "/?view=connections", label: "Inbox", icon: "chat"},
     {href: "/sent", label: "Sent", icon: "sent"},
     {href: "/trash", label: "Trash", icon: "trash"},
     {href: "/permissions", label: "Subscriptions", icon: "people"},
@@ -58,19 +58,19 @@
   <meta name="description" content="Your subscriptions and messages, on your terms. Powered by Hail." />
 </svelte:head>
 {#snippet brand()}
-  <a href="/" class="brand" aria-label="Haili home"><span class="brand-mark" aria-hidden="true">h</span><span>Haili<span class="brand-caption">Powered by Hail</span></span></a>
+  <a href="/" class="brand" aria-label="Haili home"><span class="brand-mark" aria-hidden="true">h</span><span>Haili</span></a>
 {/snippet}
 {#snippet links()}
-  <a class="hail-button compose-button" href="/compose" aria-current={page.url.pathname === "/compose" ? "page" : undefined}><Icon name="plus" />Compose</a>
-  <div class="nav-group"><nav aria-label="Main navigation">{#each navigation as item}<a href={item.href} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} />{item.label}{#if active(item.href)}<span class="active-dot" aria-hidden="true"></span>{/if}</a>{/each}</nav></div>
+  <a class="hail-button compose-button" href="/compose" aria-current={page.url.pathname === "/compose" ? "page" : undefined}>Compose</a>
+  <div class="nav-group"><nav aria-label="Main navigation">{#each navigation as item, index}{#if index === 4}<p class="nav-label">Your network</p>{/if}<a href={item.href} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} />{item.label}</a>{/each}</nav></div>
   {#if page.data.account?.providerOperator}<a class="hail-button-secondary" href="/admin">Provider administration</a>{/if}
-  <div class="nav-bottom"><span class="alpha-label">Powered by Hail</span></div>
+  <div class="nav-bottom"></div>
 {/snippet}
 <!-- Full navigation prevents signup/recovery CSP from leaking into the app. -->
 <div class:focused class="app-shell" data-sveltekit-reload={!page.data.hasAccountSession || page.url.pathname === "/signup" || page.url.pathname === "/signup/recovery"}>
   <a class="skip-link" href="#main-content">Skip to content</a>
   {#if focused}
-    <header class="public-header">{@render brand()}{#if page.url.pathname !== "/"}<a class="hail-button-secondary" href="/">{page.data.hasAccountSession ? "Back to inbox" : "Home"}</a>{:else if page.data.registration?.mode === "invite"}<span class="alpha-badge">Invitation-only alpha</span>{/if}</header>
+    <header class="public-header">{@render brand()}{#if page.url.pathname !== "/"}<a class="hail-button-secondary" href="/">{page.data.hasAccountSession ? "Back to feed" : "Home"}</a>{:else if page.data.registration?.mode === "invite"}<span class="alpha-badge">Invitation-only alpha</span>{/if}</header>
   {:else}
     <aside class="sidebar">{@render brand()}{@render links()}<div class="sidebar-account"><UserMenu {address} {avatar} /></div></aside>
     <header class="mobile-header"><button class="icon-button" onclick={openDrawer} aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="mobile-navigation"><Icon name="menu" /></button>{@render brand()}<UserMenu {address} {avatar} compact /></header>
@@ -84,27 +84,25 @@
     {@render children()}</main>
 </div>
 <style>
-  .app-shell { max-width:1600px; margin:0 auto; padding-left:260px; }
-  .sidebar { position:fixed; inset:0 auto 0 max(0px, calc((100vw - 1600px) / 2)); width:260px; display:flex; flex-direction:column; gap:30px; padding:36px 20px 14px; border-right:1px solid var(--color-line); background:var(--color-canvas); overflow-y:auto; }
-  .brand { display:flex; align-items:center; gap:11px; color:var(--color-ink); text-decoration:none; font-size:28px; font-weight:750; letter-spacing:-.055em; }
+  .app-shell { max-width:1600px; margin:0 auto; padding:20px 20px 20px 256px; }
+  .sidebar { position:fixed; inset:0 auto 0 max(0px, calc((100vw - 1600px) / 2)); width:236px; display:flex; flex-direction:column; gap:24px; padding:28px 16px 20px; background:var(--color-canvas); overflow-y:auto; }
+  .brand { display:flex; align-items:center; gap:11px; color:var(--color-ink); text-decoration:none; font-size:26px; font-weight:750; letter-spacing:-.055em; }
   .sidebar > .brand { padding:0 12px; }
-  .brand-mark { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; background:var(--color-brand); color:var(--color-on-brand); font-family:Georgia,serif; font-size:32px; font-style:italic; }
-  .brand-caption { display:block; font-size:10px; font-weight:500; letter-spacing:.02em; color:var(--color-muted); }
-  .compose-button { justify-content:flex-start; padding-left:18px; min-height:48px; box-shadow:0 4px 10px #0f766e15; }
-  nav { display:grid; gap:5px; }
-  nav a { display:flex; align-items:center; gap:12px; min-height:46px; padding:12px 14px; border-radius:12px; text-decoration:none; font-size:13px; font-weight:600; color:var(--color-muted); }
+  .brand-mark { display:grid; place-items:center; width:36px; height:36px; border-radius:11px; background:var(--color-brand); color:var(--color-on-brand); font-family:Georgia,serif; font-size:29px; font-style:italic; }
+  .compose-button { justify-content:flex-start; padding-left:18px; min-height:46px; }
+  nav { display:grid; gap:3px; }
+  .nav-label { margin:22px 14px 6px; color:var(--color-muted); font-size:10px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; }
+  nav a { display:flex; align-items:center; gap:12px; min-height:44px; padding:10px 14px; border-radius:8px; text-decoration:none; font-size:14px; font-weight:500; color:var(--color-muted); }
   nav a:hover { background:var(--color-surface); color:var(--color-brand-strong); }
-  nav a[aria-current=page] { background:var(--color-brand-soft); color:var(--color-brand-strong); }
-  .active-dot { width:5px; height:5px; border-radius:50%; background:var(--color-brand); margin-left:auto; }
+  nav a[aria-current=page] { background:var(--color-brand-soft); color:var(--color-brand-strong); font-weight:650; }
   .nav-bottom { margin-top:auto; display:grid; gap:24px; }
-  .alpha-label { padding:0 14px; font-size:10px; color:var(--color-muted); }
   .sidebar-account { border-top:1px solid var(--color-line); padding-top:10px; }
-  main { min-width:0; padding:48px clamp(24px,4vw,64px) 80px; }
+  main { min-width:0; min-height:calc(100dvh - 40px); padding:28px clamp(20px,3vw,40px) 48px; border-radius:16px; background:var(--color-surface); }
   .skip-link { position:fixed; top:8px; left:8px; z-index:20; padding:12px; background:var(--color-surface); color:var(--color-brand-strong); transform:translateY(-150%); }
   .skip-link:focus { transform:none; }
   .focused { max-width:1200px; padding:0 40px; }
   .public-header { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:30px 0; }
-  .focused main { padding:32px 0 64px; }
+  .focused main { min-height:0; padding:32px 0 64px; background:transparent; }
   .alpha-badge { border:1px solid var(--color-line); border-radius:99px; padding:7px 12px; color:var(--color-muted); font-size:11px; }
   .mobile-header { display:none; }
   .icon-button { display:grid; place-items:center; width:44px; height:44px; padding:0; border:0; background:transparent; }
@@ -113,16 +111,16 @@
   .drawer-content { min-height:100%; display:flex; flex-direction:column; gap:28px; padding:24px 20px max(24px, env(safe-area-inset-bottom)); }
   .drawer-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
   @media(max-width:900px) {
-    .app-shell { padding-left:0; }
+    .app-shell { padding:0 16px 16px; }
     .sidebar { display:none; }
-    .mobile-header { display:flex; position:sticky; top:0; z-index:10; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--color-line); background:var(--color-canvas); }
+    .mobile-header { display:flex; position:sticky; top:0; z-index:10; align-items:center; justify-content:space-between; padding:12px 0; background:var(--color-canvas); }
     .mobile-header .brand { font-size:24px; }
     .mobile-header .brand-mark { width:34px; height:34px; border-radius:11px; font-size:27px; }
-    .mobile-header .brand-caption { display:none; }
-    main { padding:32px 24px 64px; }
+    main { padding:24px; min-height:calc(100dvh - 84px); }
   }
   @media(max-width:540px) {
-    main { padding:28px 18px 48px; }
+    .app-shell { padding:0 10px 10px; }
+    main { padding:20px 16px 32px; border-radius:12px; }
     .focused { padding:0 20px; }
     .focused main { padding-top:24px; }
     .public-header { padding:22px 0; }

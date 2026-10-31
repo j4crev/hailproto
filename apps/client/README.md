@@ -187,9 +187,10 @@ and its layout. Account and compose screens fetch independent data in parallel.
 
 ## Navigation and visual checks
 
-The desktop sidebar and mobile modal drawer share their navigation. Inbox shows
-subscription updates; Messages shows connection messages. Both have their own
-navigation entry and no tabs. Messages has one New message action in its heading. The avatar
+The desktop sidebar and mobile modal drawer share their navigation. Feed shows
+subscription updates; Inbox shows connection messages. Both have their own
+navigation entry and no tabs. Desktop uses Compose in navigation. On mobile, Feed and Inbox also have a floating
+compose button for subscribers and connections respectively; selection hides it. The avatar
 opens a native popover as the sole navigation to Account, Settings and
 Sign out; those pages have no cross-link cards. Both the
 popover and drawer support outside-click and Escape dismissal; the drawer locks
@@ -245,7 +246,7 @@ browser profile writes with 403. No schema migration is needed.
 
 ## Trash and deletion
 
-Inbox and Messages cards and readers offer **Delete message**. Trash is enabled
+Feed and Inbox cards and readers offer **Delete message**. Trash is enabled
 by default and retains a message for 30 days from its first deletion, regardless
 of its original age. Repeated deletion does not extend retention. In **Trash**,
 select one or more messages (or the current page) and choose **Restore selected**;
@@ -277,3 +278,35 @@ can show a seven-day hover/focus notice: “Their address changed from X to Y”
 This is automatic, with no Settings control or CLI notification command.
 Subscription-only relationships do not receive notices. Identity-conflict
 warnings take precedence. See [details](../../docs/contact-identity-notices.md).
+
+## Appearance review with fictional data
+
+Run `bun run --cwd apps/client preview:design` from the repository root, then open
+`http://localhost:4173`. This builds the real client and starts a loopback-only
+fixture provider with subscription artwork, connection messages, a sent message,
+subscriptions and a sender profile. It needs no passkey or production credentials.
+Use `HAIL_DESIGN_PORT` to choose another port. Stop with Ctrl+C.
+
+Reading, read/unread selection, Trash/restore and appearance preferences work in
+memory and reset on restart. Sending, profile changes, account deletion and
+passkey operations are intentionally unavailable in this visual fixture. The
+normal browser wizard separately tests those supported production workflows
+with virtual WebAuthn. Never expose the unauthenticated fixture server publicly.
+
+The client bundles Inter 4.1 from `rsms/inter` (OFL license in `static/fonts`).
+Feed keeps bounded, uncropped subscription images; Inbox, Sent and Trash use
+compact thumbnails and inline sender, subject/preview, and date columns on desktop
+(1024px and up), returning to stacked rows on smaller screens. Sender/recipient
+details show selectable DIDs directly beneath the address. The shared
+shell uses the existing navigation icons; Account and Settings remain in the avatar menu.
+Dark mode uses neutral charcoal surfaces with teal accents.
+
+Connection Inbox rows load an unread thread count after rendering, using the existing
+account-scoped thread endpoint (at most five requests per list page). Only unread
+received messages count; sent replies, read messages and trashed received messages
+are excluded. Badges appear only above one unread message, with a `+` when the
+provider truncates the result. Missing read state from older providers hides the
+badge rather than guessing. Deploy the updated provider to enable these counts;
+no database migration is needed. Counts remain per peer/thread, not aggregated
+across separate recipients of a multi-connection send. List rows remain individual
+messages, and opening one marks that message read, not the entire thread.

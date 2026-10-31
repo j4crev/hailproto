@@ -24,7 +24,7 @@
   }
 </script>
 
-<svelte:head><title>{!data.configured ? 'Welcome' : data.view === 'connections' ? 'Messages' : 'Inbox'} · Haili</title></svelte:head>
+<svelte:head><title>{!data.configured ? 'Welcome' : data.view === 'connections' ? 'Inbox' : 'Feed'} · Haili</title></svelte:head>
 
 {#if !data.configured}
   <section class="welcome">
@@ -51,8 +51,7 @@
   <p class="welcome-footer">Built on Hail, an open messaging protocol.{#if data.registration?.mode === "invite"} Haili is currently an invitation-only alpha.{/if}</p>
 {:else}
   <header class="feed-heading">
-    <div><h1 class="hail-title">{data.view === 'connections' ? 'Messages' : 'Inbox'}</h1><p class="feed-description">{data.view === 'connections' ? 'The latest from your connections' : 'The latest from your subscriptions'}</p></div>
-    {#if data.view === 'connections'}<a class="hail-button-secondary" href="/compose?audience=connections"><Icon name="plus" size={18} />New message</a>{/if}
+    <div><h1 class="hail-title">{data.view === 'connections' ? 'Inbox' : 'Feed'}</h1><p class="feed-description">{data.view === 'connections' ? 'The latest from your connections' : 'The latest from your subscriptions'}</p></div>
   </header>
   <div class="feed-layout" class:has-selection={selectedMessages.length > 0}>
   {#if selectedMessages.length}
@@ -64,7 +63,7 @@
       <div class="hail-card flex flex-col items-center gap-3 px-6 py-16 text-center"><span class="empty-symbol" aria-hidden="true"><Icon name={data.view === 'connections' ? 'chat' : 'feed'} size={30} /></span><h2 class="m-0 text-xl tracking-tight">No messages yet</h2><p class="m-0 max-w-sm text-sm text-muted">{data.view==='connections'?'Reach out and say "hello".':'All quiet here.'}</p>{#if data.view !== 'connections'}<a class="hail-button-secondary mt-2" href="/permissions">Find your first sender <span aria-hidden="true">→</span></a>{/if}</div>
     {:else}
       {#each data.messages as message (message.sender+message.messageId)}
-        <MessageListRow isRead={message.isRead} timestamp={message.deliveredAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null} selected={selected.includes(messageKey(message))}
+        <MessageListRow thread={data.view === "connections" ? {sender:message.sender,messageId:message.messageId} : undefined} inline={data.view === "connections"} imageLayout={data.view === "connections" ? "thumbnail" : "feature"} isRead={message.isRead} timestamp={message.deliveredAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null} selected={selected.includes(messageKey(message))}
           href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
           {#snippet leading()}<SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(messageKey(message))} disabled={selectionLocked} label={`Select message from ${message.senderAddress??message.sender}, ${date(message.deliveredAt)}`} ontoggle={()=>toggle(message)} />{/snippet}
           {#snippet sender()}<ContactAddress owner={data.account.did} did={message.sender} address={message.senderAddress} />{/snippet}
@@ -72,12 +71,21 @@
       {/each}
     {/if}
   </section>
-  {#if data.paged||data.next}<nav aria-label={data.view === 'connections' ? 'Messages pages' : 'Inbox pages'} class="mt-6 flex flex-wrap justify-center gap-3">{#if data.paged}<a class="hail-button-secondary" href={data.view==='connections'?'/?view=connections':'/'}>← Newest messages</a>{/if}{#if data.next}<a class="hail-button-secondary" href={`/?${data.view==='connections'?'view=connections&':''}after=${encodeURIComponent(data.next)}`}>Older messages →</a>{/if}</nav>{/if}
+  {#if data.paged||data.next}<nav aria-label={data.view === 'connections' ? 'Inbox pages' : 'Feed pages'} class="mt-6 flex flex-wrap justify-center gap-3">{#if data.paged}<a class="hail-button-secondary" href={data.view==='connections'?'/?view=connections':'/'}>← Newest messages</a>{/if}{#if data.next}<a class="hail-button-secondary" href={`/?${data.view==='connections'?'view=connections&':''}after=${encodeURIComponent(data.next)}`}>Older messages →</a>{/if}</nav>{/if}
   </div>
+  {#if !selectedMessages.length}
+    <a class="mobile-compose" href={data.view==='connections'?'/compose?audience=connections':'/compose'} aria-label={data.view==='connections'?'Message connections':'Publish to subscribers'} title={data.view==='connections'?'Message connections':'Publish to subscribers'}><Icon name="compose" size={24} /></a>
+  {/if}
 {/if}
 
 <style>
-  @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
+  .mobile-compose { display:none; }
+  @media(max-width:900px) {
+    .feed-layout { padding-bottom:88px; }
+    .has-selection { padding-bottom:180px; }
+    .mobile-compose { position:fixed; z-index:9; right:max(20px,env(safe-area-inset-right)); bottom:calc(20px + env(safe-area-inset-bottom)); display:grid; place-items:center; width:56px; height:56px; border-radius:18px; background:var(--color-brand); color:var(--color-on-brand); box-shadow:0 4px 16px #0003; text-decoration:none; }
+    .mobile-compose:hover { background:var(--color-brand-strong); }
+  }
 
   .welcome { display:grid; grid-template-columns:1.1fr 1fr; align-items:center; gap:48px; padding:28px 0 48px; }
   .welcome-copy h1 { margin:0 0 22px; font-size:clamp(42px,5.3vw,66px); line-height:1.08; letter-spacing:-.055em; font-weight:650; }
@@ -97,8 +105,8 @@
   .welcome-benefits h2 { font-size:19px; line-height:1.4; letter-spacing:-.025em; font-weight:600; margin:0 0 12px; }
   .welcome-benefits p { margin:0; font-size:14px; line-height:1.8; color:var(--color-muted); }
   .welcome-footer { margin:32px 0 0; padding-top:20px; border-top:1px solid var(--color-line); color:var(--color-muted); font-size:12px; line-height:1.7; }
-  .feed-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px; margin-bottom:32px; }
-  .feed-description { margin:12px 0 0; font-size:14px; color:var(--color-muted); }
+  .feed-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px; margin-bottom:24px; }
+  .feed-description { margin:6px 0 0; font-size:14px; color:var(--color-muted); }
   .feed-layout { min-width:0; }
   .empty-symbol { display:grid; place-items:center; width:76px; height:76px; margin-bottom:14px; border:10px solid var(--color-canvas); border-radius:26px; background:var(--color-brand-soft); color:var(--color-brand); }
   @media(max-width:800px) { .welcome { gap:28px; } .subscription-example { padding:20px; } .welcome-benefits { gap:22px; } }

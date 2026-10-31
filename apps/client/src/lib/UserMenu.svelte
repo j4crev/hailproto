@@ -48,14 +48,14 @@
 <style>
   .account-trigger { display:flex; align-items:center; gap:10px; width:100%; padding:12px 8px; border:0; background:transparent; text-align:left; border-radius:14px; }
   .account-trigger:hover, .account-trigger[aria-expanded=true] { background:var(--color-brand-soft); }
-  .avatar { display:grid; place-items:center; width:40px; height:40px; flex-shrink:0; border:0; border-radius:50%; background:var(--color-brand-soft); color:var(--color-brand-strong); font-size:13px; font-weight:750; }
-  .avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+  .avatar { display:grid; place-items:center; width:40px; height:40px; flex-shrink:0; border:0; border-radius:11px; background:var(--color-brand-soft); color:var(--color-brand-strong); font-size:13px; font-weight:750; }
+  .avatar img { width:100%; height:100%; object-fit:cover; border-radius:11px; }
   .account-label { display:grid; min-width:0; gap:3px; }
-  .account-label strong { overflow:hidden; text-overflow:ellipsis; font-size:12px; }
+  .account-label strong { overflow:hidden; text-overflow:ellipsis; font-size:13px; }
   .account-label small { font-size:11px; color:var(--color-muted); }
   .account-dots { margin-left:auto; font-weight:800; }
   .compact { width:44px; padding:2px; }
-  .account-popover { position:fixed; inset:auto auto 96px max(20px, calc((100vw - 1600px) / 2 + 20px)); margin:0; width:286px; max-width:calc(100vw - 32px); padding:8px; border:1px solid var(--color-line); border-radius:18px; background:var(--color-surface); color:var(--color-ink); box-shadow:0 16px 60px #172b2d20; }
+  .account-popover { position:fixed; inset:auto auto 96px max(20px, calc((100vw - 1600px) / 2 + 20px)); margin:0; width:286px; max-width:calc(100vw - 32px); padding:8px; border:1px solid var(--color-line); border-radius:14px; background:var(--color-surface); color:var(--color-ink); box-shadow:0 16px 60px #172b2d20; }
   .menu-heading { display:grid; gap:7px; padding:14px 12px 18px; border-bottom:1px solid var(--color-line); }
   .menu-heading .hail-eyebrow { font-size:10px; }
   .menu-heading strong { overflow-wrap:anywhere; font-size:13px; }

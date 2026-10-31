@@ -1,5 +1,5 @@
 export interface ThreadMessage {
-  sender:string;messageId:string;sent:boolean;createdAt:string;preview:string;
+  sender:string;messageId:string;sent:boolean;isRead?:boolean;createdAt:string;preview:string;
   inReplyTo:{sender:string;messageId:string}|null;parentAvailable:boolean;
 }
 export interface MessageThread {messages:ThreadMessage[];truncated:boolean}
@@ -8,7 +8,7 @@ export function parseThread(value:unknown):MessageThread {
   const t=value as MessageThread;
   if(!t||!Array.isArray(t.messages)||t.messages.length>50||typeof t.truncated!=='boolean')throw new Error('Invalid conversation');
   for(const m of t.messages){
-    if(!m||!did.test(m.sender)||!id.test(m.messageId)||typeof m.sent!=='boolean'||
+    if(!m||!did.test(m.sender)||!id.test(m.messageId)||typeof m.sent!=='boolean'||m.isRead!==undefined&&typeof m.isRead!=='boolean'||
       typeof m.createdAt!=='string'||!Number.isFinite(Date.parse(m.createdAt))||typeof m.preview!=='string'||
       typeof m.parentAvailable!=='boolean'||m.inReplyTo!==null&&(!m.inReplyTo||!did.test(m.inReplyTo.sender)||!id.test(m.inReplyTo.messageId)))
       throw new Error('Invalid conversation message');

@@ -166,7 +166,12 @@ integration("reply capabilities PostgreSQL integration", () => {
     await delivery.deliver(reply!,bodyFromText("A threaded reply"));
     const thread=await messaging.thread(session,bob,id);
     expect(thread?.messages.map(m=>m.messageId)).toEqual([invitation.message_id,id]);
-    expect(thread?.messages[1]).toMatchObject({inReplyTo:input.inReplyTo,parentAvailable:true});
+    expect(thread?.messages[0]).toMatchObject({sent:false,isRead:false});
+    expect(thread?.messages[1]).toMatchObject({sent:true,isRead:true,inReplyTo:input.inReplyTo,parentAvailable:true});
+    await db.sql`UPDATE delivered_messages SET is_read=true WHERE recipient_did=${bob} AND sender_did=${alice} AND message_id=${invitation.message_id}`;
+    expect((await messaging.thread(session,bob,id))?.messages[0]).toMatchObject({isRead:true});
+    await db.sql`UPDATE delivered_messages SET is_read=false WHERE recipient_did=${bob} AND sender_did=${alice} AND message_id=${invitation.message_id}`;
+    expect((await messaging.thread(session,bob,id))?.messages[0]).toMatchObject({isRead:false});
     expect(await messaging.thread({...session,account_id:aliceId,did:alice},bob,id)).not.toBeNull();
     expect(await messaging.thread({...session,account_id:aliceId,did:alice},alice,id)).toBeNull();
     await db.sql`UPDATE delivered_messages SET trashed_at=clock_timestamp() WHERE recipient_did=${bob} AND sender_did=${alice} AND message_id=${invitation.message_id}`;

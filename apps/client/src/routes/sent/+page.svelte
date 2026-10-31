@@ -15,7 +15,7 @@
   {#if data.messages.length}
     <section class="compact-list" aria-label="Sent messages">
       {#each data.messages as message}
-        <MessageListRow muted timestamp={message.createdAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null}
+        <MessageListRow inline muted timestamp={message.createdAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null}
           href={`/sent/send/${message.kind}/${message.messageId}`}>
           {#snippet sender()}{#if message.kind === 'category'}<mark class="inline-block max-w-full rounded-full bg-brand-soft px-3 py-1.5 text-xs font-normal text-muted [overflow-wrap:anywhere]">{audience(message)}</mark>{:else if message.recipientSummary}<span class="[overflow-wrap:anywhere]">{message.recipientSummary.count > 1 ? 'Multiple recipients' : message.recipientSummary.address ?? message.recipientSummary.did}</span>{/if}{/snippet}
         </MessageListRow>

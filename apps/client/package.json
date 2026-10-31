@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --host 127.0.0.1",
+    "preview:design": "bun run build && bun scripts/preview-design.ts",
     "build": "vite build",
     "start": "HOST=127.0.0.1 node build",
     "test": "vitest run",

@@ -7,7 +7,7 @@
 </script>
 
 {#if header}
-  <figure class="m-0 mb-[1em]"><img class="block h-auto max-h-[28rem] w-full rounded-[.6em] object-cover" src={header.src} alt={header.alt} width={header.width} height={header.height} />{#if header.caption}<figcaption class="mt-[.45em] text-[.72em] text-muted">{header.caption}</figcaption>{/if}</figure>
+  <figure class="m-0 mb-[1em]"><img class="block h-auto max-h-[28rem] w-full rounded-[.6em] object-contain" src={header.src} alt={header.alt} width={header.width} height={header.height} />{#if header.caption}<figcaption class="mt-[.45em] text-[.72em] text-muted">{header.caption}</figcaption>{/if}</figure>
 {/if}
 
 {#snippet spans(values: MessageSpan[])}

@@ -382,7 +382,7 @@ try{
   const selectedAudience=async(label:string)=>{
     await evaluate('document.activeElement?.blur()');
     assert.equal(await evaluate(`document.querySelector('[aria-label="Compose audience"] [aria-current="page"]').textContent`),label);
-    assert.deepEqual(await styles('[aria-label="Compose audience"] [aria-current="page"]',["backgroundColor","color"]),["rgb(15, 118, 110)","rgb(255, 255, 255)"]);
+    assert.deepEqual(await styles('[aria-label="Compose audience"] [aria-current="page"]',["backgroundColor","color"]),["rgb(18, 115, 101)","rgb(255, 255, 255)"]);
     assert.deepEqual(await styles('[aria-label="Compose audience"] a:not([aria-current])',["backgroundColor"]),["rgb(255, 255, 255)"]);
   };
   const screenshot=async(name:string)=>{if(!process.env.HAIL_WIZARD_SCREENSHOTS)return;await mkdir(process.env.HAIL_WIZARD_SCREENSHOTS,{recursive:true});const shot=await cdp("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});await writeFile(join(process.env.HAIL_WIZARD_SCREENSHOTS,`${process.env.HAIL_WIZARD_MOBILE==='true'?'mobile':'desktop'}-${name}.png`),Buffer.from(shot.data,"base64"));};
@@ -516,10 +516,10 @@ try{
     await screenshot('public-signup');passed=true;
     console.info('PASS: Chromium invite signup, admin public registration switch and public signup presentation (local API fixtures)');
   }else{
-  await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your inbox').click()`);
+  await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your feed').click()`);
   await wait(()=>has("No messages yet"),"completed alpha account inbox");
   assert(await evaluate(`document.querySelector('.account-popover').textContent.includes("alice@provider.example.com")`));
-  assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Inbox");
+  assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Feed");
   assert(!await has("Account details"),"Account metadata must not clutter the feed");
   await cdp("Page.navigate",{url:origin+"/?next=%2F"});
   await wait(()=>has("Your permission."),"existing sessions can sign in again on homepage");
@@ -551,19 +551,33 @@ try{
     await evaluate(`Array.from(document.querySelectorAll('nav[aria-label="Main navigation"] a')).find(a=>a.getAttribute('href')===${JSON.stringify(href)}&&a.checkVisibility()).click()`);
   };
   await navigateInboxView('/?view=connections');
-  await wait(async()=>evaluate(`location.search==='?view=connections' && document.querySelector('h1').textContent==='Messages'`),"open Messages from navigation");
-  assert.equal(await evaluate(`document.title`),"Messages · Haili");
-  assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current="page"]').textContent.trim()`),"Messages");
-  assert(await evaluate(`!document.querySelector('[aria-label="Inbox views"]')`),"Messages has no tabs");
-  assert(await evaluate(`document.querySelectorAll('main a[href="/compose?audience=connections"]').length===1`),"Messages has exactly one New message action, including when empty");
-  assert(!await has("Message a connection"));
-  await screenshot("messages-empty");
-  await navigateInboxView('/');
-  await wait(async()=>evaluate(`location.search==='' && document.querySelector('h1').textContent==='Inbox'`),"open Inbox from navigation");
+  await wait(async()=>evaluate(`location.search==='?view=connections' && document.querySelector('h1').textContent==='Inbox'`),"open Messages from navigation");
   assert.equal(await evaluate(`document.title`),"Inbox · Haili");
   assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current="page"]').textContent.trim()`),"Inbox");
+  assert(await evaluate(`!document.querySelector('[aria-label="Inbox views"]')`),"Messages has no tabs");
+  assert(await evaluate(`document.querySelector('.mobile-compose').getAttribute('href')==='/compose?audience=connections' && document.querySelector('.mobile-compose').getAttribute('aria-label')==='Message connections'`),'Inbox mobile compose targets connections');
+  assert.equal(await evaluate(`document.querySelector('.mobile-compose').checkVisibility()`),process.env.HAIL_WIZARD_MOBILE==='true');
+  assert(!await has("Message a connection"));
+  await screenshot("messages-empty");
+  if(process.env.HAIL_WIZARD_MOBILE==='true'){
+    await evaluate(`document.querySelector('.mobile-compose').click()`);
+    await wait(()=>has('Send a message'),'Inbox FAB opens connection composer');
+    assert(await evaluate(`!document.querySelector('.mobile-compose')`));
+    await navigateInboxView('/?view=connections');await wait(async()=>evaluate(`document.querySelector('main h1')?.textContent==='Inbox'`),'back to Inbox');
+  }
+  await navigateInboxView('/');
+  await wait(async()=>evaluate(`location.search==='' && document.querySelector('h1').textContent==='Feed'`),"open Inbox from navigation");
+  assert.equal(await evaluate(`document.title`),"Feed · Haili");
+  assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current="page"]').textContent.trim()`),"Feed");
   assert(await evaluate(`!document.querySelector('[aria-label="Inbox views"]') && !document.querySelector('main a[href="/compose?audience=connections"]')`),"Inbox has no tabs or connection-message action");
+  assert(await evaluate(`document.querySelector('.mobile-compose').getAttribute('href')==='/compose' && document.querySelector('.mobile-compose').getAttribute('aria-label')==='Publish to subscribers'`),'Feed mobile compose targets subscribers');
   await screenshot("feed-empty");
+  if(process.env.HAIL_WIZARD_MOBILE==='true'){
+    await evaluate(`document.querySelector('.mobile-compose').click()`);
+    await wait(()=>has('Send a hail'),'Feed FAB opens subscriber composer');
+    assert(await evaluate(`!document.querySelector('.mobile-compose')`));
+    await navigateInboxView('/');await wait(async()=>evaluate(`document.querySelector('main h1')?.textContent==='Feed'`),'back to Feed');
+  }
   await openAccount();await screenshot("account-menu");await escape();
   await wait(async()=>evaluate(`!document.querySelector('[popover]:popover-open')`),"Escape closes account menu");
   assert(await evaluate(`document.activeElement?.getAttribute('aria-label')==='Open account menu'`),"Account menu restores focus");
@@ -575,6 +589,7 @@ try{
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Account page fits");
   await accountNavigation();
   assert.equal(await evaluate(`document.querySelectorAll("main a").length`),0,"Account has no cross-link cards");
+  assert(await evaluate(`!document.querySelector('.mobile-compose')`),'No floating compose outside Feed or Inbox');
   await narrowLayouts();await screenshot("account");
   if(process.env.HAIL_WIZARD_THEME_ONLY === "true") {
   await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/settings"]').click()`);
@@ -649,13 +664,16 @@ try{
   releaseAvatars();
   await wait(async()=>evaluate(`document.querySelector('article header img[src*="/avatar/image"]')?.naturalWidth>0`),'photo loads independently after reader is usable');
   assert.equal(await evaluate(`!!document.querySelector('#message-reply')`),false,"Reply form starts collapsed");
+  assert(await evaluate(`document.querySelector('.identity-details code').textContent===${JSON.stringify(peerDid)} && document.querySelector('.identity-details code').checkVisibility()`),'DID is directly visible');
+  assert(await evaluate(`!document.querySelector('.identity-details summary, .identity-details button')`),'DID needs no expansion or copy control');
+  await screenshot('reader');
   await click("Reply");await wait(()=>has("Send reply"),"reply action opens form");
   assert.equal(await evaluate(`document.activeElement?.getAttribute('name')`),"text","Reply focuses the editor");
   await click("Cancel");assert.equal(await evaluate(`document.activeElement?.getAttribute('aria-label')`),"Reply","Cancel restores reply focus");
   assert.equal(await evaluate(`!!document.querySelector('#message-reply')`),false);
   await click("Reply");await wait(()=>has("Send reply"),"reply can reopen after cancellation");
-  assert.deepEqual(await styles("article",["borderRadius","overflow"]),["18px","hidden"]);
-  assert.deepEqual(await styles("article > div",["fontSize","lineHeight"]),["18px","30.6px"]);
+  assert.deepEqual(await styles("article",["borderRadius","overflow"]),["0px","hidden"]);
+  assert.deepEqual(await styles("article > div",["fontSize","lineHeight"]),process.env.HAIL_WIZARD_MOBILE==="true"?["16px","28.8px"]:["17px","30.6px"]);
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Browser transport reply';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await click("Send reply");
   await wait(async()=>evaluate("location.pathname.startsWith('/sent/') && !!document.querySelector('[aria-label=\"Status: delivered\"]')"),"native reply form through provider proxy and redirect to Sent");
@@ -666,7 +684,7 @@ try{
   assert(!browserErrors.some(error=>/Content Security Policy|Refused to execute|hydration/i.test(error)),"Avatar fallback works under CSP");
   missingAvatars=false;
   assert.equal(replyPosts,1);
-  await cdp("Page.navigate",{url:origin+"/"});await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Inbox'`),"return to inbox");
+  await cdp("Page.navigate",{url:origin+"/"});await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Feed'`),"return to inbox");
   assert(readMessages.has(incomingId),'Opening a message persists read state');
   await wait(async()=>evaluate(`!!document.querySelector('[aria-label="Messages"] .message-row.is-read')`),'Inbox reflects read state');
   await cdp("Page.navigate",{url:origin+messagePath});
@@ -679,18 +697,22 @@ try{
   await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"feed header ready");
   assert(await evaluate(`document.querySelector(${JSON.stringify(feedImage)}).src.startsWith('data:image/png;base64,')`),"Feed header remains bundled");
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Populated feed overflows viewport");
+  assert(await evaluate(`Array.from(document.querySelectorAll('nav[aria-label="Main navigation"] a')).every(a=>a.querySelector('svg'))`),'Sidebar navigation retains the existing icons');
+  assert(await evaluate(`document.querySelector('.nav-label')?.textContent==='Your network'`));assert(!await has('MAILBOX'));
+  assert(await evaluate(`document.querySelector(${JSON.stringify(feedImage)}).getBoundingClientRect().height<=200`),'Subscription images stay bounded');
+  assert.equal((await styles(feedImage,['objectFit']))[0],'contain','Promotional artwork is not cropped');
   await screenshot("feed");
   const settings=async()=>{await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/settings"]').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"reading settings ready");};
-  const feed=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/';document.body.append(a);a.click();a.remove();})()`);await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Inbox'`),"feed navigation");};
+  const feed=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/';document.body.append(a);a.click();a.remove();})()`);await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Feed'`),"feed navigation");};
   await settings();await accountNavigation();assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll("main a"),a=>a.getAttribute("href"))`),["/settings/domains"],"Settings links to custom-domain management");await narrowLayouts();await screenshot("settings");
   await evaluate(`document.querySelector('#show-headers').click()`);await wait(async()=>evaluate(`localStorage.getItem('hail.gui.showInboxHeaders')==='false' && document.querySelector('#show-headers')?.disabled===false`),"preference saved");
   await feed();await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"hide feed headers through settings");
   await evaluate("document.documentElement.dataset.beforePreferenceReload='true'");
   await cdp("Page.reload");await wait(async()=>evaluate(`!document.documentElement.dataset.beforePreferenceReload && !!document.querySelector('[aria-label="Messages"]') && !document.querySelector(${JSON.stringify(feedImage)})`),"persist hidden header preference");
-  await evaluate(`document.querySelector('[aria-label="Inbox pages"] a').click()`);
-  await wait(async()=>evaluate("new URL(location.href).searchParams.get('after')==='older-page' && !!document.querySelector('[aria-label=\"Inbox pages\"] a[href=\"/\"]')"),"older feed page");
-  await evaluate(`document.querySelector('[aria-label="Inbox pages"] a[href="/"]').click()`);
-  await wait(async()=>evaluate("location.search==='' && !!document.querySelector('[aria-label=\"Inbox pages\"] a[href*=after]')"),"newest feed page");
+  await evaluate(`document.querySelector('[aria-label="Feed pages"] a').click()`);
+  await wait(async()=>evaluate("new URL(location.href).searchParams.get('after')==='older-page' && !!document.querySelector('[aria-label=\"Feed pages\"] a[href=\"/\"]')"),"older feed page");
+  await evaluate(`document.querySelector('[aria-label="Feed pages"] a[href="/"]').click()`);
+  await wait(async()=>evaluate("location.search==='' && !!document.querySelector('[aria-label=\"Feed pages\"] a[href*=after]')"),"newest feed page");
   await settings();assert.equal(await evaluate(`document.querySelector('#show-headers').checked`),false);
   await evaluate(`document.querySelector('#show-headers').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),'header preference saved');await feed();
   await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"show feed headers again");
@@ -707,7 +729,7 @@ try{
   await evaluate(`document.querySelector('fieldset input[value=updates]').click()`);
   assert.deepEqual(await styles("fieldset label",["flexDirection","alignItems"]),["row","center"]);
   await click("Review permission");await wait(()=>has("Confirm allowed sender"),"exact permission review");
-  assert.deepEqual(await styles('[aria-label="Permission confirmation"]',["borderTopWidth","borderTopColor"]),["2px","rgb(15, 118, 110)"]);
+  assert.deepEqual(await styles('[aria-label="Permission confirmation"]',["borderTopWidth","borderTopColor"]),["2px","rgb(18, 115, 101)"]);
   assert.equal(allowed,null);assert(await has("alice@provider.example.com"));
   await click("Allow sender with my passkey");await wait(async()=>evaluate(`document.querySelector('button[aria-label^="Select subscription to"]')?.disabled===false`),"passkey-approved permission saved");
   await evaluate(`document.querySelector('button[aria-label^="Select subscription to"]').click()`);
@@ -770,8 +792,10 @@ try{
   assert.deepEqual(await styles("form[enctype] label",["display","fontWeight"]),["grid","600"]);
   assert.deepEqual(await styles("fieldset label",["display","gap"]),["flex","8px"]);
   assert.deepEqual(await styles("fieldset input",["width"]),["13px"]);
-  assert.deepEqual(await styles('[aria-label="Bold"]',["backgroundColor","paddingTop","borderTopWidth"]),["rgb(255, 255, 255)","10px","1px"]);
-  assert.deepEqual(await styles('[aria-label="Message preview"]',["minHeight"]),[process.env.HAIL_WIZARD_MOBILE==="true"?"260px":"360px"]);
+  assert.deepEqual(await styles('[aria-label="Bold"]',["backgroundColor","paddingTop","borderTopWidth"]),["rgba(0, 0, 0, 0)","8px","0px"]);
+  assert(await evaluate(`document.querySelector('#compose-preview').hidden`),'Composer starts with full writing space');
+  await click('Show preview');
+  assert(await evaluate(`!document.querySelector('#compose-preview').hidden`),'Preview toggle exposes the safe renderer');
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Composer overflows viewport");
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='A clear message';e.dispatchEvent(new Event('input',{bubbles:true}));e.setSelectionRange(2,7);})()`);
   await evaluate(`document.querySelector('[aria-label="Bold"]').click()`);
@@ -791,6 +815,7 @@ try{
   assert.equal(await evaluate(`document.querySelector('select[name=category]').value`),"general","General is the default category");
   assert(await evaluate(`!document.querySelector('select[name=target]') && !document.querySelector('input[name=grantId]')`),"Publisher must not select individual subscription recipients");
   const richText="## Highlights\n- **First**\n- Second\n1. Number one\n2. Number two\n> A quote\n\n<img src=x onerror=alert(1)>";
+  await click("Show preview");
   await fill("Title","Release notes");
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value=${JSON.stringify(richText)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] h1')?.textContent==='Release notes' && document.querySelectorAll('[aria-label="Message preview"] ul li').length===2 && document.querySelectorAll('[aria-label="Message preview"] ol li').length===2`),"rich message preview");
@@ -804,7 +829,7 @@ try{
   await cdp("Page.navigate",{url:origin+"/sent"});
   await wait(async()=>evaluate(`!!document.querySelector('[aria-label="Sent messages"]')`),"publication appears as a grouped send");
   await evaluate(`document.querySelector(${JSON.stringify(`a[href="/sent/send/category/${publicationIntent.publicationId}"]`)}).click()`);
-  await wait(async()=>evaluate(`location.pathname===${JSON.stringify(`/sent/send/category/${publicationIntent.publicationId}`)} && document.querySelector('main > h1')?.textContent==='Release notes'`),"sent rich-message reader");
+  await wait(async()=>evaluate(`location.pathname===${JSON.stringify(`/sent/send/category/${publicationIntent.publicationId}`)} && document.querySelector('main h1')?.textContent==='Release notes'`),"sent rich-message reader");
   assert.deepEqual(await rendered('article > div'),{...previewContent,headings:["Highlights"]},"Reader preserves preview content with the title lifted above the card");
   assert.equal(await evaluate(`document.querySelectorAll('main h1').length`),1,"Reader shows the title exactly once");
   // Expired sessions use the same login, preserve the QR fragment, and clear the stale cookie.
@@ -912,7 +937,7 @@ try{
   connectionIncoming=true;
   await cdp('Page.navigate',{url:origin+'/?view=connections'});await wait(()=>has('A personal connection reply'),'connection message uses existing reader preview');
   assert(!await has('One-time reply browser transport test'));
-  await evaluate(`document.querySelector('a[href*="${connectionIncomingId}"]').click()`);await wait(async()=>evaluate(`document.querySelector('button[aria-label="Reply"]')?.disabled===false`),'standing connection response action');
+  await evaluate(`document.querySelector('a[href*="${connectionIncomingId}"]').click()`);await wait(async()=>evaluate(`document.querySelector('button[aria-label="Reply"]')?.disabled===false && document.querySelector('.action-menu button')?.disabled===false`),'standing connection response action after hydration and mark-read');
   assert(await evaluate(`![...document.querySelectorAll('article button')].some(b=>b.textContent.trim()==='Unsubscribe')`),"Connection messages never offer unsubscribe");
   assert(!await evaluate(`!!document.querySelector('form[action="?/reply"]')`));
   await click('Reply');await wait(()=>has('Send reply'),'connection reply opens inline');
@@ -969,22 +994,23 @@ try{
   const selectMessage=async()=>{
     await wait(async()=>evaluate(`document.querySelector('main button[aria-label^="Select message from"]')?.disabled===false`),'message selection ready');
     await evaluate(`document.querySelector('main button[aria-label^="Select message from"]').click()`);
+    await wait(async()=>evaluate(`!!document.querySelector('.has-selection') && !document.querySelector('.mobile-compose')`),'selection hides floating compose');
   };
-  await mailboxPage('/','Inbox');await selectMessage();
+  await mailboxPage('/','Feed');await selectMessage();
   await click('Delete message');await wait(()=>has('No messages yet'),'inbox deletion moves directly to Trash');
   assert(trashed.has(incomingId));assert(!deleted.has(incomingId));
-  await mailboxPage('/?view=connections','Messages');await selectMessage();
+  await mailboxPage('/?view=connections','Inbox');await selectMessage();
   await click('Delete message');await wait(()=>has('No messages yet'),'connection deletion moves directly to Trash');
   await mailboxPage('/trash','Trash');await selectMessage();await click('Select all');
   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Trashed messages"] button[aria-pressed="true"]').length`),2,'Both trashed messages selected');
   await click('Restore');await wait(()=>has('Trash is empty.'),'bulk restore');
-  await mailboxPage('/?view=connections','Messages');await wait(()=>has('A personal connection reply'),'restore returns to Messages');
-  await mailboxPage('/','Inbox');await selectMessage();
+  await mailboxPage('/?view=connections','Inbox');await wait(()=>has('A personal connection reply'),'restore returns to Messages');
+  await mailboxPage('/','Feed');await selectMessage();
   await click('Delete message');await wait(()=>has('No messages yet'),'second trash deletion');
   await mailboxPage('/settings','Settings');await wait(async()=>evaluate(`document.querySelector('#use-trash')?.disabled===false`),'account Trash preference');
   await evaluate(`document.querySelector('#use-trash').click()`);await click('Disable Trash and delete contents');await wait(()=>has('Trash disabled.'),'disable purges existing trash');
   assert.equal(trashed.size,0);assert(deleted.has(incomingId));
-  await mailboxPage('/?view=connections','Messages');await selectMessage();
+  await mailboxPage('/?view=connections','Inbox');await selectMessage();
   await click('Delete message');await wait(()=>has('Delete permanently'),'disabled trash warning');
   assert(!deleted.has(connectionIncomingId),'Permanent deletion waits for confirmation');
   await click('Cancel');assert(!deleted.has(connectionIncomingId),'Cancel preserves the message');

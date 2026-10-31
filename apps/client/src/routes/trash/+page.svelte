@@ -18,7 +18,7 @@
   async function restore(){
     busy=true;status='';
     try{const result=await mailboxRequest('trash/restore',{messages:data.messages.filter(m=>selected.includes(key(m))).map(m=>({sender:m.sender,messageId:m.messageId}))});
-      selected=[];await invalidateAll();status=`Restored ${result.restored} message(s) to their original Inbox or Messages folder.`;}
+      selected=[];await invalidateAll();status=`Restored ${result.restored} message(s) to their original Feed or Inbox folder.`;}
     catch(e){status=e instanceof Error?e.message:'Unable to restore messages.';}finally{busy=false;}
   }
 </script>
@@ -34,7 +34,7 @@
     {/if}
     <section class="compact-list" aria-label="Trashed messages">
       {#each data.messages as message (key(message))}
-        <MessageListRow muted href={`/message/${encodeURIComponent(message.sender)}/${encodeURIComponent(message.messageId)}`} timestamp={message.deliveredAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null} selected={selected.includes(key(message))}>
+        <MessageListRow inline muted href={`/message/${encodeURIComponent(message.sender)}/${encodeURIComponent(message.messageId)}`} timestamp={message.deliveredAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null} selected={selected.includes(key(message))}>
           {#snippet leading()}<SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(key(message))} disabled={busy||!ready} label={`Select message from ${message.senderAddress??message.sender}`} ontoggle={()=>toggle(key(message))} />{/snippet}
           {#snippet sender()}<ContactAddress owner={data.account.did} did={message.sender} address={message.senderAddress} />{/snippet}
           {#snippet details()}Trashed <DateTime format="list" value={message.trashedAt} />{/snippet}
