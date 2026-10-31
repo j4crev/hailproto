@@ -96,8 +96,8 @@ const transport = new SafeHttpsTransport();
 const profileVerifier = new SenderProfileVerifier(resolver, transport.fetch, transport.validateTarget, undefined, onboardingRepository);
 const encryptor=new KeyEncryptor(config.keyEncryptionKey);
 const connections=process.env.CONNECTION_PREVIEW==="true"&&config.passkeys?new AccountConnections(database.sql,encryptor,resolver,
-  new PasskeyAuth(database.sql,config.passkeys.rpId,config.passkeys.origin),config.publicOrigin,
-  new RemoteConnectionReview(database.sql,resolver,transport.fetch,transport.validateTarget,config.hailServiceBase)):undefined;
+  new PasskeyAuth(database.sql,config.passkeys.rpId,config.passkeys.origin,undefined,config.sessionPolicy),config.publicOrigin,
+  new RemoteConnectionReview(database.sql,resolver,transport.fetch,transport.validateTarget,config.hailServiceBase),config.sessionPolicy):undefined;
 const connectionAuthority=new ConnectionMessagingAuthority(database.sql,resolver,config.hailServiceBase,connections?.federation);
 const connectionOrchestration=connections?new ConnectionTransferOrchestration(database.sql,encryptor,resolver,config.hailServiceBase,transport.fetch,transport.validateTarget,connections.federation):undefined;
 const messaging=new AccountMessaging(database.sql,new BodyRepository(database.sql),new EnvelopeRepository(database.sql),
@@ -316,9 +316,9 @@ const app = createApp(config, schemaRehearsal ? {
     const onboarding=new PublicOnboarding(database.sql,plc,resolver,new KeyEncryptor(config.keyEncryptionKey),config.plcDirectoryUrl,
       config.hailServiceBase,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver,addressDiscovery),policy);
     return {signup:new SignupCoordinator(database.sql,onboarding,new SignupMonitorService(database.sql,new SignupEmailClient(config.signupEmail!),
-      new SignupMonitorClient(config.signupMonitor!)),config.publicOrigin,policy,config.alphaSignup.invitationKey)};
+      new SignupMonitorClient(config.signupMonitor!)),config.publicOrigin,policy,config.alphaSignup.invitationKey,undefined,config.sessionPolicy)};
   })():{}),
-  ...(config.passkeys?{passkeys:new PasskeyAuth(database.sql,config.passkeys.rpId,config.passkeys.origin)}:{}),
+  ...(config.passkeys?{passkeys:new PasskeyAuth(database.sql,config.passkeys.rpId,config.passkeys.origin,undefined,config.sessionPolicy)}:{}),
   ...(process.env.POC_ACCOUNT_ACCESS === "true" || publicManaged ?
     { accountAccess: { access: new AccountAccess(database.sql, resolver, config.publicOrigin), sql: database.sql } } : {}),
   ...(process.env.PUBLIC_SELF_SERVICE_ONBOARDING === "true" ? (()=>{
@@ -329,7 +329,7 @@ const app = createApp(config, schemaRehearsal ? {
   })() : process.env.POC_SELF_SERVICE_ONBOARDING === "true" ? {selfServiceOnboarding:{sql:database.sql,
     onboarding:new PrivatePocOnboarding(database.sql,plc,new KeyEncryptor(config.keyEncryptionKey),config.plcDirectoryUrl,config.hailServiceBase),
     activation:new ActivationService(onboardingRepository,new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver,addressDiscovery),config.hailServiceBase,"public"),provider:config.publicOrigin,profile:"private-poc" as const}} : {}),
-  accountApi: { accounts: new AccountApiRepository(database.sql), grants: grantRepository,
+  accountApi: { accounts: new AccountApiRepository(database.sql,config.sessionPolicy), grants: grantRepository,
      ...(connections?{connections}:{}),
     ...(managedAuthorization&&managedDelivery&&managedFence&&managedExporter?{managedTransfer:new ManagedAccountTransfer(
       database.sql,managedAuthorization,managedDelivery,config.publicOrigin,{fence:managedFence,snapshots:managedExporter})}:{}),

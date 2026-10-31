@@ -123,7 +123,7 @@ export function registerPasskeyRoutes(app:Hono,passkeys:PasskeyAuth,accounts:Acc
       !value.response||typeof value.response!=="object"||Array.isArray(value.response))throw new PasskeyError(400);
     const session=await passkeys.authenticate(value.challengeId,value.response as AuthenticationResponseJSON);
     await passkeys.logout(getCookie(context,COOKIE));
-    setCookie(context,COOKIE,session.token,{httpOnly:true,secure:passkeys.origin.startsWith("https://"),sameSite:"Lax",path:"/",maxAge:43_200});
+    setCookie(context,COOKIE,session.token,{httpOnly:true,secure:passkeys.origin.startsWith("https://"),sameSite:"Lax",path:"/",maxAge:passkeys.sessionPolicy.absoluteSeconds});
     return {authenticated:true,expiresAt:session.expiresAt.toISOString()};
   }));
   app.post("/api/v1/auth/logout",context=>run(context,async()=>{

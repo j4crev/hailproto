@@ -1,3 +1,4 @@
+import {DEFAULT_SESSION_POLICY, type SessionPolicy} from "../accounts/session-policy.js";
 import { registerStandaloneDomainRoutes } from "../accounts/standalone-domain-routes.js";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -39,7 +40,8 @@ const decoded=<T>(value:T|string):T=>typeof value==="string"?JSON.parse(value) a
 export class SignupCoordinator {
   constructor(private readonly sql:SQL,private readonly onboarding:PublicOnboarding,private readonly monitor:SignupMonitorService,
     private readonly origin:string,private readonly policy:AlphaMonitoringPolicy,invitationKey:string,
-    private readonly domains:CustomDomains=new CustomDomains(sql,origin)){this.registration=new RegistrationPolicy(sql,origin,invitationKey);}
+    private readonly domains:CustomDomains=new CustomDomains(sql,origin),
+    private readonly sessionPolicy: Readonly<SessionPolicy> = DEFAULT_SESSION_POLICY){this.registration=new RegistrationPolicy(sql,origin,invitationKey);}
   get domainSetup(){return this.domains.standalone;}
   private readonly registration:RegistrationPolicy;
 
@@ -285,7 +287,7 @@ export class SignupCoordinator {
         JOIN account_passkey_sessions s ON s.account_id=account.id AND s.serving_generation=g.generation
         JOIN account_passkeys key ON key.credential_id=s.credential_id AND key.account_id=account.id AND key.serving_generation=g.generation
         WHERE c.id=${id} AND account.id=${session.account_id} AND s.id=${session.credential_id} AND s.credential_id=${session.passkey_credential_id}
-          AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND s.last_seen_at>clock_timestamp()-interval '30 minutes'
+          AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND s.last_seen_at>clock_timestamp()-(${this.sessionPolicy.idleSeconds}::double precision * interval '1 second')
           AND key.revoked_at IS NULL AND (c.enrollment_generation IS NULL OR c.enrollment_generation=g.generation)
           AND NOT EXISTS (SELECT 1 FROM provider_migration_fences WHERE account_id=account.id)
         FOR UPDATE OF c,account,g,s,key`)[0];

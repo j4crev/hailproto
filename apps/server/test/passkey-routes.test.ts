@@ -5,11 +5,11 @@ import {PasskeyError,type PasskeyAuth} from "../src/accounts/passkeys.js";
 import type {AccountApiRepository} from "../src/accounts/repository.js";
 
 const origin="https://haili.app",token=`hails_${"A".repeat(43)}`;
-function fixture(){
+function fixture(absoluteSeconds=43200){
   const authenticate=vi.fn(async()=>({account_id:"00000000-0000-4000-8000-000000000001",credential_id:"00000000-0000-4000-8000-000000000002",
     credential_expires_at:new Date(Date.now()+60_000),did:`did:plc:${"a".repeat(24)}`,canonical_address:"canary@haili.app",
     scopes:["credentials:write"],migration_state:null,serving_generation:1}));
-  const service={origin,rpId:"haili.app",authenticationOptions:vi.fn(async()=>({challengeId:"00000000-0000-4000-8000-000000000003",options:{challenge:"challenge"}})),
+  const service={sessionPolicy:{idleSeconds:1800,absoluteSeconds},origin,rpId:"haili.app",authenticationOptions:vi.fn(async()=>({challengeId:"00000000-0000-4000-8000-000000000003",options:{challenge:"challenge"}})),
     authenticate:vi.fn(async()=>({token,expiresAt:new Date("2030-01-01T00:00:00Z")})),registrationOptions:vi.fn(async()=>({ok:true})),
     register:vi.fn(async()=>({registered:true})),list:vi.fn(async()=>({recentlyVerified:true,passkeys:[]})),
     rename:vi.fn(async()=>({renamed:true})),revoke:vi.fn(async()=>({revoked:true})),
@@ -31,13 +31,13 @@ describe("passkey routes",()=>{
     expect(response.status).toBe(200);expect(service.authenticationOptions).toHaveBeenCalledOnce();
   });
 
-  it("returns only session metadata and sets a protected cookie",async()=>{
-    const {app,service}=fixture(),response=await app.request("/api/v1/auth/passkeys/authentication",{method:"POST",headers:{Origin:origin,"Content-Type":"application/json",Cookie:`hail_session=${token}`},
+  it.each([43200,2592000])("sets a protected cookie with the configured %i-second lifetime",async(absoluteSeconds)=>{
+    const {app,service}=fixture(absoluteSeconds),response=await app.request("/api/v1/auth/passkeys/authentication",{method:"POST",headers:{Origin:origin,"Content-Type":"application/json",Cookie:`hail_session=${token}`},
       body:JSON.stringify({challengeId:"00000000-0000-4000-8000-000000000003",response:{id:"credential"}})});
     expect(response.status).toBe(200);expect(await response.json()).toEqual({authenticated:true,expiresAt:"2030-01-01T00:00:00.000Z"});
     expect(service.logout).toHaveBeenCalledWith(token);
     const cookie=response.headers.get("Set-Cookie")!;
-    for(const attribute of ["hail_session=hails_","Max-Age=43200","Path=/","HttpOnly","SameSite=Lax","Secure"])
+    for(const attribute of ["hail_session=hails_",`Max-Age=${absoluteSeconds}`,"Path=/","HttpOnly","SameSite=Lax","Secure"])
       expect(cookie).toContain(attribute);
   });
 

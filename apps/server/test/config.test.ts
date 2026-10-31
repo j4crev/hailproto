@@ -15,6 +15,18 @@ const validEnvironment = {
 };
 
 describe("loadConfig", () => {
+  it("defaults and overrides browser session lifetimes", () => {
+    expect(loadConfig(validEnvironment).sessionPolicy).toEqual({idleSeconds:1800,absoluteSeconds:43200});
+    expect(loadConfig({...validEnvironment,PASSKEY_SESSION_IDLE_SECONDS:"604800",PASSKEY_SESSION_ABSOLUTE_SECONDS:"2592000"}).sessionPolicy)
+      .toEqual({idleSeconds:604800,absoluteSeconds:2592000});
+  });
+  it("rejects invalid durations and idle lifetimes longer than absolute lifetimes", () => {
+    for (const name of ["PASSKEY_SESSION_IDLE_SECONDS","PASSKEY_SESSION_ABSOLUTE_SECONDS"])
+      for (const value of ["", "0", "-1", "1.5", "NaN", "Infinity", "1e4", "01800", "31536001"])
+        expect(()=>loadConfig({...validEnvironment,[name]:value})).toThrow(name);
+    expect(()=>loadConfig({...validEnvironment,PASSKEY_SESSION_IDLE_SECONDS:"43201"})).toThrow("must not exceed");
+  });
+
   const publicEnvironment={...validEnvironment,PLC_DIRECTORY_URL:"https://plc.directory",PLC_AUTHORITY_PROFILE:"strict-public-v1",
     PLC_PUBLIC_READERS:JSON.stringify([{origin:"https://reader-one.example.com",operator:"reader-one"},{origin:"https://reader-two.example.com",operator:"reader-two"}]),
     PLC_PROVIDER_OPERATORS:JSON.stringify(["provider-operator"])};

@@ -54,10 +54,15 @@ integration("passkey authentication",()=>{
     await admin.unsafe(`DROP SCHEMA "${destinationSchema}" CASCADE`);await admin.close();}});
 
   it("consumes one challenge once and updates the authenticator counter",async()=>{
-    const start=await passkeys.authenticationOptions();passkeys=new PasskeyAuth(db.sql,"example.com","https://example.com");
+    const start=await passkeys.authenticationOptions();passkeys=new PasskeyAuth(db.sql,"example.com","https://example.com",undefined,{idleSeconds:3600,absoluteSeconds:2592000});
     const attempts=await Promise.allSettled([
       passkeys.authenticate(start.challengeId,response(start.options.challenge)),passkeys.authenticate(start.challengeId,response(start.options.challenge))]);
     expect(attempts.filter(result=>result.status==="fulfilled")).toHaveLength(1);
+    const issued=attempts.find(result=>result.status==="fulfilled")!;
+    if(issued.status!=="fulfilled")throw new Error("Expected successful authentication");
+    const stored=(await db.sql`SELECT created_at,expires_at FROM account_passkey_sessions WHERE account_id=${account}`)[0]!;
+    expect((stored.expires_at as Date).getTime()-(stored.created_at as Date).getTime()).toBe(2592000*1000);
+    expect(Math.abs(issued.value.expiresAt.getTime()-(stored.expires_at as Date).getTime())).toBeLessThan(5000);
     expect(attempts.filter(result=>result.status==="rejected")).toHaveLength(1);
     expect(Number((await db.sql<{signature_counter:number|string}[]>`SELECT signature_counter FROM account_passkeys WHERE credential_id=${credential}`)[0]?.signature_counter)).toBe(1);
     await expect(passkeys.authenticate(start.challengeId,response(start.options.challenge))).rejects.toMatchObject({status:400});

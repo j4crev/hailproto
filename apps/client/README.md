@@ -342,3 +342,10 @@ composition supports plain and rich text; switching to Connections clears a draf
 header image. The browser form handler also rejects new header uploads for
 connections. Existing message images remain readable, and forwarding preserves
 the original message content, including its image.
+
+Browser session lifetimes are controlled by the provider, not the GUI. Set
+`PASSKEY_SESSION_IDLE_SECONDS` (default `1800`) and
+`PASSKEY_SESSION_ABSOLUTE_SECONDS` (default `43200`) in the provider environment;
+see [browser session configuration](../server/README.md#browser-session-lifetimes)
+for validation and rollout behavior. Fresh-passkey windows remain 5 minutes for
+personal account security and 10 minutes for provider-admin changes.

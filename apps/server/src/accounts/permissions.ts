@@ -36,7 +36,7 @@ export class GrantPermissions {
       WHERE s.id=${session.credential_id} AND s.credential_id=${session.passkey_credential_id}
         AND a.id=${session.account_id} AND g.generation=${session.serving_generation??1}
         AND a.onboarding_state='active' AND a.did=${session.did} AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp()
-        AND s.last_seen_at>clock_timestamp()-interval '30 minutes' AND k.revoked_at IS NULL
+        AND s.last_seen_at>clock_timestamp()-(${this.accounts.sessionPolicy.idleSeconds}::double precision * interval '1 second') AND k.revoked_at IS NULL
         AND NOT EXISTS (SELECT 1 FROM provider_migration_fences f WHERE f.account_id=a.id)`;
     if(!rows.length)throw new PermissionError(403,"Current managed account access is required; sign in again if necessary");
   }

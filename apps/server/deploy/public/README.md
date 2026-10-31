@@ -165,6 +165,8 @@ Edit the private `.env`:
 | `DB_PASSWORD` | Independent random database secret |
 | `KEY_ENCRYPTION_KEY` | Independent 32-byte base64url key for retained operational keys |
 | `PASSKEY_AUTH` | `true`; RP ID/origin derive from your provider domain |
+| `PASSKEY_SESSION_IDLE_SECONDS` | `604800` (7 days); successful authenticated requests reset this deadline |
+| `PASSKEY_SESSION_ABSOLUTE_SECONDS` | `2592000` (30 days); database and cookie lifetime for new logins |
 | `CONNECTION_PREVIEW` | Explicit `true` or `false`; the supplied profile defaults to `true` |
 | `PUBLIC_SELF_SERVICE_ONBOARDING` | Initially `false`; enable after the monitor/backup ceremony is ready |
 | `PUBLIC_ALPHA_SIGNUP` | Initially `false`; browser signup needs email and automatic monitoring |
@@ -175,6 +177,18 @@ Generate each secret separately; do not reuse one across roles:
 ```bash
 openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
 ```
+
+The checked-in `.env.example` contains placeholders, not production secrets.
+The real `.env` is ignored by Git and should have mode `600`. On the Haili host,
+`provider-ops.sh` reads `/opt/hailproto/apps/server/deploy/public/.env` explicitly
+with Docker Compose's `--env-file`. Do not commit that file or rendered Compose
+output, which can contain resolved secrets.
+
+The public Compose defaults are 7 days idle and 30 days absolute. Explicit values
+in the private `.env` override those defaults. Recreate the provider container
+using the deployment's Compose files after changing environment values; a plain
+container restart does not reload them. New absolute lifetimes apply at the next
+login; existing sessions retain their original absolute expiry.
 
 Keep `.env` and recovery material outside version control. Changing the encryption
 key without a key migration can make stored operational keys unreadable. Changing

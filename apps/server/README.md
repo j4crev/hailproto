@@ -883,3 +883,36 @@ approval evidence; before any CLI approval exists, the rollback restores the
 original non-null passkey-session ownership. Do not delete approvals to force
 a rollback. The connection integration test checks both paths and byte/data
 preservation of existing browser approvals.
+
+### Browser session lifetimes
+
+Provider configuration already uses environment variables (`DATABASE_URL`,
+`PUBLIC_ORIGIN`, `PASSKEY_AUTH`, `PASSKEY_RP_ID`, and others). Browser passkey
+sessions additionally accept:
+
+- `PASSKEY_SESSION_IDLE_SECONDS`: default `1800` (30 minutes). Successful
+  authenticated requests refresh the idle deadline; simply reading an open tab
+  does not count as activity.
+- `PASSKEY_SESSION_ABSOLUTE_SECONDS`: default `43200` (12 hours). Sets the database
+  expiry and browser cookie lifetime when signing in. Activity does not extend it.
+
+Values must be whole seconds from 1 through 31536000, with idle no greater than
+absolute. Invalid settings fail startup; zero does not disable expiration.
+The public Compose deployment forwards both variables from its `.env` file.
+Recreate the provider container after changing them. Keep all provider instances
+on the same settings. The GUI needs no additional configuration.
+
+The idle policy takes effect for existing sessions on restart. Increasing it can
+make an idle-expired database session usable again if its cookie still exists
+and it has not been revoked or reached its absolute expiry. Absolute expiry
+changes apply to new logins; existing database expiries and cookies are unchanged.
+
+The public Compose deployment and its `.env.example` select `604800` (7 days idle)
+and `2592000` (30 days absolute). This trades longer unattended access for fewer
+sign-ins. The application defaults above still apply when running without these
+environment variables; explicit private `.env` values override Compose defaults.
+
+Fresh-passkey requirements are separate and unchanged: personal passkey/session
+management, account deletion, and domain withdrawal require verification within
+5 minutes; provider-admin registration changes and invitations use 10 minutes.
+The corresponding account/domain and admin UI explanations match these windows.

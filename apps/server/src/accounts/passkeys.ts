@@ -1,3 +1,4 @@
+import {DEFAULT_SESSION_POLICY, type SessionPolicy} from "./session-policy.js";
 import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {generateAuthenticationOptions,generateRegistrationOptions,verifyAuthenticationResponse,
   verifyRegistrationResponse,type AuthenticationResponseJSON,type RegistrationResponseJSON} from "@simplewebauthn/server";
@@ -32,7 +33,8 @@ export class PasskeyError extends Error {
 
 export class PasskeyAuth {
   constructor(private readonly sql:SQL,readonly rpId:string,readonly origin:string,
-    private readonly verifyRegistration:typeof verifyRegistrationResponse=verifyRegistrationResponse){}
+    private readonly verifyRegistration:typeof verifyRegistrationResponse=verifyRegistrationResponse,
+    readonly sessionPolicy: Readonly<SessionPolicy> = DEFAULT_SESSION_POLICY){}
 
   private management(session:AccountApiSession){
     if(session.scopes.includes("credentials:write")||session.passkey_verified_at&&
@@ -255,7 +257,7 @@ export class PasskeyAuth {
       SELECT s.id,p.label,s.created_at,s.last_seen_at FROM account_passkey_sessions s
       JOIN account_passkeys p ON p.credential_id=s.credential_id AND p.revoked_at IS NULL
       WHERE s.account_id=${session.account_id} AND s.serving_generation=${session.serving_generation??1}
-        AND s.revoked_at IS NULL AND s.expires_at>now() AND s.last_seen_at>now()-interval '30 minutes'
+        AND s.revoked_at IS NULL AND s.expires_at>now() AND s.last_seen_at>now()-(${this.sessionPolicy.idleSeconds}::double precision * interval '1 second')
       ORDER BY s.created_at DESC,s.id`;
     return {sessions:sessions.map(row=>({id:row.id,label:row.label,createdAt:row.created_at.toISOString(),
       lastSeenAt:row.last_seen_at.toISOString(),current:row.id===session.credential_id})),recentlyVerified:session.scopes.includes("credentials:write")||Boolean(session.passkey_verified_at&&
@@ -321,9 +323,9 @@ export class PasskeyAuth {
       await tx`INSERT INTO account_passkey_sessions
         (id,token_hash,account_id,credential_id,serving_generation,scopes,expires_at)
         VALUES (${id},${tokenHash(token)},${row.account_id},${row.credential_id},${generation},
-          (${JSON.stringify(SESSION_SCOPES)}::text)::jsonb,now()+interval '12 hours')`;
+          (${JSON.stringify(SESSION_SCOPES)}::text)::jsonb,now()+(${this.sessionPolicy.absoluteSeconds}::double precision * interval '1 second'))`;
     });
-    return {token,expiresAt:new Date(Date.now()+12*60*60*1000)};
+    return {token,expiresAt:new Date(Date.now()+this.sessionPolicy.absoluteSeconds*1000)};
   }
 
   async actionOptions(session:AccountApiSession,challenge:string){

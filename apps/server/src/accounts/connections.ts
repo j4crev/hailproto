@@ -1,3 +1,4 @@
+import {DEFAULT_SESSION_POLICY, type SessionPolicy} from "./session-policy.js";
 import {previousAddressIdentities} from "./identity-history.js";
 import {createHash,randomBytes,timingSafeEqual} from "node:crypto";
 import type {SQL} from "bun";
@@ -40,7 +41,8 @@ interface Approval {id:string;action:string;connection_id:string|null;invitation
 export class AccountConnections {
   readonly federation:ConnectionFederation;
   constructor(private readonly sql:SQL,private readonly encryptor:KeyEncryptor,private readonly resolver:HailDidResolver,
-    private readonly passkeys:Pick<PasskeyAuth,"actionOptions"|"approveAction">,private readonly origin:string,private readonly remote?:RemoteConnectionReview){
+    private readonly passkeys:Pick<PasskeyAuth,"actionOptions"|"approveAction">,private readonly origin:string,private readonly remote?:RemoteConnectionReview,
+    private readonly sessionPolicy: Readonly<SessionPolicy> = DEFAULT_SESSION_POLICY){
     this.federation=new ConnectionFederation(sql,encryptor,resolver,remote,origin+"/hail",{
       owner:(tx,id)=>this.owner(tx,id),live:(tx,session)=>this.live(tx,session),authority:(tx,owner,key)=>this.authority(tx,owner,key),
       binding:(tx,owner,key)=>this.binding(tx,owner,key),invitation:async(tx,input)=>{
@@ -70,7 +72,7 @@ export class AccountConnections {
       WHERE s.id=${session.credential_id} AND a.id=${session.account_id} AND a.did=${session.did}
         AND a.closed_at IS NULL AND a.onboarding_state='active' AND a.activation_verification_mode='public' AND s.serving_generation=g.generation
         AND g.generation=${session.serving_generation??1} AND k.serving_generation=g.generation AND k.revoked_at IS NULL
-        AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND s.last_seen_at>clock_timestamp()-interval '30 minutes'
+        AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND s.last_seen_at>clock_timestamp()-(${this.sessionPolicy.idleSeconds}::double precision * interval '1 second')
         AND s.credential_id=${session.passkey_credential_id}`;
     if(!rows.length)throw new ConnectionError(403,"Current account access is required.");
     await this.owner(tx,session.account_id);

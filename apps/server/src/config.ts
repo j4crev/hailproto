@@ -1,3 +1,4 @@
+import {sessionPolicy, type SessionPolicy} from "./accounts/session-policy.js";
 import { publicPlcAuthorityConfig } from "./plc/public-resolver.js";
 import type { PublicPlcAuthorityConfig } from "./plc/observers.js";
 import { canonicalPlcReadOrigin } from "./plc/observers.js";
@@ -6,6 +7,7 @@ import { base58btc } from "multiformats/bases/base58";
 export type NodeEnvironment = "development" | "test" | "production";
 
 export interface AppConfig {
+  sessionPolicy?: SessionPolicy;
   nodeEnv: NodeEnvironment;
   port: number;
   providerId: string;
@@ -212,6 +214,7 @@ export function loadConfig(environment: Environment = Bun.env): AppConfig {
     alphaSignup={invitationKey,monitorOrigin};
   }else if(environment.ALPHA_SIGNUP_INVITE_KEY||environment.ALPHA_SIGNUP_MONITOR_ORIGIN)throw new Error("Alpha signup declarations require PUBLIC_ALPHA_SIGNUP=true");
   return {
+    sessionPolicy: sessionPolicy(environment),
     nodeEnv,
     port,
     providerId,

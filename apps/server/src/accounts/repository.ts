@@ -1,3 +1,4 @@
+import {DEFAULT_SESSION_POLICY, type SessionPolicy} from "./session-policy.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { encodeBase64Url } from "@hailproto/codec";
 import type { SQL } from "bun";
@@ -22,7 +23,7 @@ export const tokenHash = (token: string) => new Uint8Array(createHash("sha256").
 export class CredentialConflictError extends Error {}
 
 export class AccountApiRepository {
-  constructor(private readonly sql: SQL) {}
+  constructor(private readonly sql: SQL, readonly sessionPolicy: Readonly<SessionPolicy> = DEFAULT_SESSION_POLICY) {}
 
   async connectionAddress(session:AccountApiSession,did:string) {
     const row=(await this.sql<{address:string;previous_address:string|null;completed_at:Date|null}[]>`
@@ -110,7 +111,7 @@ export class AccountApiRepository {
         UPDATE account_passkey_sessions session SET last_seen_at=now()
         FROM provider_accounts account,account_serving_generations generation,account_passkeys passkey
         WHERE session.token_hash=${tokenHash(sessionToken!)} AND session.revoked_at IS NULL AND session.expires_at>now()
-          AND session.last_seen_at>now()-interval '30 minutes'
+          AND session.last_seen_at>now()-(${this.sessionPolicy.idleSeconds}::double precision * interval '1 second')
           AND account.id=session.account_id AND account.closed_at IS NULL AND account.onboarding_state='active' AND account.did IS NOT NULL
           AND generation.account_id=account.id AND generation.generation=session.serving_generation
           AND passkey.credential_id=session.credential_id AND passkey.account_id=account.id AND passkey.revoked_at IS NULL

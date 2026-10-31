@@ -43,7 +43,21 @@ integration("current-schema passkey sessions",()=>{
       expect((await accounts.authenticate(undefined,token))?.canonical_address).toBe("after@example.com");
       await db.sql`UPDATE account_passkey_sessions SET last_seen_at=now()-interval '31 minutes' WHERE id=${sessionId}`;
       expect(await accounts.authenticate(undefined,token)).toBeNull();
-      await db.sql`UPDATE account_passkey_sessions SET last_seen_at=now() WHERE id=${sessionId}`;
+      const policy={idleSeconds:3600,absoluteSeconds:86400};
+      const longerAccounts=new AccountApiRepository(db.sql,policy);
+      const longerPasskeys=new PasskeyAuth(db.sql,"example.com","https://example.com",undefined,policy);
+      expect((await passkeys.list(authenticated)).sessions).toHaveLength(0);
+      expect((await longerPasskeys.list(authenticated)).sessions).toHaveLength(1);
+      expect(await longerAccounts.authenticate(undefined,token)).not.toBeNull();
+      const seen=(await db.sql`SELECT last_seen_at FROM account_passkey_sessions WHERE id=${sessionId}`)[0]!.last_seen_at as Date;
+      expect(Date.now()-seen.getTime()).toBeLessThan(5000);
+      await db.sql`UPDATE account_passkey_sessions SET last_seen_at=now()-interval '61 minutes' WHERE id=${sessionId}`;
+      expect(await longerAccounts.authenticate(undefined,token)).toBeNull();
+      expect((await longerPasskeys.list(authenticated)).sessions).toHaveLength(0);
+      // An active session still expires at its original absolute deadline.
+      await db.sql`UPDATE account_passkey_sessions SET created_at=now()-interval '2 days',last_seen_at=now(),expires_at=now()-interval '1 second' WHERE id=${sessionId}`;
+      expect(await longerAccounts.authenticate(undefined,token)).toBeNull();
+      await db.sql`UPDATE account_passkey_sessions SET created_at=now(),last_seen_at=now(),expires_at=now()+interval '12 hours' WHERE id=${sessionId}`;
       await db.sql.begin(async tx=>{await tx`SELECT set_config('hail.returning_account',${account},true)`;
         await tx`UPDATE account_serving_generations SET generation=2 WHERE account_id=${account}`;});
       expect(await accounts.authenticate(undefined,token)).toBeNull();
