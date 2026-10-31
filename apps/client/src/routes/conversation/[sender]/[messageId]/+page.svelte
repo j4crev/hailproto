@@ -56,6 +56,14 @@
     catch(e){error=e instanceof Error?e.message:'Unable to change participation.';}
     finally{membershipSaving=false;}
   }
+  const conversationActions=$derived.by(()=>{
+    const shared=message?.sharedConversation;if(!shared)return [];
+    const actions=[];
+    if(shared.state==='active')actions.push({label:'Leave conversation',icon:'logout',run:()=>{void membership('leave');}});
+    if(shared.state==='left')actions.push({label:'Rejoin conversation',icon:'plus',run:()=>{void membership('rejoin');}});
+    if(shared.canRevive&&shared.state!=='left')actions.push({label:revival?'Refresh revival status':'Revive expired participation',icon:'chat',run:()=>{void revive();}});
+    return actions;
+  });
   let request=0;
   $effect(()=>{
     request++;pagingError=false;
@@ -124,19 +132,6 @@
 <svelte:head><title>{conversationSubject || 'Messages'} · Haili</title></svelte:head>
 <a class="hail-back" href="/?view=connections">← Inbox</a>
 <h1 class="hail-title conversation-subject" class:sr-only={!conversationSubject}>{conversationSubject || 'Messages'}</h1>
-{#if message?.sharedConversation}
-  {@const shared=message.sharedConversation}
-  <section class="mb-5 grid gap-2" aria-label="Shared conversation">
-    <p class="m-0 text-sm">Shared conversation · {shared.participants.length} participants · {shared.state}</p>
-    <details class="text-sm"><summary>Participants</summary><ul>{#each shared.participants as did}<li class="break-words">{did===data.account.did?'You':did}</li>{/each}</ul></details>
-    {#if shared.state==='active'}<button class="hail-button-secondary justify-self-start" disabled={membershipSaving||sending} onclick={()=>membership('leave')}>Leave conversation</button>
-    {:else}<p class="m-0 text-sm text-muted">{shared.state==='left'?'You left this conversation. Saved messages remain readable.':'Your participation expired through inactivity.'}</p>{#if shared.state==='left'}<button class="hail-button-secondary justify-self-start" disabled={membershipSaving||sending} onclick={()=>membership('rejoin')}>Rejoin conversation</button>{/if}{/if}
-    {#if shared.canRevive && shared.state!=='left'}<button class="hail-button-secondary justify-self-start" disabled={membershipSaving||sending} onclick={revive}>{revival?'Refresh revival status':'Revive expired participation'}</button>
-      <p class="m-0 text-xs text-muted">Expired participants can be readmitted under their current settings. People who left stay out.</p>
-    {:else if !shared.canRevive}<p class="m-0 text-xs text-muted">Only the original creator can revive other participants’ expired permissions.</p>{/if}
-    {#if revival}<ul class="text-sm" aria-label="Revival status">{#each revival.targets as target}<li class="break-words">{target.recipient}: {target.outcome}</li>{/each}</ul>{/if}
-  </section>
-{/if}
 {#if error}<p class="hail-error" role="alert">{error}</p>{/if}
 {#if replyFailure.error}<p class="hail-error" role="alert">{replyFailure.error}</p>{/if}
 {#if pending}<p class="text-sm text-muted" role="status">Opening message…</p>{/if}
@@ -156,19 +151,27 @@
         <div class="sender-identity">
           <div class="sender-address">{#if row.sent}You{:else}<ContactAddress owner={data.account.did} did={row.sender} address={row.senderAddress} />{/if}</div>
           {#if row.sent || row.senderAddress}<IdentityDetails did={row.sender} />{/if}
-          {#if row.sent}<p class="recipients">To {row.recipients.map(r=>r.address??r.did).join(', ')}</p>{/if}
+          {#if message.sharedConversation}
+            {@const shared=message.sharedConversation}
+            <details class="participants"><summary>Participants</summary>
+              <ul>{#each shared.participants as did}<li>{#if did===data.account.did}You{:else}<ContactAddress owner={data.account.did} {did} address={shared.participantAddresses?.[did]??null}/>{/if}</li>{/each}</ul>
+            </details>
+          {:else if row.sent}<p class="recipients">To {row.recipients.map(r=>r.address??r.did).join(', ')}</p>{/if}
         </div>
         <div class="message-tools">
 
-            {#if message.sharedConversation}<button class="hail-button-secondary" disabled={message.sharedConversation.state!=='active'||sending} onclick={()=>reply(true)}>Reply all</button>{/if}
+            {#if message.sharedConversation}<button class="hail-icon-button compact" title="Reply all" aria-label="Reply all" aria-expanded={replyOpen&&replyAll} disabled={message.sharedConversation.state!=='active'||sending} onclick={()=>reply(true)}><Icon name="reply-all"/></button>{/if}
             {#if !row.sent}
               <button class="hail-icon-button compact" title="Reply privately" aria-label="Reply privately" disabled={!message.connection?.active||sending} aria-expanded={replyOpen&&!replyAll} onclick={()=>reply(false)}><Icon name="reply" /></button>
               <a class="hail-icon-button compact" title="Forward" aria-label="Forward" href={forwardHref(message as MessageView)}><Icon name="forward" /></a>
-              <MessageActions compact menu disabled={readPending||sending} messages={[message]} onmarkedunread={()=>markedUnread(row)} returnTo="/?view=connections" />
-            {:else}<a class="text-xs text-muted" href={`/sent/${row.messageId}`}>Delivery details</a>{/if}
+              <MessageActions compact menu disabled={readPending||sending||membershipSaving} extraActions={conversationActions} messages={[message]} onmarkedunread={()=>markedUnread(row)} returnTo="/?view=connections" />
+            {:else}<a class="text-xs text-muted" href={`/sent/${row.messageId}`}>Delivery details</a>{#if message.sharedConversation}<MessageActions compact menu disabled={sending||membershipSaving} messages={[]} extraActions={conversationActions}/>{/if}{/if}
         </div>
       </header>
       <div class="expanded-body">
+        {#if message.sharedConversation?.state==='left'}<p class="text-sm text-muted">You left this conversation. Saved messages remain readable.</p>
+        {:else if message.sharedConversation?.state==='expired'}<p class="text-sm text-muted">Your participation expired through inactivity.</p>{/if}
+        {#if revival}<ul class="text-sm" aria-label="Revival status">{#each revival.targets as target}<li class="break-words">{message.sharedConversation?.participantAddresses?.[target.recipient]??target.recipient}: {target.outcome}</li>{/each}</ul>{/if}
         <div class="reading-body"><QuotedMessage blocks={content.blocks} header={message.header} /></div>
         {#if !row.sent && !message.connection?.active}<p class="text-sm text-muted">{message.sharedConversation?'Private replies require an active connection to this person.':'This connection is no longer active. Saved messages remain readable.'}</p>{/if}
         {#if replyOpen && (replyAll?message.sharedConversation?.state==='active':!row.sent&&message.connection?.active)}
@@ -204,6 +207,9 @@
   .sender-identity { grid-column:2; grid-row:1 / 3; min-width:0; overflow-wrap:anywhere; }
   .sender-address { font-size:14px; font-weight:550; line-height:1.5; margin-bottom:3px; }
   .sender-address :global(.address) { white-space:normal; overflow-wrap:anywhere; }
+  .participants { margin-top:6px; font-size:12px; color:var(--color-muted); }
+  .participants summary { cursor:pointer; width:fit-content; }
+  .participants ul { list-style:none; padding:0; margin:8px 0 0; display:grid; gap:6px; }
   .recipients { margin:6px 0 0; font-size:12px; color:var(--color-muted); }
   .message-tools { grid-column:3; grid-row:2; display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
 

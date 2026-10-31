@@ -6,8 +6,9 @@
   import Icon from '$lib/Icon.svelte';
 
   type Message = {sender: string; messageId: string};
-  let {messages, disabled = false, returnTo, onmarkedunread, onremoved, onclear, compact = false, menu = false, onunsubscribe, locked = $bindable(false)}: {
+  let {messages, disabled = false, returnTo, onmarkedunread, onremoved, onclear, compact = false, menu = false, onunsubscribe, extraActions = [], locked = $bindable(false)}: {
     messages: Message[];
+    extraActions?: {label:string;icon:string;run:()=>void}[];
     disabled?: boolean;
     compact?: boolean; menu?: boolean;
     returnTo?: string;
@@ -80,7 +81,7 @@
       {#if menu}
         <details class="action-menu">
           <summary class="hail-icon-button compact" aria-label="More message actions" title="More actions"><Icon name="more" /></summary>
-          <div class="menu-items"><button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');void markUnread();}}><Icon name="unread" /><span>Mark unread</span></button><button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');void review();}}><Icon name="trash" /><span>Trash</span></button>{#if onunsubscribe}<button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');onunsubscribe?.();}}><Icon name="bell-off" /><span>Unsubscribe</span></button>{/if}</div>
+          <div class="menu-items">{#if messages.length}<button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');void markUnread();}}><Icon name="unread" /><span>Mark unread</span></button><button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');void review();}}><Icon name="trash" /><span>Trash</span></button>{/if}{#if onunsubscribe}<button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');onunsubscribe?.();}}><Icon name="bell-off" /><span>Unsubscribe</span></button>{/if}{#each extraActions as action}<button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');action.run();}}><Icon name={action.icon}/><span>{action.label}</span></button>{/each}</div>
         </details>
       {:else}<button class="hail-icon-button compact" type="button" aria-label="Delete message" title="Delete" disabled={disabled || busy || !ready} onclick={review}><Icon name="trash" /></button>{/if}
     {/if}

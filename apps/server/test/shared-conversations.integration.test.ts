@@ -59,6 +59,10 @@ it.skipIf(!process.env.DATABASE_URL)('delivers shared replies between non-connec
     await db.sql`UPDATE connection_message_targets SET next_attempt_at=now() WHERE state='pending'`;
     expect(await publications.workOne()).toBe(true);
     expect((await publications.status(a.session,id,'connections'))!.counts.submitted).toBe(2);
+    const received=(await messaging.inboxFeed(b.session,null,'connections')).messages.find(m=>m.sharedConversation?.conversationId===id)!;
+    expect(received.sharedConversation?.participantAddresses).toEqual({[a.did]:a.address,[b.did]:b.address,[c.did]:c.address});
+    // Carol is not Bob's connection; her published binding supplies the label.
+    expect((await authority.targets(b.session)).some(t=>t.recipientDid===c.did)).toBe(false);
     const identity={creator:a.did,conversationId:id};
     for(const user of [a,b,c])expect((await conversationState(db.sql,user.session,identity))?.state).toBe('active');
     const originals=await db.sql<{message_id:string;recipient_did:string;envelope_cose:Uint8Array}[]>`SELECT message_id,recipient_did,envelope_cose FROM sent_envelopes WHERE conversation_id=${id}`;

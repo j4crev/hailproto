@@ -53,7 +53,7 @@ for(const [hours,sender,text] of [[0.8,senders[3],'I can bring a picnic blanket.
 for(let index=0;index<Math.min(100,Number(process.env.HAIL_DESIGN_EXTRA_REPLIES)||0);index++){
   messages.push({...firstConnection,sender:maya.did,senderAddress:maya.address,messageId:uuidV7(),deliveredAt:date(0.15-index/1000),body:body('Saturday at the market?',`Another detail for Saturday (${index+1}).`),isRead:false});
 }
-const sharedConversation={creator:did,conversationId:uuidV7(),messageId:uuidV7(),state:'active',expiresAt:new Date(started+730*86400000).toISOString(),participants:[did,senders[3].did,maya.did],canRevive:true};
+const sharedConversation={creator:did,conversationId:uuidV7(),messageId:uuidV7(),state:'active',expiresAt:new Date(started+730*86400000).toISOString(),participants:[did,senders[3].did,maya.did],participantAddresses:{[senders[3].did]:senders[3].address,[maya.did]:maya.address},canRevive:true};
 if(sharedMode){
   for(const m of messages.filter(m=>m.kind==='connection'&&m.messageId!==messages[4].messageId)){
     Object.assign(m,{sharedConversation});

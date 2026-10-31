@@ -140,6 +140,8 @@ it('parses shared permission independently from a direct connection and rejects 
     body:{version:1,profile:'spt-1',blocks:[{_type:'block',style:'normal',children:[{_type:'span',text:'Group reply',marks:[]}],markDefs:[]}]}};
   expect(parseMessage(source)).toMatchObject({sharedConversation:shared,replyAvailable:false});
   expect(parseMessage(source).connection).toBeUndefined();
+  expect(parseMessage({...source,sharedConversation:{...shared,participantAddresses:{[did('b')]:'bob@example.com'}}}).sharedConversation?.participantAddresses).toEqual({[did('b')]:'bob@example.com'});
+  for(const addresses of [{[did('d')]:'outsider@example.com'},{[did('b')]:'invalid'},[]])expect(()=>parseMessage({...source,sharedConversation:{...shared,participantAddresses:addresses}})).toThrow();
   expect(()=>parseMessage({...source,sharedConversation:{...shared,participants:[did('a'),did('b'),did('b')]}})).toThrow('Invalid shared conversation');
   expect(parseMessage({...source,sharedConversation:{...shared,state:'left'}}).sharedConversation?.state).toBe('left');
 });

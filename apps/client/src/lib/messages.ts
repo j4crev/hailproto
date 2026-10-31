@@ -57,7 +57,7 @@ export function parseSent(value: unknown): SentItem[] {
 }
 
 export interface MessageView extends InboxItem {
-  sharedConversation?:{creator:string;conversationId:string;messageId:string;state:'active'|'expired'|'left';expiresAt:string;participants:string[];canRevive:boolean};
+  sharedConversation?:{creator:string;conversationId:string;messageId:string;state:'active'|'expired'|'left';expiresAt:string;participants:string[];participantAddresses?:Record<string,string>;canRevive:boolean};
   conversation?:{unreadCount:number;lastActivity:string;messages:{sender:string;messageId:string;isRead:boolean}[]};
   inReplyTo?:{sender:string;messageId:string}|null;
   trashedAt: string | null;
@@ -222,6 +222,10 @@ export function parseMessage(value: unknown): MessageView {
       typeof s.messageId!=='string'||!id.test(s.messageId)||!['active','expired','left'].includes(s.state as string)||typeof s.expiresAt!=='string'||!Number.isFinite(Date.parse(s.expiresAt))||
       !Array.isArray(s.participants)||s.participants.length<3||s.participants.length>101||s.participants.some(v=>typeof v!=='string'||!did.test(v))||
       new Set(s.participants).size!==s.participants.length||!s.participants.includes(s.creator)||typeof s.canRevive!=='boolean')throw new Error('Invalid shared conversation');
+    if(s.participantAddresses!==undefined){
+      const addresses=object(s.participantAddresses,'participant addresses');
+      if(Object.entries(addresses).some(([peer,address])=>!(s.participants as string[]).includes(peer)||typeof address!=='string'||address.length>254||!/^([^\s@]+)@([^\s@]+)$/.test(address)))throw new Error('Invalid participant addresses');
+    }
     sharedConversation=s as unknown as NonNullable<MessageView['sharedConversation']>;
   }
   if(message.connection!==undefined&&message.connection!==null){
