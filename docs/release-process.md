@@ -2,7 +2,8 @@
 
 Use [production readiness](production-readiness.md) to track outstanding gates.
 A green build is necessary, but does not replace browser/device or operator
-recovery evidence. Registration remains invite-only unless separately changed.
+recovery evidence. Preserve the operator-selected registration policy during
+application releases; the current production policy is public (confirmed 2026-10-31).
 
 ## Local database integration
 

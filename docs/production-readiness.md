@@ -1,6 +1,7 @@
 # Production release readiness
 
-This checklist tracks readiness for real users while registration remains invite-only.
+This checklist tracks readiness for real users. Public registration is now intended
+(operator confirmed 2026-10-31); the original assessment assumed invite-only access.
 Checked items require implementation and recorded verification, not merely a plan.
 Publication, supported-platform claims and live operational evidence remain separate
 from repository changes. Initial assessment: 2026-10-29.
@@ -12,7 +13,8 @@ from repository changes. Initial assessment: 2026-10-29.
 - [x] Test fresh current-schema initialization, repeated startup, current authority/evidence constraints and current-code transfer round trips. Unreleased historical schemas are not a compatibility commitment.
 - [ ] Establish the first supported release baseline and its future upgrade tests when a stable release is actually published.
 - [x] Make release publication depend on the full reusable CI workflow at the release revision.
-- [ ] Confirm hosted CI passes and configure repository branch/tag protection settings.
+- [x] Confirm hosted CI passes at the deployed revision; full verification and image publication passed on 2026-10-31.
+- [ ] Configure repository branch/tag protection settings.
 - [x] Add the browser recovery cryptography check to CI; verify it locally in Chromium.
 - [x] Repair and gate the full browser wizard flow; supported real-device validation remains tracked separately below.
 
@@ -20,7 +22,7 @@ from repository changes. Initial assessment: 2026-10-29.
 
 - [x] Remove provider/GUI builds from the public production Compose path; require digest-based deployment with revision checks and retained-image rollback.
 - [x] Add CI-gated provider/GUI publication with bounded BuildKit memory and an immutable deployment-reference artifact.
-- [ ] Run the publication workflow, install the updated provider/backup wrappers, and complete the first digest deployment; record health, memory and PostgreSQL evidence.
+- [x] Run the publication workflow, install the updated provider/backup wrappers, and complete the first digest deployment; health, memory and PostgreSQL evidence recorded below.
 - [ ] Migrate the separate monitor deployment's build-based wrapper to prebuilt images; it is not changed by the provider/GUI repair.
 
 ## CLI distribution
@@ -104,6 +106,35 @@ return-history correction is also required for successful return transfers.
 No live deployment or database update has been performed by this task.
 
 ## Evidence log
+
+### 2026-10-31 — production digest cutover completed
+
+- [Publication run 41251716346](https://github.com/j4crev/hailproto/actions/runs/41251716346)
+  passed the complete hosted gate and published the provider/GUI image for
+  `c38aedf93956d97b6ad3c3e892d91970908d93ae`. Database integration: **55 suites,
+  zero failures, zero skipped tests**. Browser, CLI, clean-install, documentation
+  freshness and image checks passed. The same 55 database suites passed locally.
+- Image: `ghcr.io/j4crev/hailproto/provider@sha256:ebde465a049ba900194a44ec196d9c212a7869bda1c6ec4083cbaeec9fb447db`.
+  Anonymous registry access and the manifest digest were verified.
+- The operator installed the reviewed provider/backup wrappers through the VPS
+  console. Installed checksums matched the reviewed files; prior copies were
+  retained. The wrapper verified the pulled image's revision and completed an
+  encrypted off-host backup before replacing the application services.
+- Deployment completed at **23:31:50 UTC**, exit 0. GUI and provider both use the
+  published digest and are healthy. PostgreSQL and Caddy were not recreated;
+  their existing three-day uptime continued. Public homepage and readiness
+  checks returned HTTP 200; PostgreSQL logs contained no new crash/recovery events.
+- One-second sampling during the 19-second deployment recorded a minimum of
+  **720.9 MiB available memory** and **zero additional kernel OOM kills**. This
+  measures this rollout, not a runtime capacity guarantee. No production image
+  build ran. The prior application image and rollback record were retained.
+- Current registration reports `public`, confirmed by the operator as intended.
+  The cutover did not change registration policy; no database migration or reset
+  was part of this rollout.
+- Release-gate repairs covered stale wizard settings/delivery/reply fixtures,
+  Rust formatting, generated binding documentation, and a reproduced conversation
+  fixture startup race (API ready while GUI still returned 503). Unrelated
+  in-progress Svelte/layout edits were excluded from the release candidate.
 
 ### 2026-10-31 — off-host provider image deployment
 
