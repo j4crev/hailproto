@@ -255,8 +255,9 @@ Run from `apps/server/deploy/public`:
 
 ```bash
 docker compose --env-file .env -f compose.yaml -f compose.local.yaml config --quiet
-docker compose --env-file .env -f compose.yaml -f compose.local.yaml build provider
-docker compose --env-file .env -f compose.yaml -f compose.local.yaml up -d --wait db gui provider caddy
+# Set HAIL_PROVIDER_IMAGE in .env to the verified CI image@sha256 digest first.
+docker compose --env-file .env -f compose.yaml -f compose.local.yaml pull gui provider
+docker compose --env-file .env -f compose.yaml -f compose.local.yaml up -d --no-build --wait db gui provider caddy
 docker compose --env-file .env -f compose.yaml -f compose.local.yaml ps
 ```
 
@@ -380,3 +381,22 @@ Public transfers are optional. Enable `PUBLIC_MANAGED_TRANSFER` only with the pi
 providers' [readiness requirements](../../../cli/docs/custody-transitions.md#production-enablement-required-versus-deferrable).
 Custody transitions and Connections are separate switches. Supported settled
 connections survive moves; pending work and unsupported history remain blocked.
+
+## Deploy prebuilt application images
+
+Build the provider/GUI image on GitHub Actions using the
+[image release procedure](../../../../docs/release-process.md#provider-and-gui-images).
+The public Compose file intentionally has no build definition. Do not run Vite,
+adapter-node or Docker builds on a live provider host. `HAIL_PROVIDER_IMAGE` selects
+one immutable image for both provider and GUI on a fresh deployment. The local
+`hail-server-ts:public` fallback exists only for transition from existing installs;
+it is not a published release reference.
+
+On the managed Haili host, the installed `hail-provider-ops` wrapper takes both a
+full commit SHA and a GHCR digest. It stores image selection in
+`/etc/hail-provider-release/compose.json`, outside the Git checkout. When using
+Compose directly on that host, append `-f /etc/hail-provider-release/compose.json`
+after the existing Compose/database files. Preserve this file during backup and
+restore. The wrapper never rebuilds and recreates only GUI/provider, leaving
+PostgreSQL and Caddy running. Brief application restart time is still possible;
+this is not a rolling, zero-downtime deployment system.

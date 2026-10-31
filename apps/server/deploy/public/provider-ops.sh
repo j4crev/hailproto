@@ -10,8 +10,10 @@ if [ -f "$postgres" ]; then
   compose="$compose -f $postgres"
 fi
 
-# Serialize release mutations so another build cannot replace the public tag
-# between image inspection, retention and rollback-record publication.
+release=/etc/hail-provider-release/compose.json
+if [ -f "$release" ]; then compose="$compose -f $release"; fi
+
+# Serialize image selection, replacement and rollback-record publication.
 case "${1:-}" in
   deploy|rollback)
     exec 9>/var/lib/hail-provider-deploy.lock
@@ -26,13 +28,23 @@ verify_image() {
   [ "$actual" = "$2" ] || { echo "rollback image identity mismatch; release unchanged" >&2; return 1; }
 }
 
+select_image() {
+  # Persist outside Git so checkout/rollback cannot lose the selected image.
+  # Values originate from the validated digest or our retained rollback tag.
+  mkdir -p "$(dirname "$release")" || return 1
+  staged=$(mktemp "$release.XXXXXX") || return 1
+  printf '{"services":{"provider":{"image":"%s"},"gui":{"image":"%s"}}}\n' "$1" "$1" > "$staged" || return 1
+  if [ ! -f "$release" ]; then compose="$compose -f $release"; fi
+  mv "$staged" "$release"
+}
+
 restore_release() {
-  # Verify before changing either Git or the public tag. Never rebuild/pull here.
+  # Verify before changing Git or image selection. Never rebuild/pull here.
   verify_image "$2" "$3"
   git -C "$root" cat-file -e "$1^{commit}"
   git -C "$root" checkout --quiet --detach "$1"
-  docker tag "$2" hail-server-ts:public
-  $compose up -d --no-build --pull never --force-recreate gui provider
+  select_image "$2"
+  $compose up -d --no-deps --no-build --pull never --force-recreate --wait --wait-timeout 180 gui provider
   curl --fail --retry 12 --retry-delay 5 --retry-all-errors --silent --show-error https://haili.app/health/ready
 }
 
@@ -60,13 +72,22 @@ case "${1:-}" in
     ;;
   deploy)
     commit=${2:-}
+    image=${3:-}
+    [ "$#" -eq 3 ] || { echo "usage: $0 deploy COMMIT ghcr.io/OWNER/IMAGE@sha256:DIGEST" >&2; exit 2; }
     printf '%s' "$commit" | grep -Eq '^[0-9a-f]{40}$' || { echo "deploy requires a full commit SHA" >&2; exit 2; }
+    printf '%s' "$image" | grep -Eq '^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$' || { echo "deploy requires a GHCR image digest, not a tag" >&2; exit 2; }
     [ -z "$(git -C "$root" status --porcelain)" ] || { echo "deployment checkout is not clean" >&2; exit 1; }
+    # Pull/verify before touching the running release. Never fall back to a build.
+    docker pull "$image"
+    revision=$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
+    [ "$revision" = "$commit" ] || { echo "image revision does not match requested commit" >&2; exit 1; }
     /usr/local/sbin/hail-provider-backup
     git -C "$root" fetch --quiet origin "$commit"
     git -C "$root" cat-file -e "$commit^{commit}"
     old_commit=$(git -C "$root" rev-parse HEAD)
     old_image=$(docker inspect hail-public-provider-provider-1 --format '{{.Image}}')
+    gui_image=$(docker inspect hail-public-provider-gui-1 --format '{{.Image}}')
+    [ "$gui_image" = "$old_image" ] || { echo "provider and GUI images differ; review rollback before deploying" >&2; exit 1; }
     # A saved ID alone does not retain an image in Docker's containerd store.
     # Use its full digest so rebuilding the same commit cannot overwrite it.
     printf '%s' "$old_image" | grep -Eq '^sha256:[0-9a-f]{64}$' || exit 1
@@ -74,7 +95,8 @@ case "${1:-}" in
     docker tag "$old_image" "$retained_image"
     verify_image "$retained_image" "$old_image"
     git -C "$root" checkout --quiet --detach "$commit"
-    if $compose config --quiet && $compose build provider && $compose up -d db provider &&
+    if select_image "$image" && $compose config --quiet &&
+      $compose up -d --no-deps --no-build --pull never --force-recreate --wait --wait-timeout 180 gui provider &&
       curl --fail --retry 12 --retry-delay 5 --retry-all-errors --silent --show-error https://haili.app/health/ready; then
       umask 077
       record=$(mktemp /var/lib/hail-provider-previous.XXXXXX)

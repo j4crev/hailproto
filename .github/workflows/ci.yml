@@ -44,10 +44,19 @@ jobs:
           bun run typecheck
           bun run test
           bun run build
+      - uses: docker/setup-buildx-action@v4
+        with:
+          driver: docker-container
+          driver-opts: |
+            memory=4g
+            memory-swap=4g
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 2
       - name: Verify images
         run: |
-          docker build -f apps/server/Dockerfile .
-          docker build -f apps/plc-monitor/Dockerfile .
+          docker buildx build --load -f apps/server/Dockerfile .
+          docker buildx build --load -f apps/plc-monitor/Dockerfile .
       - name: Verify browser recovery cryptography and wizard
         env:
           CHROMIUM: google-chrome

@@ -25,6 +25,8 @@ printf '{"createdAt":"%s","host":"haili.app","commit":"%s","image":"%s","databas
 $compose exec -T db pg_restore --list < "$work/hail.dump" >/dev/null
 set -- hail.dump provider.env manifest.json
 if [ -f "$postgres" ]; then cp "$postgres" "$work/database-compose.yaml"; set -- "$@" database-compose.yaml; fi
+release=/etc/hail-provider-release/compose.json
+if [ -f "$release" ]; then cp "$release" "$work/release-compose.json"; set -- "$@" release-compose.json; fi
 tar -C "$work" -cf "$work/backup.tar" "$@"
 gpg --homedir /etc/hail-backup-gnupg --batch --trust-model always \
   --recipient "$BACKUP_RECIPIENT" --encrypt --output "$work/$name" "$work/backup.tar"

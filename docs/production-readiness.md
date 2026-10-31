@@ -16,6 +16,13 @@ from repository changes. Initial assessment: 2026-10-29.
 - [x] Add the browser recovery cryptography check to CI; verify it locally in Chromium.
 - [x] Repair and gate the full browser wizard flow; supported real-device validation remains tracked separately below.
 
+## Production image deployment
+
+- [x] Remove provider/GUI builds from the public production Compose path; require digest-based deployment with revision checks and retained-image rollback.
+- [x] Add CI-gated provider/GUI publication with bounded BuildKit memory and an immutable deployment-reference artifact.
+- [ ] Run the publication workflow, install the updated provider/backup wrappers, and complete the first digest deployment; record health, memory and PostgreSQL evidence.
+- [ ] Migrate the separate monitor deployment's build-based wrapper to prebuilt images; it is not changed by the provider/GUI repair.
+
 ## CLI distribution
 
 - [x] Document versioned binary download, checksum verification, PATH setup, upgrade and uninstall.
@@ -97,6 +104,22 @@ return-history correction is also required for successful return transfers.
 No live deployment or database update has been performed by this task.
 
 ## Evidence log
+
+### 2026-10-31 — off-host provider image deployment
+
+- Built the complete provider/GUI Docker image on the development machine using
+  the CI BuildKit settings. Docker inspection confirmed 4,294,967,296-byte memory
+  and memory-plus-swap limits; Vite and adapter-node packaging completed.
+- Started the packaged GUI in an isolated, read-only container; HTTP 200, no OOM
+  flag. This smoke check does not establish runtime capacity or provider health.
+- All 14 provider deployment tests pass, including digest/revision rejection,
+  pull/config/start/readiness failures, retained-image rollback and refusal of
+  mixed GUI/provider versions. Failure leaves the previous rollback record intact.
+- Public provider Compose validates with no build definitions. Workflow actionlint,
+  shell syntax checks and diff whitespace checks pass.
+- Updated encrypted backups to include persistent image selection. Publication,
+  installed-wrapper replacement and live rollout remain unchecked above. The
+  separate monitor build path is unchanged. No production services were modified.
 
 Record completed repository checks below. Keep secrets, backup contents and sensitive
 incident details out of this file; link to protected operator evidence where appropriate.

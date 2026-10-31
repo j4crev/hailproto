@@ -7,7 +7,7 @@ COPY vendor/did-method-plc/packages/lib ./packages/lib
 RUN pnpm install --filter @did-plc/lib... --frozen-lockfile
 RUN pnpm --filter @did-plc/lib exec tsc --build tsconfig.build.json --force
 
-# Vite/adapter packaging stays within small-builder memory under Node; runtime remains Bun.
+# Build on an isolated CI builder; runtime remains Bun.
 FROM node:24.18-bookworm-slim AS build
 COPY --from=oven/bun:1.4.0 /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /workspace/hailproto
@@ -22,7 +22,7 @@ COPY --from=plc-lib-build /workspace/hailproto/vendor/did-method-plc ./vendor/di
 RUN bun install --frozen-lockfile
 RUN bun run --cwd packages/hail-codec-ts build
 COPY apps/client ./apps/client
-# Leave memory for the live provider while adapter-node packages the GUI.
+# This limits V8 old space only. CI also caps the entire BuildKit container.
 RUN NODE_OPTIONS=--max-old-space-size=512 bun run --cwd apps/client build
 
 FROM oven/bun:1.4.0 AS dependencies
