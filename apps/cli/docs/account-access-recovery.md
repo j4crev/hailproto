@@ -9,7 +9,7 @@ before relying on endpoint availability.
 
 Account access recovery issues a **new provider-local API credential** after
 owner proof. It does not publish a PLC operation, rotate identity/recovery keys,
-change custody, renew an Address Binding, transfer an account or restore a revoked
+change custody, publish an Address Binding, transfer an account or restore a revoked
 credential. People and agents follow the same authority checks.
 
 - Owner-controlled ordinary login: prove possession of the current, verified

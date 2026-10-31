@@ -18,12 +18,12 @@ export const identityDid = "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa";
 export const messagingDid = "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb";
 
 export const addressBinding: HailAddressBinding = {
-  version: 1,
+  version: 2,
   type: "hail.address-binding",
   address: "alice@example.com",
   did: identityDid,
   issued_at: 1_787_851_200,
-  expires_at: 1_795_627_200,
+
   key_id: `${identityDid}#hail-identity`,
 };
 

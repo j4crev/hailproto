@@ -30,7 +30,7 @@ These pages explain security or lifecycle decisions. They are not tutorials.
 - [Account access recovery](account-access-recovery.md)
 - [Credential lifecycle](credential-lifecycle.md)
 - [Device-keystore boundary](device-keystore.md)
-- [Binding renewal](binding-renewal.md)
+- [Binding publication](binding-publication.md)
 - [Grant revisions](grant-revisions.md)
 - [Historical Grant keys](grant-key-reconciliation.md)
 - [Custody transitions](custody-transitions.md)

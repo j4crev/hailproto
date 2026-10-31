@@ -125,7 +125,7 @@ export class ManagedMigrationActivation {
     const binding=(await verifySignedPayload("hail.address-binding",pending.destination_binding_cose,
       createWebCryptoVerifier(kid=>{if(kid!==`${manifest.did}#hail-identity`)throw new Error("Managed binding has another signer");
         return ed25519PublicKeyFromDidKey(manifest.destinationIdentityPublicKey);}))).payload;
-    if(binding.did!==manifest.did||binding.address!==pending.destination_address||binding.expires_at<=Math.floor(this.now().getTime()/1000)||
+    if(binding.did!==manifest.did||binding.address!==pending.destination_address||
       !same(sha(pending.destination_binding_cose),pending.destination_binding_digest))throw new Error("Managed destination binding is stale or changed");
     await this.publishReservedBinding(transferId,manifest,pending,binding);
     const published=await this.verifier.verify(pending.destination_address);
@@ -210,7 +210,7 @@ export class ManagedMigrationActivation {
           ${JSON.stringify(resolved.evidence.data)}::jsonb,'verified',${activatedAt},${activatedAt})`;
       await tx`INSERT INTO address_bindings(id,account_id,canonical_address,did,cose,representation_digest,issued_at,expires_at,hosted_at,selected_at,published_at)
         VALUES(${randomUUID()},${manifest.accountId},${pending.destination_address},${manifest.did},${pending.destination_binding_cose},
-          ${pending.destination_binding_digest},${new Date(binding.issued_at*1000)},${new Date(binding.expires_at*1000)},${activatedAt},${activatedAt},${activatedAt})`;
+          ${pending.destination_binding_digest},${new Date(binding.issued_at*1000)},${null},${activatedAt},${activatedAt},${activatedAt})`;
       await retainPublicSigningAuthority(tx,{actionType:"address-binding",localAccountId:manifest.accountId,did:manifest.did,
         role:"hail-identity",key:manifest.destinationIdentityPublicKey,serviceBase:this.serviceBase,
         representation:pending.destination_binding_cose,evidence:resolved.evidence});
@@ -246,7 +246,7 @@ export class ManagedMigrationActivation {
   }
 
   private async publishReservedBinding(transferId:string,manifest:ManagedTransferManifest,pending:{destination_address:string;
-    destination_binding_cose:Uint8Array;destination_binding_digest:Uint8Array},binding:{issued_at:number;expires_at:number}) {
+    destination_binding_cose:Uint8Array;destination_binding_digest:Uint8Array},binding:{issued_at:number}) {
     await this.sql.begin(async tx=>{
       const reservation=(await tx<{reserved_account_id:string|null;canonical_address:string;state:string}[]>`
         SELECT reserved_account_id,canonical_address,state FROM transfer_address_reservations WHERE transfer_id=${transferId} FOR UPDATE`)[0];
@@ -257,7 +257,7 @@ export class ManagedMigrationActivation {
       if(existing){if(!same(existing.cose,pending.destination_binding_cose))throw new Error("Reserved address has another managed binding");return;}
       await tx`INSERT INTO address_bindings(id,account_id,canonical_address,did,cose,representation_digest,issued_at,expires_at,hosted_at,selected_at,published_at)
         VALUES(${randomUUID()},${reservation.reserved_account_id},${pending.destination_address},${manifest.did},${pending.destination_binding_cose},
-          ${pending.destination_binding_digest},${new Date(binding.issued_at*1000)},${new Date(binding.expires_at*1000)},clock_timestamp(),clock_timestamp(),clock_timestamp())`;
+          ${pending.destination_binding_digest},${new Date(binding.issued_at*1000)},${null},clock_timestamp(),clock_timestamp(),clock_timestamp())`;
     });
   }
 

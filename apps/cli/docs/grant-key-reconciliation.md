@@ -55,5 +55,5 @@ Before lifting it, prove acknowledged and unacknowledged predecessor handling,
 late/lost acknowledgements, recovered/nullified PLC branches, unavailable senders,
 same-revision conflicts, sequential receiver replay, owner-key custody, portable
 history preservation and explicit post-reconciliation expiry/consent choices.
-Identity rotation remains separate from address renewal and provider-local
+Identity rotation remains separate from address publication and provider-local
 credential rotation. This decision changes no protocol signature or selector.

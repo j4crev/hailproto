@@ -24,7 +24,6 @@ const binding: PublishedAddressBinding = {
   cose: new Uint8Array([1, 2, 3]),
   digest: new Uint8Array(32).fill(7),
   issuedAt: new Date("2026-09-27T00:00:00Z"),
-  expiresAt: new Date("2026-12-26T00:00:00Z"),
   publishedAt: new Date("2026-09-27T00:00:01Z"),
 };
 

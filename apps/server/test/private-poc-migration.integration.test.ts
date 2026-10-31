@@ -127,8 +127,8 @@ integration("private PLC transfer between disposable POC providers", () => {
     });
     await client.bindDid(genesis.did, genesis.operation);
     const now = Math.floor(Date.now() / 1000);
-    const oldBinding = await client.signAddressBinding({ type: "hail.address-binding", version: 1,
-      address: sourceAddress, did: genesis.did, issued_at: now, expires_at: now + 90 * 86400,
+    const oldBinding = await client.signAddressBinding({ type: "hail.address-binding", version: 2,
+      address: sourceAddress, did: genesis.did, issued_at: now,
       key_id: `${genesis.did}#hail-identity` });
     expect((await sourceOnboarding.register(prepared.accountId,
       new TextEncoder().encode(JSON.stringify(genesis.operation)), oldBinding)).state)
@@ -157,7 +157,7 @@ integration("private PLC transfer between disposable POC providers", () => {
       VALUES (${peerAccount},${key.role},${key.algorithm},${key.publicKey},${key.ciphertext},${key.nonce},${key.encryptionVersion},${key.kekId})`;
     const peerMessaging=peerKeys.keys.find(key=>key.role==="hail-messaging")!;
     const peerIdentity=peerKeys.identityPrivateKey;
-    const peerBinding:HailAddressBinding={type:"hail.address-binding",version:1,address:`peer-${peerAccount}@source.example.com`,did:peerDid,issued_at:now,expires_at:now+86400,key_id:`${peerDid}#hail-identity`};
+    const peerBinding:HailAddressBinding={type:"hail.address-binding",version:2,address:`peer-${peerAccount}@source.example.com`,did:peerDid,issued_at:now,key_id:`${peerDid}#hail-identity`};
     const bindingCose=await signPayload("hail.address-binding",peerBinding,createWebCryptoSigner(peerBinding.key_id,peerIdentity));
     const rawPeer=await peerEncryptor.decrypt(peerAccount,peerMessaging.role,peerMessaging.algorithm,peerMessaging.publicKey,peerMessaging);
     let peerSigner:CryptoKey;try{peerSigner=await importEd25519PrivateKey(rawPeer);}finally{rawPeer.fill(0);}

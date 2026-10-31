@@ -79,6 +79,51 @@ setups can continue through their existing recovery and passkey flow. Upgrade re
 before advertising DNS-only addresses: old WebFinger-only clients cannot discover
 them. Neither record changes website hosting or SMTP email routing.
 
+### Address Binding v2 rollout and lifecycle
+
+The current local protocol change uses nonexpiring version-2 Address Bindings;
+it has not yet been deployed to the live provider. Existing custom-domain and
+standalone signup flows were already deployed and user-tested. Review the exact
+revision and rollout state before upgrading.
+
+Version 2 has a closed signed payload: `type`, `version`, `address`, `did`,
+`issued_at`, and `key_id`. There is no `expires_at` or scheduled binding renewal.
+Resolvers still verify current DNS/WebFinger publication, the exact address and
+DID, and the current validated PLC identity key, allowing at most 300 seconds of
+future issuance. Hail does not publish addresses in PLC `alsoKnownAs` or use it
+as address authority. Address or identity-key changes need explicit binding
+publication, including current custom-domain delegation checks.
+
+This alpha upgrade rejects version 1 rather than running both parsers. Plan
+one-time freshly signed v2 publication for existing accounts, preserving their
+DIDs and authorized keys. Managed accounts use the authorized provider identity
+signer; owner-controlled accounts require their owner's identity signature.
+Editing stored bytes cannot upgrade a signature. Retain historical signed evidence
+privately and coordinate compatible resolver upgrades and account publication;
+old public bindings will not verify under v2-only readers. Do not deploy this
+change until the one-time account-publication procedure and required signatures
+are prepared; the routine CLI publication command expects an existing v2 binding.
+
+The reference resolver does not application-cache discovery. Any future cache must
+last no more than one hour and obey shorter DNS TTL, HTTP freshness, and PLC policy
+bounds. Domain loss does not revoke DID-based grants or disable provider login,
+and binding age does not automatically withdraw a published address.
+
+The local migration-retirement implementation records irreversible publication
+tombstones, hiding the retired account's WebFinger mappings and direct public COSE
+URLs while preserving private audit evidence. A shared withdrawal helper exists
+for future account-deletion integration; no account-deletion flow is implemented.
+Full custom-domain withdrawal, reassignment, and transfer remain deferred. Future
+reassignment must wait at least 3600 seconds after both mapping and public artifacts
+are withdrawn. These lifecycle requirements do not erase PLC history or require
+a standalone binding-revocation command.
+
+Withdrawal assumes provider cooperation: a former authority retaining a still-valid
+signature can republish it if its identity key remains current. Publication removal
+is not cryptographic revocation. The DNS ownership/setup challenges still last
+24 hours, and verified standalone admission still lasts 15 minutes; those limits
+are independent of binding lifetime.
+
 ### Provider configuration
 
 Edit the private `.env`:

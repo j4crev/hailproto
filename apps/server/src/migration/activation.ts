@@ -278,7 +278,7 @@ export class PortableMigrationActivation {
           representation_digest, issued_at, expires_at, published_at, hosted_at, selected_at)
         VALUES (${randomUUID()}, ${manifest.accountId}, ${pending.destination_address}, ${manifest.did},
           ${pending.destination_binding_cose}, ${pending.destination_binding_digest},
-          ${new Date(address.binding.issued_at * 1000)}, ${new Date(address.binding.expires_at * 1000)},
+          ${new Date(address.binding.issued_at * 1000)}, ${null},
           now(), now(), now())
       `;
       for (const row of manifest.tables.sender_profiles) await insertRow(tx, "sender_profiles", row);

@@ -88,11 +88,11 @@ integration("GrantRepository PostgreSQL integration", () => {
     ]);
     const binding: HailAddressBinding = {
       type: "hail.address-binding",
-      version: 1,
+      version: 2,
       address: granteeAddress,
       did: granteeDid,
       issued_at: now,
-      expires_at: now + 86_400,
+
       key_id: `${granteeDid}#hail-identity`,
     };
     const bindingBytes = await signPayload(

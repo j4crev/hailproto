@@ -191,7 +191,7 @@ func digestValue(value Digest) map[any]any {
 }
 
 func addressBindingValue(value *AddressBinding) map[any]any {
-	return map[any]any{"version": value.Version, "type": value.Type, "address": value.Address, "did": value.DID, "issued_at": value.IssuedAt, "expires_at": value.ExpiresAt, "key_id": value.KeyID}
+	return map[any]any{"version": value.Version, "type": value.Type, "address": value.Address, "did": value.DID, "issued_at": value.IssuedAt, "key_id": value.KeyID}
 }
 
 func senderProfileValue(value *SenderProfile) map[any]any {
@@ -572,7 +572,11 @@ func validatePayloadMap(kind string, m map[any]any) error {
 		return e
 	}
 	v, e := intValue(m["version"], "$.version", 0)
-	if e != nil || v != 1 && !((kind == SenderProfileType || kind == EnvelopeType) && v == 2) && !(kind == EnvelopeType && v == 3) {
+	if kind == AddressBindingType {
+		if e != nil || v != 2 {
+			return errors.New("address-binding version must equal 2")
+		}
+	} else if e != nil || v != 1 && !((kind == SenderProfileType || kind == EnvelopeType) && v == 2) && !(kind == EnvelopeType && v == 3) {
 		if kind == SenderProfileType {
 			return errors.New("$.version must equal 1 or 2")
 		}
@@ -602,7 +606,7 @@ func validatePayloadMap(kind string, m map[any]any) error {
 }
 
 func validateAddressBinding(m map[any]any) error {
-	if e := exact(m, []string{"version", "type", "address", "did", "issued_at", "expires_at", "key_id"}, nil, "$"); e != nil {
+	if e := exact(m, []string{"version", "type", "address", "did", "issued_at", "key_id"}, nil, "$"); e != nil {
 		return e
 	}
 	signer, e := did(m["did"], "$.did")
@@ -612,16 +616,9 @@ func validateAddressBinding(m map[any]any) error {
 	if e = hailAddress(m["address"], "$.address"); e != nil {
 		return e
 	}
-	issued, e := intValue(m["issued_at"], "$.issued_at", 0)
+	_, e = intValue(m["issued_at"], "$.issued_at", 0)
 	if e != nil {
 		return e
-	}
-	expires, e := intValue(m["expires_at"], "$.expires_at", 0)
-	if e != nil {
-		return e
-	}
-	if expires <= issued || expires-issued > 7776000 {
-		return errors.New("$.expires_at outside validity window")
 	}
 	return keyID(m["key_id"], signer, "hail-identity", "$.key_id")
 }

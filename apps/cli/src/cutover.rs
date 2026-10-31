@@ -228,14 +228,13 @@ pub fn sign(args: &Args, managed: bool) -> Result<Value, Error> {
         )?;
         if p["address"] != reservation["address"]
             || p["did"] != user.vault["did"]
-            || t::integer(&p["expires_at"])? <= now
         {
             return Err(t::invalid());
         }
     } else {
         let p = codec::from_diagnostic(
             "hail.address-binding",
-            &json!({"type":"hail.address-binding","version":1,"address":reservation["address"],"did":user.vault["did"],"issued_at":now,"expires_at":now+90*86400,"key_id":format!("{}#hail-identity",t::text(&user.vault["did"])?)}),
+            &json!({"type":"hail.address-binding","version":2,"address":reservation["address"],"did":user.vault["did"],"issued_at":now,"key_id":format!("{}#hail-identity",t::text(&user.vault["did"])?)}),
         )?;
         private::create(
             binding_path,

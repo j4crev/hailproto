@@ -154,7 +154,7 @@ pub async fn run(args: &Args) -> Result<Value, Error> {
                 .as_secs();
             let payload = codec::from_diagnostic(
                 "hail.address-binding",
-                &json!({"type":"hail.address-binding","version":1,"address":address.to_lowercase(),"did":did,"issued_at":now,"expires_at":now+90*86400,"key_id":format!("{did}#hail-identity")}),
+                &json!({"type":"hail.address-binding","version":2,"address":address.to_lowercase(),"did":did,"issued_at":now,"key_id":format!("{did}#hail-identity")}),
             )?;
             URL_SAFE_NO_PAD
                 .encode(codec::sign(

@@ -213,7 +213,7 @@ Partial, stale, or unrecognized Hail entries for which the provider has no match
 
 PLC registration precedes public address publication. Once the expected Hail DID state resolves:
 
-1. The client creates an Address Binding naming the canonical reserved address and registered DID.
+1. The client creates a version-2 Address Binding naming the canonical reserved address and registered DID.
 2. The user-controlled `#hail-identity` signs the binding.
 3. The provider or custom-domain operator validates the complete binding and hosts its immutable COSE representation.
 4. The representation is made retrievable at its final HTTPS URL before WebFinger references it.
@@ -221,6 +221,10 @@ PLC registration precedes public address publication. Once the expected Hail DID
 6. The provider performs the complete verification algorithm in [address-binding.md](address-binding.md) as an external client would.
 7. The provider separately resolves the DID and confirms its own exact `#hail` endpoint and `#hail-messaging` key.
 8. Only then does the provider mark the account active for Hail federation.
+
+The version-2 payload is the closed map defined in [address-binding.md](address-binding.md): `type`, `version`, `address`, `did`, `issued_at`, and `key_id`. It has no `expires_at` or periodic renewal. Verification requires current DNS/WebFinger publication, the exact requested address and DID, and a signature under the current validated PLC identity key; issuance may be at most 300 seconds in the future. No `alsoKnownAs` membership check applies. Successful discovery caches are bounded by one hour and any shorter DNS TTL, HTTP freshness, or PLC policy limit.
+
+Version 1 is rejected, with no dual-version runtime compatibility. Previously deployed accounts need a freshly signed version-2 binding before their address can verify under this profile. Conversion preserves the DID and existing authorized keys; it does not recreate the account or rewrite historical signed evidence. Portable owner-controlled accounts require an owner identity signature, while an explicitly selected managed account uses its authorized provider identity signer. A provider cannot convert an owner-controlled signature by editing the old payload.
 
 For a provider-issued address, the provider controls reservation, binding hosting, and WebFinger publication. For a custom-domain address, the user or domain operator performs or delegates the publication steps. Hosting the Hail service does not authorize the provider to publish under a domain it does not control.
 
@@ -264,10 +268,18 @@ Failure rules:
 - After a new DID reaches `did-registered`, its genesis operation is permanently public and cannot be rolled back or erased.
 - A registered but inactive DID is not repaired by creating another DID without explicit user approval and a new recovery ceremony.
 - WebFinger must not select the binding before the binding resource and expected DID state are retrievable.
-- If end-to-end activation fails after WebFinger publication, the account remains inactive and the address authority removes the selection or repairs it before retrying verification. Before assigning the address to another account, it waits until the earlier of 300 seconds after the prior binding's `expires_at` and 3600 seconds after WebFinger withdrawal, so no conforming cached discovery result can verify the prior binding.
-- A PLC tombstone is an explicit account-closure operation whose exact bytes are reviewed and signed by the user-controlled index-zero recovery key. It is never automatic cleanup for failed onboarding.
+- If end-to-end activation fails after WebFinger publication, the account remains inactive and the address authority withdraws both the WebFinger selection and public COSE artifact serving, or repairs the same activation before retrying verification. Before assigning the address to a different DID, it waits at least 3600 seconds after both publications are withdrawn, so no conforming cached discovery result remains current. Binding expiry is not an alternative: version 2 has none.
+- A PLC tombstone permanently deactivates the DID and requires an explicit operation whose exact bytes are reviewed and signed by the user-controlled index-zero recovery key. It is never automatic cleanup for failed onboarding or ordinary local account deletion.
 
 Providers define reservation duration and local-account deletion policy, but must prevent an expired or reassigned reservation from activating a binding created for its prior holder.
+
+## Publication Withdrawal At Account Closure
+
+Ordinary account deletion and successful source migration retirement must durably withdraw the departing address's WebFinger mapping and all associated public COSE binding URLs, including previously published URLs. Required signed binding and registration evidence remains privately retained for audit; public artifact retention must not leave a withdrawn address discoverable. Unrelated addresses for the same DID are unaffected. Reassignment to another DID waits at least 3600 seconds after withdrawal of both mapping and artifacts.
+
+This is a lifecycle requirement, not a new standardized deletion API or a standalone `binding revoke` command. Providers with an account-deletion workflow must incorporate withdrawal into that workflow; implementations without one must not claim deletion support merely because they can withdraw bindings. Migration retirement follows the coordinated transfer rules and must not retire the source early after a failed or ambiguous cutover. Neither workflow erases PLC history or automatically tombstones the DID.
+
+Withdrawal relies on provider cooperation. A noncooperating former address authority can republish an old binding while its identity key remains current. Withdrawal is not cryptographic revocation of distributed signatures. Resolvers therefore revalidate current publication and current PLC authority after bounded cache freshness expires; they must not rely indefinitely on retained binding bytes.
 
 ## Retained Registration Evidence
 

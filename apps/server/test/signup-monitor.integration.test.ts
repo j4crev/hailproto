@@ -1,4 +1,4 @@
-import { exerciseCustomDomainRenewal } from "./client-support/custom-domain-renewal.js";
+import { exerciseCustomDomainPublication } from "./client-support/custom-domain-publication.js";
 import { createHash, generateKeyPairSync, randomBytes, randomUUID, sign } from "node:crypto";
 import { SQL } from "bun";
 import { cidForCbor } from "@atproto/common";
@@ -383,7 +383,7 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
         await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0078_registration_policy.sql",import.meta.url)).text())).rejects.toThrow("retain admission and audit evidence");
         if(packageFlow)await expect(rollback.unsafe(await Bun.file(new URL("../migrations/rollback/0073_signup_recovery_package.sql",import.meta.url)).text())).rejects.toThrow("rollback would discard");
       }finally{await rollback.unsafe("ROLLBACK");rollback.release();}
-       if(customDomain)await exerciseCustomDomainRenewal(db,encryptor,resolver,plc,providerOrigin,address,()=>signIn(3));
+       if(customDomain)await exerciseCustomDomainPublication(db,encryptor,resolver,plc,providerOrigin,address,()=>signIn(3));
        await db.migrate();
        const generationVault=await createUserVault();try{
         const retiredToken=`hailp_${encodeBase64Url(randomBytes(32))}`,retiredId=randomUUID();

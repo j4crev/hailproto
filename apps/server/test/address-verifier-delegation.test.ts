@@ -25,14 +25,14 @@ beforeAll(async () => {
   const privateKey = await importEd25519PrivateKey(bytes);
   bytes.fill(0);
   const payload: HailAddressBinding = {
-    type: "hail.address-binding", version: 1, address, did,
-    issued_at: now.getTime() / 1000 - 60, expires_at: now.getTime() / 1000 + 3600,
+    type: "hail.address-binding", version: 2, address, did,
+    issued_at: now.getTime() / 1000 - 60,
     key_id: `${did}#hail-identity`,
   };
   representation = await signPayload("hail.address-binding", payload, createWebCryptoSigner(payload.key_id, privateKey));
 });
 
-function fixture(discover: ProviderDiscovery, options: {subject?: string; status?: number; deny?: boolean; corrupt?: boolean} = {}) {
+function fixture(discover: ProviderDiscovery, options: {subject?: string; status?: number; deny?: boolean; corrupt?: boolean; time?: Date} = {}) {
   const fetch = vi.fn(async (request: Request) => {
     if (new URL(request.url).pathname === "/.well-known/webfinger") {
       if (options.status) return new Response(null, { status: options.status });
@@ -48,7 +48,7 @@ function fixture(discover: ProviderDiscovery, options: {subject?: string; status
   const validate = vi.fn(async (_url: URL) => { if (options.deny) throw new Error("private network"); });
   const resolver = { resolve: vi.fn(async () => ({ did, identityDidKey, messagingDidKey,
     serviceBase: "https://haili.app/hail", evidence: { document: {}, data: {}, log: [] } })) };
-  const verifier = new AddressVerifier({} as PlcDirectoryClient, fetch, validate, () => now, resolver, discover);
+  const verifier = new AddressVerifier({} as PlcDirectoryClient, fetch, validate, () => options.time ?? now, resolver, discover);
   return { verifier, fetch, validate, resolver };
 }
 
@@ -82,6 +82,18 @@ describe("DNS-delegated signed address verification", () => {
     expect(request.redirect).toBe("manual");
     expect(request.headers.get("authorization")).toBeNull();
     expect(validate).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts old signatures but rechecks current publication on every resolution", async () => {
+    const { verifier, fetch } = fixture(async () => "haili.app", { time: new Date(now.getTime() + 120 * 86400_000) });
+    expect((await verifier.verify(address)).did).toBe(did);
+    fetch.mockImplementationOnce(async () => new Response(null, { status: 404 }));
+    await expect(verifier.verify(address)).rejects.toThrow("did not return 200");
+  });
+
+  it("still rejects issuance more than five minutes in the future", async () => {
+    const { verifier } = fixture(async () => "haili.app", { time: new Date(now.getTime() - 600_000) });
+    await expect(verifier.verify(address)).rejects.toThrow("issuance is too far in the future");
   });
 
   it("retains domain-hosted WebFinger when delegation is absent", async () => {

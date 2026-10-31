@@ -86,7 +86,7 @@ alice@alice.example.com
 updates@store.example.com
 ```
 
-Custom-domain identities also use `did:plc`. Their domain-backed Hail address can remain stable across hosting-provider migration if the domain continues publishing a valid binding to the same DID. Loss, transfer, removal, or expiration of that binding can make the address unverified without transferring or revoking DID-bound grants and history.
+Custom-domain identities also use `did:plc`. Their domain-backed Hail address can remain stable across hosting-provider migration if the domain continues publishing a valid binding to the same DID. Loss, transfer, or withdrawal of that binding can make the address unverified without transferring or revoking DID-bound grants and history.
 
 A provider may later offer managed personal-domain registration and DNS as a paid service. This is optional rather than a baseline requirement because every user would otherwise incur domain registration and renewal costs. For meaningful portability, the user should be the registrant or otherwise have a guaranteed right to transfer the managed domain away from the provider.
 
@@ -100,7 +100,7 @@ The intended resolution chain is:
 human address -> DID -> current Hail service endpoint and verification keys
 ```
 
-Address-to-DID resolution uses an expiring Hail Address Binding discovered through authenticated HTTPS WebFinger at the address domain. The WebFinger response selects one binding using the exact `https://hailproto.com/rel/address-binding` relation, and the selected binding separately verifies under the DID's `#hail-identity` key. Discovery follows the bounded redirect, SSRF, media-type, expiration, and one-hour maximum-cache rules in [`spec/address-binding.md`](spec/address-binding.md). Hail addresses are not written to `alsoKnownAs`, avoiding permanent address history in the public PLC log.
+Address-to-DID resolution uses a nonexpiring Hail Address Binding discovered through authenticated HTTPS WebFinger at the address domain. The WebFinger response selects one binding using the exact `https://hailproto.com/rel/address-binding` relation, and the selected binding separately verifies under the DID's `#hail-identity` key. Discovery follows the bounded redirect, SSRF, media-type, issuance-time, and one-hour maximum-cache rules in [`spec/address-binding.md`](spec/address-binding.md). Hail addresses are not written to `alsoKnownAs`, avoiding permanent address history in the public PLC log.
 
 Continuity-preserving provider migration fences the old provider, transfers the complete grant, reply, replay, delivery, status, cache-provenance, and verification-evidence serialization domain, then updates both `#hail-messaging` and `#hail`. The new provider starts only after durable import and after the PLC update satisfies the [current read-evidence policy](spec/plc-read-evidence.md). The DID and DID-bound relationships remain stable.
 

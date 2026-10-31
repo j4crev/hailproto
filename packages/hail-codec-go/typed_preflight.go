@@ -147,7 +147,7 @@ func validateTypedPayload(payload Payload) (string, error) {
 }
 
 func preflightAddressBinding(v *AddressBinding) error {
-	if v.Type != AddressBindingType || v.Version != 1 {
+	if v.Type != AddressBindingType || v.Version != 2 {
 		return errors.New("invalid address-binding type or version")
 	}
 	if err := hailAddress(v.Address, "$.address"); err != nil {
@@ -156,7 +156,7 @@ func preflightAddressBinding(v *AddressBinding) error {
 	if _, err := did(v.DID, "$.did"); err != nil {
 		return err
 	}
-	if v.IssuedAt < 0 || v.ExpiresAt <= v.IssuedAt || v.ExpiresAt-v.IssuedAt > 7776000 {
+	if v.IssuedAt < 0 {
 		return errors.New("invalid address-binding validity window")
 	}
 	return keyID(v.KeyID, v.DID, "hail-identity", "$.key_id")

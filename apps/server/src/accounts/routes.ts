@@ -254,7 +254,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         let input:Record<string,unknown>;
         try {input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as Record<string,unknown>;
           if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("Invalid object");}catch{return problem(400);}
-        return context.json(await binding.renew(session,input));
+        return context.json(await binding.publish(session,input));
       }
       if(action==="profile") {
         // Browser profile edits get a narrow, fresh-passkey capability rather

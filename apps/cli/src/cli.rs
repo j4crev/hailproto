@@ -94,10 +94,10 @@ const COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Rotate managed identity into fresh client-held custody; verify backup and retain exact retry state.",
     ),
     (
-        "binding renew",
+        "binding publish",
         "",
-        "expires-at output vault",
-        "Deliberately renew using owner identity or explicit managed custody.",
+        "output vault",
+        "Publish a replacement binding using owner identity or managed custody.",
     ),
     (
         "grant create",
@@ -307,7 +307,7 @@ const COMMANDS: &[(&str, &str, &str, &str)] = &[
         "binding show",
         "",
         "",
-        "Read binding expiry and renewal reminder metadata.",
+        "Read the selected signed address binding.",
     ),
     (
         "grant show",
@@ -577,7 +577,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
             "account transfer cancel" => "vault state",
             "account custody managed" => "state",
             "account custody owner-controlled" => "vault state backup-verified",
-            "binding renew" => "expires-at output",
+            "binding publish" => "output",
             "grant create" | "grant update" => "output category",
             "connection invite" => "label expires-at vault state output",
             "connection accept" => "file expected-did vault state",

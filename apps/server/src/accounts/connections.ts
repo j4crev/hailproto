@@ -122,8 +122,8 @@ export class AccountConnections {
     const checked=await verifySignedPayload("hail.address-binding",new Uint8Array(row.cose),createWebCryptoVerifier(async kid=>{
       if(kid!==owner.did+"#hail-identity")throw new ConnectionError(409);return ed25519PublicKeyFromDidKey(key);
     }));
-    if(checked.payload.address!==owner.canonical_address||checked.payload.did!==owner.did||checked.payload.expires_at<=now()||checked.payload.issued_at>now()+300)
-      throw new ConnectionError(409,"The account's address binding needs renewal.");
+    if(checked.payload.address!==owner.canonical_address||checked.payload.did!==owner.did||checked.payload.issued_at>now()+300)
+      throw new ConnectionError(409,"The account's address binding is not currently authorized.");
     return new Uint8Array(row.cose);
   }
   private async invitation(tx:SQL,id:unknown){

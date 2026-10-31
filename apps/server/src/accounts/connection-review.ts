@@ -48,7 +48,7 @@ export class RemoteConnectionReview {
       const tokenHash=createHash("sha256").update(decodeBase64Url(input.token,32)).digest(),now=Math.floor(Date.now()/1000);
       if(invitation.from!==input.did||invitation.invitation_id!==input.id||invitation.issued_at>now+300||
         invitation.expires_at!==null&&invitation.expires_at<=now||!timingSafeEqual(tokenHash,invitation.token_hash.value)||
-        binding.did!==input.did||binding.issued_at>now+300||binding.expires_at<=now)throw new Error("Remote invitation identity, token or expiry differs");
+        binding.did!==input.did||binding.issued_at>now+300)throw new Error("Remote invitation identity, token or expiry differs");
       await requireFreshPublicAuthority(this.sql,state.evidence,{did:input.did,role:"hail-identity",key:state.identityDidKey,serviceBase:base},new Date());
       return {id:input.id,did:input.did,address:binding.address,expiresAt:invitation.expires_at,provider:base,preview:true as const,
         admissionSupported:wire.federation===1,invitationBytes,bindingBytes,identityKey:state.identityDidKey};

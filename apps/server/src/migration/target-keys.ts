@@ -232,8 +232,8 @@ export class PreparedMigrationTarget {
     const keyBytes = await this.encryptor.decrypt(prepared.transferId, "hail-identity", "ed25519",
       row.identity_public_key, { ciphertext: row.identity_private_ciphertext, nonce: row.identity_nonce,
         encryptionVersion: 1, kekId: "poc-v1" });
-    const binding: HailAddressBinding = { type: "hail.address-binding", version: 1, address, did: prepared.did,
-      issued_at: issuedAt, expires_at: issuedAt + 90 * 86400, key_id: `${prepared.did}#hail-identity` };
+    const binding: HailAddressBinding = { type: "hail.address-binding", version: 2, address, did: prepared.did,
+      issued_at: issuedAt,  key_id: `${prepared.did}#hail-identity` };
     try { return signPayload("hail.address-binding", binding,
       createWebCryptoSigner(binding.key_id, await importEd25519PrivateKey(keyBytes))); }
     finally { keyBytes.fill(0); }

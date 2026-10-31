@@ -21,12 +21,11 @@ export interface HailAssetManifest {
 }
 
 export interface HailAddressBinding {
-  version: 1;
+  version: 2;
   type: "hail.address-binding";
   address: string;
   did: string;
   issued_at: number;
-  expires_at: number;
   key_id: string;
 }
 

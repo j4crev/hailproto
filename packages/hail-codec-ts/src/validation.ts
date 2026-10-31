@@ -230,17 +230,14 @@ function keyId(value: unknown, signer: string, role: HailKeyRole, path: string):
 function validateAddressBinding(payload: HailRecord): void {
   exactKeys(
     payload,
-    ["version", "type", "address", "did", "issued_at", "expires_at", "key_id"],
+    ["version", "type", "address", "did", "issued_at", "key_id"],
     [],
     "$",
   );
   const signer = did(payload.did, "$.did");
   hailAddress(payload.address, "$.address");
-  const issuedAt = integer(payload.issued_at, "$.issued_at");
-  const expiresAt = integer(payload.expires_at, "$.expires_at");
-  if (expiresAt <= issuedAt || expiresAt - issuedAt > 7_776_000) {
-    fail("must be after issued_at and no more than 90 days later", "$.expires_at");
-  }
+  if (payload.version !== 2) fail("must equal integer 2", "$.version");
+  integer(payload.issued_at, "$.issued_at");
   keyId(payload.key_id, signer, "hail-identity", "$.key_id");
 }
 
@@ -728,7 +725,7 @@ export function validatePayload<T extends HailPayloadType>(
     return;
   }
   if (payload.type !== expectedType) fail(`must equal ${expectedType}`, "$.type");
-  if (expectedType !== "hail.sender-profile" && !(expectedType==="hail.envelope"&&(payload.version===2||payload.version===3)) && payload.version !== 1) fail("must equal integer 1", "$.version");
+  if (expectedType !== "hail.address-binding" && expectedType !== "hail.sender-profile" && !(expectedType==="hail.envelope"&&(payload.version===2||payload.version===3)) && payload.version !== 1) fail("must equal integer 1", "$.version");
 
   switch (expectedType) {
     case "hail.address-binding":

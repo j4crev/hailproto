@@ -98,7 +98,7 @@ it.skipIf(!process.env.DATABASE_URL)("public owner/managed onboarding seals owne
       const did = await didForCreateOp(operation);
       const now = Math.floor(Date.now() / 1000);
       const binding = custody === "managed" ? new Uint8Array() : await signPayload("hail.address-binding",
-        { type: "hail.address-binding", version: 1, address, did, issued_at: now, expires_at: now + 86400,
+        { type: "hail.address-binding", version: 2, address, did, issued_at: now,
           key_id: `${did}#hail-identity` }, createWebCryptoSigner(`${did}#hail-identity`, identity.pair.privateKey));
       const operationBytes = new TextEncoder().encode(JSON.stringify(operation));
       if (alpha) await expect(service.register(prepared.accountId, operationBytes, binding)).rejects.toThrow("assurance");

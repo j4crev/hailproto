@@ -23,8 +23,8 @@ it.skipIf(!process.env.DATABASE_URL)("public Grant revisions/imports retain exac
     for(const [id,did,address] of [[ownerId,grantor.did,"owner@local.example.com"],[peerId,grantee.did,"sender@peer.example.com"]])await db.sql`
       INSERT INTO provider_accounts(id,tenant_id,canonical_address,did,onboarding_state,activated_at,activation_binding_digest,activation_verification_mode)
       VALUES(${id!},${randomUUID()},${address!},${did!},'active',now(),${zero},'public')`;
-    const binding:HailAddressBinding={type:"hail.address-binding",version:1,address:"sender@peer.example.com",did:grantee.did,
-      issued_at:now,expires_at:now+3600,key_id:`${grantee.did}#hail-identity`};
+    const binding:HailAddressBinding={type:"hail.address-binding",version:2,address:"sender@peer.example.com",did:grantee.did,
+      issued_at:now,key_id:`${grantee.did}#hail-identity`};
     const profile:HailSenderProfile={type:"hail.sender-profile",version:1,did:grantee.did,revision:1,display_name:"Sender",offers_uncategorized:false,
       categories:[{id:"updates",label:"Updates"}],updated_at:now,key_id:`${grantee.did}#hail-messaging`};
     const bindingBytes=await signPayload("hail.address-binding",binding,createWebCryptoSigner(binding.key_id,grantee.identity.pair.privateKey));

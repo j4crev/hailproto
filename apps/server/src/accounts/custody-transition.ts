@@ -127,8 +127,8 @@ export class SameProviderCustodyTransition {
       unsignedOperation:def.unsignedOperation.parse({type:"plc_operation",prev:previousOperationCid,rotationKeys:expectedState.rotationKeys,
         verificationMethods:expectedState.verificationMethods,alsoKnownAs:expectedState.alsoKnownAs,services:expectedState.services}),
       previousOperationCid,generationFrom:generation,generationTo:generation+1,
-      binding:{type:"hail.address-binding",version:1,address:account.canonical_address,did:account.did,issued_at:now,
-        expires_at:now+90*86400,key_id:`${account.did}#hail-identity`},activeGrants};
+      binding:{type:"hail.address-binding",version:2,address:account.canonical_address,did:account.did,issued_at:now,
+        key_id:`${account.did}#hail-identity`},activeGrants};
   }
 
   async prepareOwner(accountId:string,newIdentityKey:string,bindingCose:Uint8Array,
@@ -203,8 +203,8 @@ export class SameProviderCustodyTransition {
     const unsignedOperation=def.unsignedOperation.parse({type:"plc_operation",prev:previousOperationCid,
       rotationKeys:expectedState.rotationKeys,verificationMethods:expectedState.verificationMethods,
       alsoKnownAs:expectedState.alsoKnownAs,services:expectedState.services});
-    const now=Math.floor(this.now().getTime()/1000),binding:HailAddressBinding={type:"hail.address-binding",version:1,
-      address:account.canonical_address,did:account.did,issued_at:now,expires_at:now+90*86400,key_id:`${account.did}#hail-identity`};
+    const now=Math.floor(this.now().getTime()/1000),binding:HailAddressBinding={type:"hail.address-binding",version:2,
+      address:account.canonical_address,did:account.did,issued_at:now,key_id:`${account.did}#hail-identity`};
     const bindingCose=await signPayload("hail.address-binding",binding,createWebCryptoSigner(binding.key_id,generated.privateKey));
     const bindingDigest=sha256(bindingCose),transitionId=randomUUID(),expiresAt=new Date(this.now().getTime()+60*60*1000);
     return this.sql.begin(async tx=>{
@@ -396,7 +396,7 @@ export class SameProviderCustodyTransition {
       await tx`INSERT INTO address_bindings (id,account_id,canonical_address,did,cose,representation_digest,issued_at,expires_at,hosted_at,selected_at,published_at)
         VALUES (${randomUUID()},${row.account_id},${account.canonical_address},${row.did},${row.binding_cose},${row.binding_digest},
           to_timestamp(${inspectSignedPayload("hail.address-binding",new Uint8Array(row.binding_cose)).payload.issued_at}),
-          to_timestamp(${inspectSignedPayload("hail.address-binding",new Uint8Array(row.binding_cose)).payload.expires_at}),clock_timestamp(),clock_timestamp(),clock_timestamp())`;
+          NULL,clock_timestamp(),clock_timestamp(),clock_timestamp())`;
       await retainPublicSigningAuthority(tx,{actionType:"address-binding",localAccountId:row.account_id,did:row.did,role:"hail-identity",
         key:row.new_identity_public_key,serviceBase:this.serviceBase,representation:row.binding_cose,evidence});
       await tx`INSERT INTO plc_operation_evidence (id,account_id,did,operation_cid,previous_cid,registry_origin,signed_operation,

@@ -83,11 +83,11 @@ function verifiedAddress(): VerifiedAddress {
     verifiedAt: now,
     binding: {
       type: "hail.address-binding",
-      version: 1,
+      version: 2,
       address: "notices@grantee.example.com",
       did: granteeDid,
       issued_at: nowSeconds,
-      expires_at: nowSeconds + 3600,
+
       key_id: `${granteeDid}#hail-identity`,
     },
     representation: new Uint8Array([10, 11]),

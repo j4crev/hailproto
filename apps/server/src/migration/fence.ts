@@ -1,3 +1,4 @@
+import { withdrawAccountBindings } from "../discovery/withdrawal.js";
 import type { SQL } from "bun";
 import { canonicalizeHailServiceBase, type HailDidResolver } from "../plc/resolver.js";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
@@ -296,6 +297,7 @@ export class MigrationFenceService {
       await tx`UPDATE connection_invitations SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE account_id=${fence.account_id} AND revoked_at IS NULL`;
       await tx`UPDATE account_api_credentials SET revoked_at=COALESCE(revoked_at,clock_timestamp())
         WHERE account_id=${fence.account_id}`;
+      await withdrawAccountBindings(tx,fence.account_id,"migration");
       if (fence.state === "retired") {
         const saved = await tx<{ retirement_receipt_bytes: Uint8Array }[]>`
           SELECT retirement_receipt_bytes FROM provider_migration_fences

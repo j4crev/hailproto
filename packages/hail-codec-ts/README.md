@@ -28,12 +28,11 @@ import {
 } from "@hailproto/codec";
 
 const binding: HailAddressBinding = {
-  version: 1,
+  version: 2,
   type: "hail.address-binding",
   address: "alice@example.com",
   did: "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
   issued_at: 1787851200,
-  expires_at: 1795627200,
   key_id: "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
 };
 

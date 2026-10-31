@@ -16,11 +16,11 @@ export async function grantBindingCases(binary:string,root:string,directory:stri
   const now=Math.floor(Date.now()/1000);let grant=structuredClone(vectors.find((v:any)=>v.type==="hail.grant").diagnostic),grantBytes:Uint8Array;
   grant.scope=[{type:"categories",values:["receipts"]}];grant.issued_at=now-100;grant.updated_at=now-100;grant.expires_at=now+1000;
   grantBytes=await owner.signGrant(fromDiagnosticJson("hail.grant",grant));const gid=grant.grant_id;
-  let currentBinding={...vectors.find((v:any)=>v.type==="hail.address-binding").diagnostic,issued_at:now-100,expires_at:now+1000};
+  let currentBinding={...vectors.find((v:any)=>v.type==="hail.address-binding").diagnostic,issued_at:now-120*86400};
   let bindingBytes=await owner.signAddressBinding(currentBinding),fail="",calls:any[]=[],proposal:any;
   const grantRecord=()=>({type:"hailp.grant",version:1,cose:Buffer.from(grantBytes).toString("base64url"),digest:digest(grantBytes),localRole:"grantor"});
   const ack=()=>({grantId:gid,revision:grant.revision,status:grant.status,digest:fail==="ack"?"A".repeat(43):digest(grantBytes),publication:"durable"});
-  const bindingRecord=()=>({type:"hailp.address-binding",version:1,bindingId:id,cose:Buffer.from(bindingBytes).toString("base64url"),digest:digest(bindingBytes),expiresAt:currentBinding.expires_at,status:"active",renewalDue:false});
+  const bindingRecord=()=>({type:"hailp.address-binding",version:1,bindingId:id,cose:Buffer.from(bindingBytes).toString("base64url"),digest:digest(bindingBytes),status:"active"});
   install(async(request)=>{
    const path=new URL(request.url).pathname.replace("/api/v1/account",""),body=request.method==="POST"?await request.json():null;calls.push({path,body,method:request.method});assert.equal(request.headers.get("authorization"),`Bearer ${token}`);
    const json=(v:unknown)=>new Response(JSON.stringify(v),{headers:{"Content-Type":"application/json"}});
@@ -63,9 +63,12 @@ export async function grantBindingCases(binary:string,root:string,directory:stri
   fail="ack";await run(updating,false);fail="";await run(updating);const updateBytes=await readFile(update);await run(updating,true,command);assert.deepEqual(await readFile(update),updateBytes);
   const revoking=["grant","revoke",gid,...vaultArgs,...managed?[]:["--output",revoked]];
   await run(revoking);if(!managed){const b=await readFile(revoked);await run(revoking,true,command);assert.deepEqual(await readFile(revoked),b);await run(["grant","submit",revoked]);}
-  const renewal=["binding","renew","--expires-at",String(now+2000),"--output",binding,...vaultArgs];
-  fail="lost";await run(renewal,false);fail="";await run(renewal);const b=await readFile(binding);await run(renewal,true,command);assert.deepEqual(await readFile(binding),b);
-  await run(renewal.map(s=>s===String(now+2000)?String(now+2001):s),false);
+  const publication=["binding","publish","--output",binding,...vaultArgs];
+  fail="lost";await run(publication,false);fail="";await run(publication);const b=await readFile(binding);await run(publication,true,command);assert.deepEqual(await readFile(binding),b);
+  const intentPath=binding+".request.json",intent=await readFile(intentPath,"utf8");
+  await writeFile(intentPath,JSON.stringify({...JSON.parse(intent),accountId:"changed"}));
+  await run(publication,false);await writeFile(intentPath,intent);
+  await run([...publication,"--expires-at",String(now+2000)],false);
  }
  console.log(`Grant/binding regression: ${cases} cases passed`);
 }

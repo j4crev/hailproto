@@ -142,8 +142,8 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
         serviceBase: `${origin}/hail`, evidence };
     } };
     const now = Math.floor(Date.now() / 1000);
-    const binding: HailAddressBinding = { type: "hail.address-binding", version: 1, address: senderAddress,
-      did: senderDid, issued_at: now, expires_at: now + 3600, key_id: `${senderDid}#hail-identity` };
+    const binding: HailAddressBinding = { type: "hail.address-binding", version: 2, address: senderAddress,
+      did: senderDid, issued_at: now,  key_id: `${senderDid}#hail-identity` };
     const bindingBytes = await signPayload("hail.address-binding", binding, createWebCryptoSigner(binding.key_id, senderIdentity.privateKey));
     const verifiedAddress: VerifiedAddress = { address: senderAddress, did: senderDid, binding,
       representation: bindingBytes, digest: new Uint8Array(createHash("sha256").update(bindingBytes).digest()),

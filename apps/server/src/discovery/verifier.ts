@@ -244,8 +244,8 @@ export class AddressVerifier {
     const binding = inspected.payload;
     if (binding.address !== address) throw new Error("Address Binding names another address");
     const current = Math.floor(this.now().getTime() / 1_000);
-    if (binding.issued_at > current + 300 || current > binding.expires_at + 300) {
-      throw new Error("Address Binding is outside its validity period");
+    if (binding.issued_at > current + 300) {
+      throw new Error("Address Binding issuance is too far in the future");
     }
     if (!resolvedServiceBase || !resolvedMessagingDidKey || !resolvedIdentityDidKey || !plcEvidence) {
       throw new Error("PLC state did not resolve complete Hail service state");

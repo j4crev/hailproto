@@ -270,7 +270,7 @@ pub async fn run(client: &Client, args: &Args) -> Result<Value, Error> {
                 262144,
             )?;
             if binding["type"] != "hail.address-binding"
-                || binding["version"] != 1
+                || binding["version"] != 2
                 || binding["address"] != a["address"]
                 || binding["did"] != a["did"]
                 || binding["key_id"] != format!("{}#hail-identity", a["did"].as_str().unwrap())

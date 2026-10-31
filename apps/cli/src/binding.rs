@@ -2,7 +2,7 @@ use crate::{api::Client, cli::Args, codec, contract::Error, private, signed_read
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde_json::{Value, json};
 fn invalid() -> Error {
-    Error::client("Binding renewal request, signing key or retained artifact changed or expired")
+    Error::client("Binding publication request, signing key or retained artifact changed")
 }
 fn now() -> i64 {
     std::time::SystemTime::now()
@@ -10,11 +10,8 @@ fn now() -> i64 {
         .unwrap_or_default()
         .as_secs() as i64
 }
-pub async fn renew(client: &Client, args: &Args) -> Result<Value, Error> {
+pub async fn publish(client: &Client, args: &Args) -> Result<Value, Error> {
     let output = &args.options["output"];
-    let expires = args.options["expires-at"]
-        .parse::<i64>()
-        .map_err(|_| invalid())?;
     let vp = args.options.get("vault");
     let account = client.account().await?;
     if !account["migrationState"].is_null()
@@ -41,13 +38,7 @@ pub async fn renew(client: &Client, args: &Args) -> Result<Value, Error> {
             return Err(invalid());
         }
         let issued = now().max(payload["issued_at"].as_i64().ok_or_else(invalid)? + 1);
-        if expires <= payload["expires_at"].as_i64().ok_or_else(invalid)?
-            || expires <= issued
-            || expires - issued > 90 * 86400
-        {
-            return Err(invalid());
-        }
-        let state = json!({"provider":account["provider"],"accountId":account["accountId"],"signingKey":account["identityPublicKey"],"previous":record["digest"],"payload":{"type":"hail.address-binding","version":1,"address":account["address"],"did":account["did"],"issued_at":issued,"expires_at":expires,"key_id":format!("{}#hail-identity",account["did"].as_str().unwrap())}});
+        let state = json!({"provider":account["provider"],"accountId":account["accountId"],"signingKey":account["identityPublicKey"],"previous":record["digest"],"payload":{"type":"hail.address-binding","version":2,"address":account["address"],"did":account["did"],"issued_at":issued,"key_id":format!("{}#hail-identity",account["did"].as_str().unwrap())}});
         private::create(&path, state.to_string().as_bytes())?;
         state
     };
@@ -58,11 +49,10 @@ pub async fn renew(client: &Client, args: &Args) -> Result<Value, Error> {
         || p["address"] != account["address"]
         || p["did"] != account["did"]
         || p["key_id"] != format!("{}#hail-identity", account["did"].as_str().unwrap())
-        || p["expires_at"] != expires
-        || expires <= now()
     {
         return Err(invalid());
     }
+    codec::from_diagnostic("hail.address-binding", p)?;
     let public = state["signingKey"].as_str().ok_or_else(invalid)?;
     let mut signed = private::optional_bytes(output, 16384)?;
     if let Some(bytes) = &signed
@@ -105,6 +95,6 @@ pub async fn renew(client: &Client, args: &Args) -> Result<Value, Error> {
         private::create(output, &bytes)?;
     }
     Ok(
-        json!({"bindingId":response["bindingId"],"digest":response["digest"],"expiresAt":response["expiresAt"],"status":response["status"],"renewalDue":response["renewalDue"],"signedFile":output}),
+        json!({"bindingId":response["bindingId"],"digest":response["digest"],"status":response["status"],"signedFile":output}),
     )
 }

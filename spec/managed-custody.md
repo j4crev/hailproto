@@ -9,6 +9,10 @@ wire object, COSE algorithm, account API or PLC operation format.
 The v1 requirements and conformance IDs are frozen. A semantic change requires a
 new profile identifier; editorial clarifications may not weaken an existing case.
 The reviewed evidence map is [managed-custody-conformance-v1.md](managed-custody-conformance-v1.md).
+The shared alpha Address Binding wire profile has separately advanced to version
+2. References below follow that protocol revision; the managed custody identifier,
+key authorities and consent requirements remain unchanged. Prior deployment
+evidence does not by itself establish conformance to the revised binding format.
 
 The [onboarding profile](account-onboarding.md) remains the baseline. A production
 provider must continue to support portable owner-controlled custody. Managed v1
@@ -67,7 +71,7 @@ detection and timely higher-priority recovery remain necessary within PLC's
    owner signature, DID, public roles, selected provider and retained full state,
    even after the client's vault is bound. A confirmed hash-prefix collision is
    handled by the existing explicit new-ceremony exception, not automatic keys.
-5. The provider signs the Address Binding using its managed identity key after
+5. The provider signs the version-2 Address Binding using its managed identity key after
    verified registration. Hosting precedes selection; external discovery verifies
    exact address, DID, binding, identity/messaging roles and prepared service.
 6. Independent monitor/read evidence, recovery backup verification and shared
@@ -90,7 +94,13 @@ silently selects managed custody. Humans and agents follow identical rules.
 
 Grant expansion still needs verified evidence and consent. Restrictions and
 terminal signed revocation remain unilateral; no unsigned blocking is introduced.
-Binding renewal requires deliberate authority and preserves the 90-day maximum.
+Address Binding version 2 has no `expires_at`, maximum lifetime or periodic
+renewal. Verification uses current DNS/WebFinger publication, the exact address
+and DID, and the current validated PLC identity key, with at most 300 seconds of
+future issuance tolerance. It does not use `alsoKnownAs` as address authority.
+Discovery caches last at most one hour and obey shorter DNS TTL, HTTP freshness
+and PLC policy limits. These shared address-binding rules do not change managed
+key custody or the authority and consent requirements for managed signing.
 Credential rotation never changes identity custody or recovery authority.
 
 Fresh owner authentication after account-access expiry requires independent owner
@@ -99,6 +109,25 @@ cannot authorize issuing owner credentials, changing custody, replacing recovery
 or moving the DID. Local access recovery is not PLC identity recovery. Challenges
 are one-time, provider/account/purpose/scope bound; terminal credentials stay
 terminal and old generations never regain authority.
+
+Version-1 bindings are rejected under the alpha wire-format change. An existing
+managed account needs a freshly signed version-2 binding from its authorized
+managed identity signer, preserving the DID and keys and retaining original
+signed audit evidence privately. This is not a custody transition. An
+owner-controlled account still requires its owner's identity signature; missing
+owner credentials never authorize fallback to a managed signer.
+
+Ordinary account deletion and successful source migration retirement must
+withdraw the departing WebFinger mapping and all associated public COSE binding
+URLs, while retaining required evidence privately. Reassignment to a different
+DID waits at least 3600 seconds after both publications are withdrawn. Account
+and migration workflows own this requirement; it neither introduces a standalone
+binding-revocation command nor implies that every implementation already has an
+account-deletion API. It does not erase PLC history or automatically tombstone the
+DID. Withdrawal relies on cooperation: if the identity key remains current, a
+noncooperating former authority may republish an old signed binding. Removing
+publication is not cryptographic revocation. Other address associations remain
+unaffected.
 
 ## Custody changes and managed migration
 

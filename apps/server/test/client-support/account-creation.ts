@@ -64,8 +64,8 @@ export async function createAccount(provider:string,address:string,custody:"owne
       await user.bindDid(signed.did,signed.operation,custody==="managed");
       state.operation=signed.operation;state.did=signed.did;
       const now=Math.floor(Date.now()/1000);
-      state.binding=custody==="managed"?null:encodeBase64Url(await user.signAddressBinding({type:"hail.address-binding",version:1,
-        address:address.toLowerCase(),did:signed.did,issued_at:now,expires_at:now+90*86400,key_id:`${signed.did}#hail-identity`}));
+      state.binding=custody==="managed"?null:encodeBase64Url(await user.signAddressBinding({type:"hail.address-binding",version:2,
+        address:address.toLowerCase(),did:signed.did,issued_at:now,key_id:`${signed.did}#hail-identity`}));
       await writeState(statePath,state);
     }
     const {sig,...retained}=state.operation;

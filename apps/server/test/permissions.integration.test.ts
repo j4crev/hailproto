@@ -69,7 +69,7 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
     expect(await snapshot()).toBe(keysBefore);
     const now=Math.floor(Date.now()/1000),profile={type:"hail.sender-profile" as const,version:1 as const,did:peerDid,revision:1,updated_at:now,display_name:"Peer",offers_uncategorized:true,
       categories:[{id:"receipts",label:"Receipts"},{id:"updates",label:"Updates"}],key_id:peerDid+"#hail-messaging"};
-    const binding={type:"hail.address-binding" as const,version:1 as const,address:"peer@peer.example.com",did:peerDid,issued_at:now,expires_at:now+86400,key_id:peerDid+"#hail-identity"};
+    const binding={type:"hail.address-binding" as const,version:2 as const,address:"peer@peer.example.com",did:peerDid,issued_at:now,key_id:peerDid+"#hail-identity"};
     const signer=createWebCryptoSigner(peerDid+"#hail-identity",identity.privateKey),profileBytes=await signPayload("hail.sender-profile",profile,createWebCryptoSigner(peerDid+"#hail-messaging",identity.privateKey)),bindingBytes=await signPayload("hail.address-binding",binding,signer);
     const address:VerifiedAddress={address:binding.address,did:peerDid,serviceBase:"https://peer.example.com/hail",identityDidKey:didKey,messagingDidKey:didKey,
       binding,representation:bindingBytes,digest:digest(bindingBytes),plcEvidence:evidence,verifiedAt:new Date()};

@@ -6,7 +6,6 @@ export interface PublishedAddressBinding {
   cose: Uint8Array;
   digest: Uint8Array;
   issuedAt: Date;
-  expiresAt: Date;
   publishedAt: Date | null;
 }
 

@@ -1,11 +1,11 @@
 # Custom domain support checklist
 
-Status: incremental implementation. Provider-side DNS discovery, domain
-registration, and authorized custom-domain browser signup are implemented.
-Custom-domain binding renewal and domain-loss safeguards are implemented.
-The existing custom-domain flow has been deployed and the user confirmed sending
-and replying from their custom address. Standalone signup is implemented locally;
-its deployment and live pilot remain pending. Domain withdrawal/reassignment is deferred.
+Status: Slice 2 is complete and deployed, including standalone custom-domain
+signup. The user confirmed custom-address sending and replies and independently
+onboarded a custom-domain user without a provider-native account. Slice 3 remains
+partial. The nonexpiring Address Binding v2 and migration-retirement withdrawal
+changes are local work, not yet deployed. Full domain withdrawal/reassignment,
+custom-domain transfer, and the domain-loss pilot remain deferred.
 
 ## Agreed product model
 
@@ -43,7 +43,8 @@ its deployment and live pilot remain pending. Domain withdrawal/reassignment is 
 
 Validation: 52 focused tests passed across delegation, signed address verification,
 safe HTTPS transport, activation, and app discovery routes. Server typechecking
-also passed. No live domain setup or deployment was performed.
+also passed. Those initial validation runs did not deploy; the later Slice 2 rollout and
+user-confirmed pilots are recorded above.
 
 Initial DNSSEC policy: unsigned DNS is accepted through the operator's configured
 recursive resolver. Deployments should use a validating resolver; errors,
@@ -54,7 +55,8 @@ address to an attacker's DID but cannot inherit the original DID's permissions.
 
 The reference verifier does not cache discovery results. Recursive resolvers
 handle DNS TTLs. Any future application cache must additionally track remaining
-delegation TTLs (including alias chains) and the existing HTTP/binding limits;
+delegation TTLs (including alias chains), HTTP freshness, current PLC policy,
+and the one-hour maximum verification-cache lifetime;
 the current TXT API does not expose TTLs, so its results must not be cached by
 the application.
 
@@ -83,8 +85,9 @@ claiming DNS-delegation support.
 - [x] Host the binding before WebFinger selection, activate only after public
   verification, and make partial failure/retry behavior safe.
 - [x] Extend settings with custom-account creation.
-- [ ] Verify the browser flow and pilot with `j4@j4crev.com`. Withdrawal,
-  reassignment, and transfers remain deferred.
+- [x] Verify the browser flow and custom-address send/reply pilot, followed by
+  standalone custom-domain onboarding. Domain withdrawal, reassignment, and
+  custom-domain transfers remain deferred.
 
 ### Registration implementation notes
 
@@ -110,7 +113,7 @@ No scheduler or periodic checks have been added.
 
 Rollback first requires reverting application consumers. The rollback SQL refuses
 to drop a populated table; export and explicitly handle registrations before any
-schema removal. No live schema has been changed. Tests exercise populated-table
+schema removal. The Slice 2 rollout applied the registration schema. Tests exercise populated-table
 refusal, empty-table rollback/reapplication, expiry, replay, competing claims,
 account isolation, migration fences, quota, and DNS failure.
 
@@ -118,7 +121,7 @@ Registration validation: 75 focused tests passed; the custom-domain and existing
 passkey-session database suites passed against disposable PostgreSQL 18.6 with
 no skipped tests. Server typechecking and client Svelte checking passed (zero
 client errors or warnings). The disposable database was removed afterward.
-The Settings UI has not been exercised in a live browser or deployed.
+The subsequent deployed Settings flow was exercised by the user in the live pilot.
 
 ### Exact-address authorization implementation notes
 
@@ -202,25 +205,30 @@ portable migration fencing, and managed network orchestration. These cover nativ
 and custom invite/public signup, rollback after account/key creation, exact retries,
 independent recovery and passkey login, encrypted package compatibility, and
 rejection of custom-domain transfers before fencing. No database tests were
-skipped. The disposable database was removed. UI browser verification and a live
-DNS/provider pilot remain outstanding.
+skipped. The disposable database was removed. Browser verification and the live
+DNS/provider pilot subsequently succeeded; see the completed Slice 2 checklist.
 
 ## Slice 3: Lifecycle completion
 
-- [x] Authorize custom-domain binding renewal under existing custody rules.
-- [x] Recheck delegation when creating accounts and renewing bindings; do not
+- [x] Authorize explicit custom-domain binding publication under existing custody
+  rules when the address or identity key changes; no periodic renewal is required.
+- [x] Recheck delegation when creating accounts and publishing bindings; do not
   introduce background polling or per-message domain checks.
-- [ ] Implement domain withdrawal and reassignment with cache-expiry safeguards.
+- [x] Implement local migration-retirement publication tombstones that hide both
+  WebFinger mappings and public COSE artifacts. This work is not yet deployed.
+- [ ] Integrate the shared withdrawal helper into a future account-deletion flow;
+  that flow is not implemented.
+- [ ] Implement full domain withdrawal and reassignment with cache safeguards.
   Never transfer the old DID, keys, messages, or permissions to a new domain owner.
 - [x] Preserve provider login and existing DID authority after domain loss;
-  expired discovery must not appear currently verified.
+  stale discovery must not appear currently verified.
 - [ ] Exercise existing cross-provider conversations during the live domain-loss pilot.
 - [x] Reject unsupported custom-domain provider transfers before fencing the account.
 - [ ] Audit remaining custody changes. Domain-transfer implementation remains deferred.
-- [ ] Prove cross-provider discovery, messaging, account separation, renewal,
-  domain-loss behavior, and unchanged native-domain onboarding.
+- [ ] Complete cross-provider discovery, messaging, account-separation, explicit
+  publication, domain-loss, and unchanged native-onboarding lifecycle validation.
 
-### Renewal and domain-loss behavior
+### Explicit binding publication and domain-loss behavior
 
 `POST /api/v1/account/binding` reuses existing scoped credential and custody
 checks. Native addresses skip DNS delegation. A custom address additionally needs
@@ -229,7 +237,7 @@ local domain. The issuance token and signup ceremony may have expired or retired
 they establish provenance, not current login authority. The domain administrator
 does not sign for or receive access to the custom account.
 
-Renewal checks current delegation with the bounded DNS resolver before signing
+Publication checks current delegation with the bounded DNS resolver before signing
 and again before selecting the hosted artifact. Missing or changed delegation
 returns a conflict; DNS failures return a retryable service error. Neither permits
 selection of new authority. The existing public signed-binding verifier checks
@@ -238,27 +246,52 @@ fails after publication, retain and retry the same artifact; the selected bindin
 may already have committed. DNS can change between any two requests, so this is
 operation-time verification, not a continuous guarantee.
 
+Address Binding v2 is a closed signed payload with `type`, `version`, `address`,
+`did`, `issued_at`, and `key_id`. It has no `expires_at`, maximum age, or periodic
+renewal. Verification checks the requested address and DID, current DNS/WebFinger
+publication, and the current validated PLC identity key. Issuance may be at most
+300 seconds in the future. Hail addresses are not placed in `alsoKnownAs`, and
+resolvers do not use that field as address authority.
+
+Version 1 is rejected without a dual-version parser. Previously deployed signed
+bindings require one-time fresh v2 publication using the same DID and authorized
+keys. A managed account uses its authorized provider signer; an owner-controlled
+account requires an owner identity signature. Retain old signed audit evidence
+privately; changing stored payload fields cannot convert an old signature.
+
 Domain loss does not delete accounts, revoke passkeys/credentials, alter keys, or
-rewrite DID grants. Existing selected bindings retain their original expiry;
-there is no scheduled withdrawal. An expired selected binding is omitted from
-WebFinger, without fallback to older bindings. Binding status describes expiry
-and selection, not continuous DNS verification. Restoring delegation allows an
-authorized account to renew after expiry without creating a replacement identity.
+rewrite DID grants. There is no scheduled withdrawal or age-based disappearance
+from WebFinger. A local selected artifact does not establish current DNS authority:
+resolvers verify current delegation and publication, and bound verification caches
+to one hour and any shorter DNS TTL, HTTP freshness, and PLC policy limit. The
+reference verifier does not application-cache discovery. After restoring valid
+delegation, the existing v2 binding can verify again without a periodic renewal;
+a changed address or identity key requires explicit publication.
 
-Domain withdrawal and reassignment remain intentionally unimplemented. Before
-adding them, define how to retire local address claims and wait out discovery
-caches while retaining old DID-authorized conversations and preventing any key,
-inbox, or permission inheritance by the next domain owner.
+Successful migration retirement now records irreversible local publication
+withdrawal tombstones. Both WebFinger selection and direct public COSE URLs stop
+serving the retired account's bindings; retained signed evidence remains private.
+The shared withdrawal helper is available for future account closure, but no
+account-deletion flow has been built. This migration hook does not implement
+custom-domain transfer, domain administration removal, or domain reassignment.
 
-Renewal validation: the monitored signup suite exercises real custom accounts,
-scoped renewal, signed delegated WebFinger discovery, DNS absence/redirection/
-failure, staged-but-unselected retry, post-publication verification failure,
-expired issuance authority, removed local domain authority, expiry and recovery,
-and continued passkey login. The self-service suite covers unchanged native
-managed/owner-controlled renewal with a DNS resolver that fails if called.
-Both database suites and server typechecking passed against disposable PostgreSQL
-with no skipped tests. The disposable database was removed; no live provider,
-domain records, or deployment was changed.
+Withdrawal relies on provider cooperation. If the identity key remains current,
+a noncooperating former address authority could republish an old signature;
+withdrawal is not cryptographic revocation. It does not erase PLC history or
+require a standalone binding-revocation command. Full domain withdrawal and
+reassignment remain deferred: future reassignment must wait at least 3600 seconds
+after both the old WebFinger mapping and public COSE artifacts are withdrawn,
+retain old DID-authorized conversations, and prevent key, inbox, or permission
+inheritance by the next domain owner.
+
+Earlier lifecycle tests covered scoped publication, delegated discovery, DNS
+absence/redirection/failure, staged retries, post-publication verification failure,
+expired admission authority, removed local domain authority, and continued passkey
+login. Those historical runs also tested the former expiring-binding behavior;
+they are not evidence for the revised v2 lifecycle. The local v2 and withdrawal
+changes need their current validation and deployment recorded separately before
+claiming a live rollout. Existing invitation, setup, and DNS challenge lifetimes
+remain unchanged.
 
 ## Later work
 
@@ -319,7 +352,7 @@ address authority. No recovery keys go into session storage.
 Migration 0089 adds `standalone_domain_signups`. Expired unconsumed rows are pruned
 when a new attempt starts; consumed records are retained as admission evidence.
 At reservation, ordinary domain and consumed address-authorization records are
-created, so existing binding renewal and domain management use their usual
+created, so explicit binding publication and domain management use their usual
 provenance. A unique verified-domain constraint prevents competing setups from
 claiming the same domain; any failure rolls back account creation and admission.
 There are no periodic DNS checks or new domain transfer semantics.
@@ -334,8 +367,12 @@ Standalone validation: server and client typechecks pass (zero Svelte warnings),
 PostgreSQL 18.6 with no skipped tests: domain registration, address authorization,
 registration policy, monitored signup, public onboarding, and standalone domains.
 Coverage includes standalone activation, passkey login, domain administration,
-renewal, public-mode closure, DNS failure, expiry, atomic rollback, competing claims,
+binding publication, public-mode closure, DNS failure, setup expiry, atomic rollback, competing claims,
 and migration reversal. The fresh-built Chromium regression passes, including
 standalone DNS display, same-tab reload, six/seven-step switching, preserved
 address/email on Back navigation, DNS expiry before recovery-key generation, and
 existing invite-only custom-address handoffs.
+
+Deployment outcome: standalone signup and the unified six/seven-step wizard were
+deployed, and the user confirmed creating a custom-domain account without a
+provider-native account. This outcome predates the local binding-v2 changes.

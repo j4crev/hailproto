@@ -36,10 +36,7 @@ export function registerDiscoveryRoutes(
     }
     const binding = await store.findPublishedByAddress(address);
     if (!binding) return notFound();
-    const maxAge = Math.max(
-      0,
-      Math.min(300, Math.floor((binding.expiresAt.getTime() - Date.now()) / 1_000)),
-    );
+    const maxAge = 300;
     const body = JSON.stringify({
       subject: `acct:${address}`,
       links: [
@@ -66,10 +63,7 @@ export function registerDiscoveryRoutes(
     }
     const binding = await store.findPublishedById(bindingId);
     if (!binding) return notFound();
-    const maxAge = Math.max(
-      0,
-      Math.min(300, Math.floor((binding.expiresAt.getTime() - Date.now()) / 1_000)),
-    );
+    const maxAge = 300;
     return new Response(Uint8Array.from(binding.cose), {
       status: 200,
       headers: {

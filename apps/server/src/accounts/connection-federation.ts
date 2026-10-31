@@ -171,7 +171,7 @@ export class ConnectionFederation {
     const ib=(await verifySignedPayload("hail.address-binding",b.inviterBinding,verifier(inviter.did,inviter.identityDidKey))).payload;
     const sb=(await verifySignedPayload("hail.address-binding",b.scannerBinding,verifier(scanner.did,scanner.identityDidKey))).payload;
     if(ib.did!==inviter.did||sb.did!==scanner.did||invitation.issued_at>now()+300||confirmation.issued_at>now()+300||ib.issued_at>now()+300||sb.issued_at>now()+300||
-      fresh&&(confirmation.expires_at<=now()||invitation.expires_at!==null&&invitation.expires_at<=now()||ib.expires_at<=now()||sb.expires_at<=now()))throw new ConnectionError(410,"Connection consent or address proof expired.");
+      fresh&&(confirmation.expires_at<=now()||invitation.expires_at!==null&&invitation.expires_at<=now()))throw new ConnectionError(410,"Connection consent or address proof expired.");
     const {payload:snapshot,state:coordinator}=await this.checkedControl(b.snapshot,"snapshot");
     const [small,large]=[inviter.did,scanner.did].sort();
     if(snapshot.from!==small||snapshot.to!==large||snapshot.request_id!==confirmation.confirmation_id||!equal(snapshot.proof_hash.value,EMPTY))throw new ConnectionError(400,"Connection epoch proposal differs.");
@@ -435,7 +435,7 @@ export class ConnectionFederation {
       const binding=(await verifySignedPayload('hail.address-binding',bindingBytes,createWebCryptoVerifier(async kid=>{
         if(kid!==plan.did+'#hail-identity')throw new ConnectionError(400);return ed25519PublicKeyFromDidKey(moving.identityDidKey);
       }))).payload;
-      if(binding.did!==plan.did||binding.expires_at<=now()||binding.issued_at>now()+300)throw new ConnectionError(410,'Destination binding is stale or belongs to another DID.');
+      if(binding.did!==plan.did||binding.issued_at>now()+300)throw new ConnectionError(410,'Destination binding is stale or belongs to another DID.');
       if(plan.frontier.native.length)throw new ConnectionError(409,'Native connection reconstruction is not enabled for this handover.');
       const pair=(await tx<Pair[]>`SELECT * FROM federated_connection_pairs WHERE account_id=${owner.id} AND peer_did=${plan.did}`)[0],base=plan.frontier.federated;
       if(!pair||!base||pair.connection_id!==base.connectionId||Number(pair.epoch)<base.epoch||Number(pair.epoch)>base.epoch+1||

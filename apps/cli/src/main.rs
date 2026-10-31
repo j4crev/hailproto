@@ -207,7 +207,7 @@ async fn run() -> Result<(), Error> {
         "account transfer cancel" => transfers::cancel(&client, &args).await?,
         "account show" => client.account().await?,
         "profile show" => signed_reads::profile(&client).await?,
-        "binding renew" => binding::renew(&client, &args).await?,
+        "binding publish" => binding::publish(&client, &args).await?,
         "grant create" => grants::create(&client, &args).await?,
         "grant update" => grants::update(&client, &args).await?,
         "grant revoke" => grants::revoke(&client, &args).await?,

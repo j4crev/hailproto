@@ -205,14 +205,13 @@ warnConnectionCodeCutover(verified.manifest);
         return crypto.subtle.importKey("raw", Uint8Array.from(publicBytes.slice(2)),
           "Ed25519", false, ["verify"]);
       }));
-    if (verified.payload.address !== receipt.address || verified.payload.did !== vault.did ||
-      verified.payload.expires_at <= now) {
+    if (verified.payload.address !== receipt.address || verified.payload.did !== vault.did) {
       throw new Error("Retained destination binding does not match this transfer");
     }
   } else {
-    await save(bindingPath, await user.signAddressBinding({ type: "hail.address-binding", version: 1,
+    await save(bindingPath, await user.signAddressBinding({ type: "hail.address-binding", version: 2,
       address: receipt.address, did: vault.did, issued_at: now,
-      expires_at: now + 90 * 86400, key_id: `${vault.did}#hail-identity` }));
+       key_id: `${vault.did}#hail-identity` }));
   }
   return { did: vault.did, transferId: manifest.transferId,
     address: receipt.address, operationCid, profile: custody.monitor_verification_mode === "independent" ? "public" : "private-poc" };

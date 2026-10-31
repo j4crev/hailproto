@@ -420,21 +420,50 @@ are held pending reviewed historical-key reconciliation. See the
 [revision contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/grant-revisions.md)
 and [key decision](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/grant-key-reconciliation.md).
 
-### Address Binding renewal (migration 35)
+### Address Binding publication
 
 The provider exposes `GET/POST /api/v1/account/binding` and
-`hailp binding show/renew`. Reading exposes selected signed expiry and seven-day
-reminder metadata; renewal needs deliberate `account:write` authority, current
-identity/service ownership and an active/public account. Migration 35 expands
-the scope constraint without upgrading existing credentials. Both custody profiles retain the same renewal and exact-retry contract.
+`hailp binding show/publish`. Reading reports publication state rather than
+expiry reminders. Explicit publication requires `account:write` authority,
+current identity/service ownership and an active/public account. Migration 35
+expanded the scope constraint without upgrading existing credentials. Both
+custody profiles preserve exact retries and immutable signed evidence.
 
-Provider-domain renewals retain the 90-day maximum and immutable signed history.
+Address Binding v2 contains exactly `type`, `version`, `address`, `did`,
+`issued_at`, and `key_id`, with no `expires_at` or periodic renewal. Resolvers
+verify current DNS/WebFinger publication, the exact address and DID, the current
+validated PLC identity key, and at most 300 seconds of future issuance. Hail does
+not publish addresses in `alsoKnownAs` or use that field as address authority.
+Verification caches must last at most one hour and obey shorter DNS TTL, HTTP
+freshness, and PLC policy limits; the reference verifier does not cache discovery.
+
 Hosting commits before compare-and-select publication; exact retries repair
 verification failures and never reselect a superseded binding. Owner-controlled
 signing stays identity-only; managed signing requires explicit managed custody.
-Expired/unauthorized credentials, changed keys and source fences cannot renew.
-Existing Grants and completed signup evidence are retained. See the
-[renewal contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/binding-renewal.md).
+Expired/unauthorized credentials, changed keys and source fences cannot publish
+an unauthorized binding. Existing Grants and completed signup evidence remain
+intact. Native-address publication skips delegation lookup; custom-address
+publication checks current delegation and the account's consumed admission.
+
+This alpha wire change rejects v1 bindings without a dual-version parser.
+Previously deployed bindings need one-time fresh v2 signatures using the same
+DIDs and authorized keys. Managed publication uses the authorized provider signer;
+owner-controlled publication requires an owner identity signature. Old signed
+bytes remain private audit evidence, not interchangeable v2 payloads.
+
+Successful source migration retirement records irreversible local publication
+tombstones that hide both WebFinger mappings and public COSE URLs while retaining
+private evidence. The shared withdrawal helper is ready for future account-closure
+integration; there is no account-deletion flow yet. Full custom-domain withdrawal,
+reassignment and transfer remain deferred. Future reassignment must wait at least
+3600 seconds after both old publications are withdrawn. Withdrawal does not erase
+PLC history or require a standalone binding-revocation command.
+
+Withdrawal relies on provider cooperation. A former authority can republish a
+still-valid old signature while its identity key remains current; removing public
+artifacts is not cryptographic revocation. Binding-v2 and retirement-withdrawal
+work is local and not yet deployed. See the
+[publication contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/binding-publication.md).
 
 ### Passkey browser sessions (migration 54)
 
@@ -594,7 +623,7 @@ Operator `account:credential-create` also accepts `--full-access` for all six
 account/Grant/message/credential scopes. Existing credentials are not silently
 escalated. Authenticated credential management creates only inherited scopes
 and revokes only own-account IDs. Rotate before expiry; expired-token recovery
-and production login, binding renewal, managed migration and public-PLC signup
+and production login, binding publication, managed migration and public-PLC signup
 remain separate work. Account reads report explicit managed evidence as managed,
 not owner-controlled portable evidence. Both new signup modes remain `poc-local`.
 
@@ -613,7 +642,7 @@ need work. Extend the account boundary over existing services and
 transactions rather than treating administrator CLIs as client APIs. The
 [API and custody plan](https://github.com/j4crev/hailproto/blob/main/docs/portable-custody.md#api-first-provider-and-cli-clients)
 defines the first authenticated slice, profile-specific signing, isolation,
-renewal and managed-migration acceptance conditions.
+binding-publication and managed-migration acceptance conditions.
 
 ## Development
 

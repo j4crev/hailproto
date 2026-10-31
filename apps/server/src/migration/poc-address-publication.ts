@@ -39,7 +39,6 @@ export class PortableAddressPublication {
     const binding = checked.payload;
     const digest = new Uint8Array(createHash("sha256").update(row.destination_binding_cose).digest());
     if (binding.address !== row.destination_address || binding.did !== row.did ||
-      binding.expires_at <= Math.floor(Date.now() / 1000) ||
       !Buffer.from(digest).equals(Buffer.from(row.destination_binding_digest))) {
       throw new Error("Address selection does not match the signed target binding");
     }
@@ -70,7 +69,7 @@ export class PortableAddressPublication {
          issued_at, expires_at, hosted_at, selected_at, published_at)
         VALUES (${id}, ${reservation.reserved_account_id}, ${row.destination_address},
           ${row.did}, ${row.destination_binding_cose}, ${digest},
-          ${new Date(binding.issued_at * 1000)}, ${new Date(binding.expires_at * 1000)},
+          ${new Date(binding.issued_at * 1000)}, ${null},
           clock_timestamp(), clock_timestamp(), clock_timestamp())`;
       return id;
     });

@@ -12,7 +12,8 @@ Hail addresses are aliases. Hail Grants, Hail Envelopes, and durable relationshi
 - Require agreement from both the address domain and DID controller.
 - Bind either a provider-issued or custom-domain address to a `did:plc` identity.
 - Avoid permanently publishing Hail address history in a PLC operation log.
-- Allow an address binding to expire or be replaced without changing the DID.
+- Allow an address publication to be withdrawn or replaced without changing the DID.
+- Keep a continuing address usable without periodic binding renewal.
 - Prevent address reassignment from transferring grants or message history.
 - Use existing web standards where practical.
 
@@ -28,7 +29,7 @@ Hail addresses are aliases. Hail Grants, Hail Envelopes, and durable relationshi
 
 - **Hail address**: A case-insensitive human-readable alias such as `alice@example.com`.
 - **Address domain**: The domain portion of a Hail address, such as `example.com`.
-- **Address binding**: A signed statement associating one canonical Hail address with one DID for a limited period.
+- **Address binding**: A signed statement associating one canonical Hail address with one DID. Its current use requires publication by the address authority and verification with the DID’s current identity key; it has no expiration timestamp.
 - **Address authority**: The address domain, publishing mappings through its own authenticated HTTPS endpoint or a DNS-delegated WebFinger provider.
 - **DID controller**: The entity authorized to use a verification method in the resolved DID document.
 
@@ -57,7 +58,7 @@ To construct the RFC 7565 `acct:` URI, prefix the canonical address with `acct:`
 An address is verified only when both sides agree:
 
 1. The address domain selects a WebFinger authority through DNS delegation below, or its own authenticated HTTPS endpoint when delegation is absent. That authority's authenticated WebFinger JRD selects one Address Binding representation.
-2. That representation contains the canonical address and DID and is signed by the DID's authorized `#hail-identity` key.
+2. That representation contains the canonical address and DID and verifies under the DID’s current authorized `#hail-identity` key.
 
 Conceptually:
 
@@ -68,9 +69,11 @@ DID controller  ----signs----> address + DID payload
 
 Neither statement is sufficient by itself.
 
-A DID can claim an address it does not own, and a domain can point an address at a DID whose controller did not agree. Verification succeeds only when the published and signed values match.
+A DID can claim an address it does not own, and a domain can point an address at a DID whose controller did not agree. Verification succeeds only when the published and signed values match and the signature verifies with the current identity key. The signature records consent to the signed association; it does not prove a new owner action at each lookup.
 
 Because every Hail identity uses PLC, the address domain and PLC rotation authority are separate trust anchors. Domain control alone cannot rotate the named DID's keys or service, and PLC control alone cannot publish the domain's WebFinger mapping. A compromised domain can redirect the address to another DID, but it cannot inherit grants or message history bound to the original DID.
+
+This profile trusts providers to cooperate with account closure, address withdrawal, and migration. It does not introduce an independently verifiable owner revocation list or a periodic proof of renewed owner consent. A noncooperating address authority can continue publishing or republish an old signed binding while its identity key remains current. Removing publication ends discovery through a cooperating provider; it does not cryptographically invalidate previously distributed signed bytes. This trust boundary applies to both managed and owner-controlled accounts.
 
 ## Discovery
 
@@ -127,8 +130,9 @@ DNS caching remains permitted. No periodic polling or per-message DNS check is
 required.
 
 Upgrade resolvers before advertising DNS-only addresses: older WebFinger-only
-implementations cannot discover them. Signed binding and message formats remain
-unchanged. Provider-private registration challenges such as
+implementations cannot discover them. DNS delegation does not itself alter signed
+message formats. This alpha profile requires Address Binding version 2; version 1
+bindings are rejected rather than supported alongside it. Provider-private registration challenges such as
 `_hail-domain-verify.<domain> TXT "hail-domain-verify=<random-token>"` authorize
 registration at a provider; they do not replace public delegation.
 
@@ -195,12 +199,11 @@ Diagnostic JSON rendering of the Address Binding payload map. The embedded wire 
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "type": "hail.address-binding",
   "address": "alice@example.com",
   "did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
   "issued_at": 1787851200,
-  "expires_at": 1795627200,
   "key_id": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity"
 }
 ```
@@ -209,21 +212,20 @@ The payload map is deterministically CBOR-encoded and embedded as the payload by
 
 Required members of the closed Address Binding payload map:
 
-- `version`: Address Binding profile version.
+- `version`: Exact integer value `2`. Version 1 and all other versions are rejected.
 - `type`: Exact value `hail.address-binding` for v0.
 - `address`: Canonical Hail address without the `acct:` prefix.
 - `did`: Canonical `did:plc` identifier associated with the address, as defined by the Hail DID profile.
 - `issued_at`: UTC issuance time represented as Unix seconds.
-- `expires_at`: UTC expiration time represented as Unix seconds.
 - `key_id`: DID URL identifying the DID's `#hail-identity` verification method.
 
-The payload is a closed Hail map; unknown map members are rejected in v0.
+The payload is a closed Hail map containing exactly the six required members above. Unknown members, including `expires_at`, are rejected. This is an intentional alpha wire-format break; there is no version-1 compatibility path.
 
-`issued_at` and `expires_at` are non-negative integers. `expires_at` must be greater than `issued_at`, and their difference must not exceed 7776000 seconds, or 90 days. At verification time, `issued_at` must not be more than 300 seconds in the future and current time must not be more than 300 seconds after `expires_at`. Clock tolerance does not alter either signed timestamp or extend the cache lifetime below.
+`issued_at` is a non-negative integer. At verification time it must not be more than 300 seconds in the future. A binding has no maximum age or expiration timestamp and requires no periodic renewal. Its issuance time does not make a cached discovery result current; the cache and revalidation rules below still apply. Expiration rules for grants, invitations, and transfer approvals are independent and remain in force.
 
 ## Signature And Representation Profile
 
-Hail Address Binding v0 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md), with protected content type `application/hail-address-binding+cbor` and the `#hail-identity` key role. The protected `kid` is the UTF-8 encoding of payload `key_id`. The complete signed representation bytes are immutable evidence. A verifier parses and validates them as required, but retains and hashes the originally received bytes rather than a reserialized copy.
+Hail Address Binding version 2 uses the deterministic CBOR and tagged COSE_Sign1 profile in [encoding.md](encoding.md), with protected content type `application/hail-address-binding+cbor` and the `#hail-identity` key role. The protected `kid` is the UTF-8 encoding of payload `key_id`. The complete signed representation bytes are immutable evidence. A verifier parses and validates them as required, but retains and hashes the originally received bytes rather than a reserialized copy.
 
 ## Retrieval Representation And Limits
 
@@ -258,11 +260,11 @@ Given a user-supplied Hail address, a verifier:
 7. Enforces the representation-size limit, performs bounded CBOR and COSE decoding, and requires the exact tagged deterministic COSE_Sign1 structure and protected-header profile.
 8. Requires the embedded payload to be one exact deterministic encoding of the closed Address Binding payload map and validates its schema.
 9. Requires payload `address` to equal the canonical requested address.
-10. Checks `issued_at` and `expires_at` using the allowed clock-skew policy.
-11. Resolves the exact payload `did` through a conforming PLC resolver.
+10. Requires `issued_at` to be no more than 300 seconds in the future; no age-based expiration check applies.
+11. Resolves the exact payload `did` through a conforming PLC resolver to obtain current validated Hail state, rejecting unavailable, invalid, or tombstoned state.
 12. Requires payload `key_id` and protected `kid` to identify that DID's `#hail-identity` verification method as defined by [did-profile.md](did-profile.md).
 13. Verifies the COSE signature under the Address Binding signature profile.
-14. Returns the verified DID and binding expiration.
+14. Returns the verified DID, exact binding representation, verification evidence, and verification time. Any cached result is bounded by the rules below.
 
 Any mismatch or ambiguity causes address verification to fail.
 
@@ -272,7 +274,7 @@ Every regular PLC operation contains an `alsoKnownAs` array, but the array may b
 
 Clients ignore any `alsoKnownAs` value for Hail discovery and must not treat it as proof of address ownership. The field is a unilateral DID-controller assertion: the PLC directory does not verify it against the named domain, it may become stale after address reassignment, and every prior value remains public in PLC history. It also cannot represent a trustworthy primary address because one DID may have multiple Hail addresses.
 
-WebFinger authenticated under the selected discovery authority plus the signed, expiring Address Binding supplies the current two-sided authorization that `alsoKnownAs` lacks, subject to the DNS trust dependency for delegated discovery. Keeping Hail addresses out of PLC avoids a permanent address history while preserving address changes and multiple-address support. A future reverse-discovery mechanism would need an explicit trust, privacy, staleness, and primary-address model rather than assigning semantics to `alsoKnownAs` retroactively.
+WebFinger authenticated under the selected discovery authority plus the signed Address Binding verified with the current PLC identity key supplies the two-sided check, subject to the DNS trust dependency and cooperative lifecycle trust described above. Current publication is checked through discovery; no `alsoKnownAs` membership check is performed. Keeping Hail addresses out of PLC avoids a permanent address history while preserving address changes and multiple-address support. A future reverse-discovery mechanism would need an explicit trust, privacy, staleness, and primary-address model rather than assigning semantics to `alsoKnownAs` retroactively.
 
 ## Publisher Activation
 
@@ -291,7 +293,7 @@ itself does not establish a publicly verified Hail address.
 
 The publisher makes the immutable signed binding representation retrievable at its final HTTPS URL before publishing the WebFinger response that selects it. It then performs this document's complete verification algorithm from the public address through the binding to the DID. A provider activates the account for Hail federation only after that verification and separate confirmation of its own exact Hail service endpoint and messaging key succeed.
 
-If activation fails after WebFinger begins selecting the binding, the address authority removes that selection or repairs it before retrying. Before assigning the address to another account, it waits until the earlier of 300 seconds after the prior binding's `expires_at` and 3600 seconds after WebFinger withdrawal, so no conforming cached discovery result can verify the prior binding. New-account sequencing and partial-failure behavior are defined in [account-onboarding.md](account-onboarding.md).
+If activation fails after WebFinger begins selecting the binding, the address authority withdraws the selection and its publicly served binding artifacts, or repairs the same activation before retrying. Before assigning the address to another DID, it waits at least 3600 seconds after withdrawal of both the WebFinger mapping and the prior public binding artifacts, so no conforming cached discovery result remains current. New-account sequencing and partial-failure behavior are defined in [account-onboarding.md](account-onboarding.md).
 
 ## Address Changes
 
@@ -306,13 +308,22 @@ alice@provider-b.example.net -> did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
 
 The new address domain publishes a new binding signed by the same DID. Existing grants continue to reference the DID and remain valid.
 
-The old binding may be removed or allowed to expire. If the old address is later reassigned, its new binding must name a different DID. The new address holder does not inherit grants, messages, or reply capabilities belonging to the previous DID.
+When the old address is relinquished, its provider must withdraw the WebFinger mapping and stop publicly serving the corresponding COSE binding artifacts. It must not wait for expiry: version 2 has none. If the old address is later reassigned, its new binding must name a different DID. The new address holder does not inherit grants, messages, or reply capabilities belonging to the previous DID.
 
-At any instant, one canonical Hail address has exactly one currently selected Address Binding and therefore names exactly one DID. Hail defines no overlapping transition in which one address verifies for two DIDs. For reassignment, the authority makes the new binding available before replacing the WebFinger link, then removes the old binding after replacement. Each observed WebFinger response still selects only one binding; previously cached results remain usable only through their bounded cache lifetime.
+At any instant, one canonical Hail address has at most one currently selected Address Binding and therefore names at most one DID. For reassignment to a different DID, the authority first withdraws the old mapping and public binding artifacts, waits out the 3600-second cache bound, then publishes the new artifact followed by its WebFinger selection. During that withdrawal interval the address is unavailable for new discovery. Replacing a binding for the same address and DID does not transfer address ownership; each observed WebFinger response still selects only one binding.
 
 One DID may have multiple simultaneously verified Hail addresses. Each address requires its own WebFinger response and independently signed binding, and changing or losing one address does not affect the others.
 
 One address domain may publish independent bindings for any number of valid local parts. Each WebFinger query is scoped to one complete canonical `acct:` URI and reveals no authority over another local part.
+
+### Lifecycle Withdrawal
+
+Ordinary account deletion and successful source migration retirement must trigger withdrawal at the provider as part of their durable lifecycle transition. The provider must stop selecting the account’s departing address in WebFinger and stop serving its associated public COSE binding URLs, including old URLs that may have been retained by a resolver. A compliant public discovery endpoint returns an unavailable response, such as `404`, for those withdrawn mappings and artifacts. A failed or ambiguous migration must follow the coordinated transfer rules; it must not silently retire the source before the destination has safely taken over.
+
+Withdrawal is a change to public availability, not permission to erase signed audit evidence. Providers retain required binding bytes, digests, and historical verification evidence privately under the relevant retention policy. Account deletion or migration does not erase PLC history or automatically tombstone a DID. A separate `binding revoke` command is not required: the account and transfer workflows own this behavior. Other addresses independently authorized for the same DID are unaffected.
+
+Withdrawal does not prove that a hostile provider deleted all copies or could never republish a still-verifiable signature. Clients rely on provider cooperation for this lifecycle guarantee, while verifying current discovery and DID state on refresh.
+
 
 ## Grant And Delivery Behavior
 
@@ -333,13 +344,14 @@ The verified address used during consent may be retained as grant metadata for d
 A successful address-resolution result must not be cached beyond:
 
 - 3600 seconds after successful verification
-- the binding's `expires_at` time
 - the shorter freshness lifetime of the WebFinger and binding HTTP responses
+- the remaining TTL of DNS delegation and aliases, when delegation is used
+- any shorter freshness bound imposed by the PLC resolution policy
 - any shorter local security policy
 
-An absent explicit HTTP freshness lifetime does not extend the 3600-second maximum. `no-store` prevents caching. Clock tolerance does not extend caching beyond the signed `expires_at`. After the cached lifetime expires, a client must re-run discovery before displaying the address as currently verified; until successful refresh, it displays the address as unverified rather than treating expiration as a protocol revocation.
+An absent explicit HTTP freshness lifetime does not extend the 3600-second maximum. `no-store` prevents caching. Without available delegation TTLs, delegated verification results must not be application-cached. After the cached lifetime expires, a client must re-run DNS/WebFinger and binding discovery and revalidate current PLC authority before displaying the address as currently verified. Until successful refresh, it displays the address as unverified. A reusable signed artifact is not permission to extend a verification cache indefinitely or to fall back to stale PLC state.
 
-Changing or expiring an address binding does not revoke grants issued to the DID.
+Changing or withdrawing an address publication does not revoke grants issued to the DID.
 
 ## Security Considerations
 
@@ -353,7 +365,7 @@ Compromise of `#hail-identity` allows unauthorized bindings and grants until the
 
 ### Binding Replay
 
-Bindings must expire. Verifiers must check current publication through the address domain and must not accept an unexpired binding obtained from an unrelated source as proof that the domain still publishes it.
+Bindings do not expire. Verifiers must check current publication through the address authority and current PLC identity-key authorization; a signed binding obtained from an unrelated source or private audit store is not proof of current publication. Bounded caches limit how long compliant resolvers can retain a withdrawn mapping. They do not prevent a noncooperating authority from republishing an old binding whose identity key remains current. This profile deliberately relies on cooperative provider withdrawal rather than cryptographic per-address revocation or periodic owner signatures.
 
 ### Address Reassignment
 
@@ -367,7 +379,7 @@ WebFinger and binding retrieval use the URL, redirect, DNS rebinding, private-ne
 
 A successful complete Hail discovery intentionally reveals that the canonical address currently has a Hail mapping, including the verified signed Address Binding and DID, after which an observer can resolve that DID's public PLC keys and current Hail service. A successful WebFinger response alone selects a binding URL; binding retrieval, validation, and DID resolution can still fail. Implementations must not treat difficulty of enumeration as an authorization or confidentiality boundary.
 
-Providers should rate-limit discovery and must avoid returning unrelated account metadata to reduce bulk harvesting and operational abuse. Hail v0 defines no address-listing or reverse-DID-to-address operation. A failed lookup is not authoritative proof that an address does not exist because throttling, outage, expiration, or validation failure can also prevent verified resolution.
+Providers should rate-limit discovery and must avoid returning unrelated account metadata to reduce bulk harvesting and operational abuse. Hail v0 defines no address-listing or reverse-DID-to-address operation. A failed lookup is not authoritative proof that an address does not exist because throttling, outage, withdrawal, or validation failure can also prevent verified resolution.
 
 Although the mapping is public, the WebFinger and binding hosts can observe requester network information, lookup timing, and the queried address. The retrieval profile sends no credentials, cookies, or referrer information to limit ambient-identity leakage. Providers should minimize discovery logs and retention consistent with abuse prevention.
 
@@ -389,11 +401,13 @@ The POC needs:
 - delegated cross-origin binding hosting with strict safe-fetch behavior
 - one closed Address Binding payload map embedded in one complete tagged COSE_Sign1 representation
 - `did:plc` resolution
-- 90-day maximum binding lifetime, 300-second clock tolerance, and one-hour maximum cache
+- version-2 bindings without `expires_at`, with a 300-second future-issuance tolerance
+- one-hour maximum discovery cache, further bounded by HTTP, DNS, and PLC freshness
+- lifecycle withdrawal of both WebFinger mappings and public COSE artifacts
 - deterministic Hail CBOR and tagged COSE_Sign1
 - RFC 9864 COSE `Ed25519` (`-19`) signature verification using `#hail-identity`
 - `application/cose; cose-type="cose-sign1"` with protected content type `application/hail-address-binding+cbor` and no HTTP content coding
 - 16384-byte maximum complete binding representation
 - strict fetch limits
 
-The POC uses the v0 discovery, signature, representation, lifetime, caching, and cardinality profiles defined above.
+The POC uses the discovery, version-2 signature and representation, lifecycle withdrawal, caching, and cardinality profiles defined above. It does not accept version-1 bindings or implement periodic binding renewal.

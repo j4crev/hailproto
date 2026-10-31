@@ -182,6 +182,15 @@ integration("fenced transfer and concurrent cutover", () => {
         ${new Uint8Array(dagCbor.encode(operation))}, ${JSON.stringify(expectedState)}::jsonb, 'verified')
     `;
     const now = Math.floor(Date.now() / 1000);
+    const sourceBinding: HailAddressBinding = { type: "hail.address-binding", version: 2,
+      address: `migration-${id}@source.example.com`, did, issued_at: now,
+      key_id: `${did}#hail-identity` };
+    const sourceCose = await signPayload("hail.address-binding", sourceBinding,
+      createWebCryptoSigner(sourceBinding.key_id, identityPrivateKey));
+    const sourceDigest = new Uint8Array(createHash("sha256").update(sourceCose).digest());
+    await source.sql`INSERT INTO address_bindings (id,account_id,canonical_address,did,cose,representation_digest,issued_at,hosted_at,selected_at,published_at)
+      VALUES (${randomUUID()},${id},${sourceBinding.address},${did},${sourceCose},${sourceDigest},${new Date(now*1000)},now(),now(),now())`;
+    await source.sql`UPDATE provider_accounts SET activation_binding_digest=${sourceDigest} WHERE id=${id}`;
     const consentHash = new Uint8Array(randomBytes(32));
     const grant: HailGrant = { type: "hail.grant", version: 1, grant_id: grantId,
       revision: 1, previous: null, grantor: did, grantee: remoteDid,
@@ -732,9 +741,9 @@ integration("fenced transfer and concurrent cutover", () => {
     const operationBytes = new TextEncoder().encode(JSON.stringify(signedCutover));
     const operationDigest = new Uint8Array(createHash("sha256").update(dagCbor.encode(signedCutover)).digest());
     const createdAt = Math.floor(Date.now() / 1000);
-    const binding: HailAddressBinding = { type: "hail.address-binding", version: 1,
+    const binding: HailAddressBinding = { type: "hail.address-binding", version: 2,
       address: selectedAddress, did, issued_at: createdAt,
-      expires_at: createdAt + 90 * 86400, key_id: `${did}#hail-identity` };
+       key_id: `${did}#hail-identity` };
     destinationBinding = await signPayload("hail.address-binding", binding,
       createWebCryptoSigner(binding.key_id, identityPrivateKey));
     const consent: SignedPortableConsent = await signPortableMigrationConsent({
@@ -1172,8 +1181,25 @@ integration("fenced transfer and concurrent cutover", () => {
     tamperedReceipt.signature[0] = tamperedReceipt.signature[0]! ^ 1;
     await expect(retiredSource.retire(did, fence.transferId, tamperedReceipt)).rejects.toThrow("signature is invalid");
     expect((await fenceService.get(did))?.state).toBe("exported");
+    const sourceRepository = new OnboardingRepository(source.sql);
+    const oldBinding = await sourceRepository.getBindingForAccount(id);
+    expect(await sourceRepository.findPublishedById(oldBinding.id)).not.toBeNull();
     await retiredSource.retire(did, fence.transferId, receipt);
     expect((await fenceService.get(did))?.state).toBe("retired");
+    expect(await sourceRepository.findPublishedByAddress(oldBinding.canonicalAddress)).toBeNull();
+    expect(await sourceRepository.findPublishedById(oldBinding.id)).toBeNull();
+    expect((await sourceRepository.getBindingForAccount(id)).cose).toEqual(oldBinding.cose);
+    // Returning to this provider must not revive retired artifact URLs, even
+    // after the account's former fence is removed by the return workflow.
+    const rollback = new Error("rollback return simulation");
+    await expect(source.sql.begin(async tx => {
+      await tx`DELETE FROM provider_migration_exports WHERE transfer_id=${fence.transferId}`;
+      await tx`DELETE FROM provider_migration_fences WHERE account_id=${id}`;
+      const repository = new OnboardingRepository(tx);
+      expect(await repository.findPublishedByAddress(oldBinding.canonicalAddress)).toBeNull();
+      expect(await repository.findPublishedById(oldBinding.id)).toBeNull();
+      throw rollback;
+    })).rejects.toBe(rollback);
     await retiredSource.retire(did, fence.transferId, receipt);
     expect(await activation.activate(fence.transferId, await report())).toEqual({ did, accountId: id });
     const outgoing = inspectSignedPayload("hail.envelope", replyableEnvelope).payload;

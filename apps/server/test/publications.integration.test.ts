@@ -45,7 +45,7 @@ it.skipIf(!process.env.DATABASE_URL)("snapshots category audiences, resumes exac
       return {did,identityDidKey:user.keys.identityDidKey,messagingDidKey:user.keys.messagingDidKey,serviceBase:base,evidence};}};
     const profile=await new SenderProfileService(onboarding,encryptor,resolver,base).createOrReuse(sender.address,
       {display_name:"Publisher",offers_uncategorized:false,categories:[{id:"general",label:"General"},{id:"sales",label:"Sales"}]});
-    const now=Math.floor(Date.now()/1000),binding={type:"hail.address-binding" as const,version:1 as const,address:sender.address,did:sender.did,issued_at:now,expires_at:now+86400,key_id:sender.did+"#hail-identity"};
+    const now=Math.floor(Date.now()/1000),binding={type:"hail.address-binding" as const,version:2 as const,address:sender.address,did:sender.did,issued_at:now,key_id:sender.did+"#hail-identity"};
     const raw=await signPayload("hail.address-binding",binding,createWebCryptoSigner(binding.key_id,sender.keys.identityPrivateKey));
     const hash=(bytes:Uint8Array)=>new Uint8Array(createHash("sha256").update(bytes).digest());
     const service=new GrantService(onboarding,grants,encryptor,resolver,{async verify(){return {address:sender.address,did:sender.did,binding,representation:raw,digest:hash(raw),

@@ -42,13 +42,12 @@ type AssetManifest struct {
 }
 
 type AddressBinding struct {
-	Version   int64  `cbor:"version"`
-	Type      string `cbor:"type"`
-	Address   string `cbor:"address"`
-	DID       string `cbor:"did"`
-	IssuedAt  int64  `cbor:"issued_at"`
-	ExpiresAt int64  `cbor:"expires_at"`
-	KeyID     string `cbor:"key_id"`
+	Version  int64  `cbor:"version"`
+	Type     string `cbor:"type"`
+	Address  string `cbor:"address"`
+	DID      string `cbor:"did"`
+	IssuedAt int64  `cbor:"issued_at"`
+	KeyID    string `cbor:"key_id"`
 }
 
 func (AddressBinding) PayloadType() string { return AddressBindingType }

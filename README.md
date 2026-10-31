@@ -59,7 +59,7 @@ The reference CLI covers account administration and sensitive identity ceremonie
 | Compose | Explicit Grant/reply text workflows | Category publications and connection messages, forwarding, rich text, bundled PNG headers and separate work/delivery status |
 | Replies | Plain-text replies | Plain-text replies while the capability remains valid |
 | Sent messages | Status and retry by message ID | Paginated Sent view, detail, status and indeterminate retry |
-| Address bindings | View and renew | — |
+| Address bindings | View and publish | — |
 | Custody transitions | Managed ↔ owner-controlled | — |
 | Provider transfers | Owner-controlled and managed workflows | — |
 | Credential storage | Local encrypted vault and credential files | HttpOnly session cookie and encrypted pending setup; no full-access signup API credential |
@@ -87,7 +87,7 @@ browser recovery remain separate work.
 - [`DESIGN.md`](DESIGN.md): High-level product and protocol design.
 - [`docs/portable-custody.md`](docs/portable-custody.md): Key custody, transfer ceremony, recovery checkpoints and POC/production boundaries.
 - [`docs/passkey-authentication.md`](docs/passkey-authentication.md): Passwordless provider login, cross-platform client strategy, recovery boundaries and remaining platform validation.
-- [Key custody and offline operation](docs/portable-custody.md#key-custody-in-plain-language): Signing-role and custody comparisons, offline requirements and binding-expiration rationale.
+- [Key custody and offline operation](docs/portable-custody.md#key-custody-in-plain-language): Signing-role and custody comparisons, offline requirements and binding lifecycle and trust boundaries.
 - [Managed profiles and API-first clients](docs/portable-custody.md#managed-profiles-and-people-or-agents): Human/agent custody choices, owner-controlled recovery and native/`hailp` API interaction.
 - [Provider deployment runbook](apps/server/deploy/public/README.md): Strict-public provider setup and validation.
 - [User-key CLI](apps/cli/README.md): User-device vault, onboarding, Grant signing and exact-byte cutover commands.

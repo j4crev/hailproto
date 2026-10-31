@@ -50,12 +50,11 @@ type Assert<Condition extends true> = Condition;
 
 type ExpectedDigest = { algorithm: "sha-256"; value: Uint8Array };
 type ExpectedAddressBinding = {
-  version: 1;
+  version: 2;
   type: "hail.address-binding";
   address: string;
   did: string;
   issued_at: number;
-  expires_at: number;
   key_id: string;
 };
 type ExpectedSenderCategory = { id: string; label: string; description?: string };
@@ -329,7 +328,6 @@ const REQUIRED_KEYS = {
     "address",
     "did",
     "issued_at",
-    "expires_at",
     "key_id",
   ],
   "hail.sender-profile": [
@@ -768,7 +766,7 @@ describe("CDDL and TypeScript structural consistency", () => {
     const binding = record(
       structuredClone(validPayload("hail.address-binding")),
     );
-    binding.expires_at = binding.issued_at as number;
+    binding.address = "NotCanonical@EXAMPLE.COM";
     const encodedBinding = encodeUnchecked(binding);
     expect(cddlAccepts("hail.address-binding", encodedBinding)).toBe(true);
     expect(codecAccepts("hail.address-binding", encodedBinding)).toBe(false);

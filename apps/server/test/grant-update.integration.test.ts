@@ -52,7 +52,7 @@ integration("active Grant updates and consent refresh through HTTPS hailp",()=>{
     const senderIdentity=await crypto.subtle.generateKey("Ed25519",true,["sign","verify"]) as CryptoKeyPair;
     senderMessaging=await crypto.subtle.generateKey("Ed25519",true,["sign","verify"]) as CryptoKeyPair;
     const now=Math.floor(Date.now()/1000),identity=await keyId(senderIdentity.publicKey),messaging=await keyId(senderMessaging.publicKey);
-    const binding:HailAddressBinding={type:"hail.address-binding",version:1,address:senderAddress,did:senderDid,issued_at:now,expires_at:now+86400,key_id:`${senderDid}#hail-identity`};
+    const binding:HailAddressBinding={type:"hail.address-binding",version:2,address:senderAddress,did:senderDid,issued_at:now,key_id:`${senderDid}#hail-identity`};
     const bindingBytes=await signPayload("hail.address-binding",binding,createWebCryptoSigner(binding.key_id,senderIdentity.privateKey));
     address={address:senderAddress,did:senderDid,serviceBase:senderBase,identityDidKey:identity,messagingDidKey:messaging,plcEvidence:evidence,verifiedAt:new Date(),binding,representation:bindingBytes,digest:hash(bindingBytes)};
     const payload:HailSenderProfile={type:"hail.sender-profile",version:1,did:senderDid,revision:1,updated_at:now,display_name:"Sender",offers_uncategorized:false,

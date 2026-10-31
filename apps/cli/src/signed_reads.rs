@@ -83,7 +83,7 @@ pub async fn binding(client: &Client) -> Result<Value, Error> {
     }
     Ok(
         json!({"bindingId":result["bindingId"],"digest":result["digest"],"address":payload["address"],"did":payload["did"],
-        "issuedAt":payload["issued_at"],"expiresAt":payload["expires_at"],"status":result["status"],"renewalDue":result["renewalDue"]}),
+        "issuedAt":payload["issued_at"],"status":result["status"]}),
     )
 }
 pub fn binding_record(result: &Value) -> Result<(Vec<u8>, Value), Error> {
@@ -95,20 +95,13 @@ pub fn binding_record(result: &Value) -> Result<(Vec<u8>, Value), Error> {
         || !result["bindingId"]
             .as_str()
             .is_some_and(|s| UUID.is_match(s))
-        || !matches!(
-            result["status"].as_str(),
-            Some("active" | "expired" | "superseded")
-        )
-        || !result["renewalDue"].is_boolean()
+        || !matches!(result["status"].as_str(), Some("active" | "superseded"))
     {
         return Err(Error::client("Invalid binding response"));
     }
     let bytes = codec::decode_base64(cose.unwrap())?;
     let payload = codec::inspect("hail.address-binding", &bytes)?;
-    if bytes.len() > 16_384
-        || result["digest"] != codec::digest(&bytes)
-        || result["expiresAt"].as_f64() != payload["expires_at"].as_f64()
-    {
+    if bytes.len() > 16_384 || result["digest"] != codec::digest(&bytes) {
         return Err(Error::client("Binding response bytes/digest differ"));
     }
     Ok((bytes, payload))

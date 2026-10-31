@@ -10,7 +10,7 @@ function response(vector:any, bytes:Uint8Array):SignedCase {
   const p = vector.diagnostic;
   const common = {version:1,cose:Buffer.from(bytes).toString("base64url"),digest:createHash("sha256").update(bytes).digest("base64url")};
   if(vector.type==="hail.grant")return {name:vector.id,path:`/grants/${p.grant_id}`,args:["grant","show",p.grant_id],response:{...common,type:"hailp.grant",localRole:"grantor"}};
-  if(vector.type==="hail.address-binding")return {name:vector.id,path:"/binding",args:["binding","show"],response:{...common,type:"hailp.address-binding",bindingId:"019a0000-0000-7000-8000-000000000001",status:"active",renewalDue:false,expiresAt:p.expires_at}};
+  if(vector.type==="hail.address-binding")return {name:vector.id,path:"/binding",args:["binding","show"],response:{...common,type:"hailp.address-binding",bindingId:"019a0000-0000-7000-8000-000000000001",status:"active"}};
   return {name:vector.id,path:"/profile",args:["profile","show"],response:{...common,type:"hailp.sender-profile",revision:p.revision}};
 }
 const positive = vectors.positive.filter(v=>supported.has(v.type));
@@ -54,7 +54,7 @@ mutate("grant-revision-2","previous-is-text",p=>{p.previous=Buffer.from(p.previo
 mutate("grant-revision-1","empty-categories",p=>{p.scope[0].values=[];});
 mutate("grant-revision-1","unordered-categories",p=>{p.scope[0].values.reverse();});
 mutate("grant-revision-1","wrong-grant-id",p=>{p.grant_id="019a0000-0000-7000-8000-000000000001";},"RESPONSE_ERROR");
-mutate("address-binding-basic","binding-window-too-long",p=>{p.expires_at=p.issued_at+7776001;});
+mutate("address-binding-basic","binding-rejects-legacy-expiry",p=>{p.expires_at=p.issued_at+86400;});
 mutate("address-binding-basic","binding-did-mismatch",(p,outer)=>{
   p.did=`did:plc:${"b".repeat(24)}`;p.key_id=`${p.did}#hail-identity`;
   const header=decode(outer[0],{useMaps:true});header.set(4,new TextEncoder().encode(p.key_id));outer[0]=encode(header,rfc8949EncodeOptions);

@@ -271,19 +271,23 @@ Retain the exact signed transfer state for retries.
 hailp account transfer status
 ```
 
-### `binding renew`
+### `binding publish`
 
-Deliberately renew using owner identity or explicit managed custody.
+Publish a replacement non-expiring version 2 binding using owner identity or
+explicit managed custody. Account creation, migration and custody workflows
+normally publish automatically; this command is for explicit replacement or
+repair, not periodic maintenance. It does not claim a new address.
 
 ```text
-hailp binding renew --expires-at <value> --output <value> [--vault <value>]
+hailp binding publish --output <value> [--vault <value>]
 ```
 
-Options: [`--expires-at`](#options), [`--output`](#options), [`--vault`](#options).
+Options: [`--output`](#options), [`--vault`](#options).
 
 ### `binding show`
 
-Read binding expiry and renewal reminder metadata.
+Read the selected signed binding, issuance time, digest and selection status.
+Bindings have no expiry or renewal reminder.
 
 ```text
 hailp binding show

@@ -169,6 +169,8 @@ Sender Profile        -> #hail-messaging
 
 A cryptographically valid signature from the wrong Hail key role must be rejected.
 
+Address verification additionally requires the exact requested address and DID in the version-2 signed payload and current DNS/WebFinger publication, as defined in [address-binding.md](address-binding.md). `alsoKnownAs` has no Hail address authorization role. Binding signatures have no expiration field; current identity-key resolution and bounded discovery revalidation remain required.
+
 ## PLC State Profile
 
 A PLC operation stores verification methods as named `did:key` values. The Hail profile requires entries named:
@@ -375,11 +377,17 @@ independent-observation policy:
 - the old provider endpoint is no longer authoritative
 - the old messaging key can no longer sign newly accepted Hail objects
 - grants remain unchanged because they reference the DID
-- address bindings remain valid until they expire, unless their identity key also changed
+- on successful source retirement, the old provider withdraws its departing-address WebFinger mapping and stops publicly serving the associated COSE binding artifacts
+- the new provider publishes and verifies the destination address binding under current DID authority; unrelated address associations are unaffected
 
 A provider migration that preserves protocol continuity must use the fenced state-transfer procedure in [delivery-state.md](delivery-state.md). The old provider freezes the DID's complete grant, reply, replay, delivery, and status serialization domain before export and never commits state after that snapshot. The new provider starts only after durable import and DID cutover. The old provider never receives the new messaging private key and stops signing Hail operations after removal. Emergency rotation without recoverable provider state may sacrifice pending delivery or status availability rather than continuing to trust a removed key.
 
 Implementations may temporarily cache prior DID state. The HTTP binding defines which endpoint failures force early DID re-resolution, how canonical endpoints are compared, and when an operation may be retried at a newly authenticated endpoint.
+
+Address Binding version 2 has no expiration timestamp and needs no periodic renewal. A provider must also withdraw the public WebFinger mapping and associated public COSE artifacts when an ordinary account deletion completes. Those lifecycle operations retain required signed audit evidence privately; they do not erase PLC history or require a standalone binding-revocation command. Address reassignment waits out the bounded discovery caches defined in [address-binding.md](address-binding.md).
+
+This withdrawal contract assumes provider cooperation. If the identity key remains current, a noncooperating former address authority can republish an old signed binding even after the DID’s service endpoint changes. A binding host is not required to be the current Hail service host. Neither a service move nor cooperative withdrawal cryptographically revokes that old signature. The protocol continues to protect DID-bound grants and messages from address reassignment; it does not claim independent per-address revocation against an uncooperative publisher.
+
 
 ## Key Rotation
 

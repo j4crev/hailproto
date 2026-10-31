@@ -88,8 +88,8 @@ integration("user-held authoritative Grant", () => {
         serviceBase: "https://source.example.com/hail", evidence };
     } };
     const now = Math.floor(Date.now() / 1000);
-    const addressBinding: HailAddressBinding = { type: "hail.address-binding", version: 1,
-      address: senderAddress, did: senderDid, issued_at: now, expires_at: now + 3600,
+    const addressBinding: HailAddressBinding = { type: "hail.address-binding", version: 2,
+      address: senderAddress, did: senderDid, issued_at: now,
       key_id: `${senderDid}#hail-identity` };
     const signedBinding = await signPayload("hail.address-binding", addressBinding,
       createWebCryptoSigner(addressBinding.key_id, senderIdentity.privateKey));

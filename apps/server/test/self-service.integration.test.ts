@@ -26,8 +26,11 @@ import {PlcHailDidResolver} from "../src/plc/resolver.js";
 import type {PlcDirectoryClient} from "../src/plc/client.js";
 import type {AppConfig} from "../src/config.js";
 import {rotateCredential} from "./client-support/credential-rotation.js";
-import {renewBinding,showBinding} from "./client-support/binding-renewal.js";
+import {publishBinding,showBinding} from "./client-support/binding-publication.js";
 import {AccountBinding} from "../src/accounts/binding.js";
+import {Hono} from "hono";
+import {registerDiscoveryRoutes} from "../src/discovery/routes.js";
+import {withdrawAccountBindings} from "../src/discovery/withdrawal.js";
 import {PasskeyAuth} from "../src/accounts/passkeys.js";
 
 const integration=process.env.DATABASE_URL?describe:describe.skip;
@@ -77,7 +80,7 @@ integration("self-service custody profiles and credentials",()=>{
       return {address:account!.canonicalAddress,did:peer!,serviceBase:base,identityDidKey:resolved.identityDidKey,messagingDidKey:resolved.messagingDidKey,
         plcEvidence:resolved.evidence,verifiedAt:new Date(),binding:inspectSignedPayload("hail.address-binding",binding.cose).payload,representation:binding.cose,digest:binding.digest};}},
       {async verify(){return verifiedProfile!;}},base);
-    const binding=new AccountBinding(db.sql,resolver,encryptor,origin,addressVerifier,async()=>{throw new Error("Native renewal must not query delegation DNS");});
+    const binding=new AccountBinding(db.sql,resolver,encryptor,origin,addressVerifier,async()=>{throw new Error("Native publication must not query delegation DNS");});
     const app=createApp({publicOrigin:origin,hailServiceBase:base,providerId:"test"} as AppConfig,{accountApi:{accounts,grants,service,binding},discoveryStore:repository,
       selfServiceOnboarding:{sql:db.sql,onboarding,activation,provider:origin,invitationKey},async checkReadiness(){return {ready:true};}});
     vi.stubGlobal("fetch",(input:RequestInfo|URL,init?:RequestInit)=>app.fetch(input instanceof Request?input:new Request(String(input),init)));
@@ -129,13 +132,13 @@ integration("self-service custody profiles and credentials",()=>{
       expect((await client.request("/credentials",{token:newToken})).credentialId).toBe(credential.credentialId);
       expect((await client.request("/credentials",{revoke:credential.credentialId})).revoked).toBe(true);
       const initial=await showBinding(client),oldBytes=(await repository.getBindingForAccount(summary.accountId)).cose;
-      const renewal=join(directory,"renewed.cose"),expiry=Number(initial.expiresAt)+1;
+      const publication=join(directory,"published.cose");
       const boundSource=await readFile(paths.vault,"utf8"),boundVault=JSON.parse(boundSource);
       if(custody==="owner-controlled")await writeFile(paths.vault,JSON.stringify({...boundVault,recovery:{...boundVault.recovery,ciphertext:"AA"}}));
-      const renew=()=>renewBinding(client,renewal,expiry,custody==="owner-controlled"?paths.vault:undefined,input);
+      const publish=()=>publishBinding(client,publication,custody==="owner-controlled"?paths.vault:undefined,input);
       verificationUnavailable=true;
-      await expect(renew()).rejects.toThrow("HTTP 503");verificationUnavailable=false;
-      const resumed=await renew();expect(await renew()).toEqual(resumed);expect(resumed.status).toBe("active");
+      await expect(publish()).rejects.toThrow("HTTP 503");verificationUnavailable=false;
+      const resumed=await publish();expect(await publish()).toEqual(resumed);expect(resumed.status).toBe("active");
       expect((await showBinding(client)).digest).toBe(resumed.digest);
       expect((await repository.findPublishedById(initial.bindingId as string))!.cose).toEqual(oldBytes);
       const selected=await db.sql`SELECT id FROM address_bindings WHERE canonical_address=${address} AND selected_at IS NOT NULL`;
@@ -143,13 +146,13 @@ integration("self-service custody profiles and credentials",()=>{
       // Original signup artifacts still resolve their original immutable binding.
       await writeFile(paths.vault,boundSource);
       expect(await createAccount(origin,address,custody,paths.vault,paths.state,paths.credential,input,undefined,paths.enrollment)).toEqual(created);
-      await expect(renewBinding(client,renewal,expiry+1,custody==="owner-controlled"?paths.vault:undefined,input)).rejects.toThrow("changed");
-      await expect(renewBinding(client,join(directory,"too-long.cose"),Math.floor(Date.now()/1000)+91*86400,
-        custody==="owner-controlled"?paths.vault:undefined,input)).rejects.toThrow("90 days");
-      const second=await renewBinding(client,join(directory,"second.cose"),expiry+1,custody==="owner-controlled"?paths.vault:undefined,input);
-      const superseded=await renew();expect(superseded.status).toBe("superseded");expect((await showBinding(client)).digest).toBe(second.digest);
+      const intentPath=publication+".request.json",intent=await readFile(intentPath,"utf8");
+      await writeFile(intentPath,JSON.stringify({...JSON.parse(intent),accountId:randomUUID()}));
+      await expect(publish()).rejects.toThrow("changed");await writeFile(intentPath,intent);
+      const second=await publishBinding(client,join(directory,"second.cose"),custody==="owner-controlled"?paths.vault:undefined,input);
+      const superseded=await publish();expect(superseded.status).toBe("superseded");expect((await showBinding(client)).digest).toBe(second.digest);
       const requestState=JSON.parse(await readFile(`${join(directory,"second.cose")}.request.json`,"utf8"));
-      const conflictPayload={...requestState.payload,issued_at:requestState.payload.issued_at+1,expires_at:requestState.payload.expires_at+1};
+      const conflictPayload={...requestState.payload,issued_at:requestState.payload.issued_at+1};
       const signedOwner=custody==="owner-controlled"?await (await unlockUserIdentity(boundVault,vault.recoverySecret)).signAddressBinding(conflictPayload):undefined;
       const conflicting={previous:encodeBase64Url(randomBytes(32)),signingKey:summary.identityPublicKey,
         ...(custody==="managed"?{payload:conflictPayload}:{cose:encodeBase64Url(signedOwner!)})};
@@ -157,44 +160,57 @@ integration("self-service custody profiles and credentials",()=>{
       expect((await showBinding(client)).digest).toBe(second.digest);
       if(custody==="managed")await expect(client.request("/binding",{...conflicting,payload:{...conflictPayload,expires_at:conflictPayload.issued_at+91*86400}})).rejects.toThrow("HTTP 400");
       const session=(await accounts.authenticate(`Bearer ${state.token}`))!;
-      await expect(binding.renew(session,{...conflicting,signingKey:vault.vault.recovery.publicDidKey})).rejects.toThrow("authority");
+      await expect(binding.publish(session,{...conflicting,signingKey:vault.vault.recovery.publicDidKey})).rejects.toThrow("authority");
       await db.sql`INSERT INTO provider_migration_fences (did,account_id,transfer_id,destination_service_base,state)
         VALUES (${created.did!},${summary.accountId},${randomUUID()},'https://other.example.com/hail','fenced')`;
-      await expect(binding.renew(session,conflicting)).rejects.toThrow("cannot renew");
+      await expect(binding.publish(session,conflicting)).rejects.toThrow("cannot publish");
       await db.sql`DELETE FROM provider_migration_fences WHERE account_id=${summary.accountId}`;
       const deniedCredential=await accounts.issue(address,false,undefined,["account:read","grants:write"]);
       await writeFile(join(directory,"limited.json"),JSON.stringify({type:"hailp.api-credential",version:1,provider:origin,...deniedCredential}),{mode:0o600});
       const limited=await AccountApiClient.fromCredentialFile(join(directory,"limited.json"));
-      await expect(renewBinding(limited,join(directory,"denied.cose"),expiry+2,paths.vault,input)).rejects.toThrow("cannot renew");
+      await expect(publishBinding(limited,join(directory,"denied.cose"),paths.vault,input)).rejects.toThrow("cannot publish");
       const limitedSession=(await accounts.authenticate(`Bearer ${deniedCredential.token}`))!;
-      await expect(binding.renew(limitedSession,conflicting)).rejects.toThrow("credential");
+      await expect(binding.publish(limitedSession,conflicting)).rejects.toThrow("credential");
       const expiredCredential=await accounts.issue(address,false,undefined,["account:read","account:write"]);
       const expiredSession=(await accounts.authenticate(`Bearer ${expiredCredential.token}`))!;
       await db.sql`UPDATE account_api_credentials SET created_at=now()-interval '2 days',expires_at=now()-interval '1 day' WHERE id=${expiredCredential.credentialId}`;
-      await expect(binding.renew(expiredSession,conflicting)).rejects.toThrow("credential");
+      await expect(binding.publish(expiredSession,conflicting)).rejects.toThrow("credential");
       const revokedCredential=await accounts.issue(address,false,undefined,["account:read","account:write"]);
       const revokedSession=(await accounts.authenticate(`Bearer ${revokedCredential.token}`))!;
       await accounts.revoke(revokedCredential.credentialId);
-      await expect(binding.renew(revokedSession,conflicting)).rejects.toThrow("credential");
-      const now=Math.floor(Date.now()/1000),expiredPayload={...requestState.payload,issued_at:now-7200,expires_at:now-3600};
-      let expiredBytes:Uint8Array;
-      if(custody==="owner-controlled")expiredBytes=await (await unlockUserIdentity(boundVault,vault.recoverySecret)).signAddressBinding(expiredPayload);
+      await expect(binding.publish(revokedSession,conflicting)).rejects.toThrow("credential");
+      const now=Math.floor(Date.now()/1000),agedPayload={...requestState.payload,issued_at:now-120*86400};
+      let agedBytes:Uint8Array;
+      if(custody==="owner-controlled")agedBytes=await (await unlockUserIdentity(boundVault,vault.recoverySecret)).signAddressBinding(agedPayload);
       else {const key=await repository.getKey(summary.accountId,"hail-identity"),raw=await encryptor.decrypt(summary.accountId,key.role,key.algorithm,key.publicKey,key);
-        try {expiredBytes=await signPayload("hail.address-binding",expiredPayload,createWebCryptoSigner(expiredPayload.key_id,await importEd25519PrivateKey(raw)));}finally{raw.fill(0);}}
+        try {agedBytes=await signPayload("hail.address-binding",agedPayload,createWebCryptoSigner(agedPayload.key_id,await importEd25519PrivateKey(raw)));}finally{raw.fill(0);}}
       const grantSnapshot=await db.sql`SELECT grant_id,current_revision,current_status FROM grant_lineages
         WHERE grantor_did=${created.did!} OR grantee_did=${created.did!} ORDER BY grant_id`;
+      const agedId=randomUUID();
       await db.sql.begin(async tx=>{
         await tx`UPDATE address_bindings SET selected_at=NULL WHERE account_id=${summary.accountId}`;
-        // Legacy overlapping selection must not become an expiry fallback.
+        // Overlapping historical selection must never become a withdrawal fallback.
         await tx`UPDATE address_bindings SET selected_at=now()-interval '1 day' WHERE id=${initial.bindingId as string}`;
-        await tx`INSERT INTO address_bindings (id,account_id,canonical_address,did,cose,representation_digest,issued_at,expires_at,hosted_at,selected_at,published_at)
-          VALUES (${randomUUID()},${summary.accountId},${address},${created.did!},${expiredBytes},${new Uint8Array(createHash("sha256").update(expiredBytes).digest())},
-            ${new Date(expiredPayload.issued_at*1000)},${new Date(expiredPayload.expires_at*1000)},now(),now(),now())`;
+        await tx`INSERT INTO address_bindings (id,account_id,canonical_address,did,cose,representation_digest,issued_at,hosted_at,selected_at,published_at)
+          VALUES (${agedId},${summary.accountId},${address},${created.did!},${agedBytes},${new Uint8Array(createHash("sha256").update(agedBytes).digest())},
+            ${new Date(agedPayload.issued_at*1000)},now(),now(),now())`;
       });
-      expect(await showBinding(client)).toMatchObject({status:"expired",renewalDue:true});
+      const aged=await showBinding(client);
+      expect(aged).toMatchObject({status:"active",issuedAt:agedPayload.issued_at});
+      expect(aged).not.toHaveProperty("expiresAt");expect(aged).not.toHaveProperty("renewalDue");
       const webfinger=`${origin}/.well-known/webfinger?resource=${encodeURIComponent(`acct:${address}`)}&rel=${encodeURIComponent("https://hailproto.com/rel/address-binding")}`;
-      expect((await app.request(webfinger)).status).toBe(404); // Never fall back to a superseded unexpired binding.
-      expect((await renewBinding(client,join(directory,"after-expiry.cose"),now+86400,custody==="owner-controlled"?paths.vault:undefined,input)).status).toBe("active");
+      const artifact=(id:string)=>`${origin}/.well-known/hail/addresses/${id}`;
+      expect((await app.request(webfinger)).status).toBe(200);
+      expect((await app.request(artifact(agedId))).status).toBe(200);
+      // Roll back the closure simulation so the remaining credential tests use a live account.
+      const rollback=new Error("rollback withdrawal simulation");
+      await expect(db.sql.begin(async tx=>{
+        await withdrawAccountBindings(tx,summary.accountId,"account-deletion");
+        const discovery=new Hono();registerDiscoveryRoutes(discovery,origin,new OnboardingRepository(tx));
+        expect((await discovery.request(webfinger)).status).toBe(404);
+        for(const id of [agedId,initial.bindingId,second.bindingId])expect((await discovery.request(artifact(id as string))).status).toBe(404);
+        throw rollback;
+      })).rejects.toBe(rollback);
       expect((await app.request(webfinger)).status).toBe(200);
       expect(await db.sql`SELECT grant_id,current_revision,current_status FROM grant_lineages
         WHERE grantor_did=${created.did!} OR grantee_did=${created.did!} ORDER BY grant_id`).toEqual(grantSnapshot);

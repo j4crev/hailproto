@@ -173,7 +173,7 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
       };
       const login=await provider.passkeys.authenticationOptions(),logged=await provider.passkeys.authenticate(login.challengeId,assertion(login.options.challenge));
       const session=(await provider.accounts.authenticate(undefined,logged.token))!,n=Math.floor(Date.now()/1000);
-      const binding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:1,did,address,issued_at:n-10,expires_at:n+86400,key_id:did+"#hail-identity"},createWebCryptoSigner(did+"#hail-identity",keys.identityPrivateKey));
+      const binding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:2,did,address,issued_at:n-10,key_id:did+"#hail-identity"},createWebCryptoSigner(did+"#hail-identity",keys.identityPrivateKey));
       await sql`INSERT INTO address_bindings(id,account_id,canonical_address,did,cose,representation_digest,issued_at,expires_at,selected_at,published_at,hosted_at)
         VALUES(${randomUUID()},${id},${address},${did},${binding},${new Uint8Array(createHash("sha256").update(binding).digest())},${new Date((n-10)*1000)},${new Date((n+86400)*1000)},now(),now(),now())`;
       const user={id,did,address,managed,keys,session,token:logged.token,assertion,provider,evidence,recoveryPublicKey:recovery.did(),recoveryKey:recovery};users.push(user);return user;
@@ -663,8 +663,8 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
       destinationIdentityPublicKey:movedKeys.identityDidKey,destinationMessagingPublicKey:movedKeys.messagingDidKey,sourceGeneration:1,custodyProfile:'managed' as const,capturedAt:moveCapturedAt,
       connections:moveHistory,connectionCheckpointDigest:encodeBase64Url(connectionHistoryDigest(moveHistory)),tables:moveTables};
     const movingManifest:ManagedTransferManifest={...moveBase,historyCheckpointDigest:encodeBase64Url(managedHistoryCheckpoint(moveBase))},movingBytes=new TextEncoder().encode(JSON.stringify(movingManifest)),
-      movingDigest=new Uint8Array(createHash('sha256').update(movingBytes).digest()),binding=await signPayload('hail.address-binding',{type:'hail.address-binding',version:1,did:b.did,address:movingAddress,
-        issued_at:Math.floor(Date.now()/1000),expires_at:Math.floor(Date.now()/1000)+86400,key_id:b.did+'#hail-identity'},createWebCryptoSigner(b.did+'#hail-identity',movedKeys.identityPrivateKey)),
+      movingDigest=new Uint8Array(createHash('sha256').update(movingBytes).digest()),binding=await signPayload('hail.address-binding',{type:'hail.address-binding',version:2,did:b.did,address:movingAddress,
+        issued_at:Math.floor(Date.now()/1000),key_id:b.did+'#hail-identity'},createWebCryptoSigner(b.did+'#hail-identity',movedKeys.identityPrivateKey)),
       bindingDigest=new Uint8Array(createHash('sha256').update(binding).digest()),sourceSnapshotSignature=new Uint8Array(await crypto.subtle.sign('Ed25519',sourceBPrivate,managedSnapshotSignatureInput(movingDigest,6)));
     validateManagedTransferManifest(movingBytes);
     await third.db.sql`INSERT INTO pending_migration_imports(transfer_id,did,source_service_base,destination_service_base,manifest_bytes,manifest_digest,source_messaging_public_key,
@@ -953,7 +953,7 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
       const exports=new MigrationTransferService(source.db.sql,new OnboardingRepository(source.db.sql),source.encryptor,resolver,sourceBase),snapshot=await exports.exportFenced((await sourceFence.get(a.did))!),m=validateTransferManifest(snapshot.bytes),
         operation=await signOperation({type:'plc_operation',prev:(await cidForCbor(a.evidence.log.at(-1) as any)).toString(),rotationKeys:[a.recoveryPublicKey,offer.destination_rotation_key],verificationMethods:{...(a.evidence.data as any).verificationMethods,'hail-messaging':offer.destination_messaging_key},
           alsoKnownAs:(a.evidence.data as any).alsoKnownAs,services:{hail:{type:'HailMessaging',endpoint:targetBase}}},a.recoveryKey),operationBytes=new TextEncoder().encode(JSON.stringify(operation)),
-        binding=await signPayload('hail.address-binding',{type:'hail.address-binding',version:1,address,did:a.did,issued_at:n,expires_at:n+86400,key_id:a.did+'#hail-identity'},createWebCryptoSigner(a.did+'#hail-identity',a.keys.identityPrivateKey));
+        binding=await signPayload('hail.address-binding',{type:'hail.address-binding',version:2,address,did:a.did,issued_at:n,key_id:a.did+'#hail-identity'},createWebCryptoSigner(a.did+'#hail-identity',a.keys.identityPrivateKey));
       const consent=await signPortableMigrationConsent({type:'hail.portable-migration-consent',version:1,did:a.did,transfer_id:m.transferId,snapshot_digest:snapshot.digest,
         plc_operation_sha256:new Uint8Array(createHash('sha256').update(encodeDagCbor(operation)).digest()),source_service_base:sourceBase,destination_service_base:targetBase,destination_address:address,
         destination_rotation_key:offer.destination_rotation_key,destination_messaging_key:offer.destination_messaging_key,user_recovery_key:a.recoveryPublicKey,user_identity_key:a.keys.identityDidKey,created_at:n,expires_at:n+900},a.keys.identityPrivateKey);

@@ -229,7 +229,7 @@ enablement remains gated on operational wiring and the production controls above
   unsigned blocking or automatic permission extension is introduced.
 - Preserve old bindings and their domain-selection/acceptance evidence for
   audit, but publish a fresh binding under the new current identity key before
-  normal address intake resumes. Do not treat an expired/removed-key binding
+  normal address intake resumes. Do not treat an withdrawn/removed-key binding
   as current discovery authority just because it is retained in history.
 - Historical verification must classify nullified/recovered PLC branches and
   establish authority at the relevant accepted state. A payload timestamp,
@@ -336,7 +336,7 @@ Source resumption verifies the origin-confirmed destination signature, original
 binding and fenced generation, revokes old credentials/leases, advances generation
 and preserves accepted work. Lost replies recover the same signed results.
 
-Unknown forks, unavailable counterpart proof and expired/conflicting source bindings
+Unknown forks, unavailable counterpart proof and withdrawn/conflicting source bindings
 remain blocked. An active or uncertain target requires forward completion or a new
 reverse transfer. This private recovery path is not general public abandonment.
 

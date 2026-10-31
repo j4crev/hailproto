@@ -38,12 +38,11 @@ digest = {
 }
 
 hail-address-binding = {
-  "version": 1,
+  "version": 2,
   "type": "hail.address-binding",
   "address": tstr,
   "did": did,
   "issued_at": timestamp,
-  "expires_at": timestamp,
   "key_id": did-url
 }
 

@@ -450,7 +450,7 @@ export class MigrationTransferService {
       }));
     const now = Math.floor(Date.now() / 1000);
     if (binding.payload.address !== consent.destination_address || binding.payload.did !== manifest.did ||
-      binding.payload.issued_at > now + 300 || binding.payload.expires_at <= now) {
+      binding.payload.issued_at > now + 300) {
       throw new Error("User-signed destination Address Binding does not match migration consent");
     }
     const bindingDigest = digest(destinationBinding);

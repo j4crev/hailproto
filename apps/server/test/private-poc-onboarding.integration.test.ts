@@ -75,8 +75,8 @@ integration("private POC user-key onboarding", () => {
     });
     await unlocked.bindDid(signed.did, signed.operation);
     const now = Math.floor(Date.now() / 1000);
-    const binding: HailAddressBinding = { type: "hail.address-binding", version: 1,
-      address, did: signed.did, issued_at: now, expires_at: now + 90 * 86400,
+    const binding: HailAddressBinding = { type: "hail.address-binding", version: 2,
+      address, did: signed.did, issued_at: now,
       key_id: `${signed.did}#hail-identity` };
     const cose = await unlocked.signAddressBinding(binding);
     const bytes = new TextEncoder().encode(JSON.stringify(signed.operation));

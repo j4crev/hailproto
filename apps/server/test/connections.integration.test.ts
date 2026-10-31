@@ -63,7 +63,7 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
       };
       const login=await passkeys.authenticationOptions(),signedIn=await passkeys.authenticate(login.challengeId,assertion(login.options.challenge));
       const session=(await accounts.authenticate(undefined,signedIn.token))!;
-      const n=Math.floor(Date.now()/1000),binding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:1,address,did,issued_at:n-10,expires_at:n+86400,key_id:did+"#hail-identity"},createWebCryptoSigner(did+"#hail-identity",keys.identityPrivateKey));
+      const n=Math.floor(Date.now()/1000),binding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:2,address,did,issued_at:n-10,key_id:did+"#hail-identity"},createWebCryptoSigner(did+"#hail-identity",keys.identityPrivateKey));
       await db.sql`INSERT INTO address_bindings(id,account_id,canonical_address,did,cose,representation_digest,issued_at,expires_at,selected_at,published_at,hosted_at)
         VALUES(${randomUUID()},${id},${address},${did},${binding},${new Uint8Array(createHash("sha256").update(binding).digest())},${new Date((n-10)*1000)},${new Date((n+86400)*1000)},now(),now(),now())`;
       users.push({id,did,address,keys,credential,token:signedIn.token,session,assertion});

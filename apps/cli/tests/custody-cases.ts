@@ -22,7 +22,7 @@ export async function custodyCases(binary:string,root:string,directory:string,pr
    if(!path)return json({type:"hailp.account",version:1,provider,accountId:id,did,address:"alice@example.com",migrationState:null,custodyProfile:toOwner?"managed":"owner-controlled",monitorVerificationMode:"strict-public-v1",managedProfileVersion:toOwner?"hail-managed-custody-v1":null,identityPublicKey:old,ownerRecoveryPublicKey:created.vault.recovery.publicDidKey,scopes:["account:read","account:write"],credential:{credentialId:id,expiresAt:"2030-01-01T00:00:00.000Z"}});
    if(path==="/custody/owner-controlled/review"){
     newKey=body.newIdentityKey;assert.notEqual(newKey,originalKey);
-    const now=Math.floor(Date.now()/1000),binding={type:"hail.address-binding",version:1,address:"alice@example.com",did,issued_at:now,expires_at:now+3600,key_id:did+"#hail-identity"};
+    const now=Math.floor(Date.now()/1000),binding={type:"hail.address-binding",version:2,address:"alice@example.com",did,issued_at:now,key_id:did+"#hail-identity"};
     return json({...prep(),binding:Buffer.from(encodeDeterministic(binding)).toString("base64url"),activeGrants:[]});
    }
    if(path==="/custody/managed"||path==="/custody/owner-controlled")return json(prep());

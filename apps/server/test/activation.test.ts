@@ -25,7 +25,6 @@ const binding: PublishedAddressBinding = {
   cose: new Uint8Array([1, 2, 3]),
   digest: new Uint8Array(32).fill(4),
   issuedAt: new Date("2026-09-27T00:00:00Z"),
-  expiresAt: new Date("2026-12-26T00:00:00Z"),
   publishedAt: null,
 };
 
@@ -60,12 +59,12 @@ function verifiedAddress(overrides: Partial<VerifiedAddress> = {}): VerifiedAddr
     plcEvidence: { document: {}, data: {}, log: [] },
     verifiedAt: new Date("2026-09-27T00:00:00Z"),
     binding: {
-      version: 1,
+      version: 2,
       type: "hail.address-binding",
       address: account.canonicalAddress,
       did: account.did!,
       issued_at: 1,
-      expires_at: 2,
+
       key_id: `${account.did}#hail-identity`,
     },
     representation: binding.cose,

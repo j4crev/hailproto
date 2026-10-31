@@ -98,7 +98,7 @@ the only durable copy of its identity. Custody describes who controls the
 signer, not whether the caller is a person using software or an automated agent.
 
 Managed identity enables provider-side Grant authoring, signed revocation and
-Address Binding renewal while the owner's signer is unavailable, subject to
+Address Binding publication while the owner's signer is unavailable, subject to
 authenticated requests or an explicitly approved account automation policy.
 It does not by itself authorize scope expansion or arbitrary new account
 actions. The owner must understand that the provider can produce valid consent
@@ -172,7 +172,7 @@ rules. A provider-native CLI and `hailp` are alternative API clients, not
 distinct signing authorities or bypasses around server validation.
 
 The reference account surface covers signup and onboarding, account/custody
-status, credentials, Grants, messaging, delivery status, binding renewal and
+status, credentials, Grants, messaging, delivery status, binding publication and
 transfer ceremonies. Endpoint paths and credential/session details are local
 implementation choices. Business rules belong in shared provider services,
 not duplicated in HTTP handlers or CLI commands; narrow operator tools remain
@@ -240,7 +240,7 @@ unsigned local blocking.
 
 This table describes **owner-controlled identity custody**. For the preferred
 managed profile, the provider can supply identity signatures for authorized
-Grant changes and binding renewal while the owner's signer is unavailable;
+Grant changes and binding publication while the owner's signer is unavailable;
 owner-recovery operations still need owner authority. That convenience comes
 with provider-controlled consent signing, not the portable profile's guarantee.
 
@@ -262,7 +262,7 @@ choice, not permission to fall back to provider custody.
 | Enforce Grant expiration | Yes | Existing signed constraint; the provider cannot extend it silently |
 | Create a Grant, expand scope or renew expiration | No | Fresh user identity-signed revision |
 | Create a signed revocation | No | User identity signature; enforcement and notification continue without the signer after commit |
-| Renew an Address Binding | No | Fresh identity signature |
+| Publish a replacement Address Binding | No | Fresh identity signature |
 | Initiate/approve transfer or identity recovery | No | Reviewed user signatures; backend execution/retries may continue after all required exact artifacts are durably submitted |
 
 This classifies required signing authority, not a claim that every scheduling,
@@ -291,57 +291,56 @@ expire. An expiring Grant cannot be renewed silently by a user-held-key
 provider; a higher signed revision is needed. Product lifetime defaults and
 renewal UX must be chosen explicitly. See [Grant expiration](../spec/grants.md#expiration).
 
-## Address Binding Expiration And Renewal
+## Address Binding Publication And Cooperative Withdrawal
 
-An Address Binding combines two assertions:
+An Address Binding combines current DNS/WebFinger publication by the address
+authority with an identity signature authorizing the exact address-to-DID
+association. Resolvers check the canonical requested address, exact DID, and
+signature under the current validated PLC `#hail-identity` key. Hail addresses
+are not added to `alsoKnownAs`, and that field supplies no address authority.
 
-1. The address domain selects the address-to-DID mapping through current
-   WebFinger publication.
-2. The DID owner authorizes that association with an identity signature.
+The closed version-2 payload contains `type`, `version`, `address`, `did`,
+`issued_at`, and `key_id`. It has no `expires_at`, maximum age, or periodic
+renewal. Issuance may be at most 300 seconds in the future. Continuing address
+use does not need fresh owner signatures on a schedule; changing an address or
+identity key requires explicit publication under the account's custody rules.
+Owner-controlled publication needs the owner's identity signer, while explicitly
+managed custody permits the authorized provider identity signer. Neither case
+changes PLC recovery or provider rotation authority.
 
-Live domain publication can change, but a signature does not become invalid
-merely because the user left a provider. Expiration limits reuse of the
-existing signed consent. For example, after moving from
-`alice@old-provider.example` to another provider while retaining the same DID
-and identity key, an uncooperative old domain could keep publishing the
-original signed binding. Its expiration bounds that claim; the old provider
-cannot extend the signed date without fresh signing authority. Expiration
-does not give the user ownership of the old provider's namespace.
+Version 1 is rejected without a compatibility parser. Previously deployed
+bindings need a one-time freshly signed v2 publication preserving the DID and
+its authorized keys; editing an old payload cannot preserve its signature.
+Historical signed evidence is retained privately. See the
+[publication contract](../apps/cli/docs/binding-publication.md).
 
-Live WebFinger verification and caching solve a different problem. The
-current rules check domain publication and current DID identity authority and
-cache successful discovery for at most one hour, further bounded by signature
-expiration and HTTP freshness. That handles honest withdrawal/reassignment.
-Signature expiration additionally bounds a domain that keeps publishing old,
-otherwise-valid signed evidence. It is not a complete defense against an
-actively compromised domain or identity key: possession of the private
-identity key can permit new signatures until that authority is removed.
+Successful resolution caches are bounded by one hour and any shorter DNS TTL,
+HTTP freshness, or PLC policy limit. Refresh requires current discovery and
+validated PLC authority; possession of an old signed artifact is insufficient.
+The reference resolver does not application-cache discovery.
 
-**The 90-day maximum is a Hail policy limit, not a cryptographic necessity.**
-The POC signs bindings for that maximum lifetime. It balances stale-consent
-exposure against renewal friction; the current specification still requires
-bounded expiration. This planning discussion does not change that rule.
+Ordinary account deletion and successful source migration retirement must
+withdraw both the departing WebFinger mapping and its public COSE URLs, retaining
+required audit evidence privately. The local implementation uses irreversible
+publication tombstones for migration retirement and provides a shared withdrawal
+helper; an account-deletion workflow remains future work. Full custom-domain
+withdrawal, reassignment and transfer remain deferred. Future address reassignment
+waits at least 3600 seconds after both mapping and artifacts are withdrawn.
+These workflows do not erase PLC history or require a separate binding-revocation
+command.
 
-| Policy considered | Tradeoff | Current decision |
-| --- | --- | --- |
-| Bounded expiration | Simple verification; periodic user-controlled signing required | Retain the current rule and document renewal as a product requirement |
-| Longer lifetime | Less renewal friction; longer reuse of old signed associations | Possible future policy review, not implemented/spec-changed here |
-| Explicit revocation/current-consent state instead of expiration | Could avoid periodic renewal, but needs trustworthy discovery even when the old domain is uncooperative | New mechanism is not specified; do not treat live WebFinger alone as its replacement |
+This model explicitly trusts provider cooperation. If the same identity key
+remains current, a noncooperating former address authority can continue publishing
+or republish an old signed binding after a move. Withdrawal and a service endpoint
+change do not cryptographically revoke that signature. The protocol does not
+claim independent per-address revocation against that provider.
 
-A usable production account therefore needs user-signed binding renewal,
-advance expiry reminders and safe publication/retry handling. The provider
-cannot edit an existing signature's expiration. The reference CLI implements
-identity-only same-association renewal; any background signing policy still
-needs explicit design and must not silently delegate identity custody to the
-Hail provider.
-
-An expired binding makes the **address association unverified**. It does not
-expire the DID, revoke existing Grants, delete messages or transfer relationships
-to a new address holder. Established delivery is DID-based and does not
-re-resolve a human-readable address for every message. Address discovery and
-new consent still need valid address evidence. See the
-[binding lifetime](../spec/address-binding.md#binding-payload),
-[cache](../spec/address-binding.md#caching) and
+Unavailable or unverified address discovery does not expire the DID, revoke
+existing Grants, delete messages, or transfer relationships to a new address
+holder. Established delivery remains DID-based and does not re-resolve the human
+address per message. New discovery and consent still require current verified
+address evidence. See the [binding payload](../spec/address-binding.md#binding-payload),
+[cache](../spec/address-binding.md#caching), and
 [delivery](../spec/address-binding.md#grant-and-delivery-behavior) rules.
 
 ## Portable Transfer Ceremony
@@ -567,7 +566,8 @@ target temporarily publishes the selected Address Binding under the reserved
 address so external WebFinger verification works **before** target account
 activation. Activation atomically replaces that provisional publication
 with the imported active account's same signed binding. The source retires
-only on the target's signed activation receipt. No separate monitoring VPS or
+only on the target's signed activation receipt, withdrawing its public WebFinger
+mapping and associated public COSE artifacts while retaining private evidence. No separate monitoring VPS or
 public PLC mirror is required for this deliberately non-independent POC test.
 
 ### Message continuity and collocated Grants

@@ -34,16 +34,16 @@ const expiringBytes=await add("connection-expiring-invitation",invitation.type,e
 const confirmation:HailConnectionConfirmation={type:"hail.connection-confirmation",version:1,confirmation_id:id("f3"),from:peer,to:owner,
   invitation_id:expiringInvitation.invitation_id,invitation_hash:digest(expiringBytes),issued_at:issued+1,expires_at:issued+301,key_id:peer+"#hail-identity"};
 const confirmationBytes=await add("connection-explicit-confirmation",confirmation.type,confirmation);
-const peerBinding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:1,address:"friend@example.com",did:peer,
-  issued_at:issued-100,expires_at:issued+86400,key_id:peer+"#hail-identity"},{keyId:keys[1]!.key_id,
+const peerBinding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:2,address:"friend@example.com",did:peer,
+  issued_at:issued-100,key_id:peer+"#hail-identity"},{keyId:keys[1]!.key_id,
   async sign(bytes){return new Uint8Array(sign(null,bytes,keys[1]!.privateKey));}});
 const grant:HailConnectionGrant={type:"hail.connection-grant",version:1,grant_id:id("f4"),connection_id:id("f5"),revision:1,previous:null,
   grantor:owner,grantee:peer,status:"active",issued_at:issued+2,updated_at:issued+2,expires_at:null,
   consent_context:{grantee_address:"friend@example.com",address_binding_hash:digest(peerBinding),
     invitation_hash:digest(expiringBytes),confirmation_hash:digest(confirmationBytes)},key_id:owner+"#hail-identity"};
 const grantBytes=await add("connection-standing-grant",grant.type,grant);
-const ownerBinding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:1,address:"owner@example.com",did:owner,
-  issued_at:issued-100,expires_at:issued+86400,key_id:owner+"#hail-identity"},{keyId:keys[0]!.key_id,
+const ownerBinding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:2,address:"owner@example.com",did:owner,
+  issued_at:issued-100,key_id:owner+"#hail-identity"},{keyId:keys[0]!.key_id,
   async sign(bytes){return new Uint8Array(sign(null,bytes,keys[0]!.privateKey));}});
 await add("connection-reciprocal-grant",grant.type,{...grant,grant_id:id("f6"),grantor:peer,grantee:owner,key_id:peer+"#hail-identity",
   consent_context:{...grant.consent_context,grantee_address:"owner@example.com",address_binding_hash:digest(ownerBinding)}});

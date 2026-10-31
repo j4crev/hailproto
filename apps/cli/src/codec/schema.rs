@@ -96,17 +96,14 @@ pub fn validate(kind: &str, p: &V) -> Result<(), Error> {
                     "address",
                     "did",
                     "issued_at",
-                    "expires_at",
                     "key_id",
                 ],
                 &[],
             )?;
-            ensure(p.field("version").uint(1)? == 1)?;
+            ensure(p.field("version").uint(1)? == 2)?;
             did(p.field("did"))?;
             address(p.field("address"))?;
-            let issued = p.field("issued_at").uint(0)?;
-            let expiry = p.field("expires_at").uint(0)?;
-            ensure(expiry > issued && expiry - issued <= 7_776_000)?;
+            p.field("issued_at").uint(0)?;
             key(p.field("key_id"), p.field("did").text()?, "hail-identity")
         }
         "hail.grant" => grant(p),

@@ -87,7 +87,7 @@ interface BindingRow {
   cose: Uint8Array;
   representation_digest: Uint8Array;
   issued_at: Date;
-  expires_at: Date;
+  expires_at: Date | null;
   published_at: Date | null;
 }
 
@@ -168,7 +168,6 @@ function bindingFromRow(row: BindingRow): PublishedAddressBinding {
     cose: new Uint8Array(row.cose),
     digest: new Uint8Array(row.representation_digest),
     issuedAt: row.issued_at,
-    expiresAt: row.expires_at,
     publishedAt: row.published_at,
   };
 }
@@ -590,7 +589,6 @@ export class OnboardingRepository
     cose: Uint8Array;
     digest: Uint8Array;
     issuedAt: Date;
-    expiresAt: Date;
   }): Promise<void> {
     await this.sql.begin(async (transaction) => {
       await transaction`
@@ -600,7 +598,7 @@ export class OnboardingRepository
         )
         VALUES (
           ${input.bindingId}, ${input.accountId}, ${input.address}, ${input.did},
-          ${input.cose}, ${input.digest}, ${input.issuedAt}, ${input.expiresAt}, now()
+          ${input.cose}, ${input.digest}, ${input.issuedAt}, ${null}, now()
         )
       `;
       const accounts = await transaction`
@@ -636,7 +634,7 @@ export class OnboardingRepository
         SELECT * FROM address_bindings WHERE canonical_address=${address} AND selected_at IS NOT NULL
         ORDER BY selected_at DESC, id DESC LIMIT 1
       ) AS current_binding
-      WHERE expires_at > now()
+      WHERE NOT EXISTS (SELECT 1 FROM address_binding_withdrawals withdrawal WHERE withdrawal.binding_id=current_binding.id)
         AND EXISTS (SELECT 1 FROM provider_accounts account WHERE account.id=current_binding.account_id AND
           (account.canonical_address=current_binding.canonical_address OR account.onboarding_state='reserved' AND EXISTS (
             SELECT 1 FROM transfer_address_reservations reservation WHERE reservation.reserved_account_id=account.id
@@ -654,7 +652,8 @@ export class OnboardingRepository
       FROM address_bindings
       WHERE id = ${id}
         AND hosted_at IS NOT NULL
-        AND expires_at > now()
+        AND NOT EXISTS (SELECT 1 FROM address_binding_withdrawals withdrawal WHERE withdrawal.binding_id=address_bindings.id)
+        AND NOT EXISTS (SELECT 1 FROM provider_migration_fences fence WHERE fence.account_id=address_bindings.account_id AND fence.state='retired')
       LIMIT 1
     `;
     return rows[0] ? bindingFromRow(rows[0]) : null;
@@ -705,7 +704,6 @@ export class OnboardingRepository
         WHERE id = ${bindingId}
           AND account_id = ${accountId}
           AND hosted_at IS NOT NULL
-          AND expires_at > now()
         RETURNING id
       `;
       if (selected.length !== 1) throw new Error("Address Binding cannot be selected");
@@ -755,7 +753,6 @@ export class OnboardingRepository
         AND binding.id = ${bindingId}
         AND binding.account_id = account.id
         AND binding.selected_at IS NOT NULL
-        AND binding.expires_at > now()
         AND binding.representation_digest = ${bindingDigest}
       RETURNING account.id
     `;
@@ -779,7 +776,6 @@ export class OnboardingRepository
         AND binding.id = ${bindingId}
         AND binding.account_id = account.id
         AND binding.selected_at IS NOT NULL
-        AND binding.expires_at > now()
         AND binding.representation_digest = ${bindingDigest}
       RETURNING account.id
     `;

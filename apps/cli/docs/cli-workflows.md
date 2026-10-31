@@ -298,16 +298,16 @@ managed identity key. Keep the shared v1 vault encryption secret out of routine
 signing keystores: it also decrypts recovery material. A local copy is not an
 independent-device backup; retain and test recoverable material away from the provider.
 
-## Renew an Address Binding
+## Publish an Address Binding
 
 ```bash
 hailp binding show
-hailp binding renew --expires-at "$future_unix_seconds" \
+hailp binding publish \
   --vault /secure/account/vault.json \
-  --output /secure/account/renewed-binding.cose
+  --output /secure/account/published-binding.cose
 ```
 
-Managed accounts omit `--vault`. Renewal is deliberate, never automatic. Keep
+Managed accounts omit `--vault`. Publication is deliberate; bindings do not require periodic renewal. Keep
 the output and `.request.json` sidecar for retries.
 
 ## Transfer an owner-controlled account

@@ -15,12 +15,12 @@ export function canonicalizeHailAddress(input: string): string {
 
   const canonical = `${localPart}@${domain}`;
   validatePayload("hail.address-binding", {
-    version: 1,
+    version: 2,
     type: "hail.address-binding",
     address: canonical,
     did: "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
     issued_at: 1,
-    expires_at: 2,
+
     key_id: "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa#hail-identity",
   });
   return canonical;

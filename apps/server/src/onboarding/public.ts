@@ -181,8 +181,8 @@ export class PublicOnboarding {
         const key = await repository.getKey(accountId, "hail-identity");
         const secret = await this.encryptor.decrypt(accountId, key.role, key.algorithm, key.publicKey, key);
         try { const now = Math.floor(Date.now() / 1000); cached = await signPayload("hail.address-binding",
-          { type: "hail.address-binding", version: 1, address: account.canonicalAddress, did, issued_at: now,
-            expires_at: now + 90 * 86400, key_id: keyId }, createWebCryptoSigner(keyId, await importEd25519PrivateKey(secret))); }
+          { type: "hail.address-binding", version: 2, address: account.canonicalAddress, did, issued_at: now,
+             key_id: keyId }, createWebCryptoSigner(keyId, await importEd25519PrivateKey(secret))); }
         finally { secret.fill(0); }
         await this.sql`UPDATE public_onboarding_preparations SET initial_binding_cose=${cached}
           WHERE account_id=${accountId} AND initial_binding_cose IS NULL`;
@@ -197,7 +197,7 @@ export class PublicOnboarding {
       return ed25519PublicKeyFromDidKey(prepared.owner_identity_public_key);
     }));
     if (binding.payload.did !== did || binding.payload.address !== account.canonicalAddress ||
-      binding.payload.key_id !== keyId || binding.payload.expires_at <= Math.floor(Date.now() / 1000)) {
+      binding.payload.key_id !== keyId) {
       throw new Error("Address Binding does not select the prepared public identity");
     }
     const bindingDigest = new Uint8Array(createHash("sha256").update(bindingCose).digest());
@@ -244,8 +244,7 @@ export class PublicOnboarding {
     }
     if (account.state === "did-registered") {
       await repository.stageAddressBinding({ accountId, bindingId: randomUUID(), address: account.canonicalAddress,
-        did, cose: bindingCose, digest: bindingDigest, issuedAt: new Date(binding.payload.issued_at * 1000),
-        expiresAt: new Date(binding.payload.expires_at * 1000) });
+        did, cose: bindingCose, digest: bindingDigest, issuedAt: new Date(binding.payload.issued_at * 1000), });
       account = await repository.getAccount(accountId);
     }
     if (account.state !== "address-staged" && account.state !== "active") throw new Error("Public identity is not ready for monitor activation");
@@ -318,7 +317,7 @@ export class PublicOnboarding {
           state_version=state_version+1, updated_at=${now} FROM address_bindings AS selected
           WHERE account.id=${accountId} AND account.onboarding_state='activating' AND account.activation_attempt_id=${attemptId}
             AND selected.id=${binding.id} AND selected.account_id=account.id AND selected.selected_at IS NOT NULL
-            AND selected.expires_at>${now} AND selected.representation_digest=${binding.digest} RETURNING account.id`;
+            AND selected.representation_digest=${binding.digest} RETURNING account.id`;
         if (activated.length !== 1) throw new Error("Public account cannot be activated");
       });
     } catch (error) {

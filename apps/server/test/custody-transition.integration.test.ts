@@ -65,8 +65,8 @@ integration.each([false,true])("same-provider custody round trip preserves autho
     const genesis=await signOperation({type:"plc_operation",prev:null,rotationKeys:[owner.did(),prepared.providerRotationKey],
       verificationMethods:{"hail-identity":identity.didKey,"hail-messaging":prepared.providerMessagingKey},alsoKnownAs:[],
       services:{hail:{type:"HailMessaging",endpoint:serviceBase}}},owner),did=await didForCreateOp(genesis),now=Math.floor(Date.now()/1000);
-    const binding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:1,address,did,issued_at:now,
-      expires_at:now+86400,key_id:`${did}#hail-identity`},createWebCryptoSigner(`${did}#hail-identity`,identity.pair.privateKey));
+    const binding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:2,address,did,issued_at:now,
+      key_id:`${did}#hail-identity`},createWebCryptoSigner(`${did}#hail-identity`,identity.pair.privateKey));
     const registered=await onboarding.register(prepared.accountId,new TextEncoder().encode(JSON.stringify(genesis)),binding);
     const attestation=await signOnboardingMonitorAttestation({type:"hail.plc-onboarding-monitor-attestation",version:1,did,
       operation_cid:registered.operationCid,monitor_origin:"https://monitor.example.com",coverage_since:now-100,
