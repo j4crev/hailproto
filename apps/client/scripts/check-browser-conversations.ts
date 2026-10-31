@@ -96,6 +96,11 @@ if(sharedMode){
   await evaluate(`${button('Cancel')}.click()`);
   assert(await evaluate(`!document.querySelector('[aria-label="Shared conversation"]')`));
   assert(await evaluate(`document.querySelector('.participants').closest('.expanded-header')!==null`));
+  for(const width of [320,390]){
+    await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:true});
+    assert(await evaluate(`(()=>{const tools=document.querySelector('.message-tools');return Math.abs(tools.lastElementChild.getBoundingClientRect().right-tools.getBoundingClientRect().right)<1;})()`),'Mobile message actions align to the right at '+width);
+    assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`));
+  }
   assert(await evaluate(`document.querySelector('.participants').getBoundingClientRect().top>=document.querySelector('.message-tools').getBoundingClientRect().bottom`),'Participants occupies its own row below message actions');
   await evaluate(`document.querySelector('.participants summary').click()`);
   assert(await evaluate(`document.querySelector('.participants').textContent.includes('maya@connections.example.com')`));

@@ -220,7 +220,7 @@
     .expanded-header { grid-template-columns:44px minmax(0,1fr) auto; gap:12px 10px; padding:20px 0 0; }
     .expanded-date { font-size:11px; padding-top:4px; }
     .sender-identity { grid-column:2; grid-row:1; }
-    .message-tools { grid-column:2 / -1; grid-row:2; }
+    .message-tools { grid-column:2 / -1; grid-row:2; justify-content:flex-end; }
     .expanded-body { padding:0 0 24px; }
   }
 </style>
