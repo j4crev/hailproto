@@ -7,7 +7,7 @@ import {createWebCryptoSigner,encodeBase64Url,fromDiagnosticJson,inspectSignedPa
 import {ProviderDatabase} from "../src/db/database.js";
 import {AccountConnections} from "../src/accounts/connections.js";
 import {registerConnectionRoutes} from "../src/accounts/connection-routes.js";
-import {AccountApiRepository,type AccountApiSession} from "../src/accounts/repository.js";
+import {AccountApiRepository} from "../src/accounts/repository.js";
 import {PasskeyAuth} from "../src/accounts/passkeys.js";
 import {KeyEncryptor} from "../src/identity/key-encryption.js";
 import {generateAccountKeys} from "../src/identity/keys.js";
@@ -20,7 +20,7 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
   const admin=new SQL(process.env.DATABASE_URL!),schema="connections_"+randomUUID().replaceAll("-","");
   await admin.unsafe(`CREATE SCHEMA "${schema}"`);const url=new URL(process.env.DATABASE_URL!);url.searchParams.set("options",`-csearch_path=${schema}`);
   const db=new ProviderDatabase(url.toString()),origin="https://provider.example.com",encryptor=new KeyEncryptor(encodeBase64Url(randomBytes(32)));
-  const users=[] as {id:string;did:string;address:string;keys:Awaited<ReturnType<typeof generateAccountKeys>>;credential:string;token:string;session:AccountApiSession;
+  const fixtures=[] as {id:string;did:string;address:string;keys:Awaited<ReturnType<typeof generateAccountKeys>>;credential:string;
     assertion:(challenge:string,change?:{origin?:string;flags?:number})=>any}[];
   // Exercise historical rollback at its original schema boundary. Later
   // migrations (including 77, which has no rollback) must not be discarded to
@@ -61,22 +61,27 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
           authenticatorData:auth.toString("base64url"),signature:sign("sha256",Buffer.concat([auth,createHash("sha256").update(client).digest()]),pair.privateKey).toString("base64url"),
           userHandle:Buffer.from(id.replaceAll("-",""),"hex").toString("base64url")}};
       };
-      const login=await passkeys.authenticationOptions(),signedIn=await passkeys.authenticate(login.challengeId,assertion(login.options.challenge));
-      const session=(await accounts.authenticate(undefined,signedIn.token))!;
       const n=Math.floor(Date.now()/1000),binding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:2,address,did,issued_at:n-10,key_id:did+"#hail-identity"},createWebCryptoSigner(did+"#hail-identity",keys.identityPrivateKey));
       await db.sql`INSERT INTO address_bindings(id,account_id,canonical_address,did,cose,representation_digest,issued_at,expires_at,selected_at,published_at,hosted_at)
         VALUES(${randomUUID()},${id},${address},${did},${binding},${new Uint8Array(createHash("sha256").update(binding).digest())},${new Date((n-10)*1000)},${new Date((n+86400)*1000)},now(),now(),now())`;
-      users.push({id,did,address,keys,credential,token:signedIn.token,session,assertion});
+      fixtures.push({id,did,address,keys,credential,assertion});
     }
-    const [a,b,e,o,p]=users as [typeof users[number],typeof users[number],typeof users[number],typeof users[number],typeof users[number]];
+    const historicalE=fixtures[2]!,historicalP=fixtures[4]!;
     // Upgrade preserves obsolete bytes without authorizing them or allowing an
     // old writer/replayed invitation to recreate the relationship in either model.
     const beforeUnified=await db.sql.reserve();try{for(const file of ['0076_message_trash','0075_connection_custody','0074_provider_operator','0073_signup_recovery_package','0072_retired_connection_peers','0071_connection_transfer_orchestration','0070_unified_connections'])await beforeUnified.unsafe(await Bun.file(new URL('../migrations/rollback/'+file+'.sql',import.meta.url)).text());}finally{beforeUnified.release();}
     const obsoleteId=randomUUID();
     await db.sql`INSERT INTO account_connections(id,account_a,account_b,did_a,did_b,generation_a,generation_b,grant_id_a,grant_id_b,consent_format)
-      VALUES(${obsoleteId},${e.id},${p.id},${e.did},${p.did},1,1,${randomUUID()},${randomUUID()},'joint-v1')`;
+      VALUES(${obsoleteId},${historicalE.id},${historicalP.id},${historicalE.did},${historicalP.did},1,1,${randomUUID()},${randomUUID()},'joint-v1')`;
     const obsolete=await db.sql`SELECT * FROM account_connections WHERE id=${obsoleteId}`;
     await db.migrate();
+    // Current login queries require the current schema, after historical rollback checks.
+    const users=await Promise.all(fixtures.map(async user=>{
+      const login=await passkeys.authenticationOptions(),signedIn=await passkeys.authenticate(login.challengeId,user.assertion(login.options.challenge));
+      const session=(await accounts.authenticate(undefined,signedIn.token))!;
+      return {...user,token:signedIn.token,session};
+    }));
+    const [a,b,e,o,p]=users as [typeof users[number],typeof users[number],typeof users[number],typeof users[number],typeof users[number]];
     expect(await db.sql`SELECT * FROM account_connections WHERE id=${obsoleteId}`).toEqual(obsolete);
     await expect(db.sql`UPDATE account_connections SET pending_until=now() WHERE id=${obsoleteId}`).rejects.toThrow('Obsolete local connection');
     await expect(db.sql`INSERT INTO federated_connection_pairs(id,account_id,serving_generation,local_did,peer_did,peer_address,peer_service_base,coordinator_service_base)
