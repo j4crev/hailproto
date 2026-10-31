@@ -96,6 +96,7 @@ if(sharedMode){
   await evaluate(`${button('Cancel')}.click()`);
   assert(await evaluate(`!document.querySelector('[aria-label="Shared conversation"]')`));
   assert(await evaluate(`document.querySelector('.participants').closest('.expanded-header')!==null`));
+  assert(await evaluate(`document.querySelector('.participants').getBoundingClientRect().top>=document.querySelector('.message-tools').getBoundingClientRect().bottom`),'Participants occupies its own row below message actions');
   await evaluate(`document.querySelector('.participants summary').click()`);
   assert(await evaluate(`document.querySelector('.participants').textContent.includes('maya@connections.example.com')`));
   assert(await evaluate(`${button('Reply all')}.querySelector('svg')!==null && ${button('Reply all')}.textContent.trim()===''`));

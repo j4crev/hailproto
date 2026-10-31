@@ -151,12 +151,7 @@
         <div class="sender-identity">
           <div class="sender-address">{#if row.sent}You{:else}<ContactAddress owner={data.account.did} did={row.sender} address={row.senderAddress} />{/if}</div>
           {#if row.sent || row.senderAddress}<IdentityDetails did={row.sender} />{/if}
-          {#if message.sharedConversation}
-            {@const shared=message.sharedConversation}
-            <details class="participants"><summary>Participants</summary>
-              <ul>{#each shared.participants as did}<li>{#if did===data.account.did}You{:else}<ContactAddress owner={data.account.did} {did} address={shared.participantAddresses?.[did]??null}/>{/if}</li>{/each}</ul>
-            </details>
-          {:else if row.sent}<p class="recipients">To {row.recipients.map(r=>r.address??r.did).join(', ')}</p>{/if}
+          {#if row.sent && !message.sharedConversation}<p class="recipients">To {row.recipients.map(r=>r.address??r.did).join(', ')}</p>{/if}
         </div>
         <div class="message-tools">
 
@@ -167,6 +162,12 @@
               <MessageActions compact menu disabled={readPending||sending||membershipSaving} extraActions={conversationActions} messages={[message]} onmarkedunread={()=>markedUnread(row)} returnTo="/?view=connections" />
             {:else}<a class="text-xs text-muted" href={`/sent/${row.messageId}`}>Delivery details</a>{#if message.sharedConversation}<MessageActions compact menu disabled={sending||membershipSaving} messages={[]} extraActions={conversationActions}/>{/if}{/if}
         </div>
+        {#if message.sharedConversation}
+          {@const shared=message.sharedConversation}
+          <details class="participants"><summary>Participants</summary>
+            <ul>{#each shared.participants as did}<li>{#if did===data.account.did}You{:else}<ContactAddress owner={data.account.did} {did} address={shared.participantAddresses?.[did]??null}/>{/if}</li>{/each}</ul>
+          </details>
+        {/if}
       </header>
       <div class="expanded-body">
         {#if message.sharedConversation?.state==='left'}<p class="text-sm text-muted">You left this conversation. Saved messages remain readable.</p>
@@ -207,7 +208,7 @@
   .sender-identity { grid-column:2; grid-row:1 / 3; min-width:0; overflow-wrap:anywhere; }
   .sender-address { font-size:14px; font-weight:550; line-height:1.5; margin-bottom:3px; }
   .sender-address :global(.address) { white-space:normal; overflow-wrap:anywhere; }
-  .participants { margin-top:6px; font-size:12px; color:var(--color-muted); }
+  .participants { grid-column:2 / -1; grid-row:3; min-width:0; overflow-wrap:anywhere; margin-top:6px; font-size:12px; color:var(--color-muted); }
   .participants summary { cursor:pointer; width:fit-content; }
   .participants ul { list-style:none; padding:0; margin:8px 0 0; display:grid; gap:6px; }
   .recipients { margin:6px 0 0; font-size:12px; color:var(--color-muted); }
