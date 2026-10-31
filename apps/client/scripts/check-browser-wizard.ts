@@ -97,7 +97,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     {connectionId:fixtureConnectionId,recipientDid:peerDid,epoch:1,address:peerAddress},{connectionId:otherConnectionId,recipientDid:otherConnectionDid,epoch:1,address:'other@peer.example.com'}]:[]});
   if(path==='/api/v1/account/connection-messages'){
     if(request.method==='GET')return json({publications:connectionMessageIntent?[{publicationId:connectionMessageIntent.publicationId,category:null,createdAt:new Date().toISOString(),pending:connectionMessageReads<2}]:[]});
-    assert(personalConnection);assert.deepEqual(Object.keys(input).sort(),['connections','publicationId','text']);
+    assert(personalConnection);assert.deepEqual(Object.keys(input).sort(),['connections','delivery','publicationId','text']);assert.equal(input.delivery,'private');
     assert.deepEqual([...input.connections].sort(),[fixtureConnectionId,otherConnectionId].sort());
     if(connectionMessageIntent){assert.deepEqual(input,connectionMessageIntent);return json(connectionMessageResult(),202);}
     connectionMessageIntent=input;
@@ -710,7 +710,7 @@ try{
   await screenshot("feed");
   const settings=async()=>{await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/settings"]').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"reading settings ready");};
   const feed=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/';document.body.append(a);a.click();a.remove();})()`);await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Feed'`),"feed navigation");};
-  await settings();await accountNavigation();assert(await evaluate(`!document.querySelector('section[aria-label="Delete account"]')`),'Settings has no account deletion controls');assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll("main a"),a=>a.getAttribute("href"))`),["/settings/domains"],"Settings links to custom-domain management");await narrowLayouts();await screenshot("settings");
+  await settings();await accountNavigation();assert(await evaluate(`!document.querySelector('section[aria-label="Delete account"]')`),'Settings has no account deletion controls');assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll("main a"),a=>a.getAttribute("href"))`),["/settings/domains","/settings/conversations"],"Settings links to domain management and conversation preferences");await narrowLayouts();await screenshot("settings");
   await evaluate(`document.querySelector('#show-headers').click()`);await wait(async()=>evaluate(`localStorage.getItem('hail.gui.showInboxHeaders')==='false' && document.querySelector('#show-headers')?.disabled===false`),"preference saved");
   await feed();await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"hide feed headers through settings");
   await evaluate("document.documentElement.dataset.beforePreferenceReload='true'");
@@ -935,9 +935,12 @@ try{
   await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]').length===2`),'connection recipient picker');
   assert(!await evaluate(`!!document.querySelector('select[name="category"]')||!!document.querySelector('input[name="allowReply"]')`));
   await evaluate(`document.querySelectorAll('input[name="connection"]').forEach(e=>e.click());document.querySelector('input[value="plain"]').click()`);
+  await wait(async()=>evaluate(`!!document.querySelector('select[name=delivery]')`),'multi-recipient delivery choice');
+  await evaluate(`(()=>{const e=document.querySelector('select[name=delivery]');e.value='private';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Personal message to chosen connections';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);await click('Send →');
   await wait(()=>has('Message batch not confirmed'),'ambiguous connection acceptance retains the original intent');
   assert(await evaluate(`document.querySelector('textarea[name=text]').value==='Personal message to chosen connections'&&document.querySelectorAll('input[name="connection"]:checked').length===2`),'Connection retry must retain body and recipients');
+  assert.equal(await evaluate(`document.querySelector('select[name=delivery]').value`),'private','Retry retains private delivery');
   assert(!await has('Message sent.'),'Lost acceptance response must not show success');
   await click('Send →');await wait(()=>has('Message sent.'),'provider accepted connection message before delivery');
   assert(!await has('Message batch publishing'));assert(!await has('Recent messages'));assert(!await has('Refresh status'));
@@ -945,10 +948,10 @@ try{
   connectionIncoming=true;
   await cdp('Page.navigate',{url:origin+'/?view=connections'});await wait(()=>has('A personal connection reply'),'connection message uses existing reader preview');
   assert(!await has('One-time reply browser transport test'));
-  await evaluate(`document.querySelector('a[href*="${connectionIncomingId}"]').click()`);await wait(async()=>evaluate(`document.querySelector('button[aria-label="Reply"]')?.disabled===false && document.querySelector('.action-menu button')?.disabled===false`),'standing connection response action after hydration and mark-read');
+  await evaluate(`document.querySelector('a[href*="${connectionIncomingId}"]').click()`);await wait(async()=>evaluate(`document.querySelector('button[aria-label="Reply privately"]')?.disabled===false && document.querySelector('.action-menu button')?.disabled===false`),'standing connection response action after hydration and mark-read');
   assert(await evaluate(`![...document.querySelectorAll('article button')].some(b=>b.textContent.trim()==='Unsubscribe')`),"Connection messages never offer unsubscribe");
-  assert(!await evaluate(`!!document.querySelector('form[action="?/reply"]')`));
-  await click('Reply');await wait(()=>has('Send reply'),'connection reply opens inline');
+  assert(!await evaluate(`!!document.querySelector('form[action$="?/reply"]')`));
+  await click('Reply privately');await wait(()=>has('Send reply'),'connection reply opens inline');
   assert.equal(await evaluate(`document.activeElement?.getAttribute('name')`),'text');
   assert(!await evaluate(`!!document.querySelector('input[name="allowReply"]')`),'Connection replies do not offer a one-time reply invitation');
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Browser connection reply';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
