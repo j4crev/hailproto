@@ -39,8 +39,10 @@ export async function admitConversation(tx:SQL,owner:Owner,descriptor:VerifiedHa
   const now=await clock(tx);
   if(d.created_at>now.getTime()/1000+300||d.admission_until+300<now.getTime()/1000)return false;
   if(!previous){
+    // Bind JSON as text before PostgreSQL expands it: Bun 1.4.0's array helper
+    // persists extra quotes, and direct jsonb parameters re-encode JSON strings.
     await tx`INSERT INTO conversation_descriptors(creator_did,conversation_id,descriptor_hash,descriptor_cose,participants,created_at,admission_until,signing_key,signing_evidence)
-      VALUES(${d.from},${d.conversation_id},${digest},${descriptor.representationBytes},${tx.array(d.participants)},${new Date(d.created_at*1000)},${new Date(d.admission_until*1000)},${proof.signingKey},${JSON.stringify(proof.evidence)}::jsonb)
+      VALUES(${d.from},${d.conversation_id},${digest},${descriptor.representationBytes},ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(d.participants)}::text::jsonb)),${new Date(d.created_at*1000)},${new Date(d.admission_until*1000)},${proof.signingKey},${JSON.stringify(proof.evidence)}::jsonb)
       ON CONFLICT(creator_did,conversation_id) DO NOTHING`;
     const winner=(await tx<{descriptor_hash:Uint8Array}[]>`SELECT descriptor_hash FROM conversation_descriptors WHERE creator_did=${d.from} AND conversation_id=${d.conversation_id}`)[0]!;
     if(!same(winner.descriptor_hash,digest))throw new ConnectionError(409,"Conversation descriptor conflict.");

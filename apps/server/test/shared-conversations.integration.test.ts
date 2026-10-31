@@ -2,6 +2,7 @@ import {expect,it} from 'vitest';
 import {createHash} from 'node:crypto';
 import {createWebCryptoSigner,createWebCryptoVerifier,signPayload,verifySignedPayload,inspectSignedPayload} from '@hailproto/codec';
 import {ProviderDatabase} from '../src/db/database.js';
+import {withServingGeneration} from '../src/db/serving.js';
 import {sharedConversationFixture} from './support/shared-conversation-fixture.js';
 import {OnboardingRepository} from '../src/onboarding/repository.js';
 import {GrantRepository} from '../src/grants/repository.js';
@@ -47,7 +48,12 @@ it.skipIf(!process.env.DATABASE_URL)('delivers shared replies between non-connec
     }throw Error('Delivery queue did not drain');};
     const id=uuidV7(),targets=(await publications.connectionTargets(a.session)).connections;
     expect((await authority.targets(b.session)).map(t=>t.recipientDid)).toEqual([a.did]);
-    await publications.createConnections(a.session,{publicationId:id,connections:targets.map(t=>t.connectionId),text:'Shared original'});
+    await withServingGeneration(a.id,1,()=>publications.createConnections(a.session,{publicationId:id,connections:targets.map(t=>t.connectionId),text:'Shared original'}));
+    // Compare server-side values too: Bun 1.4.0's SQL.array persisted literal
+    // quote characters around DIDs, causing membership checks to reject them.
+    const roster=(await db.sql<{participants:string[];creator_present:boolean}[]>`SELECT array_to_json(participants) AS participants,
+      ${a.did}=ANY(participants) AS creator_present FROM conversation_descriptors WHERE creator_did=${a.did} AND conversation_id=${id}`)[0]!;
+    expect(roster.participants).toEqual([a.did,b.did,c.did].sort());expect(roster.creator_present).toBe(true);
     expect(await publications.workOne()).toBe(true);expect(await publications.workOne()).toBe(true);await deliver();
     expect((await publications.status(a.session,id,'connections'))!.counts.pending).toBe(1);
     await db.sql`UPDATE connection_message_targets SET next_attempt_at=now() WHERE state='pending'`;
