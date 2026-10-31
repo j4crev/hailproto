@@ -198,8 +198,8 @@
   .newer-edge { min-height:32px; margin-bottom:12px; font-size:12px; color:var(--color-muted); }
   .conversation-item { scroll-margin-top:90px; border-bottom:1px solid var(--color-line); }
   .expanded { background:var(--color-surface); }
-  .expanded-body { max-width:800px; margin:0; padding:12px 12px 32px; }
-  .expanded-header { display:grid; grid-template-columns:40px minmax(0,1fr) auto; align-items:start; gap:8px 16px; padding:24px 12px 8px; }
+  .expanded-body { max-width:800px; margin:0; padding:8px 12px 32px; }
+  .expanded-header { display:grid; grid-template-columns:40px minmax(0,1fr) auto; align-items:start; gap:4px 16px; padding:20px 12px 4px; }
   .conversation-subject { margin:0 0 24px; overflow-wrap:anywhere; }
   .different-subject { margin:20px 12px 0; font-size:18px; font-weight:600; overflow-wrap:anywhere; }
   .expanded-header:focus { outline:none; }
@@ -208,16 +208,17 @@
   .sender-identity { grid-column:2; grid-row:1 / 3; min-width:0; overflow-wrap:anywhere; }
   .sender-address { font-size:14px; font-weight:550; line-height:1.5; margin-bottom:3px; }
   .sender-address :global(.address) { white-space:normal; overflow-wrap:anywhere; }
-  .participants { grid-column:2 / -1; grid-row:3; min-width:0; overflow-wrap:anywhere; margin-top:6px; font-size:12px; color:var(--color-muted); }
+  .participants { grid-column:2 / -1; grid-row:3; min-width:0; overflow-wrap:anywhere; margin:0; font-size:12px; color:var(--color-muted); }
   .participants summary { cursor:pointer; width:fit-content; }
   .participants ul { list-style:none; padding:0; margin:8px 0 0; display:grid; gap:6px; }
   .recipients { margin:6px 0 0; font-size:12px; color:var(--color-muted); }
   .message-tools { grid-column:3; grid-row:2; display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
 
-  .reading-body { min-height:0; margin-inline:0; padding:20px 0; }
+  .reading-body { min-height:0; margin-inline:0; padding:12px 0; }
   .reply-form { display:grid; gap:16px; margin-top:24px; }
   @media(max-width:640px){
-    .expanded-header { grid-template-columns:44px minmax(0,1fr) auto; gap:12px 10px; padding:20px 0 0; }
+    .expanded-header { grid-template-columns:44px minmax(0,1fr) auto; gap:4px 10px; padding:12px 0 0; }
+    .conversation-subject { margin-bottom:16px; }
     .expanded-date { font-size:11px; padding-top:4px; }
     .sender-identity { grid-column:2; grid-row:1; }
     .message-tools { grid-column:2 / -1; grid-row:2; justify-content:flex-end; }

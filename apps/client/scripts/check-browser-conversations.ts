@@ -100,6 +100,7 @@ if(sharedMode){
   for(const width of [320,390]){
     await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:true});
     assert(await evaluate(`(()=>{const tools=document.querySelector('.message-tools');return Math.abs(tools.lastElementChild.getBoundingClientRect().right-tools.getBoundingClientRect().right)<1;})()`),'Mobile message actions align to the right at '+width);
+    assert(await evaluate(`(()=>{const identity=document.querySelector('.sender-identity').getBoundingClientRect(),tools=document.querySelector('.message-tools').getBoundingClientRect(),participants=document.querySelector('.participants').getBoundingClientRect();return tools.top>=identity.bottom && tools.top-identity.bottom<=5 && participants.top>=tools.bottom && participants.top-tools.bottom<=5;})()`),'Mobile identity, actions and participants have compact gaps at '+width);
     assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`));
   }
   assert(await evaluate(`document.querySelector('.participants').getBoundingClientRect().top>=document.querySelector('.message-tools').getBoundingClientRect().bottom`),'Participants occupies its own row below message actions');
