@@ -107,6 +107,31 @@ No live deployment or database update has been performed by this task.
 
 ## Evidence log
 
+### 2026-10-31 — conversation spacing rollout through CI publication
+
+- All local branch commits were already synchronized with origin before release.
+  [Publication run 41253534310](https://github.com/j4crev/hailproto/actions/runs/41253534310)
+  succeeded for `aa344ad7a8a3f0cb88196c2751d9f95bd3b2d1be`, including workspace,
+  image, browser, native CLI and database checks. Database integration: **55
+  suites, zero failures, zero skipped tests**.
+- Deployed image: `ghcr.io/j4crev/hailproto/provider@sha256:880602df4d9af875ee20e906a2795263f34fc6c889721f786123aea212f3083d`.
+  The artifact commit matched the successful run. Installed provider/backup
+  wrapper checksums matched the reviewed source; production checkout was clean.
+- The installed wrapper pulled and verified the image, completed the encrypted
+  backup and download verification (after one upload retry), retained the prior
+  release, and replaced only GUI/provider. Deployment exited 0; post-deploy
+  checks completed at **23:56:09 UTC**. No build ran on production.
+- GUI and provider both report healthy on the expected digest. Homepage and
+  readiness return HTTP 200. PostgreSQL and Caddy retained their three-day
+  uptime; database logs show no new crash/recovery events. Registration remains
+  `public` with signup available; no account/message writes were used as probes.
+- Available memory was **766 MiB immediately before deployment** and **793 MiB
+  after deployment** (point samples, not a measured minimum). The host OOM-kill
+  counter remained **100**, with no increase during verification or rollout.
+  Protected local operator records retain the deployment and health logs.
+- This evidence is recorded in a later documentation-only commit; the deployed
+  application revision remains `aa344ad7a8a3f0cb88196c2751d9f95bd3b2d1be`.
+
 ### 2026-10-31 — production digest cutover completed
 
 - [Publication run 41251716346](https://github.com/j4crev/hailproto/actions/runs/41251716346)
