@@ -49,7 +49,12 @@
     <div><h2>Choose the topics. Not just the sender.</h2><p>Subscribe to the categories a sender offers; so saying yes to one kind of update doesn’t mean saying yes to all of them.</p></div>
     <div><h2>Your yes isn’t forever.</h2><p>Revoke a sender’s permission to stop new messages under it. You don’t have to wait for the sender to remove you.</p></div>
   </section>
-  <p class="welcome-footer">Built on Hail, an open messaging protocol.{#if data.registration?.mode === "invite"} Haili is currently an invitation-only alpha.{/if}</p>
+  <footer class="welcome-footer">
+    <p>Built on Hail, an open messaging protocol.{#if data.registration?.mode === "invite"} Haili is currently an invitation-only alpha.{/if}</p>
+    <a class="welcome-github" href="https://github.com/j4crev/hailproto" aria-label="Hail on GitHub" title="Hail on GitHub">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297C5.37.297 0 5.67 0 12.297c0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.043-1.61-4.043-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.729.083-.729 1.205.084 1.838 1.237 1.838 1.237 1.07 1.835 2.807 1.305 3.492.998.108-.776.418-1.305.762-1.605-2.665-.3-5.467-1.334-5.467-5.93 0-1.31.467-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23a11.5 11.5 0 0 1 3-.405c1.02.005 2.045.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" /></svg>
+    </a>
+  </footer>
 {:else}
   <header class="feed-heading">
     <div><h1 class="hail-title">{data.view === 'connections' ? 'Inbox' : 'Feed'}</h1><p class="feed-description">{data.view === 'connections' ? 'The latest from your connections' : 'The latest from your subscriptions'}</p></div>
@@ -106,7 +111,11 @@
   .welcome-benefits { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:32px; padding-top:32px; border-top:1px solid var(--color-line); }
   .welcome-benefits h2 { font-size:19px; line-height:1.4; letter-spacing:-.025em; font-weight:600; margin:0 0 12px; }
   .welcome-benefits p { margin:0; font-size:14px; line-height:1.8; color:var(--color-muted); }
-  .welcome-footer { margin:32px 0 0; padding-top:20px; border-top:1px solid var(--color-line); color:var(--color-muted); font-size:12px; line-height:1.7; }
+  .welcome-footer { display:flex; align-items:center; justify-content:space-between; gap:20px; margin:32px 0 0; padding-top:20px; border-top:1px solid var(--color-line); color:var(--color-muted); font-size:12px; line-height:1.7; }
+  .welcome-footer p { margin:0; }
+  .welcome-github { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:44px; height:44px; border-radius:8px; color:inherit; }
+  .welcome-github:hover { color:var(--color-brand); }
+  .welcome-github:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
   .feed-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px; margin-bottom:24px; }
   .feed-description { margin:6px 0 0; font-size:14px; color:var(--color-muted); }
   .feed-layout { min-width:0; }
