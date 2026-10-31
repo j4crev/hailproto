@@ -108,7 +108,8 @@ type ExpectedMessageType =
 type ExpectedAuthorization =
   | { type: "grant"; grant_id: string }
   | { type: "reply"; reply_to: string }
-  | {type:"connection";connection_id:string;epoch:number};
+  | {type:"connection";connection_id:string;epoch:number}
+  | {type:"conversation";creator:string;conversation_id:string;membership_revision:1;descriptor_hash:ExpectedDigest};
 type ExpectedBodyDescriptor = {
   digest: ExpectedDigest;
   size: number;
@@ -120,7 +121,9 @@ type ExpectedBodyDescriptor = {
 type ExpectedReply = { allowed: false } | { allowed: true; until: number };
 type ExpectedEnvelope = {
   type: "hail.envelope";
-  version: 1|2|3;
+  version: 1|2|3|4;
+  conversation_message_id?:string;
+  conversation_introduction?:{descriptor:Uint8Array;connection_id:string;epoch:number};
   in_reply_to?:{sender:string;message_id:string};
   message_id: string;
   from: string;
