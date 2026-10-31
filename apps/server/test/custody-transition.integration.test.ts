@@ -4,7 +4,7 @@ import { cidForCbor } from "@atproto/common";
 import { P256Keypair } from "@atproto/crypto";
 import { didForCreateOp, formatDidDoc, PlcClientError, signOperation, validateOperationLog, type Operation } from "@did-plc/lib";
 import { createWebCryptoSigner, encodeBase64Url, encodeDeterministic, signPayload, type HailGrant, type HailValue } from "@hailproto/codec";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { Hono } from "hono";
 import { SameProviderCustodyTransition, type CustodyTransitionApproval } from "../src/accounts/custody-transition.js";
 import { registerAccountApiRoutes } from "../src/accounts/routes.js";
@@ -30,7 +30,7 @@ import { connectionMessageAllowed } from "../src/accounts/connection-authorizati
 import { publicEdKey } from "./public-plc-fixture.js";
 
 const integration=process.env.DATABASE_URL?it:it.skip;
-integration.each([false,true])("same-provider custody round trip preserves authority (connections: %s)",async(withConnections)=>{
+integration.each([[false,false],[true,false],[true,true]])("same-provider custody round trip preserves authority (connections: %s, custom: %s)",async(withConnections,custom)=>{
   const admin=new SQL(process.env.DATABASE_URL!),schema=`custody_${randomUUID().replaceAll("-","")}`;
   await admin.unsafe(`CREATE SCHEMA "${schema}"`);const url=new URL(process.env.DATABASE_URL!);
   url.searchParams.set("options",`-csearch_path=${schema}`);const db=new ProviderDatabase(url.toString());
@@ -59,9 +59,23 @@ integration.each([false,true])("same-provider custody round trip preserves autho
   try{
     await db.migrate();
     const owner=await P256Keypair.create(),identity=await publicEdKey(),monitor=await publicEdKey();
-    const address=`custody-${randomUUID()}@local.example.com`,onboarding=new PublicOnboarding(db.sql,plc,resolver,encryptor,
+    const nativeAddress=`custody-${randomUUID()}@local.example.com`;
+    const address=custom?nativeAddress.replace("@local.example.com","@custom.example.com"):nativeAddress,onboarding=new PublicOnboarding(db.sql,plc,resolver,encryptor,
       "https://plc.directory",serviceBase,verifier);
-    const prepared=await onboarding.prepare(address,owner.did(),identity.didKey,true,"owner-controlled","https://monitor.example.com",monitor.didKey);
+    const prepared=await onboarding.prepare(nativeAddress,owner.did(),identity.didKey,true,"owner-controlled","https://monitor.example.com",monitor.didKey);
+    if(custom){
+      // Seed retained custom admission; real signup is covered by signup-monitor.
+      const domainId=randomUUID(),signupId=randomUUID(),requestDigest=randomBytes(32);
+      await db.sql`UPDATE provider_accounts SET canonical_address=${address} WHERE id=${prepared.accountId}`;
+      await db.sql`INSERT INTO account_custom_domains(id,account_id,domain,provider_host,challenge_hash,challenge_expires_at,verified_at)
+        VALUES(${domainId},${prepared.accountId},'custom.example.com','local.example.com',${randomBytes(32)},now()+interval '1 day',now())`;
+      await db.sql`INSERT INTO account_signup_ceremonies(id,invitation_id,token_hash,enrollment_hash,request_digest,request,account_id,account_generation,preparation)
+        VALUES(${signupId},${randomUUID()},${randomBytes(32)},${randomBytes(32)},${requestDigest},'{}',${prepared.accountId},1,'{}')`;
+      await db.sql`INSERT INTO custom_address_authorizations(id,domain_id,account_id,account_generation,provider_origin,canonical_address,
+        token_hash,expires_at,signup_id,signup_token_hash,request_digest,consumed_at)
+        VALUES(${randomUUID()},${domainId},${prepared.accountId},1,'https://local.example.com',${address},${randomBytes(32)},
+          now()+interval '10 minutes',${signupId},${randomBytes(32)},${requestDigest},now())`;
+    }
     const genesis=await signOperation({type:"plc_operation",prev:null,rotationKeys:[owner.did(),prepared.providerRotationKey],
       verificationMethods:{"hail-identity":identity.didKey,"hail-messaging":prepared.providerMessagingKey},alsoKnownAs:[],
       services:{hail:{type:"HailMessaging",endpoint:serviceBase}}},owner),did=await didForCreateOp(genesis),now=Math.floor(Date.now()/1000);
@@ -148,7 +162,8 @@ integration.each([false,true])("same-provider custody round trip preserves autho
       await expect(db.sql`UPDATE federated_connection_pairs SET serving_generation=2 WHERE id=${activePair}`).rejects.toThrow('cannot be replaced');
     }
 
-    const service=new SameProviderCustodyTransition(db.sql,plc,resolver,encryptor,serviceBase,verifier);
+    const discover=vi.fn(async():Promise<string|null>=>"local.example.com");
+    const service=new SameProviderCustodyTransition(db.sql,plc,resolver,encryptor,serviceBase,verifier,()=>new Date(),discover);
     if(withConnections){
       // In-flight disconnects must settle before preparation can fence their worker.
       await expect(db.sql.begin(async tx=>{
@@ -191,6 +206,19 @@ integration.each([false,true])("same-provider custody round trip preserves autho
     changedInput.set(tag);changedInput.set(changedApproval,tag.length);
     await expect(service.commit(prepared.accountId,transition.transitionId,operationBytes,changedApproval,await owner.sign(changedInput))).rejects.toThrow("does not match");
     await expect(service.commit(randomUUID(),transition.transitionId,operationBytes,approvalBytes,signature)).rejects.toThrow("does not exist");
+    if(custom){
+      discover.mockResolvedValue(null);
+      await expect(service.commit(prepared.accountId,transition.transitionId,operationBytes,approvalBytes,signature)).rejects.toMatchObject({status:409});
+      expect(await plc.getOperationLog(did)).toHaveLength(1);
+      expect((await db.sql`SELECT state FROM custody_transition_preparations WHERE transition_id=${transition.transitionId}`)[0].state).toBe('prepared');
+      discover.mockReset().mockResolvedValue("local.example.com").mockResolvedValueOnce("local.example.com").mockResolvedValueOnce(null);
+      await expect(service.commit(prepared.accountId,transition.transitionId,operationBytes,approvalBytes,signature)).rejects.toMatchObject({status:409});
+      expect(await plc.getOperationLog(did)).toHaveLength(2);
+      expect(await db.sql`SELECT account_id FROM portable_custody_evidence WHERE account_id=${prepared.accountId}`).toHaveLength(1);
+      expect(await db.sql`SELECT id FROM address_bindings WHERE account_id=${prepared.accountId}`).toHaveLength(1);
+      expect(await pairSnapshot()).toEqual(originalPairs);
+      discover.mockReset().mockResolvedValue("local.example.com");
+    }
     if(withConnections){
       // Fail after code retirement/pair rebasing but before generation cutover.
       // The PLC result is retained; all local changes must roll back together.
@@ -269,6 +297,7 @@ integration.each([false,true])("same-provider custody round trip preserves autho
       nonce:randomUUID(),issued_at:reverseIssued,expires_at:reverseIssued+1800};
     const reverseApprovalBytes=encodeDeterministic(reverseApproval as unknown as HailValue),reverseInput=new Uint8Array(tag.length+reverseApprovalBytes.length);
     reverseInput.set(tag);reverseInput.set(reverseApprovalBytes,tag.length);ambiguousUpdate=true;
+    if(!custom)expect(discover).not.toHaveBeenCalled();
     const reverseComplete=await service.commit(prepared.accountId,reverse.transitionId,reverseBytes,reverseApprovalBytes,await owner.sign(reverseInput));
     expect(reverseComplete.generation).toBe(3);
     await assertConnections(3);

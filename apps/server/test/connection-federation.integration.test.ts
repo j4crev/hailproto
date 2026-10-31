@@ -1,3 +1,6 @@
+import {AddressVerifier} from "../src/discovery/verifier.js";
+import {registerDiscoveryRoutes} from "../src/discovery/routes.js";
+import type {PlcDirectoryClient} from "../src/plc/client.js";
 import {createHash,generateKeyPairSync,randomBytes,randomUUID,sign} from "node:crypto";
 import {SQL} from "bun";
 import {Hono} from "hono";
@@ -93,7 +96,7 @@ import {PortableMigrationActivation} from '../src/migration/activation.js';
 import {signPortableMigrationConsent} from '../src/migration/consent.js';
 import {encode as encodeDagCbor} from '@ipld/dag-cbor';
 
-it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner signatures, crossed scans, durable retries and terminal epoch precedence",async()=>{
+it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"])("federates independent providers: %s",async(mode)=>{
   const admin=new SQL(process.env.DATABASE_URL!),users=[] as User[],providers=[] as Provider[];
   type User={id:string;did:string;address:string;managed:boolean;keys:Awaited<ReturnType<typeof generateAccountKeys>>;session:AccountApiSession;token:string;
     assertion:(challenge:string)=>any;provider:Provider;evidence:PlcResolutionEvidence;recoveryPublicKey:string;recoveryKey:P256Keypair};
@@ -143,7 +146,7 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
       registerConnectionRoutes(app,service,accounts,origin);
     }
     const addUser=async(provider:Provider,letter:string,managed:boolean)=>{
-      const id=randomUUID(),address=letter+"@"+new URL(provider.origin).hostname,keys=await generateAccountKeys(id,provider.encryptor),sql=provider.db.sql,recovery=await P256Keypair.create();
+      const id=randomUUID(),address=mode==="custom-domain loss"&&(letter==="a"||letter==="d")?"alice@custom.example.com":letter+"@"+new URL(provider.origin).hostname,keys=await generateAccountKeys(id,provider.encryptor),sql=provider.db.sql,recovery=await P256Keypair.create();
       // Real genesis chains, with disjoint DID ranges retaining a<b<c<d so both
       // provider placements and the canonical-coordinator assertions stay exact.
       const bounds:Record<string,[string,string]>={a:['','g'],b:['g','m'],c:['m','t'],d:['t','{']};
@@ -175,7 +178,7 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
       const session=(await provider.accounts.authenticate(undefined,logged.token))!,n=Math.floor(Date.now()/1000);
       const binding=await signPayload("hail.address-binding",{type:"hail.address-binding",version:2,did,address,issued_at:n-10,key_id:did+"#hail-identity"},createWebCryptoSigner(did+"#hail-identity",keys.identityPrivateKey));
       await sql`INSERT INTO address_bindings(id,account_id,canonical_address,did,cose,representation_digest,issued_at,expires_at,selected_at,published_at,hosted_at)
-        VALUES(${randomUUID()},${id},${address},${did},${binding},${new Uint8Array(createHash("sha256").update(binding).digest())},${new Date((n-10)*1000)},${new Date((n+86400)*1000)},now(),now(),now())`;
+        VALUES(${randomUUID()},${id},${address},${did},${binding},${new Uint8Array(createHash("sha256").update(binding).digest())},${new Date((n-10)*1000)},${null},now(),now(),now())`;
       const user={id,did,address,managed,keys,session,token:logged.token,assertion,provider,evidence,recoveryPublicKey:recovery.did(),recoveryKey:recovery};users.push(user);return user;
     };
     const [first,second,third]=providers as [Provider,Provider,Provider];
@@ -303,6 +306,72 @@ it.skipIf(!process.env.DATABASE_URL)("federates independent providers with owner
     const received=async()=>{for(let i=0;i<500&&(one.schedule.inFlight||two.schedule.inFlight);i++)await Bun.sleep(10);expect(one.schedule.inFlight+two.schedule.inFlight).toBe(0);};
     const api=(user:User,path:string,input?:unknown,headers:Record<string,string>={})=>user.provider.app.request(user.provider.origin+'/api/v1/account/'+path,{method:input===undefined?'GET':'POST',
       headers:{Cookie:'hail_session='+user.token,Origin:user.provider.origin,'Content-Type':'application/json',...headers},...(input===undefined?{}:{body:JSON.stringify(input)})});
+    if(mode==="custom-domain loss"){
+      // Use actual WebFinger/COSE routes and signed-binding verification. Only
+      // the recursive DNS answer and HTTPS transport are controlled by the test.
+      for(const p of providers)registerDiscoveryRoutes(p.app,p.origin,new OnboardingRepository(p.db.sql));
+      const discover=vi.fn(async():Promise<string|null>=>new URL(first.origin).hostname);
+      const discoveryNetwork=vi.fn(async(request:Request)=>{
+        const target=providers.find(p=>p.origin===new URL(request.url).origin);
+        return target?target.app.request(request):new Response(null,{status:404});
+      });
+      const verifier=new AddressVerifier({} as PlcDirectoryClient,discoveryNetwork,()=>{},()=>new Date(),resolver,discover);
+      const original=await verifier.verify(a.address);
+      expect(original.did).toBe(a.did);expect(original.binding.version).toBe(2);
+      const bindingBefore=(await one.accounts.getBindingForAccount(a.id)).cose;
+      const authority=async()=>({
+        keys:await first.db.sql`SELECT role,public_key FROM account_keys WHERE account_id=${a.id} ORDER BY role`,
+        pairs:await first.db.sql`SELECT id,connection_id,epoch,state FROM federated_connection_pairs WHERE account_id=${a.id} ORDER BY id`,
+        grants:await first.db.sql`SELECT grant_id,current_revision,current_status FROM grant_lineages WHERE local_account_id=${a.id} ORDER BY grant_id`,
+      });
+      const before=await authority();
+      const exchange=async(label:string)=>{
+        const outgoing=uuidV7(),reply=uuidV7();
+        const pair=(await one.publications.connectionTargets(a.session)).connections.find(t=>t.recipientDid===b.did)!;
+        const reverse=(await two.publications.connectionTargets(b.session)).connections.find(t=>t.recipientDid===a.did)!;
+        expect((await api(a,'messages',{messageId:outgoing,text:label,connectionId:pair.connectionId,
+          connectionEpoch:pair.epoch,recipientDid:b.did})).status).toBe(200);
+        await received();expect(await withFreshServingGenerations(second.db.sql,()=>two.worker.processOne())).toBe('delivered');
+        expect(await two.messaging.read(b.session,a.did,outgoing)).toMatchObject({kind:'connection',senderAddress:a.address});
+        expect((await api(b,'messages',{messageId:reply,text:'Reply: '+label,connectionId:reverse.connectionId,
+          connectionEpoch:reverse.epoch,recipientDid:a.did,inReplyTo:{sender:a.did,messageId:outgoing}})).status).toBe(200);
+        await received();expect(await withFreshServingGenerations(first.db.sql,()=>one.worker.processOne())).toBe('delivered');
+        expect(await one.messaging.read(a.session,b.did,reply)).toMatchObject({kind:'connection',senderAddress:b.address});
+        expect(await one.messaging.read(c.session,b.did,reply)).toBeNull();
+        expect(await two.messaging.read(d.session,b.did,reply)).toBeNull();
+        return {outgoing,reply,pair};
+      };
+      const initial=await exchange('Before domain loss');
+      for(const failure of ['absent','redirected','failure'] as const){
+        if(failure==='failure')discover.mockRejectedValue(new Error('SERVFAIL'));
+        else discover.mockResolvedValue(failure==='absent'?null:'unrelated.example.com');
+        discoveryNetwork.mockClear();
+        await expect(verifier.verify(a.address)).rejects.toThrow();
+        expect(discoveryNetwork.mock.calls.every(([request])=>new URL(request.url).origin!==first.origin)).toBe(true);
+        // Existing conversations and provider-origin passkeys use DID authority.
+        const login=await first.passkeys.authenticationOptions();
+        const signedIn=await first.passkeys.authenticate(login.challengeId,a.assertion(login.options.challenge));
+        expect((await first.accounts.authenticate(undefined,signedIn.token))?.account_id).toBe(a.id);
+        discover.mockClear();await exchange('Domain '+failure);expect(discover).not.toHaveBeenCalled();
+        expect(await authority()).toEqual(before);
+      }
+      // Another provider can publish a new DID for the same address. This must
+      // never rewrite the existing connection or expose either account's inbox.
+      discover.mockReset().mockResolvedValue(new URL(second.origin).hostname);
+      expect((await verifier.verify(a.address)).did).toBe(d.did);expect(d.did).not.toBe(a.did);
+      expect(await active(d)).toHaveLength(0);
+      expect((await api(d,'messages',{messageId:uuidV7(),text:'Attempt inherited permission',
+        connectionId:initial.pair.connectionId,connectionEpoch:initial.pair.epoch,recipientDid:b.did})).status).toBe(409);
+      discover.mockClear();await exchange('Address now resolves to a different DID');expect(discover).not.toHaveBeenCalled();
+      expect(await two.messaging.read(b.session,a.did,initial.outgoing)).toMatchObject({kind:'connection'});
+      expect(await authority()).toEqual(before);
+      discover.mockReset().mockResolvedValue(new URL(first.origin).hostname);
+      const restored=await verifier.verify(a.address);expect(restored.did).toBe(a.did);
+      expect(restored.representation).toEqual(original.representation);
+      expect((await one.accounts.getBindingForAccount(a.id)).cose).toEqual(bindingBefore);
+      await exchange('Delegation restored without renewal');
+      return;
+    }
     const local=await prepare(c,ac.link);await commit(c,local);await drain(6);
     const targets=(await one.publications.connectionTargets(a.session)).connections,localTarget=targets.find(t=>t.recipientDid===c.did)!,remoteTarget=targets.find(t=>t.recipientDid===b.did)!;
     expect(localTarget.epoch).toBe(1);expect(remoteTarget.connectionId).toBe(newId);

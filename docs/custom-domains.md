@@ -4,7 +4,8 @@ Status: Slice 2 is complete and deployed, including standalone custom-domain
 signup. The user confirmed custom-address sending and replies and independently
 onboarded a custom-domain user without a provider-native account. Slice 3 remains
 partial. The nonexpiring Address Binding v2 and migration-retirement withdrawal
-changes are local work, not yet deployed. Full domain withdrawal/reassignment,
+changes, including the same-provider custody authority checks, are local work,
+not yet deployed. Full domain withdrawal/reassignment,
 custom-domain transfer, and the domain-loss pilot remain deferred.
 
 ## Agreed product model
@@ -224,9 +225,34 @@ DNS/provider pilot subsequently succeeded; see the completed Slice 2 checklist.
   stale discovery must not appear currently verified.
 - [ ] Exercise existing cross-provider conversations during the live domain-loss pilot.
 - [x] Reject unsupported custom-domain provider transfers before fencing the account.
-- [ ] Audit remaining custody changes. Domain-transfer implementation remains deferred.
-- [ ] Complete cross-provider discovery, messaging, account-separation, explicit
-  publication, domain-loss, and unchanged native-onboarding lifecycle validation.
+- [x] Audit remaining custody changes and enforce custom-domain authority during
+  same-provider custody transitions. Domain-transfer implementation remains deferred.
+- [x] Complete local cross-provider discovery, messaging, account-separation,
+  explicit publication, domain-loss, and unchanged native-onboarding lifecycle
+  validation. Live deployment/pilot validation remains separate above.
+
+### Same-provider custody audit
+
+Both custody directions replace the identity key and publish a new binding.
+They now share explicit publication's retained-admission and current-delegation
+checks: before review/preparation, inside preparation before fencing, before
+journaling PLC submission, and inside the local publication transaction. Native
+addresses retain the exact-provider-domain DNS bypass. Missing local authority
+or absent/redirected delegation returns 409; DNS errors return retryable 503.
+The domain administrator still has no authority to sign the account's transition.
+
+A failed pre-submission check leaves the approved operation unsubmitted. If DNS
+changes after PLC accepts the new key, local custody, grant, connection, and
+binding changes roll back together; the transition retains its exact approved
+artifacts for retry after delegation is restored. The accepted PLC operation
+cannot be rolled back by the provider. Post-publication discovery verification
+remains required. These are operation-time checks, not continuous DNS guarantees.
+
+The audit covered both same-provider custody directions, explicit binding
+publication, and the portable/managed migration entry fences. Existing passkey
+and recovery authentication remains independent of DNS. Custom-domain provider
+transfers remain rejected before migration fencing; this adds no transfer or
+account-deletion flow.
 
 ### Explicit binding publication and domain-loss behavior
 
@@ -288,10 +314,49 @@ Earlier lifecycle tests covered scoped publication, delegated discovery, DNS
 absence/redirection/failure, staged retries, post-publication verification failure,
 expired admission authority, removed local domain authority, and continued passkey
 login. Those historical runs also tested the former expiring-binding behavior;
-they are not evidence for the revised v2 lifecycle. The local v2 and withdrawal
-changes need their current validation and deployment recorded separately before
-claiming a live rollout. Existing invitation, setup, and DNS challenge lifetimes
+they are not evidence for the revised v2 lifecycle. Current local validation of v2 and withdrawal is recorded below; deployment and
+the live domain-loss pilot remain outstanding. Existing invitation, setup, and DNS challenge lifetimes
 remain unchanged.
+
+### Current local lifecycle validation
+
+The custody audit and authority fix passed 65 focused server tests and all 393
+TypeScript codec tests. Server typechecking and client Svelte checking passed
+with zero client errors or warnings. Nine distinct database suites passed against
+disposable PostgreSQL 18.6 with no skips: binding upgrade, custody transition,
+managed network orchestration, migration fencing, public onboarding, self-service,
+monitored signup, standalone domains, and connection federation.
+
+The added custody regression covers native and custom round trips, retained
+connections and grants, no PLC submission after delegation loss, local rollback
+when delegation disappears after PLC acceptance, and exact-artifact retry after
+restoration. Completed custom signup additionally exercises absent/redirected DNS,
+DNS failure, and removed registration authority before either custody preparation
+can fence the account. Existing v2 tests cover nonexpiring discovery, publication
+retries, private withdrawal evidence, independent accounts, and native onboarding.
+The federation suite now also runs a custom-domain-loss scenario through real
+WebFinger/COSE routes, signed-binding verification, passkey assertions, and the
+connection envelope/body/delivery stack. Controlled DNS answers exercise absence,
+redirection, SERVFAIL, a new DID serving the same address at another provider, and
+restoration. Existing conversations send and reply throughout; fresh discovery
+fails or resolves the new DID, while the new owner cannot use the old connection
+or read the old inbox. The original account keeps its keys, permissions, login,
+and binding bytes; restoration requires no renewal. This uses seeded accounts
+and controlled network transport; real custom signup is covered separately by
+the monitored and standalone signup suites.
+
+This local scenario does not substitute for the live custom-domain-loss pilot.
+No provider deployment or live DNS change was performed. Full withdrawal and
+same-provider reassignment require a separate account/address ownership lifecycle:
+`provider_accounts.canonical_address` is currently unique, and address lookup is
+used throughout signup, recovery, and discovery. Removing that constraint or
+replacing the old account would violate the retained-account isolation guarantee.
+That implementation must retain stable DID/passkey access, stop every old
+publication path, invalidate pending admission, withdraw both public surfaces,
+wait at least 3600 seconds, and require fresh ownership proof before allocating a
+new account. Account-deletion integration still depends on an account-closure
+flow. These feature items remain unchecked; the new test covers cross-provider
+address reuse, not provider-local reassignment.
 
 ## Later work
 

@@ -1,3 +1,5 @@
+import { requireCustomDomainAuthority } from "./custom-domain-authority.js";
+import { discoverProvider, type ProviderDiscovery } from "../discovery/delegation.js";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { cidForCbor } from "@atproto/common";
@@ -93,9 +95,16 @@ function parsedState(value:DocumentData|string):DocumentData {
 export class SameProviderCustodyTransition {
   constructor(private readonly sql:SQL,private readonly plc:PlcDirectoryClient,private readonly resolver:HailDidResolver,
     private readonly encryptor:KeyEncryptor,private readonly serviceBase:string,private readonly verifier:AddressVerificationService,
-    private readonly now:()=>Date=()=>new Date()) {}
+    private readonly now:()=>Date=()=>new Date(),private readonly discover:ProviderDiscovery=discoverProvider) {}
+
+  private async domainAuthority(tx:SQL,accountId:string) {
+    const account=(await tx<{canonical_address:string}[]>`SELECT canonical_address FROM provider_accounts WHERE id=${accountId}`)[0];
+    if(!account)throw new Error("Account does not exist");
+    await requireCustomDomainAuthority(tx,accountId,account.canonical_address,new URL(this.serviceBase).origin,this.discover);
+  }
 
   async reviewOwner(accountId:string,newIdentityKey:string):Promise<OwnerCustodyReview> {
+    await this.sql.begin(tx=>this.domainAuthority(tx,accountId));
     await ed25519PublicKeyFromDidKey(newIdentityKey);
     const account=(await this.sql<{did:string;canonical_address:string;onboarding_state:string;activation_verification_mode:string}[]>`
       SELECT did,canonical_address,onboarding_state,activation_verification_mode FROM provider_accounts WHERE id=${accountId}`)[0];
@@ -133,6 +142,7 @@ export class SameProviderCustodyTransition {
 
   async prepareOwner(accountId:string,newIdentityKey:string,bindingCose:Uint8Array,
     signedGrants:{grantId:string;cose:Uint8Array}[]):Promise<CustodyTransitionPreparation> {
+    await this.sql.begin(tx=>this.domainAuthority(tx,accountId));
     const prior=(await this.sql<TransitionRow[]>`SELECT * FROM custody_transition_preparations WHERE account_id=${accountId} AND state<>'complete'`)[0];
     if(prior)return this.preparation(prior);
     const review=await this.reviewOwner(accountId,newIdentityKey);
@@ -159,6 +169,7 @@ export class SameProviderCustodyTransition {
       await tx`SELECT set_config('hail.connection_custody',${transitionId},true)`;
       await tx`SELECT id FROM provider_accounts WHERE id=${accountId} FOR UPDATE`;
       const raced=(await tx<TransitionRow[]>`SELECT * FROM custody_transition_preparations WHERE account_id=${accountId} AND state<>'complete'`)[0];
+      await this.domainAuthority(tx,accountId);
       if(raced)return this.preparation(raced);
       const managed=(await tx<{provider_identity_public_key:string}[]>`SELECT provider_identity_public_key FROM managed_custody_evidence WHERE account_id=${accountId}`)[0];
       if(!managed||managed.provider_identity_public_key!==review.oldIdentityKey)throw new Error("Managed custody changed");
@@ -185,6 +196,7 @@ export class SameProviderCustodyTransition {
   }
 
   async prepare(accountId:string):Promise<CustodyTransitionPreparation> {
+    await this.sql.begin(tx=>this.domainAuthority(tx,accountId));
     const prior=(await this.sql<TransitionRow[]>`SELECT * FROM custody_transition_preparations
       WHERE account_id=${accountId} AND state<>'complete'`)[0];
     if(prior)return this.preparation(prior);
@@ -212,6 +224,7 @@ export class SameProviderCustodyTransition {
       await tx`SELECT set_config('hail.connection_custody',${transitionId},true)`;
       const locked=(await tx<{did:string}[]>`SELECT did FROM provider_accounts WHERE id=${accountId} FOR UPDATE`)[0];
       const raced=(await tx<TransitionRow[]>`SELECT * FROM custody_transition_preparations WHERE account_id=${accountId} AND state<>'complete'`)[0];
+      await this.domainAuthority(tx,accountId);
       if(raced)return this.preparation(raced);
       if(!locked||locked.did!==account.did||(await tx`SELECT account_id FROM managed_custody_evidence WHERE account_id=${accountId}`).length)throw new Error("Account custody changed");
       const portable=(await tx<{user_recovery_public_key:string;user_identity_public_key:string}[]>`
@@ -289,6 +302,7 @@ export class SameProviderCustodyTransition {
       await tx`SELECT set_config('hail.connection_custody',${row.transition_id},true)`;
       const current=(await tx<TransitionRow[]>`SELECT * FROM custody_transition_preparations WHERE transition_id=${transitionId} FOR UPDATE`)[0];
       if(!current)throw new Error("Custody transition does not exist");
+      if(current.state!=="complete")await this.domainAuthority(tx,accountId);
       if(current.signed_operation_bytes) {
         if(!equal(current.signed_operation_bytes,operationBytes)||current.operation_cid!==cid||!equal(current.approval_payload!,approvalBytes)||
           !equal(current.approval_signature!,approvalSignature))throw new Error("Custody transition retry changed exact owner-approved bytes");
@@ -392,6 +406,7 @@ export class SameProviderCustodyTransition {
         await tx`INSERT INTO grant_publications (grant_id,revision,destination_service_base)
           VALUES (${successor.grant_id},${successor.successor_revision},${successor.destination_service_base})`;
       }
+      await this.domainAuthority(tx,row.account_id);
       await tx`UPDATE address_bindings SET selected_at=NULL WHERE account_id=${row.account_id} AND selected_at IS NOT NULL`;
       await tx`INSERT INTO address_bindings (id,account_id,canonical_address,did,cose,representation_digest,issued_at,expires_at,hosted_at,selected_at,published_at)
         VALUES (${randomUUID()},${row.account_id},${account.canonical_address},${row.did},${row.binding_cose},${row.binding_digest},

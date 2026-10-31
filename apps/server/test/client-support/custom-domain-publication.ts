@@ -1,3 +1,4 @@
+import { SameProviderCustodyTransition } from "../../src/accounts/custody-transition.js";
 import { createHash, randomUUID } from "node:crypto";
 import { expect, vi } from "vitest";
 import { Hono } from "hono";
@@ -26,6 +27,13 @@ export async function exerciseCustomDomainPublication(db:ProviderDatabase,encryp
     expect(url.origin).toBe(origin);
   },()=>new Date(),resolver,discover);
   const binding=new AccountBinding(db.sql,resolver,encryptor,origin,verifier,discover);
+  const custody=new SameProviderCustodyTransition(db.sql,plc,resolver,encryptor,`${origin}/hail`,verifier,()=>new Date(),discover);
+  const assertCustodyBlocked=async(status:number)=>{
+    await expect(custody.prepare(session.account_id)).rejects.toMatchObject({status});
+    await expect(custody.reviewOwner(session.account_id,"unused")).rejects.toMatchObject({status});
+    await expect(custody.prepareOwner(session.account_id,"unused",new Uint8Array(),[])).rejects.toMatchObject({status});
+    expect(await db.sql`SELECT transition_id FROM custody_transition_preparations WHERE account_id=${session.account_id}`).toHaveLength(0);
+  };
   const originalBytes=(await repository.findPublishedByAddress(address))!.cose;
   const initial=await binding.show(session),old=inspectSignedPayload("hail.address-binding",originalBytes).payload;
   const intent={previous:initial.digest,signingKey:(await resolver.resolve(session.did)).identityDidKey,
@@ -41,10 +49,12 @@ export async function exerciseCustomDomainPublication(db:ProviderDatabase,encryp
   for(const result of [null,"different-provider.example.com"]){
     discover.mockResolvedValue(result);
     await expect(binding.publish(session,intent)).rejects.toMatchObject({status:409});
+    await assertCustodyBlocked(409);
     expect(await count()).toBe(startCount);
   }
   discover.mockRejectedValue(new Error("SERVFAIL"));
   await expect(binding.publish(session,intent)).rejects.toMatchObject({status:503});
+  await assertCustodyBlocked(503);
   expect(await count()).toBe(startCount);
   // Login and existing DID authority do not depend on custom domain DNS.
   expect((await accounts.authenticate(undefined,(await signIn()).token))?.account_id).toBe(session.account_id);
@@ -78,6 +88,7 @@ export async function exerciseCustomDomainPublication(db:ProviderDatabase,encryp
   await db.sql`UPDATE account_custom_domains SET verified_at=NULL WHERE id=${domain.id}`;
   discover.mockClear();
   await expect(binding.publish(session,intent)).rejects.toMatchObject({status:409});expect(discover).not.toHaveBeenCalled();
+  await assertCustodyBlocked(409);expect(discover).not.toHaveBeenCalled();
   await db.sql`UPDATE account_custom_domains SET verified_at=${domain.verified_at} WHERE id=${domain.id}`;
 
   // A binding older than the former 90-day lifetime still resolves. Only its

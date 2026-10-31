@@ -1,3 +1,4 @@
+import { CustomDomainAuthorityError } from "./custom-domain-authority.js";
 import { decodeBase64Url, encodeBase64Url, encodeDeterministic, fromDiagnosticJson, HailCodecError, inspectSignedPayload, toDiagnosticJson, type DiagnosticJson } from "@hailproto/codec";
 import type { Context, Hono } from "hono";
 import { isCoseSign1MediaType } from "../http/media-type.js";
@@ -472,7 +473,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
       });
     } catch (error) {
       if (error instanceof UserGrantError) return problem(error.status);
-      if (error instanceof BindingError) return problem(error.status);
+      if (error instanceof BindingError || error instanceof CustomDomainAuthorityError) return problem(error.status);
       if (error instanceof AccountTransferError) return problem(error.status);
       if(error instanceof SenderProfileConflictError)return problem(409);
       if (error instanceof HailCodecError || error instanceof SyntaxError) return problem(400);
