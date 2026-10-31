@@ -68,7 +68,7 @@
 </script>
 
 <svelte:head><title>Message · Haili</title></svelte:head>
-<div class="message-detail mx-auto max-w-[800px]">
+<div class="message-detail mx-auto max-w-[800px]" class:feed-reader={data.message.kind!=='connection'}>
 <a class="hail-back" href={data.message.trashedAt?'/trash':data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.trashedAt?'Trash':data.message.kind==='connection'?'Inbox':'Feed'}</a>
 {#if content.title}<h1 class="reader-title">{content.title}</h1>{:else}<h1 class="sr-only">Received message</h1>{/if}
 {#if restoreError}<p class="hail-error" role="alert">{restoreError}</p>{/if}
@@ -132,3 +132,8 @@
 {#if form?.error}<p class="hail-error" role="alert">{form.error} {#if form.messageId}<a href={`/sent/${form.messageId}`}>Check sent status</a>{/if}</p>{/if}
 <MessageThread peer={{did:data.message.sender,address:data.message.senderAddress}} thread={data.thread} unavailable={data.threadUnavailable} selected={data.message}/>
 </div>
+
+<style>
+  .feed-reader { max-width:none; margin-inline:0; }
+  .feed-reader .reading-body { max-width:min(800px,72ch); }
+</style>

@@ -54,6 +54,7 @@ export const actions={publish:async({request,cookies,url})=>{
       Buffer.byteLength(alt)>1024||Buffer.byteLength(caption)>1024)
       return fail(400,{error:"Check the category, mode, title, and message text."});
     const hasHeader=header instanceof File&&header.size>0;
+    if(kind==="connections"&&hasHeader)return fail(400,{error:"Header images are available for subscriber publications only."});
     if(mode==="plain"&&(title||hasHeader))return fail(400,{error:"Titles and headers require rich mode."});
     let body:Record<string,unknown>|undefined;
     if(mode==="rich"&&!forwarding){

@@ -55,6 +55,7 @@ jobs:
         run: |
           bun run --cwd apps/client test:browser
           bun run --cwd apps/client test:wizard
+          bun run --cwd apps/client test:conversations
       - name: Verify native CLI
         working-directory: apps/cli
         run: |

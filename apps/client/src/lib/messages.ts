@@ -57,6 +57,7 @@ export function parseSent(value: unknown): SentItem[] {
 }
 
 export interface MessageView extends InboxItem {
+  conversation?:{unreadCount:number;lastActivity:string;messages:{sender:string;messageId:string;isRead:boolean}[]};
   inReplyTo?:{sender:string;messageId:string}|null;
   trashedAt: string | null;
   kind?:"connection";
@@ -200,6 +201,16 @@ export function parseMessage(value: unknown): MessageView {
     inReplyTo={sender:parent.sender,messageId:parent.messageId};
   }
   const content=parseBody(body);
+  let conversation:MessageView["conversation"];
+  if(message.conversation!==undefined){
+    const c=object(message.conversation,"conversation summary");
+    if(!Number.isSafeInteger(c.unreadCount)||Number(c.unreadCount)<0||typeof c.lastActivity!=="string"||!Number.isFinite(Date.parse(c.lastActivity))||!Array.isArray(c.messages))throw Error("Invalid conversation summary");
+    conversation={unreadCount:Number(c.unreadCount),lastActivity:c.lastActivity,messages:c.messages.map(value=>{
+      const m=object(value,"conversation member");
+      if(typeof m.sender!=="string"||!/^did:plc:[a-z2-7]{24}$/.test(m.sender)||typeof m.messageId!=="string"||!/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(m.messageId)||typeof m.isRead!=="boolean")throw Error("Invalid conversation member");
+      return {sender:m.sender,messageId:m.messageId,isRead:m.isRead};
+    })};
+  }
   if(message.kind!==undefined&&message.kind!=="subscription"&&message.kind!=="connection")throw new Error("Unsupported message kind");
   if(message.kind==="connection"&&(message.category!==null||replyUntil!==null||message.replyAvailable===true))throw new Error("Connection messages cannot carry subscription or independent reply authority");
   let connection:MessageView["connection"];
@@ -210,6 +221,7 @@ export function parseMessage(value: unknown): MessageView {
     connection={id:item.id,epoch:Number(item.epoch),active:item.active};
   }
   return {
+    ...(conversation?{conversation}:{}),
     ...(inReplyTo?{inReplyTo}:{}),
     ...(message.kind==="connection"?{kind:"connection" as const}:{}),...(connection?{connection}:{}),
     trashedAt: message.trashedAt == null ? null : text(message.trashedAt, "trash time"),

@@ -32,7 +32,7 @@
   let address = $derived(page.data.account?.address ?? "Your account");
   const avatar = $derived(page.data.accountAvatar?.did === page.data.account?.did ? page.data.accountAvatar?.src : null);
   const active = (href: string) => href === "/" || href === "/?view=connections"
-    ? (page.url.pathname === "/" || page.url.pathname.startsWith("/message/")) &&
+    ? page.url.pathname.startsWith("/conversation/") ? href === "/?view=connections" : (page.url.pathname === "/" || page.url.pathname.startsWith("/message/")) &&
       (page.url.searchParams.get("view") === "connections") === (href === "/?view=connections")
     : page.url.pathname === href || page.url.pathname.startsWith(href + "/");
   function closeDrawer() { drawer?.close(); drawerOpen = false; }

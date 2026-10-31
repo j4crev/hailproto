@@ -27,6 +27,13 @@
   const batchUrl=(id:string)=>`/compose?${data.kind==='connections'?'audience=connections&':''}publication=${id}`;
   let forwarded=$derived(data.forward?parseBody(forwardBody(data.forward,text)):null);
   let blocks=$derived(parseBody({version:1,profile:"spt-2",blocks:composeBlocks(title,text)}).blocks);
+  $effect(()=>{
+    if(data.kind==='connections'){
+      const previous=untrack(()=>preview);
+      if(previous)URL.revokeObjectURL(previous);
+      preview=null;alt='';caption='';
+    }
+  });
   function image(event:Event){if(preview)URL.revokeObjectURL(preview);const file=(event.currentTarget as HTMLInputElement).files?.[0];preview=file?URL.createObjectURL(file):null;}
   async function insert(before:string,after=before,placeholder="text"){
     if(!editor)return;
@@ -68,11 +75,11 @@
       <textarea class="w-full resize-y leading-relaxed min-h-[280px]" id="message-text" aria-describedby="format-help" name="text" rows="9" maxlength="65536" bind:this={editor} bind:value={text} required={!data.forward}></textarea>
     </div>
     {#if mode==='rich'}<details class="text-xs text-muted"><summary class="cursor-pointer py-2 font-semibold">Formatting shortcuts</summary><p class="m-0 mt-2 leading-relaxed">Start lines with <code>## </code> or <code>### </code> for headings, <code>- </code> for bullets, <code>1. </code> for numbered items, and <code>&gt; </code> for quotes. List numbering is automatic. Separate ordinary paragraphs with blank lines. This is a small set of shortcuts, not a full Markdown editor; HTML is displayed as text.</p></details>{/if}
-    {#if !data.forward}<details class="rounded-xl border border-solid border-line p-4"><summary class="cursor-pointer text-sm font-semibold">Add a header image <span class="font-normal text-muted">· optional, rich only</span></summary><div class="mt-4 grid gap-4"><label class="hail-field">Header PNG<input name="header" type="file" accept="image/png" onchange={image} disabled={mode==='plain'} /></label><label class="hail-field">Header alt text<input name="alt" maxlength="1024" bind:value={alt} disabled={mode==='plain'} /></label><label class="hail-field">Header caption<input name="caption" maxlength="1024" bind:value={caption} disabled={mode==='plain'} /></label><p class="m-0 text-xs text-muted">Bundled PNG only, up to 192 KiB. Alt text is required when you add an image.</p></div></details>{/if}
+    {#if !data.forward && data.kind==='category'}<details class="rounded-xl border border-solid border-line p-4"><summary class="cursor-pointer text-sm font-semibold">Add a header image <span class="font-normal text-muted">· optional, rich only</span></summary><div class="mt-4 grid gap-4"><label class="hail-field">Header PNG<input name="header" type="file" accept="image/png" onchange={image} disabled={mode==='plain'} /></label><label class="hail-field">Header alt text<input name="alt" maxlength="1024" bind:value={alt} disabled={mode==='plain'} /></label><label class="hail-field">Header caption<input name="caption" maxlength="1024" bind:value={caption} disabled={mode==='plain'} /></label><p class="m-0 text-xs text-muted">Bundled PNG only, up to 192 KiB. Alt text is required when you add an image.</p></div></details>{/if}
     {#if data.kind==='category'}<label class="flex min-h-11 items-center gap-3 text-sm"><input name="allowReply" type="checkbox" value="yes" /> Allow one reply per subscriber (expires 7 days after publishing)</label>{/if}
     <button class="hail-button justify-self-start" disabled={!canPublish}>Send <span aria-hidden="true">→</span></button>
   </form>
-  <section id="compose-preview" hidden={!previewOpen} class="compose-preview hail-card min-h-[260px] min-w-0 p-5 sm:p-7" aria-label="Message preview"><p class="hail-eyebrow">Preview</p><div class="mt-5 text-[17px] leading-[1.8] [overflow-wrap:anywhere]">{#if forwarded}<RichText blocks={forwarded.blocks} header={forwarded.header}/>{:else}{#if mode==='rich'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-contain" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}{#if mode==='plain'}<p class="whitespace-pre-wrap">{text}</p>{:else}<RichText {blocks}/>{/if}{#if !text&&(mode==='plain'||!title&&!preview)}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}{/if}</div></section>
+  <section id="compose-preview" hidden={!previewOpen} class="compose-preview hail-card min-h-[260px] min-w-0 p-5 sm:p-7" aria-label="Message preview"><p class="hail-eyebrow">Preview</p><div class="mt-5 text-[17px] leading-[1.8] [overflow-wrap:anywhere]">{#if forwarded}<RichText blocks={forwarded.blocks} header={forwarded.header}/>{:else}{#if data.kind==='category'&&mode==='rich'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-contain" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}{#if mode==='plain'}<p class="whitespace-pre-wrap">{text}</p>{:else}<RichText {blocks}/>{/if}{#if !text&&(mode==='plain'||!title&&!preview)}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}{/if}</div></section>
 </div>
 
 <style>

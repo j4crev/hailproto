@@ -1,3 +1,5 @@
+import {groupConnectionMessages,connectionKey} from '../../server/src/accounts/connection-threads.js';
+import {threadBodyPreview} from '../../server/src/accounts/message-threads.js';
 // Local-only visual fixture provider. Never imports production configuration or credentials.
 // Build first, then: bun scripts/preview-design.ts. All changes disappear on restart.
 import {createWebCryptoSigner, signPayload, encodeBase64Url, type HailGrant, type HailSenderProfile} from '@hailproto/codec';
@@ -41,7 +43,20 @@ const firstConnection=messages[3];
 const secondConnection={...firstConnection,messageId:uuidV7(),deliveredAt:date(1),body:body('Saturday at the market?','There is also a new bakery next door. We could stop there afterward.'),isRead:false};
 messages.push(secondConnection);
 const sent = [{messageId:uuidV7(),sender:did,recipient:senders[3].did,recipientAddress:senders[3].address,category:null,kind:'message',createdAt:date(5),state:'delivered',revision:2,reason:null,retryAt:null,
-  recipientSummary:{count:1,address:senders[3].address,did:senders[3].did},body:body('See you Saturday','Ten sounds good! Looking forward to catching up.')}];
+  recipientSummary:{count:1,address:senders[3].address,did:senders[3].did},body:body('Saturday at the market?','Ten sounds good! Looking forward to catching up.')}];
+const maya={did:'did:plc:'+'f'.repeat(24),address:'maya@connections.example.com'};
+for(const [hours,sender,text] of [[0.8,senders[3],'I can bring a picnic blanket.'],[0.5,maya,'Count me in! I will meet you both there.'],[0.2,maya,'The forecast looks lovely. See you Saturday!']] as const){
+  messages.push({...firstConnection,sender:sender.did,senderAddress:sender.address,messageId:uuidV7(),deliveredAt:date(hours),body:body('Saturday at the market?',text),isRead:false});
+}
+// Optional stress fixture for bounded scroll-loading checks.
+for(let index=0;index<Math.min(100,Number(process.env.HAIL_DESIGN_EXTRA_REPLIES)||0);index++){
+  messages.push({...firstConnection,sender:maya.did,senderAddress:maya.address,messageId:uuidV7(),deliveredAt:date(0.15-index/1000),body:body('Saturday at the market?',`Another detail for Saturday (${index+1}).`),isRead:false});
+}
+const fixtureGroups=()=>groupConnectionMessages([
+  ...messages.filter(m=>m.kind==='connection').map(m=>({sender:m.sender,messageId:m.messageId,recipient:did,sent:false,visible:!trash.has(m.messageId)&&!deleted.has(m.messageId),isRead:m.isRead,at:m.deliveredAt,
+    parentSender:m.messageId===messages[4].messageId?null:did,parentId:m.messageId===messages[4].messageId?null:sent[0].messageId,batch:null})),
+  ...sent.map(m=>({sender:did,messageId:m.messageId,recipient:m.recipient,sent:true,visible:true,isRead:true,at:m.createdAt,parentSender:null,parentId:null,batch:'market'}))
+]);
 const grants = await Promise.all(senders.slice(0,3).map(async sender => {
   const payload: HailGrant = {type:'hail.grant',version:1,grant_id:uuidV7(),revision:1,previous:null,grantor:did,grantee:sender.did,
     scope:[{type:'categories',values:['general']}],status:'active',issued_at:Math.floor(started/1000),updated_at:Math.floor(started/1000),expires_at:null,
@@ -93,6 +108,17 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
   if(request.method!=='GET')return json({error:'This local design preview supports reading, appearance preferences, and message selection/deletion/restoration only.'},501);
   if(path==='/api/v1/account')return json({type:'hailp.account',version:1,provider:origin,accountId:'019a15fd-2bd0-7433-8afa-bd0355e0608d',address,did,migrationState:null,custodyProfile:'managed',
     monitorVerificationMode:'reduced-assurance-alpha-v1',managedProfileVersion:'hail-managed-custody-v1',identityPublicKey:null,ownerRecoveryPublicKey:null,scopes:['account:read','grants:read','messages:read','messages:write']});
+  if(path==='/api/v1/account/connection-inbox')return json({messages:fixtureGroups().filter(g=>g.representative).sort((a,b)=>b.activity.localeCompare(a.activity)).map(g=>({...messages.find(m=>connectionKey(m)===connectionKey(g.representative!)),conversation:{unreadCount:g.unread,lastActivity:g.activity,messages:g.received.map(m=>({sender:m.sender,messageId:m.messageId,isRead:m.isRead}))}})),next:null});
+  if(path.startsWith('/api/v1/account/connection-threads/')){
+    const root=path.slice('/api/v1/account/connection-threads/'.length),g=fixtureGroups().find(g=>g.messages.some(m=>connectionKey(m)===root));if(!g)return json({},404);
+    const selected=g.messages.find(m=>connectionKey(m)===root)!;
+    const start=url.searchParams.has('offset')?Number(url.searchParams.get('offset')):Math.max(0,g.messages.indexOf(selected)-2);
+    return json({selected:{sender:selected.sender,messageId:selected.messageId,sent:selected.sent},start,total:g.messages.length,newerUnread:g.messages.slice(0,start).filter(m=>!m.sent&&!m.isRead).length,
+      messages:g.messages.slice(start,start+30).map(m=>{const source=(m.sent?sent:messages).find(x=>x.messageId===m.messageId)!;
+        const title=source.body.blocks.find((b:any)=>b.style==='h1') as any;
+        return {sender:m.sender,messageId:m.messageId,sent:m.sent,isRead:m.isRead,createdAt:m.at,senderAddress:m.sender===maya.did?maya.address:senders[3].address,
+          title:title?.children.map((s:any)=>s.text).join('')??'',preview:threadBodyPreview(source.body),recipients:m.sent?[senders[3],maya]:[]};})});
+  }
   if(path==='/api/v1/account/inbox')return json({messages:messages.filter(m=>(url.searchParams.get('kind')==='connections')===(m.kind==='connection')&&!trash.has(m.messageId)&&!deleted.has(m.messageId)),next:null});
   if(path==='/api/v1/account/trash')return json({messages:messages.filter(m=>trash.has(m.messageId)).map(m=>({...m,trashedAt:trash.get(m.messageId)})),next:null});
   if(path.startsWith('/api/v1/account/inbox/')){const m=messages.find(m=>path===`/api/v1/account/inbox/${m.sender}/${m.messageId}`&&!deleted.has(m.messageId));return m?json({...m,trashedAt:trash.get(m.messageId)??null}):json({},404);}
@@ -106,7 +132,7 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
     return json({messages:[...incoming,...replies],truncated:false});
   }
   if(path==='/api/v1/account/sent')return json({messages:sent,next:null});
-  if(path.startsWith('/api/v1/account/sent/')){const m=sent.find(m=>m.messageId===path.split('/').at(-1));return m?json(m):json({},404);}
+  if(path.startsWith('/api/v1/account/sent/')){const m=sent.find(m=>m.messageId===path.split('/').at(-1));return m && (!url.searchParams.has('kind')||url.searchParams.get('kind')===m.kind)?json(url.searchParams.has('kind')?m:{...m,kind:"connection"}):json({},404);}
   if(path==='/api/v1/account/grants')return json({grants:grants.filter(g=>!url.searchParams.has('sender')||g.payload.grantee===url.searchParams.get('sender')).map(g=>({grantId:g.payload.grant_id,localRole:'grantor',grantee:g.payload.grantee,status:'active'})),next:null});
   if(path.startsWith('/api/v1/account/grants/')){const grant=grants.find(g=>g.payload.grant_id===path.split('/').at(-1));return grant?json(grant.representation):json({},404);}
   if(path==='/api/v1/account/profile')return json(profileResponse);

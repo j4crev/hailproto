@@ -46,6 +46,16 @@
     } catch (error) {message = error instanceof Error ? error.message : "Couldn’t save your photo. Please try again."; busy = false;}
   }
 
+  let deletionAddress=$state(""),deleting=$state(false),deletionError=$state("");
+  async function deleteAccount(){
+    deleting=true;deletionError="";
+    try{
+      const response=await fetch("/api/v1/account/delete",{method:"POST",credentials:"same-origin",cache:"no-store",redirect:"error",
+        headers:{"Content-Type":"application/json"},body:JSON.stringify({address:deletionAddress,eraseInbox:true})});
+      if(!response.ok){const result=await response.json();throw new Error(result.error??"Unable to delete account.");}
+      location.assign("/");
+    }catch(error){deletionError=error instanceof Error?error.message:"Unable to delete account.";deleting=false;}
+  }
 </script>
 <svelte:head><title>Account · Haili</title></svelte:head>
 <div class="min-w-0">
@@ -75,6 +85,16 @@
   </section>
   <section id="security" aria-labelledby="security-title" class="mt-10 scroll-mt-24">
     <AccountSecurity data={data.security} />
+  </section>
+  <section class="hail-card mt-6 grid gap-4 p-6 sm:p-8" aria-label="Delete account">
+    <h2 class="m-0 text-lg">Delete account</h2>
+    <p class="m-0">Permanently erase this account’s provider inbox, including Trash, and revoke its passkeys and credentials. Its address can be reused after a one-hour delay. Other people’s copies and private protocol audit records are retained.</p>
+    <p class="m-0 text-sm text-muted">Withdraw any domains you administer first. Sign in with your passkey within the last five minutes. Deletion cannot be undone.</p>
+    <form class="grid gap-3" onsubmit={event=>{event.preventDefault();void deleteAccount();}}>
+      <label class="hail-field"><span>Type {data.account.address} to confirm deletion</span><input bind:value={deletionAddress} disabled={deleting} autocomplete="off" /></label>
+      <button class="hail-button-secondary" disabled={deleting||deletionAddress!==data.account.address}>Delete account and erase inbox</button>
+    </form>
+    {#if deletionError}<p role="alert" class="m-0">{deletionError}</p>{/if}
   </section>
 </div>
 <style>

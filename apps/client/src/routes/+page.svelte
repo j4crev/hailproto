@@ -15,7 +15,7 @@
   const messageKey = (message: {sender: string; messageId: string}) => JSON.stringify([message.sender, message.messageId]);
   let selected = $state<string[]>([]);
   let selectionLocked = $state(false);
-  let selectedMessages = $derived((data.messages ?? []).filter(message => selected.includes(messageKey(message))));
+  let selectedMessages = $derived((data.messages ?? []).filter(message => selected.includes(messageKey(message))).flatMap(message=>message.conversation?.messages??[{sender:message.sender,messageId:message.messageId,isRead:message.isRead===true}]));
   afterNavigate(() => { selected = []; });
   $effect(() => { if (!selectedMessages.length) selectionLocked = false; });
   function toggle(message: {sender: string; messageId: string}) {
@@ -63,10 +63,10 @@
       <div class="hail-card flex flex-col items-center gap-3 px-6 py-16 text-center"><span class="empty-symbol" aria-hidden="true"><Icon name={data.view === 'connections' ? 'chat' : 'feed'} size={30} /></span><h2 class="m-0 text-xl tracking-tight">No messages yet</h2><p class="m-0 max-w-sm text-sm text-muted">{data.view==='connections'?'Reach out and say "hello".':'All quiet here.'}</p>{#if data.view !== 'connections'}<a class="hail-button-secondary mt-2" href="/permissions">Find your first sender <span aria-hidden="true">→</span></a>{/if}</div>
     {:else}
       {#each data.messages as message (message.sender+message.messageId)}
-        <MessageListRow thread={data.view === "connections" ? {sender:message.sender,messageId:message.messageId} : undefined} inline={data.view === "connections"} imageLayout={data.view === "connections" ? "thumbnail" : "feature"} isRead={message.isRead} timestamp={message.deliveredAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null} selected={selected.includes(messageKey(message))}
-          href={`/message/${encodeURIComponent(message.sender)}/${message.messageId}${message.kind==='connection'?'?view=connections':''}`}>
-          {#snippet leading()}<SelectionAvatar name={message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(messageKey(message))} disabled={selectionLocked} label={`Select message from ${message.senderAddress??message.sender}, ${date(message.deliveredAt)}`} ontoggle={()=>toggle(message)} />{/snippet}
-          {#snippet sender()}<ContactAddress owner={data.account.did} did={message.sender} address={message.senderAddress} />{/snippet}
+        <MessageListRow unreadCount={message.conversation?.unreadCount} inline={data.view === "connections"} imageLayout={data.view === "connections" ? "thumbnail" : "feature"} isRead={message.isRead} timestamp={message.deliveredAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null} selected={selected.includes(messageKey(message))}
+          href={`/${data.view==='connections'?'conversation':'message'}/${encodeURIComponent(message.sender)}/${message.messageId}`}>
+          {#snippet leading()}<SelectionAvatar name={message.sender===data.account.did?'You':message.senderAddress??message.sender} avatar={message.avatar} selected={selected.includes(messageKey(message))} disabled={selectionLocked} label={`Select ${data.view==='connections'?'conversation with':'message from'} ${message.senderAddress??message.sender}, ${date(message.deliveredAt)}`} ontoggle={()=>toggle(message)} />{/snippet}
+          {#snippet sender()}{#if message.sender===data.account.did}You{:else}<ContactAddress owner={data.account.did} did={message.sender} address={message.senderAddress} />{/if}{/snippet}
         </MessageListRow>
       {/each}
     {/if}

@@ -90,7 +90,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         return context.json(action==="inbox-updates"?await messaging.updates(session,query.get("after"),query.get("from")):
           await messaging.conversations(session,context.req.param("peer")??null,operation,query.get("after"),query.get("trash")==="true"));
       }
-      if (query.size && action !== "list" && action !== "inbox" && action !== "sent" && action !== "sent-read" && action !== "credential" && action !== "trash") return problem(400);
+      if (query.size && action !== "list" && action !== "inbox" && action !== "sent" && action !== "sent-read" && action !== "credential" && action !== "trash" && action !== "connection-inbox" && action !== "connection-thread") return problem(400);
       const method = context.req.method;
       if(action==="connection-address"){
         if(!session.scopes.includes("messages:read"))return problem(403,"MISSING_SCOPE");
@@ -328,10 +328,10 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         }
         return context.json(await messaging.trash.remove(session,context.req.param("sender")!,grantId!,action==="message-purge"));
       }
-      const scope = action === "send" || action === "resubmit" ? "messages:write" : ["inbox","read","status","sent","sent-read","thread"].includes(action ?? "") ? "messages:read" : action === "credential" ? "credentials:write" : action === "proposal" || action === "managed-create" || action === "managed-revoke" ? "grants:write" : action === "list" ? "grants:read" :
+      const scope = action === "send" || action === "resubmit" ? "messages:write" : ["inbox","read","status","sent","sent-read","thread","connection-inbox","connection-thread"].includes(action ?? "") ? "messages:read" : action === "credential" ? "credentials:write" : action === "proposal" || action === "managed-create" || action === "managed-revoke" ? "grants:write" : action === "list" ? "grants:read" :
         grantId === null ? "account:read" : method === "PUT" ? "grants:write" : "grants:read";
       if (!session.scopes.includes(scope)) return problem(403,"MISSING_SCOPE");
-      if(["send","resubmit","inbox","read","status","sent","sent-read","thread"].includes(action ?? "")) {
+      if(["send","resubmit","inbox","read","status","sent","sent-read","thread","connection-inbox","connection-thread"].includes(action ?? "")) {
         if(!messaging)return problem(503);
         if(action==="send"||action==="resubmit") {
           if(method!=="POST")return problem(405);if(session.migration_state)return problem(409);
@@ -346,6 +346,13 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           return context.json(await messaging.send(session,input));
         }
         if(method!=="GET")return problem(405);
+        if(action==="connection-inbox"||action==="connection-thread") {
+          const key=action==="connection-inbox"?"after":"offset";
+          if([...query.keys()].some(k=>k!==key)||query.getAll(key).length>1)return problem(400);
+          const found=action==="connection-inbox"?await messaging.connectionInbox(session,query.get(key)):
+            await messaging.connectionThread(session,context.req.param("sender")!,grantId!,query.get(key));
+          return found?context.json(found):problem(404);
+        }
         if(action==="thread") {
           const found=await messaging.thread(session,context.req.param("sender")!,grantId!);
           return found?context.json(found):problem(404);
@@ -519,6 +526,8 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/inbox/:sender/:messageId/mark-read",context=>handle(context,context.req.param("messageId"),"message-read"));
   app.all("/api/v1/account/inbox/:sender/:messageId/mark-unread",context=>handle(context,context.req.param("messageId"),"message-unread"));
   app.all("/api/v1/account/inbox/:sender/:messageId/delete",context=>handle(context,context.req.param("messageId"),"message-delete"));
+  app.all("/api/v1/account/connection-inbox",context=>handle(context,null,"connection-inbox"));
+  app.all("/api/v1/account/connection-threads/:sender/:messageId",context=>handle(context,context.req.param("messageId"),"connection-thread"));
   app.all("/api/v1/account/threads/:sender/:messageId",context=>handle(context,context.req.param("messageId"),"thread"));
   app.all("/api/v1/account/inbox/updates",context=>handle(context,null,"inbox-updates"));
   app.all("/api/v1/account/conversations/:peer/:operation",context=>handle(context,null,"conversations"));

@@ -284,6 +284,8 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     }
     return ownProfile?json(ownProfile):json({},404);
   }
+  if(path==="/api/v1/account/connection-inbox")return json({messages:connectionIncoming&&!deleted.has(connectionIncomingId)&&!trashed.has(connectionIncomingId)?[{...connectionReply(),conversation:{unreadCount:readMessages.has(connectionIncomingId)?0:1,lastActivity:connectionReply().deliveredAt,messages:[{sender:peerDid,messageId:connectionIncomingId,isRead:readMessages.has(connectionIncomingId)}]}}]:[],next:null});
+  if(path.startsWith("/api/v1/account/connection-threads/"))return json({selected:{sender:peerDid,messageId:connectionIncomingId,sent:false},total:1,start:0,newerUnread:0,messages:[{sender:peerDid,messageId:connectionIncomingId,sent:false,isRead:readMessages.has(connectionIncomingId),createdAt:connectionReply().deliveredAt,senderAddress:peerAddress,title:'',preview:'A personal connection reply',recipients:[]}]});
   if(path==="/api/v1/account"||path==="/api/v1/account/inbox"){
     if(!request.headers.get("Cookie")?.includes("hail_session="+sessionToken))return json({},401);
     assert(retired,"Inbox must use the completed account's session");
@@ -585,6 +587,10 @@ try{
   await wait(async()=>evaluate(`!document.querySelector('[popover]:popover-open')`),"Outside click closes account menu");
   await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/account"]').click()`);
   await wait(()=>has("Key custody"),"Account page holds identity details");
+  assert(await evaluate(`!!document.querySelector('section[aria-label="Delete account"]')`),'Account owns deletion controls');
+  assert(await evaluate(`document.querySelector('section[aria-label="Delete account"] button').disabled`),'Deletion requires typed address');
+  assert(await evaluate(`Array.from(document.querySelectorAll('.account-trigger .avatar')).every(e=>getComputedStyle(e).borderRadius==='50%')`),'Main account avatar is circular');
+
   assert(await has("alice@provider.example.com"));assert(await has(did!));
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Account page fits");
   await accountNavigation();
@@ -704,7 +710,7 @@ try{
   await screenshot("feed");
   const settings=async()=>{await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/settings"]').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"reading settings ready");};
   const feed=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/';document.body.append(a);a.click();a.remove();})()`);await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Feed'`),"feed navigation");};
-  await settings();await accountNavigation();assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll("main a"),a=>a.getAttribute("href"))`),["/settings/domains"],"Settings links to custom-domain management");await narrowLayouts();await screenshot("settings");
+  await settings();await accountNavigation();assert(await evaluate(`!document.querySelector('section[aria-label="Delete account"]')`),'Settings has no account deletion controls');assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll("main a"),a=>a.getAttribute("href"))`),["/settings/domains"],"Settings links to custom-domain management");await narrowLayouts();await screenshot("settings");
   await evaluate(`document.querySelector('#show-headers').click()`);await wait(async()=>evaluate(`localStorage.getItem('hail.gui.showInboxHeaders')==='false' && document.querySelector('#show-headers')?.disabled===false`),"preference saved");
   await feed();await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"hide feed headers through settings");
   await evaluate("document.documentElement.dataset.beforePreferenceReload='true'");
@@ -819,6 +825,7 @@ try{
   await fill("Title","Release notes");
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value=${JSON.stringify(richText)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] h1')?.textContent==='Release notes' && document.querySelectorAll('[aria-label="Message preview"] ul li').length===2 && document.querySelectorAll('[aria-label="Message preview"] ol li').length===2`),"rich message preview");
+  assert(await evaluate(`!!document.querySelector('input[name="header"]')`),"Subscriber composer retains header images");
   const rendered=async(selector:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});return {headings:[...e.querySelectorAll('h1,h2,h3')].map(n=>n.textContent),bullets:[...e.querySelectorAll('ul li')].map(n=>n.textContent),numbered:[...e.querySelectorAll('ol li')].map(n=>n.textContent),quote:e.querySelector('blockquote')?.textContent,images:e.querySelectorAll('img').length,text:e.innerText.includes('<img src=x onerror=alert(1)>')};})()`);
   const previewContent=await rendered('[aria-label="Message preview"]');
   assert.deepEqual(previewContent,{headings:["Release notes","Highlights"],bullets:["First","Second"],numbered:["Number one","Number two"],quote:"A quote",images:0,text:true});
@@ -924,6 +931,7 @@ try{
   assert(!personalConnection);await click("Add connection");await wait(()=>has("Connection saved"),"one click confirms mutual connection");
   await cdp('Page.navigate',{url:origin+'/compose?audience=connections'});await wait(()=>has('Send a message'),'connection composer uses existing editor');
   await selectedAudience("Connections");
+  assert(await evaluate(`!document.querySelector('input[name="header"]') && !document.querySelector('input[name="alt"]')`),"Connection composer has no new header-image controls");
   await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]').length===2`),'connection recipient picker');
   assert(!await evaluate(`!!document.querySelector('select[name="category"]')||!!document.querySelector('input[name="allowReply"]')`));
   await evaluate(`document.querySelectorAll('input[name="connection"]').forEach(e=>e.click());document.querySelector('input[value="plain"]').click()`);
@@ -992,8 +1000,8 @@ try{
     await wait(async()=>evaluate(`location.pathname+location.search===${JSON.stringify(path)} && document.querySelector('main h1')?.textContent===${JSON.stringify(heading)}`),'mailbox page '+heading);
   };
   const selectMessage=async()=>{
-    await wait(async()=>evaluate(`document.querySelector('main button[aria-label^="Select message from"]')?.disabled===false`),'message selection ready');
-    await evaluate(`document.querySelector('main button[aria-label^="Select message from"]').click()`);
+    await wait(async()=>evaluate(`document.querySelector('main button.selection-avatar')?.disabled===false`),'message selection ready');
+    await evaluate(`document.querySelector('main button.selection-avatar').click()`);
     await wait(async()=>evaluate(`!!document.querySelector('.has-selection') && !document.querySelector('.mobile-compose')`),'selection hides floating compose');
   };
   await mailboxPage('/','Feed');await selectMessage();

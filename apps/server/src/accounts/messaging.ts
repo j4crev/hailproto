@@ -1,3 +1,4 @@
+import {connectionInbox,connectionThread} from "./connection-threads.js";
 import {inboxUpdates} from "./inbox-updates.js";
 import {conversations} from "./conversations.js";
 import {messageThread} from "./message-threads.js";
@@ -114,6 +115,12 @@ export class AccountMessaging {
 
   updates(session:AccountApiSession,after:string|null,from:string|null){return inboxUpdates(this.sql,session,after,from);}
   conversations(session:AccountApiSession,peer:string|null,action:string,after:string|null,trash=false){return conversations(this.sql,session,this,peer,action,after,trash);}
+
+  connectionInbox(session:AccountApiSession,after:string|null){return connectionInbox(this.sql,session,this,after);}
+  connectionThread(session:AccountApiSession,sender:string,messageId:string,offset:string|null){
+    if(!DID.test(sender)||!ID.test(messageId))throw new UserGrantError(400,"Invalid message identity");
+    return connectionThread(this.sql,session,{sender,messageId},offset);
+  }
 
   async inbox(session:AccountApiSession,after:string|null) {
     let cursor:{id:string;sender:string}|null=null;

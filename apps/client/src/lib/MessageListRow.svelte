@@ -1,10 +1,9 @@
 <script lang="ts">
   import type {Snippet} from "svelte";
   import type {MessageImage} from "./messages.js";
-  import ThreadCount from "./ThreadCount.svelte";
   import DateTime from "./DateTime.svelte";
-  let {isRead = false, leading, sender, timestamp, title, preview, header = null, href, selected = false, muted = false, details, thread, inline = false, imageLayout = "thumbnail"}: {
-    thread?: {sender:string;messageId:string}; inline?: boolean; imageLayout?: "feature" | "thumbnail"; isRead?: boolean; leading?: Snippet; sender?: Snippet; timestamp: string; title: string; preview: string;
+  let {isRead = false, leading, sender, timestamp, title, preview, header = null, href, selected = false, muted = false, details, unreadCount, onclick, expanded, inline = false, imageLayout = "thumbnail"}: {
+    unreadCount?:number; onclick?:()=>void; expanded?:boolean; inline?: boolean; imageLayout?: "feature" | "thumbnail"; isRead?: boolean; leading?: Snippet; sender?: Snippet; timestamp: string; title: string; preview: string;
     header?: MessageImage | null; href?: string; selected?: boolean; muted?: boolean; details?: Snippet;
   } = $props();
 </script>
@@ -12,9 +11,9 @@
 {#snippet content()}
   {#if header}<img class="message-header" src={header.src} alt={header.alt} width={header.width} height={header.height} />{/if}
   <span class="message-copy">
-    <span class="message-summary" class:titleless={!title && !!thread}>
-      {#if title}<span class="message-heading"><strong class="message-subject">{title}</strong>{#if thread}<ThreadCount {thread} />{/if}</span>{/if}
-      <span class="message-preview">{preview}</span>{#if !title && thread}<ThreadCount {thread} />{/if}
+    <span class="message-summary" class:titleless={!title && !!unreadCount}>
+      {#if title}<span class="message-heading"><strong class="message-subject">{title}</strong>{#if unreadCount && unreadCount>1}<span class="text-xs font-normal text-muted" title={`${unreadCount} unread messages`}>({unreadCount})</span>{/if}</span>{/if}
+      <span class="message-preview">{preview}</span>{#if !title && unreadCount && unreadCount>1}<span class="text-xs font-normal text-muted">({unreadCount})</span>{/if}
     </span>
     {#if details}<span class="message-details">{@render details()}</span>{/if}
   </span>
@@ -26,11 +25,13 @@
     {#if sender}<strong class="message-sender">{#if !isRead && !muted}<span class="sr-only">Unread: </span>{/if}{@render sender()}</strong>{/if}
     <strong class="list-date"><DateTime format="list" value={timestamp} /></strong>
   </div>
-  {#if href}<a class="message-link" {href}>{@render content()}</a>
+  {#if onclick}<button type="button" class="message-link row-button" {onclick} aria-expanded={expanded}>{@render content()}</button>
+  {:else if href}<a class="message-link" {href}>{@render content()}</a>
   {:else}<div class="message-content">{@render content()}</div>{/if}
 </article>
 
 <style>
+  .row-button { border:0; background:none; padding:0; text-align:left; font:inherit; cursor:pointer; width:100%; }
   .message-row { padding:18px 12px; position:relative; display:grid; grid-template-columns:40px minmax(0,1fr); align-items:center; column-gap:12px; }
   .message-row.without-leading { grid-template-columns:minmax(0,1fr); }
   .without-leading .message-meta, .without-leading .message-link, .without-leading .message-content { grid-column:1; }

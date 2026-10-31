@@ -6,12 +6,13 @@
   import Icon from '$lib/Icon.svelte';
 
   type Message = {sender: string; messageId: string};
-  let {messages, disabled = false, returnTo, onremoved, onclear, compact = false, menu = false, onunsubscribe, locked = $bindable(false)}: {
+  let {messages, disabled = false, returnTo, onmarkedunread, onremoved, onclear, compact = false, menu = false, onunsubscribe, locked = $bindable(false)}: {
     messages: Message[];
     disabled?: boolean;
     compact?: boolean; menu?: boolean;
     returnTo?: string;
     onunsubscribe?: () => void;
+    onmarkedunread?: () => void | Promise<void>;
     onremoved?: (messages: Message[]) => void;
     onclear?: () => void;
     locked?: boolean;
@@ -23,7 +24,8 @@
     busy = true; error = '';
     try {
       for (const message of messages) await mailboxRequest(`inbox/${encodeURIComponent(message.sender)}/${encodeURIComponent(message.messageId)}/mark-unread`, {});
-      if (returnTo) await goto(returnTo, {invalidateAll: true});
+      if (onmarkedunread) await onmarkedunread();
+      else if (returnTo) await goto(returnTo, {invalidateAll: true});
       else await invalidateAll();
     } catch (e) { error = e instanceof Error ? e.message : 'Unable to mark unread.'; }
     finally { busy = false; }

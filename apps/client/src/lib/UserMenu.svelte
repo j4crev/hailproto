@@ -48,8 +48,8 @@
 <style>
   .account-trigger { display:flex; align-items:center; gap:10px; width:100%; padding:12px 8px; border:0; background:transparent; text-align:left; border-radius:14px; }
   .account-trigger:hover, .account-trigger[aria-expanded=true] { background:var(--color-brand-soft); }
-  .avatar { display:grid; place-items:center; width:40px; height:40px; flex-shrink:0; border:0; border-radius:11px; background:var(--color-brand-soft); color:var(--color-brand-strong); font-size:13px; font-weight:750; }
-  .avatar img { width:100%; height:100%; object-fit:cover; border-radius:11px; }
+  .avatar { display:grid; place-items:center; width:40px; height:40px; flex-shrink:0; border:0; border-radius:50%; background:var(--color-brand-soft); color:var(--color-brand-strong); font-size:13px; font-weight:750; }
+  .avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
   .account-label { display:grid; min-width:0; gap:3px; }
   .account-label strong { overflow:hidden; text-overflow:ellipsis; font-size:13px; }
   .account-label small { font-size:11px; color:var(--color-muted); }

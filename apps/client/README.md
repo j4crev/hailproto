@@ -190,7 +190,7 @@ and its layout. Account and compose screens fetch independent data in parallel.
 The desktop sidebar and mobile modal drawer share their navigation. Feed shows
 subscription updates; Inbox shows connection messages. Both have their own
 navigation entry and no tabs. Desktop uses Compose in navigation. On mobile, Feed and Inbox also have a floating
-compose button for subscribers and connections respectively; selection hides it. The avatar
+compose button for subscribers and connections respectively; selection hides it. The circular account avatar
 opens a native popover as the sole navigation to Account, Settings and
 Sign out; those pages have no cross-link cards. Both the
 popover and drawer support outside-click and Escape dismissal; the drawer locks
@@ -301,12 +301,44 @@ details show selectable DIDs directly beneath the address. The shared
 shell uses the existing navigation icons; Account and Settings remain in the avatar menu.
 Dark mode uses neutral charcoal surfaces with teal accents.
 
-Connection Inbox rows load an unread thread count after rendering, using the existing
-account-scoped thread endpoint (at most five requests per list page). Only unread
-received messages count; sent replies, read messages and trashed received messages
-are excluded. Badges appear only above one unread message, with a `+` when the
-provider truncates the result. Missing read state from older providers hides the
-badge rather than guessing. Deploy the updated provider to enable these counts;
-no database migration is needed. Counts remain per peer/thread, not aggregated
-across separate recipients of a multi-connection send. List rows remain individual
-messages, and opening one marks that message read, not the entire thread.
+Connection Inbox groups conversations before pagination and orders them by latest
+activity. A row displays the oldest unread message, or the latest message when all
+are read. Counts above one include all unread received messages in that conversation.
+Selection applies to the conversation's received messages; sent messages are never
+marked unread or deleted through Inbox selection.
+
+The conversation reader uses Inbox-style rows, newest first, with one expanded
+body. Only opening a received message marks it read. Entry shows two newer rows
+above the selected message when available. Scrolling toward the top loads newer
+summary rows automatically in batches of 30, preserving the visible position;
+bodies load only when opened. A retry button appears if loading fails. Older rows
+remain available through the Older messages control. The subject appears once as the page heading, beneath the Inbox link; repeated
+subjects are omitted from rows. A genuinely different message subject remains
+visible. Expanded headers show the sender, DID, timestamp, and actions above a
+left-aligned reading column. Mark unread collapses that message in place, leaving
+all messages closed until the reader chooses one again. Replies remain
+private to the selected connection; this is not a group messaging protocol.
+
+The provider joins explicit connection reply links and its own recorded
+multi-recipient send targets. Copies of the original send appear once with their
+recipient list. Subscription Feed and its reply-capability threads are unchanged.
+No schema migration is needed; deploy client and provider together. Grouping reads
+account-scoped envelope metadata before selecting a page; bodies are loaded only
+for the resulting page. For very large mailboxes, a persisted conversation index
+would avoid repeating that metadata scan. Grouping relies on retained local batch
+records; it does not infer shared sends from body text, subjects, or timestamps.
+
+Run `bun run --cwd apps/client test:conversations` to verify grouped multi-sender
+replies, initial expansion, read transitions, and mobile layouts against a separate
+loopback fixture. `CHROMIUM` selects the browser executable. The regular browser
+wizard also exercises replying from the new reader and grouped Inbox selection.
+
+Account deletion lives below the Account security controls, with the existing
+typed-address confirmation and provider-side recent-passkey requirement. Settings
+contains appearance, header-image, and Trash preferences.
+
+New header-image uploads are offered only for subscriber publications. Connection
+composition supports plain and rich text; switching to Connections clears a draft
+header image. The browser form handler also rejects new header uploads for
+connections. Existing message images remain readable, and forwarding preserves
+the original message content, including its image.

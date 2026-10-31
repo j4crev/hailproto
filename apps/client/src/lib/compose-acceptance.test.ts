@@ -55,3 +55,21 @@ it('does not send when the forward source is missing',async()=>{
   expect(await actions.publish({request:new Request('https://example.com/compose',{method:'POST',body}),cookies:{},url:new URL('https://example.com/compose')} as unknown as Parameters<typeof actions.publish>[0])).toMatchObject({status:400});
   expect(request).toHaveBeenCalledTimes(1);
 });
+
+it('limits new header uploads to subscribers while retaining rich connection text',async()=>{
+  const body=new FormData();
+  for(const [key,value] of Object.entries({publicationId:id,audience:'connections',mode:'rich',title:'Hello',text:'**Rich text**',connection:targetId,alt:'A small image'}))body.set(key,value);
+  body.set('header',new File([Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ6kAAAAASUVORK5CYII=','base64'))],'header.png',{type:'image/png'}));
+  const publish=()=>actions.publish({request:new Request('https://example.com/compose',{method:'POST',body}),cookies:{},url:new URL('https://example.com/compose')} as unknown as Parameters<typeof actions.publish>[0]);
+  request.mockReset();
+  expect(await publish()).toMatchObject({status:400,data:{error:'Header images are available for subscriber publications only.'}});
+  expect(request).not.toHaveBeenCalled();
+  body.set('audience','category');body.set('category','general');body.delete('connection');
+  request.mockRejectedValueOnce(new Error('Response lost'));
+  await publish();
+  expect(request.mock.calls[0]).toMatchObject(['/publications',{body:{profile:'spt-3'}}]);
+  body.set('audience','connections');body.set('connection',targetId);body.delete('category');body.delete('header');
+  request.mockReset();request.mockRejectedValueOnce(new Error('Response lost'));
+  await publish();
+  expect(request.mock.calls[0]).toMatchObject(['/connection-messages',{body:{profile:'spt-2'}}]);
+});

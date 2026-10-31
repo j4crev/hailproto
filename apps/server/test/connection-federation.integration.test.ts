@@ -460,6 +460,37 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
     expect((await conversation.json() as any).messages.map((m:any)=>m.messageId)).toEqual([sentToB.messageId,threadedId]);
     expect((await api(c,'threads/'+b.did+'/'+threadedId)).status).toBe(404);
     expect((await api(a,'threads/'+b.did+'/'+threadedId,{})).status).toBe(405);
+    // The sender's private Inbox combines replies from both copies of a batch.
+    const localReply=uuidV7(),sentToC=completed.targets.find(t=>t.recipient===c.did)!;
+    expect((await api(c,'messages',{messageId:localReply,text:'Another recipient replies',connectionId:localTarget.connectionId,
+      connectionEpoch:localTarget.epoch,recipientDid:a.did,inReplyTo:{sender:a.did,messageId:sentToC.messageId}})).status).toBe(200);
+    await received();await withFreshServingGenerations(first.db.sql,()=>one.worker.processOne());
+    const grouped=await one.messaging.connectionInbox(a.session,null);
+    expect(grouped.messages).toHaveLength(1);
+    expect(grouped.messages[0]).toMatchObject({sender:b.did,messageId:threadedId,conversation:{unreadCount:2}});
+    const combined=await one.messaging.connectionThread(a.session,b.did,threadedId,null);
+    expect(combined?.messages).toHaveLength(3);
+    expect(combined?.messages.filter(m=>m.sent)).toHaveLength(1);
+    expect(combined?.messages.find(m=>m.sent)?.recipients).toHaveLength(2);
+    expect((await api(c,'connection-threads/'+b.did+'/'+threadedId)).status).toBe(404);
+    expect((await api(a,'connection-threads/'+b.did+'/'+threadedId+'?offset=bad')).status).toBe(400);
+    expect((await api(a,'connection-inbox',{})).status).toBe(405);
+    await one.messaging.setRead(a.session,b.did,threadedId,true);
+    expect((await one.messaging.connectionInbox(a.session,null)).messages[0]).toMatchObject({messageId:localReply,conversation:{unreadCount:1}});
+    await one.messaging.setRead(a.session,c.did,localReply,true);
+    expect((await one.messaging.connectionInbox(a.session,null)).messages[0]).toMatchObject({messageId:localReply,conversation:{unreadCount:0}});
+    // Neither recipient can see the other recipient's private reply.
+    const recipientThread=await two.messaging.connectionThread(b.session,a.did,sentToB.messageId,null);
+    expect(recipientThread?.messages.map(m=>m.sender)).not.toContain(c.did);
+    for(let index=0;index<6;index++){
+      expect((await api(c,'messages',{messageId:uuidV7(),text:'Separate conversation '+index,connectionId:localTarget.connectionId,
+        connectionEpoch:localTarget.epoch,recipientDid:a.did})).status).toBe(200);
+      await received();await withFreshServingGenerations(first.db.sql,()=>one.worker.processOne());
+    }
+    const firstPage=await one.messaging.connectionInbox(a.session,null),secondPage=await one.messaging.connectionInbox(a.session,firstPage.next);
+    expect(firstPage.messages).toHaveLength(5);expect(secondPage.messages).toHaveLength(2);expect(secondPage.next).toBeNull();
+    expect(new Set([...firstPage.messages,...secondPage.messages].map(m=>m.messageId)).size).toBe(7);
+    expect((await api(a,'connection-inbox?after=invalid')).status).toBe(400);
     const stopped={publicationId:uuidV7(),connections:direct.connections,text:'Cancel before materialization'};
     await restarted.createConnections(a.session,stopped);
     await expect(first.db.sql`UPDATE connection_message_batches SET body_bytes=${new Uint8Array([1])} WHERE id=${stopped.publicationId}`).rejects.toThrow('cannot be replaced');
