@@ -81,10 +81,9 @@ them. Neither record changes website hosting or SMTP email routing.
 
 ### Address Binding v2 rollout and lifecycle
 
-The current local protocol change uses nonexpiring version-2 Address Bindings;
-it has not yet been deployed to the live provider. Existing custom-domain and
-standalone signup flows were already deployed and user-tested. Review the exact
-revision and rollout state before upgrading.
+This release uses nonexpiring version-2 Address Bindings. Existing custom-domain
+and standalone signup flows retain their account and domain ownership semantics.
+Review the account inventory and take a verified database backup before upgrading.
 
 Version 2 has a closed signed payload: `type`, `version`, `address`, `did`,
 `issued_at`, and `key_id`. There is no `expires_at` or scheduled binding renewal.
@@ -100,16 +99,37 @@ DIDs and authorized keys. Managed accounts use the authorized provider identity
 signer; owner-controlled accounts require their owner's identity signature.
 Editing stored bytes cannot upgrade a signature. Retain historical signed evidence
 privately and coordinate compatible resolver upgrades and account publication;
-old public bindings will not verify under v2-only readers. Do not deploy this
-change until the one-time account-publication procedure and required signatures
-are prepared; the routine CLI publication command expects an existing v2 binding.
+old public bindings will not verify under v2-only readers. The routine CLI
+publication command expects an existing v2 binding.
+
+For the one-time managed-account conversion, set `ADDRESS_BINDING_V2_UPGRADE=true`
+in the provider environment. Startup performs the conversion before serving
+requests or starting workers. It refuses in-progress onboarding/migration or any
+owner-controlled legacy publication unless that exact canonical address appears
+in the operator-approved comma-separated `ADDRESS_BINDING_V2_WITHDRAW_OWNERS` list.
+That list withdraws publication only; it does not delete accounts, keys or messages.
+Do not use it for an owner who expects continued address resolution.
+
+The converter checks current PLC identity, messaging and provider authority, and
+custom-domain DNS routing. It signs fresh v2 payloads with the existing managed
+identity keys, verifies the signatures, retains PLC signing evidence, and withdraws
+legacy public artifacts. All publication changes commit in one transaction;
+failures leave prior selections and signed bytes intact. Successful reruns do
+nothing. Retired accounts remain withdrawn through migration 0090. Remove the
+temporary environment settings after verifying the completed upgrade.
+
+A code-only rollback to a v1 reader is **not supported after conversion commits**.
+Preserve the pre-upgrade database backup along with the retained application image;
+prefer fixing forward. A restore requires stopping writers and restoring the
+matching database and application together, accounting for any post-upgrade data.
+The deployment wrapper's image rollback alone cannot undo this data conversion.
 
 The reference resolver does not application-cache discovery. Any future cache must
 last no more than one hour and obey shorter DNS TTL, HTTP freshness, and PLC policy
 bounds. Domain loss does not revoke DID-based grants or disable provider login,
 and binding age does not automatically withdraw a published address.
 
-The local migration-retirement implementation records irreversible publication
+The migration-retirement implementation records irreversible publication
 tombstones, hiding the retired account's WebFinger mappings and direct public COSE
 URLs while preserving private audit evidence. A shared withdrawal helper exists
 for future account-deletion integration; no account-deletion flow is implemented.
