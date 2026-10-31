@@ -30,7 +30,8 @@
   <section class="welcome">
     <div class="welcome-copy">
       <h1>Your inbox.<br /><span>Your permission.</span></h1>
-      <p class="welcome-description">Messages from people you choose. Updates on topics you want. With Haili, someone knowing your address isn’t enough to reach your inbox.</p>
+      <p class="welcome-description">This isn't email or SMS. Haili is a place for beautiful content you choose to receive, with permission built in. Unsubscribe on your terms, not the sender's. And since it's opt-in content, anything you send gets delivered - no fear of it being filtered out or sent to spam.</p>
+      <p class="welcome-description welcome-invitation">Will you join us?</p>
       <div class="welcome-signin"><PasskeySignIn returnTo={data.returnTo} />{#if data.registration?.signupAvailable&&data.registration.mode==="public"}<p><a href="/signup">Create an account</a></p>{:else}<p>Already have an invitation? Use your signup link.</p>{/if}</div>
     </div>
     <aside class="subscription-example" aria-labelledby="subscription-example-title">
@@ -91,6 +92,7 @@
   .welcome-copy h1 { margin:0 0 22px; font-size:clamp(42px,5.3vw,66px); line-height:1.08; letter-spacing:-.055em; font-weight:650; }
   .welcome-copy h1 span { color:var(--color-brand); }
   .welcome-description { font-size:16px; color:var(--color-muted); line-height:1.9; margin:0; }
+  .welcome-invitation { margin-top:16px; }
   .welcome-signin { margin-top:32px; max-width:340px; }
   .welcome-signin > p { font-size:11px; color:var(--color-muted); margin:13px 0 0; }
   .subscription-example { min-width:0; padding:28px; border:1px solid var(--color-line); border-radius:18px; background:var(--color-surface); box-shadow:0 8px 25px #172b2d06; }
