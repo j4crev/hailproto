@@ -61,6 +61,8 @@ export class ManagedMigrationFenceService {
           managed.owner_recovery_public_key,managed.provider_identity_public_key,managed.verification_mode
         FROM provider_accounts account JOIN managed_custody_evidence managed ON managed.account_id=account.id
         WHERE account.did=${did} FOR UPDATE OF account`)[0];
+      if(account&&(await tx`SELECT id FROM provider_accounts WHERE id=${account.id} AND (address_released_at IS NOT NULL OR closed_at IS NOT NULL)`).length)
+        throw new Error("Released addresses cannot begin provider transfer");
       if (account && account.canonical_address.split("@")[1] !== new URL(this.sourceServiceBase).hostname) {
         throw new Error("Custom-domain provider transfer is not supported yet");
       }

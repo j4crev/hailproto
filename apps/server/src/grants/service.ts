@@ -25,6 +25,7 @@ import { expandsAuthorization, restrictsAuthorization } from "./revision.js";
 import { assertPublicAuthorityFresh } from "../plc/authority.js";
 
 export interface GrantAccountRepository {
+  getAccountByDid?(did: string): Promise<AccountRecord | null>;
   getAccountByAddress(address: string): Promise<AccountRecord>;
   getKey(accountId: string, role: AccountKeyRecord["role"]): Promise<AccountKeyRecord>;
 }
@@ -84,6 +85,14 @@ export class GrantService {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
+  private async localAccount(input:string):Promise<AccountRecord> {
+    if(input.startsWith("did:plc:")){
+      const account=await this.accounts.getAccountByDid?.(input);
+      if(!account)throw new Error("Account does not exist");return account;
+    }
+    return this.accounts.getAccountByAddress(canonicalizeHailAddress(input));
+  }
+
   async inspectSender(addressInput:string){
     const address=await this.addressVerifier.verify(canonicalizeHailAddress(addressInput));
     const profile=await this.profileVerifier.verify(address.did);
@@ -93,7 +102,7 @@ export class GrantService {
   }
 
   async prepareUserSignedUpdate(addressInput:string,grantId:string,input:GrantUpdateDefinition):Promise<HailGrant> {
-    const account=await this.accounts.getAccountByAddress(canonicalizeHailAddress(addressInput));
+    const account=await this.localAccount(addressInput);
     const current=await this.grants.findCurrentByGrantId(grantId);
     if(!account.did||account.state!=="active"||account.activationVerificationMode!=="public"||!current||current.localRole!=="grantor"||
       current.localAccountId!==account.id||current.payload.status!=="active"||current.payload.revision!==input.expectedRevision||
@@ -128,7 +137,7 @@ export class GrantService {
   }
 
   async updateManaged(addressInput:string,payload:HailGrant,signingKey:string):Promise<SignedGrantRevision> {
-    const account=await this.accounts.getAccountByAddress(canonicalizeHailAddress(addressInput));
+    const account=await this.localAccount(addressInput);
     if(!account.did||account.state!=="active"||account.activationVerificationMode!=="public")throw new UserGrantError(409,"Active grantor required");
     const key=await this.accounts.getKey(account.id,"hail-identity"),resolved=await this.resolver.resolve(account.did);
     if(key.publicKey!==signingKey||resolved.identityDidKey!==signingKey||resolved.serviceBase!==this.expectedServiceBase)throw new UserGrantError(409,"Managed signing key/provider changed");
@@ -140,7 +149,7 @@ export class GrantService {
   // authority until the current #hail-identity key signs its exact Hail bytes.
   async prepareUserSignedGrant(grantorAddressInput: string,
     granteeAddressInput: string, input: GrantDefinition): Promise<HailGrant> {
-    const grantor = await this.accounts.getAccountByAddress(canonicalizeHailAddress(grantorAddressInput));
+    const grantor = await this.localAccount(grantorAddressInput);
     if (grantor.state !== "active" || grantor.activationVerificationMode !== "public" || !grantor.did) {
       throw new Error("Grantor must be an externally verified active account");
     }
@@ -173,7 +182,7 @@ export class GrantService {
   async acceptUserSignedGrant(grantorAddressInput: string,
     granteeAddressInput: string, representation: Uint8Array): Promise<SignedGrantRevision> {
     if (representation.length < 1 || representation.length > 262_144) throw new UserGrantError(400, "Grant exceeds its limit");
-    const grantor = await this.accounts.getAccountByAddress(canonicalizeHailAddress(grantorAddressInput));
+    const grantor = await this.localAccount(grantorAddressInput);
     if (grantor.state !== "active" || grantor.activationVerificationMode !== "public" || !grantor.did) {
       throw new UserGrantError(409, "Grantor account is not active and externally verified");
     }
@@ -289,8 +298,7 @@ export class GrantService {
     granteeAddressInput: string,
     inputDefinition: GrantDefinition,
   ): Promise<SignedGrantRevision> {
-    const grantorAddress = canonicalizeHailAddress(grantorAddressInput);
-    const grantor = await this.accounts.getAccountByAddress(grantorAddress);
+    const grantor = await this.localAccount(grantorAddressInput);
     if (
       grantor.state !== "active" ||
       grantor.activationVerificationMode !== "public" ||
@@ -369,9 +377,7 @@ export class GrantService {
   }
 
   async revoke(grantorAddressInput: string, grantId: string, reviewed?:{revision:number;digest:Uint8Array}): Promise<SignedGrantRevision> {
-    const grantor = await this.accounts.getAccountByAddress(
-      canonicalizeHailAddress(grantorAddressInput),
-    );
+    const grantor = await this.localAccount(grantorAddressInput);
     if (
       grantor.state !== "active" ||
       grantor.activationVerificationMode !== "public" ||

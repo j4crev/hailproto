@@ -68,7 +68,7 @@ export class AccountConnections {
       JOIN account_serving_generations g ON g.account_id=a.id
       JOIN account_passkeys k ON k.credential_id=s.credential_id AND k.account_id=a.id
       WHERE s.id=${session.credential_id} AND a.id=${session.account_id} AND a.did=${session.did}
-        AND a.onboarding_state='active' AND a.activation_verification_mode='public' AND s.serving_generation=g.generation
+        AND a.closed_at IS NULL AND a.onboarding_state='active' AND a.activation_verification_mode='public' AND s.serving_generation=g.generation
         AND g.generation=${session.serving_generation??1} AND k.serving_generation=g.generation AND k.revoked_at IS NULL
         AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND s.last_seen_at>clock_timestamp()-interval '30 minutes'
         AND s.credential_id=${session.passkey_credential_id}`;
@@ -81,7 +81,7 @@ export class AccountConnections {
       COALESCE(m.provider_identity_public_key,p.user_identity_public_key) AS identity_key FROM provider_accounts a
       JOIN account_serving_generations g ON g.account_id=a.id
       LEFT JOIN managed_custody_evidence m ON m.account_id=a.id LEFT JOIN portable_custody_evidence p ON p.account_id=a.id
-      WHERE a.id=${id} AND a.onboarding_state='active' AND a.activation_verification_mode='public'
+      WHERE a.id=${id} AND a.closed_at IS NULL AND a.onboarding_state='active' AND a.activation_verification_mode='public'
         AND ((m.account_id IS NOT NULL AND p.account_id IS NULL) OR (p.account_id IS NOT NULL AND m.account_id IS NULL
           AND NOT EXISTS(SELECT 1 FROM account_keys WHERE account_id=a.id AND role='hail-identity')))`)[0];
     if(!row)throw new ConnectionError(409,"This preview requires active managed or owner-controlled accounts on this provider.");return row;

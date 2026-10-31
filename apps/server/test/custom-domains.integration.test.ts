@@ -140,6 +140,7 @@ integration("custom domain registration", () => {
       await isolated.migrate();
       const rollback = await Bun.file(new URL("../migrations/rollback/0087_custom_domains.sql", import.meta.url)).text();
       await isolated.sql.begin(async tx => {
+        await tx.unsafe(await Bun.file(new URL("../migrations/rollback/0091_address_release.sql", import.meta.url)).text());
         await tx.unsafe(await Bun.file(new URL("../migrations/rollback/0088_custom_address_authorizations.sql", import.meta.url)).text());
         await tx.unsafe(rollback);
         await tx`DELETE FROM schema_migrations WHERE version IN (87,88)`;

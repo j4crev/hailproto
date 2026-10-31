@@ -69,6 +69,8 @@ export class MigrationFenceService {
         account.activation_verification_mode !== "public") {
         throw new Error("Migration source DID requires public activation");
       }
+      if(account&&(await tx`SELECT id FROM provider_accounts WHERE id=${account.id} AND (address_released_at IS NOT NULL OR closed_at IS NOT NULL)`).length)
+        throw new Error("Released addresses cannot begin provider transfer");
       if (account && account.canonical_address.split("@")[1] !== new URL(this.sourceServiceBase).hostname) {
         throw new Error("Custom-domain provider transfer is not supported yet");
       }

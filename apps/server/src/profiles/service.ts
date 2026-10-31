@@ -29,6 +29,7 @@ export interface SenderProfileDefinition {
 }
 
 export interface SenderProfileRepository {
+  getAccountByDid?(did: string): Promise<AccountRecord | null>;
   getAccountByAddress(canonicalAddress: string): Promise<AccountRecord>;
   getKey(accountId: string, role: AccountKeyRecord["role"]): Promise<AccountKeyRecord>;
   getLatestSenderProfile(accountId: string): Promise<StoredSenderProfile | null>;
@@ -128,13 +129,20 @@ export class SenderProfileService {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
+  private async localAccount(input:string):Promise<AccountRecord> {
+    if(input.startsWith("did:plc:")){
+      const account=await this.repository.getAccountByDid?.(input);
+      if(!account)throw new Error("Account does not exist");return account;
+    }
+    return this.repository.getAccountByAddress(canonicalizeHailAddress(input));
+  }
+
   async createOrReuse(
     addressInput: string,
     inputDefinition: SenderProfileDefinition,
     expectedPreviousRevision?: number,
   ): Promise<StoredSenderProfile> {
-    const address = canonicalizeHailAddress(addressInput);
-    const account = await this.repository.getAccountByAddress(address);
+    const account = await this.localAccount(addressInput);
     if (account.state !== "active" || !account.did) {
       throw new Error("Account must be active before publishing a Sender Profile");
     }
@@ -227,7 +235,7 @@ export class SenderProfileService {
   }
 
   async getLatest(addressInput:string):Promise<StoredSenderProfile|null>{
-    const account=await this.repository.getAccountByAddress(canonicalizeHailAddress(addressInput));
+    const account=await this.localAccount(addressInput);
     if(account.state!=="active")throw new Error("Account must be active before reading a Sender Profile");
     return this.repository.getLatestSenderProfile(account.id);
   }

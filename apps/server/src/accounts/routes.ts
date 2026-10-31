@@ -233,14 +233,14 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           if(!await accounts.isManaged(session.account_id))return problem(403);
           if(Object.keys(input).length!==2||Object.keys(input).some(k=>!["payload","signingKey"].includes(k))||typeof input.signingKey!=="string")return problem(400);
           const payload=fromDiagnosticJson("hail.grant",input.payload as DiagnosticJson);if(payload.grant_id!==grantId||payload.grantor!==session.did||payload.status!=="active")return problem(400);
-          const saved=await service.updateManaged(session.canonical_address,payload,input.signingKey);
+          const saved=await service.updateManaged(session.did,payload,input.signingKey);
           return context.json({grantId,revision:saved.payload.revision,status:saved.payload.status,digest:encodeBase64Url(saved.digest),publication:"durable",cose:encodeBase64Url(saved.representation)});
         }
         if(Object.keys(input).some(k=>!["scope","expiresAt","expectedRevision","expectedDigest","refreshConsent","sender"].includes(k))||
           !Number.isSafeInteger(input.expectedRevision)||typeof input.expectedDigest!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(input.expectedDigest)||
           typeof input.refreshConsent!=="boolean"||input.expiresAt!==null&&!Number.isSafeInteger(input.expiresAt)||
           input.sender!==undefined&&typeof input.sender!=="string"||!input.scope||typeof input.scope!=="object"||Array.isArray(input.scope))return problem(400);
-        const proposed=await service.prepareUserSignedUpdate(session.canonical_address,grantId,{scope:input.scope as import("@hailproto/codec").HailGrantScope,
+        const proposed=await service.prepareUserSignedUpdate(session.did,grantId,{scope:input.scope as import("@hailproto/codec").HailGrantScope,
           expiresAt:input.expiresAt as number|null,expectedRevision:input.expectedRevision as number,expectedDigest:decodeBase64Url(input.expectedDigest),
           refreshConsent:input.refreshConsent,...(input.sender?{sender:input.sender as string}:{})});
         return context.json({type:"hailp.grant-proposal",version:1,grant:toDiagnosticJson("hail.grant",proposed)});
@@ -267,7 +267,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           !session.scopes.includes("account:write") && !(method==="POST" && freshBrowserProfile))return problem(403);
         if(!profiles)return problem(503);
         if(method==="GET"){
-          const current=await profiles.getLatest(session.canonical_address);if(!current)return problem(404);
+          const current=await profiles.getLatest(session.did);if(!current)return problem(404);
           return context.json({type:"hailp.sender-profile",version:1,revision:current.revision,
             digest:encodeBase64Url(current.digest),cose:encodeBase64Url(current.cose),
             profile:toDiagnosticJson("hail.sender-profile",current.payload)});
@@ -287,7 +287,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           const general=definition.categories.filter(category=>category.id==="general");
           if(general.length!==1||general[0]!.label!=="General"||general[0]!.description!==undefined)return problem(400);
         }
-        const saved=await profiles.createOrReuse(session.canonical_address,definition,Number(input.expectedRevision));
+        const saved=await profiles.createOrReuse(session.did,definition,Number(input.expectedRevision));
         return context.json({type:"hailp.sender-profile",version:1,revision:saved.revision,
           digest:encodeBase64Url(saved.digest),cose:encodeBase64Url(saved.cose),
           profile:toDiagnosticJson("hail.sender-profile",saved.payload)});
@@ -398,7 +398,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         if (!Array.isArray(scopes) || !scopes.length || new Set(scopes).size !== scopes.length ||
           scopes.some(scope => !ALL_ACCOUNT_SCOPES.includes(scope))) return problem(400);
         if (scopes.some(scope => !session.scopes.includes(scope))) return problem(403);
-        const credential=await accounts.issue(session.canonical_address,false,input.token,scopes);
+        const credential=await accounts.issue(session.did,false,input.token,scopes);
         return context.json({type:"hailp.api-credential",version:1,provider,...credential});
       }
       if (action === "managed-revoke") {
@@ -407,7 +407,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         if(!await accounts.isManaged(session.account_id))return problem(403);
         const current=await grants.findCurrentByGrantId(grantId!);
         if(!current||current.localAccountId!==session.account_id||current.localRole!=="grantor")return problem(404);
-        const saved=await service.revoke(session.canonical_address,grantId!);
+        const saved=await service.revoke(session.did,grantId!);
         return context.json({grantId,revision:saved.payload.revision,status:saved.payload.status,digest:encodeBase64Url(saved.digest),publication:"durable"});
       }
       if (action === "proposal" || action === "managed-create") {
@@ -424,11 +424,11 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           (input.expiresAt !== null && !Number.isSafeInteger(input.expiresAt))) return problem(400);
         if(action === "managed-create") {
           if(!await accounts.isManaged(session.account_id))return problem(403);
-          const saved=await service.createOrReuse(session.canonical_address,input.sender,
+          const saved=await service.createOrReuse(session.did,input.sender,
             {scope:input.scope ?? (input.category===null?{type:"uncategorized"}:{type:"categories",values:[input.category]}),expiresAt:input.expiresAt});
           return context.json({grantId:saved.payload.grant_id,revision:saved.payload.revision,status:saved.payload.status,digest:encodeBase64Url(saved.digest),publication:"durable"});
         }
-        const payload = await service.prepareUserSignedGrant(session.canonical_address, input.sender,
+        const payload = await service.prepareUserSignedGrant(session.did, input.sender,
           { scope: input.scope ?? (input.category === null ? { type: "uncategorized" } : { type: "categories", values: [input.category] }), expiresAt: input.expiresAt });
         return context.json({ type: "hailp.grant-proposal", version: 1, grant: toDiagnosticJson("hail.grant", payload) });
       }
@@ -465,7 +465,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
       if (representation === null) return problem(413);
       const payload = inspectSignedPayload("hail.grant", representation).payload;
       if (payload.grant_id !== grantId) return problem(400);
-      const saved = await service.acceptUserSignedGrant(session.canonical_address,
+      const saved = await service.acceptUserSignedGrant(session.did,
         payload.consent_context.grantee_address, representation);
       context.header("ETag", `"${encodeBase64Url(saved.digest)}"`);
       return context.json({ grantId, revision: saved.payload.revision, status: saved.payload.status,

@@ -43,8 +43,8 @@ export class RegistrationPolicy {
   /** Only an already-consumed, exact custom-address capability can admit here.
    * Caller consumes authority and reserves the account in this same transaction. */
   async admitCustomAddress(tx:SQL,signupId:string,address:string,tokenHash:Uint8Array,digest:Uint8Array):Promise<null>{
-    if(!(await tx`SELECT id FROM custom_address_authorizations
-      WHERE signup_id=${signupId} AND canonical_address=${address} AND provider_origin=${this.origin}
+    if(!(await tx`SELECT id FROM custom_address_authorizations WHERE retired_at IS NULL
+      AND signup_id=${signupId} AND canonical_address=${address} AND provider_origin=${this.origin}
         AND signup_token_hash=${tokenHash} AND request_digest=${digest} AND consumed_at IS NOT NULL
       UNION ALL SELECT id FROM standalone_domain_signups WHERE signup_id=${signupId} AND canonical_address=${address}
         AND provider_origin=${this.origin} AND signup_token_hash=${tokenHash} AND request_digest=${digest} AND consumed_at IS NOT NULL`).length)

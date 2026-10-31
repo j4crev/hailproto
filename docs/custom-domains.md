@@ -5,8 +5,10 @@ signup. The user confirmed custom-address sending and replies and independently
 onboarded a custom-domain user without a provider-native account. Slice 3 remains
 partial. The nonexpiring Address Binding v2 and migration-retirement withdrawal
 changes, including the same-provider custody authority checks, are local work,
-not yet deployed. Full domain withdrawal/reassignment,
-custom-domain transfer, and the domain-loss pilot remain deferred.
+not yet deployed. Administrator-initiated domain withdrawal, cooperative
+reassignment, and account closure with inbox erasure are now local work as well.
+Forced takeover of an existing registration, custom-domain provider transfer,
+and the live domain-loss pilot remain deferred.
 
 ## Agreed product model
 
@@ -217,10 +219,13 @@ DNS/provider pilot subsequently succeeded; see the completed Slice 2 checklist.
   introduce background polling or per-message domain checks.
 - [x] Implement local migration-retirement publication tombstones that hide both
   WebFinger mappings and public COSE artifacts. This work is not yet deployed.
-- [ ] Integrate the shared withdrawal helper into a future account-deletion flow;
-  that flow is not implemented.
-- [ ] Implement full domain withdrawal and reassignment with cache safeguards.
-  Never transfer the old DID, keys, messages, or permissions to a new domain owner.
+- [x] Integrate shared withdrawal into account closure, revoke local access, and
+  erase the provider inbox. Accounts with migration snapshots are rejected until
+  snapshot erasure is supported.
+- [x] Implement administrator-initiated domain withdrawal and cooperative
+  reassignment with cache safeguards and independent account identities.
+- [ ] Support fresh-proof takeover of a still-registered domain without the old
+  administrator initiating withdrawal.
 - [x] Preserve provider login and existing DID authority after domain loss;
   stale discovery must not appear currently verified.
 - [ ] Exercise existing cross-provider conversations during the live domain-loss pilot.
@@ -297,15 +302,15 @@ a changed address or identity key requires explicit publication.
 Successful migration retirement now records irreversible local publication
 withdrawal tombstones. Both WebFinger selection and direct public COSE URLs stop
 serving the retired account's bindings; retained signed evidence remains private.
-The shared withdrawal helper is available for future account closure, but no
-account-deletion flow has been built. This migration hook does not implement
-custom-domain transfer, domain administration removal, or domain reassignment.
+The same withdrawal helper is used by the local account-closure and domain
+withdrawal flows described below. Migration retirement alone does not implement
+custom-domain provider transfer or domain reassignment.
 
 Withdrawal relies on provider cooperation. If the identity key remains current,
 a noncooperating former address authority could republish an old signature;
 withdrawal is not cryptographic revocation. It does not erase PLC history or
-require a standalone binding-revocation command. Full domain withdrawal and
-reassignment remain deferred: future reassignment must wait at least 3600 seconds
+require a standalone binding-revocation command. Domain withdrawal and
+cooperative reassignment must wait at least 3600 seconds
 after both the old WebFinger mapping and public COSE artifacts are withdrawn,
 retain old DID-authorized conversations, and prevent key, inbox, or permission
 inheritance by the next domain owner.
@@ -346,23 +351,91 @@ and controlled network transport; real custom signup is covered separately by
 the monitored and standalone signup suites.
 
 This local scenario does not substitute for the live custom-domain-loss pilot.
-No provider deployment or live DNS change was performed. Full withdrawal and
-same-provider reassignment require a separate account/address ownership lifecycle:
-`provider_accounts.canonical_address` is currently unique, and address lookup is
-used throughout signup, recovery, and discovery. Removing that constraint or
-replacing the old account would violate the retained-account isolation guarantee.
-That implementation must retain stable DID/passkey access, stop every old
-publication path, invalidate pending admission, withdraw both public surfaces,
-wait at least 3600 seconds, and require fresh ownership proof before allocating a
-new account. Account-deletion integration still depends on an account-closure
-flow. These feature items remain unchecked; the new test covers cross-provider
-address reuse, not provider-local reassignment.
+No provider deployment or live DNS change was performed. The subsequent local
+withdrawal/reassignment and deletion implementation is described below.
+
+### Address release, domain withdrawal, and account deletion
+
+Migration 0091 separates the account's historical `canonical_address` from its
+current claim. Only accounts with `address_released_at IS NULL` reserve an address.
+Released accounts keep their immutable DID and historical address; new owners get
+new account IDs, DIDs, keys, inboxes, and credentials. Authenticated grant/profile
+operations and credential issuance use the caller's DID, while address lookup
+selects only the current claimant. The GUI labels released addresses explicitly.
+
+Settings → Custom domains offers **Withdraw domain**. The administrator must have
+signed in with a passkey within five minutes and type the exact domain. The
+same-origin, passkey-only endpoint is
+`POST /api/v1/account/custom-domains/:id/withdraw` with `{"domain":"example.com"}`.
+The transaction withdraws every account's bindings under that domain, retires
+pending address authority, releases the addresses, and retains the registration
+as historical evidence. Both WebFinger and direct COSE URLs stop serving the old
+bindings. New binding writes fail at the database boundary. Existing accounts
+keep passkey/recovery access, messages, DID permissions, and conversations.
+In-flight custody or provider-transfer fences must settle before withdrawal.
+
+Reuse waits 3630 seconds from the recorded withdrawal: the one-hour maximum
+verification-cache lifetime plus a 30-second commit allowance. Lifecycle
+transactions are capped at 30 seconds so the quarantine covers at least one hour
+after committed withdrawal. There is no scheduler. Registration, standalone
+signup, and account reservation enforce the delay on demand. Re-registering
+requires a new challenge created after withdrawal plus current delegation;
+consumed/stale proofs cannot reclaim the domain. The administrator can also
+register it again, but this never restores old publication authority. This first
+flow is cooperative: a still-registered domain cannot be taken over merely by
+starting another registration, even if its DNS has changed.
+
+Settings → **Delete account and erase inbox** uses
+`POST /api/v1/account/delete` with `{"address":"alice@example.com","eraseInbox":true}`.
+It requires the same fresh passkey and exact typed confirmation. Registered
+domains must be withdrawn first; other accounts under them are not deleted.
+Closure cancels pending message publication/delivery, blocks outstanding grant
+and terminal-status publications, removes received messages
+(including Trash) and their body provenance, immediately removes unreferenced
+shared body blobs, revokes all passkeys and sessions/API credentials, withdraws
+bindings, and releases the address. Closed accounts cannot reopen, recover local
+access, sign through the provider, or accept new inbox writes. A later account
+using that address cannot access the closed account's history. Existing copies
+belonging to other recipients remain untouched.
+
+Deletion retains private protocol/audit metadata, encrypted identity records,
+and existing sent-message artifacts; it does not publish a PLC tombstone or erase
+other providers' copies. It removes live provider inbox data, not pre-existing
+operator backups. Operators must honor deletions when restoring backups.
+Accounts with retained migration exports/imports or archived transfer snapshots
+are explicitly refused: those immutable snapshots can contain inbox copies and
+need a separate redaction lifecycle. Pending connection consent/handover work
+must settle before closure. These failures leave the account and its inbox intact.
+
+Deployment requires a coordinated upgrade: stop old application processes before
+applying 0091, then start the new server/client. Old binaries perform ambiguous
+address lookups and cannot safely run after address reuse. Lifecycle fields are
+provider-local and omitted from transfer exports. The rollback succeeds before
+any lifecycle action, but refuses once release, withdrawal, closure, or retired
+admission evidence exists. No stored signatures are rewritten; rolling back does
+not resurrect released authority or erased inboxes.
+
+Local validation for migration 0091 and these flows: 295 server unit tests and
+143 client tests passed; server typechecking and client Svelte checking passed.
+Eighteen distinct database suites passed against disposable PostgreSQL 18.6
+(with focused reruns after fixes and no skipped database tests): account API,
+address release, connection federation, custom address authorizations, custom
+domains, grant updates, managed network orchestration, migration fencing, passkey
+authentication/recovery/sessions, permissions, provider roles, public onboarding,
+self-service, monitored signup, standalone domains, and private-PoC migration.
+The new lifecycle regression exercises fresh-session enforcement, discovery
+withdrawal, quarantine, fresh ownership proof and authorization, independent DID
+lookup after address reuse, inbox and shared-blob erasure, credential revocation,
+background-status cancellation, snapshot refusal, concurrent address reservation,
+and guarded rollback. Tests use controlled DNS/PLC transport and local fixtures;
+no live PLC operation, provider deployment, or DNS change was performed.
 
 ## Later work
 
 - [ ] Define custom-domain provider transfer and re-verification at destination.
-- [ ] Require fresh ownership proof for domain administrator changes; ownership
-  transfer and removal of verified registrations are currently rejected.
+- [x] Require fresh ownership proof after explicit withdrawal before a new domain
+  administrator can register the domain.
+- [ ] Define forced domain reclamation and migration-snapshot inbox erasure.
 - [ ] Add an account switcher with independently authenticated sessions.
 - [ ] Consider composing as another account with that account's permissions.
 - [ ] Register the protocol's underscored DNS names before standardization.

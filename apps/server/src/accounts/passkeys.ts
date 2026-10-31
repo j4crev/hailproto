@@ -118,7 +118,7 @@ export class PasskeyAuth {
       JOIN account_serving_generations generation ON generation.account_id=account.id AND generation.generation=capability.serving_generation
       LEFT JOIN provider_migration_fences fence ON fence.account_id=account.id
       WHERE capability.token_hash=${tokenHash(token)} AND capability.consumed_at IS NULL AND capability.expires_at>now()
-        AND account.onboarding_state='active' AND account.did IS NOT NULL AND fence.account_id IS NULL`;
+        AND account.closed_at IS NULL AND account.onboarding_state='active' AND account.did IS NOT NULL AND fence.account_id IS NULL`;
     const row=rows[0];if(!row)throw new PasskeyError(401);
     const existing=await this.sql<{credential_id:string;transports:unknown}[]>`SELECT credential_id,transports FROM account_passkeys
       WHERE account_id=${row.account_id} AND serving_generation=${Number(row.serving_generation)} AND revoked_at IS NULL`;
@@ -210,7 +210,7 @@ export class PasskeyAuth {
         WHERE auth.code_hash=${tokenHash(code)} AND auth.client_id=${input.clientId}
           AND auth.redirect_uri=${redirectUri} AND auth.code_challenge=${challenge}
           AND auth.completed_at IS NOT NULL AND auth.expires_at>now()
-          AND account.onboarding_state='active' AND account.did IS NOT NULL AND fence.account_id IS NULL FOR UPDATE OF auth`;
+          AND account.closed_at IS NULL AND account.onboarding_state='active' AND account.did IS NOT NULL AND fence.account_id IS NULL FOR UPDATE OF auth`;
       const row=rows[0];if(!row)throw new PasskeyError(401);const scopes=typeof row.scopes==="string"?JSON.parse(row.scopes) as AccountApiScope[]:row.scopes as AccountApiScope[];
       let credentialId=row.credential_id;
       if(!credentialId){
@@ -240,7 +240,7 @@ export class PasskeyAuth {
       LEFT JOIN provider_migration_fences fence ON fence.account_id=account.id
       WHERE challenge.id=${challengeId} AND challenge.purpose='registration' AND challenge.expires_at>now()
         AND capability.token_hash=${tokenHash(token)} AND capability.expires_at>now()
-        AND account.onboarding_state='active' AND account.did IS NOT NULL AND fence.account_id IS NULL`;
+        AND account.closed_at IS NULL AND account.onboarding_state='active' AND account.did IS NOT NULL AND fence.account_id IS NULL`;
     const row=rows[0];if(!row)throw new PasskeyError(401);
     return this.completeRegistration(row.account_id,Number(row.serving_generation),challengeId,row.challenge,response,label,row.capability_id);
   }
@@ -351,7 +351,7 @@ export class PasskeyAuth {
       FROM account_passkeys key JOIN provider_accounts account ON account.id=key.account_id
       JOIN account_serving_generations generation ON generation.account_id=account.id AND generation.generation=key.serving_generation
       LEFT JOIN provider_migration_fences fence ON fence.account_id=account.id
-      WHERE key.credential_id=${response.id} AND key.revoked_at IS NULL AND account.onboarding_state='active'
+      WHERE key.credential_id=${response.id} AND key.revoked_at IS NULL AND account.closed_at IS NULL AND account.onboarding_state='active'
         AND account.did IS NOT NULL AND fence.account_id IS NULL`;
     const row=rows[0];if(!row)throw new PasskeyError(401);
     let result;

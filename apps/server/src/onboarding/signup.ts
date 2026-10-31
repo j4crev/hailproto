@@ -82,7 +82,7 @@ export class SignupCoordinator {
     if(custom!==hasAuthorization)throw new SignupError(400,"Custom addresses require exact-address authorization");
     if(custom)await this.domains.checkAddressAuthorization(input.addressAuthorization as string,address);
     else await this.registration.check(input.invitation);
-    const held=await this.sql`SELECT 1 FROM provider_accounts WHERE canonical_address=${address}
+    const held=await this.sql`SELECT 1 FROM provider_accounts WHERE canonical_address=${address} AND (address_released_at IS NULL OR address_released_at>clock_timestamp()-interval '3630 seconds')
       UNION ALL SELECT 1 FROM transfer_address_reservations WHERE canonical_address=${address}
       UNION ALL SELECT 1 FROM provider_reserved_names WHERE local_part=split_part(${address}, '@', 1) LIMIT 1`;
     return {address,available:held.length===0};

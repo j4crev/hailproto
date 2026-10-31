@@ -582,7 +582,7 @@ export class MigrationTransferService {
 
   private async collect(tx: SQL, did: string, accountId: string): Promise<TransferManifest["tables"]> {
     const collect = async (query: Promise<{ row: Record<string, unknown> }[]>) => (await query).map((entry) => entry.row);
-    const account = await collect(tx`SELECT to_jsonb(t) AS row FROM provider_accounts t WHERE id = ${accountId}`);
+    const account = await collect(tx`SELECT (to_jsonb(t)-'address_released_at'-'closed_at') AS row FROM provider_accounts t WHERE id = ${accountId}`);
     // Retain the old provider's public role metadata only. Neither old
     // operational secrets nor user-controlled key material is transferable.
     const keys = await collect(tx`SELECT (to_jsonb(t) - 'encrypted_private_key' - 'encryption_nonce' - 'kek_id') AS row

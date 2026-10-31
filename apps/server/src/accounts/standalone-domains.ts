@@ -7,7 +7,7 @@ import { canonicalDomain, CustomDomainError } from "./domain-proof.js";
 
 interface Setup {
   id:string;provider_origin:string;canonical_address:string;token_hash:Uint8Array;challenge_hash:Uint8Array;
-  expires_at:Date;next_check_at:Date;verified_at:Date|null;authorization_expires_at:Date|null;
+  created_at:Date;expires_at:Date;next_check_at:Date;verified_at:Date|null;authorization_expires_at:Date|null;
   signup_id:string|null;signup_token_hash:Uint8Array|null;request_digest:Uint8Array|null;consumed_at:Date|null;account_id:string|null;
 }
 const tokenPattern=/^haild_[A-Za-z0-9_-]{43}$/;
@@ -39,8 +39,8 @@ export class StandaloneDomains {
   }
   private async available(tx:SQL,address:string){
     const domain=address.split("@")[1]!;
-    if((await tx`SELECT 1 FROM account_custom_domains WHERE domain=${domain} AND verified_at IS NOT NULL
-      UNION ALL SELECT 1 FROM provider_accounts WHERE canonical_address=${address}
+    if((await tx`SELECT 1 FROM account_custom_domains WHERE domain=${domain} AND ((verified_at IS NOT NULL AND withdrawn_at IS NULL) OR withdrawn_at>clock_timestamp()-interval '3630 seconds')
+      UNION ALL SELECT 1 FROM provider_accounts WHERE canonical_address=${address} AND (address_released_at IS NULL OR address_released_at>clock_timestamp()-interval '3630 seconds')
       UNION ALL SELECT 1 FROM transfer_address_reservations WHERE canonical_address=${address}
       UNION ALL SELECT 1 FROM provider_reserved_names WHERE local_part=split_part(${address},'@',1) LIMIT 1`).length)
       throw new CustomDomainError(409,"Domain or address is already registered or reserved. Existing domain administrators should use Settings.");
@@ -117,8 +117,8 @@ export class StandaloneDomains {
     if(!row.consumed_at||row.signup_id!==signupId||row.account_id&&row.account_id!==accountId)throw new CustomDomainError(409,"Domain setup does not match this account.");
     if(row.account_id)return;
     const domainId=randomUUID();
-    await tx`INSERT INTO account_custom_domains(id,account_id,domain,provider_host,challenge_hash,challenge_expires_at,verified_at,ownership_checked_at,delegation_checked_at)
-      VALUES(${domainId},${accountId},${row.canonical_address.split("@")[1]!},${this.host},${row.challenge_hash},${row.expires_at},clock_timestamp(),clock_timestamp(),clock_timestamp())`;
+    await tx`INSERT INTO account_custom_domains(id,account_id,domain,provider_host,challenge_hash,challenge_created_at,challenge_expires_at,verified_at,ownership_checked_at,delegation_checked_at)
+      VALUES(${domainId},${accountId},${row.canonical_address.split("@")[1]!},${this.host},${row.challenge_hash},${row.created_at},${row.expires_at},clock_timestamp(),clock_timestamp(),clock_timestamp())`;
     await tx`INSERT INTO custom_address_authorizations(id,domain_id,account_id,account_generation,provider_origin,canonical_address,token_hash,issued_at,expires_at,signup_id,signup_token_hash,request_digest,consumed_at)
       VALUES(${row.id},${domainId},${accountId},1,${this.origin},${row.canonical_address},${row.token_hash},statement_timestamp(),statement_timestamp()+interval '15 minutes',${signupId},${row.signup_token_hash},${row.request_digest},${row.consumed_at})`;
     await tx`UPDATE standalone_domain_signups SET account_id=${accountId} WHERE id=${row.id}`;

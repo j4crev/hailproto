@@ -61,7 +61,7 @@ export class PrivatePocOnboarding {
         p.provider_rotation_public_key, p.provider_messaging_public_key, p.monitor_public_key,
         account.canonical_address, account.onboarding_state
       FROM provider_accounts account JOIN private_poc_onboarding_preparations p
-        ON p.account_id = account.id WHERE account.canonical_address = ${address}`;
+        ON p.account_id = account.id WHERE account.canonical_address = ${address} AND account.address_released_at IS NULL`;
     if (prior[0]) {
       if (prior[0].user_recovery_public_key !== recovery || prior[0].custody_profile !== profile ||
         (profile === "owner-controlled" && prior[0].user_identity_public_key !== identity) ||
@@ -90,7 +90,7 @@ export class PrivatePocOnboarding {
       const created = await tx`INSERT INTO provider_accounts
         (id, tenant_id, canonical_address, onboarding_state)
         VALUES (${accountId}, ${randomUUID()}, ${address}, 'reserved')
-        ON CONFLICT (canonical_address) DO NOTHING RETURNING id`;
+        ON CONFLICT (canonical_address) WHERE address_released_at IS NULL DO NOTHING RETURNING id`;
       if (created.length !== 1) throw new Error("POC address is already reserved");
       for (const key of generated.keys.filter((entry) => profile === "managed" || entry.role !== "hail-identity")) {
         await tx`INSERT INTO account_keys

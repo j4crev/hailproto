@@ -7,7 +7,7 @@ import type { AccountApiRepository, AccountApiSession } from "../src/accounts/re
 const origin = "https://haili.app";
 const session = { account_id: "a", passkey_credential_id: "passkey", serving_generation: 1, migration_state: null } as AccountApiSession;
 function fixture(authenticated: AccountApiSession | null = session) {
-  const domains = { start: vi.fn(async () => ({ status: "pending" })), list: vi.fn(async () => ({ domains: [] })),
+  const domains = { closeAccount:vi.fn(async()=>({closed:true})),withdraw:vi.fn(async()=>({withdrawn:true})), start: vi.fn(async () => ({ status: "pending" })), list: vi.fn(async () => ({ domains: [] })),
     verify: vi.fn(async () => ({ status: "verified" })), removePending: vi.fn(async () => ({ removed: true })),
     authorizeAddress: vi.fn(async () => ({ token: "test-only", address: "j4@j4crev.com" })) };
   const accounts = { authenticate: vi.fn(async () => authenticated) };
@@ -18,6 +18,18 @@ function fixture(authenticated: AccountApiSession | null = session) {
 const headers = { Origin: origin, "Content-Type": "application/json", Cookie: "hail_session=session" };
 
 describe("custom domain HTTP boundaries", () => {
+  it("requires exact deletion intent and dispatches withdrawal separately from pending removal",async()=>{
+    const {app,domains}=fixture(),id="11111111-1111-4111-8111-111111111111";
+    const url=origin+"/api/v1/account/delete";
+    expect((await app.request(url,{method:"POST",headers,body:JSON.stringify({address:"a@example.com",eraseInbox:true})})).status).toBe(200);
+    expect(domains.closeAccount).toHaveBeenCalledWith(session,"a@example.com");
+    for(const body of [{address:"a@example.com"},{address:"a@example.com",eraseInbox:false},{address:"a@example.com",eraseInbox:true,extra:true}])
+      expect((await app.request(url,{method:"POST",headers,body:JSON.stringify(body)})).status).toBe(400);
+    expect((await app.request(url,{headers})).status).toBe(405);
+    expect((await app.request(url,{method:"POST",headers:{...headers,Authorization:"Bearer hailp_fake"},body:'{}'})).status).toBe(403);
+    expect((await app.request(origin+`/api/v1/account/custom-domains/${id}/withdraw`,{method:"POST",headers,body:JSON.stringify({domain:"example.com"})})).status).toBe(200);
+    expect(domains.withdraw).toHaveBeenCalledWith(session,id,"example.com");expect(domains.removePending).not.toHaveBeenCalled();
+  });
   it("issues exact-address authorization only through the authenticated mutation surface", async () => {
     const { app, domains } = fixture(), id = "11111111-1111-4111-8111-111111111111";
     const url = `${origin}/api/v1/account/custom-domains/${id}/authorize-address`;

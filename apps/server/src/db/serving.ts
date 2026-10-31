@@ -9,7 +9,7 @@ export function withServingGeneration<T>(account:string,generation:number,operat
 export async function withFreshServingGenerations<T>(sql:SQL,operation:()=>T|Promise<T>) {
   // ponytail: one provider-wide admission snapshot, O(accounts); capture per-DID at entry points if throughput matters.
   return admitted.run(undefined,async()=>{
-    const rows=await sql<{account_id:string;generation:string|number}[]>`SELECT account_id,generation FROM account_serving_generations`;
+    const rows=await sql<{account_id:string;generation:string|number}[]>`SELECT g.account_id,g.generation FROM account_serving_generations g JOIN provider_accounts a ON a.id=g.account_id WHERE a.closed_at IS NULL`;
     return admitted.run(Object.fromEntries(rows.map(row=>[row.account_id,Number(row.generation)])),operation);
   });
 }

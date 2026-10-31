@@ -82,7 +82,7 @@ export class ConnectionFederation {
     const pair=(await tx<{account_id:string}[]>`SELECT p.account_id FROM federated_connection_pairs p
       JOIN provider_accounts a ON a.id=p.account_id AND a.did=p.local_did
       JOIN account_serving_generations g ON g.account_id=a.id AND g.generation=p.serving_generation
-      WHERE p.local_did=${payload.to} AND p.peer_did=${payload.from} AND a.onboarding_state='active' AND a.activation_verification_mode='public'
+      WHERE p.local_did=${payload.to} AND p.peer_did=${payload.from} AND a.closed_at IS NULL AND a.onboarding_state='active' AND a.activation_verification_mode='public'
         AND NOT EXISTS(SELECT 1 FROM provider_migration_fences f WHERE f.account_id=a.id)`)[0];
     if(pair)await this.retainProof(tx,pair.account_id,bytes,state.evidence);
     return payload;
@@ -107,7 +107,7 @@ export class ConnectionFederation {
     return cose;
   }
   private async ownerForDid(did:string){
-    const row=(await this.sql<{id:string}[]>`SELECT id FROM provider_accounts WHERE did=${did} AND onboarding_state='active'`)[0];
+    const row=(await this.sql<{id:string}[]>`SELECT id FROM provider_accounts WHERE did=${did} AND closed_at IS NULL AND onboarding_state='active'`)[0];
     if(!row)throw new ConnectionError(404);return this.hooks.owner(this.sql,row.id);
   }
   private async transaction<T>(owner:ConnectionOwner,fn:(tx:SQL)=>Promise<T>,releasing=false){

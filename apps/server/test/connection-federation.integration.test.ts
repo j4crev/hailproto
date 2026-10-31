@@ -1,3 +1,4 @@
+import {CustomDomains} from "../src/accounts/custom-domains.js";
 import {AddressVerifier} from "../src/discovery/verifier.js";
 import {registerDiscoveryRoutes} from "../src/discovery/routes.js";
 import type {PlcDirectoryClient} from "../src/plc/client.js";
@@ -370,6 +371,15 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
       expect(restored.representation).toEqual(original.representation);
       expect((await one.accounts.getBindingForAccount(a.id)).cose).toEqual(bindingBefore);
       await exchange('Delegation restored without renewal');
+      const proof=vi.fn(async():Promise<string[][]>=>[]);
+      const domains=new CustomDomains(first.db.sql,first.origin,proof,async()=>new URL(first.origin).hostname);
+      const registration=await domains.start(a.session,'custom.example.com');proof.mockResolvedValue([[registration.verificationValue!]]);
+      await domains.verify(a.session,registration.id);await domains.withdraw(a.session,registration.id,'custom.example.com');
+      await expect(verifier.verify(a.address)).rejects.toThrow();
+      await exchange('Existing conversation after explicit domain withdrawal');
+      expect(await authority()).toEqual(before);
+      expect(await one.accounts.findPublishedById((await one.accounts.getBindingForAccount(a.id)).id)).toBeNull();
+
       return;
     }
     const local=await prepare(c,ac.link);await commit(c,local);await drain(6);

@@ -131,12 +131,21 @@ and binding age does not automatically withdraw a published address.
 
 The migration-retirement implementation records irreversible publication
 tombstones, hiding the retired account's WebFinger mappings and direct public COSE
-URLs while preserving private audit evidence. A shared withdrawal helper exists
-for future account-deletion integration; no account-deletion flow is implemented.
-Full custom-domain withdrawal, reassignment, and transfer remain deferred. Future
-reassignment must wait at least 3600 seconds after both mapping and public artifacts
-are withdrawn. These lifecycle requirements do not erase PLC history or require
-a standalone binding-revocation command.
+URLs while preserving private audit evidence. Settings also supports explicit
+administrator domain withdrawal and account deletion with provider-inbox erasure.
+Address reuse waits 3630 seconds; domain reassignment requires fresh ownership
+proof. Account deletion revokes access and refuses accounts with retained migration
+snapshots until snapshot erasure is supported. Forced domain takeover and
+custom-domain provider transfer remain deferred. See the
+[lifecycle details](../../../../docs/custom-domains.md#address-release-domain-withdrawal-and-account-deletion).
+
+Migration 0091 requires a coordinated upgrade: stop the old provider before the
+new provider starts and migrates the database, and replace the GUI as well. Do not
+run old/new provider replicas concurrently. PostgreSQL 17 or later is required for
+the transaction timeout used by lifecycle operations; Haili runs PostgreSQL 18.6.
+After any address release, domain withdrawal or account closure, schema rollback
+is refused. The wrapper's retained image alone is not a valid rollback after
+address reuse; prefer fixing forward and preserve the verified pre-upgrade backup.
 
 Withdrawal assumes provider cooperation: a former authority retaining a still-valid
 signature can republish it if its identity key remains current. Publication removal

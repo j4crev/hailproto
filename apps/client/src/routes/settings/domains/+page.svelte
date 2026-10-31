@@ -4,6 +4,7 @@
   import { invalidateAll } from "$app/navigation";
   let { data } = $props();
   let domain = $state(""), busy = $state(false), message = $state("");
+  let withdrawNames = $state<Record<string,string>>({});
   let localParts = $state<Record<string,string>>({});
   let challenge = $state<{ id: string; value: string } | null>(null);
   async function request(path: string, body: unknown) {
@@ -62,9 +63,11 @@
   {#each data.domains as item (item.id)}
     <section class="hail-card grid gap-4 p-6 sm:p-8" aria-label={item.domain}>
       <h2 class="m-0 text-lg">{item.domain}</h2>
-      {#if item.lastVerifiedAt}
+      {#if item.status === "withdrawn"}
+        <p class="m-0">Withdrawn. Existing accounts keep their identities, inboxes, and provider login. Register again with fresh DNS proof after the one-hour reuse delay.</p>
+      {:else if item.lastVerifiedAt}
         <p class="m-0">Registered · Last verified {new Date(item.lastVerifiedAt).toLocaleString()}</p>
-        <p class="m-0 text-sm text-muted">You can remove the ownership verification TXT record named <code class="break-all">{item.verificationName}</code>. Keep the provider routing TXT record named <code class="break-all">{item.delegationName}</code>. Domain removal and ownership transfer are not available yet.</p>
+        <p class="m-0 text-sm text-muted">You can remove the ownership verification TXT record named <code class="break-all">{item.verificationName}</code>. Keep the provider routing TXT record named <code class="break-all">{item.delegationName}</code>.</p>
         {#if data.signupAvailable}
           <form class="grid gap-3" onsubmit={event=>{event.preventDefault();void createAccount(item.id,item.domain);}}>
             <label class="hail-field"><span>New address at @{item.domain}</span><input bind:value={localParts[item.id]} required pattern={'[a-z0-9][a-z0-9._\\-]{0,63}'} maxlength="64" disabled={busy} /></label>
@@ -72,6 +75,13 @@
             <button class="hail-button" disabled={busy}>Create separate account</button>
           </form>
         {/if}
+        <form class="grid gap-3 border-t border-line pt-4" onsubmit={event=>{event.preventDefault();void run(async()=>{
+          await request(`/${item.id}/withdraw`,{domain:withdrawNames[item.id]});message="Domain withdrawn. Its addresses can be claimed again after one hour with fresh ownership proof.";
+        });}}>
+          <p class="m-0 text-sm">Withdraw this domain to stop publishing all its addresses and cancel pending address authorizations. Existing accounts keep their inboxes and conversations. This cannot be undone; a new registration creates new address authority. Sign in with your passkey within the last five minutes.</p>
+          <label class="hail-field"><span>Type {item.domain} to confirm withdrawal</span><input bind:value={withdrawNames[item.id]} disabled={busy} autocomplete="off" /></label>
+          <button class="hail-button-secondary" disabled={busy||withdrawNames[item.id]!==item.domain}>Withdraw domain</button>
+        </form>
       {:else}
         <p class="m-0">{item.status === "expired" ? "Challenge expired" : "Awaiting DNS verification"}</p>
         <div class="grid gap-2 text-sm">

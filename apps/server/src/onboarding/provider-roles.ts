@@ -32,7 +32,7 @@ export async function authorizeProviderRole(sql: SQL, addressInput: string, reco
       if (existing.owner_recovery_public_key !== recoveryKey) throw new Error("Role address is already assigned to another recovery key");
       return existing.account_id;
     }
-    if ((await tx`SELECT id FROM provider_accounts WHERE canonical_address = ${address}`).length) {
+    if ((await tx`SELECT id FROM provider_accounts WHERE canonical_address = ${address} AND address_released_at IS NULL`).length) {
       throw new Error("Existing account occupies this role address; review ownership manually (no account was changed)");
     }
     const accountId = randomUUID();

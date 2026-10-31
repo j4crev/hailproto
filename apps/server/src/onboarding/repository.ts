@@ -248,7 +248,7 @@ export class OnboardingRepository
         id, tenant_id, canonical_address, onboarding_state
       )
       VALUES (${id}, ${tenantId}, ${canonicalAddress}, 'reserved')
-      ON CONFLICT (canonical_address) DO NOTHING
+      ON CONFLICT (canonical_address) WHERE address_released_at IS NULL DO NOTHING
       RETURNING id, tenant_id, canonical_address, did, onboarding_state,
                 activation_attempt_id, activation_verification_mode
     `;
@@ -262,7 +262,7 @@ export class OnboardingRepository
       SELECT id, tenant_id, canonical_address, did, onboarding_state,
              activation_attempt_id, activation_verification_mode
       FROM provider_accounts
-      WHERE canonical_address = ${canonicalAddress}
+      WHERE canonical_address = ${canonicalAddress} AND address_released_at IS NULL
     `;
     if (!existing[0]) throw new Error("Address reservation conflict could not be reconciled");
     return accountFromRow(existing[0]);
@@ -318,7 +318,7 @@ export class OnboardingRepository
       SELECT id, tenant_id, canonical_address, did, onboarding_state,
              activation_attempt_id, activation_verification_mode
       FROM provider_accounts
-      WHERE id = ${accountId}
+      WHERE id = ${accountId} AND closed_at IS NULL AND (address_released_at IS NULL OR onboarding_state='active')
     `;
     if (!rows[0]) throw new Error("Account does not exist");
     return accountFromRow(rows[0]);
@@ -329,7 +329,7 @@ export class OnboardingRepository
       SELECT id, tenant_id, canonical_address, did, onboarding_state,
              activation_attempt_id, activation_verification_mode
       FROM provider_accounts
-      WHERE canonical_address = ${canonicalAddress}
+      WHERE canonical_address = ${canonicalAddress} AND address_released_at IS NULL
     `;
     if (!rows[0]) throw new Error("Account does not exist");
     return accountFromRow(rows[0]);
@@ -340,7 +340,7 @@ export class OnboardingRepository
       SELECT id, tenant_id, canonical_address, did, onboarding_state,
              activation_attempt_id, activation_verification_mode
       FROM provider_accounts
-      WHERE did = ${did}
+      WHERE did = ${did} AND closed_at IS NULL
     `;
     return rows[0] ? accountFromRow(rows[0]) : null;
   }
@@ -361,7 +361,7 @@ export class OnboardingRepository
       SELECT account_id, role, algorithm, public_key, encrypted_private_key,
              encryption_nonce, encryption_version, kek_id
       FROM account_keys
-      WHERE account_id = ${accountId} AND role = ${role}
+      WHERE account_id = ${accountId} AND role = ${role} AND EXISTS (SELECT 1 FROM provider_accounts WHERE id=${accountId} AND closed_at IS NULL)
     `;
     const row = rows[0];
     if (!row) throw new Error(`Account key ${role} does not exist`);
@@ -635,7 +635,7 @@ export class OnboardingRepository
         ORDER BY selected_at DESC, id DESC LIMIT 1
       ) AS current_binding
       WHERE NOT EXISTS (SELECT 1 FROM address_binding_withdrawals withdrawal WHERE withdrawal.binding_id=current_binding.id)
-        AND EXISTS (SELECT 1 FROM provider_accounts account WHERE account.id=current_binding.account_id AND
+        AND EXISTS (SELECT 1 FROM provider_accounts account WHERE account.id=current_binding.account_id AND account.address_released_at IS NULL AND
           (account.canonical_address=current_binding.canonical_address OR account.onboarding_state='reserved' AND EXISTS (
             SELECT 1 FROM transfer_address_reservations reservation WHERE reservation.reserved_account_id=account.id
               AND reservation.canonical_address=current_binding.canonical_address AND reservation.state='submitted')))
@@ -652,6 +652,7 @@ export class OnboardingRepository
       FROM address_bindings
       WHERE id = ${id}
         AND hosted_at IS NOT NULL
+        AND EXISTS(SELECT 1 FROM provider_accounts WHERE id=address_bindings.account_id AND address_released_at IS NULL)
         AND NOT EXISTS (SELECT 1 FROM address_binding_withdrawals withdrawal WHERE withdrawal.binding_id=address_bindings.id)
         AND NOT EXISTS (SELECT 1 FROM provider_migration_fences fence WHERE fence.account_id=address_bindings.account_id AND fence.state='retired')
       LIMIT 1
@@ -666,7 +667,7 @@ export class OnboardingRepository
       >`
         SELECT onboarding_state, activation_attempt_id, updated_at
         FROM provider_accounts
-        WHERE id = ${accountId}
+        WHERE id = ${accountId} AND closed_at IS NULL AND (address_released_at IS NULL OR onboarding_state='active')
         FOR UPDATE
       `;
       const account = existing[0];
@@ -704,6 +705,7 @@ export class OnboardingRepository
         WHERE id = ${bindingId}
           AND account_id = ${accountId}
           AND hosted_at IS NOT NULL
+        AND EXISTS(SELECT 1 FROM provider_accounts WHERE id=address_bindings.account_id AND address_released_at IS NULL)
         RETURNING id
       `;
       if (selected.length !== 1) throw new Error("Address Binding cannot be selected");
@@ -718,7 +720,7 @@ export class OnboardingRepository
         UPDATE provider_accounts
         SET onboarding_state = 'address-staged', activation_attempt_id = NULL,
             state_version = state_version + 1, updated_at = now()
-        WHERE id = ${accountId}
+        WHERE id = ${accountId} AND closed_at IS NULL AND (address_released_at IS NULL OR onboarding_state='active')
           AND onboarding_state = 'activating'
           AND activation_attempt_id = ${attemptId}
         RETURNING id

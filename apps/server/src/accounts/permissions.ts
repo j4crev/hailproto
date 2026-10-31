@@ -99,7 +99,7 @@ export class GrantPermissions {
         typeof input.addressDigest!=="string"||typeof input.profileDigest!=="string"||(input.expiresAt!==null&&(!Number.isSafeInteger(input.expiresAt)||
         Number(input.expiresAt)<=Math.floor(Date.now()/1000)||Number(input.expiresAt)>Math.floor(Date.now()/1000)+366*86400)))
         throw new PermissionError(400,"Choose the reviewed sender and an ongoing subscription or a future expiry within one year");
-      payload=await this.service.prepareUserSignedGrant(session.canonical_address,input.sender,{scope:input.scope as never,expiresAt:input.expiresAt===null?null:Number(input.expiresAt)});
+      payload=await this.service.prepareUserSignedGrant(session.did,input.sender,{scope:input.scope as never,expiresAt:input.expiresAt===null?null:Number(input.expiresAt)});
       if(payload.grantee!==input.senderDid||encodeBase64Url(payload.consent_context.address_binding_hash.value)!==input.addressDigest||
         encodeBase64Url(payload.consent_context.sender_profile_hash.value)!==input.profileDigest)
         throw new PermissionError(409,"Sender identity or profile changed. Review it again before approving");
@@ -142,7 +142,7 @@ export class GrantPermissions {
       equal(encodeDeterministic(previous.payload),original)&&current.payload.previous&&equal(current.payload.previous,previous.digest))return current;
     if(current.payload.status!=="active"||!equal(encodeDeterministic(current.payload),original))throw new PermissionError(409,"Permission changed after review; review the current revision again");
     if(!previous)throw new PermissionError(409);
-    return this.service.revoke(session.canonical_address,payload.grant_id,{revision:payload.revision,digest:previous.digest});
+    return this.service.revoke(session.did,payload.grant_id,{revision:payload.revision,digest:previous.digest});
   }
 
   async commit(session:AccountApiSession,id:string,response?:AuthenticationResponseJSON){
@@ -189,7 +189,7 @@ export class GrantPermissions {
         result={items};
       }else{
         const payload=payloads[0]!;
-        const saved=row.action==="allow"?await this.service.updateManaged(session.canonical_address,payload,row.signing_key):await this.revoke(session,row,payload);
+        const saved=row.action==="allow"?await this.service.updateManaged(session.did,payload,row.signing_key):await this.revoke(session,row,payload);
         result=this.savedResult(saved);
       }
       await this.sql`UPDATE account_grant_approvals SET result=(${JSON.stringify(result)}::text)::jsonb WHERE id=${id} AND result IS NULL`;

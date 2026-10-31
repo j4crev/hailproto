@@ -78,7 +78,10 @@
       <div class="drawer-content"><div class="drawer-heading">{@render brand()}<button class="icon-button" onclick={closeDrawer} aria-label="Close navigation"><Icon name="close" /></button></div>{@render links()}</div>
     </dialog>
   {/if}
-  <main id="main-content" tabindex="-1">{@render children()}</main>
+  <main id="main-content" tabindex="-1">{#if page.data.account?.addressReleased}
+      <p role="status" class="hail-card p-4">Your former address {page.data.account.address} has been released and may belong to another account. Your inbox, login, and existing conversations still belong to your DID: {page.data.account.did}.</p>
+    {/if}
+    {@render children()}</main>
 </div>
 <style>
   .app-shell { max-width:1600px; margin:0 auto; padding-left:260px; }

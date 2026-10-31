@@ -95,7 +95,7 @@ export class PublicOnboarding {
       if (!transaction || !signupHash || !this.alphaMonitoring || profile !== "managed") {
         throw new Error("Custom-domain onboarding requires an authorized signup transaction");
       }
-      const admission = await sql`SELECT capability.id FROM (SELECT id,signup_id,canonical_address,provider_origin,signup_token_hash,request_digest,consumed_at FROM custom_address_authorizations
+      const admission = await sql`SELECT capability.id FROM (SELECT id,signup_id,canonical_address,provider_origin,signup_token_hash,request_digest,consumed_at FROM custom_address_authorizations WHERE retired_at IS NULL
           UNION ALL SELECT id,signup_id,canonical_address,provider_origin,signup_token_hash,request_digest,consumed_at FROM standalone_domain_signups) capability
         JOIN account_signup_ceremonies ceremony ON ceremony.id=capability.signup_id
         WHERE capability.canonical_address=${address} AND capability.provider_origin=${new URL(this.serviceBase).origin}
@@ -110,7 +110,7 @@ export class PublicOnboarding {
     const prior = await sql<(PreparationRow & { canonical_address: string; onboarding_state: string })[]>`
       SELECT preparation.*, account.canonical_address, account.onboarding_state
       FROM provider_accounts account JOIN ${sql.unsafe(preparationTable)} preparation ON preparation.account_id = account.id
-      WHERE account.canonical_address = ${address}`;
+      WHERE account.canonical_address = ${address} AND account.address_released_at IS NULL`;
     if (prior[0]) {
       const row = prior[0];
       if (row.monitor_assurance !== assurance || row.owner_recovery_public_key !== recovery || row.custody_profile !== profile ||
@@ -127,7 +127,7 @@ export class PublicOnboarding {
     if (profile === "managed") identity = generated.identityDidKey;
     const write = async (tx: SQL) => {
       const created = await tx`INSERT INTO provider_accounts (id, tenant_id, canonical_address, onboarding_state)
-        VALUES (${accountId}, ${randomUUID()}, ${address}, 'reserved') ON CONFLICT (canonical_address) DO NOTHING RETURNING id`;
+        VALUES (${accountId}, ${randomUUID()}, ${address}, 'reserved') ON CONFLICT (canonical_address) WHERE address_released_at IS NULL DO NOTHING RETURNING id`;
       if (created.length !== 1) throw new Error("Public address is already reserved");
       for (const key of generated.keys.filter(entry => profile === "managed" || entry.role !== "hail-identity")) {
         await tx`INSERT INTO account_keys (account_id, role, algorithm, public_key, encrypted_private_key,

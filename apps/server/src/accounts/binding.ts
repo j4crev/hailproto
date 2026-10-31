@@ -22,7 +22,7 @@ export class AccountBinding {
   async show(session:AccountApiSession) {
     const rows=await this.sql<Row[]>`SELECT id,cose,representation_digest,selected_at,published_at,issued_at FROM address_bindings
       WHERE account_id=${session.account_id} AND canonical_address=${session.canonical_address} AND did=${session.did}
-        AND selected_at IS NOT NULL ORDER BY selected_at DESC,id DESC LIMIT 1`;
+        AND selected_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM address_binding_withdrawals w WHERE w.binding_id=address_bindings.id) ORDER BY selected_at DESC,id DESC LIMIT 1`;
     if(!rows[0])throw new BindingError(409,"Account has no selected binding");return this.summary(rows[0]);
   }
   private summary(row:Row) {

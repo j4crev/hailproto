@@ -148,6 +148,7 @@ export class AccountApiClient {
       typeof result.accountId!=="string"||(this.accountId!==""?result.accountId!==this.accountId:
         this.sessionOrigin!==undefined&&!UUID.test(result.accountId))||
       typeof result.did !== "string" || !/^did:plc:[a-z2-7]{24}$/.test(result.did) ||
+      (result.addressReleased!==undefined&&typeof result.addressReleased!=="boolean") ||
       typeof result.address !== "string" || result.address.length > 254 ||
       ![null, "fenced", "exported", "retired"].includes(result.migrationState as null | string) ||
       !["owner-controlled", "managed", "custodial-poc", "unknown"].includes(result.custodyProfile as string) ||
@@ -171,7 +172,7 @@ export class AccountApiClient {
       }
       credential = { credentialId: metadata.credentialId, expiresAt: metadata.expiresAt };
     }
-    return { providerOperator:result.providerOperator===true, provider: this.provider, accountId: result.accountId, did: result.did, address: result.address,
+    return { providerOperator:result.providerOperator===true, provider: this.provider, accountId: result.accountId, did: result.did, address: result.address, addressReleased:result.addressReleased===true,
       migrationState: result.migrationState, custodyProfile: result.custodyProfile, scopes: result.scopes,
       monitorVerificationMode: result.monitorVerificationMode, identityPublicKey: result.identityPublicKey,
       ownerRecoveryPublicKey: result.ownerRecoveryPublicKey, managedProfileVersion: result.managedProfileVersion ?? null, credential };

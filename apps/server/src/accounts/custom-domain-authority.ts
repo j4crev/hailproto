@@ -8,6 +8,8 @@ export class CustomDomainAuthorityError extends Error {
 // Call within the publication transaction to hold the domain registration lock.
 export async function requireCustomDomainAuthority(tx:SQL,accountId:string,address:string,origin:string,
   discover:ProviderDiscovery=discoverProvider) {
+  if(!(await tx`SELECT id FROM provider_accounts WHERE id=${accountId} AND address_released_at IS NULL AND closed_at IS NULL`).length)
+    throw new CustomDomainAuthorityError(409,"Account no longer owns this address");
   const domain=address.split("@")[1]!,host=new URL(origin).hostname;
   if(domain===host)return; // Native publication does not depend on DNS delegation.
   // Original account admission establishes provenance. The administrator's
@@ -15,7 +17,7 @@ export async function requireCustomDomainAuthority(tx:SQL,accountId:string,addre
   const registered=await tx`SELECT domain.id FROM account_custom_domains domain
     JOIN custom_address_authorizations capability ON capability.domain_id=domain.id
     JOIN account_signup_ceremonies ceremony ON ceremony.id=capability.signup_id
-    WHERE domain.domain=${domain} AND domain.provider_host=${host} AND domain.verified_at IS NOT NULL
+    WHERE domain.domain=${domain} AND domain.provider_host=${host} AND domain.verified_at IS NOT NULL AND domain.withdrawn_at IS NULL
       AND capability.provider_origin=${origin} AND capability.canonical_address=${address}
       AND capability.consumed_at IS NOT NULL AND ceremony.account_id=${accountId}
       AND ceremony.request_digest=capability.request_digest FOR SHARE OF domain`;

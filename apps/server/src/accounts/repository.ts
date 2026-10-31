@@ -12,6 +12,7 @@ export interface AccountApiSession {
   did: string;
   canonical_address: string;
   scopes: AccountApiScope[];
+  address_released_at?:Date|null;
   migration_state: "fenced" | "exported" | "retired" | null;
   serving_generation?:number;
   passkey_credential_id?:string|null;
@@ -49,8 +50,8 @@ export class AccountApiRepository {
     const scopes = ALL_ACCOUNT_SCOPES.filter(scope => selected.includes(scope));
     return this.sql.begin(async (tx) => {
       const accounts = await tx<{ id: string }[]>`
-        SELECT id FROM provider_accounts WHERE canonical_address = ${canonicalizeHailAddress(address)}
-          AND onboarding_state = 'active' AND did IS NOT NULL FOR UPDATE`;
+        SELECT id FROM provider_accounts WHERE ((did=${address} AND ${address.startsWith("did:plc:")}) OR (canonical_address=${address.startsWith("did:plc:")?"":canonicalizeHailAddress(address)} AND address_released_at IS NULL))
+          AND closed_at IS NULL AND onboarding_state = 'active' AND did IS NOT NULL FOR UPDATE`;
       const account = accounts[0];
       if (!account) throw new Error("API credentials require an existing active account");
       const fenced = await tx`SELECT did FROM provider_migration_fences WHERE account_id = ${account.id}`;
@@ -110,12 +111,12 @@ export class AccountApiRepository {
         FROM provider_accounts account,account_serving_generations generation,account_passkeys passkey
         WHERE session.token_hash=${tokenHash(sessionToken!)} AND session.revoked_at IS NULL AND session.expires_at>now()
           AND session.last_seen_at>now()-interval '30 minutes'
-          AND account.id=session.account_id AND account.onboarding_state='active' AND account.did IS NOT NULL
+          AND account.id=session.account_id AND account.closed_at IS NULL AND account.onboarding_state='active' AND account.did IS NOT NULL
           AND generation.account_id=account.id AND generation.generation=session.serving_generation
           AND passkey.credential_id=session.credential_id AND passkey.account_id=account.id AND passkey.revoked_at IS NULL
           AND NOT EXISTS (SELECT 1 FROM provider_migration_fences fence WHERE fence.account_id=account.id)
         RETURNING account.id AS account_id,session.id AS credential_id,session.expires_at AS credential_expires_at,
-          account.did,account.canonical_address,session.scopes,NULL::text AS migration_state,
+          account.did,account.canonical_address,account.address_released_at,session.scopes,NULL::text AS migration_state,
           session.serving_generation::integer AS serving_generation,passkey.credential_id AS passkey_credential_id,
           session.created_at AS passkey_verified_at`;
       if(!rows[0])return null;const scopes=typeof rows[0].scopes==="string"?JSON.parse(rows[0].scopes):rows[0].scopes;
@@ -123,7 +124,7 @@ export class AccountApiRepository {
     }
     const rows = await this.sql<(Omit<AccountApiSession, "scopes"> & { scopes: unknown })[]>`
       SELECT account.id AS account_id, credential.id AS credential_id,
-        credential.expires_at AS credential_expires_at, account.did, account.canonical_address,
+        credential.expires_at AS credential_expires_at, account.did, account.canonical_address, account.address_released_at,
         credential.scopes, fence.state AS migration_state,generation.generation::integer AS serving_generation,
         NULL::text AS passkey_credential_id,NULL::timestamptz AS passkey_verified_at
       FROM account_api_credentials credential JOIN provider_accounts account ON account.id = credential.account_id
@@ -131,7 +132,7 @@ export class AccountApiRepository {
       JOIN account_serving_generations generation ON generation.account_id=account.id AND generation.generation=binding.generation
       LEFT JOIN provider_migration_fences fence ON fence.account_id = account.id
       WHERE credential.token_hash = ${tokenHash(token)} AND credential.revoked_at IS NULL
-        AND credential.expires_at > now() AND account.onboarding_state = 'active' AND account.did IS NOT NULL`;
+        AND credential.expires_at > now() AND account.closed_at IS NULL AND account.onboarding_state = 'active' AND account.did IS NOT NULL`;
     if (!rows[0]) return null;
     const scopes = typeof rows[0].scopes === "string" ? JSON.parse(rows[0].scopes) : rows[0].scopes;
     return { ...rows[0], scopes: scopes as AccountApiScope[] };
@@ -153,7 +154,7 @@ export class AccountApiRepository {
       "custodial-poc" : "unknown";
     const operator=await this.sql`SELECT op.account_id FROM provider_operators op JOIN account_serving_generations g ON g.account_id=op.account_id AND g.generation=op.serving_generation WHERE op.account_id=${session.account_id}`;
     return { providerOperator:operator.length>0, type: "hailp.account", version: 1, provider, accountId: session.account_id,
-      did: session.did, address: session.canonical_address, migrationState: session.migration_state,
+      did: session.did, address: session.canonical_address, addressReleased:!!session.address_released_at, migrationState: session.migration_state,
       custodyProfile: profile, monitorVerificationMode: managed[0]?.verification_mode ?? custody[0]?.monitor_verification_mode ?? null,
       managedProfileVersion: managed[0]?.managed_profile_version ?? null,
       identityPublicKey: custody[0]?.user_identity_public_key ?? identity?.public_key ?? null,

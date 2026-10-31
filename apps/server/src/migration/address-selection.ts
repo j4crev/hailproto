@@ -119,7 +119,7 @@ export class TransferAddressReservation {
       const occupied = await tx<{ id: string }[]>`
         INSERT INTO provider_accounts (id, tenant_id, canonical_address, onboarding_state)
         VALUES (${reservedAccountId}, ${randomUUID()}, ${reservedAddress}, 'reserved')
-        ON CONFLICT (canonical_address) DO NOTHING RETURNING id`;
+        ON CONFLICT (canonical_address) WHERE address_released_at IS NULL DO NOTHING RETURNING id`;
       if (!occupied[0]) throw new Error("Address not available");
       const expiry = Math.min(selection.expires_at, offer.expires_at);
       const payload: TransferReservation = { type: "hail.transfer-reservation", version: 1,

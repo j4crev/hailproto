@@ -452,7 +452,7 @@ export class ManagedMigrationExportService {
 
 async function collectManagedTables(tx: SQL, did: string, accountId: string): Promise<ManagedTransferTables> {
   const collect = async (query: Promise<{ row: Record<string, unknown> }[]>) => (await query).map((entry) => entry.row);
-  const provider_accounts = await collect(tx`SELECT to_jsonb(t) AS row FROM provider_accounts t WHERE id=${accountId}`);
+  const provider_accounts = await collect(tx`SELECT (to_jsonb(t)-'address_released_at'-'closed_at') AS row FROM provider_accounts t WHERE id=${accountId}`);
   const account_keys = await collect(tx`SELECT (to_jsonb(t)-'encrypted_private_key'-'encryption_nonce'-'encryption_version'-'kek_id') AS row
     FROM account_keys t WHERE account_id=${accountId} ORDER BY role`);
   const managed_custody_evidence = await collect(tx`SELECT to_jsonb(t) AS row FROM managed_custody_evidence t WHERE account_id=${accountId}`);
