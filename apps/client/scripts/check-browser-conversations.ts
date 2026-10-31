@@ -17,7 +17,8 @@ const cdp=(method:string,params:unknown={})=>new Promise<any>((resolve,reject)=>
 const evaluate=async(expression:string)=>{const r=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw new Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
 await cdp('Page.enable');await cdp('Runtime.enable');
 const origin=`http://localhost:${fixturePort}`;
-await wait(async()=>{try{return (await fetch(origin+'/api/v1/account/connection-inbox')).ok;}catch{return false;}});
+// The fixture API starts before the GUI; wait for rendered HTML before navigating.
+await wait(async()=>{try{return (await fetch(origin+'/?view=connections')).ok;}catch{return false;}});
 
 async function navigate(path:string,title:string){
  await cdp('Page.navigate',{url:origin+path});
