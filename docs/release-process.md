@@ -100,6 +100,79 @@ The publish job produces a `provider-release` artifact and job summary with the
 full commit and **digest reference**. Use that digest, never resolve the mutable
 commit tag during deployment. The initial target is Linux amd64 only.
 
+### Routine production rollout — operators and agents
+
+The provider/GUI cutover is complete. For subsequent application releases, use
+this sequence; do not repeat bootstrap or the historical cutover installer.
+
+1. Identify the reviewed full commit SHA and preserve unrelated working-tree
+   changes. Commit/push only the intended release work. A push triggers CI but
+   **does not publish an image or deploy production**.
+2. Start publication from the development machine:
+
+   ```bash
+   gh workflow run publish-provider.yml --ref main
+   gh run list --workflow publish-provider.yml --limit 5
+   gh run view RUN_ID --json headSha,status,conclusion,url
+   ```
+
+   Select the run by its exact `headSha`, not merely by being the latest run.
+   Dispatch resolves `main` when it starts; if another agent advanced the branch,
+   review that revision or stop before deployment. Wait for `completed` and
+   `success`, including both reusable verification and publication. If a gate
+   fails, diagnose it; do not skip tests or build on production as a fallback.
+3. Download the successful run's `provider-release` artifact into a fresh directory:
+
+   ```bash
+   gh run download RUN_ID --name provider-release --dir /tmp/hail-provider-RUN_ID
+   cat /tmp/hail-provider-RUN_ID/provider-release.txt
+   ```
+
+   Confirm the recorded commit matches the reviewed run and the image is
+   `ghcr.io/j4crev/hailproto/provider@sha256:...`. Never substitute `latest`,
+   `sha-<commit>`, or `hail-server-ts:public` for the digest. The latter is only a
+   legacy local image name, not the normal release mechanism.
+4. Check the installed wrapper version, production status, clean checkout, free
+   disk and available memory. Use the existing `hailops` SSH access described in
+   [operations](haili-operations.md#ssh-agent-versus-sudo). The current wrappers
+   are installed already; if this release changes either installed script,
+   arrange its reviewed privileged installation **before** deploying. Ordinary
+   application changes do not require reinstalling unchanged wrappers.
+5. On the provider, run the artifact's verified commit/digest through the wrapper:
+
+   ```bash
+   sudo -n /usr/local/sbin/hail-provider-ops status
+   sudo -n /usr/local/sbin/hail-provider-ops deploy FULL_COMMIT_SHA ghcr.io/j4crev/hailproto/provider@sha256:FULL_IMAGE_DIGEST
+   ```
+
+   It pulls and checks the image, completes the encrypted backup, retains the
+   previous image and recreates only GUI/provider. Do not replace this with
+   direct Git checkout plus Compose commands. A failed pull leaves the running
+   release unchanged; failed startup/readiness triggers retained-image recovery
+   and still returns a failure exit code. Investigate before retrying.
+6. Verify both application services are healthy on the expected digest, public
+   homepage/readiness return HTTP 200, PostgreSQL/Caddy uptime is unchanged, and
+   there are no new OOM or database crash/recovery events. Record available-memory
+   observations. Inspect registration mode without changing it incidentally;
+   **public registration is intentional**. Do not issue real signup/message writes
+   merely to smoke-test deployment.
+7. Record the run URL, deployed commit/digest, backup outcome and health/memory
+   evidence in [production readiness](production-readiness.md), keeping sensitive
+   logs in protected operator records. Distinguish the deployed application
+   revision from a later documentation-only commit; recording evidence does not
+   require another deployment.
+
+For an application rollback, use `sudo -n /usr/local/sbin/hail-provider-ops rollback`
+only after checking database compatibility. Preserve the retained rollback image,
+`/var/lib/hail-provider-previous`, `/etc/hail-provider-release/compose.json`, the
+PostgreSQL overlay and existing volumes. Do not rebuild an old revision, prune
+retained recovery images, or revert database storage as part of image rollback.
+
+This procedure covers the **provider and GUI only**. The monitor has a separate
+host/wrapper and has not yet been migrated to this image publication path.
+
+### Build limits and initial host setup
+
 Both CI image verification and publication use an isolated BuildKit container
 with a 4 GiB memory limit, no additional swap, and at most two concurrent build
 steps. Node's 512 MiB old-space setting is not a total build memory limit. These
@@ -107,7 +180,7 @@ limits belong on a CI runner with adequate headroom, not on the 2 GiB production
 host. BuildKit driver limits are documented by
 [Docker](https://docs.docker.com/build/builders/drivers/docker-container/).
 
-Before the first rollout:
+For a new host or an installation still using the legacy build-based wrapper:
 
 1. Confirm the workflow passed for the exact revision. Review its source and
    published digest. GHCR publication needs Actions `packages: write`; if the
@@ -119,8 +192,8 @@ Before the first rollout:
    `/usr/local/sbin/hail-provider-ops` and `backup.sh` as
    `/usr/local/sbin/hail-provider-backup` through the operator's privileged
    session, retaining the previous copies. Updating the checkout does not update
-   these installed scripts. Do this **before** invoking deploy; the old wrapper
-   still builds on production. Confirm checksums against the reviewed files.
+   these installed scripts. Do this **before** invoking deploy on a legacy install; that old wrapper
+   builds on production. Confirm checksums against the reviewed files.
 4. Keep the existing `.env`, PostgreSQL overlay and data volumes. Confirm the
    backup/restore prerequisite and migration rollback compatibility for this
    release. Install no new database or volume as part of the image transition.

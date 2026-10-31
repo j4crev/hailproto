@@ -1,5 +1,14 @@
 # Haili production operations
 
+## Application rollout entry point
+
+Use the [routine production rollout](release-process.md#routine-production-rollout--operators-and-agents)
+for provider/GUI releases. Build and publish in CI, then deploy the verified digest
+through the installed wrapper. Never run Docker, Vite or adapter-node builds on
+the live provider. A Git push alone does not deploy. Public registration is the
+current intended policy; preserve it during application rollouts.
+
+
 ## Pre-launch development policy — developers and agents
 
 **Build the intended system, not compatibility layers for our test data.** Hail

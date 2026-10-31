@@ -249,7 +249,11 @@ recovery, and restrict host/hosting firewalls for both IP families after testing
 private access and outbound connectivity. The database and provider containers
 must remain private. Test Docker forwarding rules as well as the host firewall.
 
-## 5. Build, start and verify
+## 5. Pull, start and verify a fresh installation
+
+These commands are for initial setup, not updates to the managed production host.
+For ongoing Haili releases, use the
+[routine rollout](../../../../docs/release-process.md#routine-production-rollout--operators-and-agents).
 
 Run from `apps/server/deploy/public`:
 
