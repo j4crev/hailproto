@@ -52,6 +52,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   avatarProfiles?:SenderProfileStore & VerifiedSenderProfileStore): void {
   const ingress=new FixedWindowRateLimit(),anonymous=new FixedWindowRateLimit(),authenticated=new FixedWindowRateLimit();
   const handle = async (context: Context, grantId: string | null, action?: string):Promise<Response> => {
+    let batchRequestId:string|undefined;
     context.header("Cache-Control", "no-store");
     context.header("Vary", "Authorization, Cookie");
     const problem = (status: 400 | 401 | 403 | 404 | 405 | 409 | 413 | 415 | 429 | 503, code?:string) => {
@@ -118,6 +119,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         const bytes=await accountRequestBytes(context.req.raw);if(!bytes)return problem(413);
         let input:unknown;try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}catch{return problem(400);}
         if(!input||typeof input!=="object"||Array.isArray(input))return problem(400);
+        if(kind==='connections'&&'publicationId' in input&&typeof input.publicationId==='string'&&GRANT_ID.test(input.publicationId))batchRequestId=input.publicationId;
         if(operation==="create")return context.json(kind==="connections"?await publications.createConnections(session,input as Record<string,unknown>):await publications.create(session,input as Record<string,unknown>),202);
         if(operation==='reply-all')return context.json(await publications.replyConversation(session,input as Record<string,unknown>),202);
         if(Object.keys(input).length)return problem(400);
@@ -480,6 +482,15 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         digest: encodeBase64Url(saved.digest), publication: "durable" });
       });
     } catch (error) {
+      if(action==='connection-message-create'||action==='connection-message-reply-all'){
+        // Keep request bodies, credentials and raw database errors out of logs.
+        // Source frames identify unexpected failures without their possibly sensitive message.
+        console.error(JSON.stringify({type:'hail.connection-batch',operation:action,outcome:'rejected',requestId:batchRequestId,
+          errorType:error instanceof Error?error.constructor.name:'unknown',
+          ...(error instanceof UserGrantError?{reason:error.message,status:error.status}:{}),
+          ...(error instanceof HailCodecError?{code:error.code}:{}),
+          frames:error instanceof Error?error.stack?.split('\n').filter(line=>/^\s+at /.test(line)).slice(0,6):undefined}));
+      }
       if (error instanceof UserGrantError) return problem(error.status);
       if (error instanceof BindingError || error instanceof CustomDomainAuthorityError) return problem(error.status);
       if (error instanceof AccountTransferError) return problem(error.status);
