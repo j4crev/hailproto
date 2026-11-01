@@ -57,29 +57,42 @@ Both ordinary CI and the release workflow check freshness and version agreement.
    lists alone do not explain data-format or operator changes.
 3. Run the complete CI workflow, including database integration. The release
    workflow calls the same CI workflow on the release revision before packaging.
-4. Validate the packaged Linux binary on every promised distribution. Record
+4. Validate the packaged Linux binary on every promised distribution. The release
+   job builds on Ubuntu 22.04 and runs the exact archive on clean Ubuntu 22.04
+   and 24.04 containers before attesting it. Record
    architecture, OS/glibc, CLI version and basic login/read results. Test the
    actual archive/checksum, not only a source checkout.
 5. Review upgrade and recovery evidence. Confirm that incompatible migrations
    have an explicit roll-forward or restore procedure; image rollback preserves
    the database and cannot reverse its schema.
-6. Confirm required branch/tag protections and who can publish releases. These
-   are repository-host settings, not established by workflow YAML alone.
+6. Confirm required branch/tag protections and who can publish releases. Active
+   rules require PRs, resolved review threads and up-to-date GitHub Actions
+   `verify` checks for `main`, with no bypass actors. No second-person approval is
+   required while there is only one collaborator. `v*` tags cannot be updated,
+   force-pushed or deleted; repository writers can create them. These are host
+   settings, not established by workflow YAML alone. Inspect the current rules
+   before release rather than assuming this record is still current.
 
 ## Publication
 
 Only after the release gates pass, create/push the reviewed `vX.Y.Z` tag matching
 both manifests. The release workflow publishes the archive and SHA-256 checksum
-through GitHub Releases. A manual workflow dispatch verifies/builds artifacts but
-does not publish a release from a branch. Inspect the resulting release and amend
+and signed provenance bundle through GitHub Releases, marked as a prerelease
+while the pre-launch policy remains active. A manual workflow dispatch verifies
+and builds artifacts but does not publish a release from a branch. Inspect the resulting release and amend
 its notes with the reviewed compatibility and upgrade information.
 
 Follow the [download instructions](../apps/cli/docs/cli-installation.md) from a
-clean machine, verify the checksum and reported version, then exercise the
+clean machine, verify checksum and provenance before execution, check the version,
+then exercise the
 [read-only quickstart](../apps/cli/docs/cli-quickstart.md) with a dedicated account.
 Update the first-release availability note in the installation guide only after
-that download succeeds. Signed provenance and a qualified Linux baseline remain
-separate checklist items.
+that download succeeds. Save the run, commit, archive digest, attestation result,
+OS/glibc and quickstart results. The workflow verifies the attestation's repository,
+signer workflow, source ref and exact commit before uploading or publishing assets.
+An attested manual-dispatch artifact is not a tagged release: consumers must
+require the selected `refs/tags/vX.Y.Z`. Hosted qualification and first downloaded
+release acceptance remain separate evidence gates.
 
 ## Stable-release policy decision
 

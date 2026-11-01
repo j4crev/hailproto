@@ -6,7 +6,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify:
@@ -15,7 +15,13 @@ jobs:
       contents: read
   build:
     needs: verify
-    runs-on: ubuntu-latest
+    # Ubuntu 22.04 / glibc 2.35 is the oldest qualified runtime.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -66,15 +72,47 @@ jobs:
           fi
           tar -C dist -czf "hailp-$version-linux-x64.tar.gz" hailp
           sha256sum "hailp-$version-linux-x64.tar.gz" > "hailp-$version-linux-x64.tar.gz.sha256"
+      - name: Test packaged artifact on clean supported Linux runtimes
+        working-directory: apps/cli
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')
+          for distribution in ubuntu:22.04 ubuntu:24.04; do
+            docker run --rm --platform linux/amd64 \
+              -v "$PWD:/release:ro" "$distribution" sh -ec '
+                apt-get update -qq
+                apt-get install -y -qq --no-install-recommends python3 ca-certificates openssl
+                python3 /release/scripts/verify-artifact.py "/release/hailp-$1-linux-x64.tar.gz" "$1"
+              ' sh "$version"
+          done
+      - name: Attest release archive
+        id: provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: apps/cli/hailp-*-linux-x64.tar.gz
+      - name: Retain and verify provenance
+        working-directory: apps/cli
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')
+          archive="hailp-$version-linux-x64.tar.gz"
+          cp "$BUNDLE" "$archive.sigstore.json"
+          gh attestation verify "$archive" --bundle "$archive.sigstore.json" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release-linux.yml" \
+            --source-ref "$GITHUB_REF" --source-digest "$GITHUB_SHA" \
+            --deny-self-hosted-runners
       - uses: actions/upload-artifact@v5
         with:
           name: hailp-linux-x64
           path: |
             apps/cli/hailp-*-linux-x64.tar.gz
             apps/cli/hailp-*-linux-x64.tar.gz.sha256
+            apps/cli/hailp-*-linux-x64.tar.gz.sigstore.json
       - name: Publish GitHub release
         if: github.ref_type == 'tag'
         working-directory: apps/cli
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" hailp-*-linux-x64.tar.gz hailp-*-linux-x64.tar.gz.sha256 --verify-tag --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" hailp-*-linux-x64.tar.gz hailp-*-linux-x64.tar.gz.sha256 hailp-*-linux-x64.tar.gz.sigstore.json --verify-tag --generate-notes --prerelease
