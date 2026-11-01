@@ -32,6 +32,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 26.7.0
+      # Release metadata checks use tomllib (Python 3.11+); Jammy defaults to 3.10.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
       - uses: pnpm/action-setup@v4
         with:
           version: 11.11.0
