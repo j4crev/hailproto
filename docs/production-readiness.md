@@ -107,6 +107,38 @@ No live deployment or database update has been performed by this task.
 
 ## Evidence log
 
+### 2026-11-01 — native CLI shared conversations rollout
+
+- Committed and pushed application revision `82165c2819ae65f6b74f36d9aa96e3a3997488ac`.
+  [Push CI](https://github.com/j4crev/hailproto/actions/runs/41259376974) passed all
+  gates, including **56 database integration suites, zero failures**, native CLI
+  packaging/install checks, 16 shared-conversation CLI regression cases and 151
+  base HTTPS contract cases.
+- [Publication run 41260425977](https://github.com/j4crev/hailproto/actions/runs/41260425977)
+  succeeded for that exact revision. The downloaded artifact selected
+  `ghcr.io/j4crev/hailproto/provider@sha256:7baecf903b2a59c0e89100465fcf1e44722bbb12b4287e539a661d929f7bca4a`.
+- Production checkout was clean and installed provider/backup wrapper hashes
+  matched reviewed source. The installed wrapper completed the encrypted backup,
+  download digest verification, rollback-image retention and application rollout
+  with exit 0. The backup upload's initial attempt returned NotImplemented; its
+  second attempt succeeded before verification and cutover. No build ran on production.
+- At **01:19:27 UTC**, GUI/provider were healthy on the expected digest, homepage
+  returned HTTP 200, and readiness passed. Public capabilities advertise both
+  `sharedConversations` and `conversationControls`. Registration remains `public`
+  with signup available. No real account/message writes were used as probes.
+- PostgreSQL/Caddy retained three-day uptime. No new database crash/recovery log
+  markers appeared; the host OOM counter remained **100**. Available memory was
+  **745 MiB immediately before deployment** and **763 MiB afterward** (point samples).
+  Preflight disk availability was 6.8 GiB. Protected operator evidence is retained
+  locally under `/tmp/hail-cli-rollout-82165c2/`.
+- The optimized native CLI passed its HTTPS regression suite and was installed at
+  `/home/j4crev/.local/bin/hailp`; its SHA-256 matches the release build. The previous
+  binary is retained at `/tmp/hailp-before-shared-ty_epdvf/hailp`. This is a local
+  installation, not a new tagged GitHub CLI release.
+- This evidence-only commit does not change the deployed application revision.
+  Existing PostgreSQL/image overlays, rollback records and registration policy
+  were preserved; this change needs no new database migration.
+
 ### 2026-10-31 — conversation spacing rollout through CI publication
 
 - All local branch commits were already synchronized with origin before release.
