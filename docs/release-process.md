@@ -13,6 +13,7 @@ provide a **disposable** PostgreSQL 18 instance with CREATE DATABASE privileges:
 ```bash
 bun run --cwd packages/hail-codec-ts build
 (cd apps/cli && cargo build --locked)
+bun scripts/export-account-history-schema.ts --check
 export DATABASE_TEST_ADMIN_URL='postgresql://postgres:TEST_PASSWORD@127.0.0.1:5432/postgres'
 bun run test:integration
 ```
