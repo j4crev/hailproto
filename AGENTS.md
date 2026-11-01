@@ -1,5 +1,17 @@
 # Repository agent guidance
 
+## Keep the protocol specification current
+
+Prioritize keeping `spec/` synchronized with protocol additions, removals and
+modifications in the same change. Update affected schemas, wire formats,
+authorization/state-transition rules, version inventories and conformance vectors;
+do not leave server code as the only definition of interoperable behavior.
+Distinguish protocol requirements from reference-provider policy and client/UI
+behavior. Specify the latest intended alpha formats without promising backward
+compatibility; retain a format only when it serves a current, distinct purpose.
+Record unresolved interoperability decisions explicitly rather than implying that
+implementation notes constitute a complete standard. See [the spec index](spec/README.md).
+
 ## Production provider/GUI releases
 
 Read [the routine rollout procedure](docs/release-process.md#routine-production-rollout--operators-and-agents)
@@ -7,8 +19,10 @@ and [production operations](docs/haili-operations.md) before deployment work.
 
 - Never build Docker images, run Vite, or package adapter-node on the live provider.
   Publish with `.github/workflows/publish-provider.yml` on GitHub Actions.
-- Deploy only the exact commit and image digest from a successful publication run,
-  using the installed `hail-provider-ops deploy COMMIT IMAGE@sha256:DIGEST` wrapper.
+- Deploy only the exact commit and both image digests from a successful publication run,
+  using the installed `hail-provider-ops deploy COMMIT PROVIDER@sha256:DIGEST CLIENT@sha256:DIGEST` wrapper.
+  The split requires reviewed installation of the updated operations/backup wrappers
+  before deployment; the old single-image wrapper cannot deploy it correctly.
   A Git push alone neither publishes an image nor deploys production.
 - Preserve the image-selection and PostgreSQL overlays, existing database volumes,
   retained rollback images and rollback record. Application rollback is not database rollback.

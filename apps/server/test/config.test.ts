@@ -80,10 +80,10 @@ describe("loadConfig", () => {
     expect(()=>loadConfig({...validEnvironment,NODE_ENV:"production",PASSKEY_AUTH:"true",PASSKEY_ORIGIN:"http://localhost:5173"})).toThrow();
   });
 
-  it("accepts only a canonical internal thin-GUI origin",()=>{
-    expect(loadConfig({...validEnvironment,THIN_GUI_ORIGIN:"http://gui:3000"}).thinGuiOrigin).toBe("http://gui:3000");
+  it("accepts only a canonical internal web-client origin",()=>{
+    expect(loadConfig({...validEnvironment,WEB_CLIENT_ORIGIN:"http://gui:3000"}).webClientOrigin).toBe("http://gui:3000");
     for(const value of ["gui:3000","http://gui:3000/path","http://user@gui:3000"])
-      expect(()=>loadConfig({...validEnvironment,THIN_GUI_ORIGIN:value})).toThrow();
+      expect(()=>loadConfig({...validEnvironment,WEB_CLIENT_ORIGIN:value})).toThrow();
   });
 
   it("enables the signup email proxy only with a Worker origin and a canonical server-only secret",()=>{

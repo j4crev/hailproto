@@ -1,3 +1,4 @@
+import {assertExportConformance} from "./support/account-history-conformance.js";
 import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {cidForCbor} from "@atproto/common";
 import {P256Keypair} from "@atproto/crypto";
@@ -258,6 +259,7 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
       destinationIdentityPublicKey:offer.destination_identity_key,
       destinationRotationPublicKey:offer.destination_rotation_key,
       destinationMessagingPublicKey:offer.destination_messaging_key,state:"fenced"});
+    await assertExportConformance(exported,"managed");
     const manifest=validateManagedTransferManifest(exported.bytes);
     const apiExport=await call("/api/v1/account/transfers/managed/export","POST",JSON.stringify({transferId:offer.transfer_id}));
     expect(apiExport.status).toBe(200);expect(await apiExport.json()).toMatchObject({type:"hail.managed-migration-transfer",version:8,

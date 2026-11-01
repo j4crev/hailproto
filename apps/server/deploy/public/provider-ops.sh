@@ -33,7 +33,7 @@ select_image() {
   # Values originate from the validated digest or our retained rollback tag.
   mkdir -p "$(dirname "$release")" || return 1
   staged=$(mktemp "$release.XXXXXX") || return 1
-  printf '{"services":{"provider":{"image":"%s"},"gui":{"image":"%s"}}}\n' "$1" "$1" > "$staged" || return 1
+  printf '{"services":{"provider":{"image":"%s"},"gui":{"image":"%s"}}}\n' "$1" "$2" > "$staged" || return 1
   if [ ! -f "$release" ]; then compose="$compose -f $release"; fi
   mv "$staged" "$release"
 }
@@ -41,9 +41,10 @@ select_image() {
 restore_release() {
   # Verify before changing Git or image selection. Never rebuild/pull here.
   verify_image "$2" "$3"
+  verify_image "$4" "$5"
   git -C "$root" cat-file -e "$1^{commit}"
   git -C "$root" checkout --quiet --detach "$1"
-  select_image "$2"
+  select_image "$2" "$4"
   $compose up -d --no-deps --no-build --pull never --force-recreate --wait --wait-timeout 180 gui provider
   curl --fail --retry 12 --retry-delay 5 --retry-all-errors --silent --show-error https://haili.app/health/ready
 }
@@ -73,49 +74,65 @@ case "${1:-}" in
   deploy)
     commit=${2:-}
     image=${3:-}
-    [ "$#" -eq 3 ] || { echo "usage: $0 deploy COMMIT ghcr.io/OWNER/IMAGE@sha256:DIGEST" >&2; exit 2; }
+    client_image=${4:-}
+    [ "$#" -eq 4 ] || { echo "usage: $0 deploy COMMIT PROVIDER_IMAGE@sha256:DIGEST WEB_CLIENT_IMAGE@sha256:DIGEST" >&2; exit 2; }
     printf '%s' "$commit" | grep -Eq '^[0-9a-f]{40}$' || { echo "deploy requires a full commit SHA" >&2; exit 2; }
-    printf '%s' "$image" | grep -Eq '^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$' || { echo "deploy requires a GHCR image digest, not a tag" >&2; exit 2; }
+    for selected in "$image" "$client_image"; do
+      printf '%s' "$selected" | grep -Eq '^ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$' || { echo "deploy requires GHCR image digests, not tags" >&2; exit 2; }
+    done
     [ -z "$(git -C "$root" status --porcelain)" ] || { echo "deployment checkout is not clean" >&2; exit 1; }
-    # Pull/verify before touching the running release. Never fall back to a build.
-    docker pull "$image"
-    revision=$(docker image inspect "$image" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
-    [ "$revision" = "$commit" ] || { echo "image revision does not match requested commit" >&2; exit 1; }
+    # Verify both candidates before changing the running release. Never build here.
+    for selected in "$image" "$client_image"; do
+      docker pull "$selected"
+      revision=$(docker image inspect "$selected" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
+      [ "$revision" = "$commit" ] || { echo "image revision does not match requested commit" >&2; exit 1; }
+    done
     /usr/local/sbin/hail-provider-backup
     git -C "$root" fetch --quiet origin "$commit"
     git -C "$root" cat-file -e "$commit^{commit}"
     old_commit=$(git -C "$root" rev-parse HEAD)
     old_image=$(docker inspect hail-public-provider-provider-1 --format '{{.Image}}')
     gui_image=$(docker inspect hail-public-provider-gui-1 --format '{{.Image}}')
-    [ "$gui_image" = "$old_image" ] || { echo "provider and GUI images differ; review rollback before deploying" >&2; exit 1; }
     # A saved ID alone does not retain an image in Docker's containerd store.
     # Use its full digest so rebuilding the same commit cannot overwrite it.
     printf '%s' "$old_image" | grep -Eq '^sha256:[0-9a-f]{64}$' || exit 1
+    printf '%s' "$gui_image" | grep -Eq '^sha256:[0-9a-f]{64}$' || exit 1
     retained_image="hail-server-ts:rollback-${old_image#sha256:}"
+    retained_client="hail-web-client:rollback-${gui_image#sha256:}"
     docker tag "$old_image" "$retained_image"
     verify_image "$retained_image" "$old_image"
+    docker tag "$gui_image" "$retained_client"
+    verify_image "$retained_client" "$gui_image"
     git -C "$root" checkout --quiet --detach "$commit"
-    if select_image "$image" && $compose config --quiet &&
+    if select_image "$image" "$client_image" && $compose config --quiet &&
       $compose up -d --no-deps --no-build --pull never --force-recreate --wait --wait-timeout 180 gui provider &&
       curl --fail --retry 12 --retry-delay 5 --retry-all-errors --silent --show-error https://haili.app/health/ready; then
       umask 077
       record=$(mktemp /var/lib/hail-provider-previous.XXXXXX)
-      printf '%s %s %s\n' "$old_commit" "$retained_image" "$old_image" > "$record"
+      printf '%s %s %s %s %s\n' "$old_commit" "$retained_image" "$old_image" "$retained_client" "$gui_image" > "$record"
       mv "$record" /var/lib/hail-provider-previous
     else
-      restore_release "$old_commit" "$retained_image" "$old_image"
+      restore_release "$old_commit" "$retained_image" "$old_image" "$retained_client" "$gui_image"
       exit 1
     fi
     ;;
   rollback)
-    read -r commit image expected extra < /var/lib/hail-provider-previous
+    read -r commit image expected client_image client_expected extra < /var/lib/hail-provider-previous
     # Old two-field records never retained the image. Fail before checkout.
     [ -z "$extra" ] && printf '%s' "$commit" | grep -Eq '^[0-9a-f]{40}$' || exit 1
     printf '%s' "$expected" | grep -Eq '^sha256:[0-9a-f]{64}$' || {
       echo "rollback record lacks a verified retained image; use a reviewed deployment" >&2; exit 1;
     }
     [ "$image" = "hail-server-ts:rollback-${expected#sha256:}" ] || exit 1
-    restore_release "$commit" "$image" "$expected"
+    # A pre-split verified record identifies the same retained image for both services.
+    if [ -z "$client_image" ] && [ -z "$client_expected" ]; then
+      client_image=$image
+      client_expected=$expected
+    else
+      printf '%s' "$client_expected" | grep -Eq '^sha256:[0-9a-f]{64}$' || exit 1
+      [ "$client_image" = "hail-web-client:rollback-${client_expected#sha256:}" ] || exit 1
+    fi
+    restore_release "$commit" "$image" "$expected" "$client_image" "$client_expected"
     ;;
   *)
     echo "usage: $0 status|restart|logs|backup|signup-monitor-configure|deploy|rollback" >&2

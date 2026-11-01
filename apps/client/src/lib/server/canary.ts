@@ -1,21 +1,23 @@
+import {building} from "$app/environment";
 import {accountRead} from "./account-reads.js";
 import { env } from "$env/dynamic/private";
 import { error,redirect } from "@sveltejs/kit";
-import { AccountApiClient,AccountApiError } from "../../../../../packages/hail-client-support/src/account-api.js";
+import { AccountApiClient,AccountApiError } from "@hailproto/client-support/account-api";
 import {loginPath} from "$lib/auth-routing.js";
 
-export const PROVIDER = env.HAIL_GUI_PROVIDER?.replace(/\/$/,"")||"https://haili.app";
-export const API_ORIGIN=env.HAIL_GUI_API_ORIGIN?.replace(/\/$/,"")||PROVIDER;
-export const ORIGIN=env.HAIL_GUI_ORIGIN?.replace(/\/$/,"")||PROVIDER;
+export const PROVIDER = env.HAIL_WEB_CLIENT_PROVIDER?.replace(/\/$/, "") || "";
+if (!building && !PROVIDER) throw new Error("Set HAIL_WEB_CLIENT_PROVIDER to the provider HTTPS origin");
+export const API_ORIGIN=env.HAIL_WEB_CLIENT_API_ORIGIN?.replace(/\/$/,"")||PROVIDER;
+export const ORIGIN=env.HAIL_WEB_CLIENT_ORIGIN?.replace(/\/$/,"")||PROVIDER;
 type Cookies={get(name:string):string|undefined;delete?(name:string,options:{path:string}):void};
 
 export function isConfigured(cookies?:Cookies): boolean {
-  return Boolean(cookies?.get("hail_session")||env.HAIL_GUI_CREDENTIAL_FALLBACK==="true"&&env.HAIL_GUI_CREDENTIAL_FILE);
+  return Boolean(cookies?.get("hail_session")||env.HAIL_WEB_CLIENT_CREDENTIAL_FALLBACK==="true"&&env.HAIL_WEB_CLIENT_CREDENTIAL_FILE);
 }
 
 export async function bootstrapAccount() {
-  const credentialFile = env.HAIL_GUI_CREDENTIAL_FILE;
-  if (!credentialFile) error(503, "Set HAIL_GUI_CREDENTIAL_FILE to the canary account credential file");
+  const credentialFile = env.HAIL_WEB_CLIENT_CREDENTIAL_FILE;
+  if (!credentialFile) error(503, "Set HAIL_WEB_CLIENT_CREDENTIAL_FILE to the canary account credential file");
   const client = await AccountApiClient.fromCredentialFile(credentialFile, { provider: PROVIDER,transport:API_ORIGIN });
   const account = await client.account();
   return { account, client };
@@ -32,7 +34,7 @@ async function loadAccount(cookies?:Cookies,url?:URL) {
     try{return {account:await client.account(),client};}
     catch(error_){if(error_ instanceof AccountApiError&&error_.status===401){cookies?.delete?.("hail_session",{path:"/"});redirect(303,loginPath(url));}throw error_;}
   }
-  if(env.HAIL_GUI_CREDENTIAL_FALLBACK==="true")return bootstrapAccount();
+  if(env.HAIL_WEB_CLIENT_CREDENTIAL_FALLBACK==="true")return bootstrapAccount();
   redirect(303,loginPath(url));
 }
 

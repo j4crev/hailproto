@@ -178,37 +178,26 @@ legitimate recovery or standalone preparation state.
 
 ## Retained application images for rollback
 
-The provider operations wrapper retains the running image under
-`hail-server-ts:rollback-<full-image-digest>` **before** selecting a replacement CI-built image. Saving only the container's image ID is insufficient:
-with the containerd image store, rebuilding the same public tag can make the
-old ID unavailable without a prune operation. The retained tag keeps rollback independent of the registry and replacement image.
+The split-image source wrapper takes a commit plus separate provider and web-client
+image digests. It must be installed through existing reviewed privileged access
+before deploying the split; changing its checkout does not update the root-owned
+installed wrapper. The hosted installation has not been transitioned merely by
+editing this repository.
 
-Deploy and rollback share an exclusive lock. A successful deploy atomically saves
-three fields in `/var/lib/hail-provider-previous`: the previous commit, retained
-image reference, and expected image ID. Both automatic failure recovery and
-manual rollback verify the image identity before changing the checkout or persistent image selection, restore GUI and provider with builds/pulls disabled, and check readiness.
-The PostgreSQL overlay and data volume remain in place; this is an application
-rollback, not permission to undo incompatible database changes.
+The wrapper retains both running image IDs under local rollback tags before
+replacement and records five fields: previous commit, provider reference/ID and
+client reference/ID. It preserves the existing verified three-field combined-image
+record for recovery before the first split rollout; unverified two-field records
+remain refused. Both images are verified before rollback changes checkout or
+containers. Keep the record, retained images, release selection and database
+overlays. Application rollback is never database rollback.
 
-Existing two-field rollback records are rejected before any release change. They
-must not be treated as proven recovery artifacts. A successful deployment using
-the updated wrapper creates the new verified record. Retained tags are not
-removed automatically; preserve the recorded recovery image during any separately
-reviewed image cleanup.
+Provider and client share a reviewed release commit but have distinct image IDs.
+Backups record both references. Haili keeps its existing `deploy/public` directory,
+Compose project, `gui` service name and data volumes to preserve operational
+identity. The independent fresh-install profile is `deploy/standalone`; do not
+substitute it on the existing host.
 
-The installed `/usr/local/sbin/hail-provider-ops` is root-owned and independent of
-the repository checkout. Pushing or deploying source does **not** update that
-installed file. Install the reviewed wrapper through the operator's authenticated
-sudo session or VPS console, preserving its previous copy and checking the new
-file's SHA-256. Wrapper-only passwordless sudo does not authorize self-updating
-or arbitrary privileged installation. After installation, use its read-only
-`status` command, then the next approved deployment to establish a retained
-rollback image and record.
-
+Follow the [updated rollout procedure](release-process.md#routine-production-rollout--operators-and-agents)
+for exact wrapper installation, publication, deployment and recovery sequencing.
 Regression checks: `bun run --cwd apps/server test -- test/provider-ops.test.ts`.
-The tests cover digest/revision validation before service changes, retention,
-startup/readiness failures, both-service restoration, and refusal of missing,
-mismatched or legacy image records. See the
-[CI image release procedure](release-process.md#provider-and-gui-images) for the
-new two-argument deploy command and one-time wrapper installation. Production
-builds are prohibited; the image overlay survives application checkout/rollback.

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import QuotedMessage from "$lib/QuotedMessage.svelte";
   import MessageThread from "$lib/MessageThread.svelte";
   import {replyExcerpt} from "$lib/reply.js";
@@ -67,7 +68,7 @@
   const content = $derived(messageDisplayContent(data.message.blocks));
 </script>
 
-<svelte:head><title>Message · Haili</title></svelte:head>
+<svelte:head><title>Message · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="message-detail mx-auto max-w-[800px]" class:feed-reader={data.message.kind!=='connection'}>
 <a class="hail-back" href={data.message.trashedAt?'/trash':data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.trashedAt?'Trash':data.message.kind==='connection'?'Inbox':'Feed'}</a>
 {#if content.title}<h1 class="reader-title">{content.title}</h1>{:else}<h1 class="sr-only">Received message</h1>{/if}

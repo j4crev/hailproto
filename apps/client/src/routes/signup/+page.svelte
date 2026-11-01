@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import {onMount,onDestroy} from "svelte";
   import SignupDomainRecords from "$lib/SignupDomainRecords.svelte";
   import CopyButton from "$lib/CopyButton.svelte";
@@ -240,7 +241,7 @@
   }
 </script>
 
-<svelte:head><title>Create your account · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
+<svelte:head><title>Create your account · {page.data.branding?.name ?? "Hail"}</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 <div class="signup-shell">
   {#if screen!=="done"}
     <p class="signup-progress" aria-live="polite">Step {phase+1} of {phases.length} · {phases[phase]}</p>

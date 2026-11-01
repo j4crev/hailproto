@@ -1,7 +1,10 @@
-# Deploy a new Hail provider
+# Haili site deployment (Cloudflare Tunnel)
 
-This guide is the starting point for an operator deploying the reference provider
-on their own domain. The stack contains the TypeScript provider, browser GUI,
+For a new independent deployment, start with the
+[standalone provider guide](../standalone/README.md). This directory retains
+Haili-specific scripts and paths so installed wrappers, backups and overlays
+continue to refer to the same deployment location. Do not install its scripts
+unchanged on another host. The stack contains the TypeScript provider, browser GUI,
 PostgreSQL and a loopback-only Caddy edge behind a host Cloudflare Tunnel.
 Hail is pre-launch: select a reviewed repository revision and plan coordinated
 application/schema upgrades. The [protocol specifications](../../../../spec) define
@@ -259,13 +262,13 @@ Run from `apps/server/deploy/public`:
 
 ```bash
 docker compose --env-file .env -f compose.yaml -f compose.local.yaml config --quiet
-# Set HAIL_PROVIDER_IMAGE in .env to the verified CI image@sha256 digest first.
+# Set HAIL_PROVIDER_IMAGE and HAIL_WEB_CLIENT_IMAGE to their respective CI digests first.
 docker compose --env-file .env -f compose.yaml -f compose.local.yaml pull gui provider
 docker compose --env-file .env -f compose.yaml -f compose.local.yaml up -d --no-build --wait db gui provider caddy
 docker compose --env-file .env -f compose.yaml -f compose.local.yaml ps
 ```
 
-The single built image contains both provider and GUI. The provider applies pending
+Provider and web client use separate images from the same reviewed revision. The provider applies pending
 migrations before listening. Inspect service logs if health checks fail. Container
 health alone does not prove public DNS, TLS, discovery or monitoring work.
 
@@ -366,7 +369,7 @@ Monitor readiness, backup freshness and monitor coverage externally; name incide
 abuse contacts and keep an out-of-provider reporting path.
 
 For upgrades, take/verify a backup, read schema compatibility requirements, retain
-both running application images, then build and recreate provider/GUI together.
+both running application images, then publish in CI and recreate provider/web client together.
 Migrations 79/80 change content/evidence readers and forbid mixed old/new serving;
 see [content storage](../../../../docs/content-storage-and-attachments.md) and
 [evidence storage](../../../../docs/verification-evidence-storage.md). Code rollback
@@ -388,16 +391,16 @@ connections survive moves; pending work and unsupported history remain blocked.
 
 ## Deploy prebuilt application images
 
-Build the provider/GUI image on GitHub Actions using the
+Build the separate provider and web-client images on GitHub Actions using the
 [image release procedure](../../../../docs/release-process.md#provider-and-gui-images).
 The public Compose file intentionally has no build definition. Do not run Vite,
-adapter-node or Docker builds on a live provider host. `HAIL_PROVIDER_IMAGE` selects
-one immutable image for both provider and GUI on a fresh deployment. The local
+adapter-node or Docker builds on a live provider host. `HAIL_PROVIDER_IMAGE` and `HAIL_WEB_CLIENT_IMAGE` select
+separate immutable images on a fresh deployment. The local
 `hail-server-ts:public` fallback exists only for transition from existing installs;
 it is not a published release reference.
 
 On the managed Haili host, the installed `hail-provider-ops` wrapper takes both a
-full commit SHA and a GHCR digest. It stores image selection in
+full commit SHA and two GHCR digests (provider, then web client). It stores image selection in
 `/etc/hail-provider-release/compose.json`, outside the Git checkout. When using
 Compose directly on that host, append `-f /etc/hail-provider-release/compose.json`
 after the existing Compose/database files. Preserve this file during backup and

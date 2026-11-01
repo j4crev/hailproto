@@ -358,11 +358,11 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   return json({},404);
 }});
 const origin=`http://localhost:${server.port}`;
-guiProxy=createApp({publicOrigin:origin,providerId:"browser-fixture",thinGuiOrigin:`http://127.0.0.1:${guiPort}`} as AppConfig);
+guiProxy=createApp({publicOrigin:origin,providerId:"browser-fixture",webClientOrigin:`http://127.0.0.1:${guiPort}`} as AppConfig);
 const wait=async(fn:()=>Promise<boolean>,description:string)=>{const end=Date.now()+25_000;while(Date.now()<end){if(await fn())return;await Bun.sleep(100);}throw new Error("Timed out: "+description);};
 try{
   gui=Bun.spawn(["bun","build/index.js"],{cwd:new URL("..",import.meta.url).pathname,env:{...process.env,HOST:"127.0.0.1",PORT:String(guiPort),ORIGIN:origin,
-    HAIL_GUI_SIGNUP:"true",HAIL_GUI_SIGNUP_PREVIEW:"true",HAIL_GUI_PROVIDER:policy.provider,HAIL_GUI_API_ORIGIN:origin,HAIL_GUI_ORIGIN:origin,
+    HAIL_WEB_CLIENT_NAME:"Fixture Mail",HAIL_WEB_CLIENT_SIGNUP:"true",HAIL_WEB_CLIENT_SIGNUP_PREVIEW:"true",HAIL_WEB_CLIENT_PROVIDER:policy.provider,HAIL_WEB_CLIENT_API_ORIGIN:origin,HAIL_WEB_CLIENT_ORIGIN:origin,
     ALPHA_SIGNUP_MONITOR_ORIGIN:policy.monitorOrigin,SIGNUP_MONITOR_PUBLIC_KEY:policy.monitorKey},stdout:"ignore",stderr:"pipe"});
   let startupStatus="";
   try{await wait(async()=>{try{const r=await fetch(origin+"/signup");startupStatus=String(r.status)+" "+(await r.text()).slice(0,300);return r.ok;}catch(error){startupStatus=String(error);return false;}},"GUI startup");}
@@ -554,7 +554,7 @@ try{
   };
   await navigateInboxView('/?view=connections');
   await wait(async()=>evaluate(`location.search==='?view=connections' && document.querySelector('h1').textContent==='Inbox'`),"open Messages from navigation");
-  assert.equal(await evaluate(`document.title`),"Inbox · Haili");
+  assert.equal(await evaluate(`document.title`),"Inbox · Fixture Mail");
   assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current="page"]').textContent.trim()`),"Inbox");
   assert(await evaluate(`!document.querySelector('[aria-label="Inbox views"]')`),"Messages has no tabs");
   assert(await evaluate(`document.querySelector('.mobile-compose').getAttribute('href')==='/compose?audience=connections' && document.querySelector('.mobile-compose').getAttribute('aria-label')==='Message connections'`),'Inbox mobile compose targets connections');
@@ -569,7 +569,7 @@ try{
   }
   await navigateInboxView('/');
   await wait(async()=>evaluate(`location.search==='' && document.querySelector('h1').textContent==='Feed'`),"open Inbox from navigation");
-  assert.equal(await evaluate(`document.title`),"Feed · Haili");
+  assert.equal(await evaluate(`document.title`),"Feed · Fixture Mail");
   assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current="page"]').textContent.trim()`),"Feed");
   assert(await evaluate(`!document.querySelector('[aria-label="Inbox views"]') && !document.querySelector('main a[href="/compose?audience=connections"]')`),"Inbox has no tabs or connection-message action");
   assert(await evaluate(`document.querySelector('.mobile-compose').getAttribute('href')==='/compose' && document.querySelector('.mobile-compose').getAttribute('aria-label')==='Publish to subscribers'`),'Feed mobile compose targets subscribers');

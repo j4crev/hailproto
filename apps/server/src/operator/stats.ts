@@ -1,13 +1,10 @@
+import type {OperatorStats} from "@hailproto/client-support/provider-contracts";
+export type {OperatorStats} from "@hailproto/client-support/provider-contracts";
 import type {SQL} from "bun";
-import {readStorage, type StorageStats} from "./storage.js";
+import {readStorage} from "./storage.js";
 
 export const statsRanges = {day: {buckets:24, seconds:3600}, week:{buckets:7, seconds:86400}, month:{buckets:30, seconds:86400}} as const;
 export type StatsRange = keyof typeof statsRanges;
-export type OperatorStats = {
-  range:StatsRange; generatedAt:string; storage:StorageStats|null;
-  totals:{users:number; pendingUsers:number; sent:number; received:number; rejected:number; delivered:number; failed:number; pending:number; deliveryRate:number|null};
-  activity:{start:string; sent:number; received:number}[];
-};
 
 export class OperatorStatistics {
   constructor(private readonly sql:SQL){}

@@ -165,7 +165,7 @@ Bulk submission remains deferred. Submission outcomes, disclosure, timing, retri
 
 The normative validation order is defined in [envelopes.md](envelopes.md). It permits a cheap preliminary authorization lookup using claimed fields, requires externally uniform unauthenticated rejection, verifies the signature before state mutation or body retrieval, then atomically reserves idempotency and reply-capability state.
 
-Authorization is fixed by atomic acceptance. Envelope expiration is re-checked before completed delivery. Permanent and retryable body failures and delivery states are defined in [delivery-state.md](delivery-state.md).
+In this Grant-authorized flow, authorization is fixed by atomic acceptance. Envelope expiration is re-checked before completed delivery. Permanent and retryable body failures and delivery states are defined in [delivery-state.md](delivery-state.md).
 
 ### 8. Detached Body Retrieval
 

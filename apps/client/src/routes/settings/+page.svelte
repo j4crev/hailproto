@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import {invalidateAll} from "$app/navigation";
   import {mailboxRequest} from "$lib/mailbox.js";
   let {data}=$props();
@@ -33,7 +34,7 @@
     void saveDisplay({showHeaderImages});
   }
 </script>
-<svelte:head><title>Settings · Haili</title></svelte:head>
+<svelte:head><title>Settings · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="mx-auto max-w-[860px]">
   <header class="page-heading"><h1 class="hail-title">Settings</h1></header>
   <p><a href="/settings/domains">Manage custom domains</a></p>

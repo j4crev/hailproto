@@ -10,7 +10,7 @@ Envelope validation and idempotency are defined in [envelopes.md](envelopes.md).
 
 - Delivery state belongs to one recipient-specific Hail Envelope.
 - `accepted` means the envelope is authenticated, authorized, policy-compliant, and durably queued by the recipient server.
-- Acceptance fixes delivery authorization for that envelope.
+- Acceptance fixes Grant/reply authorization. Connection and conversation authorization must remain valid through the final delivery checks described below.
 - Grant restriction, expiration, or revocation after acceptance does not cancel the accepted envelope.
 - `delivered` means the body and message record are verified and durably stored by the recipient server.
 - Delivery does not mean that a recipient client synchronized, displayed, opened, or read the message.
@@ -40,8 +40,8 @@ The recipient server has:
 1. Validated the envelope schema and signature.
 2. Authenticated the exact sender DID and `#hail-messaging` key.
 3. Confirmed the exact recipient DID is local.
-4. Confirmed a matching grant or reply authorization.
-5. Checked category scope, envelope timestamps, body limits, and recipient policy.
+4. Confirmed the authorization selected by the envelope version: Grant, reply, connection, or conversation.
+5. Checked category scope where applicable, envelope timestamps, body limits, and recipient policy.
 6. Reserved the envelope idempotency key and any reply-capability claim.
 7. Durably stored the envelope and responsibility for body processing.
 
@@ -132,6 +132,11 @@ This prevents a message from becoming visible with `failed` or `cancelled` statu
 
 ## Acceptance And Authorization Races
 
+### Grant and reply authorization
+
+The following acceptance-time rules apply to Grant and single-use reply
+capabilities. They do not grant standing connection/conversation permission.
+
 The recipient server must make envelope acceptance and grant changes linearizable for one recipient.
 
 Conceptually, the acceptance transaction:
@@ -153,6 +158,24 @@ Later grant changes apply to envelopes not yet accepted. They do not change acce
 This rule gives `accepted` stable meaning and prevents a sender from observing acceptance that later disappears solely because authorization changed during body retrieval.
 
 Recipient policy still may explicitly cancel pending work. Such cancellation is represented as `cancelled`, not as retroactive failure of the original grant check.
+
+### Connection and shared-conversation authorization
+
+Acceptance creates durable work but does not freeze standing permission.
+Before body retrieval and again before final delivery, receivers MUST recheck
+the exact connection ID/epoch or conversation descriptor-bound membership.
+Connection delivery also requires fresh coordinator authority as defined in
+[envelopes.md](envelopes.md#connection-authorization-version-2). Shared delivery
+uses the local membership rules in [shared-conversations.md](shared-conversations.md);
+disconnecting the introducing connection does not itself revoke that membership.
+
+A definite permission denial, including a disconnect, leave or expired membership,
+terminates pending delivery as `failed` with `receiver-policy-rejected`.
+An unavailable authority check is retryable `on-hold` with
+`receiver-resource-constrained`, within the signed delivery deadline. Final
+permission checks and durable delivery MUST serialize with local revocation.
+Already delivered content is not recalled. An explicit cancellation of pending
+work remains `cancelled`; it is distinct from a standing-permission check failure.
 
 ## Delivery Deadline
 
@@ -403,7 +426,7 @@ defined in [did-profile.md](did-profile.md#provider-migration):
 3. The client talks directly to the new provider. Using its current `#hail-identity` key it signs an Address Selection for one full address beneath that provider's domain, bound to the grant, Offer, nonce and transfer ID. The provider atomically reserves the address, returns an exact-retryable signed reservation receipt, and does **not** yet publish WebFinger or activate the DID. A different name or expired selection requires new user authorization.
 4. The new provider pushes a final Transfer Request to the old provider's fixed HTTPS endpoint, signed by the same key in the origin-proven Offer and binding the user-signed address selection and reservation receipt. The old provider validates current PLC identity authority, exact grant/Offer/request/reservation correlation and one-time expiry. Exact retries receive durable acknowledgement. An operator command, provider-only signature, or self-signed target key without origin proof cannot start a Hail transfer.
 5. Only after those checks does the old provider acquire an exclusive migration fence and stop accepting envelopes, committing delivery transitions, changing grants or reply capabilities, and creating status revisions for the DID.
-6. While fenced, the old provider exports the complete serialization domain: current grants and tombstones, reply-capability state, all retained envelope idempotency and rejection records, accepted and terminal delivery records, deterministic current status payloads and revision history, body/cache provenance needed for continuation, and retained signature-verification evidence. New exports use signed snapshot v3, whose closed table domain also carries account-scoped strict-public envelope, Grant and signing authority links and exactly their referenced immutable PLC resolution bundles. A destination preserves that source history but never treats it as fresh authority for a destination action. Version 2 remains readable only for exact retries of already retained snapshots.
+6. While fenced, the old provider exports the complete serialization domain: current grants and tombstones, reply-capability state, all retained envelope idempotency and rejection records, accepted and terminal delivery records, deterministic current status payloads and revision history, body/cache provenance needed for continuation, and retained signature-verification evidence. Current reference-provider exports use portable snapshot v7 or managed snapshot v8 (see [transfer-formats.md](transfer-formats.md)), whose closed table domains also carry account-scoped strict-public envelope, Grant and signing authority links and exactly their referenced immutable PLC resolution bundles. A destination preserves that source history but never treats it as fresh authority for a destination action. Earlier snapshot versions are outside the current alpha contract.
 7. The user reviews the exact snapshot and prepared destination; the new provider validates and durably imports that complete state inactive and acknowledges the exact snapshot. The user signs final consent with `#hail-identity` and signs the exact full-state PLC operation with the current highest-priority recovery key.
 8. The exact user-signed PLC operation updates `#hail-messaging` and `#hail` to the new provider. Independently operated PLC read paths confirm that exact operation is current and not nullified; the new provider verifies the selected domain's binding and takes sole ownership, resumes pending work, and signs status wrappers with its current key. A top-priority-user-signed operation need not sit idle for 72 hours, but observer disagreement or an unexpected intervening operation blocks activation.
 9. The old provider remains fenced and rejects stale requests. It never commits state after export and never receives the new provider's private key.
@@ -485,7 +508,7 @@ The proof of concept implements:
 - `accepted`, `on-hold`, `delivered`, `failed`, and `cancelled`
 - immutable terminal states
 - serialized compare-and-set terminal transitions
-- authorization fixed by atomic envelope acceptance
+- Grant/reply authorization fixed by atomic acceptance; standing connection/conversation permission rechecked before delivery
 - no automatic cancellation from later grant changes
 - durable verified body and message storage before `delivered`
 - recipient-controlled bounded retry scheduling

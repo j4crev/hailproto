@@ -3,13 +3,13 @@
 Reusable Bun and Hono provider implementation for Hail Protocol.
 
 This repository is under active development. Use the
-[single public-provider deployment profile](deploy/public/README.md) for a new
+[standalone provider deployment profile](deploy/standalone/README.md) for a new
 strict-public provider.
 
 ## Start here
 
-- [Deploy a new provider](deploy/public/README.md): host/domain, database, HTTPS, monitoring and signup.
-- [Provider DNS discovery](deploy/public/README.md#dns-discovery-for-your-provider): native-domain and custom-domain routing records.
+- [Deploy a new provider](deploy/standalone/README.md): host/domain, database, HTTPS, monitoring and signup.
+- [Provider DNS discovery](deploy/standalone/README.md#dns-discovery-for-your-provider): native-domain and custom-domain routing records.
 - [Create the first administrator](../../docs/provider-admin-setup.md): vault, monitored account, passkey and explicit operator grant.
 - [Account CLI](../cli/README.md) and [workflows](../cli/docs/cli-workflows.md).
 - [Custody, transfers and recovery](../cli/docs/custody-transitions.md).
@@ -671,7 +671,7 @@ The server also runs pending migrations before binding its HTTP listener.
 Create and activate test accounts through the owner-key account API using the
 [`hailp` signup workflow](../cli/docs/cli-workflows.md#create-an-account). The
 legacy provider-custodial onboarding and activation commands have been removed.
-The public deployment profile is in [`deploy/public/README.md`](deploy/public/README.md).
+The public deployment profile is in [`deploy/public/README.md`](deploy/standalone/README.md).
 
 Initial health endpoints:
 

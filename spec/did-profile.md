@@ -341,9 +341,11 @@ User consent to the exact snapshot
 and a **separate signature from the current highest-priority user PLC recovery
 key over the exact full-state cutover operation** are required before
 activation. A provider-signed PLC operation cannot satisfy that final
-requirement even if it renders the same destination. Final interoperable
-wire objects, cross-process retry scheduling and administrative cancellation
-still need specification.
+requirement even if it renders the same destination. The current handshake wire objects and signature domains are specified in
+[transfer-formats.md](transfer-formats.md). That document distinguishes the
+reference snapshot format from the storage-independent portability work still
+needed for standardization. Worker scheduling is provider policy; a submitted
+operation may never be treated as cancelled solely because retries stopped.
 
 Before a fence, the user can cancel the exact grant with a current
 `#hail-identity` signature. The source serializes that cancellation against

@@ -18,10 +18,11 @@ $compose exec -T db pg_dump -U hail -d hail -Fc > "$work/hail.dump"
 cp .env "$work/provider.env"
 commit=$(git -C /opt/hailproto rev-parse HEAD)
 image=$(docker inspect hail-public-provider-provider-1 --format '{{.Config.Image}}')
+client_image=$(docker inspect hail-public-provider-gui-1 --format '{{.Config.Image}}')
 database_image=$(docker inspect hail-public-provider-db-1 --format '{{.Config.Image}}')
 database_version=$($compose exec -T db psql -X -U hail -d hail -Atq -c 'SHOW server_version_num')
-printf '{"createdAt":"%s","host":"haili.app","commit":"%s","image":"%s","databaseImage":"%s","databaseVersion":"%s"}\n' \
-  "$(date -u +%FT%TZ)" "$commit" "$image" "$database_image" "$database_version" > "$work/manifest.json"
+printf '{"createdAt":"%s","host":"haili.app","commit":"%s","image":"%s","webClientImage":"%s","databaseImage":"%s","databaseVersion":"%s"}\n' \
+  "$(date -u +%FT%TZ)" "$commit" "$image" "$client_image" "$database_image" "$database_version" > "$work/manifest.json"
 $compose exec -T db pg_restore --list < "$work/hail.dump" >/dev/null
 set -- hail.dump provider.env manifest.json
 if [ -f "$postgres" ]; then cp "$postgres" "$work/database-compose.yaml"; set -- "$@" database-compose.yaml; fi

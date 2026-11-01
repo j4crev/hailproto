@@ -2,11 +2,11 @@
 
 This guide bootstraps the first administrator of **your provider**. It uses your
 own domain, monitor and server addresses; none are supplied by the Hail project.
-Start with the [new provider setup guide](../apps/server/deploy/public/README.md)
+Start with the [new provider setup guide](../apps/server/deploy/standalone/README.md)
 if the host, HTTPS ingress or monitor is not configured yet. After setup, everyday
 invitations happen at your provider's `/admin` page.
 
-Complete the [provider DNS discovery setup](../apps/server/deploy/public/README.md#dns-discovery-for-your-provider)
+Complete the [provider DNS discovery setup](../apps/server/deploy/standalone/README.md#dns-discovery-for-your-provider)
 as part of domain setup. Remote lookups use DNS discovery; your provider can go
 directly to WebFinger for its own exact native domain. The provider routing
 record is separate from administrator account authorization.
@@ -43,9 +43,10 @@ Have the following ready:
 - On your computer: a repository checkout with the native `apps/cli/dist/hailp`
   executable built, plus Bun, `jq`, SSH and SCP. The [CLI installation guide](../apps/cli/docs/cli-installation.md)
   covers prerequisites.
-- On the provider: matching current provider/GUI images and all current migrations,
+- On the provider: a current provider image and all current migrations (add the optional
+  web-client image for the browser/passkey/dashboard steps),
   public CLI onboarding, passkeys, alpha signup, email and automatic monitoring
-  configured as in [provider setup](../apps/server/deploy/public/README.md#6-arrange-monitoring-and-signup-admission).
+  configured as in [provider setup](../apps/server/deploy/standalone/README.md#3-account-bootstrap-and-client-apis).
   Invitation-only CLI admission uses the same signing key as alpha signup. A
   reserved-name authorization does not substitute for an invitation.
 - From the monitor operator: its identity origin, current public signing key and

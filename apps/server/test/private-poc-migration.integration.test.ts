@@ -1,3 +1,4 @@
+import {assertExportConformance} from "./support/account-history-conformance.js";
 import { createHash,randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -274,6 +275,7 @@ integration("private PLC transfer between disposable POC providers", () => {
     const sourceTransfer = new MigrationTransferService(source.sql, sourceRepo,
       sourceEncryptor, resolver, oldBase);
     const signedSnapshot = await sourceTransfer.exportFenced((await sourceFence.get(genesis.did))!);
+    await assertExportConformance(signedSnapshot,"portable");
     expect(exportedSnapshot.manifest).toBe(encodeBase64Url(signedSnapshot.bytes));
     expect(exportedSnapshot.signature).toBe(encodeBase64Url(signedSnapshot.signature));
     const ceremony = await mkdtemp(join(tmpdir(), "hail-cutover-client-"));

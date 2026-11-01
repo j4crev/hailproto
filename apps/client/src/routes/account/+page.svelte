@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import CopyButton from "$lib/CopyButton.svelte";
   import AccountSecurity from "$lib/AccountSecurity.svelte";
   import {onMount, untrack} from "svelte";
@@ -57,7 +58,7 @@
     }catch(error){deletionError=error instanceof Error?error.message:"Unable to delete account.";deleting=false;}
   }
 </script>
-<svelte:head><title>Account · Haili</title></svelte:head>
+<svelte:head><title>Account · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="min-w-0">
   <header class="page-heading"><h1 class="hail-title">Account</h1></header>
   <section class="hail-card overflow-hidden" aria-label="Account details">

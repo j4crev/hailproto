@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import DateTime from "$lib/DateTime.svelte";
   import {goto} from "$app/navigation";
   import {onMount} from "svelte";
@@ -63,7 +64,7 @@
   function cancel(reason=""){prepared=null;draft=null;pendingRequest=null;remember(null);recoveryNeeded=false;message=reason;}
 
 </script>
-<svelte:head><title>Connect · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
+<svelte:head><title>Connect · {page.data.branding?.name ?? "Hail"}</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 <div class="mx-auto grid max-w-2xl gap-5">
   <header class="grid gap-3"><h1 class="hail-title">Connect with someone</h1><p class="m-0 text-sm text-muted">Review the identity before confirming. A connection is separate from a subscription.</p></header>
   {#if message}<p class="hail-error" role="alert">{message}</p>{/if}

@@ -1,0 +1,13 @@
+{
+  "format": "hail-history-negative-v1",
+  "cases": [
+    {"id":"private-key-in-export","fixture":"portable-history","stage":"schema","action":"set","path":["tables","account_keys",0,"encrypted_private_key"],"value":"\\x00"},
+    {"id":"missing-status-domain","fixture":"managed-history","stage":"schema","action":"delete","path":["tables","sent_delivery_status"]},
+    {"id":"numeric-string-generation","fixture":"portable-history","stage":"schema","action":"set","path":["sourceGeneration"],"value":"1"},
+    {"id":"unknown-conversation-field","fixture":"conversation-left","stage":"schema","action":"set","path":["unexpected"],"value":true},
+    {"id":"missing-leave-field","fixture":"conversation-left","stage":"schema","action":"delete","path":["tables","conversation_memberships",0,"left_at"]},
+    {"id":"foreign-account","fixture":"portable-history","stage":"ownership","action":"set","path":["tables","provider_accounts",0,"id"],"value":"01954144-8097-7a9d-a7a8-ffffffffffff"},
+    {"id":"foreign-checkpoint-generation","fixture":"managed-history","stage":"ownership","action":"set","path":["connections","sourceGeneration"],"value":999},
+    {"id":"changed-conversation-digest","fixture":"portable-history","stage":"digest","action":"set","path":["conversationCheckpointDigest"],"value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+  ]
+}

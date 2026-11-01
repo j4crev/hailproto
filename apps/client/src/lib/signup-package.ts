@@ -1,5 +1,5 @@
 import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
-import { readRecoveryPackage, extractRecoveryVault, type RecoveryPackage } from "../../../../packages/hail-client-support/src/recovery-package.js";
+import { readRecoveryPackage, extractRecoveryVault, type RecoveryPackage } from "@hailproto/client-support/recovery-package";
 import { openPending, pendingKey, sealPending, type PendingSignup, type SignupPolicy } from "./signup.js";
 export { readRecoveryPackage };
 

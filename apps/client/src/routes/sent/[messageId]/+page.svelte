@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import QuotedMessage from "$lib/QuotedMessage.svelte";
   import MessageThread from "$lib/MessageThread.svelte";
   import ForwardedPill from "$lib/ForwardedPill.svelte";
@@ -12,7 +13,7 @@
   const content = $derived(messageDisplayContent(data.message.blocks));
 </script>
 
-<svelte:head><title>Sent message · Haili</title></svelte:head>
+<svelte:head><title>Sent message · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="mx-auto max-w-[800px]">
 <a class="hail-back" href="/sent">← Sent messages</a>
 {#if content.title}<h1 class="reader-title">{content.title}</h1>{:else}<h1 class="sr-only">Sent message</h1>{/if}

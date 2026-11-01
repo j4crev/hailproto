@@ -34,7 +34,7 @@ For transfer authority and provider readiness, see [custody transitions](apps/cl
 
 ## Deploy your own provider
 
-Start with the [new provider setup guide](apps/server/deploy/public/README.md).
+Start with the [new provider setup guide](apps/server/deploy/standalone/README.md).
 It covers the host, domain, container stack, HTTPS ingress, monitoring, first
 administrator, registration and ongoing operations. The
 [first administrator walkthrough](docs/provider-admin-setup.md) explains the
@@ -42,7 +42,7 @@ owner-key and monitor ceremony through first dashboard login.
 
 ## Client capabilities
 
-The reference CLI covers account administration and sensitive identity ceremonies. The thin GUI now supports invited managed signup, passkey access and everyday messaging. Signup temporarily handles owner recovery keys in the browser; routine managed signing stays with the provider.
+The reference CLI covers account administration and sensitive identity ceremonies. The optional reference web client supports invited managed signup, passkey access and everyday messaging. Signup temporarily handles owner recovery keys in the browser; routine managed signing stays with the provider.
 
 | Capability | [`hailp` CLI](apps/cli) | [Thin GUI client](apps/client) |
 | --- | --- | --- |
@@ -90,7 +90,7 @@ browser recovery remain separate work.
 - [Key custody and offline operation](docs/portable-custody.md#key-custody-in-plain-language): Signing-role and custody comparisons, offline requirements and binding lifecycle and trust boundaries.
 - [Managed profiles and API-first clients](docs/portable-custody.md#managed-profiles-and-people-or-agents): Human/agent custody choices, owner-controlled recovery and native/`hailp` API interaction.
 - [Production provider/GUI rollouts](docs/release-process.md#routine-production-rollout--operators-and-agents): CI publication, digest deployment and retained-image rollback.
-- [Provider deployment runbook](apps/server/deploy/public/README.md): Strict-public provider setup and validation.
+- [Provider deployment runbook](apps/server/deploy/standalone/README.md): Strict-public provider setup and validation.
 - [User-key CLI](apps/cli/README.md): User-device vault, onboarding, Grant signing and exact-byte cutover commands.
 - [Public monitor deployment](apps/plc-monitor/deploy/public/README.md): Per-DID public PLC monitoring, reviewed bootstrap, signed attestations and external email alerts.
 - [`BODY_FORMAT.md`](BODY_FORMAT.md): Safe Portable Text body-format design.

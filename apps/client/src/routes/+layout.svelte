@@ -54,11 +54,12 @@
   });
 </script>
 <svelte:head>
-  <title>Haili · Your Hail inbox</title>
+  <link rel="icon" href={page.data.branding?.faviconPath ?? "/favicon.svg"} />
+  <title>{page.data.branding?.name ?? "Hail"} · Your Hail inbox</title>
   <meta name="description" content="Your subscriptions and messages, on your terms. Powered by Hail." />
 </svelte:head>
 {#snippet brand()}
-  <a href="/" class="brand" aria-label="Haili home"><span class="brand-mark" aria-hidden="true">h</span><span>Haili</span></a>
+  <a href="/" class="brand" aria-label={`${page.data.branding?.name ?? "Hail"} home`}>{#if page.data.branding?.logoPath}<img class="brand-logo" src={page.data.branding.logoPath} alt="" />{:else}<span class="brand-mark" aria-hidden="true">h</span>{/if}<span>{page.data.branding?.name ?? "Hail"}</span></a>
 {/snippet}
 {#snippet links()}
   <a class="hail-button compose-button" href="/compose" aria-current={page.url.pathname === "/compose" ? "page" : undefined}>Compose</a>
@@ -88,6 +89,7 @@
   .sidebar { position:fixed; inset:0 auto 0 max(0px, calc((100vw - 1600px) / 2)); width:236px; display:flex; flex-direction:column; gap:24px; padding:28px 16px 20px; background:var(--color-canvas); overflow-y:auto; }
   .brand { display:flex; align-items:center; gap:11px; color:var(--color-ink); text-decoration:none; font-size:26px; font-weight:750; letter-spacing:-.055em; }
   .sidebar > .brand { padding:0 12px; }
+  .brand-logo { width:36px; height:36px; object-fit:contain; }
   .brand-mark { display:grid; place-items:center; width:36px; height:36px; border-radius:11px; background:var(--color-brand); color:var(--color-on-brand); font-family:Georgia,serif; font-size:29px; font-style:italic; }
   .compose-button { justify-content:flex-start; padding-left:18px; min-height:46px; }
   nav { display:grid; gap:3px; }

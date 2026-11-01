@@ -2,11 +2,15 @@
 
 This completes connection admission/reconciliation/disconnect across compatible
 providers, for managed and owner-controlled identities. It does **not** authorize
-message delivery, change subscriptions, implement block/unblock, or make the retained
-connection history portable. Those remain separate gates. The separate connection
+message delivery, change subscriptions, implement block/unblock, or independently authorize moving retained connection history. Portability requires
+the separate [handover protocol](connection-portability.md). The separate connection
 messaging implementation uses version-2 Envelopes and this coordinator's current
 state; see [messaging](../docs/connection-messaging.md). See
 [connection consent](connection-auth.md) for the local identity-signing flow.
+
+Exact JSON wrappers, bundle fields, hash domains and HTTP outcomes are defined in
+[connection-wire.md](connection-wire.md). These are required alongside the signed
+control schemas; lifecycle prose alone does not define the transport.
 
 ## Authority And Wire
 
@@ -37,7 +41,7 @@ compression, browser cookie, API credential, or Origin is forwarded. POST bodies
 and responses are bounded at 128 KiB and duplicate JSON keys are rejected. The
 identity, provider role, service and fresh public PLC evidence are checked.
 Pair history pins both peer and coordinator service locations; provider moves fail
-closed until portable history reconciliation exists.
+closed unless the authenticated handover protocol reconciles those locations.
 
 ## Pair Coordinator And Epochs
 

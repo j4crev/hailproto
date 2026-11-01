@@ -14,7 +14,7 @@ beforeEach(() => {
 it("supplies a same-origin photo URL without waiting for the profile on navigation", async () => {
   mocks.profile.mockImplementation(()=>new Promise(()=>{}));
   for (const path of ["/", "/account", "/settings"]) {
-    expect(await run(path)).toEqual({hasAccountSession:true,accountAvatar:{did,src:`/api/v1/account/senders/${encodeURIComponent(did)}/avatar/image`}});
+    expect(await run(path)).toMatchObject({hasAccountSession:true,accountAvatar:{did,src:`/api/v1/account/senders/${encodeURIComponent(did)}/avatar/image`}});
   }
   expect(mocks.profile).not.toHaveBeenCalled();
 });
@@ -25,6 +25,6 @@ it("keeps navigation available when account presentation cannot load", async () 
 it("does not fetch private profiles on signed-out or focused authentication pages", async () => {
   for (const path of ["/?next=%2Faccount", "/auth/login", "/signup", "/signup/recovery"]) await run(path);
   mocks.isConfigured.mockReturnValue(false);
-  expect(await run()).toEqual({hasAccountSession: false, accountAvatar: null});
+  expect(await run()).toMatchObject({hasAccountSession: false, accountAvatar: null});
   expect(mocks.canaryAccount).not.toHaveBeenCalled();
 });

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import MessageListRow from "$lib/MessageListRow.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
   import {showInboxHeaders, loadHeaderPreference} from "$lib/preferences.js";
@@ -22,7 +23,7 @@
     catch(e){status=e instanceof Error?e.message:'Unable to restore messages.';}finally{busy=false;}
   }
 </script>
-<svelte:head><title>Trash · Haili</title></svelte:head>
+<svelte:head><title>Trash · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="trash-list min-w-0" class:has-selection={selectedMessages.length>0}>
   <header class="page-heading"><h1 class="hail-title">Trash</h1><p>Messages are permanently deleted 30 days after they enter Trash.</p></header>
   {#if status}<p role="status">{status}</p>{/if}
