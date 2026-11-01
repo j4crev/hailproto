@@ -146,3 +146,47 @@ HTTP status, ignores untrusted error text, and falls back to `HTTP_<status>`
 for older providers or unspecified conditions. Do not infer expiry from every
 401 or missing scope from every 403. These terminal conditions do not authorize
 automatic login, scope escalation, or replacing retained approval artifacts.
+
+## Shared conversations
+
+Shared operations reuse the provider's v4 conversation delivery and fixed roster.
+`conversation start` explicitly requests shared delivery; `conversation reply-all`
+accepts a sender-scoped received or own sent delivery ID and obtains its shared
+identity from the authenticated account API. The provider alone determines the
+roster and enforces local and recipient membership. No direct peer connections
+are created. Existing `send`, `reply`, and `connection send` retain their meaning.
+
+Start/reply-all/revive require `--state`. Private version-1
+`hailp.conversation-operation` files bind the account, provider, command, input,
+endpoint, and exact request. Requests are persisted before submission. Retries
+reuse the operation ID and never regenerate signatures, expand audiences, or fall
+back to private copies. A changed intent is rejected. Text inputs retain the
+64 KiB UTF-8 limit. Submission requires account inspection (`account:read`) and
+`messages:write`; initial reply-all source lookup also requires `messages:read`.
+
+Batch responses retain `publicationId`, `kind`, `total`, `counts`, `delivery`,
+`targets`, and `state`. `finished` describes batch processing, not successful
+recipient delivery. `conversation status` is a read of retained per-recipient
+results. `conversation cancel` stops pending work only. Revival responses expose
+`operationId`, `conversationId`, and recipient `outcome` values. A new revival
+operation within the provider cooldown may return the existing batch's ID.
+
+New credential-only `/connections/cli-conversation-*` routes reject browser
+cookies and Origin headers. They share the existing account transaction and
+recheck credential scopes, expiry, revocation, account ownership, generation,
+and migration fences. They support managed and owner-controlled accounts without
+changing identity-signing consent rules:
+
+| Route (under `/api/v1/account`) | Method / input | Scope |
+| --- | --- | --- |
+| `/connections/cli-conversation-preferences` | GET | `account:read` |
+| `/connections/cli-conversation-preferences` | POST `{allowIntroductions: boolean}` or `{connectionId, epoch, override: boolean/null}` | `account:write` |
+| `/connections/cli-conversation-membership` | POST `{creator, conversationId, action: "inspect"}` | `messages:read` |
+| `/connections/cli-conversation-membership` | POST with action `open`, `leave`, or `rejoin` | `messages:write` |
+| `/connections/cli-conversation-revive` | POST `{conversationId, operationId}` | `messages:write` |
+
+Read commands never renew leases. Explicit open only renews active participation;
+rejoin is limited to manually left membership. Revival is creator-only and cannot
+undo a manual leave. Global/per-connection preference semantics remain unchanged.
+Capabilities advertise `sharedConversations` and `conversationControls` separately.
+No new database migration or Rust signed-object format is required.

@@ -916,3 +916,13 @@ Fresh-passkey requirements are separate and unchanged: personal passkey/session
 management, account deletion, and domain withdrawal require verification within
 5 minutes; provider-admin registration changes and invitations use 10 minutes.
 The corresponding account/domain and admin UI explanations match these windows.
+
+### CLI shared conversations
+
+Scoped API credentials can create shared batches and reply-all through the existing
+`/api/v1/account/connection-messages` endpoints. Participation and introduction
+preferences are available through the credential-only `connections/cli-conversation-*`
+routes documented in the [CLI contract](../cli/docs/cli-contract.md#shared-conversations).
+Managed and owner-controlled accounts use the same messaging authority. Existing
+browser session and identity-signing requirements remain in force. These additions
+reuse migrations 0092–0096; no additional migration is needed.

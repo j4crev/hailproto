@@ -1,7 +1,7 @@
 # Native Rust hailp
 
-`hailp` is the native Hail Protocol CLI. All 65 commands from the TypeScript CLI
-are implemented in Rust, including vaults, account access, credentials, messaging,
+`hailp` is the native Hail Protocol CLI. Commands are implemented in Rust,
+including vaults, account access, credentials, shared conversations and reply-all,
 Grants, profiles, connections, custody transitions and provider transfers. It does
 not invoke Bun or Node at runtime. See [CLI workflows](docs/cli-workflows.md)
 for usage and the [installation guide](docs/cli-installation.md) for setup.

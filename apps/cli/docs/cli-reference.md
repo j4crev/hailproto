@@ -15,7 +15,7 @@ is authoritative for its accepted command inventory.
 - `hailp --version` works alone and prints the version. Successful operations emit JSON on stdout;
   failures emit JSON on stderr with exit 1. Exit 0 means the operation/report succeeded, not necessarily delivery.
 - `doctor` may report `ok: false` with exit 0; inbox/status deadlines can also return successfully without delivery.
-- Only `--scope` and `--category` may be repeated. Use `--option=value` for a value beginning with `-`.
+- `--scope` and `--category` may be repeated; `conversation start` also accepts repeated `--connection`. Use `--option=value` for a value beginning with `-`.
 - Private files must have no group/other permissions; create parent directories with mode `0700`.
 - Read-only signed-object inspection is structural validation, not independent DID-key signature authentication.
 
@@ -35,15 +35,18 @@ and run `hailp doctor --action "<command>"` for supported prerequisite checks.
 | `--action` | Doctor prerequisite check, e.g. `--action "account browser-login"`; does not perform the action. |
 | `--address` | Full Hail signup address, such as `alice@provider.example`. |
 | `--after` | Opaque cursor from the same operation/account/provider. Inbox-wait cursors also require the same sender filter and are incompatible with inbox-list cursors. |
+| `--allow` | Introduction policy: true/false globally; true/false/default with both --connection and --epoch. Default clears that connection override. |
 | `--approval` | Private signed owner approval output path for managed cutover. |
 | `--backup-verified` | Explicit assertion that you saved and verified an independent recovery backup. No value; do not pass before doing the verification. |
 | `--binding` | Private signed destination address-binding output path for owner-controlled cutover. |
 | `--category` | Repeat for selected Grant category IDs; a send selects exactly one nonempty category. Wildcards and duplicate Grant category IDs are rejected. |
+| `--connection` | Connection ID. Repeat 2–100 distinct IDs for conversation start; preference overrides select one current connection. |
 | `--consent` | Private signed transfer consent output path for owner-controlled cutover. |
 | `--credentials` | Private API credential file. Reads select this before `HAILP_CREDENTIAL_FILE`; signup/login write a new credential here. |
 | `--custody` | Required signup choice: `owner-controlled` or `managed`. |
 | `--destination` | Destination provider HTTPS origin for a transfer offer. |
 | `--did` | Account `did:plc:…` whose access is being recovered. |
+| `--epoch` | Current positive connection epoch for an introduction preference override; use the value from connection/preference listing. |
 | `--expected-did` | Expected `did:plc:…` binding for verification/import or expected peer for connection accept. Vault verification also supports `unbound`. |
 | `--expires-at` | Absolute Unix timestamp in seconds, not milliseconds or an ISO date. Grant creation defaults to seven days when neither expiry flag is given; revisions preserve existing expiry when omitted. Grant creation/reply deadlines must be in the future; operation-specific limits also apply. |
 | `--file` | Input path: UTF-8 message text for send/reply, JSON definition for profile, private invitation for connection accept, or private backup/recovery package for vault import. |
@@ -56,6 +59,7 @@ and run `hailp doctor --action "<command>"` for supported prerequisite checks.
 | `--monitor-key` | Pinned monitor public key; supply together with `--monitor-origin`. |
 | `--monitor-origin` | HTTPS monitor origin for strict-public onboarding; supply together with `--monitor-key`. |
 | `--no-expiry` | Explicit non-expiring Grant choice; mutually exclusive with `--expires-at`. |
+| `--offset` | Conversation thread offset, an integer from 0 to 999999999. Reads do not renew participation. |
 | `--operation` | Private owner-signed PLC operation output path for offline cutover. |
 | `--output` | Private output path for the artifact named by the command (credential, signed object, backup, invitation, export or enrollment). Unrelated existing files are refused. |
 | `--pages` | Maximum pages to retrieve: integer 1–100, default 1. Applies only to commands listing this option. |
@@ -375,6 +379,40 @@ hailp connection status --state <value>
 
 Options: [`--state`](#options).
 
+### `conversation cancel`
+
+Cancel pending batch work; already submitted messages cannot be recalled.
+
+```text
+hailp conversation cancel <batch-id>
+```
+
+### `conversation inbox`
+
+List received connection/shared conversations; use next to resume.
+
+```text
+hailp conversation inbox [--after <value>]
+```
+
+Options: [`--after`](#options).
+
+### `conversation inspect`
+
+Inspect local participation without renewal.
+
+```text
+hailp conversation inspect <creator-did> <conversation-id>
+```
+
+### `conversation leave`
+
+Revoke incoming and outgoing shared permission, retaining history.
+
+```text
+hailp conversation leave <creator-did> <conversation-id>
+```
+
 ### `conversation list`
 
 List conversations; --trash lists recoverable received messages. Requires messages:read.
@@ -401,6 +439,60 @@ Apply the selected account action; requires the corresponding write scope.
 hailp conversation mark-unread <peer-did>
 ```
 
+### `conversation messages`
+
+Read a shared/connection thread page without renewing participation.
+
+```text
+hailp conversation messages <sender-did> <message-id> [--offset <value>]
+```
+
+Options: [`--offset`](#options).
+
+### `conversation open`
+
+Explicitly record activity; only active participation is renewed.
+
+```text
+hailp conversation open <creator-did> <conversation-id>
+```
+
+### `conversation preferences set`
+
+Set --allow true/false globally, or true/false/default for an exact --connection and --epoch.
+
+```text
+hailp conversation preferences set --allow <value> [--connection <value>] [--epoch <value>]
+```
+
+Options: [`--allow`](#options), [`--connection`](#options), [`--epoch`](#options).
+
+### `conversation preferences show`
+
+Read introduction policy and current connection overrides; requires account:read.
+
+```text
+hailp conversation preferences show
+```
+
+### `conversation rejoin`
+
+Explicitly rejoin a conversation you left; expiry requires creator revival.
+
+```text
+hailp conversation rejoin <creator-did> <conversation-id>
+```
+
+### `conversation reply-all`
+
+Reply to the authenticated shared roster, including peers without direct connections.
+
+```text
+hailp conversation reply-all <sender-did> <message-id> --file <value> --state <value>
+```
+
+Options: [`--file`](#options), [`--state`](#options).
+
 ### `conversation restore`
 
 Apply the selected account action; requires the corresponding write scope.
@@ -408,6 +500,16 @@ Apply the selected account action; requires the corresponding write scope.
 ```text
 hailp conversation restore <peer-did>
 ```
+
+### `conversation revive`
+
+Creator-only revival of expired participants; retain state for retries/status.
+
+```text
+hailp conversation revive <conversation-id> --state <value>
+```
+
+Options: [`--state`](#options).
 
 ### `conversation show`
 
@@ -418,6 +520,24 @@ hailp conversation show <peer-did> [--after <value>]
 ```
 
 Options: [`--after`](#options).
+
+### `conversation start`
+
+Start a fixed-roster shared conversation with 2–100 connections; repeat --connection.
+
+```text
+hailp conversation start --connection <value> --file <value> --state <value>
+```
+
+Options: [`--connection`](#options), [`--file`](#options), [`--state`](#options).
+
+### `conversation status`
+
+Read per-recipient batch and delivery outcomes; finished does not promise delivery.
+
+```text
+hailp conversation status <batch-id>
+```
 
 ### `conversation thread`
 
@@ -650,6 +770,24 @@ hailp send --grant <value> --file <value> --state <value> [--category <value>] [
 ```
 
 Options: [`--grant`](#options), [`--file`](#options), [`--state`](#options), [`--category`](#options), [`--reply-until`](#options).
+
+### `sent list`
+
+List sent messages, including shared batches; use next to resume.
+
+```text
+hailp sent list [--after <value>]
+```
+
+Options: [`--after`](#options).
+
+### `sent show`
+
+Read a sent message and its shared-conversation metadata.
+
+```text
+hailp sent show <message-id>
+```
 
 ### `vault backup`
 

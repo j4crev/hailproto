@@ -45,7 +45,7 @@ export function registerConnectionRoutes(app:Hono,connections:AccountConnections
   app.all("/api/v1/account/connections/:step?",async c=>{
     c.header("Cache-Control","no-store");c.header("Referrer-Policy","no-referrer");c.header("Vary","Cookie");
     const apiStep=c.req.param("step");
-    if(["cli-invitations","cli-revoke-invitation","cli-list","cli-remove","cli-prepare","cli-commit","cli-status"].includes(apiStep??"")){
+    if(["cli-conversation-preferences","cli-conversation-membership","cli-conversation-revive","cli-invitations","cli-revoke-invitation","cli-list","cli-remove","cli-prepare","cli-commit","cli-status"].includes(apiStep??"")){
       c.header("Vary","Authorization");
       try{
         if(source.take(clientAddress(c.req.raw),60)!==null)throw new ConnectionError(429);
@@ -60,6 +60,20 @@ export function registerConnectionRoutes(app:Hono,connections:AccountConnections
             async()=>c.json(await connections.status(session,query.get("requestId")!)));
         }
         if(query.size)throw new ConnectionError(400);
+        if(apiStep?.startsWith("cli-conversation-")){
+          const preferences=apiStep==="cli-conversation-preferences";
+          if(c.req.method==="GET"&&preferences)return await withServingGeneration(session.account_id,session.serving_generation??1,
+            async()=>c.json(await connections.conversationPreferences(session)));
+          if(c.req.method!=="POST")throw new ConnectionError(405);
+          if(c.req.header("Content-Type")!=="application/json"||c.req.header("Content-Encoding"))throw new ConnectionError(415);
+          const bytes=await accountRequestBytes(c.req.raw,4096);if(!bytes)throw new ConnectionError(413);
+          let input:Record<string,unknown>;
+          try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as Record<string,unknown>;
+            if(!input||typeof input!=="object"||Array.isArray(input))throw new Error();}catch{throw new ConnectionError(400);}
+          return await withServingGeneration(session.account_id,session.serving_generation??1,async()=>c.json(
+            preferences?await connections.conversationPreferences(session,input):apiStep==="cli-conversation-membership"
+              ?await connections.conversationMembership(session,input):await connections.conversationRevival(session,input)));
+        }
         if(apiStep==="cli-prepare"||apiStep==="cli-commit"){
           if(c.req.method!=="POST")throw new ConnectionError(405);
           if(c.req.header("Content-Type")!=="application/json"||c.req.header("Content-Encoding"))throw new ConnectionError(415);

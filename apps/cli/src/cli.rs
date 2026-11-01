@@ -4,6 +4,96 @@ use std::collections::BTreeMap;
 // Name, positional arguments, command-specific options, description.
 const COMMANDS: &[(&str, &str, &str, &str)] = &[
     (
+        "conversation start",
+        "",
+        "connection file state",
+        "Start a fixed-roster shared conversation with 2–100 connections; repeat --connection.",
+    ),
+    (
+        "conversation reply-all",
+        "<sender-did> <message-id>",
+        "file state",
+        "Reply to the authenticated shared roster, including peers without direct connections.",
+    ),
+    (
+        "conversation messages",
+        "<sender-did> <message-id>",
+        "offset",
+        "Read a shared/connection thread page without renewing participation.",
+    ),
+    (
+        "conversation inbox",
+        "",
+        "after",
+        "List received connection/shared conversations; use next to resume.",
+    ),
+    (
+        "conversation status",
+        "<batch-id>",
+        "",
+        "Read per-recipient batch and delivery outcomes; finished does not promise delivery.",
+    ),
+    (
+        "conversation cancel",
+        "<batch-id>",
+        "",
+        "Cancel pending batch work; already submitted messages cannot be recalled.",
+    ),
+    (
+        "conversation inspect",
+        "<creator-did> <conversation-id>",
+        "",
+        "Inspect local participation without renewal.",
+    ),
+    (
+        "conversation open",
+        "<creator-did> <conversation-id>",
+        "",
+        "Explicitly record activity; only active participation is renewed.",
+    ),
+    (
+        "conversation leave",
+        "<creator-did> <conversation-id>",
+        "",
+        "Revoke incoming and outgoing shared permission, retaining history.",
+    ),
+    (
+        "conversation rejoin",
+        "<creator-did> <conversation-id>",
+        "",
+        "Explicitly rejoin a conversation you left; expiry requires creator revival.",
+    ),
+    (
+        "conversation revive",
+        "<conversation-id>",
+        "state",
+        "Creator-only revival of expired participants; retain state for retries/status.",
+    ),
+    (
+        "conversation preferences show",
+        "",
+        "",
+        "Read introduction policy and current connection overrides; requires account:read.",
+    ),
+    (
+        "conversation preferences set",
+        "",
+        "allow connection epoch",
+        "Set --allow true/false globally, or true/false/default for an exact --connection and --epoch.",
+    ),
+    (
+        "sent list",
+        "",
+        "after",
+        "List sent messages, including shared batches; use next to resume.",
+    ),
+    (
+        "sent show",
+        "<message-id>",
+        "",
+        "Read a sent message and its shared-conversation metadata.",
+    ),
+    (
         "account transfer export",
         "",
         "state output",
@@ -402,6 +492,7 @@ pub struct Args {
     pub options: BTreeMap<String, String>,
     pub scopes: Vec<String>,
     pub categories: Vec<String>,
+    pub connections: Vec<String>,
     pub help: bool,
     pub version: bool,
     pub pages: usize,
@@ -426,6 +517,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
     let mut options: BTreeMap<String, String> = BTreeMap::new();
     let mut scopes = Vec::new();
     let mut categories = Vec::new();
+    let mut connections = Vec::new();
     let mut positionals = Vec::new();
     let mut args = args.peekable();
     let mut ended = false;
@@ -458,6 +550,10 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
             | "binding"
             | "destination"
             | "username"
+            | "connection"
+            | "offset"
+            | "allow"
+            | "epoch"
             | "grant"
             | "category"
             | "reply-until"
@@ -510,13 +606,20 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
                 ));
             }
         };
+        if name == "connection" {
+            connections.push(value.clone());
+        }
         if name == "category" {
             categories.push(value.clone());
         }
         if name == "scope" {
             scopes.push(value.clone());
         }
-        if options.insert(name.into(), value).is_some() && name != "scope" && name != "category" {
+        if options.insert(name.into(), value).is_some()
+            && name != "scope"
+            && name != "category"
+            && name != "connection"
+        {
             return Err(Error::usage(&format!("Repeated --{name} is not allowed")));
         }
     }
@@ -582,6 +685,10 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
             "connection invite" => "label expires-at vault state output",
             "connection accept" => "file expected-did vault state",
             "connection status" => "state",
+            "conversation start" => "connection file state",
+            "conversation reply-all" => "file state",
+            "conversation revive" => "state",
+            "conversation preferences set" => "allow",
             "send" => "grant file state",
             "reply" | "connection send" => "file state",
             "profile create" | "profile update" => "file",
@@ -668,11 +775,78 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
         {
             return Err(Error::usage("Invalid sender DID"));
         }
-        if command.starts_with("conversation ")
-            && command != "conversation list"
-            && !DID.is_match(&positionals[0])
+        if matches!(
+            command.as_str(),
+            "conversation show"
+                | "conversation thread"
+                | "conversation mark-read"
+                | "conversation mark-unread"
+                | "conversation trash"
+                | "conversation restore"
+                | "conversation messages"
+                | "conversation reply-all"
+                | "conversation inspect"
+                | "conversation open"
+                | "conversation leave"
+                | "conversation rejoin"
+        ) && !DID.is_match(&positionals[0])
         {
-            return Err(Error::usage("Invalid peer DID"));
+            return Err(Error::usage("Invalid peer/creator DID"));
+        }
+        if matches!(
+            command.as_str(),
+            "conversation messages"
+                | "conversation reply-all"
+                | "conversation inspect"
+                | "conversation open"
+                | "conversation leave"
+                | "conversation rejoin"
+        ) && !crate::contract::ID.is_match(&positionals[1])
+            || matches!(
+                command.as_str(),
+                "conversation status" | "conversation cancel" | "conversation revive" | "sent show"
+            ) && !crate::contract::ID.is_match(&positionals[0])
+        {
+            return Err(Error::usage("Invalid message/conversation/batch ID"));
+        }
+        if command == "conversation start"
+            && (!(2..=100).contains(&connections.len())
+                || connections
+                    .iter()
+                    .any(|id| !crate::contract::ID.is_match(id))
+                || connections
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len()
+                    != connections.len())
+        {
+            return Err(Error::usage("Select 2–100 distinct connection IDs"));
+        }
+        if command != "conversation start" && connections.len() > 1 {
+            return Err(Error::usage(
+                "Only conversation start accepts repeated --connection",
+            ));
+        }
+        if options
+            .get("offset")
+            .is_some_and(|v| v.is_empty() || v.len() > 9 || !v.bytes().all(|b| b.is_ascii_digit()))
+        {
+            return Err(Error::usage(
+                "Offset must be an integer from 0 to 999999999",
+            ));
+        }
+        if command == "conversation preferences set" {
+            let connection = options.get("connection");
+            if connection.is_some() != options.contains_key("epoch")
+                || connection.is_some_and(|id| !crate::contract::UUID.is_match(id))
+                || !matches!(options["allow"].as_str(), "true" | "false" | "default")
+                || connection.is_none() && options["allow"] == "default"
+            {
+                return Err(Error::usage(
+                    "Use --allow true/false globally, or true/false/default with --connection and --epoch",
+                ));
+            }
+            bounded(options.get("epoch"), "epoch", 9_007_199_254_740_991, 1)?;
         }
         if options.contains_key("interval")
             && !options.contains_key("wait")
@@ -688,6 +862,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
         options,
         scopes,
         categories,
+        connections,
         help,
         version,
         pages,

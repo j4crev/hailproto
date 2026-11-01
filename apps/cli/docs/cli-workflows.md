@@ -560,3 +560,72 @@ current scopes and expiry. `--scope` declares required workflow scopes, and
 and `blockers` describe failed checks or prerequisites; diagnostics still exit
 successfully when a report was produced. An older provider may lack capability
 discovery; doctor reports that failure instead of assuming support.
+
+## Shared conversations and reply all
+
+Select a credential with `account:read`, `messages:read`, and `messages:write`.
+Use `connection list` to find the connection IDs for the initial recipients:
+
+```sh
+hailp conversation start --connection "$BOB_CONNECTION" --connection "$CAROL_CONNECTION" \
+  --file message.txt --state group-start.json
+hailp conversation status "$BATCH_ID"
+hailp conversation inbox
+hailp conversation messages "$SENDER_DID" "$MESSAGE_ID" --offset 0
+hailp conversation reply-all "$SENDER_DID" "$MESSAGE_ID" \
+  --file reply.txt --state group-reply.json
+```
+
+`start` requires 2–100 distinct connections. The roster is fixed; adding someone
+requires a new conversation. Recipients can reply-all without direct connections
+to each other. `reply-all` reads the authenticated source's shared identity and
+lets the provider enforce the roster. Private messages cannot become group replies.
+`reply` remains the separate signed reply-invitation command.
+
+Keep the private state file and repeat the exact command after a timeout. The
+same batch ID and request are reused, even if a submission response was lost.
+Changing text, audience, source, account, or operation requires a new state file.
+The result contains a `publicationId` for `conversation status` and `cancel`, and
+per-recipient delivery `messageId` values. A batch marked `finished` may still have
+failed, blocked or indeterminate deliveries. Cancellation stops pending work;
+it cannot recall messages already submitted. There is no private-copy fallback.
+
+`conversation inbox` returns received connection/shared conversations with a
+`next` cursor for `--after`. `conversation messages` returns up to 30 thread rows;
+use `start + messages.length` as the next offset while it is less than `total`.
+Each row identifies whether it is sent or received. Use `inbox show` for a received
+body or `sent show` for a sent body. `sent list [--after ID]` discovers sent messages,
+including each shared delivery copy. To reply-all to your own message, pass your
+own DID and that copy's message ID. Batch and conversation IDs are not substitutes
+for the source delivery ID.
+
+Reading, listing, polling, and bulk mark-read do not renew participation. Use an
+explicit open when you want to record activity:
+
+```sh
+hailp conversation inspect "$CREATOR_DID" "$CONVERSATION_ID"
+hailp conversation open "$CREATOR_DID" "$CONVERSATION_ID"
+hailp conversation leave "$CREATOR_DID" "$CONVERSATION_ID"
+hailp conversation rejoin "$CREATOR_DID" "$CONVERSATION_ID"
+hailp conversation revive "$CONVERSATION_ID" --state revival.json
+```
+
+Open renews only active participation; sending reply-all also records activity.
+Leave revokes incoming/outgoing shared permission while retaining history. Rejoin
+works only for participation you manually left. Inactivity expiry requires the
+original creator's revival. Run `revive` as that creator and reuse its state file
+to retrieve progress; outcomes are reported separately for each recipient.
+
+Introduction policy uses `account:read` to inspect and `account:write` to edit:
+
+```sh
+hailp conversation preferences show
+hailp conversation preferences set --allow false
+hailp conversation preferences set --connection "$CONNECTION_ID" --epoch 1 --allow true
+hailp conversation preferences set --connection "$CONNECTION_ID" --epoch 1 --allow default
+```
+
+Use the current epoch returned by preferences or connection listing. Overrides
+apply to that connection lifetime; `default` clears the override. These commands
+require a provider with CLI conversation controls. Older providers may support
+shared sends while rejecting control endpoints; they must be upgraded for parity.

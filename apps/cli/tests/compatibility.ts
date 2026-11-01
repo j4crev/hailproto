@@ -8,6 +8,7 @@ import { transferOfferCases } from "./transfer-offer-cases.ts";
 import { custodyCases } from "./custody-cases.ts";
 import { grantBindingCases } from "./grant-binding-cases.ts";
 import { connectionCases } from "./connection-cases.ts";
+import { conversationCases } from "./conversation-cases.ts";
 import { writeCases } from "./write-cases.ts";
 import { signupCases } from "./signup-cases.ts";
 import { browserCases } from "./browser-cases.ts";
@@ -258,6 +259,7 @@ try {
   await browserCases(binary,root,directory,provider,env,handler=>{writeHandler=handler;});
   await signupCases(binary,root,directory,provider,env,handler=>{writeHandler=handler;});
   await writeCases(binary,root,directory,provider,env,handler=>{writeHandler=handler;});
+  await conversationCases(binary,directory,provider,env,handler=>{writeHandler=handler;});
   await connectionCases(binary,root,directory,provider,env,handler=>{writeHandler=handler;});
   await grantBindingCases(binary,root,directory,provider,env,handler=>{writeHandler=handler;});
   await custodyCases(binary,root,directory,provider,env,handler=>{writeHandler=handler;});

@@ -8,6 +8,7 @@ mod codec;
 mod connection_signing;
 mod connections;
 mod contract;
+mod conversations;
 mod credentials;
 mod crypto;
 mod custody;
@@ -107,6 +108,21 @@ async fn run() -> Result<(), Error> {
     let option = |key: &str| args.options.get(key).map(String::as_str);
     let interval = cli::bounded(args.options.get("interval"), "interval", 30, 2)?;
     let mut result = match args.command.as_str() {
+        "conversation start"
+        | "conversation reply-all"
+        | "conversation messages"
+        | "conversation inbox"
+        | "conversation status"
+        | "conversation cancel"
+        | "conversation inspect"
+        | "conversation open"
+        | "conversation leave"
+        | "conversation rejoin"
+        | "conversation revive"
+        | "conversation preferences show"
+        | "conversation preferences set"
+        | "sent list"
+        | "sent show" => conversations::run(&client, &args).await?,
         "credential create" => {
             credentials::create(
                 &client,

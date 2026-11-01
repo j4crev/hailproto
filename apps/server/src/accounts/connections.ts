@@ -55,17 +55,21 @@ export class AccountConnections {
     });
   }
 
-  private async live(tx:SQL,session:AccountApiSession){
+  // Conversation policy uses scoped credentials for either custody profile. Identity
+  // consent keeps the owner-only default and its separate signed approval flow.
+  private async live(tx:SQL,session:AccountApiSession,conversationScope?:AccountApiSession["scopes"][number]){
     if(!session.passkey_credential_id){
-      if(!session.scopes.includes("account:write"))throw new ConnectionError(403,"Connection consent requires account:write and a local identity signature.");
+      const scope=conversationScope??"account:write";
+      if(!session.scopes.includes(scope))throw new ConnectionError(403,undefined,"MISSING_SCOPE");
       const valid=await tx`SELECT c.id FROM account_api_credentials c
         JOIN account_credential_generations b ON b.credential_id=c.id
         JOIN account_serving_generations g ON g.account_id=c.account_id AND g.generation=b.generation
         WHERE c.id=${session.credential_id} AND c.account_id=${session.account_id}
-          AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp() AND c.scopes ? 'account:write'
+          AND c.revoked_at IS NULL AND c.expires_at>clock_timestamp() AND c.scopes ? ${scope}
           AND g.generation=${session.serving_generation??1}`;
       const owner=await this.owner(tx,session.account_id);
-      if(!valid.length||owner.did!==session.did||owner.managed)throw new ConnectionError(403,"CLI consent requires current owner-controlled account access; managed consent requires a passkey.");
+      if(!valid.length||owner.did!==session.did)throw new ConnectionError(403,"Current account access is required.");
+      if(!conversationScope&&owner.managed)throw new ConnectionError(403,"CLI identity consent requires an owner-controlled account; managed identity consent requires a passkey.");
       await tx`SELECT hail_assert_unfenced_account(${session.account_id}::uuid)`;
       return;
     }
@@ -151,13 +155,13 @@ export class AccountConnections {
       checked.payload.expires_at!==(row.expires_at===null?null:Number(row.expires_at)))throw new ConnectionError(409);
     return owner;
   }
-  private async pairTransaction<T>(session:AccountApiSession,peerId:string|undefined,operation:(tx:SQL)=>Promise<T>){
+  private async pairTransaction<T>(session:AccountApiSession,peerId:string|undefined,operation:(tx:SQL)=>Promise<T>,conversationScope?:AccountApiSession["scopes"][number]){
     const peer=peerId?await this.owner(this.sql,peerId):undefined;
     // ponytail: signing holds pair locks; prepare proofs outside the transaction if preview contention becomes material.
     const run=()=>this.sql.begin(async tx=>{
       // Lock account rows in one order across invitations, admission and disconnect.
       await tx`SELECT id FROM provider_accounts WHERE id=${session.account_id} OR id=${peerId??session.account_id} ORDER BY id FOR UPDATE`;
-      await this.live(tx,session);if(peer)await tx`SELECT hail_assert_unfenced_account(${peer.id}::uuid)`;
+      await this.live(tx,session,conversationScope);if(peer)await tx`SELECT hail_assert_unfenced_account(${peer.id}::uuid)`;
       return operation(tx as SQL);
     });
     return peer?withServingGeneration(peer.id,Number(peer.generation),run):run();
@@ -197,23 +201,20 @@ export class AccountConnections {
     });
   }
   async conversationPreferences(session:AccountApiSession,input?:Record<string,unknown>){
-    if(!session.passkey_credential_id)throw new ConnectionError(403,"Sign in with your passkey to manage conversation preferences.");
     return this.pairTransaction(session,undefined,async tx=>input===undefined
-      ?conversationPreferences(tx,session):saveConversationPreferences(tx,session,input));
+      ?conversationPreferences(tx,session):saveConversationPreferences(tx,session,input),input===undefined?"account:read":"account:write");
   }
   async conversationMembership(session:AccountApiSession,input:Record<string,unknown>){
-    if(!session.passkey_credential_id)throw new ConnectionError(403,'Sign in with your passkey first.');
     if(Object.keys(input).sort().join(',')!=='action,conversationId,creator'||!['inspect','open','leave','rejoin'].includes(input.action as string))throw new ConnectionError(400);
     const identity=conversationIdentity(input);
     return this.pairTransaction(session,undefined,async tx=>{
       const state=input.action==='inspect'?await conversationState(tx,session,identity):await changeConversationMembership(tx,session,identity,input.action as 'open'|'leave'|'rejoin');
       if(!state)throw new ConnectionError(404,'Conversation unavailable.');
       const {descriptorHash,...view}=state;return view;
-    });
+    },input.action==='inspect'?"messages:read":"messages:write");
   }
 
   async conversationRevival(session:AccountApiSession,input:Record<string,unknown>){
-    if(!session.passkey_credential_id)throw new ConnectionError(403);
     if(Object.keys(input).sort().join(',')!=='conversationId,operationId'||typeof input.operationId!=='string'||!UUID.test(input.operationId))throw new ConnectionError(400);
     const identity=conversationIdentity({creator:session.did,conversationId:input.conversationId});let operationId=input.operationId;
     await this.pairTransaction(session,undefined,async tx=>{
@@ -245,7 +246,7 @@ export class AccountConnections {
         }
       }finally{secret.fill(0);}
       if(state.state==='expired')await changeConversationMembership(tx,session,identity,'revive');
-    });
+    },"messages:write");
     const targets=await this.sql<{recipient_did:string;outcome:string}[]>`SELECT recipient_did,outcome FROM conversation_revival_targets WHERE account_id=${session.account_id} AND batch_id=${operationId} ORDER BY recipient_did`;
     return {operationId,conversationId:identity.conversationId,targets:targets.map(t=>({recipient:t.recipient_did,outcome:t.outcome}))};
   }

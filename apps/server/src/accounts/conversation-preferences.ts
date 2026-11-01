@@ -12,7 +12,7 @@ export async function conversationIntroductionAllowed(tx:SQL,accountId:string,co
   return rows[0]?.allowed===true;
 }
 
-// Called inside AccountConnections' live browser-session transaction. These are
+// Called inside AccountConnections' live, scope-checked account transaction. These are
 // admission preferences, not wire grants or proof of current remote consent.
 export async function conversationPreferences(tx:SQL,session:AccountApiSession){
   const global=(await tx<{allow_introductions:boolean}[]>`SELECT allow_introductions FROM account_conversation_preferences

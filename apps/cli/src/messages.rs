@@ -13,19 +13,7 @@ pub async fn send(client: &Client, args: &Args) -> Result<Value, Error> {
     let opt = |key: &str| args.options.get(key).map(String::as_str);
     let path = opt("file").unwrap();
     let state_path = opt("state").unwrap();
-    let file =
-        std::fs::File::open(path).map_err(|_| Error::client("Cannot read message text file"))?;
-    let metadata = file.metadata().map_err(|_| invalid())?;
-    if !metadata.is_file() || metadata.len() > 65536 {
-        return Err(Error::client("Message text file must be at most 64 KiB"));
-    }
-    let mut text = String::new();
-    file.take(65537)
-        .read_to_string(&mut text)
-        .map_err(|_| Error::client("Message text must be UTF-8"))?;
-    if text.len() > 65536 {
-        return Err(Error::client("Message text file must be at most 64 KiB"));
-    }
+    let text = read_text(path)?;
     let account = client.account().await?;
     if !account["migrationState"].is_null()
         || !account["scopes"]
@@ -93,24 +81,7 @@ pub async fn send(client: &Client, args: &Args) -> Result<Value, Error> {
     let state = if let Some(state) = state {
         state
     } else {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis();
-        let random = crypto::random::<16>()?;
-        let mut bytes = *random;
-        bytes[..6].copy_from_slice(&(now as u64).to_be_bytes()[2..]);
-        bytes[6] = 0x70 | (bytes[6] & 15);
-        bytes[8] = 0x80 | (bytes[8] & 63);
-        let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-        let id = format!(
-            "{}-{}-{}-{}-{}",
-            &hex[..8],
-            &hex[8..12],
-            &hex[12..16],
-            &hex[16..20],
-            &hex[20..]
-        );
+        let id = new_id()?;
         let mut saved = json!({"messageId":id});
         for (k, v) in request.as_object().unwrap() {
             saved[k] = v.clone();
@@ -134,4 +105,43 @@ pub async fn send(client: &Client, args: &Args) -> Result<Value, Error> {
         return Err(invalid());
     }
     client.post("/messages", &state["request"]).await
+}
+
+pub fn read_text(path: &str) -> Result<String, Error> {
+    let file =
+        std::fs::File::open(path).map_err(|_| Error::client("Cannot read message text file"))?;
+    let metadata = file.metadata().map_err(|_| invalid())?;
+    if !metadata.is_file() || metadata.len() > 65536 {
+        return Err(Error::client("Message text file must be at most 64 KiB"));
+    }
+    let mut text = String::new();
+    file.take(65537)
+        .read_to_string(&mut text)
+        .map_err(|_| Error::client("Message text must be UTF-8"))?;
+    if text.len() > 65536 {
+        return Err(Error::client("Message text file must be at most 64 KiB"));
+    }
+    Ok(text)
+}
+
+pub fn new_id() -> Result<String, Error> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let random = crypto::random::<16>()?;
+    let mut bytes = *random;
+    bytes[..6].copy_from_slice(&(now as u64).to_be_bytes()[2..]);
+    bytes[6] = 0x70 | (bytes[6] & 15);
+    bytes[8] = 0x80 | (bytes[8] & 63);
+    let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+    let id = format!(
+        "{}-{}-{}-{}-{}",
+        &hex[..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..]
+    );
+    Ok(id)
 }
