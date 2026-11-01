@@ -360,7 +360,7 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
           userHandle:Buffer.from(setup.accountId.replaceAll("-",""),"hex").toString("base64url")}});
       };
       const stale=await signIn(1);
-      await db.sql`UPDATE account_passkey_sessions SET created_at=now()-interval '6 minutes' WHERE token_hash=${new Uint8Array(createHash("sha256").update(stale.token).digest())}`;
+      await db.sql`UPDATE account_passkey_sessions SET created_at=now()-interval '11 minutes' WHERE token_hash=${new Uint8Array(createHash("sha256").update(stale.token).digest())}`;
       expect((await call(`signup/${id}/complete`,{},stale.token)).status).toBe(403);
       const session=await signIn(2);
       expect((await call(`signup/${id}/complete`,{},session.token)).status).toBe(200);

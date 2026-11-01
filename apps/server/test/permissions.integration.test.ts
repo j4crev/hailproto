@@ -153,7 +153,7 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
     // One immutable batch challenge covers exactly the reviewed subscriptions.
     service.revoke=realRevoke;
     let senderIndex=3;
-    const makeGrant=async()=>{
+    const makeGrant=async(values:string[]=["general"])=>{
       const did="did:plc:"+String.fromCharCode(97+senderIndex++).repeat(24),sender=`${did.slice(-1)}@peer.example.com`;
       const binding={...address.binding,did,address:sender,key_id:did+"#hail-identity"};
       const profile={...senderProfile.profile,did,key_id:did+"#hail-messaging"};
@@ -162,7 +162,7 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
       const newAddress={...address,did,address:sender,binding,representation:bindingBytes,digest:digest(bindingBytes)};
       const newProfile={...senderProfile,did,profile,representation:profileBytes,digest:digest(profileBytes),etag:encodeBase64Url(digest(profileBytes))};
       const creator=new GrantService(new OnboardingRepository(db.sql),grants,encryptor,resolver,{async verify(){return newAddress;}},{async verify(){return newProfile;}},base);
-      const payload=await creator.prepareUserSignedGrant(session.canonical_address,sender,{scope:{type:"categories",values:["general"]},expiresAt:now+86400});
+      const payload=await creator.prepareUserSignedGrant(session.canonical_address,sender,{scope:{type:"categories",values},expiresAt:now+86400});
       return creator.updateManaged(session.canonical_address,payload,didKey);
     };
     const batchGrants=await Promise.all([makeGrant(),makeGrant(),makeGrant()]);
@@ -199,8 +199,7 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
     expect(mixedDone.result).toMatchObject({items:[{grantId:last.payload.grant_id,result:null,error:expect.any(String)},{grantId:extra.payload.grant_id,result:{status:"revoked"},error:null}]});
     expect((await grants.findCurrentByGrantId(last.payload.grant_id))?.payload).toMatchObject({status:"active",revision:2});
     expect((await permissions.commit(session,mixed.requestId)).result).toEqual(mixedDone.result);
-    const multiPayload=await service.prepareUserSignedGrant(session.canonical_address,binding.address,{scope:{type:"categories",values:["general","updates"]},expiresAt:now+86400});
-    const multiGrant=await service.updateManaged(session.canonical_address,multiPayload,didKey),retainedConsent=multiGrant.payload.consent_context;
+    const multiGrant=await makeGrant(["general","updates"]),retainedConsent=multiGrant.payload.consent_context;
     const restriction=await permissions.prepare(session,{requestId:randomUUID(),action:"restrict",grantId:multiGrant.payload.grant_id,
       revision:multiGrant.payload.revision,digest:encodeBase64Url(multiGrant.digest),scope:{type:"categories",values:["updates"]}});
     expect(restriction).toMatchObject({action:"restrict",previousScope:[{type:"categories",values:["general","updates"]}],
