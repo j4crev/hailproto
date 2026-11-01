@@ -174,12 +174,11 @@
         {:else if message.sharedConversation?.state==='expired'}<p class="text-sm text-muted">Your participation expired through inactivity.</p>{/if}
         {#if revival}<ul class="text-sm" aria-label="Revival status">{#each revival.targets as target}<li class="break-words">{message.sharedConversation?.participantAddresses?.[target.recipient]??target.recipient}: {target.outcome}</li>{/each}</ul>{/if}
         <div class="reading-body"><QuotedMessage blocks={content.blocks} header={message.header} /></div>
-        {#if !row.sent && !message.connection?.active}<p class="text-sm text-muted">{message.sharedConversation?'Private replies require an active connection to this person.':'This connection is no longer active. Saved messages remain readable.'}</p>{/if}
+        {#if !row.sent && !message.connection?.active}<p class="text-sm text-muted">{message.sharedConversation?'Private replies require a connection to this person.':'This connection is no longer active. Saved messages remain readable.'}</p>{/if}
         {#if replyOpen && (replyAll?message.sharedConversation?.state==='active':!row.sent&&message.connection?.active)}
           <form class="reply-form" method="POST" action={`/message/${encodeURIComponent(row.sender)}/${row.messageId}?/${replyAll?'replyAll':'reply'}`} use:enhance={()=>{sending=true;return async({result})=>{sending=false;if(result.type==='failure')replyFailure=result.data??{};else await applyAction(result);};}}>
             <input type="hidden" name="messageId" value={replyFailure.messageId??data.newReplyId} />
             <label class="hail-field">{replyAll?'Reply to everyone':'Reply to '+(row.senderAddress??row.sender)}<textarea bind:this={replyInput} name="text" rows="5" maxlength="65536" required value={replyFailure.text??''}></textarea></label>
-            <p class="m-0 text-xs text-muted">{replyAll?'Your reply will be sent to all other participants. People who left or whose permission expired will not receive it.':'Only this person will receive your reply.'}</p>
             <div class="flex gap-3"><button class="hail-button" disabled={sending}>Send reply</button><button class="hail-button-secondary" type="button" disabled={sending} onclick={()=>replyOpen=false}>Cancel</button></div>
           </form>
         {/if}
