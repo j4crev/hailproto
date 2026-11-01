@@ -93,8 +93,12 @@ an untested migration/rollback path.
 ## Provider and GUI images
 
 Run the **Publish provider image** GitHub Actions workflow against `main` at the
-reviewed commit. It runs the complete reusable CI gate first, then builds and
-pushes `ghcr.io/j4crev/hailproto/provider:sha-<commit>`. Publication is manual;
+reviewed commit. It requires the latest push run of `ci.yml` on `main` for that
+exact commit to have completed successfully, then builds and pushes
+`ghcr.io/j4crev/hailproto/provider:sha-<commit>`. It reuses that CI result instead
+of rerunning the suite. Missing, pending or unsuccessful CI blocks publication;
+wait for CI to succeed and rerun publication. The verification summary links the
+accepted CI run and attempt. Publication is manual;
 ordinary pushes and pull requests do not deploy or publish an application image.
 The publish job produces a `provider-release` artifact and job summary with the
 full commit and **digest reference**. Use that digest, never resolve the mutable
@@ -108,7 +112,8 @@ this sequence; do not repeat bootstrap or the historical cutover installer.
 1. Identify the reviewed full commit SHA and preserve unrelated working-tree
    changes. Commit/push only the intended release work. A push triggers CI but
    **does not publish an image or deploy production**.
-2. Start publication from the development machine:
+2. Wait for push CI to succeed for the reviewed commit on `main`, then start
+   publication from the development machine:
 
    ```bash
    gh workflow run publish-provider.yml --ref main
@@ -119,7 +124,7 @@ this sequence; do not repeat bootstrap or the historical cutover installer.
    Select the run by its exact `headSha`, not merely by being the latest run.
    Dispatch resolves `main` when it starts; if another agent advanced the branch,
    review that revision or stop before deployment. Wait for `completed` and
-   `success`, including both reusable verification and publication. If a gate
+   `success`, including both the existing-CI check and publication. If a gate
    fails, diagnose it; do not skip tests or build on production as a fallback.
 3. Download the successful run's `provider-release` artifact into a fresh directory:
 

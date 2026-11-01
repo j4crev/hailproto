@@ -9,7 +9,40 @@ permissions:
 jobs:
   verify:
     if: github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/ci.yml
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    steps:
+      - name: Require successful push CI for this exact commit
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              ...context.repo,
+              workflow_id: 'ci.yml',
+              branch: 'main',
+              event: 'push',
+              head_sha: context.sha,
+              per_page: 100,
+            });
+            const repository = `${context.repo.owner}/${context.repo.repo}`;
+            const run = runs
+              .filter(run => run.head_sha === context.sha &&
+                run.head_branch === 'main' && run.event === 'push' &&
+                run.head_repository?.full_name === repository)
+              .sort((a, b) => b.id - a.id)[0];
+            if (!run || run.status !== 'completed' || run.conclusion !== 'success') {
+              core.setFailed(`Publication requires successful push CI on main for ${context.sha}. ` +
+                (run ? `Latest run: ${run.html_url} (${run.status}/${run.conclusion}). ` : 'No matching CI run found. ') +
+                'Wait for CI to succeed, then rerun publication.');
+              return;
+            }
+            core.info(`Using successful CI: ${run.html_url} (attempt ${run.run_attempt})`);
+            await core.summary
+              .addHeading('Verified existing CI')
+              .addLink(`Push CI for ${context.sha} (attempt ${run.run_attempt})`, run.html_url)
+              .write();
 
   publish:
     needs: verify
