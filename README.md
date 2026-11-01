@@ -1,50 +1,35 @@
-# Hail Protocol
+# Hail Messaging Protocol (HMP)
 
-Hail is a federated messaging protocol where recipients decide who can reach their inbox. For approved senders, that permission provides a clear, reliable path to delivery.
-
-Unlike email, knowing someone's address is not enough. A sender needs permission from the recipient — a Hail Grant — and providers can reject unauthorized traffic before accepting the message content.
+Hail is a federated, permission-based messaging protocol where recipients decide who can reach their inbox. For approved senders, that permission provides a clear, reliable path to delivery.
 
 Hail is designed for independent providers, portable `did:plc` identities, rich and safe messages, and inexpensive spam rejection.
 
-## Core Principles
+## Differentiators
 
 - Recipients control who may deliver messages.
-- Send permissions (grants) bind to stable DIDs rather than addresses or providers.
-- Servers reject unauthorized envelopes before transferring message bodies.
-- Grant revocation immediately prevents new envelope acceptance and does not require sender cooperation.
-- Rich content uses Safe Portable Text, a custom subset of Sanity's Portable Text.
-- Federation uses open web standards where practical.
-- The protocol should remain approachable to hobbyists and independent implementers.
+- Send permissions bind to stable DIDs rather than addresses or providers, allowing seamless account migration between providers without needing to update Senders and Connections with your new Hail address.
+- Servers must accept message envelopes before transferring message bodies and attachments. This reduces per-attempt spam-based traffic and allows servers to quickly drop it.
+- Unsubscribing immediately prevents new envelope acceptance and does not require sender cooperation.
+- Rich content uses what we call Safe Portable Text, our custom subset of Sanity's Portable Text.
+- Sender's can use "header" images to enhance a user's feed experience and draw attention to their content.
 
 ## Status
 
-Hail is a working pre-launch public alpha. The reference provider supports
-category subscriptions, explicit connections, rich messages, forwarding, threaded
-replies, passkey login, managed browser signup, and owner-authorized custody and
-provider transfers. Public identities use canonical `plc.directory` writes and
-validated audit reads. Deployment features remain explicitly configured by each
-operator; running code is not proof of independent operation or recovery readiness.
+Hail is currently in public alpha.
 
-The repository includes TypeScript and Go codecs, shared conformance vectors,
-schema checks and benchmarks. Hail-owned signed objects use deterministic CBOR
-and COSE_Sign1; JSON remains available at authoring and standardized boundaries.
+Public identities use the PLC Organization's `https://plc.directory` for DID registration and management - originally created by Bluesky Social PBC for the AT Protocol.
 
-For unresolved product work, see the [browser roadmap](docs/browser-client-roadmap.md).
-For transfer authority and provider readiness, see [custody transitions](apps/cli/docs/custody-transitions.md).
+A TypeScript server and web client are available to deploy your own provider service. There's also a Rust-based CLI tool for agent use. We encourage you to create your own server implementations, web and native clients, or integrate client functionality into existing email and messaging platforms.
 
 ## Deploy your own provider
 
-Start with the [new provider setup guide](apps/server/deploy/standalone/README.md).
-It covers the host, domain, container stack, HTTPS ingress, monitoring, first
-administrator, registration and ongoing operations. The
+Start with the [provider setup guide](apps/server/deploy/standalone/README.md). The
 [first administrator walkthrough](docs/provider-admin-setup.md) explains the
 owner-key and monitor ceremony through first dashboard login.
 
 ## Client capabilities
 
-The reference CLI covers account administration and sensitive identity ceremonies. The optional reference web client supports invited managed signup, passkey access and everyday messaging. Signup temporarily handles owner recovery keys in the browser; routine managed signing stays with the provider.
-
-| Capability | [`hailp` CLI](apps/cli) | [Thin GUI client](apps/client) |
+| Capability | [`hailp` CLI](apps/cli) | [Web client](apps/client) |
 | --- | --- | --- |
 | View account identity | Full account details | Address, DID and custody summary |
 | Account onboarding | Owner-controlled and managed | Invited managed signup: resumable setup, verified recovery kit, external email verification and automatic monitoring |
@@ -64,16 +49,11 @@ The reference CLI covers account administration and sensitive identity ceremonie
 | Provider transfers | Owner-controlled and managed workflows | — |
 | Credential storage | Local encrypted vault and credential files | HttpOnly session cookie and encrypted pending setup; no full-access signup API credential |
 
-Browser onboarding uses the [reduced-assurance alpha profile](docs/public-authentication.md).
-Registration defaults to invitations and can be opened explicitly by an operator.
-Same-operator monitoring is disclosed; broader platform validation and post-signup
-browser recovery remain separate work.
-
 ## Repository layout
 
-- [`apps/server`](apps/server): TypeScript provider server, account APIs, delivery workers and custody-transfer runtime.
-- [`apps/cli`](apps/cli): Native Rust `hailp` CLI, encrypted user vault and owner-authorized onboarding, recovery and transfer workflows.
-- [`apps/client`](apps/client): Browser client for inbox, safe rich-message rendering, composing, replies and sent-message status.
+- [`apps/server`](apps/server): TypeScript provider server
+- [`apps/cli`](apps/cli): Native Rust `hailp` CLI
+- [`apps/client`](apps/client): Web client
 - [`apps/plc-monitor`](apps/plc-monitor): PLC history monitor, durable coverage and alerting, and signed onboarding/transfer attestations.
 - [`packages/hail-client-support`](packages/hail-client-support): Shared browser vault/recovery and server-side web account transport.
 - [`packages/hail-codec-ts`](packages/hail-codec-ts): TypeScript reference codec.
@@ -94,10 +74,10 @@ browser recovery remain separate work.
 - [User-key CLI](apps/cli/README.md): User-device vault, onboarding, Grant signing and exact-byte cutover commands.
 - [Public monitor deployment](apps/plc-monitor/deploy/public/README.md): Per-DID public PLC monitoring, reviewed bootstrap, signed attestations and external email alerts.
 - [`BODY_FORMAT.md`](BODY_FORMAT.md): Safe Portable Text body-format design.
-- [`spec/encoding.md`](spec/encoding.md): Normative Hail data model, deterministic CBOR, COSE, and diagnostic JSON profile.
-- [`spec/hail.cddl`](spec/hail.cddl): Draft machine-readable structural schemas for Hail v0 payloads and the initial body profile.
 - [`packages/hail-codec-ts`](packages/hail-codec-ts): Bun-workspace TypeScript reference codec, validators, COSE implementation, diagnostic tooling, and tests.
 - [`packages/hail-codec-go`](packages/hail-codec-go): Independent Go reference codec and cross-language conformance implementation.
+- [`spec/encoding.md`](spec/encoding.md): Normative Hail data model, deterministic CBOR, COSE, and diagnostic JSON profile.
+- [`spec/hail.cddl`](spec/hail.cddl): Draft machine-readable structural schemas for Hail v0 payloads and the initial body profile.
 - [`spec/core-delivery.md`](spec/core-delivery.md): Core grant-authorized delivery flow.
 - [`spec/account-onboarding.md`](spec/account-onboarding.md): New and existing DID registration, portable key custody, address activation, and onboarding failure handling.
 - [`spec/managed-custody.md`](spec/managed-custody.md): Frozen managed-identity v1 custody, owner authority and production conformance gates.
@@ -113,4 +93,4 @@ browser recovery remain separate work.
 
 ## License
 
-Hail Protocol is licensed under the [MIT License](LICENSE).
+Hail Messaging Protocol is licensed under the [MIT License](LICENSE).
