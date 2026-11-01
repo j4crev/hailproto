@@ -61,7 +61,7 @@ it("limits browser profile writes to fresh same-origin passkey sessions without 
   const body=JSON.stringify({expectedRevision:0,definition:{display_name:"Alice",offers_uncategorized:false,categories:[{id:"general",label:"General"}]}});
   const save=(h:Record<string,string>=headers)=>app.request("/api/v1/account/profile",{method:"POST",headers:h,body});
   expect((await save({...headers,Origin:"https://other.example"})).status).toBe(403);
-  session.passkey_verified_at=new Date(Date.now()-6*60_000);
+  session.passkey_verified_at=new Date(Date.now()-11*60_000);
   expect((await save()).status).toBe(403);
   session.passkey_verified_at=new Date();session.passkey_credential_id=null;
   expect((await save()).status).toBe(403);

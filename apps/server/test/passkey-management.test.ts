@@ -22,7 +22,7 @@ function service(keys:string[]){
 describe("passkey management",()=>{
   it("requires recent verification and preserves the current and final passkeys",async()=>{
     const stale=service([current,other]).passkeys;
-    await expect(stale.revoke({...session,passkey_verified_at:new Date(Date.now()-301_000)},other)).rejects.toMatchObject({status:403});
+    await expect(stale.revoke({...session,passkey_verified_at:new Date(Date.now()-601_000)},other)).rejects.toMatchObject({status:403});
     await expect(service([current,other]).passkeys.revoke(session,current)).rejects.toMatchObject({status:409});
     await expect(service([current]).passkeys.revoke({...session,scopes:["credentials:write"],passkey_credential_id:null},current))
       .rejects.toBeInstanceOf(PasskeyError);
@@ -35,7 +35,7 @@ describe("passkey management",()=>{
   });
 
   it("requires recent verification before revoking every account session",async()=>{
-    await expect(service([]).passkeys.revokeSessions({...session,passkey_verified_at:new Date(Date.now()-301_000)}))
+    await expect(service([]).passkeys.revokeSessions({...session,passkey_verified_at:new Date(Date.now()-601_000)}))
       .rejects.toMatchObject({status:403});
     const {passkeys,statements}=service([]);await expect(passkeys.revokeSessions(session)).resolves.toEqual({revoked:true});
     expect(statements.some(statement=>statement.includes("UPDATE account_passkey_sessions"))).toBe(true);
