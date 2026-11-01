@@ -14,18 +14,25 @@ const successfulRun = {
   html_url: "https://github.com/j4crev/hailproto/actions/runs/100",
 };
 
-async function verify(runs: unknown[], error?: Error) {
+async function verify(
+  runs: unknown[],
+  error?: Error,
+  verificationJobs: unknown[] = [{name: "verify-main", conclusion: "success"}],
+) {
   const listWorkflowRuns = vi.fn();
-  const paginate = error ? vi.fn().mockRejectedValue(error) : vi.fn().mockResolvedValue(runs);
+  const listJobsForWorkflowRun = vi.fn();
+  const paginate = error ? vi.fn().mockRejectedValue(error) : vi.fn().mockImplementation(
+    (endpoint: unknown) => Promise.resolve(endpoint === listWorkflowRuns ? runs : verificationJobs),
+  );
   const summary = {addHeading: vi.fn(), addLink: vi.fn(), write: vi.fn()};
   summary.addHeading.mockReturnValue(summary);
   summary.addLink.mockReturnValue(summary);
   const core = {setFailed: vi.fn(), info: vi.fn(), summary};
   await new AsyncFunction("github", "context", "core", script)(
-    {paginate, rest: {actions: {listWorkflowRuns}}},
+    {paginate, rest: {actions: {listWorkflowRuns, listJobsForWorkflowRun}}},
     {repo: {owner: "j4crev", repo: "hailproto"}, sha}, core,
   );
-  return {core, paginate, listWorkflowRuns};
+  return {core, paginate, listWorkflowRuns, listJobsForWorkflowRun};
 }
 
 it("keeps publication manual and dependent on a read-only CI gate on main", () => {
@@ -37,17 +44,30 @@ it("keeps publication manual and dependent on a read-only CI gate on main", () =
   expect(workflow.jobs.publish.if).toBeUndefined();
 });
 
-it("accepts exact-commit push CI and records the successful attempt", async () => {
-  const {core, paginate, listWorkflowRuns} = await verify([successfulRun]);
+it("accepts exact-commit main CI after verify-main succeeds and records the attempt", async () => {
+  const {core, paginate, listWorkflowRuns, listJobsForWorkflowRun} = await verify([successfulRun]);
   expect(paginate).toHaveBeenCalledWith(listWorkflowRuns, {
     owner: "j4crev", repo: "hailproto", workflow_id: "ci.yml",
     branch: "main", event: "push", head_sha: sha, per_page: 100,
   });
+  expect(paginate).toHaveBeenCalledWith(listJobsForWorkflowRun, {
+    owner: "j4crev", repo: "hailproto", run_id: successfulRun.id, per_page: 100,
+  });
   expect(core.setFailed).not.toHaveBeenCalled();
   expect(core.summary.addLink).toHaveBeenCalledWith(
-    `Push CI for ${sha} (attempt 2)`, successfulRun.html_url,
+    `Main verification for ${sha} (attempt 2)`, successfulRun.html_url,
   );
   expect(core.summary.write).toHaveBeenCalledOnce();
+});
+
+it.each([
+  ["missing", []],
+  ["failed", [{name: "verify-main", conclusion: "failure"}]],
+  ["skipped", [{name: "verify-main", conclusion: "skipped"}]],
+])("rejects publication when verify-main is %s", async (_state, jobs) => {
+  const {core} = await verify([successfulRun], undefined, jobs);
+  expect(core.setFailed).toHaveBeenCalledWith(expect.stringContaining("successful verify-main handoff"));
+  expect(core.summary.write).not.toHaveBeenCalled();
 });
 
 it.each([
