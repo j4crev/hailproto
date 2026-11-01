@@ -1,4 +1,4 @@
-name: Publish provider image
+name: Publish provider and web-client images
 
 on:
   workflow_dispatch:
@@ -74,7 +74,7 @@ jobs:
         env:
           REPOSITORY: ${{ github.repository }}
         run: echo "name=ghcr.io/${REPOSITORY,,}/provider" >> "$GITHUB_OUTPUT"
-      - name: Build and publish provider and GUI image
+      - name: Build and publish provider image
         id: build
         uses: docker/build-push-action@v7
         with:
@@ -90,13 +90,30 @@ jobs:
           sbom: true
           cache-from: type=gha,scope=provider
           cache-to: type=gha,mode=max,scope=provider
+      - name: Build and publish web-client image
+        id: client
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/client/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.name }}-web-client:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=web-client
+          cache-to: type=gha,mode=max,scope=web-client
       - name: Record immutable deployment reference
         env:
           IMAGE: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+          CLIENT_IMAGE: ${{ steps.image.outputs.name }}-web-client@${{ steps.client.outputs.digest }}
           COMMIT: ${{ github.sha }}
         run: |
-          printf 'Commit: `%s`\n\nImage: `%s`\n\n' "$COMMIT" "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
-          printf 'hail-provider-ops deploy %s %s\n' "$COMMIT" "$IMAGE" > provider-release.txt
+          printf 'Commit: `%s`\n\nProvider: `%s`\n\nWeb client: `%s`\n\n' "$COMMIT" "$IMAGE" "$CLIENT_IMAGE" >> "$GITHUB_STEP_SUMMARY"
+          printf 'hail-provider-ops deploy %s %s %s\n' "$COMMIT" "$IMAGE" "$CLIENT_IMAGE" > provider-release.txt
           cat provider-release.txt >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:

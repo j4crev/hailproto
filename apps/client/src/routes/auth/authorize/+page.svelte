@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import DateTime from "$lib/DateTime.svelte";
   import {onMount} from "svelte";
   import {startAuthentication} from "@simplewebauthn/browser";
@@ -28,7 +29,7 @@
   }
 </script>
 
-<svelte:head><title>Authorize hailp · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
+<svelte:head><title>Authorize hailp · {page.data.branding?.name ?? "Hail"}</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 <section class="hail-card mx-auto mt-6 flex max-w-[620px] flex-col items-start gap-5 p-6 sm:p-10">
   <h1 class="hail-title">Authorize this command line?</h1>
   {#if details}<p class="m-0 text-sm text-muted [overflow-wrap:anywhere]"><strong>hailp</strong> will receive temporary access through <code>{new URL(details.redirectUri).host}</code>. Approve only a command-line login you started.</p>

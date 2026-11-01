@@ -1,6 +1,6 @@
 import {expect,it,vi} from "vitest";
 
-vi.mock("$env/dynamic/private",()=>({env:{}}));
+vi.mock("$env/dynamic/private",()=>({env:{HAIL_WEB_CLIENT_PROVIDER:"https://provider.example"}}));
 import {isAccountPath,loginPath,returnPath} from "./auth-routing.js";
 import {handle} from "../hooks.server.js";
 import {load as layout} from "../routes/+layout.server.js";
@@ -21,9 +21,9 @@ it("uses one sign-in destination for every anonymous private screen and action",
     }
   }
   expect(resolve).not.toHaveBeenCalled();
-  expect(await layout({cookies,url:new URL("https://provider.example/")} as never)).toEqual({hasAccountSession:false,accountAvatar:null});
+  expect(await layout({cookies,url:new URL("https://provider.example/")} as never)).toMatchObject({hasAccountSession:false,accountAvatar:null});
   // This only controls navigation visibility; it is not proof of authentication.
-  expect(await layout({cookies:{get:()=>"expired-token"},url:new URL("https://provider.example/?next=%2Faccount")} as never)).toEqual({hasAccountSession:true,accountAvatar:null});
+  expect(await layout({cookies:{get:()=>"expired-token"},url:new URL("https://provider.example/?next=%2Faccount")} as never)).toMatchObject({hasAccountSession:true,accountAvatar:null});
 });
 
 it("allows only local inbox return paths, including public QR fragments",()=>{

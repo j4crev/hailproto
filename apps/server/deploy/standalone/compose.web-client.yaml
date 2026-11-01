@@ -1,0 +1,36 @@
+services:
+  provider:
+    environment:
+      WEB_CLIENT_ORIGIN: http://web-client:3000
+      CONNECTION_PREVIEW: ${CONNECTION_PREVIEW:-false}
+    depends_on:
+      web-client:
+        condition: service_healthy
+  web-client:
+    image: ${HAIL_WEB_CLIENT_IMAGE:?set a verified web-client image digest}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
+      HAIL_WEB_CLIENT_PROVIDER: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
+      HAIL_WEB_CLIENT_API_ORIGIN: http://provider:3000
+      HAIL_WEB_CLIENT_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
+      HAIL_WEB_CLIENT_SIGNUP: ${PUBLIC_ALPHA_SIGNUP:-false}
+      ALPHA_SIGNUP_MONITOR_ORIGIN: ${ALPHA_SIGNUP_MONITOR_ORIGIN:-}
+      SIGNUP_MONITOR_PUBLIC_KEY: ${SIGNUP_MONITOR_PUBLIC_KEY:-}
+      HAIL_WEB_CLIENT_NAME: ${HAIL_WEB_CLIENT_NAME:-Hail}
+      HAIL_WEB_CLIENT_LOGO_PATH: ${HAIL_WEB_CLIENT_LOGO_PATH:-}
+      HAIL_WEB_CLIENT_FAVICON_PATH: ${HAIL_WEB_CLIENT_FAVICON_PATH:-/favicon.svg}
+    healthcheck:
+      test: [CMD, bun, -e, "const r=await fetch('http://127.0.0.1:3000/'); process.exit(r.ok?0:1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [edge]

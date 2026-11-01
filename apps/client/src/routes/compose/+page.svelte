@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import {forwardBody} from "$lib/forward.js";
   import { tick,untrack } from "svelte";
   import {enhance} from "$app/forms";
@@ -53,7 +54,7 @@
   }
 </script>
 
-<svelte:head><title>{data.forward?"Forward a message":data.kind==="connections"?"Send a message":"Send a hail"} · Haili</title></svelte:head>
+<svelte:head><title>{data.forward?"Forward a message":data.kind==="connections"?"Send a message":"Send a hail"} · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <header class="page-heading"><h1 class="hail-title">{data.forward?"Forward a message":data.kind==="connections"?"Send a message":"Send a hail"}</h1><p class="m-0 text-sm text-muted [overflow-wrap:anywhere]">From {data.account.address}</p><p class="m-0 text-xs text-muted">{data.kind==="connections"?"Multiple recipients start a shared conversation. You can choose private copies instead.":"Send to everyone subscribed to a category."}</p>{#if !data.forward}<nav class="mt-3 flex flex-wrap gap-2" aria-label="Compose audience"><a class={data.kind==='category'?'hail-button':'hail-button-secondary'} href="/compose" aria-current={data.kind==='category'?'page':undefined}>Subscribers</a><a class={data.kind==='connections'?'hail-button':'hail-button-secondary'} href="/compose?audience=connections" aria-current={data.kind==='connections'?'page':undefined}>Connections</a></nav>{/if}</header>
 <div role="status" aria-atomic="true">
   {#if sentToast}<div class="sent-toast"><Icon name="check" /><span>Message sent.</span></div>{/if}

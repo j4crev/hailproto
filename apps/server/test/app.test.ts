@@ -96,10 +96,10 @@ describe("unknown routes", () => {
     });
   });
 
-  it("proxies only GUI paths when the thin client is enabled",async()=>{
+  it("proxies only web pages when the optional web client is enabled",async()=>{
     const transport=vi.fn(async()=>new Response("gui",{headers:{"Content-Type":"text/plain"}}));vi.stubGlobal("fetch",transport);
     try{
-      const app=createApp({...config,thinGuiOrigin:"http://gui:3000"});
+      const app=createApp({...config,webClientOrigin:"http://gui:3000"});
       const page=await app.request("https://hailproto.app/?next=%2F",{headers:{"Accept-Encoding":"gzip"}});expect(await page.text()).toBe("gui");
       const [target,init]=transport.mock.calls[0]! as unknown as [URL,RequestInit];
       expect(target.toString()).toBe("http://gui:3000/?next=%2F");

@@ -48,7 +48,7 @@ services:
       CONNECTION_PREVIEW: ${CONNECTION_PREVIEW:-true}
       PASSKEY_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
       PASSKEY_RP_ID: ${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
-      THIN_GUI_ORIGIN: http://gui:3000
+      WEB_CLIENT_ORIGIN: http://gui:3000
       SIGNUP_EMAIL_ORIGIN: ${SIGNUP_EMAIL_ORIGIN:-}
       SIGNUP_EMAIL_TOKEN: ${SIGNUP_EMAIL_TOKEN:-}
       SIGNUP_MONITOR_API_ORIGIN: ${SIGNUP_MONITOR_API_ORIGIN:-}
@@ -82,7 +82,7 @@ services:
     networks: [edge, storage]
 
   gui:
-    image: ${HAIL_PROVIDER_IMAGE:-hail-server-ts:public}
+    image: ${HAIL_WEB_CLIENT_IMAGE:-hail-web-client:public}
     command: [bun, /workspace/hailproto/apps/client/build/index.js]
     restart: unless-stopped
     init: true
@@ -96,11 +96,12 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
-      HAIL_GUI_PROVIDER: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
+      HAIL_WEB_CLIENT_NAME: Haili
+      HAIL_WEB_CLIENT_PROVIDER: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
       # Private Docker transport; public provider/passkey origins stay HTTPS.
-      HAIL_GUI_API_ORIGIN: http://provider:3000
-      HAIL_GUI_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
-      HAIL_GUI_SIGNUP: ${PUBLIC_ALPHA_SIGNUP:-false}
+      HAIL_WEB_CLIENT_API_ORIGIN: http://provider:3000
+      HAIL_WEB_CLIENT_ORIGIN: https://${PROVIDER_DOMAIN:?set PROVIDER_DOMAIN}
+      HAIL_WEB_CLIENT_SIGNUP: ${PUBLIC_ALPHA_SIGNUP:-false}
       ALPHA_SIGNUP_MONITOR_ORIGIN: ${ALPHA_SIGNUP_MONITOR_ORIGIN:-}
       SIGNUP_MONITOR_PUBLIC_KEY: ${SIGNUP_MONITOR_PUBLIC_KEY:-}
     healthcheck:

@@ -105,28 +105,32 @@ an untested migration/rollback path.
 
 ## Provider and GUI images
 
-Run the **Publish provider image** GitHub Actions workflow against `main` at the
-reviewed commit. It requires the latest push run of `ci.yml` on `main` for that
-exact commit to have completed successfully, then builds and pushes
-`ghcr.io/j4crev/hailproto/provider:sha-<commit>`. It reuses that CI result instead
-of rerunning the suite. Missing, pending or unsuccessful CI blocks publication;
-wait for CI to succeed and rerun publication. The verification summary links the
-accepted CI run and attempt. Publication is manual;
-ordinary pushes and pull requests do not deploy or publish an application image.
-The publish job produces a `provider-release` artifact and job summary with the
-full commit and **digest reference**. Use that digest, never resolve the mutable
-commit tag during deployment. The initial target is Linux amd64 only.
+The **Publish provider and web-client images** workflow (`publish-provider.yml`)
+requires successful push CI for the exact reviewed commit on `main`. It publishes
+separate `ghcr.io/j4crev/hailproto/provider` and
+`ghcr.io/j4crev/hailproto/provider-web-client` images. The `provider-release`
+artifact records the full commit and both immutable digest references. Initial
+platform support is Linux amd64. A push alone neither publishes nor deploys.
+
+Provider builds contain no reference web-client source, Vite build or client
+runtime. Both images currently share a release revision; this does not promise
+cross-version API compatibility. Other operators can deploy just the provider.
+See the [standalone guide](../apps/server/deploy/standalone/README.md).
 
 ### Routine production rollout — operators and agents
 
-The provider/GUI cutover is complete. For subsequent application releases, use
-this sequence; do not repeat bootstrap or the historical cutover installer.
+**The image split requires a separately reviewed wrapper installation before the
+first split release.** Source changes do not update installed root-owned scripts.
+The old wrapper accepts one image and cannot deploy the split correctly. Install
+both updated `provider-ops.sh` and `backup.sh` through existing privileged access,
+preserving prior copies and checking their SHA-256. Do not broaden sudo/SSH policy.
+Keep the existing Compose project/service names, `.env`, database/image overlays,
+volumes, rollback record and retained images. `deploy/public` remains Haili's site
+profile; do not replace it with the new fresh-install profile.
 
-1. Identify the reviewed full commit SHA and preserve unrelated working-tree
-   changes. Commit/push only the intended release work. A push triggers CI but
-   **does not publish an image or deploy production**.
-2. Wait for push CI to succeed for the reviewed commit on `main`, then start
-   publication from the development machine:
+1. Review/commit only the intended changes, preserving other agents' edits. Push
+   and require successful CI for that exact `main` revision.
+2. Dispatch publication and identify its run by the exact `headSha`:
 
    ```bash
    gh workflow run publish-provider.yml --ref main
@@ -134,113 +138,78 @@ this sequence; do not repeat bootstrap or the historical cutover installer.
    gh run view RUN_ID --json headSha,status,conclusion,url
    ```
 
-   Select the run by its exact `headSha`, not merely by being the latest run.
-   Dispatch resolves `main` when it starts; if another agent advanced the branch,
-   review that revision or stop before deployment. Wait for `completed` and
-   `success`, including both the existing-CI check and publication. If a gate
-   fails, diagnose it; do not skip tests or build on production as a fallback.
-3. Download the successful run's `provider-release` artifact into a fresh directory:
+   Require `completed`/`success` for the whole run. If `main` advanced before the
+   dispatch resolved, review that commit rather than silently substituting it.
+3. Download the artifact into a fresh directory:
 
    ```bash
    gh run download RUN_ID --name provider-release --dir /tmp/hail-provider-RUN_ID
    cat /tmp/hail-provider-RUN_ID/provider-release.txt
    ```
 
-   Confirm the recorded commit matches the reviewed run and the image is
-   `ghcr.io/j4crev/hailproto/provider@sha256:...`. Never substitute `latest`,
-   `sha-<commit>`, or `hail-server-ts:public` for the digest. The latter is only a
-   legacy local image name, not the normal release mechanism.
-4. Check the installed wrapper version, production status, clean checkout, free
-   disk and available memory. Use the existing `hailops` SSH access described in
-   [operations](haili-operations.md#ssh-agent-versus-sudo). The current wrappers
-   are installed already; if this release changes either installed script,
-   arrange its reviewed privileged installation **before** deploying. Ordinary
-   application changes do not require reinstalling unchanged wrappers.
-5. On the provider, run the artifact's verified commit/digest through the wrapper:
+   Verify the commit and both repository/digest references against the successful
+   run. Never substitute a mutable tag or publish/build on the provider host.
+4. Verify the installed wrapper, clean checkout, backups, free disk and memory.
+   Use the existing `hailops` access described in [operations](haili-operations.md).
+   Rename any private `THIN_GUI_ORIGIN` to `WEB_CLIENT_ORIGIN` and `HAIL_GUI_*`
+   settings to `HAIL_WEB_CLIENT_*`; the checked-in Haili Compose settings already
+   use the new names and explicitly retain the Haili product name.
+5. Execute the artifact's **three-argument** deploy command:
 
    ```bash
    sudo -n /usr/local/sbin/hail-provider-ops status
-   sudo -n /usr/local/sbin/hail-provider-ops deploy FULL_COMMIT_SHA ghcr.io/j4crev/hailproto/provider@sha256:FULL_IMAGE_DIGEST
+   sudo -n /usr/local/sbin/hail-provider-ops deploy FULL_COMMIT_SHA ghcr.io/j4crev/hailproto/provider@sha256:PROVIDER_DIGEST ghcr.io/j4crev/hailproto/provider-web-client@sha256:CLIENT_DIGEST
    ```
 
-   It pulls and checks the image, completes the encrypted backup, retains the
-   previous image and recreates only GUI/provider. Do not replace this with
-   direct Git checkout plus Compose commands. A failed pull leaves the running
-   release unchanged; failed startup/readiness triggers retained-image recovery
-   and still returns a failure exit code. Investigate before retrying.
-6. Verify both application services are healthy on the expected digest, public
-   homepage/readiness return HTTP 200, PostgreSQL/Caddy uptime is unchanged, and
-   there are no new OOM or database crash/recovery events. Record available-memory
-   observations. Inspect registration mode without changing it incidentally;
-   **public registration is intentional**. Do not issue real signup/message writes
-   merely to smoke-test deployment.
-7. Record the run URL, deployed commit/digest, backup outcome and health/memory
-   evidence in [production readiness](production-readiness.md), keeping sensitive
-   logs in protected operator records. Distinguish the deployed application
-   revision from a later documentation-only commit; recording evidence does not
-   require another deployment.
+   Both candidates are pulled and checked against the commit before backup or
+   service replacement. The wrapper retains and verifies both running image IDs,
+   writes independent selections in `/etc/hail-provider-release/compose.json`,
+   and recreates only `gui` and `provider` with builds/pulls disabled. PostgreSQL
+   and Caddy are not recreated. Failed startup/readiness restores both retained
+   images and the old checkout, and still reports failure.
+6. Verify the two expected image references, healthy services, public homepage and
+   readiness, unchanged database/Caddy uptime, and absence of new OOM/database
+   recovery events. Preserve the operator's public registration policy. Do not
+   issue real signup/message writes merely to smoke-test deployment.
+7. Record the run, commit, **both digests**, backup outcome and health/memory
+   evidence in production readiness. A documentation-only record needs no redeploy.
 
-For an application rollback, use `sudo -n /usr/local/sbin/hail-provider-ops rollback`
-only after checking database compatibility. Preserve the retained rollback image,
-`/var/lib/hail-provider-previous`, `/etc/hail-provider-release/compose.json`, the
-PostgreSQL overlay and existing volumes. Do not rebuild an old revision, prune
-retained recovery images, or revert database storage as part of image rollback.
+### Rollback and retained state
 
-This procedure covers the **provider and GUI only**. The monitor has a separate
-host/wrapper and has not yet been migrated to this image publication path.
+A successful split deployment records five fields in
+`/var/lib/hail-provider-previous`: commit, retained provider reference, provider
+image ID, retained client reference, client image ID. Tags retain images locally,
+so rollback does not depend on a registry pull. Both identities are verified
+before changing checkout/selection. Never prune retained recovery images.
 
-### Build limits and initial host setup
+The new wrapper can also read the existing verified three-field combined-image
+record, restoring that one image for both services. Unverified two-field records
+remain rejected. The first split deployment records the old combined image under
+both retention tags, enabling recovery to that exact installation. This narrow
+operational transition does not add an application-data compatibility layer.
 
-Both CI image verification and publication use an isolated BuildKit container
-with a 4 GiB memory limit, no additional swap, and at most two concurrent build
-steps. Node's 512 MiB old-space setting is not a total build memory limit. These
-limits belong on a CI runner with adequate headroom, not on the 2 GiB production
-host. BuildKit driver limits are documented by
-[Docker](https://docs.docker.com/build/builders/drivers/docker-container/).
+Run `sudo -n /usr/local/sbin/hail-provider-ops rollback` only after checking schema
+compatibility. Keep database overlays, existing volumes and key material; image
+rollback does not roll back schema or accepted data. The old checkout supplies its
+matching Compose variable names. Any custom private environment overrides must
+also match the selected revision.
 
-For a new host or an installation still using the legacy build-based wrapper:
+Backups record both application references, database version/image, `.env`,
+`release-compose.json` and the database overlay. Restore these together on the
+recorded PostgreSQL major. Never select an older database volume as image rollback.
 
-1. Confirm the workflow passed for the exact revision. Review its source and
-   published digest. GHCR publication needs Actions `packages: write`; if the
-   package already exists, grant this repository Actions access to it.
-2. Ensure the production Docker client can pull that package. Use public package
-   access or an operator-provisioned, read-only registry credential. Do not put
-   credentials in Git, command arguments or the release artifact.
-3. Install the reviewed `apps/server/deploy/public/provider-ops.sh` as
-   `/usr/local/sbin/hail-provider-ops` and `backup.sh` as
-   `/usr/local/sbin/hail-provider-backup` through the operator's privileged
-   session, retaining the previous copies. Updating the checkout does not update
-   these installed scripts. Do this **before** invoking deploy on a legacy install; that old wrapper
-   builds on production. Confirm checksums against the reviewed files.
-4. Keep the existing `.env`, PostgreSQL overlay and data volumes. Confirm the
-   backup/restore prerequisite and migration rollback compatibility for this
-   release. Install no new database or volume as part of the image transition.
+### Build limits and verification
 
-Run the command recorded in the workflow summary, for example:
+CI and publication use an isolated BuildKit container with 4 GiB memory, no extra
+swap and at most two concurrent steps. The client build additionally limits V8
+old space to 512 MiB. Never run these builds on the live provider. Publication
+emits provenance and SBOM metadata; digest selection plus the trusted workflow
+remains the deployment trust model, not cryptographic attestation enforcement.
 
-```bash
-sudo /usr/local/sbin/hail-provider-ops deploy FULL_COMMIT_SHA ghcr.io/j4crev/hailproto/provider@sha256:FULL_IMAGE_DIGEST
-```
+CI builds each image separately and checks that the provider has no client tree
+and includes the supported administration CLIs. Regression tests in
+`apps/server/test/provider-ops.test.ts` cover candidate validation, two-image
+retention, failure recovery, manual rollback and the prior combined-image record.
+Local tests are not proof of a completed hosted rollout.
 
-The wrapper rejects tags, pulls the digest before changing the running release,
-and requires its OCI revision label to match the requested commit. Digest
-selection plus the trusted workflow is the current trust model; the revision
-label alone is not signature verification. CI emits provenance/SBOM metadata,
-but cryptographic deployment-policy enforcement is not implemented here.
-
-The wrapper retains and verifies the previous running image, selects the new
-image for **both** GUI and provider in `/etc/hail-provider-release/compose.json`,
-and runs Compose with `--no-build --pull never --no-deps`. It waits for both
-services and public readiness. PostgreSQL/Caddy are not recreated. On failure it
-restores the prior checkout and retained image without a build or registry pull.
-The command still exits unsuccessfully so failure remains visible. Manual
-`hail-provider-ops rollback` uses the same retained-image path. Application
-rollback never reverses database migrations or restores older database contents.
-
-Preserve `compose.json` with the deployment configuration; encrypted provider
-backups include it as `release-compose.json`. Restore it to that path alongside
-the database overlay, and retain/pull the recorded image before starting services.
-Inspect service health, container restart/OOM counters, PostgreSQL logs and host
-memory after rollout. Record that no build process ran on production. This
-removes build-induced contention; it does not claim zero restart downtime or
-prove adequate memory for every runtime load.
+The monitor remains a separate deployment and is not covered by this workflow.

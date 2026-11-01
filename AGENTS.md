@@ -7,8 +7,10 @@ and [production operations](docs/haili-operations.md) before deployment work.
 
 - Never build Docker images, run Vite, or package adapter-node on the live provider.
   Publish with `.github/workflows/publish-provider.yml` on GitHub Actions.
-- Deploy only the exact commit and image digest from a successful publication run,
-  using the installed `hail-provider-ops deploy COMMIT IMAGE@sha256:DIGEST` wrapper.
+- Deploy only the exact commit and both image digests from a successful publication run,
+  using the installed `hail-provider-ops deploy COMMIT PROVIDER@sha256:DIGEST CLIENT@sha256:DIGEST` wrapper.
+  The split requires reviewed installation of the updated operations/backup wrappers
+  before deployment; the old single-image wrapper cannot deploy it correctly.
   A Git push alone neither publishes an image nor deploys production.
 - Preserve the image-selection and PostgreSQL overlays, existing database volumes,
   retained rollback images and rollback record. Application rollback is not database rollback.

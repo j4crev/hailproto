@@ -1,7 +1,28 @@
-# Hail browser client (alpha)
+# Independent reference web client
+
+This optional web client runs separately from the provider. Build with
+`apps/client/Dockerfile` and deploy its own image; the provider image contains no
+web client. See the [standalone deployment guide](../server/deploy/standalone/README.md)
+for the optional Compose overlay, first-account dependencies and runtime branding.
+
+Copy `.env.example` for local configuration. `HAIL_WEB_CLIENT_PROVIDER` is required;
+there is no default hosted provider. `HAIL_WEB_CLIENT_API_ORIGIN` optionally selects
+server-side transport, while `HAIL_WEB_CLIENT_ORIGIN` selects the browser origin.
+Use the documented same-origin deployment for browser authentication.
+`HAIL_WEB_CLIENT_NAME`, `HAIL_WEB_CLIENT_LOGO_PATH` and
+`HAIL_WEB_CLIENT_FAVICON_PATH` customize the public brand without rebuilding.
+Logo/favicon paths must be served on the same origin, for example from a read-only
+mount at `/workspace/hailproto/apps/client/build/client/brand` in the image.
+
+Configuration migration: rename all `HAIL_GUI_*` settings to `HAIL_WEB_CLIENT_*`.
+Provider-side `THIN_GUI_ORIGIN` is now `WEB_CLIENT_ORIGIN`. Recreate containers;
+there are no legacy aliases. Reverting to an older revision also requires its old
+configuration. The reference client stays a consumer of the HTTP API; custom web
+and native clients need neither its source nor its branding.
+
 
 Svelte 5/SvelteKit 2 inbox and safe `spt-1`/`spt-2`/`spt-3` reader for
-accounts at `haili.app`. Everyday use relies on provider passkey sessions and does
+accounts at your configured provider. Everyday use relies on provider passkey sessions and does
 not store API credentials or Hail keys in browser JavaScript. The opt-in local
 signup recovery preview below temporarily handles owner recovery material.
 
@@ -81,7 +102,7 @@ WebAuthn enrollment/sign-in, and setup retirement. Run with
 
 ## Local signup recovery preview
 
-After building, run `HAIL_GUI_SIGNUP_PREVIEW=true` with the normal GUI environment
+After building, run `HAIL_WEB_CLIENT_SIGNUP_PREVIEW=true` with the normal GUI environment
 and open `/signup/recovery`. The preview generates the existing v1 encrypted
 backup locally, asks users to save its random secret separately, and verifies
 the actual saved file and secret. It creates no account, submits no PLC operation
@@ -114,7 +135,8 @@ is needed.
 bun install
 PASSKEY_AUTH=true PASSKEY_ORIGIN=http://localhost:5173 PASSKEY_RP_ID=localhost \
   bun run --cwd apps/server dev
-HAIL_GUI_API_ORIGIN=http://localhost:3000 HAIL_GUI_ORIGIN=http://localhost:5173 \
+HAIL_WEB_CLIENT_PROVIDER=https://your-provider.example \
+  HAIL_WEB_CLIENT_API_ORIGIN=http://localhost:3000 HAIL_WEB_CLIENT_ORIGIN=http://localhost:5173 \
   bun run --cwd apps/client dev --open
 ```
 
@@ -123,10 +145,10 @@ passkey. Initial owner-authorized enrollment requires an HTTPS provider/GUI orig
 use the enrollment link issued by account creation or `hailp account
 passkey-recover` in that environment, then sign in from the homepage. The legacy
 `/auth/enroll/*` bootstrap credential proxy is disabled; setting
-`HAIL_GUI_CREDENTIAL_FILE` does not enable passkey enrollment.
+`HAIL_WEB_CLIENT_CREDENTIAL_FILE` does not enable passkey enrollment.
 Production serves the GUI and reverse-proxies `/api` on one HTTPS origin, normally
-`https://haili.app`, with RP ID `haili.app`. Set
-`HAIL_GUI_CREDENTIAL_FALLBACK=true` only to restore the old fixed-account mode
+your provider HTTPS origin, with its domain as RP ID. Set
+`HAIL_WEB_CLIENT_CREDENTIAL_FALLBACK=true` only to restore the old fixed-account mode
 during rollback. Nothing private belongs in this directory or committed `.env`
 files.
 
@@ -172,7 +194,7 @@ The maintained browser client lives in `apps/client` (workspace package `hail-cl
 
 ## Navigation performance
 
-The public Compose deployment uses `HAIL_GUI_API_ORIGIN=http://provider:3000`
+The public Compose deployment uses `HAIL_WEB_CLIENT_API_ORIGIN=http://provider:3000`
 for GUI-to-provider requests on the private Docker network. Public provider and
 passkey origins stay HTTPS. The account client permits this exact internal
 transport, in addition to HTTPS and local development; it never follows redirects.

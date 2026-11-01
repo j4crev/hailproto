@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import { onDestroy, onMount } from "svelte";
   import { createSignupBackup, encodeBase64Url, verifySignupBackup, type UserVaultFile } from "$lib/signup-recovery.js";
 
@@ -51,7 +52,7 @@
   }
 </script>
 
-<svelte:head><title>Recovery setup preview · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
+<svelte:head><title>Recovery setup preview · {page.data.branding?.name ?? "Hail"}</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 
 <section class="hail-card flex flex-col gap-5 p-5 sm:p-7 [&_h2]:m-0 [&_h2]:text-lg [&_p]:m-0 [&_p]:text-sm [&_p]:leading-relaxed [&_label]:text-sm [&_label]:leading-relaxed [&_label>input:not([type=checkbox])]:mt-2 [&_label>input:not([type=checkbox])]:block [&_label>input:not([type=checkbox])]:max-w-full [&_input[type=password]]:w-full [&_button]:self-start [&_button]:max-w-full [&_button]:whitespace-normal">
   <h1 class="hail-title">Recovery setup preview</h1>

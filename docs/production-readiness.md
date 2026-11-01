@@ -165,6 +165,28 @@ No live deployment or database update has been performed by this task.
   Existing PostgreSQL/image overlays, rollback records and registration policy
   were preserved; this change needs no new database migration.
 
+### 2026-11-01 — shared conversation wording and sender rollout
+
+- [Publication run 41258770082](https://github.com/j4crev/hailproto/actions/runs/41258770082)
+  succeeded for `cfd0c79c87207e460e7441ac3b9ba6b08fbc7eda`; the downloaded
+  release artifact matched that commit.
+- Deployed image: `ghcr.io/j4crev/hailproto/provider@sha256:f0395092fc16cdd369bc68a52ffca80531e3f18f3cdb66d31088911af7b27917`.
+  Production checkout was clean and installed provider/backup wrapper checksums
+  matched the reviewed source. Preflight disk availability was 6.8 GiB.
+- The installed wrapper completed its encrypted backup and download verification,
+  retained the previous image, replaced only GUI/provider and exited 0. No build
+  ran on production. Post-deploy checks completed at **00:58:39 UTC**.
+- Both application services are healthy on the expected digest; homepage returned
+  HTTP 200 and public readiness passed. PostgreSQL and Caddy retained three-day
+  uptime, with no new database crash/recovery events in the inspected logs.
+  Registration remains `public` with signup available; no account/message writes
+  were used as probes.
+- Available memory was **700 MiB before deployment** and **782 MiB afterward**
+  (point samples). The host OOM-kill counter remained **100**. Deployment and
+  database logs are retained in mode-0600 local operator files.
+- This documentation records the rollout separately; the deployed application
+  revision remains `cfd0c79c87207e460e7441ac3b9ba6b08fbc7eda`.
+
 ### 2026-10-31 — conversation spacing rollout through CI publication
 
 - All local branch commits were already synchronized with origin before release.

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import {tick} from 'svelte';
   import {invalidate,invalidateAll} from '$app/navigation';
   import {connectionRequest} from '$lib/connections.js';
@@ -129,7 +130,7 @@
   const content=$derived(message?messageDisplayContent(message.blocks):null);
   async function reply(all=false){replyAll=all;replyOpen=true;await tick();replyInput?.focus();}
 </script>
-<svelte:head><title>{conversationSubject || 'Messages'} · Haili</title></svelte:head>
+<svelte:head><title>{conversationSubject || 'Messages'} · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <a class="hail-back" href="/?view=connections">← Inbox</a>
 <h1 class="hail-title conversation-subject" class:sr-only={!conversationSubject}>{conversationSubject || 'Messages'}</h1>
 {#if error}<p class="hail-error" role="alert">{error}</p>{/if}

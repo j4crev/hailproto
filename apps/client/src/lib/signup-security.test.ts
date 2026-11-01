@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
 
-const { env } = vi.hoisted(() => ({ env: {} as Record<string, string> }));
+const { env } = vi.hoisted(() => ({ env: {HAIL_WEB_CLIENT_PROVIDER:"https://provider.example"} as Record<string, string> }));
 vi.mock("$env/dynamic/private", () => ({ env }));
 import { load } from "../routes/signup/recovery/+page.server.js";
 import { handle } from "../hooks.server.js";
@@ -9,7 +9,7 @@ import { load as signupLoad } from "../routes/signup/+page.server.js";
 it("keeps the recovery preview off by default and preserves nonce CSP while denying connections", async () => {
   const setHeaders = vi.fn();
   expect(() => load({ setHeaders } as never)).toThrow(expect.objectContaining({ status: 404 }));
-  env.HAIL_GUI_SIGNUP_PREVIEW = "true";
+  env.HAIL_WEB_CLIENT_SIGNUP_PREVIEW = "true";
   try {
     expect(load({ setHeaders } as never)).toEqual({});
     expect(setHeaders).toHaveBeenCalledWith(expect.objectContaining({ "cache-control": "no-store", "referrer-policy": "no-referrer" }));
@@ -18,13 +18,13 @@ it("keeps the recovery preview off by default and preserves nonce CSP while deny
     } as never);
     expect(response.headers.get("content-security-policy")).toBe("script-src 'nonce-test', connect-src 'none'; form-action 'none'; frame-ancestors 'none'");
     expect(response.headers.get("cache-control")).toBe("no-store");
-  } finally { delete env.HAIL_GUI_SIGNUP_PREVIEW; }
+  } finally { delete env.HAIL_WEB_CLIENT_SIGNUP_PREVIEW; }
 });
 
 it("keeps invited signup off by default and exposes only public pins, never service or invitation signing secrets",async()=>{
   const setHeaders=vi.fn();
   await expect(signupLoad({setHeaders} as never)).rejects.toThrow(expect.objectContaining({status:404}));
-  Object.assign(env,{HAIL_GUI_SIGNUP:"true",HAIL_GUI_PROVIDER:"https://provider.example",ALPHA_SIGNUP_MONITOR_ORIGIN:"https://monitor.example",
+  Object.assign(env,{HAIL_WEB_CLIENT_SIGNUP:"true",HAIL_WEB_CLIENT_PROVIDER:"https://provider.example",ALPHA_SIGNUP_MONITOR_ORIGIN:"https://monitor.example",
     SIGNUP_MONITOR_PUBLIC_KEY:"did:key:z6MkTest",SIGNUP_MONITOR_TOKEN:"private-service-secret",ALPHA_SIGNUP_INVITE_KEY:"private-invitation-key"});
   try{
     const value=await signupLoad({setHeaders,fetch:async()=>Response.json({mode:"invite",signupAvailable:true})} as never);

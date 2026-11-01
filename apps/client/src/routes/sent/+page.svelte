@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import {onMount} from "svelte";
   import MessageListRow from "$lib/MessageListRow.svelte";
   import {showInboxHeaders, loadHeaderPreference} from "$lib/preferences.js";
@@ -9,7 +10,7 @@
     : message.kind === 'connections' ? 'Connections' : 'Message';
 </script>
 
-<svelte:head><title>Sent · Haili</title></svelte:head>
+<svelte:head><title>Sent · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="min-w-0">
   <header class="page-heading"><h1 class="hail-title">Sent</h1></header>
   {#if data.messages.length}

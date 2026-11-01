@@ -8,8 +8,7 @@ RUN pnpm install --filter @did-plc/lib... --frozen-lockfile
 RUN pnpm --filter @did-plc/lib exec tsc --build tsconfig.build.json --force
 
 # Build on an isolated CI builder; runtime remains Bun.
-FROM node:24.18-bookworm-slim AS build
-COPY --from=oven/bun:1.4.0 /usr/local/bin/bun /usr/local/bin/bun
+FROM oven/bun:1.4.0 AS build
 WORKDIR /workspace/hailproto
 COPY package.json bun.lock tsconfig.json ./
 COPY apps/server/package.json ./apps/server/package.json
@@ -19,11 +18,8 @@ COPY apps/client/package.json ./apps/client/package.json
 COPY packages/hail-codec-ts ./packages/hail-codec-ts
 COPY packages/hail-client-support ./packages/hail-client-support
 COPY --from=plc-lib-build /workspace/hailproto/vendor/did-method-plc ./vendor/did-method-plc
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --filter hailproto --filter hail-server-ts --filter @hailproto/codec --filter @hailproto/client-support
 RUN bun run --cwd packages/hail-codec-ts build
-COPY apps/client ./apps/client
-# This limits V8 old space only. CI also caps the entire BuildKit container.
-RUN NODE_OPTIONS=--max-old-space-size=512 bun run --cwd apps/client build
 
 FROM oven/bun:1.4.0 AS dependencies
 WORKDIR /workspace/hailproto
@@ -35,7 +31,7 @@ COPY apps/client/package.json ./apps/client/package.json
 COPY --from=build /workspace/hailproto/packages/hail-codec-ts ./packages/hail-codec-ts
 COPY --from=build /workspace/hailproto/packages/hail-client-support ./packages/hail-client-support
 COPY --from=build /workspace/hailproto/vendor/did-method-plc ./vendor/did-method-plc
-RUN bun install --production --frozen-lockfile
+RUN bun install --production --frozen-lockfile --filter hail-server-ts --filter @hailproto/codec --filter @hailproto/client-support
 
 FROM oven/bun:1.4.0
 WORKDIR /workspace/hailproto/apps/server
@@ -45,8 +41,7 @@ COPY --from=dependencies /workspace/hailproto/packages/hail-codec-ts /workspace/
 COPY --from=dependencies /workspace/hailproto/packages/hail-client-support /workspace/hailproto/packages/hail-client-support
 COPY --from=dependencies /workspace/hailproto/apps/server/package.json ./package.json
 COPY --from=dependencies /workspace/hailproto/apps/server/node_modules ./node_modules
-COPY --from=dependencies /workspace/hailproto/apps/client/node_modules /workspace/hailproto/apps/client/node_modules
-COPY --from=build /workspace/hailproto/apps/client/build /workspace/hailproto/apps/client/build
+COPY --from=dependencies /workspace/hailproto/vendor /workspace/hailproto/vendor
 COPY apps/server/src ./src
 COPY apps/server/migrations ./migrations
 RUN test -f src/cli/authorize-provider-role.ts && test -f src/cli/provider-operator.ts && test -f src/cli/compact-plc-evidence.ts

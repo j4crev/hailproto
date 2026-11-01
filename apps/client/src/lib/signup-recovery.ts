@@ -1,10 +1,10 @@
 import { validSignupAddress } from "./signup.js";
 import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
-import { createUserVault, verifyUserVault, type UserVaultFile } from "../../../../packages/hail-client-support/src/vault-crypto.js";
-import { cipher, unseal } from "../../../../packages/hail-client-support/src/vault-crypto.js";
-import { signReviewedManagedGenesis } from "../../../../packages/hail-client-support/src/managed-genesis.js";
+import { createUserVault, verifyUserVault, type UserVaultFile } from "@hailproto/client-support/vault-crypto";
+import { cipher, unseal } from "@hailproto/client-support/vault-crypto";
+import { signReviewedManagedGenesis } from "@hailproto/client-support/managed-genesis";
 import { P256Keypair } from "@atproto/crypto";
-import type { PublicOnboardingPreparation } from "../../../server/src/onboarding/public.js";
+import type { PublicOnboardingPreparation } from "@hailproto/client-support/provider-contracts";
 
 export { encodeBase64Url };
 export type { UserVaultFile };

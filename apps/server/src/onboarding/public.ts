@@ -1,3 +1,5 @@
+import type {PublicOnboardingPreparation} from "@hailproto/client-support/provider-contracts";
+export type {PublicOnboardingPreparation} from "@hailproto/client-support/provider-contracts";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { isIP } from "node:net";
@@ -39,20 +41,7 @@ interface PreparationRow {
   monitor_assurance: "independent" | "reduced-assurance-alpha-v1";
 }
 
-export interface PublicOnboardingPreparation {
-  accountId: string;
-  address: string;
-  userRecoveryKey: string;
-  userIdentityKey: string;
-  providerRotationKey: string;
-  providerMessagingKey: string;
-  sourceServiceBase: string;
-  custodyProfile: "owner-controlled" | "managed";
-  managedProfileVersion: typeof MANAGED_CUSTODY_PROFILE_VERSION | null;
-  monitorOrigin: string;
-  monitorPublicKey: string;
-  monitorAssurance: "independent" | "reduced-assurance-alpha-v1";
-}
+
 
 export interface AlphaMonitoringPolicy {
   profile: "reduced-assurance-alpha-v1";

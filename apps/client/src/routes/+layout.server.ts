@@ -1,3 +1,5 @@
+import {env} from "$env/dynamic/private";
+import {brandingFromEnvironment} from "$lib/branding.js";
 import {canaryAccount, isConfigured} from "$lib/server/canary.js";
 
 export async function load({cookies, url}) {
@@ -14,5 +16,5 @@ export async function load({cookies, url}) {
       // An unavailable optional avatar must not block navigation or sign-in.
     }
   }
-  return {hasAccountSession, accountAvatar};
+  return {hasAccountSession, accountAvatar, branding: brandingFromEnvironment(env)};
 }

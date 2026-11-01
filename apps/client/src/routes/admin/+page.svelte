@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import CopyButton from "$lib/CopyButton.svelte";
   import {onMount} from "svelte";
   import ProviderStats from "$lib/ProviderStats.svelte";
@@ -39,7 +40,7 @@
     finally{busy=false;}
   }
 </script>
-<svelte:head><title>Provider administration · Hail</title><meta name="referrer" content="no-referrer" /></svelte:head>
+<svelte:head><title>Provider administration · {page.data.branding?.name ?? "Hail"}</title><meta name="referrer" content="no-referrer" /></svelte:head>
 <div class="dashboard">
   <header class="page-heading"><h1 class="hail-title">Your Hail server</h1><p>Activity and signup invitations for {data.account.provider}.</p></header>
   <section class="hail-card panel" aria-labelledby="registration-heading">

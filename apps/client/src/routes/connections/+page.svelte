@@ -1,8 +1,9 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import ConnectionCodes from "$lib/ConnectionCodes.svelte";
   let {data}=$props();
 </script>
-<svelte:head><title>Connections · Haili</title></svelte:head>
+<svelte:head><title>Connections · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="min-w-0">
   <header class="page-heading"><h1 class="hail-title">Connections</h1></header>
   <p><a href="/settings/conversations">Shared conversation preferences</a></p>

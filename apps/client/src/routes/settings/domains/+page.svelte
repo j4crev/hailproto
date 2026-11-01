@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import CopyButton from "$lib/CopyButton.svelte";
   import { PENDING_STORAGE } from "$lib/signup.js";
   import { invalidateAll } from "$app/navigation";
@@ -48,7 +49,7 @@
   }
 </script>
 
-<svelte:head><title>Custom domains · Haili</title></svelte:head>
+<svelte:head><title>Custom domains · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="mx-auto grid max-w-[860px] gap-6">
   <header class="page-heading"><a href="/settings">Settings</a><h1 class="hail-title">Custom domains</h1></header>
   <section class="hail-card grid gap-4 p-6 sm:p-8">

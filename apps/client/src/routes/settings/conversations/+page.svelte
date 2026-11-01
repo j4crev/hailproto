@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import {invalidateAll} from "$app/navigation";
   import {connectionRequest} from "$lib/connections.js";
   let {data}=$props();
@@ -13,7 +14,7 @@
     finally{saving=false;}
   }
 </script>
-<svelte:head><title>Shared conversations · Haili</title></svelte:head>
+<svelte:head><title>Shared conversations · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="mx-auto max-w-[860px]">
   <header class="page-heading"><h1 class="hail-title">Shared conversations</h1></header>
   <p><a href="/settings">Settings</a> · <a href="/connections">Connections</a></p>

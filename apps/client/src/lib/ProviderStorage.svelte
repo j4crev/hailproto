@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type {StorageStats} from "../../../server/src/operator/storage.js";
+  import type {StorageStats} from "@hailproto/client-support/provider-contracts";
   let {storage}:{storage:StorageStats|null|undefined}=$props();
   function bytes(value:number){
     if(value<1024)return `${value} B`;

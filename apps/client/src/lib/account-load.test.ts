@@ -1,9 +1,9 @@
 import {expect,it,vi} from "vitest";
 
-vi.mock("$env/dynamic/private",()=>({env:{HAIL_GUI_PROVIDER:"https://provider.example",HAIL_GUI_API_ORIGIN:"https://provider.example",HAIL_GUI_ORIGIN:"https://provider.example"}}));
+vi.mock("$env/dynamic/private",()=>({env:{HAIL_WEB_CLIENT_PROVIDER:"https://provider.example",HAIL_WEB_CLIENT_API_ORIGIN:"https://provider.example",HAIL_WEB_CLIENT_ORIGIN:"https://provider.example"}}));
 import {load} from "../routes/+page.server.js";
 import {load as loadPermissions} from "../routes/permissions/+page.server.js";
-import {AccountApiClient} from "../../../../packages/hail-client-support/src/account-api.js";
+import {AccountApiClient} from "@hailproto/client-support/account-api";
 
 const token="hails_"+"A".repeat(43),provider="https://provider.example";
 const account={type:"hailp.account",version:1,provider,accountId:"12345678-1234-1234-1234-123456789abc",did:"did:plc:"+"a".repeat(24),

@@ -1,0 +1,11 @@
+{
+	admin off
+}
+
+{$PROVIDER_DOMAIN} {
+	# Direct public ingress: overwrite caller-supplied client identity.
+	# Put no other proxy in front without reviewing this trust boundary.
+	reverse_proxy provider:3000 {
+		header_up X-Hail-Trusted-Client-IP {remote_host}
+	}
+}

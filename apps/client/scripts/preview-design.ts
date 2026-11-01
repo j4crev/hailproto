@@ -165,7 +165,7 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
 }});
 try {
   gui = Bun.spawn(['bun','build/index.js'],{cwd:new URL('..',import.meta.url).pathname,env:{...process.env,HOST:'127.0.0.1',PORT:String(guiPort),ORIGIN:origin,
-    HAIL_GUI_API_ORIGIN:origin,HAIL_GUI_ORIGIN:origin,HAIL_GUI_PROVIDER:origin,HAIL_GUI_CREDENTIAL_FALLBACK:'false',HAIL_GUI_CREDENTIAL_FILE:'',HAIL_GUI_SIGNUP_PREVIEW:'false'},stdout:'inherit',stderr:'inherit'});
+    HAIL_WEB_CLIENT_API_ORIGIN:origin,HAIL_WEB_CLIENT_ORIGIN:origin,HAIL_WEB_CLIENT_PROVIDER:origin,HAIL_WEB_CLIENT_CREDENTIAL_FALLBACK:'false',HAIL_WEB_CLIENT_CREDENTIAL_FILE:'',HAIL_WEB_CLIENT_SIGNUP_PREVIEW:'false'},stdout:'inherit',stderr:'inherit'});
   console.info(`Haili design preview: ${origin}\nFictional account; no login needed. In-memory reading, theme, Trash and selection only. Restart to reset. Ctrl+C to stop.`);
   const stop=()=>{gui?.kill();server.stop(true);process.exit(0);};process.on('SIGINT',stop);process.on('SIGTERM',stop);
   const code = await gui.exited;

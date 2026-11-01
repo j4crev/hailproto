@@ -1,3 +1,5 @@
+import type {StorageStats} from "@hailproto/client-support/provider-contracts";
+export type {StorageStats} from "@hailproto/client-support/provider-contracts";
 import type {SQL} from "bun";
 
 export const storageCategories = [
@@ -10,8 +12,7 @@ export const storageCategories = [
   {id:"other",label:"Other application data"},
 ] as const;
 type CategoryId=typeof storageCategories[number]["id"];
-export type StorageStats={databaseBytes:number;applicationBytes:number;indexBytes:number;otherDatabaseBytes:number;
-  categories:{id:CategoryId;label:string;tableBytes:number;indexBytes:number;totalBytes:number}[]};
+
 
 // Classification is by table responsibility, not by inspecting private content.
 // Unknown tables remain visible in "other" rather than disappearing from totals.

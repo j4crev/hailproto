@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {page} from "$app/state";
   import {onMount} from "svelte";
   import {startRegistration} from "@simplewebauthn/browser";
   let token=$state(""),label=$state("Replacement passkey"),busy=$state(false),complete=$state(false),message=$state("");
@@ -17,7 +18,7 @@
   }
 </script>
 
-<svelte:head><title>Replacement passkey · Haili</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
+<svelte:head><title>Replacement passkey · {page.data.branding?.name ?? "Hail"}</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
 <section class="hail-card mx-auto mt-6 flex max-w-[600px] flex-col items-start gap-5 p-6 sm:p-10">
   <h1 class="hail-title">Create a replacement passkey</h1>
   <p class="m-0 text-sm text-muted">Use a recovery enrollment link issued after proof of existing Hail owner authority. This page does not import a recovery backup, change custody or publish a PLC operation.</p>
