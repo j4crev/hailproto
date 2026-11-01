@@ -87,4 +87,6 @@ jobs:
       - name: Verify database integration (no skipped tests)
         env:
           DATABASE_TEST_ADMIN_URL: postgresql://postgres:hail-test-only@127.0.0.1:5432/postgres
-        run: bun scripts/test-database-integration.ts
+        run: |
+          bun scripts/export-account-history-schema.ts --check
+          bun scripts/test-database-integration.ts

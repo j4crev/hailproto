@@ -148,6 +148,9 @@ same operation ID always retrieves the retained result. A fresh UI operation
 within that window returns the existing batch so a page reload can recover status. Provider responses do
 not themselves grant the sender any new authority.
 
+The exact revival HTTP request, response and error shapes are defined in
+[connection-wire.md](connection-wire.md#conversation-revival).
+
 ## Storage and account portability
 
 Migrations 0092–0096 store preferences, immutable deduplicated descriptors,
@@ -164,7 +167,7 @@ Portable snapshots version 7 and managed snapshots version 8 include a separatel
 versioned `hail.conversation-history` checkpoint and digest. It carries explicit
 default/connection overrides, descriptors and historical signing evidence,
 active/expired/left membership, replay records, and terminal shared/revival
-outboxes. Older connection-history bytes keep their original v3 domain. Pending
+outboxes. Connection history uses its separate v3 checkpoint domain. Pending
 revival must drain before fencing; pending sends retain the existing drain rule.
 Imports validate exact ownership, signed descriptor linkage, roster and intent
 hashes, current canonical PLC history and historical signing keys before activation.
@@ -173,11 +176,10 @@ current source preferences and membership replace stale mutable destination
 state; absent source membership cannot restore an old active grant. Same-provider
 custody checkpoints also include conversation state and require drained work.
 
-## Compatibility and verification
+## Current profile and verification
 
 Apply migrations before deploying the server/client. Providers and transfer CLIs
-must understand envelope v4 and snapshot v7/v8 respectively. Old snapshots remain
-readable. Unsupported peers cannot accept shared delivery; recipients remain
+must understand envelope v4 and snapshot v7/v8 respectively. Earlier snapshot versions are outside the current alpha contract. Unsupported peers cannot accept shared delivery; recipients remain
 unconfirmed and the sender sees bounded per-recipient results. Never silently
 broaden connection/subscription permissions or reinterpret historical private
 copies as shared messages. Rollback scripts refuse once the corresponding

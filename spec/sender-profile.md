@@ -20,12 +20,12 @@ The client displays the separately verified Hail address with the profile. The p
 
 ## Payload
 
-Diagnostic JSON for a v1 payload:
+Diagnostic JSON for the current v2 payload (without an optional avatar):
 
 ```json
 {
   "type": "hail.sender-profile",
-  "version": 1,
+  "version": 2,
   "did": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
   "revision": 1,
   "display_name": "Example Store",
@@ -54,8 +54,10 @@ The payload is a closed Hail map under [encoding.md](encoding.md). Unknown field
 
 ### `type` And `version`
 
-`type` is the exact string `hail.sender-profile`. `version` is integer `1` for
-the original profile or integer `2` for the avatar-capable profile.
+`type` is the exact string `hail.sender-profile`. The current creation format is
+integer `2`, with optional assets. The historical v1 shape may be retained as
+signed history; accepting or creating it is not required by the current alpha
+contract.
 
 ### `did`
 

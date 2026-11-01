@@ -1,5 +1,17 @@
 # Repository agent guidance
 
+## Keep the protocol specification current
+
+Prioritize keeping `spec/` synchronized with protocol additions, removals and
+modifications in the same change. Update affected schemas, wire formats,
+authorization/state-transition rules, version inventories and conformance vectors;
+do not leave server code as the only definition of interoperable behavior.
+Distinguish protocol requirements from reference-provider policy and client/UI
+behavior. Specify the latest intended alpha formats without promising backward
+compatibility; retain a format only when it serves a current, distinct purpose.
+Record unresolved interoperability decisions explicitly rather than implying that
+implementation notes constitute a complete standard. See [the spec index](spec/README.md).
+
 ## Production provider/GUI releases
 
 Read [the routine rollout procedure](docs/release-process.md#routine-production-rollout--operators-and-agents)

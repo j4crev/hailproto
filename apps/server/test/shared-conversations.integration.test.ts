@@ -1,3 +1,5 @@
+import {assertCheckpointConformance} from "./support/account-history-conformance.js";
+import {collectConnectionHistory} from "../src/migration/connection-history.js";
 import {expect,it} from 'vitest';
 import {createHash} from 'node:crypto';
 import {createWebCryptoSigner,createWebCryptoVerifier,signPayload,verifySignedPayload,inspectSignedPayload} from '@hailproto/codec';
@@ -160,6 +162,8 @@ it.skipIf(!process.env.DATABASE_URL)('delivers shared replies between non-connec
       const owner={accountId:user.id,did:user.did,sourceGeneration:1,sourceServiceBase:origin+'/hail'},captured=new Date().toISOString();
       const history=await collectConversationHistory(db.sql,owner,captured);
       expect(validateConversationHistory(history,owner,captured)).toEqual(history);
+      await assertCheckpointConformance(history,user===a?'conversation-creator':user===b?'conversation-renewed':'conversation-left');
+      if(user===a)await assertCheckpointConformance(await collectConnectionHistory(db.sql,owner,captured),'connection-history');
       await db.sql.begin(tx=>reconstructConversations(tx,history));
       const tampered=structuredClone(history);tampered.tables.conversation_memberships[0]!.account_id=uuidV7();
       expect(()=>validateConversationHistory(tampered,owner,captured)).toThrow('portable conversation');

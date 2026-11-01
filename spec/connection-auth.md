@@ -94,7 +94,15 @@ signing, old managed-data migration preservation and rollback refusal. Remote re
 checks cross an HTTP handler boundary using real signed source proof; Chromium checks
 exercise proposal download, local vault-file refusal and signed-file submission.
 
-## Original Managed Preview (Preserved)
+## Historical managed preview (non-normative)
+
+This section records the original local implementation and is not a current
+interoperability requirement. The current identity-consent flow is defined above;
+coordinator admission and wire formats are defined in
+[connection-federation.md](connection-federation.md) and
+[connection-wire.md](connection-wire.md). In particular, historical connection
+Grants do not substitute for current coordinator authority. Alpha implementations
+need not implement this earlier format.
 
 Status: Draft wire format and opt-in managed-account preview (`CONNECTION_PREVIEW=true`).
 Preview enabled on Haili by explicit operator approval October 25, 2026. The application

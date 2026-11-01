@@ -1,23 +1,28 @@
-# Connection History Portability — In Progress
+# Connection History Portability
 
 Connections must move through the existing portable/managed account-transfer
 snapshot, staged import and fenced cutover. There is no separate downloadable
 backup format, automatic link forwarding, or new connection permission.
 
-## Implemented Snapshot/Staging Path (Deployed October 26, 2026)
+## Current Snapshot/Staging Profile
 
 `apps/server/src/migration/connection-history.ts` implements the shared
 `hail.connection-history` version-3 checkpoint domain. New exports embed it in
-portable snapshot **v5** and managed snapshot **v6**, with a deterministic
+portable snapshot **v7** and managed snapshot **v8**, with a deterministic
 `connectionCheckpointDigest`. Both carry the source serving generation. Snapshot
-signatures use distinct `hail-migration-snapshot-v5\0` / `v6\0` domains; managed
+signatures use distinct `hail-migration-snapshot-v7\0` / `hail-migration-snapshot-v8\0` domains; managed
 owner approval names the exact snapshot version and its history checkpoint also
-binds the connection digest. Legacy portable v2/v3 and managed v4 snapshots retain
-their original verification/signature domains. Old receivers reject new versions.
+binds both connection and conversation digests. The separately versioned
+conversation checkpoint is v1. Earlier snapshots are not required by the current
+alpha contract. See [transfer formats](transfer-formats.md) for exact signature
+inputs and the reference-provider snapshot boundary.
 
 Source fences now admit drained, supported history only through the existing
-authenticated transfer request. Custody transitions and obsolete native records
-remain blocked. Accounts without connection history retain their existing paths.
+authenticated transfer request. Unsupported obsolete native records remain blocked.
+Same-provider custody
+transitions include drained conversation history under their separately approved
+checkpoint procedure; they do not bypass peer handover for a provider move.
+Accounts without connection history retain their existing paths.
 Import staging validates and retains the complete checkpoint in the exact signed
 manifest bytes, without inserting its rows into live connection/approval tables.
 Connection-authorized envelopes require a connection-history snapshot version
@@ -55,8 +60,8 @@ The closed serialization domain retains:
 Explicit column projections fail closed on unknown checkpoint fields. The
 validator checks ownership, references, signed-payload linkage, digest integrity,
 terminal-state consistency and exact batch intent/audience. The checkpoint digest
-is SHA-256 over deterministic CBOR of the complete component; the future enclosing
-snapshot signature must bind it together with the account and message history.
+is SHA-256 over deterministic CBOR of the complete component; the enclosing
+snapshot signature binds it together with the account and message history.
 The checkpoint parser is structural/integrity validation, not permission to
 materialize rows into live tables. Import and handover staging now additionally
 run the historical authority verification below.
@@ -98,7 +103,7 @@ limits, not the 256 KiB single-envelope budget.
 
 Older checkpoints without the necessary peer evidence remain inert and fail this
 pass. No migration silently backfills a guessed role decision or relabels a missing
-proof as verified. Per the [pre-launch development policy](../README.md#pre-launch-development-policy--developers-and-agents),
+proof as verified. Per the [pre-launch development policy](../docs/haili-operations.md#pre-launch-development-policy--developers-and-agents),
 do **not** build a legacy-proof reconciliation subsystem to rescue existing test
 relationships. Identify and explicitly clean up unsupported records, then recreate
 those relationships under the intended design. This does not relax verification

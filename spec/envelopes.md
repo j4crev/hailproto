@@ -11,6 +11,11 @@ status mechanisms. Older version-1 implementations reject it rather than treatin
 it as a category, Grant or reply. Implementation/rollout details are in
 [connection messaging](../docs/connection-messaging.md).
 
+Version 4 and its immutable descriptor, introduction and logical parent rules
+are defined in [shared-conversations.md](shared-conversations.md). The common
+signature, body, replay, HTTP and status rules apply to all current versions;
+the authorization-specific rules govern permission rechecks.
+
 A Hail Envelope is a compact, single-recipient, signed object. It authenticates the metadata needed to authorize delivery and retrieve an immutable detached Hail Body. It does not contain the body or an arbitrary body URL.
 
 Detached body publication and retrieval are defined in [bodies.md](bodies.md). Grant authorization is defined in [grants.md](grants.md). DID key roles and service discovery are defined in [did-profile.md](did-profile.md). HTTPS submission outcomes, disclosure, and retry behavior are defined in [http-binding.md](http-binding.md).
@@ -21,7 +26,7 @@ Detached body publication and retrieval are defined in [bodies.md](bodies.md). G
 - One envelope authorizes exactly one message delivery.
 - Every semantic envelope field is covered by the sender's signature.
 - The sender signs with its currently authorized `#hail-messaging` key.
-- An envelope uses exactly one authorization mode: version 1 selects a Hail Grant or an earlier reply capability; version 2 selects an explicit active connection epoch; version 3 selects reply or connection authorization and includes a signed parent reference.
+- An envelope uses exactly one authorization mode: version 1 selects a Hail Grant or an earlier reply capability; version 2 selects an explicit active connection epoch; version 3 selects reply or connection authorization and includes a signed parent reference; version 4 selects shared-conversation authorization.
 - The body exists before envelope submission and is identified by its signed digest and metadata.
 - The body endpoint is derived from the authenticated sender DID service, never supplied by the envelope.
 - The tuple `(from, message_id)` is the delivery and idempotency key.
@@ -96,7 +101,11 @@ This identifies the signed object and provides protocol-level domain separation.
 
 ### `version`
 
-Required. The integer `1` for Grant/reply delivery, `2` for connection delivery, or `3` for threaded replies as defined below.
+Required. The integer `1` for Grant delivery, `2` for unthreaded connection
+delivery, `3` for threaded replies, or `4` for shared-conversation delivery.
+These are distinct current authorization profiles, not a sequence in which v4
+can encode every earlier mode. New replies use v3; the unthreaded v1 reply shape
+is historical and is not required for current interoperability.
 Version 2 cannot carry Grant/reply authorization; version 1 cannot carry connection
 authorization. This is a compatibility boundary, not an alternative message format.
 
@@ -217,6 +226,36 @@ A delivery that passed its final remote check before a remote disconnect can
 complete; no global cross-provider transaction or recall is implied. Delivered
 messages remain readable. Previously issued body capabilities retain their signed
 availability/expiry semantics; disconnect does not make already shared content secret.
+
+### Conversation Authorization (Version 4)
+
+The closed authorization map is:
+
+```text
+{type:"conversation", creator:DID, conversation_id:UUIDv7,
+ membership_revision:1, descriptor_hash:{algorithm:"sha-256", value:bytes32}}
+```
+
+V4 requires `conversation_message_id` (UUIDv7), prohibits `category`, and requires
+`reply:{allowed:false}`. `message_id` remains the unique per-recipient delivery ID;
+`conversation_message_id` identifies the logical message across recipient copies.
+The descriptor hash covers complete signed descriptor bytes.
+
+An optional `conversation_introduction` is exactly `{descriptor:bytes,
+connection_id:UUIDv7,epoch:positive-integer}`. Its descriptor is 1–16384 bytes;
+the complete envelope still obeys the envelope representation limit. Only the
+creator can introduce the root: `from` equals `creator`, the logical message ID
+equals `conversation_id`, and `in_reply_to` is absent. Verify the descriptor hash,
+signature, immutable roster, admission window, current connection and recipient
+policy before admitting membership.
+
+An optional `in_reply_to` is exactly `{sender:DID,message_id:UUIDv7}` and names a
+logical conversation message, not a per-recipient delivery ID. A message cannot
+name itself as its parent (same sender and logical ID). A parent never supplies
+permission. The sender and recipient enforce their own active membership; the
+recipient rechecks before body retrieval and final delivery. Full admission,
+leave, expiry, revival and portable-state rules are in
+[shared-conversations.md](shared-conversations.md).
 
 ### Grant Authorization
 
@@ -363,7 +402,7 @@ For a new submission, the recipient rejects an envelope when:
 
 Timestamp tolerance accommodates clock error; it does not extend `body.available_until` or bearer-token retention commitments. Implementations should use synchronized clocks and record the receiver's acceptance time separately from sender timestamps.
 
-The recipient re-checks envelope expiration immediately before committing completed delivery. Authorization is fixed by atomic envelope acceptance as defined in [delivery-state.md](delivery-state.md); later grant changes do not cancel accepted delivery.
+The recipient re-checks envelope expiration immediately before committing completed delivery. Grant/reply authorization is fixed by atomic envelope acceptance as defined in [delivery-state.md](delivery-state.md); later Grant changes do not cancel accepted delivery. Connection and conversation permission is rechecked before retrieval and final delivery.
 
 ## Envelope Size
 
@@ -435,7 +474,7 @@ Hail accepted      -> authenticated, authorized, and reserved for body processin
 Hail delivered     -> body verified and message durably stored
 ```
 
-The generic `received` submission outcome is not a delivery state and may lead to no protocol-state change. Acceptance fixes authorization for the envelope. A later grant restriction, expiration, or revocation applies to future envelope acceptance and does not cancel this accepted message. An accepted envelope may still fail because its body is unavailable, invalid, or not completed before the delivery deadline.
+The generic `received` submission outcome is not a delivery state and may lead to no protocol-state change. Acceptance fixes Grant/reply authorization; standing connection/conversation permission remains subject to the final checks in [delivery-state.md](delivery-state.md#connection-and-shared-conversation-authorization). A later grant restriction, expiration, or revocation applies to future envelope acceptance and does not cancel this accepted message. An accepted envelope may still fail because its body is unavailable, invalid, or not completed before the delivery deadline.
 
 The complete state machine, retry classifications, multi-recipient behavior, and signed status representation are defined in [delivery-state.md](delivery-state.md). Envelope acceptance must not be represented to the sender as completed delivery.
 

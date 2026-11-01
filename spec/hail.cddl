@@ -1,6 +1,7 @@
 ; Hail v0 structural schemas and draft QR-connection consent shapes
 ;
-; Status: Draft
+; Status: Draft; current creation profiles are listed in README.md.
+; Historical alternatives retained below are not compatibility requirements.
 ;
 ; This file defines the structural Hail Data Model shapes used by the v0
 ; specifications. The Markdown object specifications remain authoritative for
@@ -13,7 +14,6 @@ start =
   hail-grant /
   hail-connection-invitation /
   hail-connection-confirmation /
-  hail-connection-grant /
   hail-connection-control /
   hail-conversation /
   hail-conversation-revival /
@@ -141,7 +141,8 @@ consent-context = {
   "sender_profile_hash": digest
 }
 
-; Draft connection authority. Not accepted by v0 Grant/envelope endpoints.
+; Connection consent objects; federation uses connection-control and Envelope v2/v3.
+; Historical connection-grant is not the current admission mechanism.
 hail-connection-invitation = {
   "type": "hail.connection-invitation",
   "version": 1,

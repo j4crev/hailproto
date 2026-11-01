@@ -95,23 +95,21 @@ bindings; newly read evidence does not rewrite accepted history.
 
 Grant revisions, Address Bindings, Sender Profiles and Delivery Status wrappers
 also retain action-specific links to their exact strict-public decisions. Portable
-migration snapshot v3 carries the account-scoped envelope, Grant and signing links
+migration snapshot v7 (managed v8) carries the account-scoped envelope, Grant and signing links
 plus exactly the resolution bundles they reference. The destination validates that
 every link belongs to the transferred account and exact signed representation, that
 every bundle digest and subject agrees, and that no resolution bundle is dangling.
 The history stays source-attributed inside the signed snapshot; it is not refreshed
-or inserted as destination authority for a new action. Retained v2 snapshots remain
-valid for exact retries but contain no authority-history domain and therefore are
-not new cross-host preservation evidence.
+or inserted as destination authority for a new action. Earlier snapshots are outside the current alpha transfer contract.
 
-Snapshot v3 uses `hail-migration-snapshot-v3\0 || SHA-256(manifest_bytes)` as
-its source-messaging-key signature input. Its closed table domain extends v2
-with `public_plc_resolution_evidence`, `public_envelope_authority_evidence`,
-`public_grant_authority_evidence` and `public_signing_authority_evidence`.
-Resolution rows are included if and only if an exported action link references
-their digest. The outer transfer container and manifest carry the same version;
-a mismatch is invalid. Version 2 continues to use its original v2 signature
-domain and closed table set.
+Current snapshots use the source-messaging-key signature domains in
+[transfer-formats.md](transfer-formats.md), with portable version 7 and managed
+version 8. Their authority table domain includes `public_plc_resolution_evidence`,
+`public_envelope_authority_evidence`, `public_grant_authority_evidence` and
+`public_signing_authority_evidence`. Resolution rows are included exactly when
+referenced by the exported authority links; connection and conversation checkpoints
+also retain their own referenced evidence. Container and manifest versions MUST
+match. Historical snapshot domains are not current creation formats.
 
 Archived reads never become authorization for a later action simply by refreshing
 their timestamps. Migration 41 fabricates no old proof and refuses rollback after
@@ -144,7 +142,7 @@ The `public_plc_resolution_contents` view reconstructs the exact original row
 shape for authority checks and exports. Database guards permit only byte-identical
 storage rewrites with unchanged observation metadata; historical evidence remains
 immutable. Shared payload updates/deletion and evidence deletion/truncation remain
-forbidden. Legacy full-byte imports remain readable and can be compacted later.
+forbidden. Historical full-byte import support is not required by the current alpha contract.
 
 There is no automatic observation TTL or garbage collection. A resolution absent
 from the four envelope/grant/signing/onboarding link tables may still be referenced

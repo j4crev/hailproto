@@ -1,0 +1,137 @@
+{
+  "id": "conversation-renewed",
+  "source": "Synthetic shared conversation integration: actual collector and reconstruction, PUBLIC TEST MATERIAL ONLY",
+  "history": {
+    "type": "hail.conversation-history",
+    "version": 1,
+    "accountId": "99616ed5-6968-4d0b-9182-2cd3ae15f240",
+    "did": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+    "sourceGeneration": 1,
+    "sourceServiceBase": "https://provider.example.com/hail",
+    "capturedAt": "2026-11-01T17:18:04.614Z",
+    "tables": {
+      "account_conversation_preferences": [],
+      "connection_conversation_preferences": [],
+      "conversation_descriptors": [
+        {
+          "created_at": "2026-11-01T17:18:03+00:00",
+          "creator_did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "signing_key": "did:key:z6Mkpsvenc8yzMuacXQhXcvctJnKJGEdvEcDHEJt5CiHYTna",
+          "participants": [
+            "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+            "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+            "did:plc:cccccccccccccccccccccccc"
+          ],
+          "admission_until": "2026-11-08T17:18:03+00:00",
+          "conversation_id": "01a1981e-457a-74b5-a0f5-77aabf408e54",
+          "descriptor_cose": "\\xd284585aa301320378226170706c69636174696f6e2f6861696c2d636f6e766572736174696f6e2b63626f7204582f6469643a706c633a616161616161616161616161616161616161616161616161236861696c2d6d6573736167696e67a059012ca86466726f6d78206469643a706c633a6161616161616161616161616161616161616161616161616474797065716861696c2e636f6e766572736174696f6e6776657273696f6e016a637265617465645f61741a6ae7744b6c7061727469636970616e74738378206469643a706c633a61616161616161616161616161616161616161616161616178206469643a706c633a62626262626262626262626262626262626262626262626278206469643a706c633a6363636363636363636363636363636363636363636363636f61646d697373696f6e5f756e74696c1a6af0aecb6f636f6e766572736174696f6e5f6964782430316131393831652d343537612d373462352d613066352d373761616266343038653534736d656d626572736869705f7265766973696f6e01584064aa1a4fb4cf6efe768d6ff990313d0675db221e22130dc53a60dade6a9dc04db06308ab49cb3c838549b3c96167db677f12b1ac0cf736c3d48edca9b0533f0d",
+          "descriptor_hash": "\\x8f6f497b53a595af9b269f943e7fbd328f1f41e73061ce08ce8d9fbcd817d09a",
+          "signing_evidence": "{\"document\":{},\"data\":{},\"log\":[]}"
+        }
+      ],
+      "conversation_memberships": [
+        {
+          "state": "active",
+          "left_at": null,
+          "account_id": "99616ed5-6968-4d0b-9182-2cd3ae15f240",
+          "expires_at": "2028-11-01T17:18:04.463673+00:00",
+          "admitted_at": "2026-11-01T17:18:03.329121+00:00",
+          "creator_did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "conversation_id": "01a1981e-457a-74b5-a0f5-77aabf408e54",
+          "last_activity_at": null
+        }
+      ],
+      "conversation_revival_receipts": [
+        {
+          "outcome": "renewed",
+          "account_id": "99616ed5-6968-4d0b-9182-2cd3ae15f240",
+          "expires_at": "2026-11-02T17:23:04+00:00",
+          "request_id": "01a1981e-4a79-7a28-9a11-23870117d716",
+          "creator_did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "request_hash": "\\x4a2d13a915d74771218088eb829b9b3e16a6cbd40359534731ea2343efc5926e",
+          "conversation_id": "01a1981e-457a-74b5-a0f5-77aabf408e54"
+        }
+      ],
+      "conversation_revival_batches": [],
+      "conversation_revival_targets": [],
+      "connection_message_batches": [
+        {
+          "id": "01a1981e-4864-7b3a-8e18-2f8b21bd0b11",
+          "sealed": true,
+          "manifest": "\\x82a46565706f6368f6676164647265737378206469643a706c633a6161616161616161616161616161616161616161616161616c636f6e6e656374696f6e4964f66c726563697069656e7444696478206469643a706c633a616161616161616161616161616161616161616161616161a46565706f6368f6676164647265737378206469643a706c633a6363636363636363636363636363636363636363636363636c636f6e6e656374696f6e4964f66c726563697069656e7444696478206469643a706c633a636363636363636363636363636363636363636363636363",
+          "account_id": "99616ed5-6968-4d0b-9182-2cd3ae15f240",
+          "body_bytes": "\\xa366626c6f636b7381a4655f7479706565626c6f636b657374796c65666e6f726d616c686368696c6472656e81a3647465787477426f62207265706c69657320746f2065766572796f6e65655f74797065647370616e656d61726b7380686d61726b44656673806770726f66696c65657370742d316776657273696f6e01",
+          "created_at": "2026-11-01T17:18:03.879445+00:00",
+          "expires_at": "2026-11-02T17:18:03.879445+00:00",
+          "sender_did": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "cancelled_at": null,
+          "request_digest": "\\x9433410062f706cf443ef2362dc43cd017916eed762eab86dcd68c538e85cb9f",
+          "serving_generation": 1,
+          "conversation_context": "\\xa566706172656e74a26673656e64657278206469643a706c633a6161616161616161616161616161616161616161616161616a6d6573736167655f6964782430316131393831652d343537612d373462352d613066352d3737616162663430386535346763726561746f7278206469643a706c633a616161616161616161616161616161616161616161616161696c6f676963616c4964782430316131393831652d343836342d376233612d386531382d3266386232316264306231316c696e74726f64756374696f6ef46e636f6e766572736174696f6e4964782430316131393831652d343537612d373462352d613066352d373761616266343038653534"
+        },
+        {
+          "id": "01a1981e-491f-7f10-9a3b-1f8f1adbd3ef",
+          "sealed": true,
+          "manifest": "\\x82a46565706f6368f6676164647265737378206469643a706c633a6161616161616161616161616161616161616161616161616c636f6e6e656374696f6e4964f66c726563697069656e7444696478206469643a706c633a616161616161616161616161616161616161616161616161a46565706f6368f6676164647265737378206469643a706c633a6363636363636363636363636363636363636363636363636c636f6e6e656374696f6e4964f66c726563697069656e7444696478206469643a706c633a636363636363636363636363636363636363636363636363",
+          "account_id": "99616ed5-6968-4d0b-9182-2cd3ae15f240",
+          "body_bytes": "\\xa366626c6f636b7381a4655f7479706565626c6f636b657374796c65666e6f726d616c686368696c6472656e81a36474657874782a4163636570746564206265666f7265206c656176652c2064656c69766572656420616674657277617264655f74797065647370616e656d61726b7380686d61726b44656673806770726f66696c65657370742d316776657273696f6e01",
+          "created_at": "2026-11-01T17:18:04.066421+00:00",
+          "expires_at": "2026-11-02T17:18:04.066421+00:00",
+          "sender_did": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
+          "cancelled_at": null,
+          "request_digest": "\\x81abe387bfbb6a84c93c009e714e79bbec9ee022c71083466cff9d1a53bc3c6e",
+          "serving_generation": 1,
+          "conversation_context": "\\xa566706172656e74a26673656e64657278206469643a706c633a6161616161616161616161616161616161616161616161616a6d6573736167655f6964782430316131393831652d343537612d373462352d613066352d3737616162663430386535346763726561746f7278206469643a706c633a616161616161616161616161616161616161616161616161696c6f676963616c4964782430316131393831652d343931662d376631302d396133622d3166386631616462643365666c696e74726f64756374696f6ef46e636f6e766572736174696f6e4964782430316131393831652d343537612d373462352d613066352d373761616266343038653534"
+        }
+      ],
+      "connection_message_targets": [
+        {
+          "state": "submitted",
+          "attempts": 1,
+          "account_id": "99616ed5-6968-4d0b-9182-2cd3ae15f240",
+          "message_id": "01a1981e-4867-7539-add2-37fa8d50b978",
+          "connection_id": null,
+          "recipient_did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_id": "01a1981e-4864-7b3a-8e18-2f8b21bd0b11",
+          "next_attempt_at": "2026-11-01T17:18:03.879859+00:00",
+          "connection_epoch": null
+        },
+        {
+          "state": "submitted",
+          "attempts": 1,
+          "account_id": "99616ed5-6968-4d0b-9182-2cd3ae15f240",
+          "message_id": "01a1981e-4868-77fe-8b34-ed6f174389f3",
+          "connection_id": null,
+          "recipient_did": "did:plc:cccccccccccccccccccccccc",
+          "publication_id": "01a1981e-4864-7b3a-8e18-2f8b21bd0b11",
+          "next_attempt_at": "2026-11-01T17:18:03.880252+00:00",
+          "connection_epoch": null
+        },
+        {
+          "state": "submitted",
+          "attempts": 1,
+          "account_id": "99616ed5-6968-4d0b-9182-2cd3ae15f240",
+          "message_id": "01a1981e-4922-72bf-9ff6-647f09ba73cc",
+          "connection_id": null,
+          "recipient_did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "publication_id": "01a1981e-491f-7f10-9a3b-1f8f1adbd3ef",
+          "next_attempt_at": "2026-11-01T17:18:04.067077+00:00",
+          "connection_epoch": null
+        },
+        {
+          "state": "submitted",
+          "attempts": 1,
+          "account_id": "99616ed5-6968-4d0b-9182-2cd3ae15f240",
+          "message_id": "01a1981e-4923-7828-a5e1-83371d43e3b2",
+          "connection_id": null,
+          "recipient_did": "did:plc:cccccccccccccccccccccccc",
+          "publication_id": "01a1981e-491f-7f10-9a3b-1f8f1adbd3ef",
+          "next_attempt_at": "2026-11-01T17:18:04.067589+00:00",
+          "connection_epoch": null
+        }
+      ],
+      "public_plc_resolution_evidence": []
+    }
+  },
+  "digestHex": "b0714044dae26aba21cccc3fc8d6147f00960bf3c503c7b756ec0cbc1ad626ba"
+}

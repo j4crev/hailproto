@@ -6,7 +6,7 @@ This document defines the sole Hail-owned payload, body, and signed-object repre
 
 ## Protocol Boundary
 
-Deterministic Hail CBOR is used whenever a Hail-owned value is signed, hashed as protocol content, transferred as a Hail Body, or retained as exact protocol evidence. JSON is not an alternate v0 federation representation.
+Deterministic Hail CBOR is used for Hail protocol payloads, bodies and checkpoint hash inputs. The explicitly scoped reference snapshot profile in [transfer-formats.md](transfer-formats.md) instead signs a digest of exact retained JSON manifest bytes. JSON is not an alternate encoding of these signed or hashed values. Explicit HTTP bindings may wrap their exact bytes in base64url JSON fields.
 
 Externally defined formats retain their own encodings. In particular, WebFinger JRD and rendered DID documents remain JSON. RFC 9457 Problem Details and the fixed generic HTTP receipt also remain JSON. Client-to-provider APIs are outside the Hail federation boundary and may expose JSON or native application types.
 
@@ -45,7 +45,7 @@ The terms **deterministic payload bytes** and **deterministic body bytes** in Ha
 
 ## Diagnostic JSON
 
-Specifications and tools may display Hail values as diagnostic JSON. Diagnostic JSON is never signed, hashed, accepted by a federation endpoint, or treated as a canonical representation.
+Specifications and tools may display Hail values as diagnostic JSON. Diagnostic JSON is never signed, hashed, or treated as a canonical payload representation. A transport JSON wrapper is a separate, explicitly specified structure; it does not authorize substituting diagnostic JSON for its embedded CBOR/COSE bytes.
 
 Text, integers within the Hail range, booleans, null, arrays, and text-keyed maps use their corresponding JSON forms. In a schema-known byte-string field, diagnostic JSON uses the field's specified unpadded base64url text rendering. Tools must use the schema and must not automatically interpret arbitrary strings as binary values.
 
@@ -53,7 +53,7 @@ Examples in object specifications are diagnostic JSON unless explicitly identifi
 
 ## COSE_Sign1 Profile
 
-Every signed Hail v0 object is one tagged COSE_Sign1 structure under RFC 9052:
+Every object in the COSE registry below is one tagged COSE_Sign1 structure under RFC 9052. The separately domain-separated transfer records in [transfer-formats.md](transfer-formats.md) use their explicitly defined detached signatures instead:
 
 ```cbor-diag
 18([
@@ -94,8 +94,20 @@ The term **complete signed representation bytes** means the exact complete tagge
 | `hail.grant` | `application/hail-grant+cbor` | `#hail-identity` |
 | `hail.envelope` | `application/hail-envelope+cbor` | `#hail-messaging` |
 | `hail.delivery-status` | `application/hail-delivery-status+cbor` | `#hail-messaging` |
+| `hail.connection-invitation` | `application/hail-connection-invitation+cbor` | `#hail-identity` |
+| `hail.connection-confirmation` | `application/hail-connection-confirmation+cbor` | `#hail-identity` |
+| `hail.connection-control` | `application/hail-connection-control+cbor` | `#hail-messaging` |
+| `hail.conversation` | `application/hail-conversation+cbor` | creator's `#hail-messaging` |
+| `hail.conversation-revival` | `application/hail-conversation-revival+cbor` | creator's `#hail-messaging` |
 
-The HTTP representation of every signed object uses:
+The historical `hail.connection-grant` shape in the codec/CDDL is not the current
+coordinator-based connection admission mechanism. Its support is not required.
+Connection HTTP exchanges embed COSE bytes in JSON as defined in
+[connection-wire.md](connection-wire.md). Transfer wrappers and signature domains
+are defined separately in [transfer-formats.md](transfer-formats.md).
+
+
+When sent directly as an HTTP entity, a COSE object uses:
 
 ```text
 application/cose; cose-type="cose-sign1"
@@ -103,7 +115,7 @@ application/cose; cose-type="cose-sign1"
 
 Media types are parsed and compared under HTTP media-type rules, not as raw strings. For the outer signed-object type, the type and subtype must be `application/cose`, the `cose-type` parameter must have value `cose-sign1`, and no other parameter is permitted; insignificant whitespace, case-insensitive type or parameter names, and equivalent quoted or token parameter values do not cause rejection.
 
-The protected content type identifies the embedded object. The five Hail `+cbor` values are provisional until registration or final allocation, but they are fixed domain-separation values within this draft and must not be changed by implementations. Finalizing their registration is required before stable v0 publication. v0 applies no HTTP content coding to a signed COSE representation.
+The protected content type identifies the embedded object. The Hail `+cbor` values are provisional until registration or final allocation, but they are fixed domain-separation values within this draft and must not be changed by implementations. Finalizing their registration is required before stable v0 publication. v0 applies no HTTP content coding to a signed COSE representation.
 
 ## Binary Values At Text Boundaries
 
@@ -121,6 +133,9 @@ Hail uses SHA-256 but intentionally has more than one input domain:
 - A Grant revision digest hashes complete signed representation bytes and supplies both the next revision's `previous` byte string and the current strong ETag's base64url opaque value.
 - An Envelope payload digest hashes deterministic payload bytes, excluding the COSE wrapper. Replay handling and Delivery Status use this same digest.
 - A Body content digest hashes exact uncompressed deterministic body bytes.
+- A conversation descriptor hash and revival replay hash cover the complete COSE representation.
+- A connection proof hash covers the exact deterministic CBOR proof bundle; an acknowledgement hashes the complete received control COSE bytes.
+- Transfer handshake digests cover deterministic payload bytes, excluding detached signatures. Snapshot and checkpoint domains are defined in [transfer-formats.md](transfer-formats.md).
 
 Specifications must name the domain and must not use an unqualified phrase such as “canonical object hash.”
 
@@ -143,11 +158,11 @@ Object specifications may add checks but do not weaken this sequence.
 
 ## Versioning
 
-Hail v0 has one mandatory deterministic CBOR and COSE profile. The earlier JSON/JCS/JWS draft was not deployed and is not an alternate v0 representation. Supporting another encoding or security algorithm requires an explicit future profile with negotiation, downgrade prevention, digest-domain, retained-evidence, and migration rules.
+Hail defines one deterministic CBOR encoding and the COSE profile above, plus the explicitly specified transfer signature profiles. Current object versions are listed in [README.md](README.md); alpha interoperability does not require historical formats. The earlier JSON/JCS/JWS draft was not deployed and is not an alternate v0 representation. Supporting another encoding or security algorithm requires an explicit future profile with negotiation, downgrade prevention, digest-domain, retained-evidence, and migration rules.
 
 ## Structural Schemas
 
-The draft CDDL structures are maintained in [hail.cddl](hail.cddl). They define representation-level shapes and sizes. The object specifications remain authoritative for identifier grammar, Unicode normalization, ordering, conditional presence, cross-field relationships, authorization, and state transitions until those constraints are also available in executable validators.
+The draft CDDL structures for protocol objects are maintained in [hail.cddl](hail.cddl). The current transfer manifest and logical history record shapes are defined by [JSON Schema](schemas/account-history-v7-v8.json) and [account-history.md](account-history.md). They define representation-level shapes and sizes. The object specifications remain authoritative for identifier grammar, Unicode normalization, ordering, conditional presence, cross-field relationships, authorization, and state transitions until those constraints are also available in executable validators.
 
 ## Implementation Deliverables
 
