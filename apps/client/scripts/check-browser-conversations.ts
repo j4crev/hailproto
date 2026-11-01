@@ -93,7 +93,7 @@ if(sharedMode){
   assert(await evaluate(`${button('Reply all')}.disabled===false`));
   await evaluate(`${button('Reply all')}.click()`);
   await wait(async()=>evaluate(`document.querySelector('form.reply-form')?.action.endsWith('?/replyAll')`));
-  assert(await evaluate(`document.querySelector('form.reply-form').textContent.includes('all other participants')`));
+  assert.equal(await evaluate(`document.querySelector('form.reply-form label').textContent.trim()`),'Reply to everyone');
   await evaluate(`${button('Cancel')}.click()`);
   assert(await evaluate(`!document.querySelector('[aria-label="Shared conversation"]')`));
   assert(await evaluate(`document.querySelector('.participants').closest('.expanded-header')!==null`));
