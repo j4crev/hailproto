@@ -14,7 +14,7 @@ from repository changes. Initial assessment: 2026-10-29.
 - [ ] Establish the first supported release baseline and its future upgrade tests when a stable release is actually published.
 - [x] Make release publication depend on the full reusable CI workflow at the release revision.
 - [x] Confirm hosted CI passes at the deployed revision; full verification and image publication passed on 2026-10-31.
-- [ ] Configure repository branch/tag protection settings.
+- [x] Configure repository branch/tag protection settings; active rules verified on 2026-11-01.
 - [x] Add the browser recovery cryptography check to CI; verify it locally in Chromium.
 - [x] Repair and gate the full browser wizard flow; supported real-device validation remains tracked separately below.
 
@@ -106,6 +106,32 @@ return-history correction is also required for successful return transfers.
 No live deployment or database update has been performed by this task.
 
 ## Evidence log
+
+### 2026-11-01 — repository protections and Linux CLI qualification
+
+- Enabled and read back active GitHub rulesets for
+  [main](https://github.com/j4crev/hailproto/rules/26294624) and
+  [version tags](https://github.com/j4crev/hailproto/rules/26294625).
+  Main requires a pull request, resolved review threads and up-to-date `verify`
+  status from GitHub Actions (app 15368); force-push/deletion are blocked.
+  Existing `v*` tags cannot be updated or deleted. Neither ruleset has bypass
+  actors. The sole collaborator can create release tags; no second-person PR
+  approval is required.
+- Built CLI 0.1.0 with pinned Rust 1.97.1 in Ubuntu 22.04. The same archive
+  passed clean Ubuntu 22.04/glibc 2.35 and Ubuntu 24.04/glibc 2.39 checks:
+  version/help/errors, private vault creation/verification, authenticated HTTPS
+  account/inbox reads, and rejection of untrusted TLS. These are local container
+  checks, not browser/passkey or public-download acceptance.
+- Archive SHA-256: `b1d64a47f4e62fc59572366aca8649e9f06f1f40b98926ebb61ed4a549dfe3d9`.
+  Corrupt checksums and unsafe archive members are rejected before execution.
+  Workflow actionlint, CLI version/reference checks and diff checks passed.
+- Release workflow now builds on Ubuntu 22.04, tests the archive on both runtime
+  baselines, generates a signed provenance bundle, and verifies repository,
+  workflow, source ref and commit before publication. Installation instructions
+  require provenance verification before extraction/execution.
+- Hosted qualification/provenance verification and first tagged prerelease
+  download remain outstanding. No stable data-preservation promise is introduced;
+  recovery drills and real-user onboarding gates remain open.
 
 ### 2026-11-01 — native CLI shared conversations rollout
 

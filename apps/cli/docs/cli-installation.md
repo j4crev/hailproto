@@ -1,7 +1,8 @@
 # Install hailp
 
-The default executable is native Rust. Linux x86-64 is the supported release
-platform; users need system CA roots and the normal Linux C runtime, but no Bun,
+The default executable is native Rust. The release qualification targets Linux
+x86-64 on Ubuntu 22.04 (glibc 2.35) and Ubuntu 24.04 (glibc 2.39). Users need
+system CA roots and the distribution's normal C runtime, but no Bun,
 Node, pnpm or Rust installation to run a release binary.
 
 ## Download a release
@@ -28,7 +29,13 @@ Bash, replacing `X.Y.Z` with that version (without the `v` prefix):
     --output "$archive" "$base/$archive"
   curl --fail --location --proto '=https' --proto-redir '=https' \
     --output "$archive.sha256" "$base/$archive.sha256"
+  curl --fail --location --proto '=https' --proto-redir '=https' \
+    --output "$archive.sigstore.json" "$base/$archive.sigstore.json"
   sha256sum --check "$archive.sha256"
+  gh attestation verify "$archive" --bundle "$archive.sigstore.json" \
+    --repo j4crev/hailproto \
+    --signer-workflow j4crev/hailproto/.github/workflows/release-linux.yml \
+    --source-ref "refs/tags/v${version}" --deny-self-hosted-runners
   tar -xzf "$archive" hailp
   test "$(./hailp --version)" = "$version"
   install -Dm755 hailp "$HOME/.local/bin/hailp"
@@ -38,14 +45,27 @@ hailp --version
 ```
 
 Add `export PATH="$HOME/.local/bin:$PATH"` to your shell startup file if needed.
-Downloads require curl, tar and sha256sum. Checksums detect corrupted downloads;
-because both files come from the same release, they are not independent proof of
-publisher identity. Signed provenance is tracked in the production-readiness checklist.
-Do not disable TLS verification if a download fails.
+Downloads require curl, tar, sha256sum and a GitHub CLI (`gh`) supporting the
+attestation flags above. Install GitHub CLI through its official distribution
+instructions and authenticate if it requests GitHub API access. Checksums detect
+corruption; the signed Sigstore bundle binds the archive digest to this repository,
+release workflow, tag and GitHub-hosted runner. Verification happens before
+extraction or execution. Stop if verification fails; do not skip it or disable TLS.
 
-The current build uses the runner's Linux C runtime. A minimum glibc/distribution
-version has not yet been qualified. A `GLIBC_* not found` error requires a
-compatible release or a local source build; installing Bun will not fix it.
+This trusts GitHub Actions/OIDC, Sigstore's verification roots, the protected
+repository and its release maintainers. It does not prove the code is safe or
+the build reproducible, nor protect against compromise of the trusted workflow.
+For a separately reviewed commit, also pass `--source-digest FULL_COMMIT_SHA`.
+See [GitHub's verification command](https://cli.github.com/manual/gh_attestation_verify).
+
+The build environment is Ubuntu 22.04, rather than a moving `ubuntu-latest`
+runner. Every release archive must pass clean Ubuntu 22.04 and 24.04 runtime
+checks. Other distributions, older glibc, musl/Alpine, ARM64, macOS and Windows
+are not qualified. Containers exercise distribution userspace on the host kernel;
+they do not establish a minimum kernel or real desktop/passkey compatibility.
+A `GLIBC_* not found` error requires a compatible release or local source build;
+installing Bun will not fix it. First hosted qualification and downloaded-release
+acceptance remain tracked in the production-readiness checklist.
 
 ## Upgrade or uninstall
 
@@ -84,11 +104,11 @@ Alternatively, run `cargo build --release --locked` inside `apps/cli` and instal
 `target/release/hailp` directly. Put `$HOME/.local/bin` on PATH. HTTPS certificate
 verification remains enabled; keep private credentials and vaults separate.
 
-Tagged releases retain `hailp-<version>-linux-x64.tar.gz` and its SHA-256 checksum.
-Verify the checksum before extracting and installing the executable. Builds on
-newer Linux distributions may require a newer glibc; cross-distribution static
-binaries are not currently promised. The package remains private; a local build
-is not registry publication.
+Tagged releases retain `hailp-<version>-linux-x64.tar.gz`, its SHA-256 checksum,
+and its `.sigstore.json` provenance bundle. Verify both checksum and provenance
+before extracting and installing. Local source builds use the local C runtime
+and do not inherit the release compatibility promise. The package remains private;
+a local build is not registry publication.
 
 ## Development
 
@@ -112,3 +132,11 @@ packages and verifies a checksum, extracts the executable, and checks offline
 help/errors and private vault creation/verification with an empty `PATH`. It needs
 registry access or a populated Cargo cache. It proves an isolated installation
 without Bun/Node at runtime, not byte-identical builds or universal Linux support.
+
+Release qualification additionally runs `scripts/verify-artifact.py ARCHIVE VERSION`
+inside clean supported distribution containers. It tests the exact archive's
+checksum, version, help/errors, private vault creation/verification, rejection of
+untrusted TLS, and authenticated HTTPS account/inbox reads using disposable local
+fixtures. Python and OpenSSL are test tools, not CLI runtime requirements. This
+does not replace downloading the published release and completing the browser
+login quickstart with a dedicated test account.
