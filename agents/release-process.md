@@ -107,8 +107,10 @@ an untested migration/rollback path.
 ## Provider and GUI images
 
 The **Publish provider and web-client images** workflow (`publish-provider.yml`)
-requires successful push CI for the exact reviewed commit on `main`. It publishes
-separate `ghcr.io/j4crev/hailproto/provider` and
+requires a successful `verify-main` handoff for the exact reviewed commit on
+`main`. Full verification is required on the PR; the main push check reuses that
+successful run only when the merged PR head has the identical Git tree. It
+publishes separate `ghcr.io/j4crev/hailproto/provider` and
 `ghcr.io/j4crev/hailproto/provider-web-client` images. The `provider-release`
 artifact records the full commit and both immutable digest references. Initial
 platform support is Linux amd64. A push alone neither publishes nor deploys.
@@ -130,7 +132,8 @@ volumes, rollback record and retained images. `deploy/public` remains Haili's si
 profile; do not replace it with the new fresh-install profile.
 
 1. Review/commit only the intended changes, preserving other agents' edits. Push
-   and require successful CI for that exact `main` revision.
+   and require successful main verification for that exact `main` revision. The
+   quick main check proves the merged PR passed full CI for the identical tree.
 2. Dispatch publication and identify its run by the exact `headSha`:
 
    ```bash

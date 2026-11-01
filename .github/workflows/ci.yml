@@ -42,7 +42,8 @@ jobs:
 
   verify:
     needs: [docs-check]
-    if: github.event_name != 'pull_request' || needs.docs-check.outputs.docs_only != 'true'
+    if: (github.event_name != 'push' || github.ref != 'refs/heads/main') &&
+      (github.event_name != 'pull_request' || needs.docs-check.outputs.docs_only != 'true')
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -122,3 +123,89 @@ jobs:
         run: |
           bun scripts/export-account-history-schema.ts --check
           bun scripts/test-database-integration.ts
+
+  verify-main:
+    name: verify-main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [docs-check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Reuse successful PR verification for the exact merged tree
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const repository = `${owner}/${repo}`;
+            const mainSha = context.sha;
+            const associated = await github.paginate(
+              github.rest.repos.listPullRequestsAssociatedWithCommit,
+              {owner, repo, commit_sha: mainSha, per_page: 100});
+            const pull = associated.find(candidate => candidate.merged_at &&
+              candidate.base.ref === 'main' && candidate.merge_commit_sha === mainSha);
+            if (!pull) {
+              core.setFailed(`No merged PR into main is associated with ${mainSha}.`);
+              return;
+            }
+
+            const [mainCommit, testedCommit] = await Promise.all([
+              github.rest.repos.getCommit({owner, repo, ref: mainSha}),
+              github.rest.repos.getCommit({owner, repo, ref: pull.head.sha}),
+            ]);
+            const mainTree = mainCommit.data.commit.tree.sha;
+            const testedTree = testedCommit.data.commit.tree.sha;
+            if (mainTree !== testedTree) {
+              core.setFailed(`Merged commit tree ${mainTree} differs from PR head tree ${testedTree}.`);
+              return;
+            }
+
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              owner, repo, workflow_id: 'ci.yml', event: 'pull_request',
+              head_sha: pull.head.sha, per_page: 100,
+            });
+            const priorRuns = runs.filter(run => run.head_sha === pull.head.sha &&
+              run.head_branch === pull.head.ref &&
+              run.head_repository?.full_name === pull.head.repo?.full_name &&
+              run.status === 'completed' &&
+              Date.parse(run.updated_at) <= Date.parse(pull.merged_at))
+              .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
+            const run = priorRuns[0];
+            if (!run || run.status !== 'completed' || run.conclusion !== 'success') {
+              core.setFailed(`No successful PR CI run for ${pull.head.sha} completed before merge.`);
+              return;
+            }
+
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              owner, repo, run_id: run.id, per_page: 100,
+            });
+            const verify = jobs.find(job => job.name === 'verify');
+            if (verify?.conclusion !== 'success') {
+              const docsCheck = jobs.find(job => job.name === 'docs-check');
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner, repo, pull_number: pull.number, per_page: 100,
+              });
+              const isDocumentation = path => ['.md', '.mdx', '.rst', '.txt', '.adoc']
+                .some(extension => path.endsWith(extension));
+              const docsOnly = files.length > 0 && files.every(file =>
+                isDocumentation(file.filename) &&
+                (!file.previous_filename || isDocumentation(file.previous_filename))) &&
+                files.length === pull.changed_files;
+              if (verify?.conclusion !== 'skipped' || docsCheck?.conclusion !== 'success' || !docsOnly) {
+                core.setFailed(`PR CI run ${run.html_url} did not complete the required verify job.`);
+                return;
+              }
+            }
+
+            core.info(`Reused successful PR CI ${run.html_url} for merged tree ${mainTree}.`);
+            await core.summary
+              .addHeading('Reused PR verification')
+              .addLink(`PR #${pull.number}`, pull.html_url)
+              .addRaw(' · ')
+              .addLink('Successful CI run', run.html_url)
+              .addRaw(`\n\nMain commit: \`${mainSha}\`\n\nVerified tree: \`${mainTree}\``)
+              .write();
