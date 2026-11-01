@@ -244,8 +244,8 @@ browser -> provider passkey ceremony -> secure session cookie
 
 Routine account pages receive neither Hail private keys nor long-lived API
 credentials. Server-rendered routes resolve the authenticated account from the
-session. Signup has a separate, transient owner-key boundary documented in
-[public authentication](public-authentication.md); there is no fixed shared GUI credential.
+session. Signup has a separate, transient owner-key boundary; there is no fixed
+shared GUI credential.
 
 ## `hailp` And Native Application Login
 

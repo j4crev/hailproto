@@ -24,8 +24,8 @@ A TypeScript server and web client are available to deploy your own provider ser
 ## Deploy your own provider
 
 Start with the [provider setup guide](apps/server/deploy/standalone/README.md). The
-[first administrator walkthrough](docs/provider-admin-setup.md) explains the
-owner-key and monitor ceremony through first dashboard login.
+guide includes the first administrator owner-key and monitor ceremony through
+first dashboard login.
 
 ## Client capabilities
 
@@ -62,14 +62,11 @@ owner-key and monitor ceremony through first dashboard login.
 
 ## Documentation
 
-- [Production readiness](docs/production-readiness.md): release checklist and verification evidence.
 - [Install hailp](apps/cli/docs/cli-installation.md), [CLI quickstart](apps/cli/docs/cli-quickstart.md), and [command reference](apps/cli/docs/cli-reference.md).
-- [`DESIGN.md`](DESIGN.md): High-level product and protocol design.
 - [`docs/portable-custody.md`](docs/portable-custody.md): Key custody, transfer ceremony, recovery checkpoints and POC/production boundaries.
 - [`docs/passkey-authentication.md`](docs/passkey-authentication.md): Passwordless provider login, cross-platform client strategy, recovery boundaries and remaining platform validation.
 - [Key custody and offline operation](docs/portable-custody.md#key-custody-in-plain-language): Signing-role and custody comparisons, offline requirements and binding lifecycle and trust boundaries.
 - [Managed profiles and API-first clients](docs/portable-custody.md#managed-profiles-and-people-or-agents): Human/agent custody choices, owner-controlled recovery and native/`hailp` API interaction.
-- [Production provider/GUI rollouts](docs/release-process.md#routine-production-rollout--operators-and-agents): CI publication, digest deployment and retained-image rollback.
 - [Provider deployment runbook](apps/server/deploy/standalone/README.md): Strict-public provider setup and validation.
 - [User-key CLI](apps/cli/README.md): User-device vault, onboarding, Grant signing and exact-byte cutover commands.
 - [Public monitor deployment](apps/plc-monitor/deploy/public/README.md): Per-DID public PLC monitoring, reviewed bootstrap, signed attestations and external email alerts.

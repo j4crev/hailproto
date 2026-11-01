@@ -6,7 +6,7 @@ periodic renewal command, reminder or scheduled signing requirement.
 
 Use explicit publication only to replace an artifact after a change or repair a
 publication. It preserves DID-bound relationships and retained binding evidence.
-Identity-key reconciliation remains [separately constrained](grant-key-reconciliation.md).
+Identity-key reconciliation remains [separately constrained](../../../agents/grant-key-reconciliation.md).
 
 ## Commands and authority
 

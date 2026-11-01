@@ -6,7 +6,7 @@ This document defines publication, content addressing, authorization, retrieval,
 
 A Hail Envelope carries a compact descriptor for a body that already exists on the sender's Hail server. A recipient server retrieves or reuses that body only after authorizing the envelope.
 
-Safe Portable Text document semantics are defined separately in [`../BODY_FORMAT.md`](../BODY_FORMAT.md). This document treats the encoded body as immutable bytes.
+This document defines Safe Portable Text body semantics and treats the encoded body as immutable bytes.
 
 ## Core Rules
 

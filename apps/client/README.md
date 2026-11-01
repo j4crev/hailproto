@@ -26,7 +26,7 @@ accounts at your configured provider. Everyday use relies on provider passkey se
 not store API credentials or Hail keys in browser JavaScript. The opt-in local
 signup recovery preview below temporarily handles owner recovery material.
 
-The [browser-client roadmap](../../docs/browser-client-roadmap.md) tracks its
+The [browser-client roadmap](../../agents/browser-client-roadmap.md) tracks its
 incremental productization. The responsive teal client now covers the feed,
 composer, message readers, Sent, sender permissions, Account, Settings and security. The public home
 does not show private folders. Private links consistently lead to passkey sign-in
