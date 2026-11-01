@@ -4,6 +4,9 @@ export interface SessionPolicy {
   absoluteSeconds: number;
 }
 
+/** How long a passkey-authenticated browser session can authorize account rechecks. */
+export const RECENT_PASSKEY_WINDOW_MS = 10 * 60_000;
+
 export const DEFAULT_SESSION_POLICY: Readonly<SessionPolicy> = Object.freeze({
   idleSeconds: 1800,
   absoluteSeconds: 43200,

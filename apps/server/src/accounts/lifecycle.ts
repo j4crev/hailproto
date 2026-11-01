@@ -2,9 +2,10 @@ import type { SQL } from "bun";
 import type { AccountApiSession } from "./repository.js";
 import { CustomDomainError } from "./domain-proof.js";
 import { withdrawAccountBindings } from "../discovery/withdrawal.js";
+import { RECENT_PASSKEY_WINDOW_MS } from "./session-policy.js";
 
 export function requireRecentPasskey(session:AccountApiSession) {
-  if(!session.passkey_credential_id||!session.passkey_verified_at||session.passkey_verified_at.getTime()<Date.now()-300_000)
+  if(!session.passkey_credential_id||!session.passkey_verified_at||session.passkey_verified_at.getTime()<Date.now()-RECENT_PASSKEY_WINDOW_MS)
     throw new CustomDomainError(403,"Sign in again with your passkey before this operation.");
 }
 
@@ -13,7 +14,7 @@ export async function requireCurrentPasskey(tx:SQL,session:AccountApiSession) {
   if(!(await tx`SELECT s.id FROM account_passkey_sessions s JOIN account_passkeys k ON k.credential_id=s.credential_id AND k.account_id=s.account_id
     WHERE s.id=${session.credential_id} AND s.account_id=${session.account_id} AND s.credential_id=${session.passkey_credential_id!}
       AND s.revoked_at IS NULL AND k.revoked_at IS NULL AND s.expires_at>clock_timestamp()
-      AND s.created_at>clock_timestamp()-interval '5 minutes'`).length)
+      AND s.created_at>clock_timestamp()-(${RECENT_PASSKEY_WINDOW_MS}::double precision * interval '1 millisecond')`).length)
     throw new CustomDomainError(403,"Current, recently verified passkey session required.");
 }
 

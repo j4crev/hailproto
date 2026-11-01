@@ -2,6 +2,7 @@ import { CustomDomainAuthorityError } from "./custom-domain-authority.js";
 import { decodeBase64Url, encodeBase64Url, encodeDeterministic, fromDiagnosticJson, HailCodecError, inspectSignedPayload, toDiagnosticJson, type DiagnosticJson } from "@hailproto/codec";
 import type { Context, Hono } from "hono";
 import { isCoseSign1MediaType } from "../http/media-type.js";
+import { RECENT_PASSKEY_WINDOW_MS } from "./session-policy.js";
 import { GrantConflictError, type GrantRepository } from "../grants/repository.js";
 import { UserGrantError, type GrantService } from "../grants/service.js";
 import { ALL_ACCOUNT_SCOPES, CredentialConflictError, type AccountApiRepository } from "./repository.js";
@@ -264,7 +265,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         // Browser profile edits get a narrow, fresh-passkey capability rather
         // than account:write, which also authorizes unrelated account changes.
         const freshBrowserProfile = Boolean(getCookie(context,"hail_session") && session.passkey_credential_id &&
-          session.passkey_verified_at && session.passkey_verified_at.getTime() > Date.now()-5*60_000 &&
+          session.passkey_verified_at && session.passkey_verified_at.getTime() > Date.now()-RECENT_PASSKEY_WINDOW_MS &&
           session.scopes.includes("account:read"));
         if(method==="GET" ? !session.scopes.includes("account:read") :
           !session.scopes.includes("account:write") && !(method==="POST" && freshBrowserProfile))return problem(403);

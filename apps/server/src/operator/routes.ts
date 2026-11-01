@@ -6,6 +6,7 @@ import {accountRequestBytes} from "../accounts/routes.js";
 import {parseJsonWithoutDuplicateKeys} from "../discovery/strict-json.js";
 import {FixedWindowRateLimit} from "../http/rate-limit.js";
 import {OperatorError, type OperatorInvitations} from "./invitations.js";
+import {RECENT_PASSKEY_WINDOW_MS} from "../accounts/session-policy.js";
 
 import {statsRanges, type OperatorStatistics, type StatsRange} from "./stats.js";
 
@@ -36,7 +37,7 @@ export function registerOperatorRoutes(app:Hono,accounts:AccountApiRepository,in
       if(isRegistration&&!registration)return context.json({error:"Registration policy unavailable"},503);
       if(isRegistration&&context.req.method==="GET")return context.json(await registration!.read());
       if(context.req.method==="GET")return context.json(await invitations.list());
-      if(!session.passkey_verified_at||Date.now()-session.passkey_verified_at.getTime()>10*60_000)
+      if(!session.passkey_verified_at||Date.now()-session.passkey_verified_at.getTime()>RECENT_PASSKEY_WINDOW_MS)
         return context.json({error:"Sign in again before changing settings or creating invitations"},403);
       if(context.req.header("Content-Type")!=="application/json"||context.req.header("Content-Encoding"))return context.json({error:"Use JSON"},415);
       const bytes=await accountRequestBytes(context.req.raw,4096);
