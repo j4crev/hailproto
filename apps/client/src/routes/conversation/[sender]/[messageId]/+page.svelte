@@ -208,7 +208,7 @@
   .sender-identity { grid-column:2; grid-row:1 / 3; min-width:0; overflow-wrap:anywhere; }
   .sender-address { font-size:14px; font-weight:550; line-height:1.5; margin-bottom:3px; }
   .sender-address :global(.address) { white-space:normal; overflow-wrap:anywhere; }
-  .participants { grid-column:2 / -1; grid-row:3; min-width:0; overflow-wrap:anywhere; margin:0; font-size:12px; color:var(--color-muted); }
+  .participants { grid-column:1 / -1; grid-row:3; min-width:0; overflow-wrap:anywhere; margin:0; font-size:12px; color:var(--color-muted); }
   .participants summary { cursor:pointer; width:fit-content; }
   .participants ul { list-style:none; padding:0; margin:8px 0 0; display:grid; gap:6px; }
   .recipients { margin:6px 0 0; font-size:12px; color:var(--color-muted); }

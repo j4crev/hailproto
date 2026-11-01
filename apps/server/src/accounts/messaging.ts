@@ -1,3 +1,4 @@
+import {participantAddresses} from "./participant-addresses.js";
 import {connectionInbox,connectionThread} from "./connection-threads.js";
 import {inboxUpdates} from "./inbox-updates.js";
 import {conversations} from "./conversations.js";
@@ -66,28 +67,7 @@ export class AccountMessaging {
     const state=await conversationState(this.sql,session,{creator:a.creator,conversationId:a.conversation_id});
     if(!state)return undefined;
     const {descriptorHash,...view}=state;
-    const addresses=await this.sql<{did:string;address:string}[]>`
-      SELECT member.did,COALESCE(local.canonical_address,peer.peer_address) AS address
-      FROM jsonb_array_elements_text(${JSON.stringify(state.participants)}::text::jsonb) AS member(did)
-      LEFT JOIN LATERAL (
-        SELECT b.canonical_address FROM address_bindings b JOIN provider_accounts a ON a.id=b.account_id
-        WHERE b.did=member.did AND a.did=b.did AND a.onboarding_state='active' AND a.closed_at IS NULL
-          AND a.address_released_at IS NULL AND a.canonical_address=b.canonical_address AND b.selected_at IS NOT NULL
-          AND b.published_at IS NOT NULL AND (b.expires_at IS NULL OR b.expires_at>clock_timestamp())
-          AND NOT EXISTS(SELECT 1 FROM address_binding_withdrawals w WHERE w.binding_id=b.id)
-          AND NOT EXISTS(SELECT 1 FROM address_bindings newer WHERE newer.canonical_address=b.canonical_address
-            AND (newer.selected_at,newer.id)>(b.selected_at,b.id))
-          AND NOT EXISTS(SELECT 1 FROM provider_migration_fences f WHERE f.account_id=a.id AND f.state='retired')
-        ORDER BY b.selected_at DESC,b.id DESC LIMIT 1
-      ) local ON true
-      LEFT JOIN LATERAL (
-        SELECT p.peer_address FROM federated_connection_pairs p JOIN account_serving_generations g
-          ON g.account_id=p.account_id AND g.generation=p.serving_generation
-        WHERE p.account_id=${session.account_id} AND p.peer_did=member.did AND p.state='active'
-          AND NOT hail_connection_handover_blocked(p.local_did,p.peer_did) LIMIT 1
-      ) peer ON true
-      WHERE COALESCE(local.canonical_address,peer.peer_address) IS NOT NULL`;
-    return {...view,messageId:envelope.conversation_message_id!,participantAddresses:Object.fromEntries(addresses.map(row=>[row.did,row.address]))};
+    return {...view,messageId:envelope.conversation_message_id!,participantAddresses:await participantAddresses(this.sql,session.account_id,state.participants)};
   }
 
   async send(session:Pick<AccountApiSession,"did">,input:Record<string,unknown>) {
@@ -213,8 +193,9 @@ export class AccountMessaging {
         AND (${after}::text IS NULL OR (message.message_id,message.sender_did)<(${cursor?.id??null}::uuid,${cursor?.sender??null}::text))
       ORDER BY message.message_id DESC,message.sender_did DESC LIMIT ${PAGE_SIZE+1}`;
     return {messages:await Promise.all(rows.slice(0,PAGE_SIZE).map(async row=>{const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
-      return {isRead:row.is_read,messageId:row.message_id,sender:row.sender_did,senderAddress:["connection","conversation"].includes(envelope.authorization.type)?await this.connectionAddress(session.account_id,row.sender_did):row.sender_address,recipient:session.did,
-        trashedAt:row.trashed_at?.toISOString()??null,category:envelope.category??null,inReplyTo:messageParent(envelope),kind:["connection","conversation"].includes(envelope.authorization.type)?"connection":"subscription",sharedConversation:await this.sharedConversation(session,envelope),deliveredAt:row.delivered_at.toISOString(),body:bodyDocument(row.body_bytes)};})),
+      const sharedConversation=await this.sharedConversation(session,envelope);
+      return {isRead:row.is_read,messageId:row.message_id,sender:row.sender_did,senderAddress:sharedConversation?.participantAddresses[row.sender_did]??(["connection","conversation"].includes(envelope.authorization.type)?await this.connectionAddress(session.account_id,row.sender_did):row.sender_address),recipient:session.did,
+        trashedAt:row.trashed_at?.toISOString()??null,category:envelope.category??null,inReplyTo:messageParent(envelope),kind:["connection","conversation"].includes(envelope.authorization.type)?"connection":"subscription",sharedConversation,deliveredAt:row.delivered_at.toISOString(),body:bodyDocument(row.body_bytes)};})),
       next:rows.length>PAGE_SIZE?Buffer.from(JSON.stringify({id:rows[PAGE_SIZE-1]!.message_id,
         sender:rows[PAGE_SIZE-1]!.sender_did})).toString("base64url"):null};
   }
@@ -306,9 +287,10 @@ export class AccountMessaging {
         WHERE account_id=${session.account_id} AND peer_did=${sender} AND hail_connection_message_allowed(${session.did},${sender},connection_id,epoch)`)[0];
       if(pair)connection={id:pair.connection_id,epoch:Number(pair.epoch),active:true};
     }
-    return {trashedAt:rows[0].trashed_at?.toISOString()??null,isRead:rows[0].is_read,messageId:id,sender,senderAddress:["connection","conversation"].includes(envelope.authorization.type)?await this.connectionAddress(session.account_id,sender):rows[0].sender_address,recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
+    const sharedConversation=await this.sharedConversation(session,envelope);
+    return {trashedAt:rows[0].trashed_at?.toISOString()??null,isRead:rows[0].is_read,messageId:id,sender,senderAddress:sharedConversation?.participantAddresses[sender]??(["connection","conversation"].includes(envelope.authorization.type)?await this.connectionAddress(session.account_id,sender):rows[0].sender_address),recipient:session.did,category:envelope.category ?? null,reply:envelope.reply,
       inReplyTo:messageParent(envelope),kind:connection||envelope.authorization.type==='conversation'?"connection":"subscription",connection,
-      sharedConversation:await this.sharedConversation(session,envelope),
+      sharedConversation,
       replyAvailable:rows[0].trashed_at===null&&envelope.reply.allowed&&envelope.reply.until+300>=Math.floor(Date.now()/1000)&&rows[0].reply_unused,
       deliveredAt:rows[0].delivered_at.toISOString(),body:bodyDocument(rows[0].body_bytes)};
   }

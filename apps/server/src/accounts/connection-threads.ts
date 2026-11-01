@@ -1,3 +1,4 @@
+import {participantAddresses} from "./participant-addresses.js";
 import type {SQL} from 'bun';
 import type {AccountApiSession} from './repository.js';
 import type {AccountMessaging} from './messaging.js';
@@ -89,6 +90,8 @@ export async function connectionThread(sql:SQL,session:AccountApiSession,root:{s
     WHERE e.local_account_id=${session.account_id} AND d.recipient_did=${session.did} AND d.trashed_at IS NULL`;
   const addresses=await sql<{did:string;address:string}[]>`SELECT peer_did AS did,peer_address AS address FROM federated_connection_pairs WHERE account_id=${session.account_id}`;
   const address=new Map(addresses.map(a=>[a.did,a.address]));
+  const sharedAddresses=await participantAddresses(sql,session.account_id,[...new Set(page.filter(m=>m.conversation).map(m=>m.sender))]);
+  for(const [did,label] of Object.entries(sharedAddresses))address.set(did,label);
   const content=new Map(bodies.map(b=>[b.sender+'/'+b.message_id,bodyDocument(b.body_bytes) as {blocks?:{style?:string;children?:{text?:string}[]}[]}]));
   return {selected:{sender:selected.sender,messageId:selected.messageId,sent:selected.sent},total:group.messages.length,start,
     newerUnread:group.messages.slice(0,start).filter(m=>!m.sent&&!m.isRead).length,

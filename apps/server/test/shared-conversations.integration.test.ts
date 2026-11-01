@@ -11,6 +11,7 @@ import {EnvelopeRepository} from '../src/envelopes/repository.js';
 import {EnvelopeService} from '../src/envelopes/service.js';
 import {EnvelopeReceiver} from '../src/envelopes/receiver.js';
 import {AccountMessaging} from '../src/accounts/messaging.js';
+import {connectionThread} from '../src/accounts/connection-threads.js';
 import {AccountPublications} from '../src/accounts/publications.js';
 import {DeliveryRepository} from '../src/delivery/repository.js';
 import {conversationState,changeConversationMembership,reviveConversation,pruneConversationState} from '../src/accounts/conversation-memberships.js';
@@ -74,6 +75,20 @@ it.skipIf(!process.env.DATABASE_URL)('delivers shared replies between non-connec
     await publications.replyConversation(b.session,{publicationId:replyId,...identity,sender:a.did,messageId:bobRoot.message_id,text:'Bob replies to everyone'});
     expect(await publications.workOne()).toBe(true);expect(await publications.workOne()).toBe(true);await deliver();
     expect((await db.sql`SELECT message_id FROM delivered_messages WHERE recipient_did=${c.did} AND sender_did=${b.did}`).length).toBe(1);
+    const bobReply=(await messaging.inboxFeed(c.session,null,'connections')).messages.find(m=>m.sender===b.did)!;
+    expect(bobReply.senderAddress).toBe(b.address);
+    const openReply=(await messaging.read(c.session,b.did,bobReply.messageId))!;
+    expect(openReply.senderAddress).toBe(b.address);
+    expect(openReply.connection).toBeNull(); // A presentation label does not grant private replies.
+    const thread=await connectionThread(db.sql,c.session,{sender:b.did,messageId:bobReply.messageId},null);
+    expect(thread?.messages.find(m=>m.sender===b.did)?.senderAddress).toBe(b.address);
+    // An unpublished binding must not supply a label for a non-connection.
+    await expect(db.sql.begin(async tx=>{
+      await tx`UPDATE address_bindings SET published_at=NULL WHERE did=${b.did}`;
+      const hidden=await connectionThread(tx as unknown as typeof db.sql,c.session,{sender:b.did,messageId:bobReply.messageId},null);
+      expect(hidden?.messages.find(m=>m.sender===b.did)?.senderAddress).toBeNull();
+      throw Error('Restore published binding');
+    })).rejects.toThrow('Restore published binding');
     expect((await authority.targets(b.session)).map(t=>t.recipientDid)).toEqual([a.did]);
     // Retrying frozen batch IDs cannot change semantics or the roster.
     await expect(publications.createConnections(a.session,{publicationId:id,connections:targets.map(t=>t.connectionId),text:'Shared original',delivery:'private'})).rejects.toThrow('private');
