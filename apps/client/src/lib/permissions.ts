@@ -7,7 +7,7 @@ export interface SenderReview {previousDids?:string[];address:string;did:string;
   offersUncategorized:boolean;categories:{id:string;label:string;description?:string}[];}
 export interface PermissionResult {grantId:string;revision:number;status:"active"|"revoked";publication:"durable";}
 export interface BatchPermissionResult {items:{grantId:string;result:PermissionResult|null;error:string|null}[];}
-export interface Approval {previousDids?:string[];requestId:string;action:"allow"|"revoke"|"revoke-batch";expiresAt:string;approved:boolean;
+export interface Approval {previousDids?:string[];previousScope?:HailGrantScope[];requestId:string;action:"allow"|"revoke"|"revoke-batch"|"restrict";expiresAt:string;approved:boolean;
   permission:Pick<HailGrant,"grant_id"|"revision"|"grantor"|"grantee"|"expires_at">&{scope:HailGrantScope[];consent_context:{grantee_address:string}};
   options:Parameters<typeof startAuthentication>[0]["optionsJSON"]|null;
   permissions?:Approval["permission"][];
@@ -44,14 +44,25 @@ function validPermission(permission:any):boolean{
     (permission.expires_at===null||Number.isSafeInteger(permission.expires_at)&&permission.expires_at>0)&&
     typeof permission.consent_context?.grantee_address==="string"&&permission.consent_context.grantee_address.length<=254;
 }
+function validScope(scope:any):scope is HailGrantScope[]{
+  return Array.isArray(scope)&&scope.length===1&&(scope[0]?.type==="uncategorized"||scope[0]?.type==="categories"&&Array.isArray(scope[0].values)&&
+    scope[0].values.length>0&&scope[0].values.every((v:unknown)=>typeof v==="string"&&/^[a-z0-9][a-z0-9._-]{0,63}$/.test(v)));
+}
 function validResult(result:any):boolean{
   return !!result&&UUID.test(result.grantId)&&Number.isSafeInteger(result.revision)&&["active","revoked"].includes(result.status)&&result.publication==="durable";
 }
 export function approval(value:any):Approval{
   if(value?.previousDids!==undefined&&(!Array.isArray(value.previousDids)||value.previousDids.length>20||value.previousDids.some((did:unknown)=>typeof did!=="string"||!DID.test(did))))throw new Error("Invalid identity history");
-  if(!value||!UUID.test(value.requestId)||!["allow","revoke","revoke-batch"].includes(value.action)||!Number.isFinite(Date.parse(value.expiresAt))||
+  if(!value||!UUID.test(value.requestId)||!["allow","revoke","revoke-batch","restrict"].includes(value.action)||!Number.isFinite(Date.parse(value.expiresAt))||
     typeof value.approved!=="boolean"||!value.approved&&!value.options||!validPermission(value.permission))
     throw new Error("The provider returned an invalid permission review");
+  if(value.action==="restrict"){
+    const before=value.previousScope?.[0],after=value.permission.scope[0];
+    if(!validScope(value.previousScope)||before?.type!=="categories"||after?.type!=="categories"||
+      after.values.length>=before.values.length||after.values.some((category:string)=>!before.values.includes(category))||
+      value.permission.revision<2||value.permission.expires_at===undefined||value.permissions!==undefined)
+      throw new Error("The provider returned an invalid category restriction review");
+  }else if(value.previousScope!==undefined)throw new Error("The provider returned unexpected category restriction details");
   if(value.permissions!==undefined){
     const permissions=value.permissions;
     if(value.action!=="revoke-batch"||!Array.isArray(permissions)||!permissions.length||permissions.length>50||
@@ -66,6 +77,8 @@ export function approval(value:any):Approval{
           typeof item.error!=="string"||!item.error||item.error.length>512)))throw new Error("The provider returned an invalid batch result");
     }
   }else if(value.action==="revoke-batch"||value.result&&!validResult(value.result))throw new Error("The provider returned an invalid permission result");
+  if(value.action==="restrict"&&value.result&&(!validResult(value.result)||value.result.grantId!==value.permission.grant_id||
+    value.result.revision!==value.permission.revision||value.result.status!=="active"))throw new Error("The provider returned an invalid category restriction result");
   return value;
 }
 
@@ -94,11 +107,15 @@ export async function permissionRequest(step:string,body?:unknown){
   while(true){const next=await reader.read();if(next.done)break;size+=next.value.length;if(size>65_536){await reader.cancel();throw new Error("Permission response too large");}chunks.push(next.value);}
   const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
   const value=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
-  if(!response.ok)throw new PermissionRequestError(response.status,response.status===401?"Sign in with your passkey before managing permissions.":
+  if(!response.ok){
+    const detail=response.status<500&&typeof value?.error==="string"&&value.error.length<=300?value.error:null;
+    throw new PermissionRequestError(response.status,detail??(response.status===401?"Sign in with your passkey before managing permissions.":
     response.status===410?"This review expired. Check your subscriptions and start again.":
     response.status===413?"This permission review is too large. For bulk unsubscribe, select fewer subscriptions.":
     response.status===429?"Too many requests. Wait a minute and try again.":
     response.status===409?"The subscription may have changed, or your request is still being processed. Please try again.":
-    "Permission was not confirmed. Please try again. The sender must have a current published Sender Profile.");
+    response.status>=500?"Permission service unavailable. Try again shortly.":
+    "Permission request failed. Please check your details and try again."));
+  }
   return value;
 }

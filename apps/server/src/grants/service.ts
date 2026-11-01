@@ -94,8 +94,13 @@ export class GrantService {
   }
 
   async inspectSender(addressInput:string){
-    const address=await this.addressVerifier.verify(canonicalizeHailAddress(addressInput));
-    const profile=await this.profileVerifier.verify(address.did);
+    const canonicalAddress=canonicalizeHailAddress(addressInput);
+    let address:Awaited<ReturnType<AddressVerifier["verify"]>>;
+    try{address=await this.addressVerifier.verify(canonicalAddress);}
+    catch{throw new UserGrantError(409,"The sender's published Hail address could not be verified. Check the address and try again.");}
+    let profile:Awaited<ReturnType<SenderProfileVerifier["verify"]>>;
+    try{profile=await this.profileVerifier.verify(address.did);}
+    catch{throw new UserGrantError(409,"The sender's current published Sender Profile could not be retrieved or verified. Ask them to check their profile and try again.");}
     if(profile.did!==address.did||profile.serviceBase!==address.serviceBase||profile.messagingDidKey!==address.messagingDidKey)
       throw new UserGrantError(409,"Sender address and profile evidence disagree");
     return {address,profile};

@@ -221,7 +221,7 @@
     .conversation-subject { margin-bottom:16px; }
     .expanded-date { font-size:11px; padding-top:4px; }
     .sender-identity { grid-column:2; grid-row:1; }
-    .message-tools { grid-column:2 / -1; grid-row:2; justify-content:flex-end; }
+    .message-tools { grid-column:2 / -1; grid-row:2; flex-direction:column; align-items:flex-end; }
     .expanded-body { padding:0 0 24px; }
   }
 </style>
