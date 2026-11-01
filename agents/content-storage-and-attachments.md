@@ -1,32 +1,5 @@
 # Shared content storage and future attachments
 
-## Implemented: received message bodies
-
-Migration 79 stores received body bytes once per SHA-256 digest in
-`shared_content_blobs`. `verified_body_provenance` retains the independent
-recipient DID, sender DID, digest, media type, profile, and verification time.
-`delivered_messages` still records each recipient's message and delivery result.
-Sharing does not grant access or establish another recipient's provenance.
-
-The provenance table's `body_bytes` column is a write/import interface, not a
-second stored copy. Its trigger checks the body size and SHA-256 digest, inserts
-or verifies the shared bytes, and clears the column before storage. Inserts
-must supply independently verified bytes even if a matching blob exists. The
-application remains responsible for validating the body profile and envelope.
-The `verified_body_contents` view reconstructs the previous complete row shape
-for authenticated message reads and portable exports. Do not read the ingress
-column for message content or change the trigger to accept digest-only inserts.
-
-The delivery worker still retrieves and verifies each recipient's body. No
-cross-recipient cache reuse, token redemption shortcut, or public digest-based
-download endpoint is introduced. Shared bytes carry no sender, recipient,
-filename, body profile, or authorization semantics of their own.
-
-Sender-side `detached_bodies`, publication drafts, connection batches, and
-historical migration snapshots retain their existing storage. This change
-shares received content; it does not promise one physical copy across every
-server subsystem. PostgreSQL backups and replicas also retain physical copies.
-
 ## Ownership, accounting, and collection
 
 `receivedContentUsage` measures retained received bytes once per distinct digest
@@ -54,36 +27,6 @@ references and participate in collection before using this store. Do not point
 attachments or outgoing availability commitments at it without extending that
 ownership model. Reference counts alone are insufficient unless updates are
 transactional and reconcilable against authoritative references.
-
-## Upgrade, rollback, and portable migration
-
-This is a coordinated application/schema upgrade, not a rolling mixed-version
-upgrade. Old application readers access the ingress column directly and are
-incompatible after migration 79. Stop all API processes, workers, and migration
-jobs; back up the database; apply migrations with the new release; start only
-new application processes. The migration runs transactionally under the normal
-migration lock. Allow space for the backfill and PostgreSQL WAL/old row versions.
-Normal vacuum can reclaim obsolete row space for reuse after commit; no online
-file-shrinking operation is part of this change.
-
-Backfill verifies SHA-256 and preserves exact bytes, all provenance keys, and
-verification timestamps, including accounts already fenced for migration.
-Duplicate digest/byte inconsistencies fail the transaction rather than silently
-choosing a copy. The migration temporarily disables only the provenance fence
-trigger for its representation update and restores it within the transaction.
-
-Portable and managed exports use `verified_body_contents` to include complete
-body bytes in each existing portable provenance row. No blob IDs or local
-storage paths escape into portable manifests. Existing manifest validators,
-signatures, import formats, and account-level fences remain authoritative.
-Imports write the old row format; the database normalizes it into shared bytes
-and a recipient reference. Retained snapshots may still contain duplicate bytes.
-
-To roll back, stop all application processes and run
-`apps/server/migrations/rollback/0079_shared_received_bodies.sql`, then restore
-the previous application version. The transaction materializes body bytes back
-into every provenance row before removing shared storage. Ensure capacity for
-those copies. Restart the new release only after reapplying migration 79.
 
 ## Attachment design direction (not implemented)
 

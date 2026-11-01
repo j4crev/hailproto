@@ -186,7 +186,7 @@ is a separate decision, not implied by API-first operation.
 
 Current commands and capability status belong in the
 [`hailp` workflow guide](../apps/cli/docs/cli-workflows.md) and
-[`hailp` roadmap](../apps/cli/docs/cli-roadmap.md), not in this architecture
+[`hailp` roadmap](cli-roadmap.md), not in this architecture
 document. API credentials remain provider-local and never enter portable
 snapshots.
 
@@ -280,7 +280,7 @@ the user or unlock vault material, but a WebAuthn credential must not be assumed
 to produce Hail's arbitrary raw Ed25519 signatures. The reference client keeps
 routine identity signing separate from full recovery-key unlocking; platform
 keystore integration is described in
-[`device-keystore.md`](../apps/cli/docs/device-keystore.md).
+[`device-keystore.md`](device-keystore-decision.md).
 
 ### Grant lifetime and offline subscriptions
 

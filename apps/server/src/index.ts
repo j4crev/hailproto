@@ -84,7 +84,6 @@ import {ConnectionMessagingAuthority} from "./accounts/connection-authorization.
 import {ConnectionHandoverStage} from "./migration/connection-handover-stage.js";
 import {ConnectionReconstruction} from './migration/connection-reconstruction.js';
 import {ConnectionTransferOrchestration} from './migration/connection-orchestration.js';
-import {upgradeAddressBindings} from './discovery/upgrade-bindings.js';
 
 const config = loadConfig();
 const addressDiscovery = providerDiscoveryForOrigin(config.publicOrigin);
@@ -139,16 +138,6 @@ if (schemaRehearsal && (config.plcDirectoryUrl !== "http://plc:2582" ||
 }
 
 await database.migrate();
-if (!schemaRehearsal) {
-  const bindingUpgrade = await withFreshServingGenerations(database.sql, () => upgradeAddressBindings(
-    database.sql, resolver, encryptor, config.publicOrigin, {
-      enabled: process.env.ADDRESS_BINDING_V2_UPGRADE === "true",
-      withdrawOwners: (process.env.ADDRESS_BINDING_V2_WITHDRAW_OWNERS ?? "").split(",").map(v => v.trim()).filter(Boolean),
-    }, addressDiscovery));
-  if (bindingUpgrade.upgraded || bindingUpgrade.withdrawnOwners)
-    console.info(JSON.stringify({ message: "Address Binding v2 upgrade complete", ...bindingUpgrade }));
-}
-
 const publicManaged=createPublicManagedRuntime(config,database.sql,plc,onboardingRepository,encryptor,transport,
   new AddressVerifier(plc,transport.fetch,transport.validateTarget,undefined,resolver,addressDiscovery),undefined,connectionOrchestration);
 const managedTargetKeys=publicManaged?.targetKeys??targetKeys;

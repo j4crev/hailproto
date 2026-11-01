@@ -65,12 +65,11 @@ honors DNS TTLs; no application cache or scheduled domain checks are used.
 
 For a custom domain hosted by this provider, the same record names your provider
 instead of the custom domain, for example
-`_hail-provider.j4crev.com TXT "v=hail1; provider=haili.app"`. Domain registration
+`_hail-provider.example.com TXT "v=hail1; provider=haili.app"`. Domain registration
 also requires the provider-issued `_hail-domain-verify` challenge. After verification,
 Settings → Custom domains can authorize a separate signup for an exact custom
 address without an additional invitation, even in invite-only mode. General
-native-address signup still follows the provider’s registration policy. See the
-[implementation checklist](../../../../docs/custom-domains.md). With public registration enabled,
+native-address signup still follows the provider’s registration policy. With public registration enabled,
 new publishers can choose **Use a custom domain…** beside the username at `/signup`,
 prove both TXT records in the added verification step, and
 create their custom account directly without a provider-native account. The new
@@ -81,80 +80,6 @@ If registration closes before admission, standalone signup stops; already-admitt
 setups can continue through their existing recovery and passkey flow. Upgrade resolvers
 before advertising DNS-only addresses: old WebFinger-only clients cannot discover
 them. Neither record changes website hosting or SMTP email routing.
-
-### Address Binding v2 rollout and lifecycle
-
-This release uses nonexpiring version-2 Address Bindings. Existing custom-domain
-and standalone signup flows retain their account and domain ownership semantics.
-Review the account inventory and take a verified database backup before upgrading.
-
-Version 2 has a closed signed payload: `type`, `version`, `address`, `did`,
-`issued_at`, and `key_id`. There is no `expires_at` or scheduled binding renewal.
-Resolvers still verify current DNS/WebFinger publication, the exact address and
-DID, and the current validated PLC identity key, allowing at most 300 seconds of
-future issuance. Hail does not publish addresses in PLC `alsoKnownAs` or use it
-as address authority. Address or identity-key changes need explicit binding
-publication, including current custom-domain delegation checks.
-
-This alpha upgrade rejects version 1 rather than running both parsers. Plan
-one-time freshly signed v2 publication for existing accounts, preserving their
-DIDs and authorized keys. Managed accounts use the authorized provider identity
-signer; owner-controlled accounts require their owner's identity signature.
-Editing stored bytes cannot upgrade a signature. Retain historical signed evidence
-privately and coordinate compatible resolver upgrades and account publication;
-old public bindings will not verify under v2-only readers. The routine CLI
-publication command expects an existing v2 binding.
-
-For the one-time managed-account conversion, set `ADDRESS_BINDING_V2_UPGRADE=true`
-in the provider environment. Startup performs the conversion before serving
-requests or starting workers. It refuses in-progress onboarding/migration or any
-owner-controlled legacy publication unless that exact canonical address appears
-in the operator-approved comma-separated `ADDRESS_BINDING_V2_WITHDRAW_OWNERS` list.
-That list withdraws publication only; it does not delete accounts, keys or messages.
-Do not use it for an owner who expects continued address resolution.
-
-The converter checks current PLC identity, messaging and provider authority, and
-custom-domain DNS routing. It signs fresh v2 payloads with the existing managed
-identity keys, verifies the signatures, retains PLC signing evidence, and withdraws
-legacy public artifacts. All publication changes commit in one transaction;
-failures leave prior selections and signed bytes intact. Successful reruns do
-nothing. Retired accounts remain withdrawn through migration 0090. Remove the
-temporary environment settings after verifying the completed upgrade.
-
-A code-only rollback to a v1 reader is **not supported after conversion commits**.
-Preserve the pre-upgrade database backup along with the retained application image;
-prefer fixing forward. A restore requires stopping writers and restoring the
-matching database and application together, accounting for any post-upgrade data.
-The deployment wrapper's image rollback alone cannot undo this data conversion.
-
-The reference resolver does not application-cache discovery. Any future cache must
-last no more than one hour and obey shorter DNS TTL, HTTP freshness, and PLC policy
-bounds. Domain loss does not revoke DID-based grants or disable provider login,
-and binding age does not automatically withdraw a published address.
-
-The migration-retirement implementation records irreversible publication
-tombstones, hiding the retired account's WebFinger mappings and direct public COSE
-URLs while preserving private audit evidence. Settings also supports explicit
-administrator domain withdrawal and account deletion with provider-inbox erasure.
-Address reuse waits 3630 seconds; domain reassignment requires fresh ownership
-proof. Account deletion revokes access and refuses accounts with retained migration
-snapshots until snapshot erasure is supported. Forced domain takeover and
-custom-domain provider transfer remain deferred. See the
-[lifecycle details](../../../../docs/custom-domains.md#address-release-domain-withdrawal-and-account-deletion).
-
-Migration 0091 requires a coordinated upgrade: stop the old provider before the
-new provider starts and migrates the database, and replace the GUI as well. Do not
-run old/new provider replicas concurrently. PostgreSQL 17 or later is required for
-the transaction timeout used by lifecycle operations; Haili runs PostgreSQL 18.6.
-After any address release, domain withdrawal or account closure, schema rollback
-is refused. The wrapper's retained image alone is not a valid rollback after
-address reuse; prefer fixing forward and preserve the verified pre-upgrade backup.
-
-Withdrawal assumes provider cooperation: a former authority retaining a still-valid
-signature can republish it if its identity key remains current. Publication removal
-is not cryptographic revocation. The DNS ownership/setup challenges still last
-24 hours, and verified standalone admission still lasts 15 minutes; those limits
-are independent of binding lifetime.
 
 ### Provider configuration
 
@@ -256,7 +181,7 @@ must remain private. Test Docker forwarding rules as well as the host firewall.
 
 These commands are for initial setup, not updates to the managed production host.
 For ongoing Haili releases, use the
-[routine rollout](../../../../docs/release-process.md#routine-production-rollout--operators-and-agents).
+[routine rollout](../../../../agents/release-process.md#routine-production-rollout--operators-and-agents).
 
 Run from `apps/server/deploy/public`:
 
@@ -321,7 +246,7 @@ does not reload them. Keep registration invitation-only during bootstrap.
 
 ## 7. Create the administrator and invite users
 
-Follow [First provider administrator: vault to dashboard](../../../../docs/provider-admin-setup.md):
+Follow [first administrator ceremony](../standalone/README.md#first-administrator-vault-to-dashboard):
 
 1. Generate and independently back up the owner's vault on their computer.
 2. Authorize its public recovery key for the reserved administrator address.
@@ -379,7 +304,7 @@ Never restore an old dump over newly accepted writes as an application rollback.
 The checked-in `provider-ops.sh`, backup scripts and one-time setup helpers include
 Haili-specific paths, domains, bucket names and policy checks. They are examples for
 operator adaptation, not generic installers. Do not install them unchanged for a
-new domain. [Haili operations](../../../../docs/haili-operations.md) describes the
+new domain. [Haili operations](../../../../agents/haili-operations.md) describes the
 installed Haili environment; use your own reviewed service supervision, backup and
 least-privilege administration configuration.
 
@@ -392,7 +317,7 @@ connections survive moves; pending work and unsupported history remain blocked.
 ## Deploy prebuilt application images
 
 Build the separate provider and web-client images on GitHub Actions using the
-[image release procedure](../../../../docs/release-process.md#provider-and-gui-images).
+[image release procedure](../../../../agents/release-process.md#provider-and-gui-images).
 The public Compose file intentionally has no build definition. Do not run Vite,
 adapter-node or Docker builds on a live provider host. `HAIL_PROVIDER_IMAGE` and `HAIL_WEB_CLIENT_IMAGE` select
 separate immutable images on a fresh deployment. The local

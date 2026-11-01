@@ -40,32 +40,10 @@ be explicitly cleaned up and those relationships recreated under the new design.
 
 ## Ownership and response
 
-| Role | Public contact | Owner | Acknowledge | Act |
+| Role | Public contact | Acknowledge | Act |
 | --- | --- | --- | --- | --- |
-| Availability, keys and recovery | `ops@haili.app` | Jason / primary operator | 30 minutes | 2 hours |
-| Abuse and legal reports | `abuse@haili.app` | Jason / primary operator | 1 business day | Immediately for credible active harm |
-
-Both role addresses route through Cloudflare Email Routing to the verified
-operator mailbox. The catch-all is disabled. Until a second operator is named,
-there is no 24×7 human coverage; automated checks provide detection only.
-
-Follow-up, not a launch blocker:
-
-- [ ] Name a backup incident/abuse operator, grant only the access needed for the
-  role, and complete one alert acknowledgement and recovery handoff drill.
-
-For a provider outage, inspect `sudo hail-provider-ops status` and `logs`, then
-use `restart`. If a release caused the outage, use `rollback`. If the host is
-lost, provision Ubuntu with Docker, copy the repository and root-only `.env`,
-restore the latest R2 dump into a new volume on its recorded PostgreSQL major,
-reinstall the corresponding database overlay, then start services and verify the
-managed canary. Do not change DNS until account, Grant, envelope and key counts
-match the verified restore proof and all retained operational keys decrypt.
-
-For suspected key disclosure, stop onboarding and outbound sends, preserve logs,
-rotate the affected provider-controlled key through the existing PLC/custody
-procedure, revoke host and R2 credentials, and notify affected owners. Never
-delete evidence while responding to abuse.
+| Availability, keys and recovery | `ops@haili.app` | 30 minutes | 2 hours |
+| Abuse and legal reports | `abuse@haili.app` | 1 business day | Immediately for credible active harm |
 
 ## Access and key handling
 

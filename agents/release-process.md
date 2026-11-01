@@ -98,7 +98,7 @@ release acceptance remain separate evidence gates.
 ## Stable-release policy decision
 
 Before external users depend on stability, replace the pre-launch reset policy
-in `haili-operations.md`. The decision must state which versions are supported,
+in [Haili operations](haili-operations.md). The decision must state which versions are supported,
 what API/file-format changes are compatible, how users learn about breaking
 changes, and how their accounts, keys and accepted messages survive upgrades.
 This document does not silently change the current pre-launch policy or promise

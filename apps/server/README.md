@@ -10,7 +10,6 @@ strict-public provider.
 
 - [Deploy a new provider](deploy/standalone/README.md): host/domain, database, HTTPS, monitoring and signup.
 - [Provider DNS discovery](deploy/standalone/README.md#dns-discovery-for-your-provider): native-domain and custom-domain routing records.
-- [Create the first administrator](../../docs/provider-admin-setup.md): vault, monitored account, passkey and explicit operator grant.
 - [Account CLI](../cli/README.md) and [workflows](../cli/docs/cli-workflows.md).
 - [Custody, transfers and recovery](../cli/docs/custody-transitions.md).
 - [Monitor deployment](../plc-monitor/deploy/public/README.md).
@@ -34,16 +33,7 @@ address is a delivery destination, not an identity restriction.
 Use `admin@your-domain` for administration and keep `ops` for operational mail.
 No address automatically receives privileges.
 
-**Starting from nothing? Follow [First provider administrator: vault to dashboard](../../docs/provider-admin-setup.md).**
-It gives the exact order: generate/back up a local vault → extract its public
-recovery `did:key` → authorize the reserved name → complete monitored CLI signup
-→ enroll a passkey → grant operator access → log in at `/admin`. The `did:key`
-is generated locally; it is not something you need to know in advance. The
-guide defines your deployment values, uses absolute local CLI paths, and includes
-complete public-file upload, monitor enrollment, attestation download and final
-operator-grant commands. Each block identifies the machine where it runs.
-Successful passkey login alone is not sufficient: the final operator grant is
-required before `/admin` stops returning 403.
+**Starting from nothing? Follow the [standalone provider guide](deploy/standalone/README.md), which includes the complete first-admin ceremony.**
 
 Any existing active local account with a passkey can instead receive the explicit
 grant; a separate admin account is a recommendation, not a protocol requirement.
@@ -671,7 +661,7 @@ The server also runs pending migrations before binding its HTTP listener.
 Create and activate test accounts through the owner-key account API using the
 [`hailp` signup workflow](../cli/docs/cli-workflows.md#create-an-account). The
 legacy provider-custodial onboarding and activation commands have been removed.
-The public deployment profile is in [`deploy/public/README.md`](deploy/standalone/README.md).
+The public deployment profile is in [`deploy/public/README.md`](deploy/public/README.md).
 
 Initial health endpoints:
 

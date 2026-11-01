@@ -103,7 +103,7 @@ limits, not the 256 KiB single-envelope budget.
 
 Older checkpoints without the necessary peer evidence remain inert and fail this
 pass. No migration silently backfills a guessed role decision or relabels a missing
-proof as verified. Per the [pre-launch development policy](../docs/haili-operations.md#pre-launch-development-policy--developers-and-agents),
+proof as verified. Per the [pre-launch development policy](../agents/haili-operations.md#pre-launch-development-policy--developers-and-agents),
 do **not** build a legacy-proof reconciliation subsystem to rescue existing test
 relationships. Identify and explicitly clean up unsupported records, then recreate
 those relationships under the intended design. This does not relax verification

@@ -85,7 +85,7 @@ protocol, with no new selector or unsigned blocking mode.
 
 ## Signing-key boundary
 
-The [historical-key decision](grant-key-reconciliation.md) governs signer changes.
+The [historical-key decision](../../../agents/grant-key-reconciliation.md) governs signer changes.
 Ordinary update/revocation paths reject a new signer epoch instead of guessing
 historical authority. Acknowledged successor handling in custody/transfer workflows
 is separate from general reconciliation of unacknowledged history.

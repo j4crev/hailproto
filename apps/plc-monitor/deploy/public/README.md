@@ -62,7 +62,7 @@ enrolled DID before the monitor can attest.
 ## Enroll the canary
 
 For a first provider administrator, follow the complete
-[administrator setup guide](../../../../docs/provider-admin-setup.md#5-monitor-handoff-upload-enroll-and-retrieve-the-attestation).
+[administrator setup guide](../../../server/deploy/standalone/README.md#5-monitor-handoff-upload-enroll-and-retrieve-the-attestation).
 It defines the identity values, labels each machine, and provides upload and
 attestation-download commands. The abbreviated canary example below assumes
 `DID`, `GENESIS_CID` and `ALERT_WEBHOOK` have already been set in the monitor shell.

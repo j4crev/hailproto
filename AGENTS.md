@@ -14,8 +14,8 @@ implementation notes constitute a complete standard. See [the spec index](spec/R
 
 ## Production provider/GUI releases
 
-Read [the routine rollout procedure](docs/release-process.md#routine-production-rollout--operators-and-agents)
-and [production operations](docs/haili-operations.md) before deployment work.
+Read [the routine rollout procedure](agents/release-process.md#routine-production-rollout--operators-and-agents)
+and [production operations](agents/haili-operations.md) before deployment work.
 
 - Never build Docker images, run Vite, or package adapter-node on the live provider.
   Publish with `.github/workflows/publish-provider.yml` on GitHub Actions.
@@ -35,4 +35,4 @@ and [production operations](docs/haili-operations.md) before deployment work.
 - Preserve other agents' uncommitted edits; stage only your task's files or hunks.
 
 The project remains pre-launch. Follow the current-design/data compatibility policy
-in [production operations](docs/haili-operations.md#pre-launch-development-policy--developers-and-agents).
+in [production operations](agents/haili-operations.md#pre-launch-development-policy--developers-and-agents).
