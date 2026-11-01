@@ -51,17 +51,18 @@
   .message-summary { display:block; min-width:0; }
   .message-copy { display:block; min-width:0; flex:1; }
   .message-meta { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
-  .message-sender { min-width:0; font-size:14px; font-weight:650; }
+  .message-sender { min-width:0; font-size:14px; }
   .message-sender :global(.address) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .list-date { margin-left:auto; font-weight:400; }
-  .message-row:not(.is-read):not(.muted) .list-date { color:var(--color-ink); font-weight:650; }
+  .list-date { margin-left:auto; }
   .message-link { display:block; color:inherit; text-decoration:none; }
   .message-link::after { content:""; position:absolute; inset:0; }
   .message-link:focus-visible::after { outline:2px solid var(--color-brand); outline-offset:-2px; border-radius:4px; }
   .message-subject, .message-preview { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; line-height:1.6; }
-  .message-subject { margin-top:2px; font-weight:650; letter-spacing:-.015em; }
-  .is-read .message-sender, .is-read .message-subject { font-weight:450; }
-  .muted .message-sender, .muted .message-subject { font-weight:500; }
+  .message-subject { margin-top:2px; letter-spacing:-.015em; }
+  .message-sender, .message-subject, .list-date { font-weight:650; }
+  .is-read .message-sender, .is-read .message-subject, .is-read .list-date { font-weight:450; }
+  .message-row:not(.is-read):not(.muted) .list-date { color:var(--color-ink); }
+  .muted .message-sender, .muted .message-subject, .muted .list-date { font-weight:500; }
   .message-preview { color:var(--color-muted); }
   .message-details { display:block; margin-top:4px; color:var(--color-muted); font-size:12px; }
   @media(max-width:640px) { .message-row { padding:16px 0; column-gap:10px; grid-template-columns:44px minmax(0,1fr); } .message-meta { gap:8px; } .message-header { max-height:180px; } .list-date { font-size:11px; } }

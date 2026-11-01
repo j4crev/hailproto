@@ -653,7 +653,7 @@ hailp grant submit <private-signed-grant.cose>
 
 ### `grant update`
 
-Sign a full-state categorized revision; expanded permission requires fresh verified consent.
+Sign a full-state categorized revision; omitted categories are removed and expanded permission requires fresh verified consent.
 
 ```text
 hailp grant update <grant-id> --output <value> --category <value> [--vault <value>] [--expires-at <value>] [--no-expiry] [--refresh-consent] [--sender <value>]

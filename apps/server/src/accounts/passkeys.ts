@@ -1,4 +1,4 @@
-import {DEFAULT_SESSION_POLICY, type SessionPolicy} from "./session-policy.js";
+import {DEFAULT_SESSION_POLICY, RECENT_PASSKEY_WINDOW_MS, type SessionPolicy} from "./session-policy.js";
 import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {generateAuthenticationOptions,generateRegistrationOptions,verifyAuthenticationResponse,
   verifyRegistrationResponse,type AuthenticationResponseJSON,type RegistrationResponseJSON} from "@simplewebauthn/server";
@@ -38,7 +38,7 @@ export class PasskeyAuth {
 
   private management(session:AccountApiSession){
     if(session.scopes.includes("credentials:write")||session.passkey_verified_at&&
-      session.passkey_verified_at.getTime()>Date.now()-5*60_000)return;
+      session.passkey_verified_at.getTime()>Date.now()-RECENT_PASSKEY_WINDOW_MS)return;
     throw new PasskeyError(403);
   }
 
@@ -180,7 +180,7 @@ export class PasskeyAuth {
   }
 
   async completeAuthorization(session:AccountApiSession,requestId:string,state:string,code:string){
-    if(!session.passkey_credential_id||!session.passkey_verified_at||session.passkey_verified_at.getTime()<=Date.now()-5*60_000)
+    if(!session.passkey_credential_id||!session.passkey_verified_at||session.passkey_verified_at.getTime()<=Date.now()-RECENT_PASSKEY_WINDOW_MS)
       throw new PasskeyError(403);
     if(!UUID.test(requestId)||!/^[A-Za-z0-9_-]{43}$/.test(state)||!/^hailc_[A-Za-z0-9_-]{43}$/.test(code))throw new PasskeyError(400);
     return this.sql.begin(async tx=>{
@@ -261,7 +261,7 @@ export class PasskeyAuth {
       ORDER BY s.created_at DESC,s.id`;
     return {sessions:sessions.map(row=>({id:row.id,label:row.label,createdAt:row.created_at.toISOString(),
       lastSeenAt:row.last_seen_at.toISOString(),current:row.id===session.credential_id})),recentlyVerified:session.scopes.includes("credentials:write")||Boolean(session.passkey_verified_at&&
-      session.passkey_verified_at.getTime()>Date.now()-5*60_000),passkeys:rows.map(row=>({credentialId:row.credential_id,label:row.label,
+      session.passkey_verified_at.getTime()>Date.now()-RECENT_PASSKEY_WINDOW_MS),passkeys:rows.map(row=>({credentialId:row.credential_id,label:row.label,
       deviceType:row.device_type,backedUp:row.backed_up,createdAt:row.created_at.toISOString(),
       lastUsedAt:row.last_used_at?.toISOString()??null,current:row.credential_id===session.passkey_credential_id}))};
   }

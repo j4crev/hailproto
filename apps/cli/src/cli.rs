@@ -199,7 +199,7 @@ const COMMANDS: &[(&str, &str, &str, &str)] = &[
         "grant update",
         "<grant-id>",
         "output category vault expires-at no-expiry refresh-consent sender",
-        "Sign a full-state categorized revision; expanded permission requires fresh verified consent.",
+        "Sign a full-state categorized revision; omitted categories are removed and expanded permission requires fresh verified consent.",
     ),
     (
         "grant submit",

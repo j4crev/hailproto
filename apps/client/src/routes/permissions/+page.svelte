@@ -13,6 +13,7 @@
   import SelectionActions from "$lib/SelectionActions.svelte";
   let {data}=$props();
   let selectedSubscriptions=$state<string[]>([]);
+  let categoryEditor=$state<string|null>(null),categoriesToRemove=$state<Record<string,string[]>>({});
   let confirmation=$state<HTMLElement>();
   let activePermissions=$derived(data.permissions.filter(permission=>permission.status==="active"&&(permission.expiresAt===null||permission.expiresAt*1000>now)));
   let selectedPermissions=$derived(activePermissions.filter(permission=>selectedSubscriptions.includes(permission.grantId)));
@@ -22,6 +23,27 @@
     if(!selectedPermissions.length)return;
     review=null;
     draft={requestId:crypto.randomUUID(),action:"revoke",grants:selectedPermissions.map(({grantId,revision,digest})=>({grantId,revision,digest}))};
+    prepared=approval(await permissionRequest("prepare",draft));remember(prepared.requestId);
+    await tick();confirmation?.scrollIntoView({block:"center"});
+  }
+  function toggleCategoryForRemoval(grantId:string,category:string,checked:boolean){
+    const current=categoriesToRemove[grantId]??[];
+    categoriesToRemove={...categoriesToRemove,[grantId]:checked?[...new Set([...current,category])]:current.filter(value=>value!==category)};
+  }
+  async function prepareUnsubscribe(permission:typeof activePermissions[number]){
+    categoryEditor=null;review=null;
+    draft={requestId:crypto.randomUUID(),action:"revoke",grantId:permission.grantId,revision:permission.revision,digest:permission.digest};
+    prepared=approval(await permissionRequest("prepare",draft));remember(prepared.requestId);
+    await tick();confirmation?.scrollIntoView({block:"center"});
+  }
+  async function prepareCategoryRestriction(permission:typeof activePermissions[number]){
+    if(permission.scope.type!=="categories")return;
+    const removed=categoriesToRemove[permission.grantId]??[];
+    const remaining=permission.scope.values.filter(category=>!removed.includes(category));
+    if(!removed.length||!remaining.length)return;
+    categoryEditor=null;review=null;
+    draft={requestId:crypto.randomUUID(),action:"restrict",grantId:permission.grantId,revision:permission.revision,digest:permission.digest,
+      scope:{type:"categories",values:remaining}};
     prepared=approval(await permissionRequest("prepare",draft));remember(prepared.requestId);
     await tick();confirmation?.scrollIntoView({block:"center"});
   }
@@ -81,8 +103,16 @@
       message=`Unsubscribed from ${succeeded.length} ${succeeded.length===1?"subscription":"subscriptions"}.`;
       if(failed.length)message+=` ${failed.length} ${failed.length===1?"subscription changed":"subscriptions changed"} since review. Review the remaining selection to try again.`;
     }else{
+      if(completed.action==="allow"){
+        sender="";pinnedDid=undefined;selected=[];acknowledgedIdentity="";
+        if(location.hash)history.replaceState(history.state,"",location.pathname+location.search);
+      }
       if(completed.action==="revoke")selectedSubscriptions=selectedSubscriptions.filter(id=>id!==completed.permission.grant_id);
-      message=completed.action==="revoke"?"Unsubscribed.":"Sender allowed.";
+      if(completed.action==="restrict"){
+        selectedSubscriptions=selectedSubscriptions.filter(id=>id!==completed.permission.grant_id);
+        categoriesToRemove={...categoriesToRemove,[completed.permission.grant_id]:[]};
+        message="Subscription categories updated.";
+      }else message=completed.action==="revoke"?"Unsubscribed.":"Sender allowed.";
     }
     try{await invalidateAll();}catch{message+=" Refresh the page to update your subscription list.";}
   }
@@ -150,7 +180,7 @@
             {/if}
           </section>
         {:else if prepared}
-          <section class="hail-card grid gap-4 border-2 border-brand p-5 sm:p-7" aria-label="Permission confirmation" bind:this={confirmation}><p class="hail-eyebrow">Confirm with your passkey</p><h2>{prepared.action==="allow"?"Confirm allowed sender":"Confirm unsubscribe"}</h2>
+          <section class="hail-card grid gap-4 border-2 border-brand p-5 sm:p-7" aria-label="Permission confirmation" bind:this={confirmation}><p class="hail-eyebrow">Confirm with your passkey</p><h2>{prepared.action==="allow"?"Confirm allowed sender":prepared.action==="restrict"?"Confirm category changes":"Confirm unsubscribe"}</h2>
             {#if prepared.permissions}
               <p class="text-sm">Unsubscribe from {prepared.permissions.length} {prepared.permissions.length===1?"subscription":"subscriptions"}? One passkey confirmation applies to everything listed below. Your past messages are kept.</p>
               <ul class="m-0 grid max-h-[35dvh] gap-3 overflow-y-auto pl-5" aria-label="Subscriptions to unsubscribe">
@@ -158,6 +188,12 @@
                   <li class="text-sm [overflow-wrap:anywhere]"><strong>{permission.consent_context.grantee_address}</strong><br />{subscriptionScopeLabel(permission.scope[0])}<details><summary class="cursor-pointer text-xs text-muted">Sender identity</summary><code>{permission.grantee}</code></details></li>
                 {/each}
               </ul>
+            {:else if prepared.action==="restrict"&&prepared.previousScope}
+              {@const before=prepared.previousScope[0]!}
+              {@const after=prepared.permission.scope[0]!}
+              {@const removed=before.type==="categories"&&after.type==="categories"?before.values.filter(category=>!after.values.includes(category)):[]}
+              <p class="text-sm [overflow-wrap:anywhere]"><strong>{prepared.permission.consent_context.grantee_address}</strong>: remove <strong>{subscriptionScopeLabel(removed.length?{type:"categories",values:removed}:undefined)}</strong> and keep <strong>{subscriptionScopeLabel(after)}</strong>.</p>
+              <p class="text-sm">Sender identity: <code>{prepared.permission.grantee}</code></p>
             {:else}
               <p class="text-sm [overflow-wrap:anywhere]"><strong>{prepared.permission.consent_context.grantee_address}</strong> {prepared.action==="allow"?"will be allowed to send to":"will lose this permission to send to"} <strong>{data.account.address}</strong>.</p>
               <p class="text-sm">Sender identity: <code>{prepared.permission.grantee}</code></p><p class="text-sm">Scope: {subscriptionScopeLabel(prepared.permission.scope[0])}</p><p class="text-sm">Permission expiry: {#if prepared.permission.expires_at===null}Ongoing — until you unsubscribe{:else}<DateTime value={prepared.permission.expires_at*1000} />{/if}</p>
@@ -165,7 +201,7 @@
             {#if identityConflicts.length}<IdentityWarning address={prepared.permission.consent_context.grantee_address} did={prepared.permission.grantee} previousDids={identityConflicts} /><label class="flex min-h-11 items-start gap-3 text-sm"><input type="checkbox" checked={acknowledgedIdentity===identityKey} onchange={event=>acknowledgedIdentity=event.currentTarget.checked?identityKey:""} />I checked this different identity through a trusted channel and want to allow it.</label>{/if}
             <p class="text-sm text-muted">Confirm only if these are the intended sender and permissions. Your provider signs the Grant; your passkey authorizes only this reviewed action. It is not an identity recovery key.</p><p class="text-xs text-muted">Approval expires <DateTime value={prepared.expiresAt} />.</p>
             {#if !recoveryNeeded}
-              <button class="hail-button justify-self-start" disabled={busy||!identityReady||now>=Date.parse(prepared.expiresAt)} onclick={()=>run(confirmPermission)}>{prepared.action==="allow"?"Allow sender with my passkey":prepared.permissions?"Unsubscribe with my passkey":"Confirm"}</button>
+              <button class="hail-button justify-self-start" disabled={busy||!identityReady||now>=Date.parse(prepared.expiresAt)} onclick={()=>run(confirmPermission)}>{prepared.action==="allow"?"Allow sender with my passkey":prepared.action==="restrict"?"Confirm category changes":prepared.permissions?"Unsubscribe with my passkey":"Unsubscribe from all"}</button>
               {#if now>=Date.parse(prepared.expiresAt)}<p class="text-sm text-muted">This review expired. Cancel and start again.</p>{/if}
               {#if !prepared.approved}<button class="hail-button-secondary justify-self-start" disabled={busy} onclick={cancel}>Cancel</button>{/if}
             {/if}
@@ -189,6 +225,24 @@
             <dt>Categories</dt><dd>{subscriptionScopeLabel(permission.scope)}</dd>
             <dt>Duration</dt><dd>{#if permission.expiresAt===null}Until you unsubscribe{:else}Until <DateTime value={permission.expiresAt*1000} />{/if}</dd>
           </dl>
+          {#if permission.scope.type==="categories"&&permission.scope.values.length>1}
+            <button class="hail-button-secondary mt-3" disabled={busy||selectionLocked} aria-expanded={categoryEditor===permission.grantId}
+              aria-controls={`category-removal-${permission.grantId}`}
+              onclick={()=>{categoryEditor=categoryEditor===permission.grantId?null:permission.grantId;categoriesToRemove={...categoriesToRemove,[permission.grantId]:[]};}}>Choose categories to unsubscribe from</button>
+            {#if categoryEditor===permission.grantId}
+              <fieldset id={`category-removal-${permission.grantId}`} class="mt-3 grid gap-2 rounded-xl border border-solid border-line p-3">
+                <legend class="px-1 text-sm font-semibold">Categories to remove</legend>
+                {#each permission.scope.values as category}
+                  <label class="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={(categoriesToRemove[permission.grantId]??[]).includes(category)} disabled={busy}
+                    onchange={event=>toggleCategoryForRemoval(permission.grantId,category,event.currentTarget.checked)} />{category==="general"?"General":category}</label>
+                {/each}
+                <button class="hail-button-secondary justify-self-start" disabled={busy||!(categoriesToRemove[permission.grantId]??[]).length||categoriesToRemove[permission.grantId]?.length===permission.scope.values.length}
+                  onclick={()=>run(()=>prepareCategoryRestriction(permission))}>Review category changes</button>
+                {#if categoriesToRemove[permission.grantId]?.length===permission.scope.values.length}<p class="text-xs text-muted">To remove every category, use “Unsubscribe from all”.</p>{/if}
+                <button class="hail-button-secondary justify-self-start" disabled={busy} onclick={()=>run(()=>prepareUnsubscribe(permission))}>Unsubscribe from all</button>
+              </fieldset>
+            {/if}
+          {/if}
           </div>
         </article>{/each}
         </div>

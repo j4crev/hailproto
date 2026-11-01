@@ -123,6 +123,7 @@ if(sharedMode){
   await evaluate(`document.querySelector('[aria-label="More message actions"]').click()`);
   await evaluate(`${button('Revive expired participation')}.click()`);
   await wait(async()=>evaluate(`document.querySelector('[aria-label="Revival status"]')?.textContent.includes('renewed')`));
+  await wait(async()=>evaluate(`${button('Reply all')}.disabled===false`));
   assert(await evaluate(`${button('Reply all')}.disabled===false`));
   assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`));
   const own=(await(await fetch(origin+'/api/v1/account/sent')).json()).messages[0];

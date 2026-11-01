@@ -1,4 +1,4 @@
-import {DEFAULT_SESSION_POLICY, type SessionPolicy} from "../accounts/session-policy.js";
+import {DEFAULT_SESSION_POLICY, RECENT_PASSKEY_WINDOW_MS, type SessionPolicy} from "../accounts/session-policy.js";
 import { registerStandaloneDomainRoutes } from "../accounts/standalone-domain-routes.js";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -293,7 +293,7 @@ export class SignupCoordinator {
         FOR UPDATE OF c,account,g,s,key`)[0];
       if(!row)throw new SignupError(403);
       if(row.completed_at)return {state:"complete",signupId:id,accountId:row.account_id};
-      if(row.login_at.getTime()<=Date.now()-300_000)throw new SignupError(403,"Use a fresh passkey sign-in to finish setup");
+      if(row.login_at.getTime()<=Date.now()-RECENT_PASSKEY_WINDOW_MS)throw new SignupError(403,"Use a fresh passkey sign-in to finish setup");
       const retired=await tx`UPDATE public_onboarding_preparations SET signup_token_hash=NULL WHERE account_id=${row.account_id}
         AND signup_token_hash=${row.token_hash} RETURNING account_id`;
       if(!retired.length)throw new SignupError(409);

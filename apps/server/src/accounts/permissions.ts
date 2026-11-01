@@ -18,7 +18,7 @@ const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/,DID=/^did:plc:[a-z2-7
 const equal=(a:Uint8Array,b:Uint8Array)=>a.length===b.length&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
 export class PermissionError extends Error{constructor(readonly status:number,message="Permission not changed; retain the original approval and retry"){super(message);}}
 interface Approval {
-  id:string;account_id:string;session_id:string;serving_generation:number|string;action:"allow"|"revoke";
+  id:string;account_id:string;session_id:string;serving_generation:number|string;action:"allow"|"revoke"|"restrict";
   request_digest:Uint8Array;payload_bytes:Uint8Array;signing_key:string;challenge:string;expires_at:Date;
   approved_at:Date|null;credential_id:string|null;result:Record<string,unknown>|string|null;
 }
@@ -70,9 +70,18 @@ export class GrantPermissions {
   }
   private async summary(session:AccountApiSession,row:Approval){
     const {payloads,batch}=this.payloads(row);
+    let previousScope:HailGrant["scope"]|undefined;
+    if(row.action==="restrict"){
+      const payload=payloads[0];
+      if(batch||!payload||payload.status!=="active"||payload.revision<2||!payload.previous)throw new PermissionError(409,"Restricted Grant history is unavailable");
+      const previous=await this.grants.findRevisionByGrantId(payload.grant_id,payload.revision-1);
+      if(!previous||!equal(previous.digest,payload.previous))throw new PermissionError(409,"Restricted Grant history is unavailable");
+      previousScope=previous.payload.scope;
+    }
     return {requestId:row.id,action:batch?"revoke-batch":row.action,expiresAt:row.expires_at.toISOString(),approved:row.approved_at!==null,
       result:typeof row.result==="string"?JSON.parse(row.result):row.result,
       permission:toDiagnosticJson("hail.grant",payloads[0]!),
+      ...(previousScope?{previousScope}:{}),
       previousDids:row.action==="allow"?await previousAddressIdentities(this.sql,session.account_id,payloads[0]!.consent_context.grantee_address,payloads[0]!.grantee):[],
       ...(batch?{permissions:payloads.map(payload=>toDiagnosticJson("hail.grant",payload))}:{}),
       options:row.approved_at?null:await this.passkeys.actionOptions(session,row.challenge)};
@@ -81,10 +90,10 @@ export class GrantPermissions {
 
   async prepare(session:AccountApiSession,input:Record<string,unknown>){
     await this.live(session);
-    if(typeof input.requestId!=="string"||!UUID.test(input.requestId)||!["allow","revoke"].includes(input.action as string))throw new PermissionError(400);
+    if(typeof input.requestId!=="string"||!UUID.test(input.requestId)||!["allow","revoke","restrict"].includes(input.action as string))throw new PermissionError(400);
     const batch=input.action==="revoke"&&Array.isArray(input.grants);
     const allowed=input.action==="allow"?["requestId","action","sender","senderDid","addressDigest","profileDigest","scope","expiresAt"]:
-      batch?["requestId","action","grants"]:["requestId","action","grantId","revision","digest"];
+      batch?["requestId","action","grants"]:input.action==="restrict"?["requestId","action","grantId","revision","digest","scope"]:["requestId","action","grantId","revision","digest"];
     if(Object.keys(input).length!==allowed.length||Object.keys(input).some(k=>!allowed.includes(k)))throw new PermissionError(400);
     const digest=new Uint8Array(createHash("sha256").update(encodeDeterministic(input as never)).digest());
     const prior=(await this.sql<Approval[]>`SELECT * FROM account_grant_approvals WHERE id=${input.requestId}`)[0];
@@ -103,6 +112,21 @@ export class GrantPermissions {
       if(payload.grantee!==input.senderDid||encodeBase64Url(payload.consent_context.address_binding_hash.value)!==input.addressDigest||
         encodeBase64Url(payload.consent_context.sender_profile_hash.value)!==input.profileDigest)
         throw new PermissionError(409,"Sender identity or profile changed. Review it again before approving");
+    }else if(input.action==="restrict"){
+      if(typeof input.grantId!=="string"||!UUID.test(input.grantId)||!Number.isSafeInteger(input.revision)||typeof input.digest!=="string")
+        throw new PermissionError(400,"Choose a current subscription to update");
+      const current=await this.grants.findCurrentByGrantId(input.grantId);
+      if(!current||current.localAccountId!==session.account_id||current.localRole!=="grantor"||current.payload.status!=="active"||
+        current.payload.revision!==input.revision||encodeBase64Url(current.digest)!==input.digest)
+        throw new PermissionError(409,"Permission changed. Refresh and review the current categories again");
+      const currentScope=current.payload.scope[0];
+      const nextScope=input.scope as {type?:unknown;values?:unknown};
+      if(currentScope?.type!=="categories"||!nextScope||nextScope.type!=="categories"||!Array.isArray(nextScope.values)||
+        !nextScope.values.length||nextScope.values.length>=currentScope.values.length||
+        nextScope.values.some(value=>typeof value!=="string"||!currentScope.values.includes(value))||new Set(nextScope.values).size!==nextScope.values.length)
+        throw new PermissionError(400,"Keep at least one currently subscribed category, or unsubscribe from all");
+      payload=await this.service.prepareUserSignedUpdate(session.canonical_address,current.payload.grant_id,{scope:nextScope as never,
+        expiresAt:current.payload.expires_at,expectedRevision:current.payload.revision,expectedDigest:current.digest,refreshConsent:false});
     }else{
       const selections=batch?input.grants as Record<string,unknown>[]:[input];
       if(selections.length>50)throw new PermissionError(413,"Select at most 50 subscriptions");
@@ -121,8 +145,9 @@ export class GrantPermissions {
     const account=await this.accounts.describe(session,this.origin);
     if(account.custodyProfile!=="managed"||!account.identityPublicKey)throw new PermissionError(403);
     const encoded=encodeDeterministic(payload);if(encoded.length>16384)throw new PermissionError(413,"Selection is too large. Select fewer subscriptions");
+    const storedAction=input.action==="allow"?"allow":input.action==="restrict"?"restrict":"revoke";
     await this.sql`INSERT INTO account_grant_approvals(id,account_id,serving_generation,session_id,action,request_digest,payload_bytes,signing_key,challenge)
-      VALUES(${input.requestId},${session.account_id},${session.serving_generation??1},${session.credential_id},${input.action as string},
+      VALUES(${input.requestId},${session.account_id},${session.serving_generation??1},${session.credential_id},${storedAction},
         ${digest},${encoded},${account.identityPublicKey},${encodeBase64Url(randomBytes(32))}) ON CONFLICT (id) DO NOTHING`;
     const row=await this.row(session,input.requestId);
     if(!equal(row.request_digest,digest))throw new PermissionError(409);
@@ -189,7 +214,7 @@ export class GrantPermissions {
         result={items};
       }else{
         const payload=payloads[0]!;
-        const saved=row.action==="allow"?await this.service.updateManaged(session.did,payload,row.signing_key):await this.revoke(session,row,payload);
+        const saved=row.action==="allow"||row.action==="restrict"?await this.service.updateManaged(session.canonical_address,payload,row.signing_key):await this.revoke(session,row,payload);
         result=this.savedResult(saved);
       }
       await this.sql`UPDATE account_grant_approvals SET result=(${JSON.stringify(result)}::text)::jsonb WHERE id=${id} AND result IS NULL`;
@@ -230,7 +255,9 @@ export function registerPermissionRoutes(app:Hono,permissions:GrantPermissions,a
       });
     }catch(error){
       const status=error instanceof PermissionError||error instanceof PasskeyError||error instanceof UserGrantError?error.status:503;
-      return new Response(JSON.stringify({error:error instanceof PermissionError?error.message:"Permission not changed or not confirmed. Check the original approval before retrying"}),
+      const message=error instanceof PermissionError||error instanceof PasskeyError||error instanceof UserGrantError?error.message:
+        "Permission not changed or not confirmed. Check the original approval before retrying";
+      return new Response(JSON.stringify({error:message}),
         {status,headers:{"Content-Type":"application/json","Cache-Control":"no-store",...(status===503?{"Retry-After":"15"}:{})}});
     }
   });

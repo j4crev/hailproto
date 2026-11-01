@@ -738,6 +738,7 @@ try{
   assert.deepEqual(await styles('[aria-label="Permission confirmation"]',["borderTopWidth","borderTopColor"]),["2px","rgb(18, 115, 101)"]);
   assert.equal(allowed,null);assert(await has("alice@provider.example.com"));
   await click("Allow sender with my passkey");await wait(async()=>evaluate(`document.querySelector('button[aria-label^="Select subscription to"]')?.disabled===false`),"passkey-approved permission saved");
+  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),"","Completed subscription clears the sender address");
   await evaluate(`document.querySelector('button[aria-label^="Select subscription to"]').click()`);
   assert.equal(allowed!.status,"active");await click("Unsubscribe");await wait(()=>has("Confirm unsubscribe"),"subscription unsubscribe review");
   await click("Cancel");assert.equal(allowed!.status,"active","Cancel leaves subscription active");
@@ -876,14 +877,17 @@ try{
   await wait(async()=>evaluate(`document.querySelector('form[aria-label="Profile photo"] fieldset')?.disabled===false`),'account hydration ready');
   await click("Verify to manage");await wait(async()=>evaluate(`location.search==='?fresh=1' && [...document.querySelectorAll('button')].find(b=>b.textContent==='Add passkey')?.disabled===false`),"fresh passkey verification unlocks management");
   generalAvailable=true;
-  await cdp("Page.navigate",{url:origin+"/permissions?general-proof=1"});await wait(()=>has("Sender’s Hail address"),"General subscription screen");
-  await fill("Sender’s Hail address",peerAddress);await click("Continue");
+  await cdp("Page.navigate",{url:origin+"/permissions?general-proof=1#"+new URLSearchParams({sender:peerAddress,did:peerDid})});await wait(()=>has("QR identity pin:"),"General subscription screen from sender QR");
+  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
+  await click("Continue");
   await wait(async()=>evaluate(`!!document.querySelector('input[value=general]')`),"General is an ordinary offered category");
   assert(!await has("Allow uncategorized messages instead"));
   await evaluate(`document.querySelector('input[value=general]').click()`);
   await click("Review permission");await wait(()=>has("Confirm allowed sender"),"review General subscription");
   assert(await has("Scope: General"));await click("Allow sender with my passkey");
   await wait(async()=>evaluate(`[...document.querySelectorAll('[aria-label="Subscriptions"] article dd')].some(p=>p.textContent==='General')`),"new General subscription saved");
+  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),"");
+  assert.equal(await evaluate(`location.hash`),"");
   assert.equal(allowed!.revision,1);assert.deepEqual(allowed!.scope,[{type:"categories",values:["general"]}]);
   // Separate permanent/expiring codes and real browser passkey confirmation (API fixtures).
   await cdp("Page.navigate",{url:origin+"/connections?connections=1"});await wait(()=>has("Create my QR code"),"personal connection code creation");

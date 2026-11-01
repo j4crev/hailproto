@@ -79,7 +79,7 @@
         <form class="grid gap-3 border-t border-line pt-4" onsubmit={event=>{event.preventDefault();void run(async()=>{
           await request(`/${item.id}/withdraw`,{domain:withdrawNames[item.id]});message="Domain withdrawn. Its addresses can be claimed again after one hour with fresh ownership proof.";
         });}}>
-          <p class="m-0 text-sm">Withdraw this domain to stop publishing all its addresses and cancel pending address authorizations. Existing accounts keep their inboxes and conversations. This cannot be undone; a new registration creates new address authority. Sign in with your passkey within the last five minutes.</p>
+          <p class="m-0 text-sm">Withdraw this domain to stop publishing all its addresses and cancel pending address authorizations. Existing accounts keep their inboxes and conversations. This cannot be undone; a new registration creates new address authority. Sign in with your passkey within the last ten minutes.</p>
           <label class="hail-field"><span>Type {item.domain} to confirm withdrawal</span><input bind:value={withdrawNames[item.id]} disabled={busy} autocomplete="off" /></label>
           <button class="hail-button-secondary" disabled={busy||withdrawNames[item.id]!==item.domain}>Withdraw domain</button>
         </form>

@@ -28,7 +28,7 @@ it("permission requests use only the bounded same-origin cookie API, never QR-se
     await expect(permissionRequest("https://evil.example/commit",{})).rejects.toThrow();
     expect(request).toHaveBeenCalledOnce();
     vi.stubGlobal("fetch",async()=>new Response('{"error":"private vendor diagnostics"}',{status:503}));
-    await expect(permissionRequest("commit",{})).rejects.toThrow("Permission was not confirmed");
+    await expect(permissionRequest("commit",{})).rejects.toMatchObject({message:"Permission service unavailable. Try again shortly."});
   }finally{vi.unstubAllGlobals();}
 });
 
@@ -90,6 +90,18 @@ it("validates the complete batch review and rejects missing, duplicate or unrela
     {approved:true,result:{items:items.slice(0,1)}},{approved:true,result:{items:[items[1],items[0]]}},
     {approved:true,result:{items:[{...items[0],result:{...saved,revision:99}},items[1]]}}]){
     expect(()=>approval({...batch,...change})).toThrow();
+  }
+});
+
+it("validates a category restriction against its reviewed previous scope and result",async()=>{
+  const {approval}=await import("./permissions.js"),permission={...pending().permission,revision:2,scope:[{type:"categories",values:["updates"]}]};
+  const restriction={...pending(),action:"restrict",permission,previousScope:[{type:"categories",values:["general","updates"]}]};
+  expect(approval(restriction).previousScope).toEqual(restriction.previousScope);
+  expect(approval({...restriction,approved:true,result:{...saved,revision:2,status:"active"}}).result).toMatchObject({revision:2,status:"active"});
+  for(const change of [{previousScope:undefined},{permission:{...permission,scope:[{type:"categories",values:["general","updates"]}]}},
+    {permission:{...permission,scope:[{type:"categories",values:["other"]}]}},{approved:true,result:{...saved,revision:1,status:"active"}},
+    {approved:true,result:{...saved,revision:2,status:"revoked"}}]){
+    expect(()=>approval({...restriction,...change})).toThrow();
   }
 });
 

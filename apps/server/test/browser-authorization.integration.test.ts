@@ -55,7 +55,7 @@ integration("browser authorization code and PKCE",()=>{
   });
 
   it("rejects wrong verifier, account, generation, redirect, expiry and stale verification",async()=>{
-    const wrong=await prepare();await expect(passkeys.completeAuthorization({...session,passkey_verified_at:new Date(Date.now()-301_000)},wrong.requestId,wrong.state,wrong.code))
+    const wrong=await prepare();await expect(passkeys.completeAuthorization({...session,passkey_verified_at:new Date(Date.now()-11*60_000)},wrong.requestId,wrong.state,wrong.code))
       .rejects.toMatchObject({status:403});
     await passkeys.completeAuthorization(session,wrong.requestId,wrong.state,wrong.code);
     await expect(passkeys.completeAuthorization({...session,account_id:randomUUID()},wrong.requestId,wrong.state,wrong.code)).rejects.toMatchObject({status:409});

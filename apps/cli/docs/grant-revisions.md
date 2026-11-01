@@ -17,6 +17,9 @@ hailp grant update "$grant_id" --category receipts --category security \
 # A unilateral restriction preserves old expiry and consent:
 hailp grant update "$grant_id" --category receipts \
   --output /secure/restricted.cose --vault /secure/account.vault.json
+# Remove the remaining category entirely:
+hailp grant revoke "$grant_id" --output /secure/revoked.cose \
+  --vault /secure/account.vault.json
 ```
 
 Managed accounts omit `--vault`; a supplied owner vault is rejected. Owner
@@ -26,6 +29,9 @@ and Grant state. Categorized updates select one or more unique category IDs,
 sorted bytewise, with no wildcard. `--uncategorized` is mutually exclusive.
 Use the existing signed `grant revoke` when removing the last selected choice;
 there is no implicit switch to uncategorized delivery.
+For category unsubscription, pass the category IDs you want to keep to
+`grant update`; categories omitted from that complete selection are removed.
+Use `grant revoke` when none should remain.
 
 Updates retain grant ID, both DIDs and initial `issued_at`, increment revision
 once, bind the exact predecessor digest, advance `updated_at`, and append a
