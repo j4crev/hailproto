@@ -10,7 +10,39 @@ permissions:
   contents: read
 
 jobs:
+  docs-check:
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.changes.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: changes
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          files=$(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA")
+          if [ -z "$files" ]; then
+            echo 'docs_only=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          while IFS= read -r file; do
+            case "$file" in
+              *.md|*.mdx|*.rst|*.txt|*.adoc) ;;
+              *)
+                echo 'docs_only=false' >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+            esac
+          done <<< "$files"
+          echo 'docs_only=true' >> "$GITHUB_OUTPUT"
+
   verify:
+    needs: [docs-check]
+    if: github.event_name != 'pull_request' || needs.docs-check.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
