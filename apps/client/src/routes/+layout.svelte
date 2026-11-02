@@ -59,7 +59,7 @@
   <meta name="description" content="Your subscriptions and messages, on your terms. Powered by Hail." />
 </svelte:head>
 {#snippet brand()}
-  <a href="/" class="brand" aria-label="Haili home">{#if page.data.branding?.logoPath}<img class="brand-logo" src={page.data.branding.logoPath} alt="" />{:else}<span class="brand-mark" aria-hidden="true">h</span>{/if}<span>Haili</span></a>
+  <a href="/" class="brand" aria-label={`${page.data.branding?.name ?? "Hail"} home`}>{#if page.data.branding?.logoPath}<img class="brand-logo" src={page.data.branding.logoPath} alt="" />{:else}<span class="brand-mark" aria-hidden="true">h</span>{/if}<span>{page.data.branding?.name ?? "Hail"}</span></a>
 {/snippet}
 {#snippet links()}
   <a class="hail-button compose-button" href="/compose" aria-current={page.url.pathname === "/compose" ? "page" : undefined}>Compose</a>
