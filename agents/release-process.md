@@ -175,8 +175,6 @@ profile; do not replace it with the new fresh-install profile.
    readiness, unchanged database/Caddy uptime, and absence of new OOM/database
    recovery events. Preserve the operator's public registration policy. Do not
    issue real signup/message writes merely to smoke-test deployment.
-7. Record the run, commit, **both digests**, backup outcome and health/memory
-   evidence in production readiness. A documentation-only record needs no redeploy.
 
 ### Rollback and retained state
 
