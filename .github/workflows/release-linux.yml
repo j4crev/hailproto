@@ -12,7 +12,9 @@ jobs:
   verify:
     uses: ./.github/workflows/ci.yml
     permissions:
+      actions: read
       contents: read
+      pull-requests: read
   build:
     needs: verify
     # Ubuntu 22.04 / glibc 2.35 is the oldest qualified runtime.
