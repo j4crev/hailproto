@@ -87,6 +87,49 @@ deploy, restart and rollback use `sudo hail-provider-ops ...` under the restrict
 rule. New privileged configuration changes need separately approved access.
 Routine access must retain wrapper-only sudo and key-only SSH authentication.
 
+### Connect to the provider
+
+The production provider is the Tailscale node `haili-provider`. Use the `hailops`
+account; `hailops` by itself is not necessarily an SSH host alias on a developer
+workspace. Resolve the provider's current Tailscale IP from `tailscale status` and
+check the existing host-key pin before connecting:
+
+```bash
+tailscale status
+provider_ip=100.89.223.70 # replace with the current haili-provider address
+ssh-keygen -F "$provider_ip"
+```
+
+The current operator workspace stores the provider host key under its Tailscale
+IP, so connect using that IP as `HostKeyAlias` while addressing the node by its
+MagicDNS name:
+
+```bash
+ssh -o BatchMode=yes -o "HostKeyAlias=$provider_ip" \
+  hailops@haili-provider \
+  'sudo -n /usr/local/sbin/hail-provider-ops status'
+```
+
+Set `provider_ip` to the address shown for `haili-provider` in `tailscale status`.
+Do not bypass host-key checking when the pin is missing or mismatched; confirm
+the node identity and establish the pin through the reviewed operator process
+first.
+
+If public-key authentication fails, inspect existing SSH-agent sockets rather
+than generating keys or starting a replacement agent:
+
+```bash
+ss -xl | rg '\.ssh/agent/'
+export SSH_AUTH_SOCK=/path/to/existing/agent/socket
+ssh-add -l
+ssh -o BatchMode=yes -o "HostKeyAlias=$provider_ip" hailops@haili-provider \
+  'sudo -n /usr/local/sbin/hail-provider-ops status'
+```
+
+Use only a socket that lists the authorized operator key. Keep routine commands
+within the installed operations wrapper; direct `sudo docker` and broad sudo
+access are not part of the host policy.
+
 ## Backup and restore
 
 The nightly job creates a PostgreSQL custom-format dump plus the root-only
@@ -156,19 +199,19 @@ legitimate recovery or standalone preparation state.
 
 ## Retained application images for rollback
 
-The split-image source wrapper takes a commit plus separate provider and web-client
-image digests. It must be installed through existing reviewed privileged access
-before deploying the split; changing its checkout does not update the root-owned
-installed wrapper. The hosted installation has not been transitioned merely by
-editing this repository.
+The installed Haili wrapper takes a commit plus separate provider and web-client
+image digests. It is root-owned and independent of this checkout; changing its
+source does not update the installed wrapper. Install future wrapper or backup-tool
+changes through existing reviewed privileged access.
 
 The wrapper retains both running image IDs under local rollback tags before
 replacement and records five fields: previous commit, provider reference/ID and
-client reference/ID. It preserves the existing verified three-field combined-image
-record for recovery before the first split rollout; unverified two-field records
-remain refused. Both images are verified before rollback changes checkout or
-containers. Keep the record, retained images, release selection and database
-overlays. Application rollback is never database rollback.
+client reference/ID. For recovery from a pre-split backup, it also accepts a
+verified three-field combined-image record and restores that image for both
+services; unverified two-field records remain refused. Both images are verified
+before rollback changes checkout or containers. Keep the record, retained images,
+release selection and database overlays. Application rollback is never database
+rollback.
 
 Provider and client share a reviewed release commit but have distinct image IDs.
 Backups record both references. Haili keeps its existing `deploy/public` directory,
@@ -176,6 +219,6 @@ Compose project, `gui` service name and data volumes to preserve operational
 identity. The independent fresh-install profile is `deploy/standalone`; do not
 substitute it on the existing host.
 
-Follow the [updated rollout procedure](release-process.md#routine-production-rollout--operators-and-agents)
-for exact wrapper installation, publication, deployment and recovery sequencing.
+Follow the [rollout procedure](release-process.md#routine-production-rollout--operators-and-agents)
+for publication, deployment, recovery and future wrapper maintenance.
 Regression checks: `bun run --cwd apps/server test -- test/provider-ops.test.ts`.

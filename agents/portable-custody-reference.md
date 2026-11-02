@@ -185,8 +185,7 @@ its CLIs as first-party examples. Cross-provider management-API standardization
 is a separate decision, not implied by API-first operation.
 
 Current commands and capability status belong in the
-[`racr` workflow guide](../apps/cli/docs/cli-workflows.md) and
-[`racr` roadmap](cli-roadmap.md), not in this architecture
+[`racr` workflow guide](../apps/cli/docs/cli-workflows.md), not in this architecture
 document. API credentials remain provider-local and never enter portable
 snapshots.
 
@@ -569,13 +568,3 @@ with the imported active account's same signed binding. The source retires
 only on the target's signed activation receipt, withdrawing its public WebFinger
 mapping and associated public COSE artifacts while retaining private evidence. No separate monitoring VPS or
 public PLC mirror is required for this deliberately non-independent POC test.
-
-### Message continuity and collocated Grants
-
-Migration 31 lets one provider host both DIDs of a Grant after a transfer.
-There is still one immutable Grant revision chain. Its primary local owner is
-the grantor; a second local receiver reference preserves the grantee's ability
-to send. Activation merges only matching DID pairs, current revision/status/
-digest and exact retained revision bytes; conflicts roll back the import.
-Grantee snapshots include their received chain, but publication work stays
-with the grantor. Neither local role is discarded to bypass a duplicate key.
