@@ -122,14 +122,13 @@ See the [standalone guide](../apps/server/deploy/standalone/README.md).
 
 ### Routine production rollout — operators and agents
 
-**The image split requires a separately reviewed wrapper installation before the
-first split release.** Source changes do not update installed root-owned scripts.
-The old wrapper accepts one image and cannot deploy the split correctly. Install
-both updated `provider-ops.sh` and `backup.sh` through existing privileged access,
-preserving prior copies and checking their SHA-256. Do not broaden sudo/SSH policy.
-Keep the existing Compose project/service names, `.env`, database/image overlays,
-volumes, rollback record and retained images. `deploy/public` remains Haili's site
-profile; do not replace it with the new fresh-install profile.
+The Haili host has the split-image operations wrapper installed. It is root-owned
+and independent of this checkout; any future wrapper or backup-tool source changes
+require separate reviewed installation through existing privileged access. Preserve
+prior copies and verify their SHA-256; do not broaden sudo/SSH policy. Keep the
+existing Compose project/service names, `.env`, database/image overlays, volumes,
+rollback record and retained images. `deploy/public` remains Haili's site profile;
+do not replace it with the new fresh-install profile.
 
 1. Review/commit only the intended changes, preserving other agents' edits. Push
    and require successful main verification for that exact `main` revision. The
@@ -153,11 +152,9 @@ profile; do not replace it with the new fresh-install profile.
 
    Verify the commit and both repository/digest references against the successful
    run. Never substitute a mutable tag or publish/build on the provider host.
-4. Verify the installed wrapper, clean checkout, backups, free disk and memory.
-   Use the existing `hailops` access described in [operations](haili-operations.md).
-   Rename any private `THIN_GUI_ORIGIN` to `WEB_CLIENT_ORIGIN` and `HAIL_GUI_*`
-   settings to `HAIL_WEB_CLIENT_*`; the checked-in Haili Compose settings already
-   use the new names and explicitly retain the Haili product name.
+4. Connect to `haili-provider` as `hailops` using the Tailscale and host-key
+   procedure in [operations](haili-operations.md#connect-to-the-provider). Verify
+   the installed wrapper, clean checkout, backups, free disk and memory.
 5. Execute the artifact's **three-argument** deploy command:
 
    ```bash
@@ -184,11 +181,9 @@ image ID, retained client reference, client image ID. Tags retain images locally
 so rollback does not depend on a registry pull. Both identities are verified
 before changing checkout/selection. Never prune retained recovery images.
 
-The new wrapper can also read the existing verified three-field combined-image
-record, restoring that one image for both services. Unverified two-field records
-remain rejected. The first split deployment records the old combined image under
-both retention tags, enabling recovery to that exact installation. This narrow
-operational transition does not add an application-data compatibility layer.
+The wrapper can read a verified three-field combined-image record from a pre-split
+deployment, restoring that image for both services. It rejects unverified two-field
+records. New split deployments record both previous image references and IDs.
 
 Run `sudo -n /usr/local/sbin/hail-provider-ops rollback` only after checking schema
 compatibility. Keep database overlays, existing volumes and key material; image
