@@ -15,6 +15,7 @@
   --color-canvas: #f3f6f5;
   --color-surface: #ffffff;
   --color-ink: #233735;
+  --color-message-read: #233735;
   --color-muted: #5e7069;
   --color-line: #dde6e1;
   --color-brand: #127365;
@@ -38,6 +39,7 @@
   --color-canvas: #141414;
   --color-surface: #202020;
   --color-ink: #ededed;
+  --color-message-read: #b3b3b3;
   --color-muted: #b3b3b3;
   --color-line: #4a4a4a;
   --color-brand: #5ed6c3;
@@ -57,6 +59,7 @@
     --color-canvas: #141414;
     --color-surface: #202020;
     --color-ink: #ededed;
+    --color-message-read: #b3b3b3;
     --color-muted: #b3b3b3;
     --color-line: #4a4a4a;
     --color-brand: #5ed6c3;
