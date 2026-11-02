@@ -1,5 +1,7 @@
 <script lang="ts">
   import {page} from "$app/state";
+  import Icon from "$lib/Icon.svelte";
+  import MailboxEmptyState from "$lib/MailboxEmptyState.svelte";
   import MessageListRow from "$lib/MessageListRow.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
   import {showInboxHeaders, loadHeaderPreference} from "$lib/preferences.js";
@@ -30,7 +32,7 @@
   {#if data.messages.length}
     {#if selectedMessages.length}
       <SelectionActions label="Trash actions" count={selectedMessages.length} locked={busy} {busy} onclear={()=>selected=[]} onselectall={selectedMessages.length<data.messages.length?()=>selected=data.messages.map(key):undefined}>
-        {#snippet actions()}<button class="hail-button-secondary" disabled={busy||!ready} onclick={restore}>Restore</button>{/snippet}
+        {#snippet actions()}<button class="hail-icon-button" type="button" aria-label="Restore selected messages" title="Restore selected messages" disabled={busy||!ready} onclick={restore}><Icon name="restore" /></button>{/snippet}
       </SelectionActions>
     {/if}
     <section class="compact-list" aria-label="Trashed messages">
@@ -42,7 +44,7 @@
         </MessageListRow>
       {/each}
     </section>
-  {:else}<p class="hail-card p-6">Trash is empty.</p>{/if}
+  {:else}<MailboxEmptyState icon="trash" title="Must be pickup day." />{/if}
   {#if data.paged||data.next}<nav class="mt-6 flex gap-3" aria-label="Trash pages">{#if data.paged}<a class="hail-button-secondary" href="/trash">Newest messages</a>{/if}{#if data.next}<a class="hail-button-secondary" href={`/trash?after=${encodeURIComponent(data.next)}`}>Older messages</a>{/if}</nav>{/if}
 </div>
 

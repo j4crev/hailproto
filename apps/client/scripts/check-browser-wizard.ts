@@ -519,14 +519,14 @@ try{
     console.info('PASS: Chromium invite signup, admin public registration switch and public signup presentation (local API fixtures)');
   }else{
   await evaluate(`[...document.querySelectorAll('a')].find(a=>a.textContent.trim()==='Open your feed').click()`);
-  await wait(()=>has("No messages yet"),"completed alpha account inbox");
+  await wait(()=>has("Lonely in here"),"completed alpha account inbox");
   assert(await evaluate(`document.querySelector('.account-popover').textContent.includes("alice@provider.example.com")`));
   assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Feed");
   assert(!await has("Account details"),"Account metadata must not clutter the feed");
   await cdp("Page.navigate",{url:origin+"/?next=%2F"});
   await wait(()=>has("Your permission."),"existing sessions can sign in again on homepage");
   assert(await evaluate(`!document.querySelector('nav[aria-label="Main navigation"]')`),"Fresh sign-in uses the public shell");
-  await click("Sign in with a passkey");await wait(()=>has("No messages yet"),"fresh homepage sign-in returns to inbox");
+  await click("Sign in with a passkey");await wait(()=>has("Lonely in here"),"fresh homepage sign-in returns to inbox");
 
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Empty feed overflows viewport");
   if(process.env.HAIL_WIZARD_MOBILE!=="true")assert(await evaluate("document.querySelector('.sidebar').getBoundingClientRect().right<=document.querySelector('main').getBoundingClientRect().left"),"Desktop sidebar overlaps content");
@@ -545,7 +545,7 @@ try{
     await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click();document.querySelector('dialog a[href="/sent"]').click()`);
     await wait(async()=>evaluate(`location.pathname==='/sent'&&!document.querySelector('dialog').open`),"Drawer closes after navigation");
     await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click();document.querySelector('dialog nav a[href="/"]').click()`);
-    await wait(()=>has("No messages yet"),"return through mobile drawer");
+    await wait(()=>has("Lonely in here"),"return through mobile drawer");
   }
   await accountNavigation();
   const navigateInboxView=async(href:string)=>{
@@ -651,7 +651,7 @@ try{
   // The public homepage now performs the passkey ceremony directly.
   await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
   await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("Your permission."),"signed-out homepage");
-  await click("Sign in with a passkey");await wait(()=>has("No messages yet"),"homepage passkey signs in without an intermediate page");
+  await click("Sign in with a passkey");await wait(()=>has("Lonely in here"),"homepage passkey signs in without an intermediate page");
   await evaluate("document.querySelector('.skip-link').focus()");
   await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:"Enter",code:"Enter",windowsVirtualKeyCode:13});
   await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:"Enter",code:"Enter",windowsVirtualKeyCode:13});
@@ -1012,16 +1012,16 @@ try{
     await wait(async()=>evaluate(`!!document.querySelector('.has-selection') && !document.querySelector('.mobile-compose')`),'selection hides floating compose');
   };
   await mailboxPage('/','Feed');await selectMessage();
-  await click('Delete message');await wait(()=>has('No messages yet'),'inbox deletion moves directly to Trash');
+  await click('Delete message');await wait(()=>has('Lonely in here'),'inbox deletion moves directly to Trash');
   assert(trashed.has(incomingId));assert(!deleted.has(incomingId));
   await mailboxPage('/?view=connections','Inbox');await selectMessage();
-  await click('Delete message');await wait(()=>has('No messages yet'),'connection deletion moves directly to Trash');
+  await click('Delete message');await wait(()=>has('Mailman late?'),'connection deletion moves directly to Trash');
   await mailboxPage('/trash','Trash');await selectMessage();await click('Select all');
   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Trashed messages"] button[aria-pressed="true"]').length`),2,'Both trashed messages selected');
-  await click('Restore');await wait(()=>has('Trash is empty.'),'bulk restore');
+  await click('Restore selected messages');await wait(()=>has('Must be pickup day.'),'bulk restore');
   await mailboxPage('/?view=connections','Inbox');await wait(()=>has('A personal connection reply'),'restore returns to Messages');
   await mailboxPage('/','Feed');await selectMessage();
-  await click('Delete message');await wait(()=>has('No messages yet'),'second trash deletion');
+  await click('Delete message');await wait(()=>has('Lonely in here'),'second trash deletion');
   await mailboxPage('/settings','Settings');await wait(async()=>evaluate(`document.querySelector('#use-trash')?.disabled===false`),'account Trash preference');
   await evaluate(`document.querySelector('#use-trash').click()`);await click('Disable Trash and delete contents');await wait(()=>has('Trash disabled.'),'disable purges existing trash');
   assert.equal(trashed.size,0);assert(deleted.has(incomingId));
@@ -1029,9 +1029,9 @@ try{
   await click('Delete message');await wait(()=>has('Delete permanently'),'disabled trash warning');
   assert(!deleted.has(connectionIncomingId),'Permanent deletion waits for confirmation');
   await click('Cancel');assert(!deleted.has(connectionIncomingId),'Cancel preserves the message');
-  await click('Delete message');await click('Delete permanently');await wait(()=>has('No messages yet'),'confirmed permanent deletion');
+  await click('Delete message');await click('Delete permanently');await wait(()=>has('Mailman late?'),'confirmed permanent deletion');
   assert(deleted.has(connectionIncomingId));
-  await mailboxPage('/trash','Trash');await wait(()=>has('Trash is empty.'),'disabled Trash has no deleted messages');
+  await mailboxPage('/trash','Trash');await wait(()=>has('Must be pickup day.'),'disabled Trash has no deleted messages');
   await mailboxPage('/admin','Your Hail server');
   await switchRegistration('public');
   assert.equal(signupMode,'public');

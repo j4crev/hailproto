@@ -1,5 +1,6 @@
 <script lang="ts">
   import {page} from "$app/state";
+  import MailboxEmptyState from "$lib/MailboxEmptyState.svelte";
   import MessageListRow from "$lib/MessageListRow.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
   import SelectionAvatar from "$lib/SelectionAvatar.svelte";
@@ -67,7 +68,7 @@
   <section class:compact-list={data.messages.length > 0} aria-label="Messages">
 
     {#if data.messages.length === 0}
-      <div class="hail-card flex flex-col items-center gap-3 px-6 py-16 text-center"><span class="empty-symbol" aria-hidden="true"><Icon name={data.view === 'connections' ? 'chat' : 'feed'} size={30} /></span><h2 class="m-0 text-xl tracking-tight">No messages yet</h2><p class="m-0 max-w-sm text-sm text-muted">{data.view==='connections'?'Reach out and say "hello".':'All quiet here.'}</p>{#if data.view !== 'connections'}<a class="hail-button-secondary mt-2" href="/permissions">Find your first sender <span aria-hidden="true">→</span></a>{/if}</div>
+      <MailboxEmptyState icon={data.view === 'connections' ? 'chat' : 'feed'} title={data.view === 'connections' ? 'Mailman late?' : 'Lonely in here'} />
     {:else}
       {#each data.messages as message (message.sender+message.messageId)}
         <MessageListRow unreadCount={message.conversation?.unreadCount} inline={data.view === "connections"} imageLayout={data.view === "connections" ? "thumbnail" : "feature"} isRead={message.isRead} timestamp={message.deliveredAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null} selected={selected.includes(messageKey(message))}
@@ -90,7 +91,7 @@
   @media(max-width:900px) {
     .feed-layout { padding-bottom:88px; }
     .has-selection { padding-bottom:180px; }
-    .mobile-compose { position:fixed; z-index:11; right:max(20px,env(safe-area-inset-right)); bottom:calc(40px + env(safe-area-inset-bottom)); display:grid; place-items:center; width:56px; height:56px; border-radius:18px; background:var(--color-brand); color:var(--color-on-brand); box-shadow:0 4px 16px #0003; text-decoration:none; }
+    .mobile-compose { position:fixed; z-index:11; left:max(20px,env(safe-area-inset-left)); bottom:calc(40px + env(safe-area-inset-bottom)); display:grid; place-items:center; width:56px; height:56px; border-radius:18px; background:var(--color-brand); color:var(--color-on-brand); box-shadow:0 4px 16px #0003; text-decoration:none; }
     .mobile-compose:hover { background:var(--color-brand-strong); }
   }
 
@@ -120,7 +121,6 @@
   .feed-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px; margin-bottom:24px; }
   .feed-description { margin:6px 0 0; font-size:14px; color:var(--color-muted); }
   .feed-layout { min-width:0; }
-  .empty-symbol { display:grid; place-items:center; width:76px; height:76px; margin-bottom:14px; border:10px solid var(--color-canvas); border-radius:26px; background:var(--color-brand-soft); color:var(--color-brand); }
   @media(max-width:800px) { .welcome { gap:28px; } .subscription-example { padding:20px; } .welcome-benefits { gap:22px; } }
   @media(max-width:640px) { .welcome { grid-template-columns:1fr; padding:10px 0 32px; gap:32px; } .welcome-copy h1 { font-size:clamp(38px, 12vw, 48px); } .welcome-description { font-size:14px; } .welcome-signin { max-width:none; margin-top:26px; } .welcome-benefits { grid-template-columns:1fr; gap:24px; } .example-topics li { font-size:12px; gap:8px; } .topic-status { font-size:10px; padding:5px 8px; } .feed-heading { gap:16px; margin-bottom:20px; } }
 </style>

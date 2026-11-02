@@ -66,7 +66,7 @@
   .muted .message-sender, .muted .message-subject, .muted .list-date { font-weight:500; }
   .message-preview { color:var(--color-muted); }
   .message-details { display:block; margin-top:4px; color:var(--color-muted); font-size:12px; }
-  @media(max-width:640px) { .message-row { padding:16px 0; column-gap:10px; grid-template-columns:44px minmax(0,1fr); } .message-meta { gap:8px; } .message-header { max-height:180px; } .list-date { font-size:11px; } }
+  @media(max-width:640px) { .message-row { padding:16px 12px; column-gap:10px; grid-template-columns:44px minmax(0,1fr); } .message-meta { gap:8px; } .message-header { max-height:180px; } .list-date { font-size:11px; } }
   @media(min-width:1024px) {
     .inline-row { min-height:64px; padding:12px; grid-template-columns:40px minmax(140px,22%) minmax(0,1fr) max-content; grid-template-areas:"leading sender content date"; column-gap:16px; }
     .inline-row.without-leading { grid-template-columns:minmax(140px,22%) minmax(0,1fr) max-content; grid-template-areas:"sender content date"; }
