@@ -117,6 +117,7 @@
     .app-shell { padding:0 16px calc(88px + env(safe-area-inset-bottom)); }
     .sidebar { display:none; }
     .mobile-header { position:fixed; inset:auto 0 0; display:flex; z-index:10; align-items:center; justify-content:space-between; min-height:68px; padding:10px 20px max(10px, env(safe-area-inset-bottom)); border-top:1px solid var(--color-line); background:var(--color-canvas); }
+    .mobile-header > .icon-button { margin-left:auto; }
     .mobile-header > .brand { position:absolute; left:50%; transform:translateX(-50%); white-space:nowrap; }
     .mobile-header .brand { font-size:24px; }
     .mobile-header .brand-mark { width:34px; height:34px; border-radius:11px; font-size:27px; }

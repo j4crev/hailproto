@@ -147,7 +147,7 @@
   .contact-copy h3 { margin:0; font-size:14px; }
   .contact-copy p { margin:3px 0 0; font-size:12px; overflow-wrap:anywhere; }
   .contact-identity { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:var(--color-muted); }
-  @media(max-width:640px) { .list-row { padding:10px 12px; } }
+  @media(max-width:640px) { .compact-list:has(> .message-row) { margin-inline:-12px; } .list-row { padding:10px 12px; } }
 }
 
 @layer components {

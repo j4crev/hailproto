@@ -1,6 +1,7 @@
 <script lang="ts">
   import {page} from "$app/state";
   import {onMount} from "svelte";
+  import MailboxEmptyState from "$lib/MailboxEmptyState.svelte";
   import MessageListRow from "$lib/MessageListRow.svelte";
   import {showInboxHeaders, loadHeaderPreference} from "$lib/preferences.js";
   let {data}=$props();
@@ -23,5 +24,5 @@
       {/each}
     </section>
     {#if data.paged||data.next}<nav aria-label="Sent pages" class="mt-6 flex flex-wrap justify-center gap-3">{#if data.paged}<a class="hail-button-secondary" href="/sent">← Newest messages</a>{/if}{#if data.next}<a class="hail-button-secondary" href={`/sent?after=${encodeURIComponent(data.next)}`}>Older messages →</a>{/if}</nav>{/if}
-  {:else}<section class="hail-card grid justify-items-center gap-3 px-6 py-14 text-center"><h2 class="m-0 text-xl">No sent messages</h2><p class="m-0 text-sm text-muted">Messages you send will appear here.</p><a class="hail-button-secondary mt-2" href="/compose">Compose a message →</a></section>{/if}
+  {:else}<MailboxEmptyState icon="sent" title="Time to send something" />{/if}
 </div>
