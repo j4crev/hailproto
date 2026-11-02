@@ -121,11 +121,13 @@
     .mobile-header .brand { font-size:24px; }
     .mobile-header .brand-mark { width:34px; height:34px; border-radius:11px; font-size:27px; }
     main { padding:24px; min-height:calc(100dvh - 84px); }
-    .navigation-drawer { inset:auto 0 0; width:100%; height:auto; max-height:82dvh; border:0; border-top:1px solid var(--color-line); border-radius:20px 20px 0 0; }
-    .drawer-content { min-height:0; max-height:82dvh; overflow-y:auto; padding:24px 20px max(12px, env(safe-area-inset-bottom)); }
+    .navigation-drawer { inset:auto 0 0; flex-direction:column; width:100%; height:82dvh; max-height:82dvh; border:0; border-top:1px solid var(--color-line); border-radius:20px 20px 0 0; }
+    .navigation-drawer[open] { display:flex; }
+    .drawer-content { flex:1; min-height:0; display:flex; flex-direction:column; gap:20px; overflow:hidden; padding:24px 20px max(12px, env(safe-area-inset-bottom)); }
+    .drawer-content :global(.nav-group) { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
     .navigation-drawer :global(.compose-button) { display:none; }
     .navigation-drawer :global(.nav-bottom) { display:none; }
-    .drawer-footer { display:flex; align-items:center; justify-content:space-between; margin-top:0; padding-top:12px; border-top:1px solid var(--color-line); }
+    .drawer-footer { display:flex; flex:none; align-items:center; justify-content:space-between; margin-top:auto; padding-top:12px; border-top:1px solid var(--color-line); }
     .drawer-footer :global(.account-trigger) { width:48px; padding:2px; }
     .drawer-footer .icon-button { margin-left:auto; }
   }
