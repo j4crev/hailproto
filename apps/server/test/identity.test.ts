@@ -10,7 +10,7 @@ const encryptionKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 describe("canonicalizeHailAddress", () => {
   it("canonicalizes ASCII case", () => {
-    expect(canonicalizeHailAddress("Alice@HAILPROTO.APP")).toBe("alice@racrproto.app");
+    expect(canonicalizeHailAddress("Alice@HAILPROTO.APP")).toBe("alice@hailproto.app");
   });
 
   it("rejects a domain without a registrable suffix", () => {

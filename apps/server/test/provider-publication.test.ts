@@ -30,7 +30,7 @@ async function verify(
   const core = {setFailed: vi.fn(), info: vi.fn(), summary};
   await new AsyncFunction("github", "context", "core", script)(
     {paginate, rest: {actions: {listWorkflowRuns, listJobsForWorkflowRun}}},
-    {repo: {owner: "j4crev", repo: "hailproto"}, sha}, core,
+    {repo: {owner: "j4crev", repo: "hail"}, sha}, core,
   );
   return {core, paginate, listWorkflowRuns, listJobsForWorkflowRun};
 }
@@ -47,11 +47,11 @@ it("keeps publication manual and dependent on a read-only CI gate on main", () =
 it("accepts exact-commit main CI after verify-main succeeds and records the attempt", async () => {
   const {core, paginate, listWorkflowRuns, listJobsForWorkflowRun} = await verify([successfulRun]);
   expect(paginate).toHaveBeenCalledWith(listWorkflowRuns, {
-    owner: "j4crev", repo: "hailproto", workflow_id: "ci.yml",
+    owner: "j4crev", repo: "hail", workflow_id: "ci.yml",
     branch: "main", event: "push", head_sha: sha, per_page: 100,
   });
   expect(paginate).toHaveBeenCalledWith(listJobsForWorkflowRun, {
-    owner: "j4crev", repo: "hailproto", run_id: successfulRun.id, per_page: 100,
+    owner: "j4crev", repo: "hail", run_id: successfulRun.id, per_page: 100,
   });
   expect(core.setFailed).not.toHaveBeenCalled();
   expect(core.summary.addLink).toHaveBeenCalledWith(
@@ -73,7 +73,7 @@ it.each([
 it.each([
   {head_sha: "b".repeat(40)}, {head_branch: "feature"},
   {event: "pull_request"}, {event: "workflow_dispatch"},
-  {head_repository: {full_name: "other/hailproto"}}, {head_repository: null},
+  {head_repository: {full_name: "other/hail"}}, {head_repository: null},
 ])("rejects success outside the trusted commit/branch/event/repository: %j", async override => {
   const {core} = await verify([{...successfulRun, ...override}]);
   expect(core.setFailed).toHaveBeenCalledOnce();
