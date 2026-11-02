@@ -74,9 +74,9 @@
     <header class="public-header">{@render brand()}{#if page.url.pathname !== "/"}<a class="hail-button-secondary" href="/">{page.data.hasAccountSession ? "Back to feed" : "Home"}</a>{:else if page.data.registration?.mode === "invite"}<span class="alpha-badge">Invitation-only alpha</span>{/if}</header>
   {:else}
     <aside class="sidebar">{@render brand()}{@render links()}<div class="sidebar-account"><UserMenu {address} {avatar} /></div></aside>
-    <header class="mobile-header"><button class="icon-button" onclick={openDrawer} aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="mobile-navigation"><Icon name="menu" /></button>{@render brand()}<UserMenu {address} {avatar} compact /></header>
+    <header class="mobile-header"><button class="icon-button" onclick={openDrawer} aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="mobile-navigation"><Icon name="menu" /></button>{@render brand()}</header>
     <dialog id="mobile-navigation" class="navigation-drawer" bind:this={drawer} onclose={() => {drawerOpen = false;}} onclick={event => {if (event.target === drawer) closeDrawer();}} aria-label="Navigation">
-      <div class="drawer-content"><div class="drawer-heading">{@render brand()}<button class="icon-button" onclick={closeDrawer} aria-label="Close navigation"><Icon name="close" /></button></div>{@render links()}</div>
+      <div class="drawer-content"><div class="drawer-heading">{@render brand()}</div>{@render links()}<div class="drawer-footer"><UserMenu {address} {avatar} compact drawerAccount /><button class="icon-button" onclick={closeDrawer} aria-label="Close navigation"><Icon name="close" /></button></div></div>
     </dialog>
   {/if}
   <main id="main-content" tabindex="-1">{#if page.data.account?.addressReleased}
@@ -112,20 +112,30 @@
   .navigation-drawer::backdrop { background:#172b2d60; backdrop-filter:blur(3px); }
   .drawer-content { min-height:100%; display:flex; flex-direction:column; gap:28px; padding:24px 20px max(24px, env(safe-area-inset-bottom)); }
   .drawer-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .drawer-footer { display:none; }
   @media(max-width:900px) {
-    .app-shell { padding:0 16px 16px; }
+    .app-shell { padding:0 16px calc(88px + env(safe-area-inset-bottom)); }
     .sidebar { display:none; }
-    .mobile-header { display:flex; position:sticky; top:0; z-index:10; align-items:center; justify-content:space-between; padding:12px 0; background:var(--color-canvas); }
+    .mobile-header { position:fixed; inset:auto 0 0; display:flex; z-index:10; align-items:center; justify-content:space-between; min-height:68px; padding:10px 20px max(10px, env(safe-area-inset-bottom)); border-top:1px solid var(--color-line); background:var(--color-canvas); }
+    .mobile-header > .brand { position:absolute; left:50%; transform:translateX(-50%); white-space:nowrap; }
     .mobile-header .brand { font-size:24px; }
     .mobile-header .brand-mark { width:34px; height:34px; border-radius:11px; font-size:27px; }
     main { padding:24px; min-height:calc(100dvh - 84px); }
+    .navigation-drawer { inset:auto 0 0; width:100%; height:auto; max-height:82dvh; border:0; border-top:1px solid var(--color-line); border-radius:20px 20px 0 0; }
+    .drawer-content { min-height:0; max-height:82dvh; overflow-y:auto; padding:24px 20px max(12px, env(safe-area-inset-bottom)); }
+    .navigation-drawer :global(.compose-button) { display:none; }
+    .navigation-drawer :global(.nav-bottom) { display:none; }
+    .drawer-footer { display:flex; align-items:center; justify-content:space-between; margin-top:0; padding-top:12px; border-top:1px solid var(--color-line); }
+    .drawer-footer :global(.account-trigger) { width:48px; padding:2px; }
+    .drawer-footer .icon-button { margin-left:auto; }
   }
   @media(max-width:540px) {
-    .app-shell { padding:0 10px 10px; }
+    .app-shell { padding:0 10px calc(82px + env(safe-area-inset-bottom)); }
     main { padding:20px 16px 32px; border-radius:12px; }
     .focused { padding:0 20px; }
     .focused main { padding-top:24px; }
     .public-header { padding:22px 0; }
     .alpha-badge { max-width:120px; text-align:center; font-size:10px; }
+    .mobile-header { min-height:64px; padding-inline:16px; }
   }
 </style>
