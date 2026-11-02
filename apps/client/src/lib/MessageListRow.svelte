@@ -61,6 +61,7 @@
   .message-subject { margin-top:2px; letter-spacing:-.015em; }
   .message-sender, .message-subject, .list-date { font-weight:650; }
   .is-read .message-sender, .is-read .message-subject, .is-read .list-date { font-weight:450; }
+  .is-read .message-sender, .is-read .message-subject { color:var(--color-message-read); }
   .message-row:not(.is-read):not(.muted) .list-date { color:var(--color-ink); }
   .muted .message-sender, .muted .message-subject, .muted .list-date { font-weight:500; }
   .message-preview { color:var(--color-muted); }
