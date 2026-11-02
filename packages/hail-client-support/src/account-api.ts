@@ -86,7 +86,7 @@ export class AccountApiClient {
     return new AccountApiClient(record.provider, record.token, record.accountId,undefined,transport);
   }
 
-  async request(path: string, bytes?: Uint8Array | JsonObject, namespace = "/api/v1/account",maxResponse=MAX_RESPONSE, signal?: AbortSignal): Promise<JsonObject> {
+  async request(path: string, bytes?: Uint8Array | JsonObject, namespace = "/api/v1/account",maxResponse=namespace==="/api/v1/account"&&path.startsWith("/connection-threads/")?192*1024*1024:namespace==="/api/v1/account"&&/^\/(?:inbox|sent|conversations)(?:\/|$)/.test(path)?40*1024*1024:MAX_RESPONSE, signal?: AbortSignal): Promise<JsonObject> {
     const headers: Record<string, string> = { ...(this.sessionOrigin?{Cookie:`hail_session=${this.token}`,Origin:this.sessionOrigin}:this.token?{Authorization:`Bearer ${this.token}`}:{}),
       Accept: "application/json", "Accept-Encoding": "identity", "Cache-Control": "no-store" };
     if (bytes) headers["Content-Type"] = bytes instanceof Uint8Array ? 'application/cose; cose-type="cose-sign1"' : "application/json";

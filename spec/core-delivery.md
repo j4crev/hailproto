@@ -8,9 +8,9 @@ The object-specific specifications define exact schemas and signatures, and [htt
 
 ## Scope
 
-The first core flow should cover one sender delivering one message to one recipient under an existing Hail Grant.
+This core flow covers one sender delivering one message to one recipient under an existing Hail Grant. Connections and shared conversations reuse the delivery machinery with separately specified authorization rules.
 
-It should include:
+It includes:
 
 - identity and server discovery prerequisites
 - grant lookup and authorization
@@ -22,9 +22,11 @@ It should include:
 - retries, idempotency, and replay protection
 - grant revocation races
 
-The first flow should use a plain-text Safe Portable Text body. Rich SPT nodes are outside this specification.
+The flow supports all three mandatory Safe Portable Text profiles (`spt-1`,
+`spt-2`, and `spt-3`) defined in [bodies.md](bodies.md). Plain text is a valid
+choice, not the provider conformance baseline by itself.
 
-## Proposed Actors
+## Actors
 
 - **Recipient**: The person or organization receiving a Hail Message.
 - **Recipient client**: Software the recipient uses to manage grants and read messages.
@@ -44,7 +46,7 @@ The first flow should use a plain-text Safe Portable Text body. Rich SPT nodes a
 - Revocation must take effect without sender cooperation.
 - Current address-to-DID and DID-to-service mappings are public. Unknown or unrelated senders must not be able to use delivery behavior to probe grants, reply capabilities, replay records, message state, local-account state, recipient policy, cache state, or user activity.
 
-## Questions Required For The First Flow
+## Core Delivery Requirements
 
 ### 1. Delivery Identity
 
@@ -56,7 +58,7 @@ Decisions:
 - Hail Envelopes identify `from` and `to` using DIDs.
 - Human-readable Hail addresses are aliases that resolve to DIDs; they are not durable protocol identities.
 - Hail addresses use the case-insensitive lowercase canonical syntax defined by the Address Binding profile.
-- Address-to-DID association uses a signed, expiring Hail Address Binding discovered through the address domain.
+- Address-to-DID association uses a signed version-2 Hail Address Binding discovered through the address domain. The binding has no expiration timestamp; current domain publication, current DID identity-key verification, and bounded discovery caches determine whether it can be used.
 - Verification requires the address domain to publish the binding and a DID-authorized key to sign it.
 - Hail addresses are not written to PLC `alsoKnownAs`; address verification uses Address Bindings.
 - A DID remains stable when its owner changes hosting providers. Grants, message relationships, and other durable records continue to reference the same DID.
@@ -97,16 +99,26 @@ Address binding is specified in [address-binding.md](address-binding.md).
 
 Required DID entries and key roles are specified in [did-profile.md](did-profile.md).
 
-Production questions still to resolve:
-
-- What cache and historical-version rules apply to DID resolution?
-- What resolver mirrors, audit verification, or fallback behavior does Hail require for `did:plc`?
+The current reference public resolver's reader selection, audit validation,
+freshness, retained evidence and fail-closed fallback are specified in
+[PLC read evidence](plc-read-evidence.md). It uses bounded fresh reads without a
+cross-call cache. This is a named reference policy, not a requirement to reproduce
+its database or deployment topology. General historical-object admission and
+reconciliation after PLC recovery/nullification remain unresolved; current reader
+validation is not itself proof of when an old Hail object was accepted.
 
 ### 2. Preconditions And Discovery
 
 Before grant creation, the recipient verifies the sender's Address Binding and current signed Sender Profile, displays the verified address separately from profile metadata, and selects only offered categories or uncategorized delivery. Before initial delivery, a sender resolves a human-readable recipient address through its signed Address Binding when necessary, then resolves the recipient DID's current `#hail` service and keys. Routine federation between known DIDs resolves the DID directly and does not re-resolve a human-readable address on every operation.
 
-The POC DID cache lifetime, forced key and endpoint refresh, canonical service-base URLs, redirect prohibition for federation operations, and provider-migration behavior are defined in [did-profile.md](did-profile.md) and [http-binding.md](http-binding.md). Address Binding cache, refresh, redirect, and safe-fetch behavior is defined in [address-binding.md](address-binding.md). Production PLC finality remains open; it is not an unresolved HTTPS operation-binding question.
+The DID profile distinguishes the POC cache rules from the current strict-public
+fresh-read policy. Canonical service-base URLs, endpoint refresh, redirect
+prohibition and provider-migration behavior are defined in
+[did-profile.md](did-profile.md) and [http-binding.md](http-binding.md). Address
+Binding cache, refresh and safe-fetch behavior is defined in
+[address-binding.md](address-binding.md). The reference policy also defines
+owner-authorized cutover and recovery monitoring; a general historical-authority
+policy still needs review. These are not unresolved core HTTPS operation bindings.
 
 ### 3. Grant Preconditions
 
@@ -145,7 +157,7 @@ For core delivery:
 - `created_at` and `expires_at` are required.
 - Every semantic payload field and the signing key ID are protected by COSE.
 - Grant-authorized delivery carries `authorization.grant_id`; reply delivery uses a prior message's signed reply permission.
-- The POC envelope is not HTTP-compressed and never includes arbitrary body or reply URLs.
+- Current envelopes are not HTTP-compressed and never include arbitrary body or reply URLs.
 
 ### 6. Envelope Submission
 
@@ -154,10 +166,12 @@ For core delivery:
 - An unknown or unauthenticated sender receives a generic HTTP `202` response that reports only the `received` submission outcome.
 - An authenticated sender with a current or previous relationship may receive a detailed current result when privacy permits.
 - Terminal delivery status is reported asynchronously with a signed status snapshot.
-- The POC requires support for complete envelope representations through 16384 bytes, as defined in [envelopes.md](envelopes.md).
+- The current alpha requires support for complete envelope representations through 16384 bytes, as defined in [envelopes.md](envelopes.md).
 - v0 requires no transport authentication in addition to HTTPS and the envelope COSE signature. Private deployment controls carry no Hail protocol semantics and never replace COSE verification.
 - The body retrieval location is derived from authenticated sender discovery rather than supplied by the envelope.
-- What request identifier supports tracing without becoming part of message identity?
+- Signed delivery-status correlation uses the parties, message ID, envelope digest
+  and status revision. Provider-local tracing is implementation policy; no Hail
+  trace identifier or unauthenticated status-query handle is defined.
 
 Bulk submission remains deferred. Submission outcomes, disclosure, timing, retries, and idempotency are defined in [http-binding.md](http-binding.md).
 
@@ -215,46 +229,65 @@ The generic receipt uses `202` with `application/json`; an authenticated success
 
 ### 14. Resource And Abuse Limits
 
-- What envelope size must all servers accept?
-- What body size must all servers accept?
-- What compression algorithms are permitted?
-- What maximum compression ratio is allowed?
-- What Safe Portable Text nesting depth, node count, and string sizes are allowed?
-- How many in-progress body retrievals may one sender cause?
-- What rate limits may recipients impose on granted senders?
-- Can grants contain frequency limits that are protocol-enforced?
-- How should a recipient respond when locally out of storage?
+- The current envelope support floor is 16384 transmitted octets.
+- The current body ceiling is 1048576 uncompressed octets, supported by every provider.
+- Body receivers support identity and gzip; gzip emission is optional.
+- Compressed bodies are bounded by 2097152 transmitted octets and the signed
+  uncompressed size, rather than a compression-ratio heuristic.
+- The closed SPT schemas define allowed blocks, list levels, marks, and asset
+  dimensions. Common normative CBOR depth, item, collection and string budgets,
+  including their counting rules, are defined in [encoding](encoding.md#current-cbor-budgets).
+- Retrieval concurrency and rate-limit values are recipient/provider policy.
+  Rate-limit disclosure and `Retry-After` behavior obey the HTTP binding; a Grant
+  is not a promise of unlimited capacity.
+- Grant-enforced frequency/size selectors are not part of the current Grant schema.
+- After acceptance, temporary local resource exhaustion uses `on-hold` with
+  `receiver-resource-constrained`, within the existing delivery deadline. Before
+  acceptance, temporary failures follow the HTTP binding's disclosure rules.
 
 Limits should be defined in terms of both required interoperability floors and recipient-configurable ceilings.
 
 ### 15. Auditability And Receipts
 
-- What evidence does the sender retain that delivery was granted?
-- What evidence does the recipient retain about sender authentication and delivery?
-- How are delivery receipts distinguished from read receipts?
-- Does the core flow expose any user activity beyond server acceptance?
+Retain the exact signed Grant/revision and envelope representations, authorization
+decision evidence, accepted-state/replay history and signed delivery-status
+correlations required by the object specifications. The strict-public reference
+provider retains linked PLC resolution and action evidence; the current account
+history formats carry those records through transfer. See
+[PLC evidence](plc-read-evidence.md), [account history](account-history.md), and
+[delivery state](delivery-state.md). Retention of bytes is not a general historical
+authority algorithm; acceptance across recovered/nullified histories remains open.
 
-HTTP receipt is not evidence of Hail acceptance or delivery. Signed server delivery status is defined in [delivery-state.md](delivery-state.md). Read and open receipts remain excluded from core delivery.
+HTTP receipt is not evidence of Hail acceptance or delivery. Signed server delivery
+status attests server processing, not client synchronization, display, opening or
+reading. Body retrieval must not become a user-activity signal. Local unread state
+and conversation activity/lease renewal are not federated read receipts.
 
 ## Questions That Can Be Deferred
 
-These issues should not block the first grant-authorized delivery:
+This inventory distinguishes absent protocol features from functionality already
+provided by extensions or local APIs. Being outside this Grant-authorized flow
+does not mean a feature is unimplemented.
 
-- rich Safe Portable Text nodes
-- end-to-end encryption
-- attachments beyond declared body assets
-- multiple recipients in one envelope
-- bulk envelope submission
-- read/open receipts
-- aggregate analytics
-- person-to-person contact requests
-- unsolicited communication
-- email bridges
-- global directories
-- custom encoding negotiation
-- organization verification beyond domain control
+| Topic | Current status and boundary |
+| --- | --- |
+| Rich text and publisher layouts | `spt-1`, `spt-2`, and `spt-3` are mandatory now. Additional publisher layout nodes remain future work; see [bodies](bodies.md). |
+| Person-to-person connections | Implemented through invitation review, identity-signed confirmation, admission and disconnect. Connection-authorized delivery and threaded replies are specified in [envelopes](envelopes.md); see [connection consent](connection-auth.md) and [federation](connection-federation.md). This is not an unsolicited inbox-request channel. |
+| Group messages | Implemented as fixed-roster shared conversations, per-recipient v4 envelopes, Reply all, leave, expiry and creator revival; see [shared conversations](shared-conversations.md). Multiple recipients inside a single envelope are not supported. |
+| Bulk submission | Local private/shared send batches fan out to individual envelopes. A bulk provider-to-provider envelope endpoint and campaign-level federation objects remain undefined. |
+| Connection/conversation portability | Implemented through authenticated handover and current snapshot/checkpoint formats, with fencing and pending-work constraints; see [connection portability](connection-portability.md). Arbitrary export/import does not grant live authority. |
+| Attachments | Bundled bounded PNG header assets exist. General file attachments, detached attachment retrieval, and their delivery/retention rules remain deferred; see [assets](assets.md). |
+| End-to-end encryption | Not defined. HTTPS, COSE signatures and local key encryption do not provide end-to-end message confidentiality. |
+| Read/open receipts | Not defined as federation operations. Local read state and server delivery receipts are distinct. |
+| Aggregate analytics | No campaign/analytics federation protocol. Local reporting is provider/client policy and cannot bypass activity-disclosure rules. |
+| Unsolicited communication | Unsolicited message delivery is not authorized. Public discovery, Grant publication and deliberate invitation review are distinct, bounded operations. A general unsolicited contact-request feature remains undefined. |
+| Email bridges | No interoperable bridge profile. Onboarding/notification email is not a Hail message bridge. |
+| Global directories | Address/DID resolution and signed Sender Profiles exist. Global search, recommendation and directory services are application concerns, not required core protocol services; see [sender profile](sender-profile.md). |
+| Encoding negotiation | Not defined. The fixed CBOR/COSE profile and separately defined transfer representations are not negotiated alternatives; see [encoding](encoding.md). |
+| Organization verification | Domain-backed address verification exists; organizational attestations beyond domain control remain undefined. |
 
-The initial schemas should avoid making these features impossible, but they do not need complete v0 behavior yet.
+These deferred extensions need explicit schemas, authority and privacy rules
+before being advertised as supported. They do not block review of the current core.
 
 ## HTTPS Binding Status
 

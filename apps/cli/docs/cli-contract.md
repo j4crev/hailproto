@@ -55,7 +55,13 @@ message ID. Unknown locally sent message IDs return 404; known messages without
 authenticated retained delivery status return `indeterminate`/null revision.
 Status is a provider-local authenticated read, not a new federation status query.
 
-Routine account responses stay bounded at 512 KiB; signed Grants and Sender
+Routine account responses stay bounded at 512 KiB. Inbox/sent/conversation content
+responses allow 40 MiB for up to five 1 MiB bodies plus JSON escaping and metadata;
+connection-thread summaries allow 192 MiB because up to 30 titles can be drawn
+from those bodies. These are account API transport limits, not federation body
+allowances. The CLI validates the encoded `spt-1` body locally against 1 MiB,
+including formatting overhead, before submitting text. Retry state permits 16 MiB
+to retain escaped text in both the conversation intent and request. Signed Grants and Sender
 Profiles at 256 KiB, with profile definitions limited to 16 KiB.
 Explicit transfer export retains its separate 100 MB JSON/64 MiB manifest limit.
 HTTPS verification, redirect rejection, current scopes, custody-specific signing,
@@ -160,8 +166,8 @@ Start/reply-all/revive require `--state`. Private version-1
 `hailp.conversation-operation` files bind the account, provider, command, input,
 endpoint, and exact request. Requests are persisted before submission. Retries
 reuse the operation ID and never regenerate signatures, expand audiences, or fall
-back to private copies. A changed intent is rejected. Text inputs retain the
-64 KiB UTF-8 limit. Submission requires account inspection (`account:read`) and
+back to private copies. A changed intent is rejected. Text inputs must fit the 1 MiB encoded body limit, including CBOR formatting
+overhead; the CLI rejects oversized input locally. Submission requires account inspection (`account:read`) and
 `messages:write`; initial reply-all source lookup also requires `messages:read`.
 
 Batch responses retain `publicationId`, `kind`, `total`, `counts`, `delivery`,

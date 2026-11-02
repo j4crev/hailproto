@@ -99,7 +99,7 @@ multiple local accounts. The old local-control ledger and its conflict key remai
 unchanged for mixed-version lifecycle writers. Collection merges both ledgers
 into the existing checkpoint signature domain, preferring original local signing
 evidence for duplicate COSE. The checkpoint digest uses account-history resource
-limits, not the 256 KiB single-envelope budget.
+limits, not the 1 MiB body budget.
 
 Older checkpoints without the necessary peer evidence remain inert and fail this
 pass. No migration silently backfills a guessed role decision or relabels a missing

@@ -34,7 +34,7 @@ Historical implementation/rollout notes do not override the current profile belo
 | Identity and address discovery | `did:plc`, Address Binding v2; [DID profile](did-profile.md), [address binding](address-binding.md), [PLC evidence](plc-read-evidence.md) |
 | Sender discovery and consent | Sender Profile v2, Grant v1; [sender profile](sender-profile.md), [grants](grants.md) |
 | Message delivery | Envelope v1 for Grant delivery; v2 for unthreaded connection delivery; v3 for threaded direct/reply-capability delivery; v4 for shared conversations; [envelopes](envelopes.md) |
-| Bodies and assets | `spt-3` is the latest body profile; `spt-1` plain text and `spt-2` rich text remain distinct supported body profiles; asset manifest v1; [bodies](bodies.md), [assets](assets.md) |
+| Bodies and assets | All providers support `spt-1` plain text, `spt-2` rich text, and `spt-3` rich text with bundled header image; asset manifest v1; [bodies](bodies.md), [assets](assets.md) |
 | Delivery results | Delivery Status v1; [delivery state](delivery-state.md), [HTTP binding](http-binding.md) |
 | Connections | Invitation, confirmation and control v1; [consent](connection-auth.md), [federation](connection-federation.md), [wire binding](connection-wire.md) |
 | Shared conversations | Descriptor/revival v1, Envelope v4; [shared conversations](shared-conversations.md) |
@@ -80,14 +80,64 @@ Completed specification/conformance artifacts:
   exports, conversation/connection checkpoints, lifecycle/revival wire objects,
   transfer/handover signatures, and malformed/tampered representations.
 
-Before proposing an RFC-style standard, complete these explicit gates:
+An initial Internet-Draft may document the current design and explicitly identify
+open issues. Prepare a separate submission document consistent with these
+specifications. Before proposing a stable specification for RFC publication:
 
-- Exercise the full protocol with an independently developed provider. Go vector
-  verification is independent format evidence, not a deployed provider trial.
-- Resolve provisional media types and registries, capability discovery, production
-  size requirements and the remaining open questions in individual specifications.
+- Document conformance coverage and its limitations. Independent-provider trials
+  are valuable additional evidence, not a mandatory project publication gate.
+  No particular implementation language or second provider implementation is
+  required. Go vector verification is independent format evidence, not a deployed
+  provider trial.
+- Resolve provisional media types and registries and the remaining open questions
+  in individual specifications, especially historical authority and recovery.
+  Current mandatory body profiles and size requirements are defined; capability
+  discovery is future work for optional profiles, not a plain-text-only restriction.
 - Consolidate normative requirements, security/privacy considerations, references,
   conformance requirements and registration considerations into submission documents.
 
 No official-body approval, registration or interoperable third-party deployment is
 implied by this working specification.
+
+## Specification audit follow-up (2026-11-01)
+
+The current-feature/deferred inventory is in
+[core delivery](core-delivery.md#questions-that-can-be-deferred). Connections,
+threaded replies, shared conversations and authenticated history handover are
+specified extensions, not missing first-flow features. Local send batching, local
+read state and public discovery do not imply bulk federation submission, read
+receipts or a global directory protocol.
+
+Resolved audit findings:
+
+- **Body capacity:** current bodies permit 1 MiB of deterministic CBOR, with a
+  separate 2 MiB compressed-transfer ceiling. Image, signed-object and structural
+  limits remain independent. Publisher layouts and attachments still require
+  explicit profiles and separate resource budgets; see [bodies](bodies.md#separate-content-budgets).
+
+- **Resource-budget interoperability:** [encoding](encoding.md#current-cbor-budgets)
+  now specifies numeric limits, counting rules and independent COSE domains.
+  Shared [boundary vectors](vectors/cbor-resource-limits.json) exercise both codecs
+  and their pre-allocation scanners. The Go scanner now enforces encoded-byte
+  budgets itself, including when invoked for protected headers.
+- **Body retrieval error disclosure:** authorization lookup exceptions use the
+  concealed `404` schedule. Storage failures after verified authorization retain
+  retryable `503`; regression tests cover both sides of that boundary. The
+  availability cost of concealed lookup failures is explicit in [bodies](bodies.md).
+- **Decompression contract:** bounded buffered or streaming decompression is
+  permitted. The TypeScript retriever uses asynchronous buffered gzip with a hard
+  output cap equal to the signed size, bounded compressed input, and exact final
+  size/digest verification. Tests cover the ceiling, excess aggregate member
+  output, truncated/corrupt input and untrusted lengths.
+
+Remaining issues, not resolved by these fixes or passing conformance vectors:
+- **Historical authority:** exact evidence retention, current-key checks and
+  connection-history verification exist, but general recovery/nullified-branch
+  reconciliation and unacknowledged Grant rotation still need a reviewed procedure.
+- **Publication and extensions:** media-type registration remains pending. Future
+  optional SPT profiles need support negotiation; attachments need explicit wire,
+  availability and delivery rules. These are not implied by existing header assets.
+
+This audit checks specification consistency against repository source and selected
+tests. It is not a full security review, a production exercise, or a claim that
+all database state transitions have been revalidated.

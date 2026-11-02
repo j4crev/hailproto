@@ -239,6 +239,7 @@ const migrations: readonly Migration[] = [
   {version:95,name:"conversation-batches",url:new URL("../../migrations/0095_conversation_batches.sql",import.meta.url)},
   {version:96,name:"conversation-revival-outbox",url:new URL("../../migrations/0096_conversation_revival_outbox.sql",import.meta.url)},
   {version:97,name:"grant-category-restrictions",url:new URL("../../migrations/0097_grant_category_restrictions.sql",import.meta.url)},
+  {version:98,name:"body-budget",url:new URL("../../migrations/0098_body_budget.sql",import.meta.url)},
 ];
 
 export class ProviderDatabase {

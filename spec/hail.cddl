@@ -2,6 +2,8 @@
 ;
 ; Status: Draft; current creation profiles are listed in README.md.
 ; Historical alternatives retained below are not compatibility requirements.
+; All three current body profiles (spt-1, spt-2, spt-3) are mandatory provider
+; capabilities; see bodies.md for support requirements and transport size limits.
 ;
 ; This file defines the structural Hail Data Model shapes used by the v0
 ; specifications. The Markdown object specifications remain authoritative for
@@ -297,7 +299,7 @@ message-type =
 
 body-descriptor = {
   "digest": digest,
-  "size": 1..262144,
+  "size": 1..1048576,
   "media_type": "application/hail-body+cbor",
   "profile": "spt-1" / "spt-2" / "spt-3",
   "available_until": timestamp,

@@ -537,7 +537,7 @@ function validateEnvelope(payload: HailRecord): void {
   );
   digest(body.digest, "$.body.digest");
   const size = integer(body.size, "$.body.size", 1);
-  if (size > 262_144) fail("must not exceed 262144 octets", "$.body.size");
+  if (size > 1_048_576) fail("must not exceed 1048576 octets", "$.body.size");
   if (text(body.media_type, "$.body.media_type") !== "application/hail-body+cbor") {
     fail("unsupported body media type", "$.body.media_type");
   }

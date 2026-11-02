@@ -5,7 +5,7 @@ providers, for managed and owner-controlled identities. It does **not** authoriz
 message delivery, change subscriptions, implement block/unblock, or independently authorize moving retained connection history. Portability requires
 the separate [handover protocol](connection-portability.md). The separate connection
 messaging implementation uses version-2 Envelopes and this coordinator's current
-state; see [messaging](../docs/connection-messaging.md). See
+state; see [envelopes](envelopes.md). Threaded connection messages use version 3. See
 [connection consent](connection-auth.md) for the local identity-signing flow.
 
 Exact JSON wrappers, bundle fields, hash domains and HTTP outcomes are defined in
@@ -130,8 +130,11 @@ work, replication work and public signing evidence. Composite foreign keys bind
 every pair/event to its account; immutable-intent and no-delete/no-truncate guards
 preserve history. Generation/fence checks apply to both request handlers and workers.
 
-Confirmed federation intent/tombstones block transfer fences, serving-generation
-advances and custody-transition preparation. Do not bypass those guards to migrate.
+Pending federation work and unsupported history block transfer fences,
+serving-generation advances and custody-transition preparation. Drained supported
+history moves only under [connection portability](connection-portability.md),
+including authenticated peer handover; retained tombstones must travel with it.
+Do not bypass those guards to migrate.
 Schema rollback works while empty and refuses retained federation history; code
 rollback must retain all tables and may pause remote synchronization. Disabling the
 preview does not cancel consent or erase pending disconnects.

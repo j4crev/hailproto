@@ -49,3 +49,8 @@ nosniff`; they never convert manifest data into a sender-controlled URL.
 
 Deferred: JPEG/WebP, animation, remote loading, attachments, responsive
 variants, and manifests containing more than one asset per role.
+
+These asset limits are independent of the 1 MiB message-body ceiling. Bundled
+bytes count toward both their per-asset limit and the complete body limit.
+Future detached resources need their own byte/count budgets and an aggregate
+message-resource budget; a larger body ceiling does not authorize larger images.

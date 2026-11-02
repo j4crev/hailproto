@@ -2,14 +2,14 @@
 
 ## Owner-Controlled Consent And Cross-Provider Connections
 
-The connection-lifecycle release adds owner-controlled identity signing and the complete cross-provider
+The connection lifecycle includes owner-controlled identity signing and cross-provider
 connection lifecycle: admission, crossed-scan convergence, durable retries and signed
-disconnect propagation. Connection messaging is a separate slice, deployed on Haili
-October 25, 2026, using the existing Envelope mechanism; see
-[connection messaging](../docs/connection-messaging.md).
-Portable account export remains guarded and unfinished.
-See [federation v1](connection-federation.md) for wire/state rules and the deployment
-receipts in [Haili launch](../docs/haili-launch.md) for live rollout status.
+disconnect propagation. Connection messaging uses the existing Envelope mechanism;
+see [envelopes](envelopes.md). Connection-history export, staging and authenticated
+handover are defined in [connection portability](connection-portability.md), with
+fencing and pending-work guards. See [federation v1](connection-federation.md) for
+wire/state rules. Deployment evidence is separate from protocol conformance; see
+[production readiness](../agents/production-readiness.md).
 
 ### Owner-Controlled Signing
 

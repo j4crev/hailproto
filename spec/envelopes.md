@@ -4,12 +4,13 @@ Status: Draft
 
 This document defines the Hail Envelope v0 payload, authorization modes, signature representation, validation rules, and replay behavior.
 
-The existing version-1 Grant/reply profile remains unchanged. Version 2 adds only
+Version 1 defines Grant delivery and retains its historical unthreaded reply shape.
+New direct replies use version 3 below. Version 2 adds only
 the connection authorization defined below; it uses the **same** Envelope object,
 COSE content type, messaging key, body descriptor, submission, replay and delivery
-status mechanisms. Older version-1 implementations reject it rather than treating
-it as a category, Grant or reply. Implementation/rollout details are in
-[connection messaging](../docs/connection-messaging.md).
+status mechanisms. A peer without connection support rejects it rather than
+treating it as a category, Grant or reply. Connection admission is defined in
+[connection federation](connection-federation.md).
 
 Version 4 and its immutable descriptor, introduction and logical parent rules
 are defined in [shared-conversations.md](shared-conversations.md). The common
@@ -170,6 +171,11 @@ calendar-event
 ```
 
 Unknown values are rejected in v0 rather than silently treated as an existing type. A reply envelope should normally use `personal` or omit the field.
+
+The current alpha uses this closed list; there is no independently extensible
+message-type registry. Adding values requires a specification and schema update,
+with explicit peer-support rules. A provider cannot create new interoperable types
+by assigning strings locally.
 
 ### `created_at`
 
@@ -339,7 +345,7 @@ v0 rules:
 - `digest` is a closed object containing only `algorithm` and `value`.
 - `digest.algorithm` is the exact string `sha-256`.
 - `digest.value` is exactly 32 digest bytes. Diagnostic JSON and the retrieval path use its unpadded base64url rendering.
-- `size` is the exact uncompressed deterministic body size in octets, from 1 through 262144 inclusive.
+- `size` is the exact uncompressed deterministic body size in octets, from 1 through 1048576 inclusive.
 - `media_type` is the exact provisional string `application/hail-body+cbor`.
 - `profile` is `spt-1` for plain text, `spt-2` for rich text, or `spt-3` for rich text with one bundled header image.
 - `available_until` is a UTC Unix timestamp at least 2592000 seconds after `created_at` and at least 300 seconds after `expires_at`.
@@ -406,7 +412,7 @@ The recipient re-checks envelope expiration immediately before committing comple
 
 ## Envelope Size
 
-A POC recipient must accept a valid tagged COSE_Sign1 envelope whose complete transmitted representation is no larger than 16384 octets. It may reject a larger envelope before parsing or cryptographic verification.
+A conforming current-alpha recipient MUST support a valid tagged COSE_Sign1 envelope whose complete transmitted representation is no larger than 16384 octets, subject to the authorization, validation, and policy rules below. It may reject a larger envelope before parsing or cryptographic verification. A larger local limit does not establish support by other peers.
 
 The limit applies to the transmitted COSE representation. The POC does not apply HTTP content coding to individual envelopes. Batch submission is not part of v0.
 
@@ -510,14 +516,15 @@ UUIDv7 message IDs expose approximate creation order and are not secrets. Author
 
 Receivers reject non-deterministic payload, protected-header, or COSE bytes even when their signatures are cryptographically valid. This gives every accepted semantic envelope one signed byte representation and avoids ambiguity in stored digests and idempotent retries.
 
-## POC Requirements
+## Current Alpha Requirements
 
-The proof of concept implements:
+The current profiles define:
 
 - one sender DID and one recipient DID per envelope
-- closed `hail.envelope` version 1 payloads
+- closed version-1 Grant, version-2 connection, version-3 threaded reply/connection,
+  and version-4 shared-conversation payloads
 - UUIDv7 message IDs scoped by sender DID
-- grant and reply authorization modes
+- Grant, reply, connection and shared-conversation authorization, according to version
 - exact category-to-grant checks
 - optional closed-list message types
 - required creation and expiration timestamps
@@ -536,20 +543,22 @@ The proof of concept implements:
 
 Deferred:
 
-- multiple recipients
+- multiple recipients within one envelope (shared conversations already use
+  separate per-recipient envelopes)
 - bulk envelope submission
 - alternate signature algorithms
 - end-to-end envelope encryption
 - arbitrary extension fields
-- unsigned objects or nonempty COSE unprotected headers
-- non-grant authorization other than direct replies
+
+Unsigned envelopes and nonempty COSE unprotected headers are prohibited by the
+current security profile, not planned optional features.
 
 ## Open Questions
 
-- What PLC operation and chain evidence must recipients retain for long-term audit verification?
-- What production cache lifetime and PLC finality rules replace the POC behavior?
-- Should production retain the POC message-type list or introduce a separately versioned registry?
-- What production envelope size must every conforming implementation accept?
+- General historical-authority verification and reconciliation after PLC recovery
+  or nullification remain unresolved. Retained evidence and fresh-read behavior
+  already exist under [PLC read evidence](plc-read-evidence.md); that reference
+  policy is not a complete interoperable historical-admission standard.
 
 ## Threaded replies (version 3)
 

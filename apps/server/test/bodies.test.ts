@@ -22,9 +22,9 @@ function setup(result: Awaited<ReturnType<BodyStore["retrieve"]>>) {
 }
 
 describe("detached body", () => {
-  it("encodes a validated deterministic spt-1 body and enforces the 256 KiB ceiling", () => {
+  it("encodes a validated deterministic spt-1 body and enforces the 1 MiB ceiling", () => {
     expect(decodePayload("hail.body.spt-1", bytes).blocks[0]?.children[0]?.text).toBe("Hello from Hail.");
-    expect(() => bodyFromText("a".repeat(262_145))).toThrow();
+    expect(() => bodyFromText("a".repeat(1_048_577))).toThrow();
   });
 
   it("encodes the first safe rich-text elements", () => {
@@ -85,5 +85,15 @@ describe("detached body", () => {
     expect((await app.request(path, { headers })).status).toBe(503);
     expect((await app.request(path, { method: "POST" })).headers.get("allow")).toBe("GET");
     expect((await app.request(path, { headers: { ...headers, Accept: "application/json" } })).status).toBe(406);
+  });
+
+  it("conceals unexpected storage failures without an established authorization", async () => {
+    const { app, retrieve } = setup(null);
+    const ordinary = await app.request(path, { headers });
+    retrieve.mockRejectedValueOnce(new Error("authorization database unavailable"));
+    const failed = await app.request(path, { headers });
+    expect(failed.status).toBe(404);
+    expect([...failed.headers]).toEqual([...ordinary.headers]);
+    expect(await failed.text()).toBe(await ordinary.text());
   });
 });

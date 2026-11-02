@@ -14,7 +14,7 @@ The core codec uses web-platform `Uint8Array`, `TextEncoder`, and `TextDecoder` 
 
 `cborg` is the selected CBOR primitive because it supports RFC 8949 ordering, shortest encodings, duplicate-key rejection, prohibited-tag defaults, and browser-safe byte arrays. Hail additionally validates the constrained data model and requires decode/re-encode byte equality. More permissive high-throughput codecs may be benchmarked later, but are not used on the strict acceptance path unless they can preserve these checks.
 
-The current decoder safety defaults are provisional implementation ceilings while production interoperability limits remain under specification: 256 KiB encoded input, depth 32, 16,384 total values, 4,096 array entries, and 256 map entries. Object-level limits can be lower.
+The current decoder budgets are specified in `spec/encoding.md`: 1 MiB encoded input, depth 32, 16,384 total items (including map keys), 4,096 array entries, and 256 map entries. Signed-object representation and image limits remain separate and can be lower. Shared resource vectors exercise both codecs at the boundaries.
 
 ## Usage
 

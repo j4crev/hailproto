@@ -40,7 +40,7 @@ An envelope must never refer to a body that the sender intends to generate later
 
 ## Deterministic Body Bytes
 
-For the POC, a plain Hail Body is a Safe Portable Text `spt-1` map in the Hail Data Model defined by [encoding.md](encoding.md). The additive `spt-2` profile permits headings, blockquotes, captions, lists, the `strong`/`em`/`code` decorators, and declared HTTPS link annotations. Receivers continue to accept `spt-1`.
+In the current alpha, a plain Hail Body is a Safe Portable Text `spt-1` map in the Hail Data Model defined by [encoding.md](encoding.md). The additive `spt-2` profile permits headings, blockquotes, captions, lists, the `strong`/`em`/`code` decorators, and declared HTTPS link annotations. Conforming providers MUST support validation, retrieval, and storage of all three current profiles: `spt-1`, `spt-2`, and `spt-3`. Plain-text-only body support is insufficient for provider conformance.
 
 The additive `spt-3` profile retains `spt-2` text and adds exactly one bundled
 PNG `header` asset and a leading `spt.image` block that references it. The asset
@@ -86,9 +86,16 @@ one key from that block's `markDefs`. A mark definition is a closed
 without embedded credentials, and optional plain-text title. Unknown styles,
 marks, definitions, fields, and URL schemes are rejected.
 
-Senders use `spt-1` unless they know the target accepts the selected later profile; profile
-capability discovery remains to be defined. A receiver that does not support
-the descriptor's profile fails the body as `body-unsupported`.
+Senders MAY select any of the three required profiles without capability discovery.
+`spt-1` remains a distinct plain-text representation, not a mandatory fallback for
+rich content. Safe Portable Text is an evolving Hail format; support for these
+profiles does not imply support for arbitrary Portable Text or future layout nodes.
+An extension adding new layout semantics MUST specify its profile identifier,
+schema, resource limits, and support requirements. Providers MUST NOT silently
+discard unknown nodes or reinterpret an unsupported profile as a supported one.
+Discovery/negotiation for future optional profiles remains to be specified; it is
+not a prerequisite for using the three current mandatory profiles. Client rendering
+and accessible presentation are separate from provider wire conformance.
 
 The exact deterministic bytes are stored and served. A receiver hashes the bytes it receives after removing HTTP content coding; it does not use a reserialized document to reproduce that digest. After the raw-byte digest succeeds, it performs bounded CBOR decoding, re-encodes under the deterministic Hail profile, and requires the result to equal the received bytes.
 
@@ -168,13 +175,16 @@ It must be at least 30 days after the envelope's `created_at` time. A body reuse
 
 Recipient-specific retrieval authorization covered by the envelope signature.
 
-## POC Retrieval Authorization
+## Retrieval Authorization
 
-The POC uses a recipient-specific opaque bearer token.
+The current alpha requires a recipient-specific, per-envelope opaque bearer token.
+Recipient DID and message ID scope the authorization record; they do not prove
+the HTTP requester's identity. Possession of the token authorizes retrieval of
+its bound body until expiration, subject to the authorization's active status.
 
 The sender generates exactly 256 bits of cryptographically secure random data and places those 32 bytes in the envelope. The same token may be reused for retries of the same envelope but must not be reused for another recipient or unrelated envelope. HTTP renders it with unpadded base64url.
 
-The sender stores only a cryptographic digest of the token, mapped to:
+The sender's authorization lookup stores a cryptographic digest of the token, mapped to:
 
 - body digest
 - recipient DID
@@ -183,6 +193,11 @@ The sender stores only a cryptographic digest of the token, mapped to:
 - authorization status
 
 The sender includes the original token in the recipient's signed envelope. The envelope signature prevents an intermediary from changing which token, body, recipient, or expiration the sender authorized.
+
+Retained signed envelopes also contain the original token. Hashing the lookup
+record does not remove that secret from retained envelopes, outboxes, or transfer
+history; those representations require secret-bearing data protection and log
+redaction.
 
 The recipient presents the token in the HTTP `Authorization` header, never in the URL:
 
@@ -204,7 +219,16 @@ The sender accepts retrieval only when:
 - the authorization has not expired
 - the token is presented over HTTPS
 
-Missing, malformed, invalid, unknown, mismatched, and expired tokens receive the uniform `404` response defined by the HTTP binding without revealing whether the body digest exists. The recipient performs the HTTP binding's one required sender-DID refresh before classifying that response as permanent, because provider migration may move the same authorization record to a newly authenticated endpoint. A missing committed body may return `503` only after the token and requested digest match an unexpired authorization record.
+Missing, malformed, invalid, unknown, mismatched, and expired tokens receive the uniform `404` response defined by the HTTP binding without revealing whether the body digest exists. The recipient performs the HTTP binding's one required sender-DID refresh before classifying that response as permanent, because provider migration may move the same authorization record to a newly authenticated endpoint. A missing committed body may return `503` only after the token and requested digest match an active, unexpired authorization record.
+
+An authorization lookup failure does not establish authorization and MUST use the
+same concealed `404` outcome and bounded response schedule. Once token, digest,
+active status and expiry have been verified, a storage/fence-read failure or
+unavailable/corrupt stored body MAY return retryable `503`. A known retired source
+still returns `404` to trigger authenticated endpoint refresh. Consequently a
+lookup outage can cause a legitimate request to fail after the mandatory refresh;
+the concealed result is not proof that its token was invalid. Operators should
+monitor storage availability independently of secret-bearing request contents.
 
 ## Signatures Versus Encryption
 
@@ -319,24 +343,59 @@ HTTP content coding          -> transfer optimization only
 
 The same body may be transferred with no content coding or an allowed coding such as gzip without changing its digest.
 
-Recipients must stream decompression with a hard output limit. They must stop before allocating or producing bytes beyond the envelope's declared size or their local maximum.
+Recipients MUST enforce a hard decompressed-output limit during decompression;
+checking size only after an unbounded decompression call is prohibited. Streaming
+and bounded buffered decompression are both permitted. A buffered implementation
+MUST bound compressed input before decompression and configure the decompressor's
+output cap to the signed body size, itself validated against the body ceiling.
+Bounded decoder scratch space is separate from logical output; buffering does not
+permit an output cap above the signed size. The final output must have exactly the
+signed length and digest before decoding or delivery.
 
-## POC Resource Limits
+## Current Alpha Resource Limits
 
-The POC supports only the bundled `spt-3` header asset, no attachments, and a
-maximum uncompressed body size of 256 KiB. The header itself is limited to 192
+The current alpha supports only the bundled `spt-3` header asset, no attachments,
+and a maximum uncompressed body size of 1 MiB (1048576 octets). Conforming
+providers MUST support valid bodies through that size, subject to authorization,
+schema validation, and explicit resource/policy failures; they MUST NOT advertise
+conformance with a smaller format ceiling. The header itself is limited to 192
 KiB, 2400 by 1200 pixels, and 2,000,000 pixels total.
 
 The receiver enforces:
 
-- envelope-declared size no greater than 256 KiB
+- envelope-declared size no greater than 1 MiB
 - bounded compressed response bytes
-- streaming decompression capped at the declared size
+- decompression output capped at the declared size, whether buffered or streamed
 - exact final uncompressed size
 - Safe Portable Text depth, node-count, and string-length limits
 - request and response timeouts
 
-Production interoperability floors and ceilings remain to be specified from prototype measurements.
+This is the current interoperable body ceiling, not a promise of unlimited storage
+or delivery capacity. Larger publisher layouts or detached attachments require an
+explicit specification change; a provider-local increase does not create peer
+support. Receivers MUST support identity and gzip HTTP content coding. Serving
+uncompressed bytes is sufficient; gzip emission is optional. Gzip-coded responses
+MUST NOT exceed 2097152 octets, and decompressed bytes MUST match the signed size
+within the body ceiling. No other content coding is defined by this profile.
+
+### Separate Content Budgets
+
+The 1 MiB ceiling covers the complete deterministic SPT document, including any
+bundled asset bytes and CBOR metadata. Text/layout complexity also obeys the
+independent depth, item and collection budgets in [encoding](encoding.md).
+The existing header asset retains its own 192 KiB, dimension and pixel limits;
+increasing the body ceiling does not increase any image limit.
+
+Future detached images and file attachments require separate per-resource and
+aggregate per-message byte/count limits, retrieval authorization and availability
+rules. Their raw bytes should not be embedded merely to evade these budgets.
+No detached-resource allowance or general attachment support is defined today.
+Provider quotas and concurrent-transfer budgets remain separate from wire limits.
+
+Publisher layouts are intended to express safe HTML-like content through explicit
+SPT nodes and validated attributes. The larger budget does not permit arbitrary
+HTML, CSS, scripts, remote resource loading, or unknown nodes. New layout semantics
+require a specified profile and client presentation rules.
 
 ## Retention
 
@@ -382,7 +441,11 @@ retrieval authorization must not become a covert tracking channel.
 
 ### Bearer Token Leakage
 
-Anyone possessing a token can retrieve its authorized body until expiration. Tokens must be generated securely, transmitted only over HTTPS, excluded from URLs and logs, stored hashed by the sender, and protected by recipient servers.
+Anyone possessing a token can retrieve its authorized body until expiration while
+the authorization remains active. Tokens must be generated securely, transmitted
+only over HTTPS, excluded from URLs and logs, and hashed in authorization lookup
+records. Both providers must protect retained signed envelopes containing the
+original token.
 
 ### Server-Side Request Forgery
 
@@ -398,7 +461,12 @@ At least 256 random token bits make online guessing infeasible. The sender must 
 
 ### Decompression Bombs
 
-The declared uncompressed size is enforced while streaming. Implementations must not trust `Content-Length`, compressed size, or the sender's decompressor metadata as an output bound.
+The declared uncompressed size is enforced during decompression. Implementations
+must not trust `Content-Length`, compressed size, or gzip metadata as an output
+bound. Concatenated gzip members share one aggregate output budget. Truncated
+input remains retryable as `body-transfer-interrupted`; corrupt gzip or excess
+output fails integrity validation. Implementations should bound concurrent work
+and avoid long synchronous decompression on a request-serving event loop.
 
 ### Shared-Body Correlation
 
@@ -421,7 +489,7 @@ The proof of concept implements:
 - recipient caching and digest deduplication
 - no redirects or arbitrary body URLs
 - gzip transfer support
-- 256 KiB maximum uncompressed body size
+- 1 MiB maximum uncompressed body size
 - 30-day minimum availability commitment
 - bounded retries and strict integrity validation
 
@@ -433,12 +501,15 @@ Deferred:
 - attachments
 - remote asset profiles
 - content negotiation beyond the POC profile
-- production size floors and ceilings
+- larger body profiles and their interoperable limits
 
-## Open Questions
+## Remaining Publication And Extension Work
 
-- Should production retrieval use bearer authorization alone or require RFC 9421 proof of possession?
-- Should access authorization be per envelope or reusable for the same recipient and body?
-- What final body media type should be registered?
-- What production uncompressed body size must every server accept?
-- Which compression algorithms are required or optional after the POC?
+- Register `application/hail-body+cbor` or explicitly revise the profile if review
+  requires a different allocation. Implementations use the current exact value;
+  they do not choose substitute strings locally.
+- Define support discovery before introducing optional body profiles. The current
+  three profiles are mandatory and need no such negotiation.
+- Specify future layout and attachment profiles, including their size and delivery
+  semantics. Bearer authorization per envelope and identity/gzip coding are settled
+  for the current alpha; proof of possession remains a separate future extension.

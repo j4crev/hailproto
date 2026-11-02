@@ -237,7 +237,7 @@ The category manifest is embedded in the signed Sender Profile and is not a sepa
 
 Status acknowledgement is the `204 No Content` response to `PushDeliveryStatus`. There is no separate acknowledgement request object, method, path, or signature.
 
-Body creation and publication are sender-local prerequisites, not federation requests. Missing grant revisions are retransmitted with `PublishGrantRevision`; grant acknowledgement is its synchronous HTTP result. Read/open receipts, bulk submission, campaign status and unsolicited contact requests are outside this inventory or deferred.
+Body creation and publication are sender-local prerequisites, not federation requests. Missing grant revisions are retransmitted with `PublishGrantRevision`; grant acknowledgement is its synchronous HTTP result. Read/open receipts, bulk federation submission, campaign status and unsolicited contact requests are outside this inventory or deferred. Implemented invitation review and connection admission are separate extension operations defined in [connection wire](connection-wire.md); local send batches still submit individual envelopes.
 
 ## Sender Profile Retrieval Binding
 
@@ -523,6 +523,8 @@ The relative operation path begins with the literal segment `bodies`, followed b
 | Missing, malformed, unknown, expired, or mismatched bearer authorization | `404 Not Found` | Refresh the sender DID once; retry at a changed authenticated endpoint, otherwise treat as permanent authorization failure |
 | No authorization record for the requested digest | `404 Not Found` | Refresh the sender DID once; do not infer whether body bytes exist, and treat as permanent if the endpoint is unchanged |
 | Valid token and matching digest, but committed body temporarily unavailable | `503 Service Unavailable` | Retry within the effective delivery deadline |
+| Authorization lookup fails before token, digest, active status and expiry are verified | Uniform `404 Not Found` | Apply the same sender-DID refresh rule; do not infer token validity from this concealed failure |
+| Storage or fence lookup fails after successful body authorization | `503 Service Unavailable` | Retry within the effective delivery deadline; an unverified lookup must not use this outcome |
 | Relationship-independent source-wide or service-wide rate limit, or rate limit after valid token-and-digest authorization | `429 Too Many Requests` | Retry within the deadline and honor valid `Retry-After` guidance |
 | Requested representation is not acceptable | `406 Not Acceptable` | Treat as unsupported representation |
 | Method other than `GET` | `405 Method Not Allowed` | Do not retry with that method; response includes `Allow: GET` |

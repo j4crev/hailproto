@@ -22,6 +22,7 @@ import {clientAddress,FixedWindowRateLimit} from "../http/rate-limit.js";
 
 const GRANT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_BYTES = 262_144;
+const MESSAGE_JSON_MAX_BYTES = 8 * 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 
 export async function accountRequestBytes(request: Request,limit=MAX_BYTES): Promise<Uint8Array | null> {
@@ -117,7 +118,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         }
         if(method!=="POST")return problem(405);if(session.migration_state)return problem(409);
         if(context.req.header("Content-Type")!=="application/json"||context.req.header("Content-Encoding")!==undefined)return problem(415);
-        const bytes=await accountRequestBytes(context.req.raw);if(!bytes)return problem(413);
+        const bytes=await accountRequestBytes(context.req.raw,MESSAGE_JSON_MAX_BYTES);if(!bytes)return problem(413);
         let input:unknown;try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}catch{return problem(400);}
         if(!input||typeof input!=="object"||Array.isArray(input))return problem(400);
         if(kind==='connections'&&'publicationId' in input&&typeof input.publicationId==='string'&&GRANT_ID.test(input.publicationId))batchRequestId=input.publicationId;
@@ -345,7 +346,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
             return context.json(await messaging.submit(session.did,grantId));
           }
           if(context.req.header("Content-Type")!=="application/json"||context.req.header("Content-Encoding")!==undefined)return problem(415);
-          const bytes=await accountRequestBytes(context.req.raw);if(!bytes)return problem(413);
+          const bytes=await accountRequestBytes(context.req.raw,MESSAGE_JSON_MAX_BYTES);if(!bytes)return problem(413);
           const input=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));if(!input||typeof input!=="object"||Array.isArray(input))return problem(400);
           return context.json(await messaging.send(session,input));
         }

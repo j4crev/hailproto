@@ -598,7 +598,9 @@ Paths are relative to `/api/v1/account`. JSON writes require uncoded
 `application/json`. Message inputs contain `messageId`, exactly one of `text`
 or a diagnostic-JSON `body`, either
 `grantId`/`category` or `replyTo`, and optional `replyUntil`; text is bounded
-at 64 KiB and bodies retain the 256 KiB encoded limit. Stored envelopes bind retries to the same body, authorization and
+by the 1 MiB encoded body limit, including CBOR framing. Message-bearing API writes
+allow 8 MiB of JSON transport overhead; unrelated endpoints retain their existing
+limits. Stored envelopes bind retries to the same body, authorization and
 reply permission. Federation submission shares the operator CLI's submission
 service, preserving signed status versus generic receipt verification.
 

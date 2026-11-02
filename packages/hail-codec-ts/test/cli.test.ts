@@ -72,7 +72,7 @@ describe("hail-codec CLI", () => {
 
   it("rejects oversized files before decoding", () => {
     const path = join(directory, "oversized.cbor");
-    writeFileSync(path, new Uint8Array(262_145));
+    writeFileSync(path, new Uint8Array(1_048_577));
     const result = run("diagnose", "hail.body.spt-1", path);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("resource-limit: input file is too large");

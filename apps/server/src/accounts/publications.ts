@@ -1,3 +1,4 @@
+import { BODY_CONTAINER_LIMITS } from "../bodies/service.js";
 import {createHash} from "node:crypto";
 import {decodeDeterministic,decodePayload,encodeDeterministic,HailCodecError} from "@hailproto/codec";
 import type {SQL} from "bun";
@@ -18,11 +19,11 @@ type Publication={account_id:string;id:string;sender_did:string;serving_generati
   manifest:Uint8Array|null;kind:Kind;conversation_context:Uint8Array|null;
   body_bytes:Uint8Array;request_digest:Uint8Array;reply_until:number|string|null;created_at:Date;expires_at:Date;cancelled_at:Date|null};
 const digest=(category:string,body:Uint8Array,replies:boolean)=>new Uint8Array(createHash("sha256")
-  .update(encodeDeterministic({category,body,allowReplies:replies})).digest());
-const connectionDigest=(ids:string[],body:Uint8Array)=>new Uint8Array(createHash("sha256").update(encodeDeterministic({connections:ids,body})).digest());
+  .update(encodeDeterministic({category,body,allowReplies:replies},BODY_CONTAINER_LIMITS)).digest());
+const connectionDigest=(ids:string[],body:Uint8Array)=>new Uint8Array(createHash("sha256").update(encodeDeterministic({connections:ids,body},BODY_CONTAINER_LIMITS)).digest());
 type SharedContext={creator:string;conversationId:string;logicalId:string;introduction:boolean;parent?:{sender:string;message_id:string}};
 type SharedTarget={connectionId:string|null;epoch:number|null;recipientDid:string;address:string};
-const sharedDigest=(context:Uint8Array,manifest:Uint8Array,body:Uint8Array)=>new Uint8Array(createHash('sha256').update(encodeDeterministic({context,manifest,body})).digest());
+const sharedDigest=(context:Uint8Array,manifest:Uint8Array,body:Uint8Array)=>new Uint8Array(createHash('sha256').update(encodeDeterministic({context,manifest,body},BODY_CONTAINER_LIMITS)).digest());
 
 export class AccountPublications {
   constructor(private readonly sql:SQL,private readonly messaging:Pick<AccountMessaging,"send"> & Partial<Pick<AccountMessaging,'ensureConversation'|'sendConversation'>>,private readonly connections?:ConnectionMessagingAuthority){}

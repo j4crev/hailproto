@@ -23,13 +23,13 @@ export interface HailResourceLimits {
 }
 
 export const DEFAULT_HAIL_RESOURCE_LIMITS: HailResourceLimits = {
-  maximumBytes: 262_144,
+  maximumBytes: 1_048_576,
   maximumDepth: 32,
   maximumItems: 16_384,
   maximumArrayLength: 4_096,
   maximumMapEntries: 256,
-  maximumTextBytes: 262_144,
-  maximumByteStringLength: 262_144,
+  maximumTextBytes: 1_048_576,
+  maximumByteStringLength: 1_048_576,
 };
 
 const textEncoder = new TextEncoder();

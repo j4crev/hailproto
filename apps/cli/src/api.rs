@@ -184,6 +184,14 @@ impl Client {
     ) -> Result<Value, Error> {
         let maximum = if namespace == "/api/v1/auth/authorization" {
             65536
+        } else if namespace == "/api/v1/account" && path.starts_with("/connection-threads/") {
+            192 * 1024 * 1024 // Up to 30 titles drawn from 1 MiB bodies, including JSON escaping.
+        } else if namespace == "/api/v1/account"
+            && (path.starts_with("/inbox/")
+                || path.starts_with("/sent/")
+                || path.starts_with("/conversations/"))
+        {
+            40 * 1024 * 1024 // Up to five 1 MiB bodies with JSON escaping and metadata.
         } else {
             MAX_RESPONSE
         };

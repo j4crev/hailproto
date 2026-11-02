@@ -7,7 +7,7 @@ import {sentSends} from "./sent-sends.js";
 import { createHash } from "node:crypto";
 import { decodePayload,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,toDiagnosticJson,type DiagnosticJson } from "@hailproto/codec";
 import type { SQL } from "bun";
-import { bodyFromDocument,bodyFromText,validateBodyBytes } from "../bodies/service.js";
+import { BODY_MAX_BYTES,bodyFromDocument,bodyFromText,validateBodyBytes } from "../bodies/service.js";
 import type { BodyRepository } from "../bodies/repository.js";
 import type { EnvelopeRepository } from "../envelopes/repository.js";
 import { EnvelopeAuthorizationError,type EnvelopeService } from "../envelopes/service.js";
@@ -36,7 +36,7 @@ export function bodyDocument(bytes:Uint8Array) {
 
 export function outboundBody(input:Record<string,unknown>):Uint8Array {
   const text=typeof input.text==="string",document=Boolean(input.body)&&typeof input.body==="object"&&!Array.isArray(input.body);
-  if(text===document||text&&Buffer.byteLength(input.text as string)>65536)throw new UserGrantError(400,"Choose one bounded message body");
+  if(text===document||text&&Buffer.byteLength(input.text as string)>BODY_MAX_BYTES)throw new UserGrantError(400,"Choose one bounded message body");
   if(text)return bodyFromText(input.text as string);
   const profile=(input.body as Record<string,unknown>).profile;
   if(profile!=="spt-2"&&profile!=="spt-3")throw new UserGrantError(400,"Invalid body profile");
@@ -74,7 +74,7 @@ export class AccountMessaging {
     const hasText=typeof input.text==="string",hasBody=Boolean(input.body)&&typeof input.body==="object"&&!Array.isArray(input.body);
     if(Object.keys(input).some(k=>!["messageId","text","body","grantId","category","replyTo","replyUntil","connectionId","connectionEpoch","recipientDid","inReplyTo"].includes(k))||
       typeof input.messageId!=="string"||!ID.test(input.messageId)||hasText===hasBody||
-      (hasText&&Buffer.byteLength(input.text as string)>65536)||[input.grantId,input.replyTo,input.connectionId].filter(v=>typeof v==="string").length!==1||
+      (hasText&&Buffer.byteLength(input.text as string)>BODY_MAX_BYTES)||[input.grantId,input.replyTo,input.connectionId].filter(v=>typeof v==="string").length!==1||
       (input.grantId!==undefined&&(!ID.test(input.grantId as string)||typeof input.category!=="string"))||
       (input.replyTo!==undefined&&(!ID.test(input.replyTo as string)||input.category!==undefined))||
       (input.connectionId!==undefined&&(!ID.test(input.connectionId as string)||typeof input.recipientDid!=="string"||!DID.test(input.recipientDid)||
