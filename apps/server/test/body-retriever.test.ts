@@ -75,7 +75,12 @@ describe("authenticated detached body retrieval", () => {
       digest: { algorithm: "sha-256" as const, value: bodyDigest(maximum) } } };
     const response = (data: Uint8Array) => new Response(gzipSync(data), { headers: {
       "Content-Type": "application/hail-body+cbor", "Content-Encoding": "gzip" } });
-    expect(await setup([response(maximum)]).retriever.retrieve(descriptor)).toEqual({ kind: "success", bytes: maximum });
+    const result = await setup([response(maximum)]).retriever.retrieve(descriptor);
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") throw new Error("Expected successful maximum-sized body retrieval");
+    // Compare exact bytes natively; deep equality walks a million array properties
+    // and can exhaust the test timeout on shared CI runners.
+    expect(Buffer.from(result.bytes).equals(Buffer.from(maximum))).toBe(true);
     const oversized = new Uint8Array(maximum.length + 1);
     oversized.set(maximum);
     expect(await setup([response(oversized)]).retriever.retrieve(descriptor)).toEqual({ kind: "fail", reason: "body-integrity-failed" });

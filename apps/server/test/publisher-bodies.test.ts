@@ -17,7 +17,7 @@ describe("publisher content under the 1 MiB body budget", () => {
     expect(bytes.length).toBeGreaterThan(262_144);
     expect(bytes.length).toBeLessThan(BODY_MAX_BYTES);
     expect(decodePayload("hail.body.spt-2",bytes)).toEqual(body);
-    expect(outboundBody({body})).toEqual(bytes);
+    expect(Buffer.from(outboundBody({body})).equals(Buffer.from(bytes))).toBe(true);
     expect(validateBodyBytes(bytes)).toBe("spt-2");
   });
 

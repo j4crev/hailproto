@@ -17,7 +17,7 @@ describe("published CBOR resource budgets", () => {
     const limits = { ...DEFAULT_HAIL_RESOURCE_LIMITS, ...vector.limits };
     if (vector.accepted) {
       expect(() => assertCborResourceLimits(bytes, limits)).not.toThrow();
-      expect(Buffer.from(encodeDeterministic(decodeDeterministic(bytes, limits), limits))).toEqual(bytes);
+      expect(Buffer.from(encodeDeterministic(decodeDeterministic(bytes, limits), limits)).equals(bytes)).toBe(true);
     } else {
       expect(() => assertCborResourceLimits(bytes, limits)).toThrow();
       expect(() => decodeDeterministic(bytes, limits)).toThrow(/resource|too (many|large)|maximum|exceed/i);
