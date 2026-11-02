@@ -1,6 +1,6 @@
 # RACR CLI release notes
 
-## Unreleased
+## 0.1.3 (prerelease)
 
 - Rename the executable and release archives from `hailp` to `racr`.
 - Use `RACR_CREDENTIAL_FILE` instead of `HAILP_CREDENTIAL_FILE`; update shell

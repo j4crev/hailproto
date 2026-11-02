@@ -202,7 +202,7 @@ not recovery-window finality or proof of owner intent. See the
 
 The consolidated [reference account API v1 / racr CLI contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-contract.md)
 defines compatibility, output/error semantics and bounded read convenience.
-The client version is 0.1.0 and its JSON adds `cliContractVersion: 2`; provider
+The client version is 0.1.3 and its JSON adds `cliContractVersion: 2`; provider
 response shapes and API paths remain unchanged. Command-specific help, deliberate
 origin/account assertions and a compiled executable are documented in the
 [developer workflows](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md#conventions).
