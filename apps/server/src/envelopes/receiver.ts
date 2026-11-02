@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { createWebCryptoVerifier, inspectSignedPayload, verifySignedPayload } from "@hailproto/codec";
+import { createWebCryptoVerifier, inspectSignedPayload, verifySignedPayload } from "@racrproto/codec";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import type { AccountRecord } from "../onboarding/repository.js";
 import type { HailDidResolver } from "../plc/resolver.js";

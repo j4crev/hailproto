@@ -19,7 +19,7 @@ const config: AppConfig = {
 const binding: PublishedAddressBinding = {
   id: "11111111-1111-4111-8111-111111111111",
   accountId: "22222222-2222-4222-8222-222222222222",
-  canonicalAddress: "alice@hailproto.app",
+  canonicalAddress: "alice@racrproto.app",
   did: "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
   cose: new Uint8Array([1, 2, 3]),
   digest: new Uint8Array(32).fill(7),
@@ -121,7 +121,7 @@ describe("address discovery", () => {
 
   it("publishes the selected Address Binding through WebFinger", async () => {
     const query = new URLSearchParams({
-      resource: "acct:alice@hailproto.app",
+      resource: "acct:alice@racrproto.app",
       rel: ADDRESS_BINDING_REL,
     });
     const response = await app.request(`/.well-known/webfinger?${query}`);
@@ -129,7 +129,7 @@ describe("address discovery", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/jrd+json");
     expect(await response.json()).toEqual({
-      subject: "acct:alice@hailproto.app",
+      subject: "acct:alice@racrproto.app",
       links: [
         {
           rel: ADDRESS_BINDING_REL,
@@ -150,7 +150,7 @@ describe("address discovery", () => {
 
   it("does not disclose absent address state", async () => {
     const query = new URLSearchParams({
-      resource: "acct:nobody@hailproto.app",
+      resource: "acct:nobody@racrproto.app",
       rel: ADDRESS_BINDING_REL,
     });
     const response = await app.request(`/.well-known/webfinger?${query}`);

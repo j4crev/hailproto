@@ -5,7 +5,7 @@ import {join} from "node:path";
 import {createSignupBackup,signSignupGenesis,encodeBase64Url} from "./signup-recovery.js";
 import {makeRecoveryPackage,openRecoveryPackage} from "./signup-package.js";
 import {pendingKey,setupToken,type PendingSignup} from "./signup.js";
-import {extractRecoveryVault} from "@hailproto/client-support/recovery-package";
+import {extractRecoveryVault} from "@racrproto/client-support/recovery-package";
 import {verifyVaultFile,copyVerifiedVault} from "../../../server/test/client-support/vault-backup.js";
 
 it.each([false,true])("custom %s: one saved kit resumes exact signup and imports a v1 recovery vault offline, rejecting swapped or damaged material",async(custom)=>{

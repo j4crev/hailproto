@@ -10,7 +10,7 @@ import tarfile
 import tempfile
 
 crate = Path(__file__).resolve().parents[1]
-with tempfile.TemporaryDirectory(prefix="hailp-install-") as directory:
+with tempfile.TemporaryDirectory(prefix="racr-install-") as directory:
     root = Path(directory)
     source = root / "source"
     source.mkdir()
@@ -19,10 +19,10 @@ with tempfile.TemporaryDirectory(prefix="hailp-install-") as directory:
     shutil.copytree(crate / "src", source / "src")
     env = {**os.environ, "CARGO_TARGET_DIR": str(root / "target")}
     subprocess.run(["cargo", "build", "--release", "--locked"], cwd=source, env=env, check=True)
-    binary = root / "target/release/hailp"
-    archive = root / "hailp-linux-x64.tar.gz"
+    binary = root / "target/release/racr"
+    archive = root / "racr-linux-x64.tar.gz"
     with tarfile.open(archive, "w:gz") as bundle:
-        bundle.add(binary, arcname="hailp")
+        bundle.add(binary, arcname="racr")
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     checksum = root / (archive.name + ".sha256")
     checksum.write_text(f"{digest}  {archive.name}\n")
@@ -31,17 +31,17 @@ with tempfile.TemporaryDirectory(prefix="hailp-install-") as directory:
     installed.mkdir()
     with tarfile.open(archive) as bundle:
         bundle.extractall(installed, filter="data")
-    env.update(PATH="", HAILP_CREDENTIAL_FILE="")
+    env.update(PATH="", RACR_CREDENTIAL_FILE="")
 
     def run(*args, secret="", expected=0):
-        result = subprocess.run([str(installed / "hailp"), *args], env=env,
+        result = subprocess.run([str(installed / "racr"), *args], env=env,
                                 input=secret, text=True, capture_output=True)
         assert result.returncode == expected, result.stderr
         return result
 
     version = run("--version").stdout.strip()
     assert f'version = "{version}"' in (source / "Cargo.toml").read_text()
-    assert "hailp" in run("account", "transfer", "--help").stdout
+    assert "racr" in run("account", "transfer", "--help").stdout
     error = run("--unknown", expected=1)
     assert json.loads(error.stderr)["error"]["code"] == "USAGE_ERROR"
     vault, recovery = root / "vault.json", root / "secret.txt"

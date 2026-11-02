@@ -166,7 +166,7 @@ pub async fn create(client: &Client, args: &Args) -> Result<Value, Error> {
                 &json!({"sender":sender,"scope":selected,"expiresAt":expiry}),
             )
             .await?;
-        if r["type"] != "hailp.grant-proposal" || r["version"].as_f64() != Some(1.0) {
+        if r["type"] != "racr.grant-proposal" || r["version"].as_f64() != Some(1.0) {
             return Err(Error::response("Invalid Grant proposal"));
         }
         codec::from_diagnostic("hail.grant", &r["grant"])?;
@@ -329,7 +329,7 @@ pub async fn update(client: &Client, args: &Args) -> Result<Value, Error> {
         let response = client
             .post(&format!("/grants/{id}/proposals"), &body)
             .await?;
-        if response["type"] != "hailp.grant-proposal" || response["version"].as_f64() != Some(1.0) {
+        if response["type"] != "racr.grant-proposal" || response["version"].as_f64() != Some(1.0) {
             return Err(invalid());
         }
         state["proposal"] = response["grant"].clone();

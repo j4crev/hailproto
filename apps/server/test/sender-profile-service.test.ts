@@ -1,4 +1,4 @@
-import { createWebCryptoVerifier, verifySignedPayload } from "@hailproto/codec";
+import { createWebCryptoVerifier, verifySignedPayload } from "@racrproto/codec";
 import { describe, expect, it, vi } from "vitest";
 import { ed25519PublicKeyFromDidKey } from "../src/identity/did-key.js";
 import { KeyEncryptor } from "../src/identity/key-encryption.js";
@@ -20,7 +20,7 @@ async function fixture() {
   const account: AccountRecord = {
     id: crypto.randomUUID(),
     tenantId: crypto.randomUUID(),
-    canonicalAddress: "alice@hailproto.app",
+    canonicalAddress: "alice@racrproto.app",
     did,
     state: "active",
     activationAttemptId: null,
@@ -99,15 +99,15 @@ describe("SenderProfileService", () => {
       "https://hailproto.app/hail",
       () => new Date("2026-09-27T00:00:00Z"),
     );
-    const first = await service.createOrReuse("alice@hailproto.app", {
+    const first = await service.createOrReuse("alice@racrproto.app", {
       display_name: "Alice",
       offers_uncategorized: false,
       categories: [],
     },0);
-    await expect(service.createOrReuse("alice@hailproto.app", {
+    await expect(service.createOrReuse("alice@racrproto.app", {
       display_name:"Alice Updated",offers_uncategorized:false,categories:[],
     },0)).rejects.toBeInstanceOf(SenderProfileConflictError);
-    const second = await service.createOrReuse("alice@hailproto.app", {
+    const second = await service.createOrReuse("alice@racrproto.app", {
       display_name: "Alice Updated",
       offers_uncategorized: false,
       categories: [],
@@ -115,7 +115,7 @@ describe("SenderProfileService", () => {
 
     expect(second.revision).toBe(2);
     expect(second.updatedAt).toBe(first.updatedAt + 1);
-    expect(await service.getLatest("alice@hailproto.app")).toBe(second);
+    expect(await service.getLatest("alice@racrproto.app")).toBe(second);
   });
 
   it("strictly parses profile definitions",()=>{
@@ -180,7 +180,7 @@ describe("SenderProfileService", () => {
     );
 
     await expect(
-      service.createOrReuse("alice@hailproto.app", {
+      service.createOrReuse("alice@racrproto.app", {
         display_name: "Alice",
         offers_uncategorized: false,
         categories: [],

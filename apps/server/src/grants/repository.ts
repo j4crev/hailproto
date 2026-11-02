@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { inspectSignedPayload, type HailGrant } from "@hailproto/codec";
+import { inspectSignedPayload, type HailGrant } from "@racrproto/codec";
 import type { SQL } from "bun";
 import type {
   AuthoritativeGrantRevision1,

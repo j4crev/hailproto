@@ -31,7 +31,7 @@ fn save(path: &str, value: &Value) -> Result<(), Error> {
 }
 fn invitation(code: &Value) -> Result<(), Error> {
     crate::vault::exact(code, &["did", "id", "token", "type", "version"])?;
-    if code["type"] != "hailp.connection-invitation"
+    if code["type"] != "racr.connection-invitation"
         || code["version"].as_f64() != Some(1.0)
         || !code["id"].as_str().is_some_and(|s| UUID.is_match(s))
         || !code["did"].as_str().is_some_and(|s| DID.is_match(s))
@@ -56,7 +56,7 @@ async fn selected(client: &Client, path: &str, input: Option<&Value>) -> Result<
         ));
     }
     if let Some(s) = optional(path)? {
-        if s["type"] != "hailp.connection-state"
+        if s["type"] != "racr.connection-state"
             || s["version"].as_f64() != Some(1.0)
             || s["provider"] != a["provider"]
             || s["accountId"] != a["accountId"]
@@ -94,7 +94,7 @@ async fn selected(client: &Client, path: &str, input: Option<&Value>) -> Result<
     for (k, v) in input.as_object().ok_or_else(invalid)? {
         request[k] = v.clone();
     }
-    let state = json!({"type":"hailp.connection-state","version":1,"provider":a["provider"],"accountId":a["accountId"],"did":a["did"],"request":request});
+    let state = json!({"type":"racr.connection-state","version":1,"provider":a["provider"],"accountId":a["accountId"],"did":a["did"],"request":request});
     save(path, &state)?;
     Ok(state)
 }

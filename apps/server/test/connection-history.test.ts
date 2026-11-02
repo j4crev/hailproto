@@ -1,5 +1,5 @@
 import {createHash,randomUUID} from "node:crypto";
-import {createWebCryptoSigner,encodeBase64Url,encodeDeterministic,signPayload,type HailValue} from "@hailproto/codec";
+import {createWebCryptoSigner,encodeBase64Url,encodeDeterministic,signPayload,type HailValue} from "@racrproto/codec";
 import {base58btc} from "multiformats/bases/base58";
 import {expect,it} from "vitest";
 import {P256Keypair} from '@atproto/crypto';

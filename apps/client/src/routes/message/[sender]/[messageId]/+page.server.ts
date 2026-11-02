@@ -1,4 +1,4 @@
-import {encodePayload} from "@hailproto/codec";
+import {encodePayload} from "@racrproto/codec";
 import {replyBody} from "$lib/reply.js";
 import {parseThread} from "$lib/threads.js";
 import { canaryAccount, senderAvatars } from "$lib/server/canary.js";

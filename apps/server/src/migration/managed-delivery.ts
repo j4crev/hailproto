@@ -1,5 +1,5 @@
 import { def } from "@did-plc/lib";
-import { decodeDeterministic } from "@hailproto/codec";
+import { decodeDeterministic } from "@racrproto/codec";
 import type { SQL } from "bun";
 import type { DiscoveryFetch,NetworkTargetValidator } from "../discovery/verifier.js";
 import type { HailDidResolver } from "../plc/resolver.js";

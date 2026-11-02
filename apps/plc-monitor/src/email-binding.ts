@@ -1,4 +1,4 @@
-import { decodeBase64Url } from "@hailproto/codec/base64url";
+import { decodeBase64Url } from "@racrproto/codec/base64url";
 import { CID } from "multiformats/cid";
 
 export const EMAIL_BINDING_CONTEXT = "hail.plc-monitor-email-binding.v1\0";

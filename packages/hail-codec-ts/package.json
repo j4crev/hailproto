@@ -1,5 +1,5 @@
 {
-  "name": "@hailproto/codec",
+  "name": "@racrproto/codec",
   "version": "0.0.0",
   "private": true,
   "type": "module",

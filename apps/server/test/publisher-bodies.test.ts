@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { AccountApiClient } from "@hailproto/client-support/account-api";
-import { decodePayload, encodeDeterministic, type HailSpt2Body } from "@hailproto/codec";
+import { AccountApiClient } from "@racrproto/client-support/account-api";
+import { decodePayload, encodeDeterministic, type HailSpt2Body } from "@racrproto/codec";
 import { BODY_CONTAINER_LIMITS, BODY_MAX_BYTES, bodyFromDocument, validateBodyBytes } from "../src/bodies/service.js";
 import { outboundBody } from "../src/accounts/messaging.js";
 import { accountRequestBytes } from "../src/accounts/routes.js";

@@ -3,9 +3,9 @@ import { createSignupBackup, encodeBase64Url, verifySignupBackup, signSignupGene
 import { unlockUserVault } from "../../../server/test/client-support/vault.js";
 import { assureValidSig, didForCreateOp } from "@did-plc/lib";
 import { cidForCbor } from "@atproto/common";
-import type { PublicOnboardingPreparation } from "@hailproto/client-support/provider-contracts";
+import type { PublicOnboardingPreparation } from "@racrproto/client-support/provider-contracts";
 
-it("verifies the actual saved signup backup and remains compatible with hailp", async () => {
+it("verifies the actual saved signup backup and remains compatible with racr", async () => {
   const generated = await createSignupBackup();
   try {
     const text = JSON.stringify(generated.vault), secret = encodeBase64Url(generated.recoverySecret);

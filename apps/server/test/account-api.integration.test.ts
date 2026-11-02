@@ -4,7 +4,7 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWebCryptoSigner, encodeBase64Url, signPayload, type HailAddressBinding,
-  type HailSenderProfile } from "@hailproto/codec";
+  type HailSenderProfile } from "@racrproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createUserVault, unlockUserVault } from "./client-support/vault.js";
@@ -27,7 +27,7 @@ import {EnvelopeReceiver} from "../src/envelopes/receiver.js";
 import {DeliveryRepository} from "../src/delivery/repository.js";
 import {DeliveryWorker} from "../src/delivery/worker.js";
 import {KeyEncryptor} from "../src/identity/key-encryption.js";
-import {inspectSignedPayload} from "@hailproto/codec";
+import {inspectSignedPayload} from "@racrproto/codec";
 import {ALL_ACCOUNT_SCOPES} from "../src/accounts/repository.js";
 
 const integration = process.env.DATABASE_URL ? describe : describe.skip;
@@ -39,7 +39,7 @@ async function didKey(key: CryptoKey) {
   return `did:key:${base58btc.encode(bytes)}`;
 }
 
-integration("authenticated account API and real hailp HTTPS CLI", () => {
+integration("authenticated account API and real racr HTTPS CLI", () => {
   let db: ProviderDatabase;
   let accounts: AccountApiRepository;
   let messaging:AccountMessaging;
@@ -77,10 +77,10 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
   const grantUrl = () => `${origin}/api/v1/account/grants/${grantId}`;
   const json = async (path: string, value: unknown) => writeFile(join(directory, path), JSON.stringify(value), { mode: 0o600 });
   const credentialRecord = (value: Awaited<ReturnType<AccountApiRepository["issue"]>>) =>
-    ({ type: "hailp.api-credential", version: 1, provider: origin, ...value });
+    ({ type: "racr.api-credential", version: 1, provider: origin, ...value });
 
   async function cli(args: string[], filename = "owner.credential.json", secret = false) {
-    const child = Bun.spawn(["./target/debug/hailp", ...args, "--credentials", join(directory, filename)], {
+    const child = Bun.spawn(["./target/debug/racr", ...args, "--credentials", join(directory, filename)], {
       cwd: new URL("../../cli/", import.meta.url).pathname,
       env: { ...Bun.env, SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost" },
       stdin: "pipe", stdout: "pipe", stderr: "pipe",
@@ -99,7 +99,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     await db.migrate();
     accounts = new AccountApiRepository(db.sql);
     grants = new GrantRepository(db.sql);
-    directory = await mkdtemp(join(tmpdir(), "hailp-api-"));
+    directory = await mkdtemp(join(tmpdir(), "racr-api-"));
     await createLocalTlsFixture(directory);
     const tls = { cert: Bun.file(join(directory, "cert.pem")), key: Bun.file(join(directory, "key.pem")) };
     receiver = Bun.serve({ hostname: "localhost", port: 0, tls,
@@ -328,7 +328,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     const endpoint = `${origin}/api/v1/account/credentials`;
     const post = (token: string, input: unknown) => app.request(endpoint, { method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(input) });
-    const freshToken = () => `hailp_${encodeBase64Url(randomBytes(32))}`;
+    const freshToken = () => `racr_${encodeBase64Url(randomBytes(32))}`;
     expect((await post(limited.token, { token: freshToken(), scopes: ["grants:write"] })).status).toBe(403);
     expect((await post(child.token, { token: freshToken(), scopes: [...ALL_ACCOUNT_SCOPES] })).status).toBe(403);
     for (const scopes of [[], ["account:read", "account:read"], ["unknown"], "account:read"]) {
@@ -372,7 +372,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     expect(inventory.stdout + following.stdout).not.toContain(manager.token);
     const combined = await cli(["credential", "list", "--pages", "2", "--provider", origin, "--account-id", ownerId], "credential-manager.json");
     expect(combined.exit, combined.stderr).toBe(0);
-    expect(JSON.parse(combined.stdout)).toMatchObject({ cliContractVersion: 1, credentials: all, next: null });
+    expect(JSON.parse(combined.stdout)).toMatchObject({ cliContractVersion: 2, credentials: all, next: null });
     const mismatched = await cli(["credential", "list", "--provider", "https://other.example.com"], "credential-manager.json");
     expect(mismatched.exit).toBe(1); expect(mismatched.stdout).toBe("");
     expect(JSON.parse(mismatched.stderr).error.code).toBe("SELECTION_MISMATCH");
@@ -408,7 +408,7 @@ integration("authenticated account API and real hailp HTTPS CLI", () => {
     // by its sender. Waiting must not infer acceptance from the send response.
     const waited=await cli(["message","status",id,"--wait","1","--interval","1"],"message-sender.credential.json");
     expect(waited.exit,waited.stderr).toBe(0);
-    expect(JSON.parse(waited.stdout)).toMatchObject({cliContractVersion:1,messageId:id,state:"indeterminate",revision:null,
+    expect(JSON.parse(waited.stdout)).toMatchObject({cliContractVersion:2,messageId:id,state:"indeterminate",revision:null,
       wait:{completed:false,timedOut:true}});
     const inbox=await cli(["inbox","list","--pages","2"],"message-owner.credential.json");expect(inbox.exit,inbox.stderr).toBe(0);expect(JSON.parse(inbox.stdout).messages).toHaveLength(1);
     const read=await cli(["inbox","show",senderDid,id],"message-owner.credential.json");if(read.exit)throw new Error(read.stderr);

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { encodeBase64Url } from "@hailproto/codec/base64url";
+import { encodeBase64Url } from "@racrproto/codec/base64url";
 import { expect,it } from "vitest";
 import { createSignupInvitation,verifySignupInvitation } from "../src/onboarding/invitation.js";
 

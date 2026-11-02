@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
 import type { SQL } from "bun";
 import { def } from "@did-plc/lib";
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec/base64url";
 import { base58btc } from "multiformats/bases/base58";
 import { tokenHash } from "../accounts/repository.js";
 import { accountRequestBytes } from "../accounts/routes.js";
@@ -80,7 +80,7 @@ export function registerSignupMonitorRoutes(app: Hono, service: SignupMonitorSer
     if (context.req.header("Origin") !== browserOrigin) return context.json({ error: "Signup origin refused" }, 403);
     const retry = rate.take(clientAddress(context.req.raw), 20);
     if (retry !== null) { context.header("Retry-After", String(retry)); return context.json({ error: "Rate limited" }, 429); }
-    const token = /^Bearer (hailp_[A-Za-z0-9_-]{43})$/.exec(context.req.header("Authorization") ?? "")?.[1];
+    const token = /^Bearer (racr_[A-Za-z0-9_-]{43})$/.exec(context.req.header("Authorization") ?? "")?.[1];
     if (!token) return context.json({ error: "Signup capability required" }, 401);
     if (context.req.header("Content-Type") !== "application/json" || context.req.header("Content-Encoding") !== undefined)
       return context.json({ error: "Use uncoded JSON" }, 415);

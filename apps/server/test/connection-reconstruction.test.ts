@@ -1,5 +1,5 @@
 import {createHash,randomUUID} from 'node:crypto';
-import {encodeDeterministic} from '@hailproto/codec';
+import {encodeDeterministic} from '@racrproto/codec';
 import type {SQL} from 'bun';
 import {expect,it} from 'vitest';
 import {PLC_READ_EVIDENCE_POLICY_VERSION} from '../src/identity/managed-profile.js';

@@ -26,7 +26,7 @@ replacement signed representations. Checkpoint fixtures contain the exact logica
 object and expected deterministic-CBOR SHA-256. Transfer records include
 schema-aware diagnostic values (`{"$bytes":"hex"}` is a fixture-only byte marker),
 payload hex, digest, signature input hex, signature, public key and signed-record
-wire object. `$bytes` is not a Hail protocol field.
+wire object. `$bytes` is not a RACR protocol field.
 
 Portable/managed fixture generation uses isolated synthetic databases and injected
 PLC/HTTPS dependencies. Their retained evidence does not claim public PLC registry

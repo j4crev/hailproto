@@ -1,4 +1,4 @@
-import {decodeDeterministic,encodeBase64Url} from "@hailproto/codec";
+import {decodeDeterministic,encodeBase64Url} from "@racrproto/codec";
 import type {SQL} from "bun";
 import type {ManagedTransferAuthorization} from "../migration/managed-authorization.js";
 import type {ManagedTransferDelivery} from "../migration/managed-delivery.js";
@@ -63,7 +63,7 @@ export class ManagedAccountTransfer {
       SELECT custody_profile,destination_service_base,expires_at,invitation_bytes,invitation_signature,
         origin_request_bytes,origin_request_signature,origin_confirmed_at,consumed_transfer_id
       FROM provider_transfer_authorizations WHERE did=${session.did}`)[0];
-    if(!row)return {type:"hailp.managed-transfer-status",version:1,provider:this.provider,accountId:session.account_id,
+    if(!row)return {type:"racr.managed-transfer-status",version:1,provider:this.provider,accountId:session.account_id,
       did:session.did,phase:"none",destinationServiceBase:null,expiresAt:null,originConfirmed:false,transferId:null,
       acknowledgement:null,offer:null};
     if(row.custody_profile!=="managed")throw new AccountTransferError(409,"A portable transfer already occupies this DID");
@@ -72,7 +72,7 @@ export class ManagedAccountTransfer {
       signature:new Uint8Array(row.origin_request_signature)}:null;
     const expired=row.expires_at.getTime()<=Date.now(),transferId=offer?
       (decodeDeterministic(offer.payloadBytes) as Record<string,unknown>).transfer_id:null;
-    return {type:"hailp.managed-transfer-status",version:1,provider:this.provider,accountId:session.account_id,did:session.did,
+    return {type:"racr.managed-transfer-status",version:1,provider:this.provider,accountId:session.account_id,did:session.did,
       phase:expired?row.origin_confirmed_at?"expired-unresolved":"expired":row.origin_confirmed_at?"offer-ready":"acknowledgement-retained",
       destinationServiceBase:row.destination_service_base,expiresAt:row.expires_at.toISOString(),originConfirmed:!!row.origin_confirmed_at,
       transferId:row.consumed_transfer_id??transferId??null,acknowledgement:wire(acknowledgement),offer:offer?wire(offer):null};

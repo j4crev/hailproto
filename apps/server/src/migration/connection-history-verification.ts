@@ -4,7 +4,7 @@ import {isDeepStrictEqual} from 'node:util';
 import {cidForCbor} from '@atproto/common';
 import {encode as encodeDagCbor} from '@ipld/dag-cbor';
 import {def,formatDidDoc,validateOperationLog,type DocumentData} from '@did-plc/lib';
-import {createWebCryptoVerifier,decodeBase64Url,decodeDeterministic,encodeDeterministic,inspectSignedPayload,verifySignedPayload,type HailSignedPayloadType,type HailValue} from '@hailproto/codec';
+import {createWebCryptoVerifier,decodeBase64Url,decodeDeterministic,encodeDeterministic,inspectSignedPayload,verifySignedPayload,type HailSignedPayloadType,type HailValue} from '@racrproto/codec';
 import {ed25519PublicKeyFromDidKey} from '../identity/did-key.js';
 import {parseJsonWithoutDuplicateKeys} from '../discovery/strict-json.js';
 import {assertPublicAuthorityFresh} from '../plc/authority.js';

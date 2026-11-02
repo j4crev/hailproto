@@ -41,13 +41,13 @@ async fn run() -> Result<(), Error> {
     }
     if args.command.starts_with("vault ") {
         let mut result = vault::run(&args)?;
-        result["cliContractVersion"] = 1.into();
+        result["cliContractVersion"] = 2.into();
         println!("{}", contract::redact(&result.to_string()));
         return Ok(());
     }
     if args.command == "connection sign" {
         let mut result = connection_signing::sign(&args)?;
-        result["cliContractVersion"] = 1.into();
+        result["cliContractVersion"] = 2.into();
         println!("{}", contract::redact(&result.to_string()));
         return Ok(());
     }
@@ -62,7 +62,7 @@ async fn run() -> Result<(), Error> {
         } else {
             account_access::run(&args).await?
         };
-        result["cliContractVersion"] = 1.into();
+        result["cliContractVersion"] = 2.into();
         println!("{}", contract::redact(&result.to_string()));
         return Ok(());
     }
@@ -78,7 +78,7 @@ async fn run() -> Result<(), Error> {
         } else {
             cutover::complete(&args, managed).await?
         };
-        result["cliContractVersion"] = 1.into();
+        result["cliContractVersion"] = 2.into();
         println!("{}", contract::redact(&result.to_string()));
         return Ok(());
     }
@@ -86,7 +86,7 @@ async fn run() -> Result<(), Error> {
         .options
         .get("credentials")
         .cloned()
-        .or_else(|| std::env::var("HAILP_CREDENTIAL_FILE").ok())
+        .or_else(|| std::env::var("RACR_CREDENTIAL_FILE").ok())
         .filter(|p| !p.is_empty());
     let inspect_account = path.is_some();
     let client = if let Some(path) = &path {
@@ -103,7 +103,7 @@ async fn run() -> Result<(), Error> {
             .ok_or_else(|| Error::client("Doctor requires --provider or a selected credential"))?;
         api::Client::public(provider)?
     } else {
-        return Err(Error::client("Set --credentials or HAILP_CREDENTIAL_FILE"));
+        return Err(Error::client("Set --credentials or RACR_CREDENTIAL_FILE"));
     };
     let option = |key: &str| args.options.get(key).map(String::as_str);
     let interval = cli::bounded(args.options.get("interval"), "interval", 30, 2)?;
@@ -314,7 +314,7 @@ async fn run() -> Result<(), Error> {
         }
         _ => unreachable!("parser accepts only implemented commands"),
     };
-    result["cliContractVersion"] = Value::from(1);
+    result["cliContractVersion"] = Value::from(2);
     println!("{}", contract::redact(&result.to_string()));
     Ok(())
 }

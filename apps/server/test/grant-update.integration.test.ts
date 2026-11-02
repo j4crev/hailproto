@@ -3,7 +3,7 @@ import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
-import {createWebCryptoSigner,encodeBase64Url,inspectSignedPayload,signPayload,toDiagnosticJson,type HailAddressBinding,type HailGrant,type HailSenderProfile} from "@hailproto/codec";
+import {createWebCryptoSigner,encodeBase64Url,inspectSignedPayload,signPayload,toDiagnosticJson,type HailAddressBinding,type HailGrant,type HailSenderProfile} from "@racrproto/codec";
 import {base58btc} from "multiformats/bases/base58";
 import {Hono} from "hono";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
@@ -22,7 +22,7 @@ import type {VerifiedSenderProfile} from "../src/profiles/store.js";
 const integration=process.env.DATABASE_URL?describe:describe.skip;
 const freshDid=()=>`did:plc:${Array.from(randomBytes(24),b=>"abcdefghijklmnopqrstuvwxyz234567"[b%32]).join("")}`;
 const hash=(bytes:Uint8Array)=>new Uint8Array(createHash("sha256").update(bytes).digest());
-integration("active Grant updates and consent refresh through HTTPS hailp",()=>{
+integration("active Grant updates and consent refresh through HTTPS racr",()=>{
   let db:ProviderDatabase,accounts:AccountApiRepository,grants:GrantRepository,directory:string,origin:string,app:Hono;
   let server:ReturnType<typeof Bun.serve>,address:VerifiedAddress,profile:VerifiedSenderProfile;
   let available=true,reads=0,loseResponse=false,changeEvidence=false,changedOwnerKey=false;
@@ -35,7 +35,7 @@ integration("active Grant updates and consent refresh through HTTPS hailp",()=>{
     const bytes=await signPayload("hail.sender-profile",payload,createWebCryptoSigner(payload.key_id,senderMessaging.privateKey));
     profile={...profile,profile:payload,representation:bytes,digest:hash(bytes),verifiedAt:new Date()};};
   const cli=async(fixture:typeof fixtures[number],args:string[])=>{
-    const child=Bun.spawn(["./target/debug/hailp",...args,"--credentials",join(directory,`${fixture.id}.credential.json`)],{
+    const child=Bun.spawn(["./target/debug/racr",...args,"--credentials",join(directory,`${fixture.id}.credential.json`)],{
       cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost"},stdin:"pipe",stdout:"pipe",stderr:"pipe"});
     child.stdin.write(`${encodeBase64Url(fixture.vault.recoverySecret)}\n`);child.stdin.end();
     const [code,stdout,stderr]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
@@ -75,7 +75,7 @@ integration("active Grant updates and consent refresh through HTTPS hailp",()=>{
         VALUES (${id},${vault.vault.recovery.publicDidKey},${key},'https://monitor.example.com',now(),now(),'poc-local')`;
       const credential=await accounts.issue(ownerAddress,false,undefined,["account:read","grants:read","grants:write"]);
       fixtures.push({id,did,address:ownerAddress,managed,vault,key,token:credential.token});
-      await writeFile(join(directory,`${id}.credential.json`),JSON.stringify({type:"hailp.api-credential",version:1,provider:origin,...credential}),{mode:0o600});
+      await writeFile(join(directory,`${id}.credential.json`),JSON.stringify({type:"racr.api-credential",version:1,provider:origin,...credential}),{mode:0o600});
       await writeFile(join(directory,`${id}.vault.json`),JSON.stringify(vault.vault),{mode:0o600});
     }
   });

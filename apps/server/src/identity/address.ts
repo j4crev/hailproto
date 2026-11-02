@@ -1,5 +1,5 @@
 import { domainToASCII } from "node:url";
-import { validatePayload } from "@hailproto/codec";
+import { validatePayload } from "@racrproto/codec";
 
 export function canonicalizeHailAddress(input: string): string {
   const trimmed = input.trim();

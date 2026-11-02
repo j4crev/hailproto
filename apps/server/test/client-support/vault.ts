@@ -5,7 +5,7 @@ import { P256Keypair, parseDidKey, P256_JWT_ALG, SECP256K1_JWT_ALG } from "@atpr
 import { assureValidSig, def, didForCreateOp, signOperation, type DocumentData, type Operation, type UnsignedOperation } from "@did-plc/lib";
 import { isIP } from "node:net";
 import { createWebCryptoSigner, encodeDeterministic, signPayload,
-  type HailAddressBinding, type HailGrant, type HailConnectionInvitation,type HailConnectionConfirmation,type HailValue } from "@hailproto/codec";
+  type HailAddressBinding, type HailGrant, type HailConnectionInvitation,type HailConnectionConfirmation,type HailValue } from "@racrproto/codec";
 import * as dagCbor from "@ipld/dag-cbor";
 import { base58btc } from "multiformats/bases/base58";
 import { accountAccessInput, type AccountAccessChallenge } from "./account-access-proof.js";
@@ -77,7 +77,7 @@ export interface ManagedTransferApproval {
   previous_operation_cid:string;operation_cid:string;issued_at:number;expires_at:number;
 }
 export interface UserTransferRecoveryApproval {
-  type:"hailp.transfer-abandon"|"hailp.transfer-resume";version:1;did:string;transfer_id:string;
+  type:"racr.transfer-abandon"|"racr.transfer-resume";version:1;did:string;transfer_id:string;
   source_service_base:string;destination_service_base:string;source_generation:number;snapshot_digest:Uint8Array;
   cutover_operation_cid:string;user_recovery_key:string;nonce:string;issued_at:number;expires_at:number;
   protective_operation_cid?:string;invalidation_digest?:Uint8Array;
@@ -89,7 +89,7 @@ export interface ManagedCustodyTransitionPreparation {
   historyCheckpointDigest:Uint8Array;bindingDigest:Uint8Array;generationFrom:number;generationTo:number;expiresAt:string;
 }
 export interface ManagedCustodyTransitionApproval {
-  type:"hailp.custody-transition";version:1;transition_id:string;did:string;direction:"owner-to-managed"|"managed-to-owner";
+  type:"racr.custody-transition";version:1;transition_id:string;did:string;direction:"owner-to-managed"|"managed-to-owner";
   provider_service_base:string;owner_recovery_key:string;old_identity_key:string;new_identity_key:string;
   previous_operation_cid:string;operation_cid:string;history_checkpoint_sha256:Uint8Array;binding_sha256:Uint8Array;
   generation_from:number;generation_to:number;nonce:string;issued_at:number;expires_at:number;
@@ -185,10 +185,10 @@ export class UnlockedUserVault {
   }
   async signTransferRecoveryApproval(approval:UserTransferRecoveryApproval) {
     if(!this.vault.did||approval.did!==this.vault.did||approval.user_recovery_key!==this.vault.recovery.publicDidKey||
-      !["hailp.transfer-abandon","hailp.transfer-resume"].includes(approval.type)||approval.version!==1||!Number.isSafeInteger(approval.source_generation)||approval.source_generation<1||
+      !["racr.transfer-abandon","racr.transfer-resume"].includes(approval.type)||approval.version!==1||!Number.isSafeInteger(approval.source_generation)||approval.source_generation<1||
       approval.snapshot_digest.length!==32||!Number.isSafeInteger(approval.issued_at)||!Number.isSafeInteger(approval.expires_at)||
       approval.expires_at<=approval.issued_at||approval.expires_at-approval.issued_at>3600||approval.source_service_base===approval.destination_service_base||
-      approval.type==="hailp.transfer-resume"&&(!approval.protective_operation_cid||approval.invalidation_digest?.length!==32))throw new Error("Recovery approval must bind this owner and one exact private transfer");
+      approval.type==="racr.transfer-resume"&&(!approval.protective_operation_cid||approval.invalidation_digest?.length!==32))throw new Error("Recovery approval must bind this owner and one exact private transfer");
     const payloadBytes=encodeDeterministic(approval as unknown as HailValue),tag=new TextEncoder().encode(`${approval.type}.v1\0`),input=new Uint8Array(tag.length+payloadBytes.length);
     input.set(tag);input.set(payloadBytes,tag.length);return {payloadBytes,signature:await this.recovery.sign(input)};
   }
@@ -314,14 +314,14 @@ export class UnlockedUserVault {
     const operationBytes=new TextEncoder().encode(JSON.stringify(operation));
     if(new Uint8Array(dagCbor.encode(operation)).length>7500)throw new Error("PLC operation exceeds the directory limit");
     const operationCid=(await cidForCbor(operation)).toString();
-    const approval:ManagedCustodyTransitionApproval={type:"hailp.custody-transition",version:1,
+    const approval:ManagedCustodyTransitionApproval={type:"racr.custody-transition",version:1,
       transition_id:prepared.transitionId,did:prepared.did,direction:prepared.direction,provider_service_base:prepared.providerServiceBase,
       owner_recovery_key:prepared.ownerRecoveryKey,old_identity_key:prepared.oldIdentityKey,new_identity_key:prepared.newIdentityKey,
       previous_operation_cid:prepared.previousOperationCid,operation_cid:operationCid,
       history_checkpoint_sha256:Uint8Array.from(prepared.historyCheckpointDigest),binding_sha256:Uint8Array.from(prepared.bindingDigest),
       generation_from:prepared.generationFrom,generation_to:prepared.generationTo,nonce:randomUUID(),issued_at:now,
       expires_at:Math.min(now+3600,expiry)};
-    const approvalBytes=encodeDeterministic(approval as unknown as HailValue),tag=new TextEncoder().encode("hailp.custody-transition.v1\0");
+    const approvalBytes=encodeDeterministic(approval as unknown as HailValue),tag=new TextEncoder().encode("racr.custody-transition.v1\0");
     const input=new Uint8Array(tag.length+approvalBytes.length);input.set(tag);input.set(approvalBytes,tag.length);
     return {operation,operationBytes,operationCid,approval,approvalBytes,approvalSignature:await this.recovery.sign(input)};
   }

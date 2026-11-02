@@ -6,7 +6,7 @@ deploy=/opt/hail/hail-plc-monitor-ts/deploy/public
 compose="docker compose --env-file $deploy/.env -f $deploy/compose.yaml"
 enrollment=/etc/hail-monitor-enrollment
 if [ -f "$enrollment/active" ]; then
-  root=/opt/hailproto
+  root=/opt/hail
   compose="docker compose --env-file $deploy/.env --env-file $enrollment/enrollment.env -f $deploy/compose.yaml -f $enrollment/compose.override.json"
 fi
 postgres=$enrollment/compose.postgres.yaml

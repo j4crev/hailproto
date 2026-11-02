@@ -1,4 +1,4 @@
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec/base64url";
 
 // Shared HTTP boundaries for the monitor API and its Cloudflare alert receiver.
 export async function hash(value: string): Promise<string> {

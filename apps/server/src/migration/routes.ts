@@ -13,7 +13,7 @@ import type { ManagedTransferAddressReservation } from "./managed-address-select
 import type { ManagedTransferFencePublisher } from "./managed-fence-publisher.js";
 import type { ManagedMigrationFenceService } from "./managed-fence.js";
 import type {ManagedMigrationCompletion} from "./managed-completion.js";
-import { decodeDeterministic,encodeBase64Url } from "@hailproto/codec";
+import { decodeDeterministic,encodeBase64Url } from "@racrproto/codec";
 import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
 import { boundedTransferBody, parseInvitationWire, parseFinalRequestWire,
   parseRequestWire, parseCancellationWire, requestWire,

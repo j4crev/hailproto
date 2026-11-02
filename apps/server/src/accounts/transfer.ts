@@ -1,4 +1,4 @@
-import { decodeDeterministic,encodeBase64Url } from "@hailproto/codec";
+import { decodeDeterministic,encodeBase64Url } from "@racrproto/codec";
 import type { SQL } from "bun";
 import type { AccountApiSession } from "./repository.js";
 import type { TransferGrantSubmission } from "../migration/grant-submission.js";
@@ -48,7 +48,7 @@ export class AccountTransfer {
     const receipt=await this.cancellation.cancel(signed);
     const keys=await this.sql<{public_key:string}[]>`SELECT public_key FROM account_keys WHERE account_id=${session.account_id} AND role='hail-messaging'`;
     if(!keys[0])throw new AccountTransferError(409,"Cancellation operational key unavailable");
-    return {type:"hailp.transfer-cancellation",version:1,cancelled:true,sourceMessagingPublicKey:keys[0].public_key,receipt:wire(receipt)};
+    return {type:"racr.transfer-cancellation",version:1,cancelled:true,sourceMessagingPublicKey:keys[0].public_key,receipt:wire(receipt)};
   }
   async exportSnapshot(session:AccountApiSession,input:Record<string,unknown>) {
     await this.owner(session);
@@ -71,7 +71,7 @@ export class AccountTransfer {
     const row=rows[0],fence=fences[0],expired=!!row&&row.expires_at.getTime()<=Date.now();
     const offerId=row?.origin_request_bytes?(decodeDeterministic(row.origin_request_bytes) as Record<string,unknown>).transfer_id:null;
     const phase=fence?.state ?? (!row?"none":row.cancelled_at?"cancelled":expired?row.origin_confirmed_at?"expired-unresolved":"expired":row.origin_confirmed_at?"offer-ready":"invitation-pending");
-    return {type:"hailp.transfer-status",version:1,provider:this.provider,accountId:session.account_id,did:session.did,
+    return {type:"racr.transfer-status",version:1,provider:this.provider,accountId:session.account_id,did:session.did,
       phase,nonce:row?.nonce ?? null,destinationServiceBase:row?.destination_service_base ?? null,expiresAt:row?.expires_at.toISOString() ?? null,
       originConfirmed:!!row?.origin_confirmed_at,transferId:fence?.transfer_id ?? row?.consumed_transfer_id ?? offerId ?? null,
       offer:row?.origin_request_bytes&&row.origin_request_signature?wire({payloadBytes:new Uint8Array(row.origin_request_bytes),signature:new Uint8Array(row.origin_request_signature)}):null};

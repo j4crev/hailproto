@@ -90,7 +90,7 @@ jobs:
         run: |
           docker buildx build --load -t hail-provider:ci -f apps/server/Dockerfile .
           docker buildx build --load -t hail-web-client:ci -f apps/client/Dockerfile .
-          docker run --rm --entrypoint sh hail-provider:ci -c 'test ! -d /workspace/hailproto/apps/client && test -f src/cli/provider-operator.ts && test -f src/cli/create-signup-invitation.ts'
+          docker run --rm --entrypoint sh hail-provider:ci -c 'test ! -d /workspace/hail/apps/client && test -f src/cli/provider-operator.ts && test -f src/cli/create-signup-invitation.ts'
           docker buildx build --load -f apps/plc-monitor/Dockerfile .
       - name: Verify independent provider and optional web-client deployment
         run: python3 scripts/check-independent-deployment.py
@@ -109,14 +109,14 @@ jobs:
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked
           cargo build --release --locked
-          bun tests/compatibility.ts target/release/hailp
-          bun tests/vault-compatibility.ts target/release/hailp
-          bun tests/transfer-e2e.ts target/release/hailp
-          python3 tests/terminal-input.py target/release/hailp
-          bun scripts/smoke.ts target/release/hailp
+          bun tests/compatibility.ts target/release/racr
+          bun tests/vault-compatibility.ts target/release/racr
+          bun tests/transfer-e2e.ts target/release/racr
+          python3 tests/terminal-input.py target/release/racr
+          bun scripts/smoke.ts target/release/racr
           python3 scripts/verify-install.py
           python3 scripts/generate-reference.py --check
-          python3 scripts/check-release.py --binary target/release/hailp
+          python3 scripts/check-release.py --binary target/release/racr
       - name: Verify database integration (no skipped tests)
         env:
           DATABASE_TEST_ADMIN_URL: postgresql://postgres:hail-test-only@127.0.0.1:5432/postgres

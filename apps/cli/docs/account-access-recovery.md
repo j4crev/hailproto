@@ -40,7 +40,7 @@ credential. People and agents follow the same authority checks.
    expiry at most five minutes later. Preserve these exact bytes/state for retry.
 3. The client validates every bound value against its locally reviewed request
    and vault, including the provider origin and purpose. It signs deterministic
-   CBOR with domain separation `hailp.account-access.v1\0`. This account-API
+   CBOR with domain separation `racr.account-access.v1\0`. This account-API
    challenge is neither a federation object nor an arbitrary message-signing
    interface. Untrusted inbox content cannot supply the challenge/signing request.
 4. The provider validates the stored, unexpired challenge, exact signature and
@@ -83,11 +83,11 @@ managed identity. No user recovery private key is ever uploaded to the provider.
 ## Implemented surface
 
 ```bash
-hailp account login --provider <https-origin> --did <did> \
+racr account login --provider <https-origin> --did <did> \
   --signer identity --vault <private-vault> --state <new-private-state> \
   --credentials <new-output> --scope account:read
 # Managed accounts, or an explicitly reviewed owner recovery operation:
-hailp account login --provider <https-origin> --did <did> \
+racr account login --provider <https-origin> --did <did> \
   --signer owner-recovery --vault <private-vault> --state <new-private-state> \
   --credentials <new-output> --scope account:read --scope credentials:write
 ```

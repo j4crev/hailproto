@@ -1,4 +1,4 @@
-import type {AccountApiClient} from "@hailproto/client-support/account-api";
+import type {AccountApiClient} from "@racrproto/client-support/account-api";
 
 // Resolve by verified DID, not the message's display address or historic Grant.
 export async function senderSubscription(client: Pick<AccountApiClient, "request" | "grant">, owner: string, sender: string) {

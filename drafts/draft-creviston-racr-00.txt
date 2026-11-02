@@ -1,0 +1,1400 @@
+
+
+
+
+Individual Submission                                       J. Creviston
+Internet-Draft                                           2 November 2026
+Intended status: Experimental                                           
+Expires: 6 May 2027
+
+
+         RACR Protocol: Recipient-Authorized Content Retrieval
+                        draft-creviston-racr-00
+
+Abstract
+
+   RACR (Recipient-Authorized Content Retrieval, pronounced "racer") is
+   a federated protocol for exchanging hail: recipient-authorized
+   messages between portable identities.  Stable decentralized
+   identifiers identify participants independently of their current
+   hosting providers.  Signed authorization records and message
+   envelopes use deterministic CBOR and COSE.  A recipient provider
+   validates authorization before retrieving a detached, digest-bound
+   body from the sender provider.  This document describes the
+   architecture, core grant-authorized delivery, content profiles,
+   privacy boundaries, and unresolved design issues of the current
+   experimental protocol.
+
+Editorial status
+
+   This note is to be removed before publishing as an RFC.
+
+   This is a first local working draft prepared for review.  It has not
+   been submitted to the IETF Datatracker, adopted by a working group,
+   or approved as an RFC.  Experimental is a proposed publication
+   status, not an allocation of an RFC stream or a claim of IETF
+   consensus.
+
+   This revision records the Hail alpha specification at repository
+   commit d286113cd82024d009fb07cc60041f290047f148.  Detailed semantic
+   constraints still depend on that fixed specification snapshot.  The
+   document is not yet a self-contained replacement for those
+   specifications.  The open-issue appendix identifies work required
+   before submission or a stable publication request.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                   [Page 1]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  Note that other groups may also distribute
+   working documents as Internet-Drafts.  The list of current Internet-
+   Drafts is at https://datatracker.ietf.org/drafts/current/.
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   This Internet-Draft will expire on 6 May 2027.
+
+Copyright Notice
+
+   Copyright (c) 2026 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents (https://trustee.ietf.org/
+   license-info) in effect on the date of publication of this document.
+   Please review these documents carefully, as they describe your rights
+   and restrictions with respect to this document.  Code Components
+   extracted from this document must include Revised BSD License text as
+   described in Section 4.e of the Trust Legal Provisions and are
+   provided without warranty as described in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   3
+   2.  Conventions and Scope . . . . . . . . . . . . . . . . . . . .   3
+   3.  Architecture and Trust Boundaries . . . . . . . . . . . . . .   4
+   4.  Identity and Discovery  . . . . . . . . . . . . . . . . . . .   5
+     4.1.  Address Bindings and Sender Profiles  . . . . . . . . . .   6
+     4.2.  Service URLs and Safe Fetching  . . . . . . . . . . . . .   6
+   5.  Encoding, Signatures, and Digest Domains  . . . . . . . . . .   7
+     5.1.  Resource Budgets  . . . . . . . . . . . . . . . . . . . .   8
+   6.  Recipient Grants  . . . . . . . . . . . . . . . . . . . . . .   9
+     6.1.  Publication and Conditional Updates . . . . . . . . . . .  10
+   7.  Core Envelope Delivery  . . . . . . . . . . . . . . . . . . .  10
+     7.1.  Validation and Atomic Acceptance  . . . . . . . . . . . .  11
+     7.2.  Submission Responses and Disclosure . . . . . . . . . . .  12
+   8.  Body Content and Retrieval  . . . . . . . . . . . . . . . . .  12
+     8.1.  Bearer Authorization  . . . . . . . . . . . . . . . . . .  13
+     8.2.  Content Verification and Compression  . . . . . . . . . .  14
+   9.  Delivery State and Status Reporting . . . . . . . . . . . . .  14
+   10. Implemented Extensions and Deferred Features  . . . . . . . .  16
+   11. Security Considerations . . . . . . . . . . . . . . . . . . .  16
+   12. Privacy Considerations  . . . . . . . . . . . . . . . . . . .  18
+
+
+
+Creviston                  Expires 6 May 2027                   [Page 2]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   13. IANA Considerations . . . . . . . . . . . . . . . . . . . . .  18
+   14. Implementation and Evaluation Status  . . . . . . . . . . . .  19
+   15. Normative References  . . . . . . . . . . . . . . . . . . . .  19
+   Appendix A.  Open Issues and Publication Work . . . . . . . . . .  21
+   Appendix B.  Source Map and Review Boundary . . . . . . . . . . .  22
+   Appendix C.  Body Structural Schema Excerpt . . . . . . . . . . .  23
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  25
+
+1.  Introduction
+
+   RACR separates permission to deliver a message from transport of its
+   content.  A recipient grants a particular sender permission to
+   deliver selected categories of messages.  The recipient provider
+   remains authoritative for current permission, including revocation,
+   even if the sender retains an older signed Grant.  Senders publish
+   immutable bodies and submit small recipient-specific signed
+   envelopes.  Recipients fetch content only after authenticating and
+   authorizing an envelope.
+
+   The design aims to preserve recipient consent across provider
+   changes, authenticate sending identities independently of their
+   hosting domains, and avoid exposing user activity through message
+   retrieval.  It does not attempt to prevent abuse by a sender who has
+   obtained consent, guarantee availability, or make provider-held
+   message content end-to-end confidential.
+
+   RACR is not an SMTP or MIME profile, and an email-like address does
+   not imply SMTP mailbox semantics.  A gateway would require separately
+   specified identity, consent, content-conversion, and failure rules.
+   No such gateway is defined here.
+
+   The protocol remains an alpha design.  Wire-version numbers select
+   particular object formats, not a stability guarantee.  An Internet-
+   Draft revision number is unrelated to an RACR object version or an
+   implementation release version.
+
+2.  Conventions and Scope
+
+   Hail names the communication medium; a hail is an individual
+   recipient-authorized message.  RACR names the underlying protocol
+   that providers implement to exchange hail.  Hail identifiers such as
+   hail.envelope, application/hail-body+cbor, #hail-messaging, and
+   HailMessaging name the objects, formats, keys, and services used by
+   that protocol.  They remain current identifiers, not deprecated names
+   awaiting replacement.  This terminology does not change wire bytes,
+   signature domains, or interoperability requirements.
+
+
+
+
+
+Creviston                  Expires 6 May 2027                   [Page 3]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in BCP
+   14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+   This draft specifies the architecture and summarizes normative core
+   requirements from [HAIL-SPEC].  Where a complete wire or semantic
+   definition has not yet been incorporated, the corresponding
+   specification in that pinned snapshot is a normative dependency.
+   Editorial omissions in this draft do not create alternative
+   encodings, relaxed validation, or new authority.  Any inconsistency
+   between the two documents is a defect to resolve before publication.
+
+   The core flow is delivery under a Grant using Envelope version 1.
+   Connections, threaded replies, shared conversations, and provider
+   transfer are implemented extensions, summarized in Section 10.  They
+   are not deferred merely because their complete definitions are
+   outside this document.  Implementations claiming an extension MUST
+   implement its complete authorization and lifecycle rules.
+
+   A provider is infrastructure acting for one or more participant DIDs.
+   A sender and recipient are protocol identities, not necessarily
+   people.  A Grant is a recipient-signed authorization lineage.  An
+   Envelope is a signed per-recipient delivery instruction.  A Body is
+   an immutable encoded content document.  Acceptance is a durable
+   authorization decision; delivery is durable storage of verified
+   content and its recipient-specific message record.
+
+3.  Architecture and Trust Boundaries
+
+   Recipient                       Sender
+       |                              |
+       |-- discover address/profile ->|
+       |-- publish signed Grant ----->|
+       |                              | publish immutable Body
+       |<-- submit signed Envelope ---|
+       | authenticate; authorize      |
+       | atomically accept            |
+       |-- GET Body + bearer token -->|
+       |<-- bounded content ----------|
+       | verify; durably deliver      |
+       |-- signed delivery status --->|
+
+
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                   [Page 4]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   There is one sender DID and one recipient DID per envelope.  Multi-
+   recipient delivery uses separate envelopes and authorization
+   decisions, even when the body bytes are identical.  A body digest is
+   a content identity, not a message identifier or authorization
+   credential.
+
+   HTTPS authenticates a network endpoint and protects data in transit.
+   DID resolution establishes which keys and service endpoint currently
+   act for a participant.  COSE signatures bind protocol objects to a
+   required key role.  Recipient-local authoritative state determines
+   whether the signed object authorizes an action.  None of these checks
+   substitutes for another.
+
+   Public address-to-DID and DID-to-service mappings are intentionally
+   discoverable.  Grant state, message state, account state, body-cache
+   provenance, and user activity are protected.  Privacy requirements
+   therefore distinguish public routing information from relationship-
+   dependent results.
+
+4.  Identity and Discovery
+
+   Current RACR DIDs use the exact lowercase syntax
+   did:plc:[a-z2-7]{24}. A DID remains the durable identity when its
+   hosting provider changes.  A RACR address is a domain-verified alias;
+   changing or withdrawing that alias does not revoke Grants issued to
+   the DID.
+
+   A RACR DID document identifies distinct Ed25519 public keys at #hail-
+   identity and #hail-messaging, and exactly one #hail service of type
+   HailMessaging.  The identity key signs Address Bindings and Grants.
+   The messaging key signs Sender Profiles, Envelopes, and Delivery
+   Status objects.  Verifiers MUST check the exact key identifier,
+   controller, algorithm, and role.  A valid signature under another key
+   of the same DID is insufficient.
+
+   The current key representation is Multikey using base58btc with the
+   ed25519-pub multicodec prefix (0xed, encoded as bytes 0xed 0x01),
+   followed by exactly 32 key bytes.  The DID and PLC profiles,
+   including resolution evidence and recovery trust, are defined in
+   [HAIL-SPEC].  General historical authority after recovery is an open
+   issue in Appendix A.
+
+
+
+
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                   [Page 5]
+
+Internet-Draft                    RACR                     November 2026
+
+
+4.1.  Address Bindings and Sender Profiles
+
+   An address uses a lowercase canonical ASCII local part and an IDNA
+   A-label domain.  Its local part permits dot-separated letter/digit/
+   hyphen labels, is at most 63 bytes, and excludes quoting, comments,
+   whitespace, non-ASCII characters, and domain literals.  The complete
+   canonical address is at most 254 bytes.  These rules deliberately
+   differ from SMTP mailbox syntax.  The exact IDNA, DNS-delegation, and
+   public-suffix checks remain in the Address Binding specification.
+
+   Discovery uses WebFinger [RFC7033] with an acct URI [RFC7565].  The
+   client requires the exact canonical subject and exactly one matching
+   link with extension relation https://hailproto.com/rel/address-
+   binding and the COSE media type.  The link relation uses the
+   extension-URI mechanism of [RFC8288].  The domain-selected HTTPS
+   resource supplies a version-2 Address Binding signed by the named DID
+   identity key.  Neither a signature without domain publication nor
+   domain publication without the signature verifies the address.
+
+   An Address Binding contains type, version, address, did, issued_at,
+   and key_id.  It has no expiration field and requires no periodic
+   renewal.  Current domain publication and current DID authority are
+   nevertheless required.  Cached verification lasts at most 3600
+   seconds, and is shortened by HTTP freshness, delegation TTLs, PLC
+   policy, or local security policy.  A retained signed binding does not
+   justify indefinite verified-address display.
+
+   A prospective recipient retrieves Sender Profile version 2 from
+   profiles/{sender_did} at the current sender service.  The profile is
+   signed by #hail-messaging and includes a revision, display metadata,
+   offered categories, offers_uncategorized, and optional bounded
+   bundled assets.  Profile display metadata is not independent proof of
+   an organization name.  Grant creation binds the exact verified
+   Address Binding and Sender Profile representation digests into
+   consent_context.
+
+4.2.  Service URLs and Safe Fetching
+
+   A canonical RACR service base is an HTTPS URL with an ASCII DNS
+   hostname, no credentials, query, fragment, IP-literal host, terminal
+   DNS dot, or trailing slash.  Default port 443 is omitted.  Base-path
+   segments permit only ASCII letters, digits, hyphen, dot, underscore,
+   and tilde; empty interior segments and complete dot or dot-dot
+   segments are invalid.  The HTTP binding defines the limited permitted
+   normalization of scheme, host, port, and a single trailing slash.
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                   [Page 6]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   Operation URLs are constructed by appending one literal slash and the
+   operation path to the canonical base.  Generic relative-URI
+   resolution MUST NOT replace the final base-path segment.  A client
+   MUST NOT follow redirects or forward bearer credentials to a redirect
+   target.  Provider changes are authenticated through DID resolution.
+
+   Cached discovery is refreshed once after the specified connection,
+   redirect, not-found, gone, misdirected-request, or unknown-key
+   conditions.  A retry at a changed authenticated endpoint preserves
+   the operation identity and required signed bytes.  Body retrieval
+   requires one sender-DID refresh after a concealed 404 before
+   classifying authorization failure.  Ordinary 429 and 5xx responses do
+   not by themselves establish migration.
+
+   Outbound fetching MUST reject prohibited destinations and revalidate
+   resolved addresses for each connection, preventing private-network
+   access and DNS rebinding.  Fetches require bounded time, bytes, and
+   concurrency.  A DID-authorized endpoint is not permission to reach
+   arbitrary local networks.
+
+5.  Encoding, Signatures, and Digest Domains
+
+   RACR uses the core deterministic encoding requirements of CBOR
+   [RFC8949].  The data model permits null, booleans, integers from
+   -(2^53-1) through 2^53-1, valid UTF-8 text, byte strings, finite
+   arrays, and maps with unique text keys.  Schemas further constrain
+   values.  Floating point, undefined, non-text map keys, indefinite
+   lengths, application tags, duplicate keys, unknown fields in closed
+   maps, and trailing bytes MUST be rejected.
+
+   Receivers perform bounded decoding, deterministic re-encoding, and
+   byte-for-byte equality checking.  Integers and lengths use shortest
+   encodings; maps use encoded-key bytewise order.  Text is not silently
+   normalized.  NFC requirements apply only where the schema specifies
+   them.  Diagnostic JSON is not a signed or hashed representation.
+
+   Signed objects use tagged COSE_Sign1 [RFC9052].  Tag 18 is required.
+   The protected map contains exactly labels 1 (alg), 3 (content type),
+   and 4 (kid); the unprotected map is empty.  The payload is embedded
+   deterministic CBOR, external AAD is empty, and the signature is 64
+   bytes. alg is -19, the fully specified Ed25519 algorithm in
+   [RFC9864]; polymorphic EdDSA value -8, negotiation, and fallback are
+   not accepted. kid contains UTF-8 bytes of the canonical absolute DID
+   key URL.
+
+   The protected content type is the exact object-specific string, such
+   as application/hail-envelope+cbor.  Together with the payload type,
+   closed schema, fixed algorithm, and key role, it provides domain
+
+
+
+Creviston                  Expires 6 May 2027                   [Page 7]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   separation.  The HTTP entity type is application/cose; cose-
+   type="cose-sign1".  HTTP media types are parsed according to their
+   syntax, not compared as unparsed strings.  Signed representations
+   have no HTTP content coding.
+
+   *  Address Binding, Sender Profile, and Grant revision digests hash
+      complete signed COSE representation bytes.  A Grant predecessor
+      and its ETag therefore change if its signature wrapper changes.
+
+   *  Envelope replay and Delivery Status correlation hash deterministic
+      envelope payload bytes, excluding the COSE wrapper.
+
+   *  Body identity hashes exact uncompressed deterministic body bytes
+      using SHA-256.
+
+   *  URL digest segments and bearer credentials use canonical unpadded
+      base64url [RFC4648].  A 32-byte digest renders as 43 ASCII
+      characters.  Content-Digest [RFC9530] instead follows its
+      structured-field syntax and hashes transferred content, including
+      gzip coding when present.
+
+5.1.  Resource Budgets
+
+   All providers MUST support otherwise valid bodies through 1048576
+   encoded uncompressed octets.  The budget includes CBOR framing and
+   bundled asset data.  It does not promise unlimited account quota or
+   delivery capacity.  Envelopes and Delivery Status representations are
+   bounded at 16384 octets; Address Bindings at 16384 octets; Grants at
+   262144 octets.  Other object-specific constraints remain applicable.
+
+   For independently decoded application CBOR domains, maximum depth is
+   32, total items 16384, array length 4096, map entries 256, and any
+   text or byte string 1048576 bytes, subject to the overall encoded
+   limit and stricter object limits.  The root counts as one item at
+   depth zero.  Container elements, map keys, and map values count
+   recursively; string contents do not.  Map length counts pairs.  Byte
+   budgets include headers and use UTF-8 bytes rather than character
+   counts.
+
+   For the outer COSE domain, depth is at most 8, total items 256, array
+   length 8, map entries 8, and text length 1024 bytes; encoded and
+   byte-string limits equal the object representation limit.  Tag 18
+   counts as a root item and its array has depth one.  Protected headers
+   restart counting at their map with a 1024-byte encoded and byte-
+   string limit and no tag.  Embedded payloads are checked separately.
+   Transfer snapshots have distinct limits and are not authorized by
+   these budgets.
+
+
+
+
+Creviston                  Expires 6 May 2027                   [Page 8]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   Implementations MUST bound allocation before trusting declared
+   lengths.  Wire-byte limits do not by themselves bound aggregate
+   concurrent work or decoder scratch space.
+
+6.  Recipient Grants
+
+   Grant version 1 binds one grantor DID to one grantee DID, with a
+   UUIDv7 grant_id [RFC9562], revision, predecessor digest, scope,
+   status, timestamps, consent context, and identity key identifier.
+   Scope contains exactly one selector: a nonempty set of offered
+   categories, or uncategorized delivery.  Uncategorized is not a
+   wildcard.  A Grant identifier is a lookup hint, not a bearer
+   capability.
+
+   The recipient locally activates a Grant after explicit consent.
+   Sender acknowledgment is not required for local activation,
+   restriction, or revocation.  The recipient latest revision is
+   authoritative for delivery.  The current profile permits one active
+   Grant per grantor/grantee pair.
+
+   Every revision is a full-state snapshot.  Revision 1 has a null
+   predecessor.  Subsequent revisions increment by one and name the
+   SHA-256 digest of the previous complete signed representation.  Type,
+   version, grant_id, grantor, grantee, and issued_at are immutable
+   within the lineage.  Revision gaps, forks, conflicting
+   representations, and changed immutable fields are rejected.
+   Revocation is terminal for that lineage.
+
+   Expanding categories or switching categorized/uncategorized scope
+   requires fresh explicit consent against current verified discovery
+   evidence.  Restriction or revocation MUST NOT depend on sender-
+   profile availability and carries the previous consent context
+   forward.  A category omitted from the replacement snapshot is
+   removed, not implicitly retained.
+
+   Before identity-key rotation, the current Grant revision is
+   acknowledged by the grantee.  Following rotation, the grantor issues
+   a higher revision under the new key rather than re-signing the same
+   revision.  Unacknowledged-rotation recovery is unresolved; this draft
+   does not authorize accepting stale keys merely to bridge that gap.
+
+
+
+
+
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                   [Page 9]
+
+Internet-Draft                    RACR                     November 2026
+
+
+6.1.  Publication and Conditional Updates
+
+   Grant publication is PUT grants/{grant_id} at the grantee service
+   using the COSE entity type and no content coding.  Revision 1 uses
+   If-None-Match: * and no If-Match.  A later revision uses one strong
+   If-Match ETag whose opaque value is the base64url digest of the
+   preceding complete signed representation, matching previous.
+   Wildcards, weak tags, lists, and conflicting conditional fields are
+   invalid for updates.  HTTP conditional semantics follow [RFC9110].
+
+   Creation returns 201 with Location and ETag; an applied update or
+   exact current update retry returns 204 with ETag.  An exact creation
+   retry returns 412 with the matching current ETag.  Only an exact
+   submitted-representation digest match makes that 412 idempotent
+   convergence.  Other conflicts require reconciliation.  Responses use
+   Cache-Control: no-store.
+
+   Before valid grantor authentication and local target confirmation,
+   protected failures use a uniform 400 Problem Details result.  Missing
+   required preconditions may be disclosed as 428 only after
+   authentication.  Source-wide transport limits and public routing
+   errors retain the independently selected exceptions defined in the
+   HTTP binding.  Grant publication does not permit querying unrelated
+   relationships.
+
+7.  Core Envelope Delivery
+
+   A Grant-authorized Envelope version 1 contains type, version,
+   message_id, from, to, authorization, created_at, expires_at, body,
+   and reply; category and message_type have object-specific conditional
+   semantics. authorization identifies type grant and the grant_id.  The
+   messaging signature authenticates from, which MUST equal the Grant
+   grantee; to MUST equal the Grant grantor.  The current category or
+   uncategorized permission must authorize the message.  The complete
+   closed schema and conditional fields are defined by [HAIL-SPEC].
+
+   A body descriptor contains a SHA-256 digest, size from 1 through
+   1048576, media_type application/hail-body+cbor, profile spt-1/spt-2/
+   spt-3, available_until, and bearer access metadata. available_until
+   is at least created_at plus 2592000 seconds and expires_at plus 300
+   seconds.  The access expiration is no earlier than available_until.
+   The immutable body and its authorization MUST exist before envelope
+   submission and be retained through that availability commitment.
+
+   POST envelopes submits one signed envelope.  No additional federation
+   authentication beyond HTTPS and COSE is required.  Deployments may
+   use private controls, but those controls do not replace protocol
+   signature verification.  Batch federation submission is not defined.
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 10]
+
+Internet-Draft                    RACR                     November 2026
+
+
+7.1.  Validation and Atomic Acceptance
+
+   *  Enforce transport and representation limits, then bounded
+      deterministic COSE and payload decoding, closed-schema validation,
+      and inexpensive field relationships.
+
+   *  Use claimed fields only for privacy-safe preliminary rejection and
+      the narrowly defined public DID routing check.  A preliminary
+      authorization miss MUST NOT trigger a body fetch or durable replay
+      mutation.
+
+   *  Resolve and verify the exact sender messaging key and COSE
+      signature.  Authentication MUST precede protected detail,
+      authenticated replay-state mutation, or body retrieval.
+
+   *  Serialize the authenticated (from DID, message_id) record.
+      Identical payload digests reuse stored state; different payload
+      digests conflict.  Reserve authenticated rejection results as
+      specified by the replay rules.
+
+   *  Atomically recheck current recipient authorization and policy,
+      then persist accepted delivery and required capability state.
+      Grant changes and acceptance share an ordering: a revocation
+      committed first rejects the new message; acceptance committed
+      first allows its body processing to continue.
+
+   *  Retrieve or reuse content only under the body authorization and
+      provenance rules.  Verify and stage it, then serialize the final
+      deadline check, durable message publication, terminal state, and
+      any capability consumption.
+
+   created_at cannot be more than 300 seconds in the future.  The
+   effective delivery deadline is the earliest of expires_at plus 300
+   seconds, body.available_until, and access.expires_at.  Acceptance and
+   durable delivery MUST occur no later than that deadline.  Clock
+   tolerance never extends body or token retention promises.  If
+   completion misses the deadline, the terminal result is failed with
+   reason delivery-expired.
+
+   The replay key is the authenticated sender DID plus message_id, not
+   the body digest.  The sender MUST NOT reuse a message ID, including
+   after rejection.  Retained replay state lasts through at least
+   max(expires_at, body.available_until) plus 300 seconds.
+   Authenticated identical retries can recover stored state even after
+   the original permission changes; they do not authorize a new
+   delivery.
+
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 11]
+
+Internet-Draft                    RACR                     November 2026
+
+
+7.2.  Submission Responses and Disclosure
+
+   Receipt, acceptance, and delivery are distinct.  Before a sender is
+   authenticated with a current or previous local relationship,
+   protected outcomes use HTTP 202, Content-Type application/json
+   without parameters, Cache-Control: no-store, and exactly the JSON
+   object below.  It contains no status-query handle or acceptance
+   promise.
+
+   {"outcome":"received"}
+
+   An eligible authenticated accepted or duplicate submission returns
+   HTTP 200 with the current signed Delivery Status.  Explicit protected
+   errors map message-id-conflict to 409, invalid-envelope to 400,
+   unauthorized to 403, message-expired to 410, rate-limited to 429, and
+   temporarily-unavailable to 503.  Every explicit unsuccessful response
+   uses Problem Details [RFC9457] without disclosing more than the
+   caller is entitled to learn.
+
+   Relationship-independent method, media type, size, framing, and
+   service-wide rate limits may return safe transport errors.  A 421 is
+   permitted only when sufficiently fresh authenticated public DID state
+   proves an endpoint mismatch; local account or relationship absence
+   does not justify it.  Body retrieval has no public target DID and
+   does not use this exception.
+
+   Concealed outcomes MUST have common status, response shape, privacy-
+   relevant headers, and a bounded response schedule based on measured
+   validation behavior.  Implementations must bound network-dependent
+   resolution and test repeated timing observations.  A guessed constant
+   delay alone is not evidence that rejection paths are
+   indistinguishable.
+
+8.  Body Content and Retrieval
+
+   A body is a closed Safe Portable Text document, not arbitrary HTML.
+   Every provider MUST validate, retrieve, and store spt-1, spt-2, and
+   spt-3.  Plain-text-only support is insufficient. spt-1 contains
+   normal text blocks and unmarked spans. spt-2 adds specified headings,
+   blockquotes, captions, lists, strong/em/code decorators, and declared
+   HTTPS links. spt-3 adds exactly one leading image block referencing
+   one bundled PNG header.
+
+
+
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 12]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   Clients MUST treat text as text, validate link schemes and
+   attributes, and not interpret unknown nodes as executable markup.
+   The current profiles define neither arbitrary HTML/CSS/scripts nor
+   sender-controlled remote image loading.  Advanced publisher layouts
+   require new explicit nodes, validation, and presentation rules.  A
+   profile is not extensible merely because its data is represented as a
+   map.
+
+   The header is limited to 196608 bytes, width 2400, height 1200, and
+   2000000 pixels.  Asset size, digest, and PNG dimensions must agree
+   with the bytes; animated PNG is prohibited.  A message image requires
+   plain-text alt text and may carry a caption, each at most 1024 UTF-8
+   bytes under the specified NFC and character rules.  The complete
+   body, including bundled bytes, still fits within 1 MiB.  Sender
+   Profile avatar limits are separately 32768 bytes, 512 by 512, and
+   262144 pixels.
+
+   These independent byte, pixel, and structural budgets do not allocate
+   a future attachment allowance.  General attachments, detached
+   resources, and their per-resource and aggregate limits remain
+   undefined.
+
+8.1.  Bearer Authorization
+
+   For each recipient envelope, the sender generates exactly 32
+   cryptographically random token bytes.  The signed body descriptor
+   carries the token, body identity, and expiry.  A token may be reused
+   for retries of the same envelope, but MUST NOT be reused for another
+   recipient or unrelated envelope.  The server stores a token digest
+   associated with body digest, recipient, message, expiry, and active
+   state.
+
+   GET bodies/{digest} sends Authorization: Bearer followed by the
+   canonical unpadded base64url token, using the scheme syntax of
+   [RFC6750] without adopting OAuth issuance flows.  Tokens MUST NOT
+   appear in URLs.  Possession authorizes retrieval: this mechanism does
+   not prove possession of the recipient DID private key.
+
+   Missing, malformed, unknown, mismatched, inactive, or expired tokens
+   receive uniform 404 responses that conceal body existence.  An
+   authorization-lookup outage also uses the concealed path.  A missing
+   or unavailable body may produce retryable 503 only after active
+   token, digest, and expiry authorization has been established.  After
+   a 404 the recipient performs the required authenticated endpoint
+   refresh before classifying failure.
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 13]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   Hashing token lookup records does not remove secrets from retained
+   signed envelopes, outboxes, backups, or transfer history.  Those
+   copies need access controls and log redaction.  A signature
+   authenticates token bytes but does not encrypt them.
+
+8.2.  Content Verification and Compression
+
+   A successful retrieval returns 200 with application/hail-body+cbor
+   and private, no-store caching policy.  Receivers MUST support
+   identity and gzip coding; gzip emission is optional.  No other coding
+   is defined.  Gzip-coded input is limited to 2097152 octets.
+   Decompression MUST enforce an output cap equal to the already-
+   validated signed size, not merely check size after unbounded
+   expansion.  Streaming and bounded buffered implementations are both
+   permitted.
+
+   After decompression, the recipient verifies exact signed length,
+   SHA-256 digest, HTTP media type, profile, deterministic CBOR
+   equality, and complete schema/resource validity before delivery.
+   Content-Digest, when supplied, covers coded HTTP content and does not
+   replace the signed uncompressed digest.  Aggregate decompressor
+   output, including concatenated gzip members, remains subject to the
+   same cap.
+
+   A verified cache may avoid retrieval only for matching provenance
+   (recipient DID, sender DID, body digest, media type, profile).
+   Global storage deduplication MUST NOT change another recipient
+   delivery path based on blob presence.  Without matching provenance, a
+   recipient-specific retrieval is required even if the underlying bytes
+   already exist.  This prevents probing cross-tenant content possession
+   with deliberately unusable authorizations.
+
+   Retrieval is a provider delivery operation, not an open or read
+   signal.  Clients render verified local content rather than contact
+   the sender when the user opens a message.
+
+9.  Delivery State and Status Reporting
+
+   The delivery states are accepted, on-hold, delivered, failed, and
+   cancelled.  Accepted fixes core Grant authorization and queues
+   content processing; on-hold records a retryable impediment.
+   Delivered means verified body and recipient-specific record are
+   durable.  Delivered, failed, and cancelled are terminal and cannot
+   transition to another result.  A terminal transaction prevents a
+   concurrent retry from publishing a message after failure or
+   cancellation.  Later Grant revocation affects future acceptance, not
+   already accepted Grant delivery.
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 14]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   Retryable reasons are sender-unreachable, body-temporarily-
+   unavailable, body-transfer-interrupted, sender-rate-limited, and
+   receiver-resource-constrained.  Permanent failure reasons are body-
+   authorization-failed, body-integrity-failed, body-invalid, body-
+   unsupported, delivery-expired, and receiver-policy-rejected.
+   Cancellation reasons are recipient-cancelled and receiver-
+   administrative-cancellation.  The recipient owns bounded retrieval
+   retries and scheduling within the signed deadline.
+
+   Delivery Status version 1 is a complete signed snapshot with the
+   original message ID, envelope payload digest, original sender and
+   recipient, revision increasing by exactly one per created snapshot,
+   state, and occurred_at.  Accepted is revision 1; later states begin
+   at revision 2. on-hold includes reason and retry_at; failure and
+   cancellation include the appropriate reason; other states omit them.
+   The status from is the original envelope to, and status to is the
+   original envelope from.  The original recipient messaging key signs
+   it. retry_at is no earlier than occurred_at and no later than the
+   effective delivery deadline.  Other cross-field rules are fixed by
+   the Delivery State specification.
+
+   PUT deliveries/{envelope_digest} pushes status to the original sender
+   current service.  The receiver verifies the original recipient signer
+   and retained envelope correlation before disclosure or state
+   mutation.  HTTP 204 acknowledges a valid new revision, exact
+   duplicate, or valid stale lower revision.  Same-revision conflicts,
+   impossible transitions, and higher revisions after terminal state are
+   rejected.  Unauthenticated or uncorrelated protected outcomes use the
+   generic 202 and do not acknowledge delivery status.  No federation
+   status-query endpoint is defined.
+
+   Terminal status is attempted immediately.  Nominal retry delays are
+   30 seconds, 2 minutes, 10 minutes, 1 hour, 6 hours, and then 24
+   hours.  Each delay uses independent uniform integer jitter from
+   ceil(0.8D) through floor(1.2D).  For 429/503, the next delay is the
+   later of local jitter and valid Retry-After, with remote guidance
+   capped at 24 hours.  The counter and absolute next-attempt time
+   survive restart, generic receipts, and endpoint migration.
+
+   Absent acknowledgment or a specified permanent error, retries
+   continue through at least max(envelope replay deadline, terminal
+   occurred_at plus 2592000 seconds).  The sender retains correlation
+   records through at least the replay deadline plus 2592000 seconds.
+   Key rotation can replace the status COSE wrapper around unchanged
+   deterministic payload bytes without changing its revision.  A
+   delivery receipt does not attest client synchronization, display,
+   opening, or reading.
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 15]
+
+Internet-Draft                    RACR                     November 2026
+
+
+10.  Implemented Extensions and Deferred Features
+
+   *  Connections use deliberate invitation review, identity-signed
+      confirmation, coordinator admission, and disconnect controls.
+      Envelope version 2 carries unthreaded connection delivery.  This
+      is not an unsolicited inbox-request channel.
+
+   *  Envelope version 3 carries a signed parent for threaded direct
+      replies, with either reply-capability or connection authorization.
+      Current reply creation uses this format; historical unthreaded
+      reply forms are not a mandatory compatibility baseline.
+
+   *  Fixed-roster shared conversations use descriptors, per-recipient
+      Envelope version 4, Reply all, leave, expiry, and creator revival.
+      V4 does not replace Grant-authorized Envelope v1.  Connection and
+      conversation permission is rechecked before retrieval and final
+      delivery, unlike authorization fixed at core Grant acceptance.
+
+   *  Provider transfer uses authenticated handover, fencing, and
+      current portable snapshot v7 / managed snapshot v8, connection
+      checkpoint v3, and conversation checkpoint v1.  Copying an export
+      or retaining a signature does not grant live service authority.
+      Its larger snapshot domains and signatures are separate from core
+      COSE bodies.
+
+   The complete extension definitions are in the fixed snapshot
+   [HAIL-SPEC].  Their eventual division into companion Internet-Drafts
+   is an editorial decision, not removal of implemented functionality.
+   Local account APIs, CLI commands, passkey flows, database tables, and
+   deployment topology are not federation requirements.
+
+   End-to-end encryption, general file attachments, additional publisher
+   layouts, optional-profile capability discovery, bulk federation
+   submission, and federated read/open receipts remain deferred.  A
+   provider-local implementation of an undeclared feature is not a
+   negotiated interoperable extension.
+
+11.  Security Considerations
+
+   The protocol relies on HTTPS authentication, Ed25519 signatures,
+   SHA-256 integrity, secure random tokens, protected signing keys, and
+   correct DID resolution.  A recipient provider can inspect delivered
+   content and metadata; a sender provider can inspect outgoing content
+   and tokens.  Neither provider authentication nor local disk/key
+   encryption provides end-to-end confidentiality.
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 16]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   Identity and messaging keys have distinct authority.  Compromise of a
+   messaging key can impersonate its sender within available
+   permissions.  Compromise or provider custody of an identity key has
+   broader consequences for Grants and bindings.  PLC recovery and
+   rollback can affect which keys are authoritative; this draft
+   deliberately does not treat retained signature validity as a complete
+   historical-authority proof.
+
+   Implementations MUST verify algorithm, key role, controller,
+   protected content type, payload type, schema, and canonical bytes in
+   addition to the signature.  Closed maps and exact digest domains
+   reduce ambiguity and cross-protocol confusion.  Unknown versions
+   require explicit rejection or their separately defined extension
+   handling; they are not best-effort parsing opportunities.
+
+   Acceptance, revocation, replay reservation, reply consumption,
+   cancellation, and terminal publication require atomic ordering.  A
+   valid signature does not resolve races.  Incorrect transaction
+   boundaries can create duplicate messages, bypass revocation, consume
+   a capability more than once, or publish after a terminal failure.
+
+   Resource attacks include large declared CBOR lengths, deeply nested
+   structures, expensive signatures, DID-resolution amplification,
+   stalled transfers, gzip expansion, and image decoder attacks.  Apply
+   structural limits before expensive work; bound concurrent work and
+   scratch allocation separately.  Grants authorize delivery categories,
+   not unlimited resource consumption.
+
+   Bearer tokens are transferable secrets.  Store lookup digests and
+   redact secrets from logs, but also protect signed representations and
+   backups that necessarily retain raw tokens.  Network redirects,
+   ambient cookies, arbitrary URLs, and unsafe DNS resolution can
+   exfiltrate tokens or reach private services; endpoint derivation does
+   not remove the need for safe-fetch validation.
+
+   Retention and migration must preserve immutable bodies through their
+   commitments, replay state through its deadline, and status evidence
+   through retry/correlation windows.  Storage deduplication cannot
+   erase recipient-specific ownership and authorization.  Operator
+   recovery procedures require review beyond these wire requirements.
+
+
+
+
+
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 17]
+
+Internet-Draft                    RACR                     November 2026
+
+
+12.  Privacy Considerations
+
+   Public aliases, DID service entries, key history, and Sender Profiles
+   allow identity correlation.  A stable DID improves continuity but
+   also links interactions across provider changes.  DNS, directory
+   operators, and providers can observe discovery and traffic metadata.
+   HTTPS does not conceal those relationships from the services
+   involved.
+
+   Generic receipts and concealed body errors reduce relationship and
+   content-existence probing, but timing, response size, resolution
+   latency, cache state, rate limits, and connection behavior can still
+   disclose information.  Implementations need measured tests of all
+   rejection paths, not merely identical JSON.  Public 421 routing
+   decisions must remain independent of protected account and
+   relationship state.
+
+   Signed delivery status exposes provider processing and availability,
+   not user reading.  Bodies and bundled images are fetched during
+   delivery and rendered locally.  User-initiated navigation to an HTTPS
+   link can still disclose information to the destination; this is
+   distinct from automatic content loading.  Additional analytics or
+   read-receipt extensions require separate privacy review.
+
+   Recipient-specific cache provenance is required even when physical
+   bytes are deduplicated.  Retained consent context and history improve
+   auditability but contain relationships and content metadata;
+   retention policies should minimize unnecessary copies without
+   violating protocol continuity requirements.
+
+13.  IANA Considerations
+
+   This revision makes no registration request.  The application/
+   hail-*+cbor strings used in the alpha are provisional and are not
+   claimed to be registered media types.  They are nevertheless exact
+   cryptographic domain-separation values in this profile.
+   Implementations MUST NOT independently rename them.  Final allocation
+   will require coordinated wire and signature updates if the names
+   change.
+
+   Before publication, the core media-type registrations need templates
+   and expert review under [RFC6838] and the structured-suffix rules of
+   [RFC6839].  Candidate core types are application/hail-address-
+   binding+cbor, application/hail-sender-profile+cbor, application/hail-
+   grant+cbor, application/hail-envelope+cbor, application/hail-
+   delivery-status+cbor, and application/hail-body+cbor.  The extension
+   types need coordinated registration in their companion documents.
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 18]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   The existing application/cose media type, COSE_Sign1 tag, and COSE
+   Ed25519 algorithm are reused without a new allocation.  The address-
+   binding relation is an extension relation URI, not a claim to a
+   registered short relation token.  The DID service type, DNS
+   delegation convention, profile identifiers, reason-code
+   extensibility, and future capability identifiers require an explicit
+   registry review before stable publication.  This paragraph does not
+   establish new registries.
+
+14.  Implementation and Evaluation Status
+
+   The project includes a TypeScript reference provider, clients
+   including a Rust CLI, and TypeScript and Go codec/vector
+   implementations.  Shared vectors exercise encodings, signatures,
+   resource boundaries, and malformed inputs.  Provider tests exercise
+   delivery and persistence behavior.  These are implementation
+   evidence, not a complete security audit or independent-provider
+   interoperability certification.
+
+   No particular implementation language or independently operated
+   second provider is a prerequisite for circulating this draft.  Review
+   can begin with published schemas, vectors, and implementation
+   behavior.  Independent implementations and deployments would provide
+   additional evidence.  A full independent-provider trial is not
+   claimed here.
+
+   Useful evaluation includes exact encoded body boundaries,
+   multilingual and structured publisher content, bounded decompression,
+   privacy timing tests, competing revocation/acceptance operations,
+   replay after restart, endpoint migration, and storage failure after
+   authorization.  A client can preflight an encoded draft against size
+   and structural limits; doing so cannot promise acceptance under
+   dynamic authorization or quota policy.
+
+15.  Normative References
+
+   [HAIL-SPEC]
+              contributors, H., "Hail alpha specification, commit
+              d286113cd82024d009fb07cc60041f290047f148", November 2026,
+              <https://github.com/j4crev/hail/tree/
+              d286113cd82024d009fb07cc60041f290047f148/spec>.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 19]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   [RFC4648]  Josefsson, S., "The Base16, Base32, and Base64 Data
+              Encodings", RFC 4648, DOI 10.17487/RFC4648, October 2006,
+              <https://www.rfc-editor.org/info/rfc4648>.
+
+   [RFC6750]  Jones, M. and D. Hardt, "The OAuth 2.0 Authorization
+              Framework: Bearer Token Usage", RFC 6750,
+              DOI 10.17487/RFC6750, October 2012,
+              <https://www.rfc-editor.org/info/rfc6750>.
+
+   [RFC6838]  Freed, N., Klensin, J., and T. Hansen, "Media Type
+              Specifications and Registration Procedures", BCP 13,
+              RFC 6838, DOI 10.17487/RFC6838, January 2013,
+              <https://www.rfc-editor.org/info/rfc6838>.
+
+   [RFC6839]  Hansen, T. and A. Melnikov, "Additional Media Type
+              Structured Syntax Suffixes", RFC 6839,
+              DOI 10.17487/RFC6839, January 2013,
+              <https://www.rfc-editor.org/info/rfc6839>.
+
+   [RFC7033]  Jones, P., Salgueiro, G., Jones, M., and J. Smarr,
+              "WebFinger", RFC 7033, DOI 10.17487/RFC7033, September
+              2013, <https://www.rfc-editor.org/info/rfc7033>.
+
+   [RFC7565]  Saint-Andre, P., "The 'acct' URI Scheme", RFC 7565,
+              DOI 10.17487/RFC7565, May 2015,
+              <https://www.rfc-editor.org/info/rfc7565>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC8288]  Nottingham, M., "Web Linking", RFC 8288,
+              DOI 10.17487/RFC8288, October 2017,
+              <https://www.rfc-editor.org/info/rfc8288>.
+
+   [RFC8610]  Birkholz, H., Vigano, C., and C. Bormann, "Concise Data
+              Definition Language (CDDL): A Notational Convention to
+              Express Concise Binary Object Representation (CBOR) and
+              JSON Data Structures", RFC 8610, DOI 10.17487/RFC8610,
+              June 2019, <https://www.rfc-editor.org/info/rfc8610>.
+
+   [RFC8949]  Bormann, C. and P. Hoffman, "Concise Binary Object
+              Representation (CBOR)", STD 94, RFC 8949,
+              DOI 10.17487/RFC8949, December 2020,
+              <https://www.rfc-editor.org/info/rfc8949>.
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 20]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   [RFC9052]  Schaad, J., "CBOR Object Signing and Encryption (COSE):
+              Structures and Process", STD 96, RFC 9052,
+              DOI 10.17487/RFC9052, August 2022,
+              <https://www.rfc-editor.org/info/rfc9052>.
+
+   [RFC9110]  Fielding, R., Ed., Nottingham, M., Ed., and J. Reschke,
+              Ed., "HTTP Semantics", STD 97, RFC 9110,
+              DOI 10.17487/RFC9110, June 2022,
+              <https://www.rfc-editor.org/info/rfc9110>.
+
+   [RFC9457]  Nottingham, M., Wilde, E., and S. Dalal, "Problem Details
+              for HTTP APIs", RFC 9457, DOI 10.17487/RFC9457, July 2023,
+              <https://www.rfc-editor.org/info/rfc9457>.
+
+   [RFC9530]  Polli, R. and L. Pardue, "Digest Fields", RFC 9530,
+              DOI 10.17487/RFC9530, February 2024,
+              <https://www.rfc-editor.org/info/rfc9530>.
+
+   [RFC9562]  Davis, K., Peabody, B., and P. Leach, "Universally Unique
+              IDentifiers (UUIDs)", RFC 9562, DOI 10.17487/RFC9562, May
+              2024, <https://www.rfc-editor.org/info/rfc9562>.
+
+   [RFC9864]  Jones, M.B. and O. Steele, "Fully-Specified Algorithms for
+              JSON Object Signing and Encryption (JOSE) and CBOR Object
+              Signing and Encryption (COSE)", RFC 9864,
+              DOI 10.17487/RFC9864, October 2025,
+              <https://www.rfc-editor.org/info/rfc9864>.
+
+Appendix A.  Open Issues and Publication Work
+
+   This appendix is an explicit issue inventory, not permission for
+   implementers to choose incompatible behavior.  The current snapshot
+   remains the implementation target while these questions are reviewed.
+
+   *  Historical authority: define acceptable evidence and
+      reconciliation after PLC recovery or nullified branches, including
+      unacknowledged Grant identity-key rotation.  Retention of signed
+      bytes alone does not settle authority at acceptance time.
+
+   *  Document completeness: incorporate or split the full object
+      schemas, consent/category grammars, Sender Profile limits, address
+      DNS-delegation and IDNA policy, status cross-field rules, and
+      endpoint error matrices.  Replace the monolithic repository
+      reference with suitable standalone normative documents before
+      seeking stable publication.
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 21]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   *  Resolver policy: distinguish the strict-public reference fresh-
+      read/evidence policy from deployment choices, and establish the
+      interoperability consequences of directory disagreement, caching,
+      and recovery windows.
+
+   *  Registration: complete media-type templates, dependency/registry
+      review, security review of the provisional names, and any
+      coordinated transition required by assigned values.
+
+   *  Extension publication: select companion-document boundaries for
+      connection admission, threaded replies, shared conversations,
+      custody, and transfer; retain their current normative authority
+      boundaries.
+
+   *  Content evolution: define new safe publisher-layout nodes and
+      client presentation semantics.  Define capability discovery and
+      downgrade behavior only when optional profiles exist.  The three
+      current SPT profiles remain mandatory.
+
+   *  Attachments: specify resource identity, authorization, per-
+      resource and aggregate byte/count budgets, availability, retry,
+      delivery-completion, and retention semantics before introducing
+      general attachments.
+
+   *  Submission preparation: review author metadata, intended status,
+      IPR obligations, references, current draft date, and all
+      unresolved editorial notes; run xml2rfc and idnits; then use the
+      Datatracker submission tool.  This draft has not been submitted.
+
+Appendix B.  Source Map and Review Boundary
+
+   The initial source snapshot is
+   d286113cd82024d009fb07cc60041f290047f148.  This document is
+   maintained separately from the implementation specification.  Its
+   chapter mapping is: identity/discovery to did-profile.md, address-
+   binding.md, sender-profile.md and plc-read-evidence.md; encoding to
+   encoding.md and hail.cddl; Grants to grants.md; core delivery to
+   core-delivery.md and envelopes.md; HTTP operations to http-
+   binding.md; content to bodies.md and assets.md; state to delivery-
+   state.md.
+
+   The deferred-feature inventory was checked against Questions That Can
+   Be Deferred in core-delivery.md.  Existing connections, shared
+   conversations, and portability are described as implemented
+   extensions.  General attachments, advanced layouts, end-to-end
+   encryption, and read receipts are not presented as existing
+   capabilities.
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 22]
+
+Internet-Draft                    RACR                     November 2026
+
+
+   Open issues distinguish editorial incorporation work from genuinely
+   unresolved protocol decisions.  In particular, current body size,
+   mandatory SPT support, bearer body retrieval, Address Binding non-
+   expiration, and permission ordering are already specified; they are
+   not re-opened by this draft.
+
+Appendix C.  Body Structural Schema Excerpt
+
+   The following CDDL ([RFC8610]) is copied from the pinned hail.cddl
+   body and asset definitions, with the digest dependency included.  It
+   defines structure only: the prose and source specification impose
+   additional mark-reference, role, PNG, text, and cross-field
+   validation.  In particular, spt-3 permits exactly one header asset
+   despite the reusable manifest allowing one or two entries.  Unknown
+   fields are not permitted.
+
+   sha256 = bstr .size 32
+
+   digest = {
+     "algorithm": "sha-256",
+     "value": sha256
+   }
+
+   ; spt-1 remains the initial plain-text Portable Text-shaped profile.
+   hail-body-spt-1 = {
+     "version": 1,
+     "profile": "spt-1",
+     "blocks": [* spt-1-text-block]
+   }
+
+   spt-1-text-block = {
+     "_type": "block",
+     "style": "normal",
+     "children": [1* spt-1-span],
+     "markDefs": []
+   }
+
+   spt-1-span = {
+     "_type": "span",
+     "text": tstr,
+     "marks": []
+   }
+
+   ; spt-2 adds a closed set of styles, lists, decorators
+   ; and HTTPS links.
+   hail-body-spt-2 = {
+     "version": 1,
+     "profile": "spt-2",
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 23]
+
+Internet-Draft                    RACR                     November 2026
+
+
+     "blocks": [* spt-2-text-block]
+   }
+
+   spt-2-text-block = {
+     "_type": "block",
+     "style": "normal" / "h1" / "h2" / "h3" / "blockquote" / "caption",
+     "children": [1* spt-2-span],
+     "markDefs": [* spt-link],
+     ? "listItem": "bullet" / "number",
+     ? "level": 1..3
+   }
+
+   spt-2-span = {
+     "_type": "span",
+     "text": tstr,
+     "marks": [* tstr]
+   }
+
+   spt-link = {
+     "_key": tstr,
+     "_type": "spt.link",
+     "href": tstr,
+     ? "title": tstr
+   }
+
+   ; spt-3 adds one bundled, digest-bound header image before rich text.
+   hail-body-spt-3 = {
+     "version": 1,
+     "profile": "spt-3",
+     "assets": asset-manifest-v1,
+     "blocks": [spt-image-block, * spt-2-text-block]
+   }
+
+   spt-image-block = {
+     "_type": "spt.image",
+     "asset": tstr,
+     "alt": tstr,
+     ? "caption": tstr
+   }
+
+   ; Reusable bundled-image manifest for future body
+   ; and profile versions.
+   asset-manifest-v1 = {
+     "version": 1,
+     "assets": [1*2 bundled-image-asset-v1]
+   }
+
+   bundled-image-asset-v1 = {
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 24]
+
+Internet-Draft                    RACR                     November 2026
+
+
+     "id": tstr,
+     "role": "avatar" / "header",
+     "media_type": "image/png",
+     "loading": "bundled",
+     "size": 1..196608,
+     "digest": digest,
+     "width": 1..2400,
+     "height": 1..1200,
+     "data": bstr
+   }
+
+Author's Address
+
+   Jason Creviston
+   Email: j4@j4crev.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 25]

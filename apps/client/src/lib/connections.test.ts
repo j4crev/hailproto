@@ -1,7 +1,7 @@
 import {expect,it,vi} from "vitest";
 import {recoverConnection,connectionCode,connectionHomeLink,connectApproval,signedConnectionFile,type ConnectApproval} from "./connections.js";
-import {encodeDeterministic} from "@hailproto/codec/cbor";
-import {encodeBase64Url} from "@hailproto/codec/base64url";
+import {encodeDeterministic} from "@racrproto/codec/cbor";
+import {encodeBase64Url} from "@racrproto/codec/base64url";
 import {returnPath} from "./auth-routing.js";
 
 it("reads only a complete identity-pinned fragment code and keeps login destinations local",()=>{
@@ -23,7 +23,7 @@ it("keeps provider handoff fragment-only and rejects vault uploads before any ne
   const proposal={payload:{...payload,token_hash:{algorithm:"sha-256",value:encodeBase64Url(new Uint8Array(32))}}} as unknown as NonNullable<ConnectApproval["ownerSigning"]>;
   const parts=encodeDeterministic([new Uint8Array([1]),{},encodeDeterministic(payload),new Uint8Array(64)]),cose=new Uint8Array(parts.length+1);cose[0]=0xd2;cose.set(parts,1);
   expect(signedConnectionFile(cose,proposal)).toBe(encodeBase64Url(cose));
-  expect(()=>signedConnectionFile(new TextEncoder().encode(JSON.stringify({type:"hailp.user-vault",secret:"never-upload"})),proposal)).toThrow("not a vault");
+  expect(()=>signedConnectionFile(new TextEncoder().encode(JSON.stringify({type:"racr.user-vault",secret:"never-upload"})),proposal)).toThrow("not a vault");
   expect(()=>signedConnectionFile(cose,{...proposal,payload:{...proposal.payload,from:"did:plc:"+"b".repeat(24)}})).toThrow("exact consent");
 });
 it("validates resumable exact-action reviews without treating an expired review as approval",()=>{

@@ -4,7 +4,7 @@ import {
   encodeBase64Url,
   signPayload,
   type HailGrant,
-} from "@hailproto/codec";
+} from "@racrproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { GrantReceiveError, GrantReceiver } from "../src/grants/receiver.js";

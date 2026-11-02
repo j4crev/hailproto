@@ -1,7 +1,7 @@
 import { BODY_CONTAINER_LIMITS, BODY_MAX_BYTES } from "../bodies/service.js";
 import {createHash} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
-import {decodeBase64Url,decodeDeterministic,encodeDeterministic,inspectSignedPayload,type HailValue} from '@hailproto/codec';
+import {decodeBase64Url,decodeDeterministic,encodeDeterministic,inspectSignedPayload,type HailValue} from '@racrproto/codec';
 import type {SQL} from 'bun';
 import {PLC_READ_EVIDENCE_POLICY_VERSION} from '../identity/managed-profile.js';
 import {PUBLIC_EVIDENCE_LIMITS} from '../plc/read-evidence.js';

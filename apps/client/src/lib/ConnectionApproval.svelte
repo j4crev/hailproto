@@ -79,9 +79,9 @@
   <p class="m-0 text-xs text-muted">Your passkey approves only this action. Approval expires <DateTime value={approval.expiresAt} />.</p>
   {#if identityConflicts.length}<IdentityWarning address={approval.review.address} did={approval.review.did} previousDids={identityConflicts} /><label class="flex min-h-11 items-start gap-3 text-sm"><input type="checkbox" checked={acknowledgedIdentity===conflictKey(approval)} onchange={event=>acknowledgedIdentity=event.currentTarget.checked?conflictKey(approval):""} />I checked this different identity through a trusted channel and want to connect.</label>{/if}
   {#if approval.ownerSigning}<div class="grid min-w-0 gap-3 rounded-xl border border-solid border-line p-4" aria-label="Owner identity signing">
-    <h3 class="m-0 text-lg">Sign with your own identity key</h3><p class="m-0 text-sm">Download this exact consent and sign it locally with <code>hailp connection sign</code>. Only the identity key is unlocked. Your vault, encryption secret and recovery key stay on your machine.</p>
+    <h3 class="m-0 text-lg">Sign with your own identity key</h3><p class="m-0 text-sm">Download this exact consent and sign it locally with <code>racr connection sign</code>. Only the identity key is unlocked. Your vault, encryption secret and recovery key stay on your machine.</p>
     <button class="hail-button-secondary justify-self-start" disabled={busy} onclick={download}>Download consent proposal</button>
-    <code class="text-xs [overflow-wrap:anywhere]">hailp connection sign hail-connection-{approval.requestId}.json --provider {approval.ownerSigning.provider} --vault /path/to/vault.json --output consent.cose</code>
+    <code class="text-xs [overflow-wrap:anywhere]">racr connection sign hail-connection-{approval.requestId}.json --provider {approval.ownerSigning.provider} --vault /path/to/vault.json --output consent.cose</code>
     <label class="hail-field">Signed consent file (COSE only, not a vault)<input type="file" accept=".cose,application/cbor" onchange={upload} disabled={busy} /></label>
     {#if signedConsent}<p class="m-0 text-sm text-muted">Signed file ready. The provider will verify it against this exact review and your current identity key before saving.</p>{/if}
   </div>{/if}

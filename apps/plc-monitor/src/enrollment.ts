@@ -1,7 +1,7 @@
 import { cidForCbor } from "@atproto/common";
 import { parseDidKey, P256_JWT_ALG, SECP256K1_JWT_ALG } from "@atproto/crypto";
 import { assureValidSig, def, didForCreateOp, validateOperationLog } from "@did-plc/lib";
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec/base64url";
 import { base58btc } from "multiformats/bases/base58";
 import { encode as encodeDagCbor } from "@ipld/dag-cbor";
 import { SIGNUP_ALERT_PATH, SIGNUP_BINDING_PATH, checkEmailBindingQuery, type MonitorEmailBindingQuery } from "./email-binding.js";

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { gunzip } from "node:zlib";
 import { promisify } from "node:util";
-import { encodeBase64Url, type HailEnvelope, type HailFailureReason, type HailHoldReason } from "@hailproto/codec";
+import { encodeBase64Url, type HailEnvelope, type HailFailureReason, type HailHoldReason } from "@racrproto/codec";
 import { BODY_MAX_BYTES, validateBodyBytes } from "../bodies/service.js";
 import type { DiscoveryFetch, NetworkTargetValidator } from "../discovery/verifier.js";
 import type { HailDidResolver } from "../plc/resolver.js";

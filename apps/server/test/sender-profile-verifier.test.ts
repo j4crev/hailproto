@@ -4,7 +4,7 @@ import {
   encodeBase64Url,
   signPayload,
   type HailSenderProfile,
-} from "@hailproto/codec";
+} from "@racrproto/codec";
 import { describe, expect, it, vi } from "vitest";
 import { KeyEncryptor } from "../src/identity/key-encryption.js";
 import { generateAccountKeys } from "../src/identity/keys.js";

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { encodeBase64Url, type HailSenderProfile } from "@hailproto/codec";
+import { encodeBase64Url, type HailSenderProfile } from "@racrproto/codec";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import type { AppConfig } from "../src/config.js";

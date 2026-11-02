@@ -1,4 +1,4 @@
-import { decodeBase64Url,decodeDeterministic,type HailValue } from "@hailproto/codec";
+import { decodeBase64Url,decodeDeterministic,type HailValue } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { PUBLIC_EVIDENCE_LIMITS,evidenceHash } from "./read-evidence.js";
 import { canonicalizeHailServiceBase,type PlcResolutionEvidence } from "./resolver.js";

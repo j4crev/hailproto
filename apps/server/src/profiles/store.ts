@@ -1,4 +1,4 @@
-import type { HailSenderProfile } from "@hailproto/codec";
+import type { HailSenderProfile } from "@racrproto/codec";
 import type { PlcResolutionEvidence } from "../plc/resolver.js";
 
 export interface StoredSenderProfile {

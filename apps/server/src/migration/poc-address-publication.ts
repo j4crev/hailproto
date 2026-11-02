@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { createWebCryptoVerifier, verifySignedPayload } from "@hailproto/codec";
+import { createWebCryptoVerifier, verifySignedPayload } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import type { HailDidResolver } from "../plc/resolver.js";

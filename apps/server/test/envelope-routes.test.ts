@@ -66,7 +66,7 @@ describe("envelope submission HTTP binding", () => {
   it("returns a signed COSE snapshot only after authenticated acceptance", async () => {
     // Reuse a structurally signed envelope from codec tests rather than forging acceptance
     // from the request's claimed sender fields.
-    const { createWebCryptoSigner, signPayload } = await import("@hailproto/codec");
+    const { createWebCryptoSigner, signPayload } = await import("@racrproto/codec");
     const key = (await crypto.subtle.generateKey("Ed25519", false, ["sign", "verify"])) as CryptoKeyPair;
     const sender = `did:plc:${"a".repeat(24)}`;
     const messageId = "01954144-8097-7a9d-a7a8-ef29a823eaf1";

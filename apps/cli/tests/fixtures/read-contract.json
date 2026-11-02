@@ -26,7 +26,7 @@
           "credentialId": "019a0000-0000-7000-8000-000000000001",
           "expiresAt": "2030-01-01T00:00:00.000Z"
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -46,7 +46,7 @@
       "stdout": {
         "connections": [],
         "metadata": "[REDACTED]",
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -66,7 +66,7 @@
       "stdout": {
         "connections": [],
         "metadata": "[REDACTED]",
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -91,7 +91,7 @@
           }
         ],
         "next": "019a0000-0000-7000-8000-000000000001",
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -120,7 +120,7 @@
           }
         ],
         "next": null,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -149,7 +149,7 @@
           }
         ],
         "next": null,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -177,7 +177,7 @@
           }
         ],
         "next": null,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -196,7 +196,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "TRANSPORT_ERROR"
         }
@@ -217,7 +217,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "HTTP_429",
           "httpStatus": 429,
@@ -241,7 +241,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CREDENTIAL_EXPIRED",
           "httpStatus": 401,
@@ -264,7 +264,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "HTTP_403",
           "httpStatus": 403,
@@ -287,7 +287,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -308,7 +308,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -329,7 +329,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -350,7 +350,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -371,7 +371,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -392,7 +392,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -413,7 +413,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -434,7 +434,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -455,7 +455,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -476,7 +476,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -499,7 +499,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -523,7 +523,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "USAGE_ERROR"
         }
@@ -544,7 +544,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "SELECTION_MISMATCH"
         }
@@ -571,7 +571,7 @@
         ],
         "next": null,
         "truncated": false,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -601,7 +601,7 @@
         ],
         "next": null,
         "truncated": false,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -631,7 +631,7 @@
         ],
         "next": null,
         "truncated": false,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -660,7 +660,7 @@
         ],
         "next": null,
         "truncated": false,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -689,7 +689,7 @@
         ],
         "next": null,
         "truncated": false,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -711,7 +711,7 @@
         "messageId": "019a0000-0000-7000-8000-000000000001",
         "state": "delivered",
         "revision": 1,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -739,7 +739,7 @@
           "completed": true,
           "timedOut": false
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -776,7 +776,7 @@
           "timedOut": false,
           "interrupted": false
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -797,7 +797,7 @@
         "checks": {
           "provider": {
             "reachable": true,
-            "type": "hailp.capabilities",
+            "type": "racr.capabilities",
             "version": 1,
             "features": {
               "inboxWait": true
@@ -832,7 +832,7 @@
         },
         "blockers": [],
         "ok": true,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -856,7 +856,7 @@
         "checks": {
           "provider": {
             "reachable": true,
-            "type": "hailp.capabilities",
+            "type": "racr.capabilities",
             "version": 1,
             "features": {
               "inboxWait": true
@@ -891,7 +891,7 @@
         },
         "blockers": [],
         "ok": true,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -915,7 +915,7 @@
         "checks": {
           "provider": {
             "reachable": true,
-            "type": "hailp.capabilities",
+            "type": "racr.capabilities",
             "version": 1,
             "features": {
               "inboxWait": true
@@ -930,7 +930,7 @@
         },
         "blockers": [],
         "ok": true,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -955,7 +955,7 @@
         "checks": {
           "provider": {
             "reachable": true,
-            "type": "hailp.capabilities",
+            "type": "racr.capabilities",
             "version": 1,
             "features": {
               "inboxWait": true
@@ -975,7 +975,7 @@
           }
         ],
         "ok": false,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -995,7 +995,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "USAGE_ERROR"
         }
@@ -1022,7 +1022,7 @@
         "checks": {
           "provider": {
             "reachable": true,
-            "type": "hailp.capabilities",
+            "type": "racr.capabilities",
             "version": 1,
             "features": {
               "inboxWait": true
@@ -1082,7 +1082,7 @@
           }
         ],
         "ok": false,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1137,7 +1137,7 @@
           }
         ],
         "ok": false,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1182,7 +1182,7 @@
           }
         ],
         "ok": false,
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1203,7 +1203,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "USAGE_ERROR"
         }
@@ -1223,7 +1223,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "USAGE_ERROR"
         }
@@ -1243,7 +1243,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "USAGE_ERROR"
         }
@@ -1264,7 +1264,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "USAGE_ERROR"
         }
@@ -1285,7 +1285,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "USAGE_ERROR"
         }
@@ -1307,7 +1307,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "USAGE_ERROR"
         }
@@ -1327,7 +1327,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "USAGE_ERROR"
         }
@@ -1348,7 +1348,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "USAGE_ERROR"
         }
@@ -1369,7 +1369,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "USAGE_ERROR"
         }
@@ -1389,7 +1389,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -1411,7 +1411,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -1433,7 +1433,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -1456,7 +1456,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -1479,7 +1479,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -1509,7 +1509,7 @@
           "completed": false,
           "timedOut": true
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1537,7 +1537,7 @@
           "completed": false,
           "timedOut": true
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1567,7 +1567,7 @@
           "timedOut": true,
           "interrupted": false
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1597,7 +1597,7 @@
           "completed": true,
           "timedOut": false
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1635,7 +1635,7 @@
           "timedOut": false,
           "interrupted": false
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1658,7 +1658,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "HTTP_429",
           "httpStatus": 429,
@@ -1693,7 +1693,7 @@
           "timedOut": true,
           "interrupted": false
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1715,7 +1715,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CREDENTIAL_EXPIRED",
           "httpStatus": 401,
@@ -1738,7 +1738,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CREDENTIAL_EXPIRED",
           "httpStatus": 401,
@@ -1764,7 +1764,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "TRANSPORT_ERROR"
         }
@@ -1796,7 +1796,7 @@
           "timedOut": true,
           "interrupted": false
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1826,7 +1826,7 @@
           "completed": false,
           "timedOut": true
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1855,7 +1855,7 @@
           "timedOut": false,
           "interrupted": true
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1885,7 +1885,7 @@
           "timedOut": false,
           "interrupted": true
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1914,7 +1914,7 @@
           "timedOut": false,
           "interrupted": true
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1944,7 +1944,7 @@
           "timedOut": false,
           "interrupted": true
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -1969,7 +1969,7 @@
         "did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
         "issuedAt": 1787851200,
         "status": "active",
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -2011,7 +2011,7 @@
           "display_name": "Example Store",
           "offers_uncategorized": false
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -2071,7 +2071,7 @@
           "display_name": "Example Store",
           "offers_uncategorized": false
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -2127,7 +2127,7 @@
             }
           }
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -2184,7 +2184,7 @@
             }
           }
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -2204,7 +2204,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2226,7 +2226,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2248,7 +2248,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2270,7 +2270,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -2291,7 +2291,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2312,7 +2312,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2333,7 +2333,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -2354,7 +2354,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2375,7 +2375,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2397,7 +2397,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -2420,7 +2420,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2443,7 +2443,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2466,7 +2466,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -2489,7 +2489,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2512,7 +2512,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2534,7 +2534,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2556,7 +2556,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2578,7 +2578,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2600,7 +2600,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2622,7 +2622,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2644,7 +2644,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2666,7 +2666,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2688,7 +2688,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2710,7 +2710,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2732,7 +2732,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2754,7 +2754,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2776,7 +2776,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2798,7 +2798,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2820,7 +2820,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2864,7 +2864,7 @@
           "display_name": "Example Store",
           "offers_uncategorized": false
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -2883,7 +2883,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2904,7 +2904,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2925,7 +2925,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2946,7 +2946,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2967,7 +2967,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -2988,7 +2988,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3009,7 +3009,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3030,7 +3030,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3051,7 +3051,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3072,7 +3072,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3093,7 +3093,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3114,7 +3114,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3136,7 +3136,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3159,7 +3159,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3182,7 +3182,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3205,7 +3205,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3228,7 +3228,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -3250,7 +3250,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3272,7 +3272,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3295,7 +3295,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3318,7 +3318,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3341,7 +3341,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3364,7 +3364,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3387,7 +3387,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3410,7 +3410,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3433,7 +3433,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3456,7 +3456,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3479,7 +3479,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3538,7 +3538,7 @@
             }
           }
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -3595,7 +3595,7 @@
             }
           }
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -3652,7 +3652,7 @@
             }
           }
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -3709,7 +3709,7 @@
             }
           }
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -3766,7 +3766,7 @@
             }
           }
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -3825,7 +3825,7 @@
             }
           }
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -3851,7 +3851,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "CLIENT_ERROR"
         }
@@ -3879,7 +3879,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "RESPONSE_ERROR"
         }
@@ -3903,7 +3903,7 @@
       "stdout": {
         "path": "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/mark-read",
         "body": {},
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -3924,7 +3924,7 @@
       "stdout": {
         "path": "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/mark-unread",
         "body": {},
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -3945,7 +3945,7 @@
       "stdout": {
         "path": "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/trash",
         "body": {},
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -3966,7 +3966,7 @@
       "stdout": {
         "path": "/conversations/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/restore",
         "body": {},
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -3989,7 +3989,7 @@
         "body": {
           "connectionId": "019a0000-0000-7000-8000-000000000001"
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -4012,7 +4012,7 @@
         "body": {
           "connectionId": "019a0000-0000-7000-8000-000000000001"
         },
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -4034,7 +4034,7 @@
       "stdout": {
         "path": "/inbox/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/id%20%2F%3F%C3%A9/permanent-delete",
         "body": {},
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -4056,7 +4056,7 @@
       "stdout": {
         "path": "/inbox/did%3Aplc%3Aaaaaaaaaaaaaaaaaaaaaaaaa/id%20%2F%3F%C3%A9/permanent-delete",
         "body": {},
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -4077,7 +4077,7 @@
       "stdout": {
         "path": "/messages/id%20%2F%3F%C3%A9/submit",
         "body": {},
-        "cliContractVersion": 1
+        "cliContractVersion": 2
       },
       "stderr": null,
       "requests": [
@@ -4096,7 +4096,7 @@
       "exit": 1,
       "stdout": null,
       "stderr": {
-        "cliContractVersion": 1,
+        "cliContractVersion": 2,
         "error": {
           "code": "TRANSPORT_ERROR"
         }

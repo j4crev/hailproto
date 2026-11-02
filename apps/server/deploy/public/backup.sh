@@ -9,14 +9,14 @@ flock -n 9 || exit 0
 name="haili-$(date -u +%Y%m%dT%H%M%SZ).tar.gpg"
 work=$(mktemp -d /var/tmp/hail-backup.XXXXXX)
 trap 'rm -rf "$work"' EXIT
-cd /opt/hailproto/apps/server/deploy/public
+cd /opt/hail/apps/server/deploy/public
 compose="docker compose --env-file .env -f compose.yaml"
 postgres=/etc/hail-provider-postgres/compose.yaml
 if [ -f "$postgres" ]; then compose="$compose -f $postgres"; fi
 
 $compose exec -T db pg_dump -U hail -d hail -Fc > "$work/hail.dump"
 cp .env "$work/provider.env"
-commit=$(git -C /opt/hailproto rev-parse HEAD)
+commit=$(git -C /opt/hail rev-parse HEAD)
 image=$(docker inspect hail-public-provider-provider-1 --format '{{.Config.Image}}')
 client_image=$(docker inspect hail-public-provider-gui-1 --format '{{.Config.Image}}')
 database_image=$(docker inspect hail-public-provider-db-1 --format '{{.Config.Image}}')

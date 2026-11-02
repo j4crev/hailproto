@@ -17,7 +17,7 @@ try {
   const accounts = new AccountApiRepository(db.sql);
   try {
     issued = await accounts.issue(address, permission === "--write-grants",undefined,permission === "--full-access" ? [...ALL_ACCOUNT_SCOPES] : undefined);
-    await file.writeFile(JSON.stringify({ type: "hailp.api-credential", version: 1,
+    await file.writeFile(JSON.stringify({ type: "racr.api-credential", version: 1,
       provider: config.publicOrigin, ...issued }));
     await file.sync();
     complete = true;

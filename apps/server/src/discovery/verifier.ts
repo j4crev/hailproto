@@ -4,7 +4,7 @@ import {
   createWebCryptoVerifier,
   verifySignedPayload,
   type HailAddressBinding,
-} from "@hailproto/codec";
+} from "@racrproto/codec";
 import { canonicalizeHailAddress } from "../identity/address.js";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import type { PlcDirectoryClient } from "../plc/client.js";

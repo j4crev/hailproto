@@ -4,7 +4,7 @@
   import {startRegistration} from "@simplewebauthn/browser";
   let token=$state(""),label=$state("Replacement passkey"),busy=$state(false),complete=$state(false),message=$state("");
   onMount(()=>{const value=new URLSearchParams(location.hash.slice(1)).get("token")??"";
-    if(/^hailp_[A-Za-z0-9_-]{43}$/.test(value)){token=value;history.replaceState(null,"",location.pathname);}else message="This recovery link is invalid or incomplete.";});
+    if(/^racr_[A-Za-z0-9_-]{43}$/.test(value)){token=value;history.replaceState(null,"",location.pathname);}else message="This recovery link is invalid or incomplete.";});
   async function json(response:Response){if(!response.ok)throw new Error("Recovery enrollment was refused or expired.");return response.json();}
   async function enroll(){
     busy=true;message="";

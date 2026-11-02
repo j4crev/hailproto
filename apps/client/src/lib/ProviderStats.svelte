@@ -1,6 +1,6 @@
 <script lang="ts">
   import ProviderStorage from "./ProviderStorage.svelte";
-  import type {OperatorStats} from "@hailproto/client-support/provider-contracts";
+  import type {OperatorStats} from "@racrproto/client-support/provider-contracts";
   let {stats,range}:{stats:OperatorStats|null;range:string}=$props();
   const number=(value:number)=>value.toLocaleString("en-US");
   const label=(start:string)=>range==="day"?`${start.slice(11,16)} UTC`:start.slice(0,10);

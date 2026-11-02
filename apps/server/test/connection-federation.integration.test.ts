@@ -10,7 +10,7 @@ import {expect,it,vi} from "vitest";
 import {P256Keypair} from "@atproto/crypto";
 import {cidForCbor} from '@atproto/common';
 import {def,didForCreateOp,formatDidDoc,signOperation,validateOperationLog} from "@did-plc/lib";
-import {createWebCryptoSigner,decodeBase64Url,decodeDeterministic,encodeBase64Url,encodeDeterministic,fromDiagnosticJson,inspectSignedPayload,signPayload} from "@hailproto/codec";
+import {createWebCryptoSigner,decodeBase64Url,decodeDeterministic,encodeBase64Url,encodeDeterministic,fromDiagnosticJson,inspectSignedPayload,signPayload} from "@racrproto/codec";
 import {ProviderDatabase} from "../src/db/database.js";
 import {AccountConnections} from "../src/accounts/connections.js";
 import {RemoteConnectionReview} from "../src/accounts/connection-review.js";
@@ -1062,7 +1062,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
     ]);
     expect(afterRetirement.map(result=>result.status==='fulfilled'?result.value:String(result.reason))).toEqual([true,true]);
     for(const row of exactManifest.tables.sent_envelopes)expect(await finalTargetStack.envelopes.sent(c.did,String(row.message_id))).toEqual(new Uint8Array(Buffer.from(String(row.envelope_cose).slice(2),'hex')));
-    const enrollmentToken='hailp_'+encodeBase64Url(randomBytes(32)),access=new AccountAccess(second.db.sql,resolver,second.origin),accessChallenge=await withFreshServingGenerations(second.db.sql,()=>access.prepare({
+    const enrollmentToken='racr_'+encodeBase64Url(randomBytes(32)),access=new AccountAccess(second.db.sql,resolver,second.origin),accessChallenge=await withFreshServingGenerations(second.db.sql,()=>access.prepare({
       did:c.did,signer:'owner-recovery',publicKey:c.recoveryPublicKey,scopes:['credentials:write'],tokenHash:encodeBase64Url(new Uint8Array(createHash('sha256').update(enrollmentToken).digest())),purpose:'passkey-enrollment'}));
     await withFreshServingGenerations(second.db.sql,async()=>access.complete(accessChallenge.challengeId,enrollmentToken,encodeBase64Url(await c.recoveryKey.sign(accountAccessInput(accessChallenge)))));
     const authenticator=virtualPasskey();
@@ -1186,11 +1186,11 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
         const retainedArchives=await target.db.sql`SELECT transfer_id,history_bytes FROM connection_history_archives WHERE account_id=${a.id} ORDER BY transfer_id`;
         const commitCustody=async(preparation:Awaited<ReturnType<SameProviderCustodyTransition['prepare']>>)=>{
           const op=await signOperation(preparation.unsignedOperation,a.recoveryKey),opBytes=new TextEncoder().encode(JSON.stringify(op)),issued=Math.floor(Date.now()/1000);
-          const approval:CustodyTransitionApproval={type:'hailp.custody-transition',version:1,transition_id:preparation.transitionId,did:a.did,direction:preparation.direction,
+          const approval:CustodyTransitionApproval={type:'racr.custody-transition',version:1,transition_id:preparation.transitionId,did:a.did,direction:preparation.direction,
             provider_service_base:targetBase,owner_recovery_key:a.recoveryPublicKey,old_identity_key:preparation.oldIdentityKey,new_identity_key:preparation.newIdentityKey,
             previous_operation_cid:preparation.previousOperationCid,operation_cid:(await cidForCbor(op)).toString(),history_checkpoint_sha256:preparation.historyCheckpointDigest,
             binding_sha256:preparation.bindingDigest,generation_from:preparation.generationFrom,generation_to:preparation.generationTo,nonce:randomUUID(),issued_at:issued,expires_at:issued+1800};
-          const bytes=encodeDeterministic(approval as any),tag=new TextEncoder().encode('hailp.custody-transition.v1\0'),signing=new Uint8Array(tag.length+bytes.length);
+          const bytes=encodeDeterministic(approval as any),tag=new TextEncoder().encode('racr.custody-transition.v1\0'),signing=new Uint8Array(tag.length+bytes.length);
           signing.set(tag);signing.set(bytes,tag.length);
           const signature=await a.recoveryKey.sign(signing);
           await withFreshServingGenerations(target.db.sql,()=>custody.commit(a.id,preparation.transitionId,opBytes,bytes,signature));

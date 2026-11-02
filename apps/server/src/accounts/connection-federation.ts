@@ -1,7 +1,7 @@
 import {createHash} from "node:crypto";
 import type {SQL} from "bun";
 import {createWebCryptoSigner,createWebCryptoVerifier,decodeBase64Url,decodeDeterministic,encodeBase64Url,encodeDeterministic,
-  inspectSignedPayload,signPayload,verifySignedPayload,type HailConnectionControl,type HailConnectionConfirmation,type HailValue} from "@hailproto/codec";
+  inspectSignedPayload,signPayload,verifySignedPayload,type HailConnectionControl,type HailConnectionConfirmation,type HailValue} from "@racrproto/codec";
 import type {ConnectionOwner} from "./connections.js";
 import type {AccountApiSession} from "./repository.js";
 import {ConnectionError} from "./connection-error.js";

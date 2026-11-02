@@ -7,7 +7,7 @@ export async function credentialCases(binary:string,root:string,directory:string
   let cases=0;
   for(const [index,command] of [[binary]].entries()){
     const source=join(directory,`source-${index}.json`), output=join(directory,`created-${index}.json`), rotated=join(directory,`rotated-${index}.json`);
-    const original={type:"hailp.api-credential",version:1,provider,accountId:id,credentialId:id,token:`hailp_${"b".repeat(43)}`,scopes,expiresAt:expiry};
+    const original={type:"racr.api-credential",version:1,provider,accountId:id,credentialId:id,token:`racr_${"b".repeat(43)}`,scopes,expiresAt:expiry};
     await writeFile(source,JSON.stringify(original),{mode:0o600});
     let issued=new Map<string,any>([[original.token,original]]), fail="", calls:any[]=[], revoked=false;
     install(async(request)=>{
@@ -19,17 +19,17 @@ export async function credentialCases(binary:string,root:string,directory:string
       calls.push({path,token,body});
       const json=(v:unknown)=>new Response(JSON.stringify(v),{headers:{"Content-Type":"application/json"}});
       if(!record||revoked&&token===original.token)return new Response("",{status:401});
-      if(!path)return json({type:"hailp.account",version:1,provider,accountId:id,did:`did:plc:${"a".repeat(24)}`,address:"alice@localhost",migrationState:fail==="fenced"?"fenced":null,custodyProfile:"managed",monitorVerificationMode:"strict-public-v1",managedProfileVersion:"hail-managed-custody-v1",identityPublicKey:"did:key:z123",ownerRecoveryPublicKey:null,scopes:record.scopes,credential:{credentialId:record.credentialId,expiresAt:expiry}});
+      if(!path)return json({type:"racr.account",version:1,provider,accountId:id,did:`did:plc:${"a".repeat(24)}`,address:"alice@localhost",migrationState:fail==="fenced"?"fenced":null,custodyProfile:"managed",monitorVerificationMode:"strict-public-v1",managedProfileVersion:"hail-managed-custody-v1",identityPublicKey:"did:key:z123",ownerRecoveryPublicKey:null,scopes:record.scopes,credential:{credentialId:record.credentialId,expiresAt:expiry}});
       assert.equal(path,"/credentials");assert.equal(request.method,"POST");
       if(body.revoke){assert.equal(body.revoke,id);if(fail==="revoke")return new Response("",{status:503});revoked=true;return json({revoked:true});}
-      assert.match(body.token,/^hailp_[A-Za-z0-9_-]{43}$/);
+      assert.match(body.token,/^racr_[A-Za-z0-9_-]{43}$/);
       const replacement={...original,token:body.token,credentialId:next,scopes:body.scopes??scopes};
       issued.set(body.token,replacement);
       if(fail==="issue")return new Response("",{status:503});
       return json(fail==="ack"?{...replacement,token:original.token}:replacement);
     });
     async function run(args:string[],success=true){
-      const proc=Bun.spawn([...command,...args],{env:{...env,HAILP_CREDENTIAL_FILE:source},stdout:"pipe",stderr:"pipe"});
+      const proc=Bun.spawn([...command,...args],{env:{...env,RACR_CREDENTIAL_FILE:source},stdout:"pipe",stderr:"pipe"});
       const [code,out,err]=await Promise.all([proc.exited,new Response(proc.stdout).text(),new Response(proc.stderr).text()]);
       assert.equal(code===0,success,err);for(const token of issued.keys())assert(!(out+err).includes(token));cases++;
       return out?JSON.parse(out):null;

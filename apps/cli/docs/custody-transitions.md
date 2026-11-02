@@ -324,7 +324,7 @@ for consent/reservation expiry establishes exclusive ownership.
 ## Recovery implementation boundary
 
 The private-PLC `PrivatePocTransferAbandonment` coordinator is an integration-only
-path, not a public route or `hailp` command. It covers a staged, never-active target.
+path, not a public route or `racr` command. It covers a staged, never-active target.
 Independent owner approvals bind source/target, transfer, generation, snapshot,
 prepared cutover CID, nonce and an acceptance window. Resumption additionally binds
 the target invalidation digest and protective operation CID.

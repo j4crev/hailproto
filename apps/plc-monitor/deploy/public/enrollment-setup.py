@@ -19,7 +19,7 @@ import tarfile
 import tempfile
 import time
 
-ROOT = Path('/opt/hailproto')
+ROOT = Path('/opt/hail')
 LEGACY = Path('/opt/hail/hail-plc-monitor-ts')
 DEPLOY = LEGACY / 'deploy/public'
 CONFIG = Path('/etc/hail-monitor-enrollment')
@@ -199,7 +199,7 @@ def verify():
             probe = """const u='http://127.0.0.1:3001/api/v1/onboarding';
 const post=async(headers)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:'{}'});
 if((await post({})).status!==401||(await post({Authorization:'Bearer '+process.env.MONITOR_ENROLLMENT_TOKEN})).status!==400)process.exit(1);
-import {MonitorSigner} from './src/signing.ts';import {cidForCbor} from '@atproto/common';import {encodeBase64Url} from '@hailproto/codec/base64url';
+import {MonitorSigner} from './src/signing.ts';import {cidForCbor} from '@atproto/common';import {encodeBase64Url} from '@racrproto/codec/base64url';
 const signer=await MonitorSigner.fromPrivateFile(process.env.MONITOR_PRIVATE_KEY_FILE);
 const bytes=new TextEncoder().encode(JSON.stringify({type:'hail.plc-monitor-email-binding',version:1,signupId:crypto.randomUUID(),
  signupHash:encodeBase64Url(crypto.getRandomValues(new Uint8Array(32))),did:'did:plc:'+'a'.repeat(24),operationCid:(await cidForCbor({probe:true})).toString(),issuedAt:Math.floor(Date.now()/1000)}));
@@ -225,7 +225,7 @@ def restore_legacy(image, wrapper):
 
 def apply(config, public_key, commit):
     if Path(__file__).resolve().parents[4] != ROOT or ROOT.stat().st_uid != 0 or ROOT.stat().st_mode & 0o022:
-        raise SetupError('Run only from the protected /opt/hailproto monorepo checkout')
+        raise SetupError('Run only from the protected /opt/hail monorepo checkout')
     if not re.fullmatch('[0-9a-f]{40}', commit) or text('git', '-C', str(ROOT), 'rev-parse', 'HEAD') != commit or text('git', '-C', str(ROOT), 'status', '--porcelain'):
         raise SetupError('Source must be the requested clean, pinned release')
     if CONFIG.exists(): raise SetupError('Enrollment configuration already exists; review it instead of overwriting')

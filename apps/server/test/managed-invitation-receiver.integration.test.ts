@@ -1,6 +1,6 @@
 import {randomBytes,randomUUID} from "node:crypto";
 import {P256Keypair} from "@atproto/crypto";
-import {encodeBase64Url,encodeDeterministic} from "@hailproto/codec";
+import {encodeBase64Url,encodeDeterministic} from "@racrproto/codec";
 import {base58btc} from "multiformats/bases/base58";
 import {SQL} from "bun";
 import {expect,it,vi} from "vitest";

@@ -19,9 +19,9 @@ let signed: SignedCase | undefined;
 let outputExists = false;
 
 const root = resolve(import.meta.dir, "../../..");
-const binary = resolve(Bun.argv[2] ?? join(root, "apps/cli/target/debug/hailp"));
-const directory = await mkdtemp(join(tmpdir(), "hailp-rust-compat-"));
-const token = `hailp_${"a".repeat(43)}`;
+const binary = resolve(Bun.argv[2] ?? join(root, "apps/cli/target/debug/racr"));
+const directory = await mkdtemp(join(tmpdir(), "racr-rust-compat-"));
+const token = `racr_${"a".repeat(43)}`;
 const id = "019a0000-0000-7000-8000-000000000001";
 const second = "019a0000-0000-7000-8000-000000000002";
 const did = `did:plc:${"a".repeat(24)}`;
@@ -40,7 +40,7 @@ try {
   const key = join(directory, "key.pem"), cert = join(directory, "cert.pem");
   const ca = join(directory, "ca.pem"), caKey = join(directory, "ca-key.pem"), csr = join(directory, "server.csr"), extensions = join(directory, "extensions.cnf");
   await checked(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-    "-subj", "/CN=hailp-test-ca", "-addext", "basicConstraints=critical,CA:TRUE", "-keyout", caKey, "-out", ca]);
+    "-subj", "/CN=racr-test-ca", "-addext", "basicConstraints=critical,CA:TRUE", "-keyout", caKey, "-out", ca]);
   await checked(["openssl", "req", "-new", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=localhost", "-keyout", key, "-out", csr]);
   await writeFile(extensions, "subjectAltName=DNS:localhost\nbasicConstraints=critical,CA:FALSE\nextendedKeyUsage=serverAuth\n");
   await checked(["openssl", "x509", "-req", "-in", csr, "-CA", ca, "-CAkey", caKey, "-CAcreateserial", "-days", "1", "-extfile", extensions, "-out", cert]);
@@ -76,7 +76,7 @@ try {
       if (scenario === "invalid-utf8") return new Response(new Uint8Array([123,34,120,34,58,34,255,34,125]), { headers: { "Content-Type": "application/json" } });
       if (scenario === "array") return json([]);
       if (path === "/api/v1/capabilities") return json(scenario === "bad-capabilities" ? {} : {
-        type:"hailp.capabilities",version:1,features:{inboxWait:true},signup:{mode:scenario === "doctor-blockers" ? "invite" : "open"},
+        type:"racr.capabilities",version:1,features:{inboxWait:true},signup:{mode:scenario === "doctor-blockers" ? "invite" : "open"},
         passkeyRequired:["account browser-login"]
       });
       if (path.startsWith("/messages/") || path === "/inbox/updates") {
@@ -94,7 +94,7 @@ try {
         return json({messages:[{messageId:id,sender:did,body:"Untrusted data"}],next:null,truncated:false});
       }
       if (signed && path === signed.path) return json(signed.response);
-      if (!path) return json({ type: "hailp.account", version: 1, provider: url.origin,
+      if (!path) return json({ type: "racr.account", version: 1, provider: url.origin,
         accountId: scenario === "wrong-account" ? second : id, did, address: signed ? "alice@example.com" : "alice@localhost",
         migrationState: scenario === "doctor-blockers" ? "fenced" : null, custodyProfile: "managed", monitorVerificationMode: "strict-public-v1",
         managedProfileVersion: scenario === "wrong-profile" ? null : "hail-managed-custody-v1",
@@ -108,8 +108,8 @@ try {
     } });
   const provider = `https://localhost:${server.port}`;
   const credentials = join(directory, "credential.json");
-  await writeFile(credentials, JSON.stringify({ type: "hailp.api-credential", version: 1, provider, accountId: id, token }), { mode: 0o600 });
-  const env = { ...process.env, HAILP_CREDENTIAL_FILE: credentials, NODE_EXTRA_CA_CERTS: ca, SSL_CERT_FILE: ca, NO_PROXY: "localhost", no_proxy: "localhost" };
+  await writeFile(credentials, JSON.stringify({ type: "racr.api-credential", version: 1, provider, accountId: id, token }), { mode: 0o600 });
+  const env = { ...process.env, RACR_CREDENTIAL_FILE: credentials, NODE_EXTRA_CA_CERTS: ca, SSL_CERT_FILE: ca, NO_PROXY: "localhost", no_proxy: "localhost" };
   async function run(command: string[], args: string[]) {
     requests = [];
     const output = join(directory, "result.cose");
@@ -120,7 +120,7 @@ try {
       args = args.map(a=>a==="$OUTPUT"?output:a);
     }
     const started = performance.now();
-    const child = Bun.spawn([...command, ...args], { env: {...env, ...(publicCheck ? {HAILP_CREDENTIAL_FILE:""} : {})}, stdout: "pipe", stderr: "pipe" });
+    const child = Bun.spawn([...command, ...args], { env: {...env, ...(publicCheck ? {RACR_CREDENTIAL_FILE:""} : {})}, stdout: "pipe", stderr: "pipe" });
     let signalTimer: ReturnType<typeof setTimeout> | undefined;
     const watchdog = setTimeout(() => child.kill("SIGKILL"), 8000);
     requestObserver = () => {
@@ -167,7 +167,7 @@ try {
     } else assert.deepEqual(rust.stderr, expected.stderr);
     cases++;
   }
-  if (!process.env.HAILP_TEST_WRITES_ONLY) {
+  if (!process.env.RACR_TEST_WRITES_ONLY) {
   for (const args of [["account", "show"], ["connection", "list"], ["connection", "invitations"],
     ["inbox", "list"], ["grant", "list", "--pages", "2"], ["credential", "list", "--pages=2"],
     ["inbox", "list", "--after", id]]) await compare(args);
@@ -269,7 +269,7 @@ try {
   env.NODE_EXTRA_CA_CERTS = "";
   env.SSL_CERT_FILE = "";
   await compare(["account", "show"], "TRANSPORT_ERROR");
-  if(!process.env.HAILP_TEST_WRITES_ONLY) assert.equal(used.size,baseline.length,"Every captured contract must run");
+  if(!process.env.RACR_TEST_WRITES_ONLY) assert.equal(used.size,baseline.length,"Every captured contract must run");
   console.info(`Native HTTPS contract regression: ${cases} cases passed`);
 } finally {
   server?.stop(true);

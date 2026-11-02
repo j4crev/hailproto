@@ -1,5 +1,5 @@
 import { open, unlink } from "node:fs/promises";
-import { encodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url } from "@racrproto/codec";
 import { loadConfig } from "../config.js";
 import { ProviderDatabase } from "../db/database.js";
 import { KeyEncryptor } from "../identity/key-encryption.js";

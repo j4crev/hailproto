@@ -1,8 +1,8 @@
-# `hailp` guides
+# `racr` guides
 
 Start with the task you want to complete:
 
-- [Install `hailp`](cli-installation.md).
+- [Install `racr`](cli-installation.md).
 - [Sign in and inspect your account](cli-quickstart.md).
 - [Complete common account, messaging, recovery, and transfer tasks](cli-workflows.md).
 - [Look up commands and flags](cli-reference.md).

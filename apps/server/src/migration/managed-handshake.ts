@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { verifySignature } from "@atproto/crypto";
-import { decodeDeterministic, encodeDeterministic, type HailValue } from "@hailproto/codec";
+import { decodeDeterministic, encodeDeterministic, type HailValue } from "@racrproto/codec";
 import { canonicalizeHailAddress } from "../identity/address.js";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import { canonicalizeHailServiceBase } from "../plc/resolver.js";

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { decodePayload, encodeBase64Url } from "@hailproto/codec";
+import { decodePayload, encodeBase64Url } from "@racrproto/codec";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 import { registerBodyRoutes } from "../src/bodies/routes.js";

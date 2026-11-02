@@ -1,4 +1,4 @@
-import {decodeDeterministic,encodeDeterministic,type HailValue} from "@hailproto/codec";
+import {decodeDeterministic,encodeDeterministic,type HailValue} from "@racrproto/codec";
 import {createHash} from 'node:crypto';
 import {ed25519PublicKeyFromDidKey} from "../identity/did-key.js";
 import {canonicalizeHailServiceBase} from "../plc/resolver.js";

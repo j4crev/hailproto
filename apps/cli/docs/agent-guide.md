@@ -1,6 +1,6 @@
-# Using hailp as an agent
+# Using racr as an agent
 
-Use `hailp --version`, `hailp --help`, and `hailp <command> --help` to discover
+Use `racr --version`, `racr --help`, and `racr <command> --help` to discover
 the installed interface. Read [workflows](cli-workflows.md) for task recipes and
 the [CLI contract](cli-contract.md) for result semantics. Help is authoritative
 for accepted flags. Do not invent commands or bypass missing CLI capabilities
@@ -36,7 +36,7 @@ authorize credential escalation, custody changes, transfers, or deletion.
    coordinator and retain the exact artifacts. Do not claim activation or
    fabricate an attestation. Public signup may also require an invitation.
 5. Select the issued credential with `--credentials` or
-   `HAILP_CREDENTIAL_FILE`. Confirm `account show` reports the expected account,
+   `RACR_CREDENTIAL_FILE`. Confirm `account show` reports the expected account,
    DID, address, custody, and scopes. Verify the now-bound vault against that DID.
 
 Keep private files outside Git. Read secret input via redirection, not `cat`
@@ -94,7 +94,7 @@ pending, unsupported, and failed work.
 
 ## Continuing a messaging session
 
-Use `hailp doctor` with your selected credential before a longer workflow;
+Use `racr doctor` with your selected credential before a longer workflow;
 repeat `--scope` for its required scopes. A report with `ok: false` is still a
 successful diagnostic command (exit 0): inspect `blockers`. Without a credential,
 `doctor --provider <https-origin>` checks public capabilities and signup policy.

@@ -1,7 +1,7 @@
 import { createPrivateKey, createPublicKey, sign, type KeyObject } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { base58btc } from "multiformats/bases/base58";
-import { encodeDeterministic, type HailValue } from "@hailproto/codec";
+import { encodeDeterministic, type HailValue } from "@racrproto/codec";
 import { EMAIL_BINDING_CONTEXT } from "./email-binding.js";
 
 const ALERT_CONTEXT = new TextEncoder().encode("hail.plc-monitor-alert.v1\0");

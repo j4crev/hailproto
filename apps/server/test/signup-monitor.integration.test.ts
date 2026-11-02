@@ -3,7 +3,7 @@ import { createHash, generateKeyPairSync, randomBytes, randomUUID, sign } from "
 import { SQL } from "bun";
 import { cidForCbor } from "@atproto/common";
 import { formatDidDoc, PlcClientError, validateOperationLog, type Operation } from "@did-plc/lib";
-import { encodeBase64Url, decodeBase64Url, inspectSignedPayload } from "@hailproto/codec";
+import { encodeBase64Url, decodeBase64Url, inspectSignedPayload } from "@racrproto/codec";
 import { expect, it, vi } from "vitest";
 import { Hono } from "hono";
 import { createUserVault, unlockUserVault } from "./client-support/vault.js";
@@ -38,7 +38,7 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
   const db = new ProviderDatabase(databaseUrl(providerSchema)), monitorDb = new MonitorDatabase(databaseUrl(monitorSchema));
   const vault = await createUserVault(), signer = new MonitorSigner(generateKeyPairSync("ed25519").privateKey);
   const providerOrigin = "https://provider.example.com", monitorOrigin = "https://monitor.example.com", alertOrigin = "https://alerts.example.com", serviceBase = `${providerOrigin}/hail`;
-  const signupToken = `hailp_${encodeBase64Url(randomBytes(32))}`, signupId = randomUUID(), emailToken = encodeBase64Url(randomBytes(32)), monitorToken = encodeBase64Url(randomBytes(32));
+  const signupToken = `racr_${encodeBase64Url(randomBytes(32))}`, signupId = randomUUID(), emailToken = encodeBase64Url(randomBytes(32)), monitorToken = encodeBase64Url(randomBytes(32));
   const emailMessages: Parameters<EmailBinding["send"]>[0][] = [], stored = new Map<string, unknown>();
   let alarm: number | null = null, serial: Promise<unknown> = Promise.resolve(), failAlert = true;
   const storage: DurableStorage = {
@@ -126,7 +126,7 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
     const code = emailMessages[0]!.text.match(/code is: (\d{8})/)![1]!;
     expect((await enrollment()).status).toBe(409); expect(monitorCalls).toBe(0);
     expect((await post("signup-email/verify", { signupId, code })).status).toBe(200);
-    expect((await post("signup-monitor", { signupId, accountId: prepared.accountId }, `hailp_${encodeBase64Url(randomBytes(32))}`)).status).toBe(403);
+    expect((await post("signup-monitor", { signupId, accountId: prepared.accountId }, `racr_${encodeBase64Url(randomBytes(32))}`)).status).toBe(403);
 
     receiverAvailable = false; expect((await enrollment()).status).toBe(503); receiverAvailable = true;
     expect(await monitorDb.sql`SELECT did FROM monitored_dids`).toHaveLength(0);
@@ -178,7 +178,7 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
     try{
       const inviteKey=encodeBase64Url(randomBytes(32)),invite=publicSignup||customDomain?"":createSignupInvitation(providerOrigin,inviteKey);
       if(publicSignup)await db.sql`UPDATE provider_registration_settings SET mode='public' WHERE singleton=true`;
-      const setupToken=`hailp_${encodeBase64Url(randomBytes(32))}`,enrollmentToken=`hailp_${encodeBase64Url(randomBytes(32))}`,id=randomUUID();
+      const setupToken=`racr_${encodeBase64Url(randomBytes(32))}`,enrollmentToken=`racr_${encodeBase64Url(randomBytes(32))}`,id=randomUUID();
       const policy={profile:"reduced-assurance-alpha-v1" as const,monitorOrigin,monitorPublicKey:signer.publicDidKey};
       let verificationValue="";
       const domains=new CustomDomains(db.sql,providerOrigin,async()=>[[verificationValue]],async()=>"provider.example.com");
@@ -237,7 +237,7 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
       else expect(await coordinator.checkAddress({address:request.address,invitation:invite})).toEqual({address:request.address,available:false});
       if(publicSignup&&!customDomain){
         await db.sql`UPDATE provider_registration_settings SET mode='invite' WHERE singleton=true`;
-        await expect(coordinator.prepare({...request,signupId:randomUUID()},`hailp_${encodeBase64Url(randomBytes(32))}`)).rejects.toMatchObject({status:403});
+        await expect(coordinator.prepare({...request,signupId:randomUUID()},`racr_${encodeBase64Url(randomBytes(32))}`)).rejects.toMatchObject({status:403});
       }
       const setup=await created.json() as {accountId:string;state:string;expiresAt:string;preparation:typeof prepared};
       expect((await signupApp.request(`${providerOrigin}/api/v1/signup/${id}`,{headers:{Authorization:`Bearer ${setupToken}`}})).status).toBe(200);
@@ -386,7 +386,7 @@ it.skipIf(!process.env.DATABASE_URL).each([{packageFlow:false,publicSignup:false
        if(customDomain)await exerciseCustomDomainPublication(db,encryptor,resolver,plc,providerOrigin,address,()=>signIn(3));
        await db.migrate();
        const generationVault=await createUserVault();try{
-        const retiredToken=`hailp_${encodeBase64Url(randomBytes(32))}`,retiredId=randomUUID();
+        const retiredToken=`racr_${encodeBase64Url(randomBytes(32))}`,retiredId=randomUUID();
         const {addressAuthorization:unusedAuthorization,...nativeRequest}=request as typeof request & {addressAuthorization?:string};
         const retired=await coordinator.prepare({...nativeRequest,signupId:retiredId,address:`retired-${suffix}@provider.example.com`,
           recoveryKey:generationVault.vault.recovery.publicDidKey,identityKey:generationVault.vault.identity.publicDidKey,

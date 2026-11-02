@@ -4,7 +4,7 @@ import type { HailDidResolver } from "../plc/resolver.js";
 import { handshakeDigest, sameDigest, verifyHandshake, type SignedHandshake } from "./handshake.js";
 import { boundedTransferBody, invitationWire, parseRequestWire,
   TRANSFER_MEDIA_TYPE, MAX_TRANSFER_WIRE_BYTES } from "./wire.js";
-import { decodeDeterministic } from "@hailproto/codec";
+import { decodeDeterministic } from "@racrproto/codec";
 
 interface SourceRow {
   destination_service_base: string;

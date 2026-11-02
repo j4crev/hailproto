@@ -1,6 +1,6 @@
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
-import { bytes, cipher, validateVault, type UserVaultFile } from "@hailproto/client-support/vault-crypto";
-import type { PublicOnboardingPreparation } from "@hailproto/client-support/provider-contracts";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec/base64url";
+import { bytes, cipher, validateVault, type UserVaultFile } from "@racrproto/client-support/vault-crypto";
+import type { PublicOnboardingPreparation } from "@racrproto/client-support/provider-contracts";
 import type { Operation } from "@did-plc/lib";
 
 export interface SignupPolicy { provider:string; monitorOrigin:string; monitorKey:string; }
@@ -17,9 +17,9 @@ export interface SignupSummary {
   expiresAt:string; preparation:PublicOnboardingPreparation|null; enrollmentExpiresAt:string|null;
 }
 export const PENDING_STORAGE="hail.pending-signup.v1";
-const uuid=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/,token=/^hailp_[A-Za-z0-9_-]{43}$/;
+const uuid=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/,token=/^racr_[A-Za-z0-9_-]{43}$/;
 const aad=new TextEncoder().encode("hail.pending-signup.v1");
-export const setupToken=()=>`hailp_${encodeBase64Url(crypto.getRandomValues(new Uint8Array(32)))}`;
+export const setupToken=()=>`racr_${encodeBase64Url(crypto.getRandomValues(new Uint8Array(32)))}`;
 export async function enrollmentHash(value:string){return encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value))));}
 export async function pendingKey(secret:string){
   const raw=decodeBase64Url(secret,32);

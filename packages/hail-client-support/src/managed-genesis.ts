@@ -1,6 +1,6 @@
 import { P256Keypair, parseDidKey, P256_JWT_ALG, SECP256K1_JWT_ALG } from "@atproto/crypto";
 import type { UnsignedOperation } from "@did-plc/lib";
-import { encodeBase64Url } from "@hailproto/codec/base64url";
+import { encodeBase64Url } from "@racrproto/codec/base64url";
 import * as dagCbor from "@ipld/dag-cbor";
 import { base32 } from "multiformats/bases/base32";
 import { base58btc } from "multiformats/bases/base58";
@@ -8,7 +8,7 @@ import { CID } from "multiformats/cid";
 import { sha256 } from "multiformats/hashes/sha2";
 import type { UserVaultFile } from "./vault-crypto.js";
 
-// Shared role checks after schema validation (hailp) or construction from exact
+// Shared role checks after schema validation (racr) or construction from exact
 // expected fields (browser). No provider-specific or arbitrary PLC updates.
 export function reviewManagedGenesisRoles(operation: UnsignedOperation, vault: UserVaultFile): UnsignedOperation {
   const identity = operation.verificationMethods["hail-identity"], messaging = operation.verificationMethods["hail-messaging"];

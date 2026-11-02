@@ -2,7 +2,7 @@
 // existing recovery tooling after extraction, without a live provider/session.
 import type { Operation } from "@did-plc/lib";
 import { verifySignature } from "@atproto/crypto";
-import { decodeBase64Url } from "@hailproto/codec/base64url";
+import { decodeBase64Url } from "@racrproto/codec/base64url";
 import { encode } from "@ipld/dag-cbor";
 import { sha256 } from "multiformats/hashes/sha2";
 import { base32 } from "multiformats/bases/base32";

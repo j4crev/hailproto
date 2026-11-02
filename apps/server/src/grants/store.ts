@@ -1,4 +1,4 @@
-import type { HailGrant } from "@hailproto/codec";
+import type { HailGrant } from "@racrproto/codec";
 import type { VerifiedAddress } from "../discovery/verifier.js";
 import type { VerifiedSenderProfile } from "../profiles/store.js";
 import type { PlcResolutionEvidence } from "../plc/resolver.js";

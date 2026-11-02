@@ -1,4 +1,4 @@
-import {encodeBase64Url} from "@hailproto/codec/base64url";
+import {encodeBase64Url} from "@racrproto/codec/base64url";
 import {GENERAL_CATEGORY, type ProfileDefinition} from "./sender-profile.js";
 
 export function avatarDefinition(base: ProfileDefinition, avatar: string | null): ProfileDefinition {

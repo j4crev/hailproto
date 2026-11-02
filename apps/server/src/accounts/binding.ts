@@ -1,7 +1,7 @@
 import { requireCustomDomainAuthority } from "./custom-domain-authority.js";
 import { createHash, randomUUID } from "node:crypto";
 import { createWebCryptoSigner, createWebCryptoVerifier, decodeBase64Url, encodeBase64Url, inspectSignedPayload,
-  signPayload, toDiagnosticJson, validatePayload, verifySignedPayload, type HailAddressBinding } from "@hailproto/codec";
+  signPayload, toDiagnosticJson, validatePayload, verifySignedPayload, type HailAddressBinding } from "@racrproto/codec";
 import { discoverProvider, type ProviderDiscovery } from "../discovery/delegation.js";
 import type { SQL } from "bun";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
@@ -27,7 +27,7 @@ export class AccountBinding {
   }
   private summary(row:Row) {
     const binding=inspectSignedPayload("hail.address-binding",new Uint8Array(row.cose)).payload;
-    return {type:"hailp.address-binding",version:1,bindingId:row.id,cose:encodeBase64Url(row.cose),digest:encodeBase64Url(row.representation_digest),
+    return {type:"racr.address-binding",version:1,bindingId:row.id,cose:encodeBase64Url(row.cose),digest:encodeBase64Url(row.representation_digest),
       binding:toDiagnosticJson("hail.address-binding",binding),
       status:row.selected_at?"active":"superseded"};
   }

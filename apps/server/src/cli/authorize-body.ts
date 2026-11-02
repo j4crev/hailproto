@@ -1,4 +1,4 @@
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec";
 import { BodyRepository } from "../bodies/repository.js";
 import { checkAuthorization, newBodyToken } from "../bodies/service.js";
 import { loadConfig } from "../config.js";

@@ -6,7 +6,7 @@ import {
   inspectSignedPayload,
   verifySignedPayload,
   type HailGrant,
-} from "@hailproto/codec";
+} from "@racrproto/codec";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import type { AccountRecord } from "../onboarding/repository.js";
 import type { HailDidResolver } from "../plc/resolver.js";

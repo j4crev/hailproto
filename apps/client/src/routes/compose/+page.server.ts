@@ -1,12 +1,12 @@
 import {forwardSource, forwardBody} from "$lib/forward.js";
 import { createHash } from "node:crypto";
 import { error,fail,isRedirect,redirect } from "@sveltejs/kit";
-import { encodeBase64Url, encodePayload, type HailSpt2Body, type HailSpt3Body } from "@hailproto/codec";
+import { encodeBase64Url, encodePayload, type HailSpt2Body, type HailSpt3Body } from "@racrproto/codec";
 import { composeBlocks } from "$lib/compose.js";
 import { canaryAccount } from "$lib/server/canary.js";
 import { messageId } from "$lib/server/message-id.js";
 import {publicationAudiences,publicationStatus} from "$lib/publications.js";
-import {AccountApiError} from "@hailproto/client-support/account-api";
+import {AccountApiError} from "@racrproto/client-support/account-api";
 import {connectionMessageTargets} from "$lib/connections.js";
 
 const UUID7=/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;

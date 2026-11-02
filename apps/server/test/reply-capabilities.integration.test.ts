@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { base58btc } from "multiformats/bases/base58";
-import { createWebCryptoSigner, encodeBase64Url, signPayload, type HailEnvelope } from "@hailproto/codec";
+import { createWebCryptoSigner, encodeBase64Url, signPayload, type HailEnvelope } from "@racrproto/codec";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {AccountMessaging} from "../src/accounts/messaging.js";
 import type {AccountApiSession} from "../src/accounts/repository.js";

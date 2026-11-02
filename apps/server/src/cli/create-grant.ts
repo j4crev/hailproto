@@ -1,4 +1,4 @@
-import { encodeBase64Url, type HailGrantScope } from "@hailproto/codec";
+import { encodeBase64Url, type HailGrantScope } from "@racrproto/codec";
 import { loadConfig } from "../config.js";
 import { ProviderDatabase } from "../db/database.js";
 import { SafeHttpsTransport } from "../discovery/safe-fetch.js";

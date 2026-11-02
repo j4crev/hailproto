@@ -4,7 +4,7 @@ import {domainToASCII} from "node:url";
 import {cidForCbor} from "@atproto/common";
 import {def} from "@did-plc/lib";
 import * as dagCbor from "@ipld/dag-cbor";
-import {decodeBase64Url,decodeDeterministic,encodeBase64Url,encodeDeterministic} from "@hailproto/codec";
+import {decodeBase64Url,decodeDeterministic,encodeBase64Url,encodeDeterministic} from "@racrproto/codec";
 import {base58btc} from "multiformats/bases/base58";
 import {AccountApiClient} from "../../../../packages/hail-client-support/src/account-api.js";
 import {privateFile,savePrivateBytes} from "./grant-revocation.js";
@@ -14,7 +14,7 @@ import {readRecoverySecret} from "./private-input.js";
 import {signPrivatePocCutover,verifyTransferSnapshot,verifySignature} from "./transfer-cutover.js";
 
 interface Wire {payload:string;signature:string;}
-interface State {type:"hailp.account-transfer";version:1;provider:string;accountId:string;did:string;key:string;destination:string;
+interface State {type:"racr.account-transfer";version:1;provider:string;accountId:string;did:string;key:string;destination:string;
   grant?:Wire;offer?:Wire;selection?:Wire;reservation?:Wire;cancellation?:Wire;receipt?:Wire;sourceMessagingKey?:string;targetAcknowledged?:boolean;
   cutover?:{snapshotDigest:string;consentPath:string;operationPath:string;bindingPath:string;operationCid?:string};activationReceipt?:Wire;retired?:boolean;}
 const sha=(bytes:Uint8Array)=>new Uint8Array(createHash("sha256").update(bytes).digest());
@@ -91,7 +91,7 @@ async function targetRequest(destination:string,operation:"reservations"|"cancel
 }
 export async function transferStatus(client:AccountApiClient) {
   const account=await client.account(),status=await client.request("/transfers");
-  if(status.type!=="hailp.transfer-status"||status.version!==1||status.provider!==account.provider||status.accountId!==account.accountId||status.did!==account.did||
+  if(status.type!=="racr.transfer-status"||status.version!==1||status.provider!==account.provider||status.accountId!==account.accountId||status.did!==account.did||
     !["none","invitation-pending","offer-ready","expired","expired-unresolved","cancelled","fenced","exported","retired"].includes(status.phase as string))throw new Error("Transfer status differs from its authenticated account");
   return status;
 }
@@ -101,9 +101,9 @@ export async function transferOffer(client:AccountApiClient,destination:string,v
   let state:State;
   try {state=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(path,32768)));}
   catch(error){if(!(error instanceof Error&&"code" in error&&error.code==="ENOENT"))throw error;
-    state={type:"hailp.account-transfer",version:1,provider:account.provider,accountId:account.accountId,did:account.did,key:account.identityPublicKey,destination};
+    state={type:"racr.account-transfer",version:1,provider:account.provider,accountId:account.accountId,did:account.did,key:account.identityPublicKey,destination};
     await savePrivateBytes(path,new TextEncoder().encode(JSON.stringify(state)));}
-  if(!state||state.type!=="hailp.account-transfer"||state.version!==1||state.provider!==account.provider||state.accountId!==account.accountId||
+  if(!state||state.type!=="racr.account-transfer"||state.version!==1||state.provider!==account.provider||state.accountId!==account.accountId||
     state.did!==account.did||state.key!==account.identityPublicKey||state.destination!==destination||state.cancellation)throw new Error("Transfer state/identity/destination changed or was cancelled");
   if(!state.grant){const secret=decodeBase64Url(await recoveryInput());try {
     const user=await unlockUserIdentity(JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(vaultPath,16384))) as UserVaultFile,secret);
@@ -116,7 +116,7 @@ export async function transferOffer(client:AccountApiClient,destination:string,v
   if(grant.type!=="hail.transfer-grant"||grant.version!==1||grant.did!==state.did||grant.source_service_base!==`${account.provider}/hail`||
     grant.destination_service_base!==`${destination}/hail`||grant.destination_domain!==new URL(destination).hostname||grant.expires_at<=now||grant.expires_at-grant.issued_at>3600)throw new Error("Retained transfer approval is stale or differs from the review");
   const status=await client.request("/transfers/offer",{...state.grant});
-  if(status.type!=="hailp.transfer-status"||status.version!==1||status.did!==state.did||status.accountId!==state.accountId||status.provider!==state.provider||
+  if(status.type!=="racr.transfer-status"||status.version!==1||status.did!==state.did||status.accountId!==state.accountId||status.provider!==state.provider||
     status.nonce!==grant.nonce||status.destinationServiceBase!==grant.destination_service_base)throw new Error("Offer response does not match the signed approval");
    if(!status.offer){if(status.phase!=="invitation-pending")throw new Error("Transfer is no longer awaiting an Offer");return {did:state.did,destination,pending:true,stateFile:path};}
   if(status.originConfirmed!==true||status.phase!=="offer-ready")throw new Error("Source has not retained a current destination-origin Offer");
@@ -130,7 +130,7 @@ export async function selectTransferAddress(client:AccountApiClient,username:str
   if(username.length>63||!/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(username)||username.includes("..")||
     username.split(".").some(label=>label.startsWith("-")||label.endsWith("-")))throw new Error("Username must be a canonical Hail local part");
   const account=await client.account(),state=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(path,32768))) as State;
-  if(account.custodyProfile!=="owner-controlled"||!account.scopes.includes("account:write")||state.type!=="hailp.account-transfer"||state.version!==1||
+  if(account.custodyProfile!=="owner-controlled"||!account.scopes.includes("account:write")||state.type!=="racr.account-transfer"||state.version!==1||
     state.provider!==account.provider||state.accountId!==account.accountId||state.did!==account.did||state.key!==account.identityPublicKey||state.cancellation||
     account.migrationState&&!state.selection)throw new Error("Address selection requires the original owner-controlled source Offer");
   const grant=await reviewGrant(state),offer=await reviewOffer(state,grant),address=`${username}@${grant.destination_domain}`;
@@ -161,7 +161,7 @@ export async function selectTransferAddress(client:AccountApiClient,username:str
 }
 export async function cancelTransfer(client:AccountApiClient,vaultPath:string,path:string,recoveryInput=readRecoverySecret,transport:typeof fetch=fetch) {
   const account=await client.account(),state=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(path,32768))) as State;
-  if(account.custodyProfile!=="owner-controlled"||account.migrationState||!account.scopes.includes("account:write")||state.type!=="hailp.account-transfer"||state.version!==1||
+  if(account.custodyProfile!=="owner-controlled"||account.migrationState||!account.scopes.includes("account:write")||state.type!=="racr.account-transfer"||state.version!==1||
     state.provider!==account.provider||state.accountId!==account.accountId||state.did!==account.did||state.key!==account.identityPublicKey||!state.grant)throw new Error("Cancellation requires the original owner-controlled source approval");
   const grant=await reviewGrant(state);
   if(!state.cancellation){const secret=decodeBase64Url(await recoveryInput());try {
@@ -174,9 +174,9 @@ export async function cancelTransfer(client:AccountApiClient,vaultPath:string,pa
   const cancellation=await verify(record(state.cancellation),"hail.transfer-cancellation",state.key);
   if(cancellation.did!==state.did||cancellation.nonce!==grant.nonce||!equal(cancellation.grant_digest,sha(decodeBase64Url(state.grant.payload)))||
     !(state.receipt&&state.sourceMessagingKey)&&cancellation.expires_at<=Math.floor(Date.now()/1000))throw new Error("Retained cancellation is stale or differs from the approval");
-  const result=state.receipt&&state.sourceMessagingKey?{type:"hailp.transfer-cancellation",version:1,cancelled:true,receipt:state.receipt,sourceMessagingPublicKey:state.sourceMessagingKey}:
+  const result=state.receipt&&state.sourceMessagingKey?{type:"racr.transfer-cancellation",version:1,cancelled:true,receipt:state.receipt,sourceMessagingPublicKey:state.sourceMessagingKey}:
     await client.request("/transfers/cancel",{...state.cancellation});
-  if(result.type!=="hailp.transfer-cancellation"||result.version!==1||result.cancelled!==true)throw new Error("Source did not retain cancellation");
+  if(result.type!=="racr.transfer-cancellation"||result.version!==1||result.cancelled!==true)throw new Error("Source did not retain cancellation");
   const receipt=record(result.receipt);
   if(typeof result.sourceMessagingPublicKey!=="string")throw new Error("Cancellation receipt has no source operational key");
   const value=await verify(receipt,"hail.transfer-cancellation-receipt",result.sourceMessagingPublicKey);
@@ -212,7 +212,7 @@ function snapshotMatches(manifest:Record<string,unknown>,state:State,offer:Recor
 }
 export async function exportTransferSnapshot(client:AccountApiClient,path:string,output:string) {
   const account=await client.account(),state=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(path,32768))) as State;
-  if(state.type!=="hailp.account-transfer"||state.version!==1||state.provider!==account.provider||state.accountId!==account.accountId||state.did!==account.did||state.key!==account.identityPublicKey||
+  if(state.type!=="racr.account-transfer"||state.version!==1||state.provider!==account.provider||state.accountId!==account.accountId||state.did!==account.did||state.key!==account.identityPublicKey||
     account.custodyProfile!=="owner-controlled"||!account.scopes.includes("account:write")||!["fenced","exported"].includes(account.migrationState as string))throw new Error("Snapshot export requires the original fenced owner-controlled source account");
   const {offer}=await retainedSelection(state),snapshot=await client.request("/transfers/export",{transferId:offer.transfer_id},"/api/v1/account",100000000);
   snapshotMatches((await verifyTransferSnapshot(snapshot)).manifest,state,offer);
@@ -225,7 +225,7 @@ export async function exportTransferSnapshot(client:AccountApiClient,path:string
 }
 export async function signAccountTransferCutover(vaultPath:string,path:string,snapshotPath:string,consentPath:string,operationPath:string,bindingPath:string,recoveryInput=readRecoverySecret) {
   const state=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(path,32768))) as State;
-  if(state.type!=="hailp.account-transfer"||state.version!==1)throw new Error("Cutover requires the original transfer state");
+  if(state.type!=="racr.account-transfer"||state.version!==1)throw new Error("Cutover requires the original transfer state");
   const {offer}=await retainedSelection(state),snapshot=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(snapshotPath,100000000)));
   snapshotMatches((await verifyTransferSnapshot(snapshot)).manifest,state,offer);
   const cutover={snapshotDigest:snapshot.digest as string,consentPath,operationPath,bindingPath};
@@ -242,7 +242,7 @@ export async function signAccountTransferCutover(vaultPath:string,path:string,sn
 
 export async function completeAccountTransfer(path:string,snapshotPath:string,transport:typeof fetch=fetch,monitorPath?:string) {
   const state=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(path,32768))) as State;
-  if(state.type!=="hailp.account-transfer"||state.version!==1||!state.cutover?.operationCid)throw new Error("Completion requires the original completed cutover-signing state");
+  if(state.type!=="racr.account-transfer"||state.version!==1||!state.cutover?.operationCid)throw new Error("Completion requires the original completed cutover-signing state");
   const {offer,reservation}=await retainedSelection(state),snapshot=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(snapshotPath,100000000)));
   const verified=await verifyTransferSnapshot(snapshot);snapshotMatches(verified.manifest,state,offer);
   if(snapshot.digest!==state.cutover.snapshotDigest)throw new Error("Completion snapshot changed");
@@ -265,7 +265,7 @@ export async function completeAccountTransfer(path:string,snapshotPath:string,tr
   const response=await targetRequest(state.destination,"completions",{snapshot,consent,operation:encodeBase64Url(operationBytes),binding:encodeBase64Url(binding),
     ...(monitor?{monitor}:{})},transport);
   const result=response.record as Record<string,unknown>;
-  if(!result||result.type!=="hailp.transfer-completion"||result.version!==1||result.did!==state.did||result.accountId!==state.accountId||result.transferId!==offer.transfer_id||
+  if(!result||result.type!=="racr.transfer-completion"||result.version!==1||result.did!==state.did||result.accountId!==state.accountId||result.transferId!==offer.transfer_id||
     result.operationCid!==operationCid||!["awaiting-monitor","awaiting-connection-handover","active"].includes(result.phase as string))throw new Error("Destination did not confirm the retained exact transfer");
   if(result.phase==="awaiting-connection-handover")return {did:state.did,transferId:offer.transfer_id,operationCid,phase:result.phase,pending:true,handoverRequired:true,stateFile:path};
   if(result.phase==="awaiting-monitor")return {did:state.did,transferId:offer.transfer_id,operationCid,phase:"awaiting-monitor",pending:true,

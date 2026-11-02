@@ -2,7 +2,7 @@ import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {SQL} from "bun";
 import {Hono} from "hono";
 import {expect,it} from "vitest";
-import {createWebCryptoSigner,encodeBase64Url,inspectSignedPayload,signPayload,type HailGrant} from "@hailproto/codec";
+import {createWebCryptoSigner,encodeBase64Url,inspectSignedPayload,signPayload,type HailGrant} from "@racrproto/codec";
 import {ProviderDatabase} from "../src/db/database.js";
 import {AccountApiRepository} from "../src/accounts/repository.js";
 import {AccountMessaging} from "../src/accounts/messaging.js";

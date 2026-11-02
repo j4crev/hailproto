@@ -5,7 +5,7 @@ import {conversations} from "./conversations.js";
 import {messageThread} from "./message-threads.js";
 import {sentSends} from "./sent-sends.js";
 import { createHash } from "node:crypto";
-import { decodePayload,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,toDiagnosticJson,type DiagnosticJson } from "@hailproto/codec";
+import { decodePayload,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,toDiagnosticJson,type DiagnosticJson } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { BODY_MAX_BYTES,bodyFromDocument,bodyFromText,validateBodyBytes } from "../bodies/service.js";
 import type { BodyRepository } from "../bodies/repository.js";
@@ -22,7 +22,7 @@ const ID=/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const DID=/^did:plc:[a-z2-7]{24}$/;
 const PAGE_SIZE=5;
 
-export function messageParent(envelope:import("@hailproto/codec").HailEnvelope) {
+export function messageParent(envelope:import("@racrproto/codec").HailEnvelope) {
   const parent=envelope.in_reply_to??(envelope.authorization.type==="reply"?{sender:envelope.to,message_id:envelope.authorization.reply_to}:null);
   return parent?{sender:parent.sender,messageId:parent.message_id}:null;
 }
@@ -62,7 +62,7 @@ export class AccountMessaging {
     return row?.address??null;
   }
 
-  private async sharedConversation(session:AccountApiSession,envelope:import('@hailproto/codec').HailEnvelope){
+  private async sharedConversation(session:AccountApiSession,envelope:import('@racrproto/codec').HailEnvelope){
     const a=envelope.authorization;if(a.type!=='conversation')return undefined;
     const state=await conversationState(this.sql,session,{creator:a.creator,conversationId:a.conversation_id});
     if(!state)return undefined;

@@ -2,7 +2,7 @@ import {groupConnectionMessages,connectionKey} from '../../server/src/accounts/c
 import {threadBodyPreview} from '../../server/src/accounts/message-threads.js';
 // Local-only visual fixture provider. Never imports production configuration or credentials.
 // Build first, then: bun scripts/preview-design.ts. All changes disappear on restart.
-import {createWebCryptoSigner, signPayload, encodeBase64Url, type HailGrant, type HailSenderProfile} from '@hailproto/codec';
+import {createWebCryptoSigner, signPayload, encodeBase64Url, type HailGrant, type HailSenderProfile} from '@racrproto/codec';
 import {uuidV7} from '../../server/src/identity/uuid-v7.js';
 
 const sharedMode=process.env.HAIL_DESIGN_SHARED_CONVERSATIONS==='1';
@@ -71,12 +71,12 @@ const grants = await Promise.all(senders.slice(0,3).map(async sender => {
     scope:[{type:'categories',values:['general']}],status:'active',issued_at:Math.floor(started/1000),updated_at:Math.floor(started/1000),expires_at:null,
     consent_context:{grantee_address:sender.address,address_binding_hash:{algorithm:'sha-256',value:new Uint8Array(32)},sender_profile_hash:{algorithm:'sha-256',value:new Uint8Array(32)}},key_id:did+'#hail-identity'};
   const bytes = await signPayload('hail.grant',payload,signer);
-  return {payload,representation:{type:'hailp.grant',version:1,cose:encodeBase64Url(bytes),digest:await digest(bytes),localRole:'grantor'}};
+  return {payload,representation:{type:'racr.grant',version:1,cose:encodeBase64Url(bytes),digest:await digest(bytes),localRole:'grantor'}};
 }));
 const profile: HailSenderProfile = {type:'hail.sender-profile',version:2,did,revision:1,display_name:'Jamie Davis',description:'Notes from the neighborhood.',offers_uncategorized:false,
   categories:[{id:'essays',label:'Essays',description:'Occasional thoughts and discoveries.'},{id:'general',label:'General'}],updated_at:Math.floor(started/1000),key_id:did+'#hail-messaging'};
 const profileBytes = await signPayload('hail.sender-profile',profile,createWebCryptoSigner(profile.key_id,keys.privateKey));
-const profileResponse = {type:'hailp.sender-profile',version:1,revision:1,cose:encodeBase64Url(profileBytes),digest:await digest(profileBytes)};
+const profileResponse = {type:'racr.sender-profile',version:1,revision:1,cose:encodeBase64Url(profileBytes),digest:await digest(profileBytes)};
 const trash = new Map<string,string>();
 const deleted = new Set<string>();
 const preferences = {theme:'system',showHeaderImages:true,trashEnabled:true};
@@ -125,7 +125,7 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
   if(path==='/api/v1/account/trash/restore'&&request.method==='POST')return json({restored:(input.messages??[]).filter((m:{messageId:string})=>trash.delete(m.messageId)).length});
   // Sending, passkey ceremonies, profile edits and destructive account actions are not simulated.
   if(request.method!=='GET')return json({error:'This local design preview supports reading, appearance preferences, and message selection/deletion/restoration only.'},501);
-  if(path==='/api/v1/account')return json({type:'hailp.account',version:1,provider:origin,accountId:'019a15fd-2bd0-7433-8afa-bd0355e0608d',address,did,migrationState:null,custodyProfile:'managed',
+  if(path==='/api/v1/account')return json({type:'racr.account',version:1,provider:origin,accountId:'019a15fd-2bd0-7433-8afa-bd0355e0608d',address,did,migrationState:null,custodyProfile:'managed',
     monitorVerificationMode:'reduced-assurance-alpha-v1',managedProfileVersion:'hail-managed-custody-v1',identityPublicKey:null,ownerRecoveryPublicKey:null,scopes:['account:read','grants:read','messages:read','messages:write']});
   if(path==='/api/v1/account/connection-inbox')return json({messages:fixtureGroups().filter(g=>g.representative).sort((a,b)=>b.activity.localeCompare(a.activity)).map(g=>({...messages.find(m=>connectionKey(m)===connectionKey(g.representative!)),conversation:{unreadCount:g.unread,lastActivity:g.activity,messages:g.received.map(m=>({sender:m.sender,messageId:m.messageId,isRead:m.isRead}))}})),next:null});
   if(path.startsWith('/api/v1/account/connection-threads/')){

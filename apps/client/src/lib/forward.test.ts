@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {encodePayload, type HailSpt2Body} from '@hailproto/codec';
+import {encodePayload, type HailSpt2Body} from '@racrproto/codec';
 import {composeBlocks} from './compose.js';
 import {forwardBody,forwardHref,forwardSource} from './forward.js';
 import {forwardedAttribution,parseBody} from './messages.js';

@@ -1,6 +1,6 @@
 import {cidForCbor} from "@atproto/common";
 import {def} from "@did-plc/lib";
-import {decodeBase64Url,encodeBase64Url} from "@hailproto/codec";
+import {decodeBase64Url,encodeBase64Url} from "@racrproto/codec";
 import {parseJsonWithoutDuplicateKeys} from "../discovery/strict-json.js";
 import type {ManagedMigrationStageService} from "./managed-stage.js";
 import type {ManagedMigrationPlcSubmission} from "./managed-plc-submission.js";
@@ -41,16 +41,16 @@ export class ManagedMigrationCompletion {
     const operation=def.operation.parse(parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(operationBytes)));
     const operationCid=(await cidForCbor(operation)).toString();
     const movingConnections=connectionHandoverPending(manifest);
-    if(movingConnections&&!this.connections)return {type:"hailp.managed-transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
+    if(movingConnections&&!this.connections)return {type:"racr.managed-transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
       transferId:manifest.transferId,operationCid,phase:"awaiting-connection-handover"};
     if(movingConnections)await this.connections!.freeze(manifest.transferId);
     if(await this.plc.submit(manifest.transferId)!==operationCid)throw new Error("Configured PLC retained another operation");
     if(movingConnections)await this.connections!.commit(manifest.transferId);
-    if(this.publicProfile&&!monitor)return {type:"hailp.managed-transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
+    if(this.publicProfile&&!monitor)return {type:"racr.managed-transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
       transferId:manifest.transferId,operationCid,phase:"awaiting-monitor"};
     const active=await this.activation.activate(manifest.transferId,monitor),receipt=await this.activation.issueReceipt(manifest.transferId);
     if(movingConnections)await this.connections!.finish(manifest.transferId,receipt);
-    return {type:"hailp.managed-transfer-completion",version:1,did:active.did,accountId:active.accountId,
+    return {type:"racr.managed-transfer-completion",version:1,did:active.did,accountId:active.accountId,
       transferId:manifest.transferId,generation:active.generation,operationCid,phase:"active",receipt:encodeSignedRecord(receipt)};
   }
 }

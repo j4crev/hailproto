@@ -1,5 +1,5 @@
 import type {SQL} from "bun";
-import type {HailEnvelopeAuthorization} from "@hailproto/codec";
+import type {HailEnvelopeAuthorization} from "@racrproto/codec";
 import type {ConnectionFederation} from "./connection-federation.js";
 import type {AccountApiSession} from "./repository.js";
 import type {HailDidResolver} from "../plc/resolver.js";

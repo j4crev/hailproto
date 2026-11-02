@@ -1,5 +1,5 @@
 import {verifySignature} from '@atproto/crypto';
-import {decodeDeterministic,encodeDeterministic,type HailValue} from '@hailproto/codec';
+import {decodeDeterministic,encodeDeterministic,type HailValue} from '@racrproto/codec';
 import {ed25519PublicKeyFromDidKey} from '../identity/did-key.js';
 import {canonicalizeHailServiceBase} from '../plc/resolver.js';
 import type {SignedHandshake} from './handshake.js';

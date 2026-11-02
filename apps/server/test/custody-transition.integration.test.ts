@@ -3,7 +3,7 @@ import { SQL } from "bun";
 import { cidForCbor } from "@atproto/common";
 import { P256Keypair } from "@atproto/crypto";
 import { didForCreateOp, formatDidDoc, PlcClientError, signOperation, validateOperationLog, type Operation } from "@did-plc/lib";
-import { createWebCryptoSigner, encodeBase64Url, encodeDeterministic, signPayload, type HailGrant, type HailValue } from "@hailproto/codec";
+import { createWebCryptoSigner, encodeBase64Url, encodeDeterministic, signPayload, type HailGrant, type HailValue } from "@racrproto/codec";
 import { expect, it, vi } from "vitest";
 import { Hono } from "hono";
 import { SameProviderCustodyTransition, type CustodyTransitionApproval } from "../src/accounts/custody-transition.js";
@@ -53,7 +53,7 @@ integration.each([[false,false],[true,false],[true,true]])("same-provider custod
   const verifier={async verify(address:string){const account=await repository.getAccountByAddress(address),binding=await repository.getBindingForAccount(account.id);
     const resolved=await resolver.resolve(account.did!);return {address,did:account.did!,serviceBase:resolved.serviceBase,
       identityDidKey:resolved.identityDidKey,messagingDidKey:resolved.messagingDidKey,plcEvidence:resolved.evidence,verifiedAt:new Date(),
-      binding:(await import("@hailproto/codec")).inspectSignedPayload("hail.address-binding",binding.cose).payload,
+      binding:(await import("@racrproto/codec")).inspectSignedPayload("hail.address-binding",binding.cose).payload,
       representation:binding.cose,digest:binding.digest};}};
   const encryptor=new KeyEncryptor(encodeBase64Url(randomBytes(32)));
   try{
@@ -107,7 +107,7 @@ integration.each([[false,false],[true,false],[true,true]])("same-provider custod
     await db.sql`INSERT INTO grant_revisions (grant_id,revision,status,issued_at,updated_at,scope_payload,consent_address_binding_sha256,
       consent_sender_profile_sha256,cose,representation_digest,signing_public_key,signing_plc_document,signing_plc_data,signing_plc_operation_log)
       VALUES (${terminalId},1,'revoked',${now},${now},'[]',${randomBytes(32)},${randomBytes(32)},${randomBytes(64)},${randomBytes(32)},${identity.didKey},'{}','{}','[]')`;
-    const credentialToken=`hailp_${encodeBase64Url(randomBytes(32))}`,credential=randomUUID();await db.sql`INSERT INTO account_api_credentials (id,account_id,token_hash,scopes,expires_at)
+    const credentialToken=`racr_${encodeBase64Url(randomBytes(32))}`,credential=randomUUID();await db.sql`INSERT INTO account_api_credentials (id,account_id,token_hash,scopes,expires_at)
       VALUES (${credential},${prepared.accountId},${tokenHash(credentialToken)},'["account:read","account:write"]',clock_timestamp()+interval '1 day')`;
     const challenge=randomUUID();await db.sql`INSERT INTO account_access_challenges (id,token_hash,payload,expires_at)
       VALUES (${challenge},${randomBytes(32)},(${JSON.stringify({accountId:prepared.accountId})}::text)::jsonb,clock_timestamp()+interval '4 minutes')`;
@@ -196,12 +196,12 @@ integration.each([[false,false],[true,false],[true,true]])("same-provider custod
     }
     const operation=await signOperation(transition.unsignedOperation,owner),operationBytes=new TextEncoder().encode(JSON.stringify(operation));
     const operationCid=(await cidForCbor(operation)).toString(),issued=Math.floor(Date.now()/1000);
-    const approval:CustodyTransitionApproval={type:"hailp.custody-transition",version:1,transition_id:transition.transitionId,did,
+    const approval:CustodyTransitionApproval={type:"racr.custody-transition",version:1,transition_id:transition.transitionId,did,
       direction:"owner-to-managed",provider_service_base:serviceBase,owner_recovery_key:owner.did(),old_identity_key:identity.didKey,
       new_identity_key:transition.newIdentityKey,previous_operation_cid:transition.previousOperationCid,operation_cid:operationCid,
       history_checkpoint_sha256:transition.historyCheckpointDigest,binding_sha256:transition.bindingDigest,
       generation_from:transition.generationFrom,generation_to:transition.generationTo,nonce:randomUUID(),issued_at:issued,expires_at:issued+1800};
-    const approvalBytes=encodeDeterministic(approval as unknown as HailValue),tag=new TextEncoder().encode("hailp.custody-transition.v1\0"),input=new Uint8Array(tag.length+approvalBytes.length);
+    const approvalBytes=encodeDeterministic(approval as unknown as HailValue),tag=new TextEncoder().encode("racr.custody-transition.v1\0"),input=new Uint8Array(tag.length+approvalBytes.length);
     input.set(tag);input.set(approvalBytes,tag.length);const signature=await owner.sign(input);ambiguousUpdate=true;
     const changedOperation=await signOperation({...transition.unsignedOperation,alsoKnownAs:["at://unapproved.example.com"]},owner);
     await expect(service.commit(prepared.accountId,transition.transitionId,new TextEncoder().encode(JSON.stringify(changedOperation)),approvalBytes,signature)).rejects.toThrow("full state");
@@ -280,7 +280,7 @@ integration.each([[false,false],[true,false],[true,true]])("same-provider custod
       createWebCryptoSigner(`${did}#hail-identity`,nextIdentity.pair.privateKey));
     const ownerGrants=await Promise.all(review.activeGrants.map(async item=>({grantId:item.grantId,
       cose:await signPayload("hail.grant",item.payload,createWebCryptoSigner(`${did}#hail-identity`,nextIdentity.pair.privateKey))})));
-    const reverseToken=`hailp_${encodeBase64Url(randomBytes(32))}`;
+    const reverseToken=`racr_${encodeBase64Url(randomBytes(32))}`;
     await withServingGeneration(prepared.accountId,2,()=>db.sql`INSERT INTO account_api_credentials (id,account_id,token_hash,scopes,expires_at)
       VALUES (${randomUUID()},${prepared.accountId},${tokenHash(reverseToken)},'["account:read","account:write"]',clock_timestamp()+interval '1 day')`);
     const reviewResponse=await app.request("https://local.example.com/api/v1/account/custody/owner-controlled/review",{method:"POST",
@@ -299,7 +299,7 @@ integration.each([[false,false],[true,false],[true,true]])("same-provider custod
     expect(reverse.direction).toBe("managed-to-owner");expect(reverse.generationFrom).toBe(2);
     const reverseOperation=await signOperation(reverse.unsignedOperation,owner),reverseBytes=new TextEncoder().encode(JSON.stringify(reverseOperation));
     const reverseCid=(await cidForCbor(reverseOperation)).toString(),reverseIssued=Math.floor(Date.now()/1000);
-    const reverseApproval:CustodyTransitionApproval={type:"hailp.custody-transition",version:1,transition_id:reverse.transitionId,did,
+    const reverseApproval:CustodyTransitionApproval={type:"racr.custody-transition",version:1,transition_id:reverse.transitionId,did,
       direction:"managed-to-owner",provider_service_base:serviceBase,owner_recovery_key:owner.did(),old_identity_key:transition.newIdentityKey,
       new_identity_key:nextIdentity.didKey,previous_operation_cid:reverse.previousOperationCid,operation_cid:reverseCid,
       history_checkpoint_sha256:reverse.historyCheckpointDigest,binding_sha256:reverse.bindingDigest,generation_from:2,generation_to:3,

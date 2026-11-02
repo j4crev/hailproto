@@ -1,4 +1,4 @@
-import { decodeBase64Url } from "@hailproto/codec/base64url";
+import { decodeBase64Url } from "@racrproto/codec/base64url";
 import { CID } from "multiformats/cid";
 import { hash } from "../../src/http.js";
 

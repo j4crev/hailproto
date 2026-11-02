@@ -5,7 +5,7 @@ import { cidForCbor } from "@atproto/common";
 import { assureValidSig, def, validateOperationLog, type DocumentData } from "@did-plc/lib";
 import * as dagCbor from "@ipld/dag-cbor";
 import { createWebCryptoVerifier, decodeDeterministic, decodePayload, inspectSignedPayload,
-  verifySignedPayload, type HailValue } from "@hailproto/codec";
+  verifySignedPayload, type HailValue } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import type { KeyEncryptor } from "../identity/key-encryption.js";
@@ -22,7 +22,7 @@ import { PUBLIC_EVIDENCE_LIMITS } from "../plc/read-evidence.js";
 import {collectConnectionHistory,connectionHistoryDigest,type ConnectionHistory} from "./connection-history.js";
 import {validateSnapshotConnections} from "./connection-snapshot.js";
 import {verifyConnectionHistoryAuthority} from "./connection-history-verification.js";
-import {encodeBase64Url} from "@hailproto/codec";
+import {encodeBase64Url} from "@racrproto/codec";
 
 const context = (version: 2 | 3 | 5 | 7) => new TextEncoder().encode(`hail-migration-snapshot-v${version}\0`);
 

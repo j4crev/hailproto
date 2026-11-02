@@ -7,7 +7,7 @@ import { cidForCbor } from "@atproto/common";
 import { assureValidSig, def, validateOperationLog, type DocumentData, type Operation, type UnsignedOperation } from "@did-plc/lib";
 import { verifySignature } from "@atproto/crypto";
 import { createWebCryptoSigner, createWebCryptoVerifier, decodeDeterministic, encodeBase64Url, encodeDeterministic, inspectSignedPayload,
-  signPayload, verifySignedPayload, type HailAddressBinding, type HailGrant, type HailValue } from "@hailproto/codec";
+  signPayload, verifySignedPayload, type HailAddressBinding, type HailGrant, type HailValue } from "@racrproto/codec";
 import * as dagCbor from "@ipld/dag-cbor";
 import type { SQL } from "bun";
 import { materializedServingGeneration } from "../db/serving.js";
@@ -28,7 +28,7 @@ const equal = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.fro
 const jsonEvidence = (value: unknown) => JSON.stringify(value);
 
 export interface CustodyTransitionApproval {
-  type: "hailp.custody-transition";
+  type: "racr.custody-transition";
   version: 1;
   transition_id: string;
   did: string;
@@ -83,7 +83,7 @@ export interface OwnerCustodyReview {
 }
 
 function approvalInput(payload:Uint8Array) {
-  const tag=new TextEncoder().encode("hailp.custody-transition.v1\0");
+  const tag=new TextEncoder().encode("racr.custody-transition.v1\0");
   const input=new Uint8Array(tag.length+payload.length);input.set(tag);input.set(payload,tag.length);return input;
 }
 function number(value:number|string|bigint,name:string) {
@@ -179,7 +179,7 @@ export class SameProviderCustodyTransition {
       const managed=(await tx<{provider_identity_public_key:string}[]>`SELECT provider_identity_public_key FROM managed_custody_evidence WHERE account_id=${accountId}`)[0];
       if(!managed||managed.provider_identity_public_key!==review.oldIdentityKey)throw new Error("Managed custody changed");
       const history=await this.history(tx as SQL,accountId);
-      const checkpoint=sha256(encodeDeterministic({type:"hailp.custody-history-checkpoint",version:1,did:review.did,
+      const checkpoint=sha256(encodeDeterministic({type:"racr.custody-history-checkpoint",version:1,did:review.did,
         revisions:history.revisions.map(row=>({grant_id:row.grant_id,revision:row.revision,current_revision:row.lineage_current_revision,
           current_status:row.lineage_current_status,digest:encodeBase64Url(row.representation_digest),cose_sha256:encodeBase64Url(sha256(row.cose)),
           signer:row.signing_public_key,publication:row.publication_state??"none",etag:row.acknowledged_etag??""})),
@@ -253,7 +253,7 @@ export class SameProviderCustodyTransition {
           predecessor_digest:grant.current_digest,successor_revision:successor.revision,successor_cose:cose,
           successor_digest:sha256(cose),destination_service_base:grant.destination_service_base}});
       }
-      const checkpoint=sha256(encodeDeterministic({type:"hailp.custody-history-checkpoint",version:1,did:account.did,
+      const checkpoint=sha256(encodeDeterministic({type:"racr.custody-history-checkpoint",version:1,did:account.did,
         revisions:history.revisions.map(row=>({grant_id:row.grant_id,revision:row.revision,current_revision:row.lineage_current_revision,
           current_status:row.lineage_current_status,digest:encodeBase64Url(row.representation_digest),
           cose_sha256:encodeBase64Url(sha256(row.cose)),signer:row.signing_public_key,
@@ -484,7 +484,7 @@ export class SameProviderCustodyTransition {
   }
   private reviewApproval(row:TransitionRow,value:CustodyTransitionApproval,cid:string,accepted=false) {
     const now=Math.floor(this.now().getTime()/1000);
-    if(!value||value.type!=="hailp.custody-transition"||value.version!==1||value.transition_id!==row.transition_id||value.did!==row.did||
+    if(!value||value.type!=="racr.custody-transition"||value.version!==1||value.transition_id!==row.transition_id||value.did!==row.did||
       value.direction!==row.direction||value.provider_service_base!==this.serviceBase||value.owner_recovery_key!==row.owner_recovery_public_key||
       value.old_identity_key!==row.old_identity_public_key||value.new_identity_key!==row.new_identity_public_key||
       value.previous_operation_cid!==row.previous_operation_cid||value.operation_cid!==cid||

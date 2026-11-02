@@ -4,8 +4,8 @@ import {join} from "node:path";
 import {expect,it} from "vitest";
 
 const old="a".repeat(40),candidate="b".repeat(40),digest=`sha256:${"c".repeat(64)}`;
-const image=`ghcr.io/j4crev/hailproto/provider@sha256:${"d".repeat(64)}`;
-const clientImage=`ghcr.io/j4crev/hailproto/provider-web-client@sha256:${"e".repeat(64)}`;
+const image=`ghcr.io/j4crev/hail/provider@sha256:${"d".repeat(64)}`;
+const clientImage=`ghcr.io/j4crev/hail/provider-web-client@sha256:${"e".repeat(64)}`;
 const clientDigest=`sha256:${"f".repeat(64)}`;
 const clientReference=`hail-web-client:rollback-${"f".repeat(64)}`;
 const reference=`hail-server-ts:rollback-${"c".repeat(64)}`;
@@ -41,7 +41,7 @@ esac
 `;
     for(const name of ["docker","git","curl","backup"])await writeFile(join(bin,name),mock,{mode:0o755});
     const source=await readFile(new URL("../deploy/public/provider-ops.sh",import.meta.url),"utf8");
-    await writeFile(join(directory,"ops.sh"),source.replaceAll("/opt/hailproto",join(directory,"checkout"))
+    await writeFile(join(directory,"ops.sh"),source.replaceAll("/opt/hail",join(directory,"checkout"))
       .replaceAll("/etc/hail-provider-release",join(directory,"release")).replaceAll("/etc/hail-provider-postgres",join(directory,"postgres"))
       .replaceAll("/var/lib/",directory+"/").replaceAll("/usr/local/sbin/hail-provider-backup",join(bin,"backup")));
     await run({directory,execute:async(action,env={})=>{
@@ -111,7 +111,7 @@ it.each(["FAIL_PULL","WRONG_REVISION"])("rejects %s before backup, checkout or s
 }));
 
 it("rejects mutable image tags before executing external commands",async()=>fixture(async({execute})=>{
-  const result=await execute("deploy",{TEST_IMAGE:"ghcr.io/j4crev/hailproto/provider:latest"});
+  const result=await execute("deploy",{TEST_IMAGE:"ghcr.io/j4crev/hail/provider:latest"});
   expect(result.exit).toBe(2);expect(result.log).toBe("");
 }));
 

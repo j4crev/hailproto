@@ -4,7 +4,7 @@ import {cidForCbor} from '@atproto/common';
 import {encode as encodeDagCbor} from '@ipld/dag-cbor';
 import {didForCreateOp,formatDidDoc,signOperation,validateOperationLog} from '@did-plc/lib';
 import {base58btc} from 'multiformats/bases/base58';
-import {createWebCryptoSigner,encodeBase64Url,inspectSignedPayload,signPayload} from '@hailproto/codec';
+import {createWebCryptoSigner,encodeBase64Url,inspectSignedPayload,signPayload} from '@racrproto/codec';
 import {expect,it} from 'vitest';
 import {CONNECTION_HISTORY_COLUMNS,validateConnectionHistory,type ConnectionHistory} from '../src/migration/connection-history.js';
 import {verifyConnectionHistoryAuthority} from '../src/migration/connection-history-verification.js';

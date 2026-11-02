@@ -4,7 +4,7 @@ import {Hono} from "hono";
 import {expect,it,vi} from "vitest";
 import {P256Keypair} from "@atproto/crypto";
 import {base58btc} from "multiformats/bases/base58";
-import {createWebCryptoSigner,signPayload,encodeBase64Url,fromDiagnosticJson,type HailGrant} from "@hailproto/codec";
+import {createWebCryptoSigner,signPayload,encodeBase64Url,fromDiagnosticJson,type HailGrant} from "@racrproto/codec";
 import {ProviderDatabase} from "../src/db/database.js";
 import {AccountApiRepository} from "../src/accounts/repository.js";
 import {PasskeyAuth} from "../src/accounts/passkeys.js";

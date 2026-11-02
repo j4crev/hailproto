@@ -163,7 +163,7 @@ pub async fn run(args: &Args) -> Result<Value, Error> {
     let mut state = private::optional_json(path)?;
     if let Some(s) = &state {
         let created = s["createdAt"].as_i64().ok_or_else(invalid)?;
-        if s["type"] != "hailp.browser-login"
+        if s["type"] != "racr.browser-login"
             || s["version"].as_f64() != Some(1.0)
             || s["provider"] != provider
             || s["scopes"] != json!(scopes)
@@ -172,7 +172,7 @@ pub async fn run(args: &Args) -> Result<Value, Error> {
             || !token(&s["state"], "")
             || !token(&s["code"], "hailc_")
             || !token(&s["verifier"], "")
-            || !token(&s["token"], "hailp_")
+            || !token(&s["token"], "racr_")
         {
             return Err(invalid());
         }
@@ -205,13 +205,13 @@ pub async fn run(args: &Args) -> Result<Value, Error> {
         if private::optional_json(output)?.is_some() {
             return Err(invalid());
         }
-        let value = json!({"type":"hailp.browser-login","version":1,"provider":provider,"scopes":scopes,"state":random()?,"code":format!("hailc_{}",random()?),"verifier":random()?,"token":credentials::token()?,"redirectUri":format!("http://127.0.0.1:{}/callback",listener.local_addr().map_err(|_|invalid())?.port()),"createdAt":now()});
+        let value = json!({"type":"racr.browser-login","version":1,"provider":provider,"scopes":scopes,"state":random()?,"code":format!("hailc_{}",random()?),"verifier":random()?,"token":credentials::token()?,"redirectUri":format!("http://127.0.0.1:{}/callback",listener.local_addr().map_err(|_|invalid())?.port()),"createdAt":now()});
         private::create(path, value.to_string().as_bytes())?;
         state = Some(value);
     }
     let mut state = state.unwrap();
     if state.get("requestId").is_none() {
-        let prepared=request(&client,"/prepare",&json!({"clientId":"hailp-cli-v1","redirectUri":state["redirectUri"],"state":state["state"],"code":state["code"],"codeChallenge":codec::digest(state["verifier"].as_str().unwrap().as_bytes()),"scopes":scopes})).await?;
+        let prepared=request(&client,"/prepare",&json!({"clientId":"racr-cli-v1","redirectUri":state["redirectUri"],"state":state["state"],"code":state["code"],"codeChallenge":codec::digest(state["verifier"].as_str().unwrap().as_bytes()),"scopes":scopes})).await?;
         for field in ["requestId", "authorizationUrl", "expiresAt"] {
             if !prepared[field].is_string() {
                 return Err(invalid());
@@ -256,8 +256,8 @@ pub async fn run(args: &Args) -> Result<Value, Error> {
         state["approved"] = true.into();
         private::replace(path, &state)?;
     }
-    let credential=request(&client,"/token",&json!({"clientId":"hailp-cli-v1","redirectUri":state["redirectUri"],"code":state["code"],"verifier":state["verifier"],"token":state["token"]})).await?;
-    if credential["type"] != "hailp.api-credential"
+    let credential=request(&client,"/token",&json!({"clientId":"racr-cli-v1","redirectUri":state["redirectUri"],"code":state["code"],"verifier":state["verifier"],"token":state["token"]})).await?;
+    if credential["type"] != "racr.api-credential"
         || credential["version"].as_f64() != Some(1.0)
         || credential["provider"] != provider
         || credential["token"] != state["token"]

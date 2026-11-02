@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import {
   createWebCryptoSigner, createWebCryptoVerifier, decodeBase64Url, encodeBase64Url,
   inspectSignedPayload, signPayload, verifySignedPayload, type HailEnvelope,type HailConversation,
-} from "@hailproto/codec";
+} from "@racrproto/codec";
 import { newBodyToken } from "../bodies/service.js";
 import type { GrantStore } from "../grants/store.js";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";

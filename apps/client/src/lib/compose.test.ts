@@ -1,6 +1,6 @@
 import { describe,expect,it } from "vitest";
 import { composeBlocks,formatLines } from "./compose.js";
-import {encodePayload,decodePayload,fromDiagnosticJson} from "@hailproto/codec";
+import {encodePayload,decodePayload,fromDiagnosticJson} from "@racrproto/codec";
 import {parseBody,groupMessageBlocks} from "./messages.js";
 
 describe("message composer",()=>{

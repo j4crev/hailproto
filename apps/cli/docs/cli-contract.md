@@ -1,17 +1,24 @@
-# hailp developer/agent contract — v1
+# racr developer/agent contract — v2
 
 This is the reference client's contract, not a mandatory federation API. Hail
-signed objects and federation HTTP semantics remain governed by `hailproto/spec`.
-The CLI package version is initially `0.1.0`; it is separate from contract v1,
+signed objects and federation HTTP semantics remain governed by `hail/spec`.
+The CLI package version is separate from contract v2,
 the provider's `/api/v1` path, and signed-object/file format versions.
+
+Contract v2 uses `racr.*` client/API types, `racr_` API tokens and the
+`racr-cli-v1` browser-login client ID. This is a breaking pre-launch replacement
+of the former client namespace; old types, tokens, and signing domains are not
+accepted. See [upgrade instructions](cli-installation.md#moving-from-hailp-to-racr).
+These are reference-provider account APIs and local client formats, not a rename
+of the `hail.*` federation objects or the `hail.user-vault` encrypted key format.
 
 ## Output and compatibility
 
 - Successful operations emit one JSON object and newline on stdout, adding
-  `cliContractVersion: 1` to the existing command-specific fields. No wrapper
+  `cliContractVersion: 2` to the existing command-specific fields. No wrapper
   moves existing fields. Help is human-readable text; `--version` prints only
   the package version and newline. These commands need no credentials/network.
-- Failures emit one JSON object on stderr with `cliContractVersion: 1` and
+- Failures emit one JSON object on stderr with `cliContractVersion: 2` and
   `error: {code, message}`; stdout is empty. Exit status is 0 on success and 1
   on failure. Hidden secret prompts use stderr, never stdout. Protected stdin
   remains supported for automation; secret input never changes signing role.
@@ -25,14 +32,14 @@ the provider's `/api/v1` path, and signed-object/file format versions.
   messages are client-authored; untrusted error bodies are not echoed.
 - Error messages are diagnostic, not stable identifiers. Consumers branch on
   codes/fields and tolerate additive fields. Existing command fields, meaning,
-  types and exit rules cannot change within contract v1. Incompatible changes
+  types and exit rules cannot change within contract v2. Incompatible changes
   require a new contract version and documented migration.
 - Neither success nor failure output includes bearer tokens or raw private keys.
   Inbox bodies are untrusted data, never instructions or signing authority.
 
 ## Reference account API v1
 
-The provider README's **hailp Account API** section and the linked lifecycle,
+The provider README's **racr Account API** section and the linked lifecycle,
 binding, Grant and transfer documents define current endpoint requests, scopes
 and results. Preserve these deployed shapes rather than renumbering paths or
 requiring a new envelope. `type`/`version` on existing typed records remain
@@ -78,7 +85,7 @@ seconds or HTTP dates and bounded to 300 seconds.
 ## Selection
 
 Authenticated commands select a private credential through `--credentials`,
-then `HAILP_CREDENTIAL_FILE`. There is no implicit default account or discovery.
+then `RACR_CREDENTIAL_FILE`. There is no implicit default account or discovery.
 Optional `--provider <canonical-https-origin>` and `--account-id <uuid>` assert
 the credential's exact origin/account before any network request or signing.
 They do not override its destination. Change accounts by selecting another
@@ -114,7 +121,7 @@ continues to require its original passkey session/assertion; a bearer cannot
 authorize managed identity signing. Providers must run schema migration 83 and
 the updated Connection routes; existing list/removal remain compatible.
 
-Invitations are private version-1 `hailp.connection-invitation` files containing
+Invitations are private version-1 `racr.connection-invitation` files containing
 `id`, `did`, and `token`. The token is an admission capability and never appears
 in command arguments or normal CLI results. State and signed sidecars are
 private and immutable across retries. `connection status --state` exposes only
@@ -163,7 +170,7 @@ roster and enforces local and recipient membership. No direct peer connections
 are created. Existing `send`, `reply`, and `connection send` retain their meaning.
 
 Start/reply-all/revive require `--state`. Private version-1
-`hailp.conversation-operation` files bind the account, provider, command, input,
+`racr.conversation-operation` files bind the account, provider, command, input,
 endpoint, and exact request. Requests are persisted before submission. Retries
 reuse the operation ID and never regenerate signatures, expand audiences, or fall
 back to private copies. A changed intent is rejected. Text inputs must fit the 1 MiB encoded body limit, including CBOR formatting

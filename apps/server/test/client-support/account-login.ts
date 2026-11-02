@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { resolve } from "node:path";
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec";
 import { AccountApiClient, credentialScopes } from "../../../../packages/hail-client-support/src/account-api.js";
 import { privateFile, savePrivateBytes } from "./grant-revocation.js";
 import { writeState } from "./account-creation.js";
@@ -9,7 +9,7 @@ import { accountAccessInput, type AccountAccessChallenge } from "./account-acces
 import { readRecoverySecret } from "./private-input.js";
 
 interface LoginState {
-  type: "hailp.account-login"; version: 1; provider: string; did: string;
+  type: "racr.account-login"; version: 1; provider: string; did: string;
   signer: "identity" | "owner-recovery"; publicKey: string; scopes: string[]; token: string; createdAt: number;
   challenge?: AccountAccessChallenge; signature?: string;
 }
@@ -27,12 +27,12 @@ export async function loginAccount(provider: string, did: string, signer: LoginS
     if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     try { await privateFile(output, 16_384); throw new Error("Login output already exists without its original state"); }
     catch (existing) { if (!(existing instanceof Error && "code" in existing && existing.code === "ENOENT")) throw existing; }
-    state = { type: "hailp.account-login", version: 1, provider, did, signer, publicKey, scopes,
-      token: `hailp_${encodeBase64Url(randomBytes(32))}`, createdAt: Math.floor(Date.now() / 1000) };
+    state = { type: "racr.account-login", version: 1, provider, did, signer, publicKey, scopes,
+      token: `racr_${encodeBase64Url(randomBytes(32))}`, createdAt: Math.floor(Date.now() / 1000) };
     AccountApiClient.signup(provider, state.token); // Validate origin before writing secrets or contacting it.
     await savePrivateBytes(statePath, new TextEncoder().encode(JSON.stringify(state)));
   }
-  if (!state || state.type !== "hailp.account-login" || state.version !== 1 || state.provider !== provider || state.did !== did ||
+  if (!state || state.type !== "racr.account-login" || state.version !== 1 || state.provider !== provider || state.did !== did ||
     state.signer !== signer || state.publicKey !== publicKey || JSON.stringify(credentialScopes(state.scopes)) !== JSON.stringify(scopes) ||
     !Number.isSafeInteger(state.createdAt) || state.createdAt > Math.floor(Date.now() / 1000) + 30 ||
     Math.floor(Date.now() / 1000) - state.createdAt >= 300) throw new Error("Login state differs or expired; retain it and start a deliberate new attempt with new paths");
@@ -56,7 +56,7 @@ export async function loginAccount(provider: string, did: string, signer: LoginS
     }
     const result = await client.request("/complete", { challengeId: challenge.challengeId, token: state.token, signature: state.signature }, "/api/v1/account-access");
     const credential = result.credential as Record<string, unknown>;
-    if (!credential || credential.type !== "hailp.api-credential" || credential.version !== 1 || credential.provider !== provider ||
+    if (!credential || credential.type !== "racr.api-credential" || credential.version !== 1 || credential.provider !== provider ||
       credential.accountId !== challenge.accountId || credential.token !== state.token || typeof credential.credentialId !== "string" ||
       !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(credential.credentialId) ||
       typeof credential.expiresAt !== "string" || !Number.isFinite(Date.parse(credential.expiresAt)) ||

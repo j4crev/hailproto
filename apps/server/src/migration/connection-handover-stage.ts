@@ -1,6 +1,6 @@
 import type {SQL} from "bun";
 import {createHash} from "node:crypto";
-import {decodeBase64Url,decodeDeterministic,encodeBase64Url} from "@hailproto/codec";
+import {decodeBase64Url,decodeDeterministic,encodeBase64Url} from "@racrproto/codec";
 import type {HailDidResolver} from "../plc/resolver.js";
 import {requireFreshPublicAuthority} from "../plc/authority.js";
 import {assertConnectionHandoverSelection,verifyConnectionHandover,type ConnectionHandoverPlan} from "./connection-handover.js";

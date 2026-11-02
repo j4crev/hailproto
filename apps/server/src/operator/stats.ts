@@ -1,5 +1,5 @@
-import type {OperatorStats} from "@hailproto/client-support/provider-contracts";
-export type {OperatorStats} from "@hailproto/client-support/provider-contracts";
+import type {OperatorStats} from "@racrproto/client-support/provider-contracts";
+export type {OperatorStats} from "@racrproto/client-support/provider-contracts";
 import type {SQL} from "bun";
 import {readStorage} from "./storage.js";
 

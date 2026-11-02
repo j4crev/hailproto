@@ -1,4 +1,4 @@
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec";
 import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
 import type { SignedHandshake } from "./handshake.js";
 

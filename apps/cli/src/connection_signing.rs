@@ -37,7 +37,7 @@ pub fn sign_with_review(args: &Args, review: bool) -> Result<Value, Error> {
         .map(|t| t.timestamp_millis());
     if origin.scheme() != "https"
         || origin.origin().ascii_serialization() != opt("provider")
-        || proposal["type"] != "hailp.connection-signing"
+        || proposal["type"] != "racr.connection-signing"
         || proposal["version"].as_f64() != Some(1.0)
         || proposal["provider"] != opt("provider")
         || !proposal["requestId"]

@@ -2,9 +2,9 @@ import { withdrawAccountBindings } from "../discovery/withdrawal.js";
 import type { SQL } from "bun";
 import { canonicalizeHailServiceBase, type HailDidResolver } from "../plc/resolver.js";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
-import { encodeDeterministic } from "@hailproto/codec";
+import { encodeDeterministic } from "@racrproto/codec";
 import { verifyActivationReceipt, type SignedActivationReceipt } from "./activation-receipt.js";
-import { decodeDeterministic } from "@hailproto/codec";
+import { decodeDeterministic } from "@racrproto/codec";
 import { handshakeDigest, sameDigest, verifyHandshake, type SignedHandshake } from "./handshake.js";
 
 export interface MigrationFence {

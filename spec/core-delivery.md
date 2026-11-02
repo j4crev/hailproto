@@ -167,7 +167,7 @@ For core delivery:
 - An authenticated sender with a current or previous relationship may receive a detailed current result when privacy permits.
 - Terminal delivery status is reported asynchronously with a signed status snapshot.
 - The current alpha requires support for complete envelope representations through 16384 bytes, as defined in [envelopes.md](envelopes.md).
-- v0 requires no transport authentication in addition to HTTPS and the envelope COSE signature. Private deployment controls carry no Hail protocol semantics and never replace COSE verification.
+- v0 requires no transport authentication in addition to HTTPS and the envelope COSE signature. Private deployment controls carry no RACR protocol semantics and never replace COSE verification.
 - The body retrieval location is derived from authenticated sender discovery rather than supplied by the envelope.
 - Signed delivery-status correlation uses the parties, message ID, envelope digest
   and status revision. Provider-local tracing is implementation policy; no Hail

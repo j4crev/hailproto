@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { cidForCbor } from "@atproto/common";
 import { P256Keypair } from "@atproto/crypto";
 import { didForCreateOp, signOperation, validateOperationLog, type Operation } from "@did-plc/lib";
-import { createWebCryptoSigner, encodeBase64Url, encodeDeterministic, inspectSignedPayload, signPayload, type HailAddressBinding, type HailEnvelope, type HailGrant, type HailSenderProfile } from "@hailproto/codec";
+import { createWebCryptoSigner, encodeBase64Url, encodeDeterministic, inspectSignedPayload, signPayload, type HailAddressBinding, type HailEnvelope, type HailGrant, type HailSenderProfile } from "@racrproto/codec";
 import * as dagCbor from "@ipld/dag-cbor";
 import { base58btc } from "multiformats/bases/base58";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -41,7 +41,7 @@ import { TransferGrantSubmission } from "../src/migration/grant-submission.js";
 import { TransferDeliveryWorker } from "../src/migration/delivery-worker.js";
 import { registerTransferRoutes } from "../src/migration/routes.js";
 import { invitationWire, TRANSFER_MEDIA_TYPE } from "../src/migration/wire.js";
-import { decodeDeterministic } from "@hailproto/codec";
+import { decodeDeterministic } from "@racrproto/codec";
 import { DeliveryWorker } from "../src/delivery/worker.js";
 
 const integration = process.env.DATABASE_URL && process.env.TRANSFER_TARGET_DATABASE_URL ? describe : describe.skip;
@@ -475,7 +475,7 @@ integration("fenced transfer and concurrent cutover", () => {
     } finally {
       const original = await source.sql<{ grant_bytes: Uint8Array }[]>`
         SELECT grant_bytes FROM provider_transfer_authorizations WHERE did = ${did}`;
-      const { decodeDeterministic } = await import("@hailproto/codec");
+      const { decodeDeterministic } = await import("@racrproto/codec");
       const grant = decodeDeterministic(original[0]!.grant_bytes) as unknown as TransferGrant;
       await source.sql`UPDATE provider_transfer_authorizations
         SET destination_service_base = ${targetBase}, expires_at = to_timestamp(${grant.expires_at})

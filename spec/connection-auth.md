@@ -17,13 +17,13 @@ Owner-controlled accounts use the same browser passkey session and exact-action
 review, without granting bearer credentials access to connection management. Creating
 or replacing a code freezes its full invitation payload and an encrypted random
 admission token in the approval record. Connecting freezes the scanner's complete
-confirmation. The browser downloads `hailp.connection-signing` JSON with the provider,
+confirmation. The browser downloads `racr.connection-signing` JSON with the provider,
 request ID, approval deadline and diagnostic payload; it never downloads a private key.
 
 The user reviews and signs locally:
 
 ```sh
-hailp connection sign proposal.json --provider https://your-provider.example \
+racr connection sign proposal.json --provider https://your-provider.example \
   --vault /private/vault.json --output /private/consent.cose
 ```
 

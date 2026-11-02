@@ -1,6 +1,6 @@
 # Hail Server TypeScript
 
-Reusable Bun and Hono provider implementation for Hail Protocol.
+Reusable Bun and Hono provider implementation of the RACR protocol.
 
 This repository is under active development. Use the
 [standalone provider deployment profile](deploy/standalone/README.md) for a new
@@ -89,10 +89,10 @@ Upgrades preserve existing accounts and warn about occupied role names for manua
 ownership review; they never take over or rename an account. Reservation does not
 configure email forwarding. Keep an off-provider email path for outage alerts.
 
-## hailp Account API
+## racr Account API
 
 Migration 32 adds the authenticated account-management slice used by
-`hailp` in [`../cli`](../cli). It is separate from provider administration and
+`racr` in [`../cli`](../cli). It is separate from provider administration and
 federation. The credential commands below are an API reference, not additional
 steps required after completing the administrator setup guide.
 
@@ -119,7 +119,7 @@ destination after transfer.
 
 ### HTTP contract
 
-The frozen [PLC read-evidence policy](https://github.com/j4crev/hailproto/blob/main/spec/plc-read-evidence.md)
+The frozen [PLC read-evidence policy](https://github.com/j4crev/hail/blob/main/spec/plc-read-evidence.md)
 strengthens the public cutover library with complete canonical/audit agreement,
 explicit reader/operator configuration, reviewed monitor bootstrap
 evidence and five-minute freshness. Use `createIndependentPlcObserver(origin,
@@ -198,14 +198,14 @@ new evidence is retained and without later migrations. Histories reference stabl
 IDs rather than volatile working rows, but their transport in a future signed
 snapshot remains a separate profile change. Current reported PLC authority is
 not recovery-window finality or proof of owner intent. See the
-[routine authority policy and boundaries](https://github.com/j4crev/hailproto/blob/main/spec/plc-read-evidence.md#routine-strict-public-v1-authority).
+[routine authority policy and boundaries](https://github.com/j4crev/hail/blob/main/spec/plc-read-evidence.md#routine-strict-public-v1-authority).
 
-The consolidated [reference account API v1 / hailp CLI contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-contract.md)
+The consolidated [reference account API v1 / racr CLI contract](https://github.com/j4crev/hail/blob/main/apps/cli/docs/cli-contract.md)
 defines compatibility, output/error semantics and bounded read convenience.
-The client version is 0.1.0 and its JSON adds `cliContractVersion: 1`; provider
+The client version is 0.1.3 and its JSON adds `cliContractVersion: 2`; provider
 response shapes and API paths remain unchanged. Command-specific help, deliberate
 origin/account assertions and a compiled executable are documented in the
-[developer workflows](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md#conventions).
+[developer workflows](https://github.com/j4crev/hail/blob/main/apps/cli/docs/cli-workflows.md#conventions).
 
 Use `Authorization: Bearer <token>` over the configured provider HTTPS origin.
 These paths are the reference provider's client API, not standardized Hail
@@ -255,7 +255,7 @@ distributed limits and production load calibration remain future hardening.
 
 ### Verification
 
-The opt-in test exercises actual `hailp` processes against a local TLS Hono
+The opt-in test exercises actual `racr` processes against a local TLS Hono
 server using a temporary CA trusted through `NODE_EXTRA_CA_CERTS` (never
 disabled certificate verification). It requires OpenSSL and a disposable
 PostgreSQL database:
@@ -335,7 +335,7 @@ signed activation receipt. Source retirement verifies that receipt against curre
 destination PLC authority and the exported snapshot, retaining it durably. A failed
 step never releases the source fence or reservation. No user private key or bearer
 credential is accepted as replacement for these signatures.
-See the [client workflow](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md#transfer-an-owner-controlled-account).
+See the [client workflow](https://github.com/j4crev/hail/blob/main/apps/cli/docs/cli-workflows.md#transfer-an-owner-controlled-account).
 
 ### Lifecycle and transfer configuration
 
@@ -381,7 +381,7 @@ changing the owner-approved artifacts. The private endpoint still accepts only
 the original three-field request and never public monitor evidence.
 
 Owner-controlled completion uses the equivalent two-phase
-`/.well-known/hail/transfers/completions` flow. Retry `hailp account transfer complete` with
+`/.well-known/hail/transfers/completions` flow. Retry `racr account transfer complete` with
 `--monitor-attestation` after the monitor approves the exact operation.
 
 ### Post-export recovery boundary
@@ -407,13 +407,13 @@ New endpoints are `POST /api/v1/account/grants/{id}/proposals` and `/update` for
 managed signatures; both require `grants:write` and reject fenced accounts.
 There is no new Grant schema migration or unsigned blocking. New signer epochs
 are held pending reviewed historical-key reconciliation. See the
-[revision contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/grant-revisions.md)
-and [key decision](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/grant-key-reconciliation.md).
+[revision contract](https://github.com/j4crev/hail/blob/main/apps/cli/docs/grant-revisions.md)
+and [key decision](https://github.com/j4crev/hail/blob/main/apps/cli/docs/grant-key-reconciliation.md).
 
 ### Address Binding publication
 
 The provider exposes `GET/POST /api/v1/account/binding` and
-`hailp binding show/publish`. Reading reports publication state rather than
+`racr binding show/publish`. Reading reports publication state rather than
 expiry reminders. Explicit publication requires `account:write` authority,
 current identity/service ownership and an active/public account. Migration 35
 expanded the scope constraint without upgrading existing credentials. Both
@@ -453,7 +453,7 @@ Withdrawal relies on provider cooperation. A former authority can republish a
 still-valid old signature while its identity key remains current; removing public
 artifacts is not cryptographic revocation. Binding-v2 and retirement-withdrawal
 work is local and not yet deployed. See the
-[publication contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/binding-publication.md).
+[publication contract](https://github.com/j4crev/hail/blob/main/apps/cli/docs/binding-publication.md).
 
 ### Passkey browser sessions (migration 54)
 
@@ -479,8 +479,8 @@ deliberate subsets. Both require `credentials:write`; inventory omits tokens/
 hashes and returns at most 50 entries with an `after`/`next` UUID cursor.
 Scope escalation is 403; changed-scope, cross-account and revoked/expired token
 retries are 409. Existing `{token}` inherited issuance remains supported.
-See the [credential lifecycle contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/credential-lifecycle.md)
-and [post-expiry access design](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/account-access-recovery.md).
+See the [credential lifecycle contract](https://github.com/j4crev/hail/blob/main/apps/cli/docs/credential-lifecycle.md)
+and [post-expiry access design](https://github.com/j4crev/hail/blob/main/apps/cli/docs/account-access-recovery.md).
 
 ### Browser batch unsubscribe
 
@@ -546,7 +546,7 @@ five minutes, and persist across process restart. Completion consumes the nonce
 and issues the credential under the account-row lock in one transaction; an exact
 still-valid retry returns the same ID/expiry. Persistent preparation/completion
 rate buckets, bounded retention and protected generic completion responses reuse
-existing provider primitives. See the [recovery contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/account-access-recovery.md)
+existing provider primitives. See the [recovery contract](https://github.com/j4crev/hail/blob/main/apps/cli/docs/account-access-recovery.md)
 for the current behavior.
 
 ### Private-PLC onboarding
@@ -632,7 +632,7 @@ and an opt-in strict-public owner/monitor ceremony for both custody profiles. Li
 independent deployment, public recovery, history transport and managed migration still
 need work. Extend the account boundary over existing services and
 transactions rather than treating administrator CLIs as client APIs. The
-[API and custody plan](https://github.com/j4crev/hailproto/blob/main/docs/portable-custody.md#api-first-provider-and-cli-clients)
+[API and custody plan](https://github.com/j4crev/hail/blob/main/docs/portable-custody.md#api-first-provider-and-cli-clients)
 defines the first authenticated slice, profile-specific signing, isolation,
 binding-publication and managed-migration acceptance conditions.
 
@@ -661,7 +661,7 @@ bun run dev
 The server also runs pending migrations before binding its HTTP listener.
 
 Create and activate test accounts through the owner-key account API using the
-[`hailp` signup workflow](../cli/docs/cli-workflows.md#create-an-account). The
+[`racr` signup workflow](../cli/docs/cli-workflows.md#create-an-account). The
 legacy provider-custodial onboarding and activation commands have been removed.
 The public deployment profile is in [`deploy/public/README.md`](deploy/public/README.md).
 
@@ -676,7 +676,7 @@ After an account is active, create or idempotently reuse its signed Sender
 Profile from a closed JSON authoring document:
 
 ```bash
-bun run profile:create -- alice@hailproto.app examples/alice-profile.json
+bun run profile:create -- alice@racrproto.app examples/alice-profile.json
 ```
 
 Retrieve and verify a profile through current PLC state and hardened public
@@ -691,8 +691,8 @@ Profile verifies, create or idempotently reuse a signed Grant:
 
 ```bash
 bun run grant:create -- \
-  bob@hailproto.dev \
-  alice@hailproto.app \
+  bob@racrproto.dev \
+  alice@racrproto.app \
   examples/bob-to-alice-grant.json
 ```
 
@@ -708,7 +708,7 @@ bun run grant:publish -- --once
 Revoke an authoritative Grant with a terminal signed revision:
 
 ```bash
-bun run grant:revoke -- bob@hailproto.dev <grant-id>
+bun run grant:revoke -- bob@racrproto.dev <grant-id>
 ```
 
 Local revocation commits before publication and immediately remains

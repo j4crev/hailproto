@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { createWebCryptoVerifier, decodeBase64Url, encodeBase64Url, inspectSignedPayload, verifySignedPayload, type HailAddressBinding } from "@hailproto/codec";
+import { createWebCryptoVerifier, decodeBase64Url, encodeBase64Url, inspectSignedPayload, verifySignedPayload, type HailAddressBinding } from "@racrproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { AccountApiClient } from "../../../../packages/hail-client-support/src/account-api.js";
 import { privateFile,savePrivateBytes } from "./grant-revocation.js";
@@ -8,7 +8,7 @@ import { unlockUserIdentity,type UserVaultFile } from "./vault.js";
 import { readRecoverySecret } from "./private-input.js";
 
 function checked(record:Record<string,unknown>) {
-  if(record.type!=="hailp.address-binding"||record.version!==1||typeof record.cose!=="string"||record.cose.length>21846||
+  if(record.type!=="racr.address-binding"||record.version!==1||typeof record.cose!=="string"||record.cose.length>21846||
     typeof record.digest!=="string"||typeof record.bindingId!=="string"||!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(record.bindingId)||
     !["active","superseded"].includes(record.status as string))throw new Error("Invalid binding response");
   const bytes=decodeBase64Url(record.cose),payload=inspectSignedPayload("hail.address-binding",bytes).payload;

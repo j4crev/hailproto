@@ -1,4 +1,4 @@
-import { createWebCryptoVerifier, encodePayload, inspectSignedPayload, verifySignedPayload, type HailDeliveryStatus } from "@hailproto/codec";
+import { createWebCryptoVerifier, encodePayload, inspectSignedPayload, verifySignedPayload, type HailDeliveryStatus } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import type { EnvelopeAccounts } from "../envelopes/receiver.js";

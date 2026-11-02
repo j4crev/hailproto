@@ -1,4 +1,4 @@
-import { decodeDeterministic, encodeDeterministic, type HailValue } from "@hailproto/codec";
+import { decodeDeterministic, encodeDeterministic, type HailValue } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { evidenceHash, PUBLIC_EVIDENCE_LIMITS } from "./read-evidence.js";
 

@@ -1,6 +1,6 @@
 import {RegistrationPolicy,RegistrationError} from "../onboarding/registration.js";
 import { createHash,randomUUID,timingSafeEqual } from "node:crypto";
-import { decodeBase64Url } from "@hailproto/codec";
+import { decodeBase64Url } from "@racrproto/codec";
 import type { Hono } from "hono";
 import type { SQL } from "bun";
 import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
@@ -28,7 +28,7 @@ export function registerSelfServiceOnboarding(app: Hono, dependencies: SelfServi
     try {
       if (id) {
         if (!/^[0-9a-f-]{36}$/.test(id)) return context.json({error:"Invalid account"},400);
-        token = /^Bearer (hailp_[A-Za-z0-9_-]{43})$/.exec(context.req.header("Authorization") ?? "")?.[1];
+        token = /^Bearer (racr_[A-Za-z0-9_-]{43})$/.exec(context.req.header("Authorization") ?? "")?.[1];
         const table=dependencies.profile==="strict-public-v1"?"public_onboarding_preparations":"private_poc_onboarding_preparations";
         const rows = await dependencies.sql<{signup_token_hash:Uint8Array|null}[]>`
           SELECT signup_token_hash FROM ${dependencies.sql.unsafe(table)} WHERE account_id=${id}`;
@@ -58,7 +58,7 @@ export function registerSelfServiceOnboarding(app: Hono, dependencies: SelfServi
       }
       if (Object.keys(input).some(k=>!["operation","binding","monitor","enrollmentToken"].includes(k)) || !input.operation || typeof input.operation !== "object" ||
         (input.binding !== null && typeof input.binding !== "string")) return context.json({error:"Invalid signed registration"},400);
-      if(input.enrollmentToken!==undefined&&(typeof input.enrollmentToken!=="string"||!/^hailp_[A-Za-z0-9_-]{43}$/.test(input.enrollmentToken)||input.enrollmentToken===token))
+      if(input.enrollmentToken!==undefined&&(typeof input.enrollmentToken!=="string"||!/^racr_[A-Za-z0-9_-]{43}$/.test(input.enrollmentToken)||input.enrollmentToken===token))
         return context.json({error:"Invalid passkey enrollment"},400);
       const operation=new TextEncoder().encode(JSON.stringify(input.operation));
       const binding=input.binding === null ? new Uint8Array() : decodeBase64Url(input.binding as string);
@@ -98,10 +98,10 @@ export function registerSelfServiceOnboarding(app: Hono, dependencies: SelfServi
             WHERE capability.token_hash=${hash}`;
         }),capability=rows[0];
         if(!capability||capability.account_id!==id)throw new Error("Enrollment token conflicts");
-        enrollment={type:"hailp.passkey-enrollment",version:1,provider:dependencies.provider,accountId:id,token:input.enrollmentToken,
+        enrollment={type:"racr.passkey-enrollment",version:1,provider:dependencies.provider,accountId:id,token:input.enrollmentToken,
           url:`${dependencies.provider}/auth/recover#token=${encodeURIComponent(input.enrollmentToken)}`,expiresAt:capability.expires_at.toISOString()};
       }
-      return context.json({did:result.did,credential:{type:"hailp.api-credential",version:1,provider:dependencies.provider,...credential},...(enrollment?{enrollment}:{})});
+      return context.json({did:result.did,credential:{type:"racr.api-credential",version:1,provider:dependencies.provider,...credential},...(enrollment?{enrollment}:{})});
     } catch(error) { if(error instanceof RegistrationError)return context.json({error:error.message},error.status); return context.json({error:"Signup not completed; retain artifacts and retry the same request"},409); }
   });
 }

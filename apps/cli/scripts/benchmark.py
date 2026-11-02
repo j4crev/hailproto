@@ -12,9 +12,9 @@ import time
 
 binaries = [Path(value).resolve() for value in sys.argv[1:]]
 assert binaries, 'Supply one or more executable paths'
-env = {**os.environ, 'HAILP_CREDENTIAL_FILE': ''}
+env = {**os.environ, 'RACR_CREDENTIAL_FILE': ''}
 rows = []
-with tempfile.TemporaryDirectory(prefix='hailp-bench-') as directory:
+with tempfile.TemporaryDirectory(prefix='racr-bench-') as directory:
     vault, secret = Path(directory) / 'vault.json', Path(directory) / 'secret.txt'
     subprocess.run([str(binaries[0]), 'vault', 'create', '--vault', str(vault),
                     '--recovery-file', str(secret)], env=env, check=True, capture_output=True)

@@ -1,5 +1,5 @@
 import {createHash} from "node:crypto";
-import {createWebCryptoVerifier,verifySignedPayload,validateConversationRevivalBinding,type VerifiedHailObject,type HailConversation,type HailConversationRevival} from "@hailproto/codec";
+import {createWebCryptoVerifier,verifySignedPayload,validateConversationRevivalBinding,type VerifiedHailObject,type HailConversation,type HailConversationRevival} from "@racrproto/codec";
 import type {SQL} from "bun";
 import {ed25519PublicKeyFromDidKey} from "../identity/did-key.js";
 import type {PlcResolutionEvidence} from "../plc/resolver.js";

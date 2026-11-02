@@ -128,7 +128,7 @@ Alternative clients should start with the
 [account API contract](../../../cli/docs/cli-contract.md),
 [CLI workflows](../../../cli/docs/cli-workflows.md), and
 [protocol specifications](../../../../spec). Shared TypeScript response contracts
-live in `@hailproto/client-support/provider-contracts`; native apps consume the
+live in `@racrproto/client-support/provider-contracts`; native apps consume the
 same HTTP representations without depending on TypeScript packages. The reference
 client is an example consumer, not a required runtime dependency. The API remains
 pre-launch; this packaging split does not promise version-stable contracts.
@@ -175,13 +175,13 @@ create a host `brand` directory and add a local Compose overlay:
 services:
   web-client:
     volumes:
-      - ./brand:/workspace/hailproto/apps/client/build/client/brand:ro
+      - ./brand:/workspace/hail/apps/client/build/client/brand:ro
 ```
 
 Append this overlay to every Compose command. Assets must be readable by the
 container's unprivileged user. Remote image URLs are intentionally excluded by
 the client CSP. Names, accessible labels and page titles use the configured name;
-protocol references still say Hail. Recreate the client after changing settings.
+protocol references say RACR. Recreate the client after changing settings.
 
 
 ## First administrator: vault to dashboard
@@ -212,13 +212,13 @@ with the same values, not the vault-creation command in step 2.
 
 Have the following ready:
 
-- On your computer: a repository checkout with the native `apps/cli/dist/hailp`
+- On your computer: a repository checkout with the native `apps/cli/dist/racr`
   executable built, plus Rust/rustup, a C linker, Python 3, Bun, `jq`, SSH and
   SCP. From the repository root, build it with:
 
   ```bash
   python3 apps/cli/scripts/build.py
-  test -x apps/cli/dist/hailp
+  test -x apps/cli/dist/racr
   ```
 - On the provider: a current provider image and all current migrations (add the optional
   web-client image for the browser/passkey/dashboard steps),
@@ -253,7 +253,7 @@ the prompts. Origins include `https://` and have no trailing slash or path; for
 example, a provider origin might be `https://mail.example.org`.
 
 ```bash
-read -r -p 'Absolute path to your hailproto checkout: ' hail_repo
+read -r -p 'Absolute path to your hail checkout: ' hail_repo
 read -r -p 'Provider HTTPS origin: ' provider_origin
 read -r -p 'Monitor identity HTTPS origin: ' monitor_origin
 read -r -p 'Verified monitor public signing key (did:key:...): ' monitor_key
@@ -270,8 +270,8 @@ admin_address="admin@$provider_domain"
 admin_dir="$HOME/.local/share/hailproto/admin-$provider_domain"
 
 printf 'Account: %s\nPrivate directory: %s\nCLI: %s\n' \
-  "$admin_address" "$admin_dir" "$hail_repo/apps/cli/dist/hailp"
-test -x "$hail_repo/apps/cli/dist/hailp"
+  "$admin_address" "$admin_dir" "$hail_repo/apps/cli/dist/racr"
+test -x "$hail_repo/apps/cli/dist/racr"
 ```
 
 Stop if a command fails. `admin_dir` is a directory you create **on your own
@@ -286,10 +286,10 @@ Run once for a new account:
 
 ```bash
 install -d -m 700 "$admin_dir"
-"$hail_repo/apps/cli/dist/hailp" vault create \
+"$hail_repo/apps/cli/dist/racr" vault create \
   --vault "$admin_dir/vault.json" \
   --recovery-file "$admin_dir/recovery-secret.txt"
-"$hail_repo/apps/cli/dist/hailp" vault verify \
+"$hail_repo/apps/cli/dist/racr" vault verify \
   --vault "$admin_dir/vault.json" --expected-did unbound \
   < "$admin_dir/recovery-secret.txt"
 jq -r '.recovery.publicDidKey' "$admin_dir/vault.json"
@@ -330,7 +330,7 @@ ownership instead of replacing it.
 
 If the file check fails, update/rebuild the provider image before continuing.
 A host path such as `/opt/...` is not a container path. The reference container's
-working directory is `/workspace/hailproto/apps/server`; the relative CLI paths
+working directory is `/workspace/hail/apps/server`; the relative CLI paths
 above are resolved there by `docker exec`.
 
 #### Create the administrator's private invitation
@@ -383,7 +383,7 @@ Use `--backup-verified` only after checking your backup.
 ```bash
 set -o pipefail
 umask 077
-"$hail_repo/apps/cli/dist/hailp" account create \
+"$hail_repo/apps/cli/dist/racr" account create \
   --provider "$provider_origin" --address "$admin_address" --custody managed \
   --invitation "$admin_invitation" \
   --vault "$admin_dir/vault.json" \
@@ -531,7 +531,7 @@ complete command into your local terminal. The absolute CLI and file paths work
 from any current directory; no shell function needs to be defined.
 
 ```bash
-"$hail_repo/apps/cli/dist/hailp" account create \
+"$hail_repo/apps/cli/dist/racr" account create \
   --provider "$provider_origin" --address "$admin_address" --custody managed \
   --invitation "$admin_invitation" \
   --vault "$admin_dir/vault.json" \
@@ -610,7 +610,7 @@ changes require a new explicit grant.
 | Symptom | What to check |
 | --- | --- |
 | `admin_dir` is empty or points to the wrong place | Repeat step-1 settings in the local terminal; use your original private directory |
-| Local `Module not found ...hailp.ts` | `hail_repo` must be the absolute path to the installed checkout, not the private admin directory |
+| Local `Module not found ...racr.ts` | `hail_repo` must be the absolute path to the installed checkout, not the private admin directory |
 | Container lacks `src/cli/authorize-provider-role.ts` | Deploy the current provider image; do not substitute the host's checkout path |
 | `$DID` / `$GENESIS_CID` are unset | Step 5b explicitly reads lowercase `did` / `genesis_cid` from the public metadata file on the monitor host |
 | Unsure what to copy back | Download the JSON produced in step 5c, not the reviewed checkpoint or console error output |

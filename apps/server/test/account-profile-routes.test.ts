@@ -33,7 +33,7 @@ it("creates and reads an authenticated Sender Profile",async()=>{
   const created=await app.request("/api/v1/account/profile",{method:"POST",headers,
     body:JSON.stringify({expectedRevision:0,definition:{display_name:"Alice",offers_uncategorized:false,
       categories:[{id:"updates",label:"Updates"}]}})});
-  expect(created.status).toBe(200);expect(await created.json()).toMatchObject({type:"hailp.sender-profile",revision:1});
+  expect(created.status).toBe(200);expect(await created.json()).toMatchObject({type:"racr.sender-profile",revision:1});
   const shown=await app.request("/api/v1/account/profile",{headers:{Authorization:"Bearer test"}});
   expect(shown.status).toBe(200);expect(await shown.json()).toMatchObject({profile:{display_name:"Alice"}});
   const avatar=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64").toString("base64url");
@@ -42,7 +42,7 @@ it("creates and reads an authenticated Sender Profile",async()=>{
       categories:[{id:"updates",label:"Updates"}],avatar}})});
   expect(updated.status).toBe(200);expect(await updated.json()).toMatchObject({revision:2,profile:{version:2}});
   const sender=await app.request(`/api/v1/account/senders/${did}/profile`,{headers:{Authorization:"Bearer test"}});
-  expect(sender.status).toBe(200);expect(await sender.json()).toMatchObject({type:"hailp.verified-sender-profile",did,revision:2});
+  expect(sender.status).toBe(200);expect(await sender.json()).toMatchObject({type:"racr.verified-sender-profile",did,revision:2});
   expect((await app.request("/api/v1/account/profile",{method:"POST",headers,
     body:JSON.stringify({expectedRevision:0,definition:{display_name:"Alice",offers_uncategorized:false,categories:[],extra:true}})})).status).toBe(400);
 });

@@ -1,4 +1,4 @@
-import { encodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url } from "@racrproto/codec";
 import type { Hono } from "hono";
 import { canonicalizeHailAddress } from "../identity/address.js";
 import type { DiscoveryStore } from "./store.js";

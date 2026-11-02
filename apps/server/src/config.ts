@@ -234,4 +234,4 @@ export function loadConfig(environment: Environment = Bun.env): AppConfig {
     ...(alphaSignup?{alphaSignup}:{}),
   };
 }
-import { decodeBase64Url } from "@hailproto/codec";
+import { decodeBase64Url } from "@racrproto/codec";

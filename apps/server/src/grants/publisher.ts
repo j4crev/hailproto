@@ -1,4 +1,4 @@
-import { encodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url } from "@racrproto/codec";
 import type { DiscoveryFetch, NetworkTargetValidator } from "../discovery/verifier.js";
 import { COSE_SIGN1_MEDIA_TYPE } from "../discovery/routes.js";
 import type { HailDidResolver } from "../plc/resolver.js";

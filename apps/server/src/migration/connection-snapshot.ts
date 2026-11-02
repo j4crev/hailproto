@@ -1,5 +1,5 @@
 import {validateConversationHistory,conversationHistoryDigest,type ConversationHistory} from './conversation-history.js';
-import {decodeDeterministic,encodeBase64Url,inspectSignedPayload} from "@hailproto/codec";
+import {decodeDeterministic,encodeBase64Url,inspectSignedPayload} from "@racrproto/codec";
 import {connectionHistoryDigest,validateConnectionHistory,type ConnectionHistory} from "./connection-history.js";
 
 type Row=Record<string,unknown>;

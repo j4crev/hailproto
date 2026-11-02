@@ -2,7 +2,7 @@ import {collectConversationHistory,conversationHistoryDigest,type ConversationHi
 import { createHash } from "node:crypto";
 import { def } from "@did-plc/lib";
 import { decodeDeterministic, decodePayload, encodeBase64Url, encodeDeterministic, inspectSignedPayload,
-  type HailValue } from "@hailproto/codec";
+  type HailValue } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { bodyDigest, validateBodyBytes } from "../bodies/service.js";
 import type { KeyEncryptor } from "../identity/key-encryption.js";

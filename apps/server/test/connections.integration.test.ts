@@ -3,7 +3,7 @@ import {SQL} from "bun";
 import {Hono} from "hono";
 import {expect,it,vi} from "vitest";
 import {P256Keypair} from "@atproto/crypto";
-import {createWebCryptoSigner,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,signPayload,createWebCryptoVerifier,verifySignedPayload} from "@hailproto/codec";
+import {createWebCryptoSigner,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,signPayload,createWebCryptoVerifier,verifySignedPayload} from "@racrproto/codec";
 import {ProviderDatabase} from "../src/db/database.js";
 import {AccountConnections} from "../src/accounts/connections.js";
 import {registerConnectionRoutes} from "../src/accounts/connection-routes.js";
@@ -353,7 +353,7 @@ it.skipIf(!process.env.DATABASE_URL)("manages personal and expiring QR invitatio
     const ownerSigned=await signedOwner(o,ownerPrepared),broken=Uint8Array.from(ownerSigned);broken[broken.length-1]=broken[broken.length-1]!^1;
     expect((await cli(ownerAccess.token,"cli-commit",{requestId:ownerPrepared.requestId,cose:encodeBase64Url(broken)})).status).toBe(400);
     const committedOwner=await service.commit(ownerSession,ownerPrepared.requestId,undefined,ownerSigned);
-    expect(committedOwner.invitation).toMatchObject({did:o.did,type:"hailp.connection-invitation"});
+    expect(committedOwner.invitation).toMatchObject({did:o.did,type:"racr.connection-invitation"});
     expect((await service.commit(ownerSession,ownerPrepared.requestId)).result).toEqual(committedOwner.result);
     const refusal=await db.sql.reserve();try{await expect(refusal.unsafe(await Bun.file(new URL('../migrations/rollback/0083_connection_cli_approvals.sql',import.meta.url)).text())).rejects.toThrow('Retained CLI');}finally{await refusal.unsafe('ROLLBACK');refusal.release();}
     await accounts.revoke(ownerAccess.credentialId);

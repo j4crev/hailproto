@@ -3,7 +3,7 @@ import { SQL } from "bun";
 import { cidForCbor } from "@atproto/common";
 import { P256Keypair } from "@atproto/crypto";
 import { didForCreateOp, formatDidDoc, PlcClientError, signOperation, validateOperationLog, type Operation } from "@did-plc/lib";
-import { createWebCryptoSigner, encodeBase64Url, inspectSignedPayload, signPayload } from "@hailproto/codec";
+import { createWebCryptoSigner, encodeBase64Url, inspectSignedPayload, signPayload } from "@racrproto/codec";
 import { expect, it } from "vitest";
 import { ProviderDatabase } from "../src/db/database.js";
 import { KeyEncryptor } from "../src/identity/key-encryption.js";
@@ -62,7 +62,7 @@ it.skipIf(!process.env.DATABASE_URL)("public owner/managed onboarding seals owne
       const current = alpha ? new PublicOnboarding(db.sql, plc, resolver,
         new KeyEncryptor(encodeBase64Url(randomBytes(32))), "https://plc.directory", base, verifier,
         { profile: "reduced-assurance-alpha-v1", monitorOrigin: "https://monitor.example.com", monitorPublicKey: monitor.didKey }) : service;
-      const signupToken = `hailp_${encodeBase64Url(randomBytes(32))}`;
+      const signupToken = `racr_${encodeBase64Url(randomBytes(32))}`;
       const hash = new Uint8Array(createHash("sha256").update(signupToken).digest());
       if (alpha) {
         await expect(current.prepare(address, owner.did(), identity.didKey, true, custody,
@@ -105,7 +105,7 @@ it.skipIf(!process.env.DATABASE_URL)("public owner/managed onboarding seals owne
       const registered = await current.register(prepared.accountId, operationBytes, binding);
       expect(registered).toMatchObject({ did, state: "address-staged" });
       expect((await repository.getAccount(prepared.accountId)).state).toBe("address-staged");
-      expect((await emailBind(`hailp_${encodeBase64Url(randomBytes(32))}`)).status).toBe(403);
+      expect((await emailBind(`racr_${encodeBase64Url(randomBytes(32))}`)).status).toBe(403);
       expect((await emailBind()).status).toBe(alpha ? 200 : 403);
       expect(emailed).toBe(alpha ? 1 : 0);
       expect(await db.sql`SELECT account_id FROM public_onboarding_evidence WHERE account_id=${prepared.accountId}`).toHaveLength(0);

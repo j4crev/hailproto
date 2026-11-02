@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
 import type { SQL } from "bun";
 import { timingSafeEqual } from "node:crypto";
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec/base64url";
 import { tokenHash } from "../accounts/repository.js";
 import { accountRequestBytes } from "../accounts/routes.js";
 import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";
@@ -86,7 +86,7 @@ export function registerSignupEmailRoutes(app: Hono, sql: SQL, client: SignupEma
     if (retry !== null) { context.header("Retry-After", String(retry)); return context.json({ error: "Rate limited" }, 429); }
     if (context.req.header("Content-Type") !== "application/json" || context.req.header("Content-Encoding") !== undefined)
       return context.json({ error: "Use uncoded JSON" }, 415);
-    const token = /^Bearer (hailp_[A-Za-z0-9_-]{43})$/.exec(context.req.header("Authorization") ?? "")?.[1];
+    const token = /^Bearer (racr_[A-Za-z0-9_-]{43})$/.exec(context.req.header("Authorization") ?? "")?.[1];
     if (!token) return context.json({ error: "Signup capability required" }, 401);
     const step = context.req.param("step");
     if (step !== "start" && step !== "verify" && step !== "bind") return context.json({ error: "Unknown signup email operation" }, 404);

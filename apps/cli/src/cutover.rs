@@ -91,7 +91,7 @@ pub fn sign(args: &Args, managed: bool) -> Result<Value, Error> {
     let snapshot_path = &args.options["snapshot"];
     let op_path = &args.options["operation"];
     let mut state = t::load(path)?;
-    if !managed && (state["type"] != "hailp.account-transfer" || state["version"] != 1) {
+    if !managed && (state["type"] != "racr.account-transfer" || state["version"] != 1) {
         return Err(t::invalid());
     }
     let (grant, offer, selection, reservation) = snap::retained(&state, managed)?;
@@ -420,7 +420,7 @@ pub async fn complete(args: &Args, managed: bool) -> Result<Value, Error> {
     if c.is_null()
         || managed && c["snapshotPath"] != *sp
         || !managed
-            && (state["type"] != "hailp.account-transfer"
+            && (state["type"] != "racr.account-transfer"
                 || state["version"] != 1
                 || !c["operationCid"].is_string())
     {
@@ -509,9 +509,9 @@ pub async fn complete(args: &Args, managed: bool) -> Result<Value, Error> {
     let phase = t::text(&result["phase"])?;
     if result["type"]
         != if managed {
-            "hailp.managed-transfer-completion"
+            "racr.managed-transfer-completion"
         } else {
-            "hailp.transfer-completion"
+            "racr.transfer-completion"
         }
         || result["version"] != 1
         || result["did"] != state["did"]

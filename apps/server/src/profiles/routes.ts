@@ -1,4 +1,4 @@
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec";
 import type { Hono } from "hono";
 import { COSE_SIGN1_MEDIA_TYPE } from "../discovery/routes.js";
 import { acceptsCoseSign1 } from "../http/media-type.js";

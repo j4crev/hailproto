@@ -12,7 +12,7 @@ const run = await Bun.file(join(directory,"run.json")).json();
 const sql = new SQL(run.databaseUrl);
 const roots = Object.fromEntries(["alice","bob"].map(actor=>[actor,join(directory,"actors",actor)])) as Record<"alice"|"bob",string>;
 async function cli(actor:"alice"|"bob", args:string[], unlock=false, expected=0) {
-  const child=Bun.spawn([join(roots[actor],"hailp"),...args],{stdin:"pipe",stdout:"pipe",stderr:"pipe"});
+  const child=Bun.spawn([join(roots[actor],"racr"),...args],{stdin:"pipe",stdout:"pipe",stderr:"pipe"});
   if(unlock)child.stdin.write(await readFile(join(roots[actor],"recovery.txt"),"utf8"));
   child.stdin.end();
   const [exit,stdout,stderr]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);

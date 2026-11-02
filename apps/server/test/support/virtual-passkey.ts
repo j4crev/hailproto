@@ -1,5 +1,5 @@
 import {createHash,generateKeyPairSync,randomBytes,sign} from "node:crypto";
-import {encodeBase64Url} from "@hailproto/codec";
+import {encodeBase64Url} from "@racrproto/codec";
 
 export function virtualPasskey(){
   const id=encodeBase64Url(randomBytes(32)),keys=generateKeyPairSync("ec",{namedCurve:"prime256v1"}),

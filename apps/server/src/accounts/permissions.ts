@@ -4,7 +4,7 @@ import type {SQL} from "bun";
 import type {Hono} from "hono";
 import {getCookie} from "hono/cookie";
 import type {AuthenticationResponseJSON} from "@simplewebauthn/server";
-import {decodeDeterministic,encodeDeterministic,encodeBase64Url,toDiagnosticJson,validatePayload,type HailGrant} from "@hailproto/codec";
+import {decodeDeterministic,encodeDeterministic,encodeBase64Url,toDiagnosticJson,validatePayload,type HailGrant} from "@racrproto/codec";
 import type {AccountApiRepository,AccountApiSession} from "./repository.js";
 import {PasskeyAuth,PasskeyError} from "./passkeys.js";
 import {accountRequestBytes} from "./routes.js";

@@ -127,7 +127,7 @@ export function createApp(
   });
   app.get("/api/v1/capabilities",async context=>{
     context.header("Cache-Control","no-store");
-    try{return context.json({type:"hailp.capabilities",version:1,
+    try{return context.json({type:"racr.capabilities",version:1,
       features:{sharedConversations:Boolean(dependencies.accountApi?.publications&&dependencies.accountApi?.messaging),conversationControls:Boolean(dependencies.accountApi?.connections),inboxWait:Boolean(dependencies.accountApi?.messaging),conversations:Boolean(dependencies.accountApi?.messaging),connectionInvitations:Boolean(dependencies.accountApi?.connections)},
       signup:{available:Boolean(dependencies.selfServiceOnboarding),mode:registration?(await registration.read()).mode:null},
       passkeyRequired:["account browser-login","operator administration"]});}

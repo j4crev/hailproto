@@ -1,24 +1,24 @@
 # CLI workflows
 
-This page contains the normal `hailp` task recipes. It assumes the CLI is
+This page contains the normal `racr` task recipes. It assumes the CLI is
 [installed](cli-installation.md) and the provider has enabled the relevant
-account API feature. Use `hailp <command> --help` for the exact flags accepted
+account API feature. Use `racr <command> --help` for the exact flags accepted
 by your installed version.
 
 ## Conventions
 
 Examples keep private material under `/secure/account`. Create that directory
-with mode `0700`; `hailp` creates private outputs with mode `0600` and refuses
+with mode `0700`; `racr` creates private outputs with mode `0600` and refuses
 to overwrite unrelated files.
 
 Authenticated commands select a credential in this order:
 
 1. `--credentials /path/to/file`
-2. `HAILP_CREDENTIAL_FILE`
+2. `RACR_CREDENTIAL_FILE`
 
 ```bash
-export HAILP_CREDENTIAL_FILE=/secure/account/api.credential.json
-hailp account show
+export RACR_CREDENTIAL_FILE=/secure/account/api.credential.json
+racr account show
 ```
 
 Optional `--provider` and `--account-id` flags assert the origin and account in
@@ -36,10 +36,10 @@ Create the vault and separate recovery-secret file first:
 
 ```bash
 install -d -m 700 /secure/account
-hailp vault create \
+racr vault create \
   --vault /secure/account/vault.json \
   --recovery-file /secure/account/recovery-secret.txt
-hailp vault verify --vault /secure/account/vault.json --expected-did unbound
+racr vault verify --vault /secure/account/vault.json --expected-did unbound
 ```
 
 Copy both files to independent storage and verify the copy before using
@@ -48,7 +48,7 @@ Copy both files to independent storage and verify the copy before using
 For an owner-controlled identity:
 
 ```bash
-hailp account create \
+racr account create \
   --provider https://provider.example \
   --address me@provider.example \
   --custody owner-controlled \
@@ -84,19 +84,19 @@ Do not regenerate signup state or signed artifacts between these calls.
 ## Manage credentials
 
 ```bash
-hailp account show
-hailp credential list --pages 2
+racr account show
+racr credential list --pages 2
 
 # Omit --scope to inherit the current credential's scopes.
-hailp credential create --output /secure/account/reader.credential.json \
+racr credential create --output /secure/account/reader.credential.json \
   --scope account:read --scope grants:read --scope messages:read
 
-hailp credential rotate --output /secure/account/rotated.credential.json
-hailp credential revoke "$credential_id"
+racr credential rotate --output /secure/account/rotated.credential.json
+racr credential revoke "$credential_id"
 ```
 
 Rotation preserves the source credential's scopes. Switch
-`HAILP_CREDENTIAL_FILE` only after rotation succeeds. Keep the output and its
+`RACR_CREDENTIAL_FILE` only after rotation succeeds. Keep the output and its
 `.rotation.json` sidecar; resume an interrupted rotation using the original
 credential path and the same output, even if the original was already revoked.
 Rotate before expiry.
@@ -105,14 +105,14 @@ When no valid bearer credential remains, explicitly prove account ownership:
 
 ```bash
 # Owner-controlled account: identity key only.
-hailp account login --provider https://provider.example --did "$did" \
+racr account login --provider https://provider.example --did "$did" \
   --signer identity --vault /secure/account/vault.json \
   --state /secure/account/login.json \
   --credentials /secure/account/restored.credential.json \
   --scope account:read --scope credentials:write
 
 # Managed account: deliberate top-recovery-key proof.
-hailp account login --provider https://provider.example --did "$did" \
+racr account login --provider https://provider.example --did "$did" \
   --signer owner-recovery --vault /secure/account/vault.json \
   --state /secure/account/recovery-login.json \
   --credentials /secure/account/restored.credential.json \
@@ -136,9 +136,9 @@ create a Grant for them:
 ```
 
 ```bash
-hailp profile create --file /secure/account/profile.json
-hailp profile show
-hailp profile update --file /secure/account/profile.json
+racr profile create --file /secure/account/profile.json
+racr profile show
+racr profile update --file /secure/account/profile.json
 ```
 
 Create is idempotent for the same definition and refuses to replace an existing
@@ -152,20 +152,20 @@ limits. Set `"avatar": null` in a v2 update to remove it. V1 files remain valid.
 The sender address is the party the account permits to send messages.
 
 ```bash
-hailp grant create updates@sender.example \
+racr grant create updates@sender.example \
   --category updates --no-expiry \
   --vault /secure/account/vault.json \
   --output /secure/account/grant.cose
 
-hailp grant list
-hailp grant show "$grant_id" --output /secure/account/current-grant.cose
+racr grant list
+racr grant show "$grant_id" --output /secure/account/current-grant.cose
 
-hailp grant update "$grant_id" \
+racr grant update "$grant_id" \
   --category updates --expires-at "$future_unix_seconds" \
   --vault /secure/account/vault.json \
   --output /secure/account/updated-grant.cose
 
-hailp grant revoke "$grant_id" \
+racr grant revoke "$grant_id" \
   --vault /secure/account/vault.json \
   --output /secure/account/revoked-grant.cose
 ```
@@ -183,18 +183,18 @@ it does not mean the remote sender has acknowledged it.
 ## Send and receive messages
 
 ```bash
-hailp send --grant "$grant_id" --category updates \
+racr send --grant "$grant_id" --category updates \
   --file /secure/account/message.txt \
   --state /secure/account/send.json \
   --reply-until "$future_unix_seconds"
 
-hailp message status "$message_id" --wait 30 --interval 2
-hailp message submit "$message_id"
+racr message status "$message_id" --wait 30 --interval 2
+racr message submit "$message_id"
 
-hailp inbox list --pages 3
-hailp inbox show "$sender_did" "$message_id"
+racr inbox list --pages 3
+racr inbox show "$sender_did" "$message_id"
 
-hailp reply "$message_id" --file /secure/account/reply.txt \
+racr reply "$message_id" --file /secure/account/reply.txt \
   --state /secure/account/reply.json
 ```
 
@@ -214,7 +214,7 @@ and its passkey requirements are unchanged.
 Create an expiring invitation (expiration must be within one year):
 
 ```sh
-hailp connection invite --label 'Connect with Bob' \
+racr connection invite --label 'Connect with Bob' \
   --expires-at "$future_unix_seconds" \
   --vault /secure/account/vault.json \
   --state /secure/account/invite.json \
@@ -230,11 +230,11 @@ output path and public identifiers, never the admission token.
 On the peer's account:
 
 ```sh
-hailp connection accept --file /secure/account/peer-invitation.json \
+racr connection accept --file /secure/account/peer-invitation.json \
   --expected-did "$inviter_did" --vault /secure/account/vault.json \
   --state /secure/account/accept.json
-hailp connection status --state /secure/account/accept.json
-hailp connection list
+racr connection status --state /secure/account/accept.json
+racr connection list
 ```
 
 `connecting` is pending. Wait for status `active` or confirm the connection in
@@ -248,11 +248,11 @@ that prepared them, so another credential cannot finish or inspect them.
 Once active, either side can send text:
 
 ```sh
-hailp connection send "$connection_id" --file /secure/account/message.txt \
+racr connection send "$connection_id" --file /secure/account/message.txt \
   --state /secure/account/connection-send.json
-hailp message status "$message_id" --wait 30 --interval 2
-hailp inbox list
-hailp inbox show "$sender_did" "$message_id"
+racr message status "$message_id" --wait 30 --interval 2
+racr inbox list
+racr inbox show "$sender_did" "$message_id"
 ```
 
 Sending requires `account:read` and `messages:write`; it works with any active
@@ -269,14 +269,14 @@ mechanism and is not used for this flow.
 These commands are offline and unlock both vault keys:
 
 ```bash
-hailp vault verify --vault /secure/account/vault.json --expected-did "$did"
-hailp vault backup --vault /secure/account/vault.json \
+racr vault verify --vault /secure/account/vault.json --expected-did "$did"
+racr vault backup --vault /secure/account/vault.json \
   --output /independent/account.vault.json
 
 # On another installation:
-hailp vault import --file /independent/account.vault.json \
+racr vault import --file /independent/account.vault.json \
   --vault /secure/account/restored.vault.json --expected-did "$did"
-hailp vault verify --vault /secure/account/restored.vault.json \
+racr vault verify --vault /secure/account/restored.vault.json \
   --expected-did "$did"
 ```
 
@@ -301,8 +301,8 @@ independent-device backup; retain and test recoverable material away from the pr
 ## Publish an Address Binding
 
 ```bash
-hailp binding show
-hailp binding publish \
+racr binding show
+racr binding publish \
   --vault /secure/account/vault.json \
   --output /secure/account/published-binding.cose
 ```
@@ -319,11 +319,11 @@ destination is active and the source is retired.
 ### 1. Request and review the destination Offer
 
 ```bash
-hailp account transfer offer \
+racr account transfer offer \
   --destination https://destination.example \
   --vault /secure/account/vault.json \
   --state /secure/account/transfer.json
-hailp account transfer status
+racr account transfer status
 ```
 
 A pending Offer is not approval to create another state file. Repeat the same
@@ -332,7 +332,7 @@ command until the signed Offer is available, then review its destination.
 ### 2. Select the destination address
 
 ```bash
-hailp account transfer select --username moved-name \
+racr account transfer select --username moved-name \
   --vault /secure/account/vault.json \
   --state /secure/account/transfer.json
 ```
@@ -342,7 +342,7 @@ start a competing transfer or discard state. Before the source is fenced, you
 may cancel with the same vault and state:
 
 ```bash
-hailp account transfer cancel \
+racr account transfer cancel \
   --vault /secure/account/vault.json \
   --state /secure/account/transfer.json
 ```
@@ -350,7 +350,7 @@ hailp account transfer cancel \
 ### 3. Export the fenced source
 
 ```bash
-hailp account transfer export \
+racr account transfer export \
   --state /secure/account/transfer.json \
   --output /secure/account/source-snapshot.json
 ```
@@ -361,7 +361,7 @@ This step needs no credential or network, but deliberately unlocks both vault
 keys:
 
 ```bash
-hailp account transfer sign-cutover \
+racr account transfer sign-cutover \
   --vault /secure/account/vault.json \
   --state /secure/account/transfer.json \
   --snapshot /secure/account/source-snapshot.json \
@@ -376,11 +376,11 @@ original files and resume, or use the reviewed recovery procedure.
 ### 5. Complete and establish destination access
 
 ```bash
-hailp account transfer complete \
+racr account transfer complete \
   --state /secure/account/transfer.json \
   --snapshot /secure/account/source-snapshot.json
 
-hailp account login --provider https://destination.example --did "$did" \
+racr account login --provider https://destination.example --did "$did" \
   --signer identity --vault /secure/account/vault.json \
   --state /secure/account/destination-login.json \
   --credentials /secure/account/destination.credential.json \
@@ -404,29 +404,29 @@ Managed migration keeps owner approval, source export, PLC cutover and destinati
 activation in separate resumable steps.
 
 ```bash
-hailp account managed-transfer offer \
+racr account managed-transfer offer \
   --destination https://destination.example \
   --vault /secure/account/vault.json \
   --state /secure/account/managed-transfer.json
 
-hailp account managed-transfer status
+racr account managed-transfer status
 
-hailp account managed-transfer select --username moved-name \
+racr account managed-transfer select --username moved-name \
   --vault /secure/account/vault.json \
   --state /secure/account/managed-transfer.json
 
-hailp account managed-transfer export \
+racr account managed-transfer export \
   --state /secure/account/managed-transfer.json \
   --output /secure/account/managed-snapshot.json
 
-hailp account managed-transfer sign-cutover \
+racr account managed-transfer sign-cutover \
   --vault /secure/account/vault.json \
   --state /secure/account/managed-transfer.json \
   --snapshot /secure/account/managed-snapshot.json \
   --operation /secure/account/managed-operation.json \
   --approval /secure/account/managed-approval.json
 
-hailp account managed-transfer complete \
+racr account managed-transfer complete \
   --state /secure/account/managed-transfer.json \
   --snapshot /secure/account/managed-snapshot.json
 ```
@@ -450,7 +450,7 @@ Use a credential with `account:write`, the bound owner vault, and a new private
 state path:
 
 ```bash
-hailp account custody managed \
+racr account custody managed \
   --vault /secure/account/vault.json \
   --state /secure/account/custody-transition.json
 ```
@@ -470,7 +470,7 @@ To return a managed account to fresh client-held identity custody, first make an
 independent backup of the vault/recovery secret, then run:
 
 ```bash
-hailp account custody owner-controlled \
+racr account custody owner-controlled \
   --vault /secure/account/vault.json \
   --state /secure/account/custody-transition.json \
   --backup-verified
@@ -498,9 +498,9 @@ See the [CLI contract](cli-contract.md) for the full machine-facing rules.
 ## Delete a received message permanently
 
 ```sh
-hailp inbox list
-hailp message delete "$sender_did" "$message_id"
-# Equivalent: hailp inbox delete "$sender_did" "$message_id"
+racr inbox list
+racr message delete "$sender_did" "$message_id"
+# Equivalent: racr inbox delete "$sender_did" "$message_id"
 ```
 
 Use a credential with `messages:write`. This bypasses web Trash and cannot be
@@ -510,21 +510,21 @@ to avoid ambiguity between senders. A retry of the same deletion is harmless.
 ## Ongoing messaging
 
 ```sh
-hailp inbox wait --from did:plc:aaaaaaaaaaaaaaaaaaaaaaaa --timeout 60
-hailp inbox wait --from did:plc:aaaaaaaaaaaaaaaaaaaaaaaa --after <cursor> --timeout 60
-hailp conversation list
-hailp conversation show did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
-hailp conversation thread <sender-did> <message-id>
-hailp conversation mark-read did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
-hailp conversation mark-unread did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
-hailp conversation trash did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
-hailp conversation list --trash
-hailp conversation restore did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
-hailp connection invitations
-hailp connection revoke-invitation <invitation-id>
-hailp doctor --provider https://provider.example
-hailp doctor --credentials credential.json --scope messages:read
-hailp doctor --provider https://provider.example --action 'account browser-login'
+racr inbox wait --from did:plc:aaaaaaaaaaaaaaaaaaaaaaaa --timeout 60
+racr inbox wait --from did:plc:aaaaaaaaaaaaaaaaaaaaaaaa --after <cursor> --timeout 60
+racr conversation list
+racr conversation show did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
+racr conversation thread <sender-did> <message-id>
+racr conversation mark-read did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
+racr conversation mark-unread did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
+racr conversation trash did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
+racr conversation list --trash
+racr conversation restore did:plc:aaaaaaaaaaaaaaaaaaaaaaaa
+racr connection invitations
+racr connection revoke-invitation <invitation-id>
+racr doctor --provider https://provider.example
+racr doctor --credentials credential.json --scope messages:read
+racr doctor --provider https://provider.example --action 'account browser-login'
 ```
 
 Wait includes existing visible deliveries on first use, returns at most 50
@@ -567,12 +567,12 @@ Select a credential with `account:read`, `messages:read`, and `messages:write`.
 Use `connection list` to find the connection IDs for the initial recipients:
 
 ```sh
-hailp conversation start --connection "$BOB_CONNECTION" --connection "$CAROL_CONNECTION" \
+racr conversation start --connection "$BOB_CONNECTION" --connection "$CAROL_CONNECTION" \
   --file message.txt --state group-start.json
-hailp conversation status "$BATCH_ID"
-hailp conversation inbox
-hailp conversation messages "$SENDER_DID" "$MESSAGE_ID" --offset 0
-hailp conversation reply-all "$SENDER_DID" "$MESSAGE_ID" \
+racr conversation status "$BATCH_ID"
+racr conversation inbox
+racr conversation messages "$SENDER_DID" "$MESSAGE_ID" --offset 0
+racr conversation reply-all "$SENDER_DID" "$MESSAGE_ID" \
   --file reply.txt --state group-reply.json
 ```
 
@@ -603,11 +603,11 @@ Reading, listing, polling, and bulk mark-read do not renew participation. Use an
 explicit open when you want to record activity:
 
 ```sh
-hailp conversation inspect "$CREATOR_DID" "$CONVERSATION_ID"
-hailp conversation open "$CREATOR_DID" "$CONVERSATION_ID"
-hailp conversation leave "$CREATOR_DID" "$CONVERSATION_ID"
-hailp conversation rejoin "$CREATOR_DID" "$CONVERSATION_ID"
-hailp conversation revive "$CONVERSATION_ID" --state revival.json
+racr conversation inspect "$CREATOR_DID" "$CONVERSATION_ID"
+racr conversation open "$CREATOR_DID" "$CONVERSATION_ID"
+racr conversation leave "$CREATOR_DID" "$CONVERSATION_ID"
+racr conversation rejoin "$CREATOR_DID" "$CONVERSATION_ID"
+racr conversation revive "$CONVERSATION_ID" --state revival.json
 ```
 
 Open renews only active participation; sending reply-all also records activity.
@@ -619,10 +619,10 @@ to retrieve progress; outcomes are reported separately for each recipient.
 Introduction policy uses `account:read` to inspect and `account:write` to edit:
 
 ```sh
-hailp conversation preferences show
-hailp conversation preferences set --allow false
-hailp conversation preferences set --connection "$CONNECTION_ID" --epoch 1 --allow true
-hailp conversation preferences set --connection "$CONNECTION_ID" --epoch 1 --allow default
+racr conversation preferences show
+racr conversation preferences set --allow false
+racr conversation preferences set --connection "$CONNECTION_ID" --epoch 1 --allow true
+racr conversation preferences set --connection "$CONNECTION_ID" --epoch 1 --allow default
 ```
 
 Use the current epoch returned by preferences or connection listing. Overrides

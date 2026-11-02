@@ -3,7 +3,7 @@ import { cidForCbor } from "@atproto/common";
 import { assureValidNextOp, def, validateOperationLog, type ExportedOp, type IndexedOperation } from "@did-plc/lib";
 import type { PlcResolutionEvidence } from "./resolver.js";
 import { createHash } from "node:crypto";
-import { DEFAULT_HAIL_RESOURCE_LIMITS, encodeBase64Url, encodeDeterministic, type HailValue } from "@hailproto/codec";
+import { DEFAULT_HAIL_RESOURCE_LIMITS, encodeBase64Url, encodeDeterministic, type HailValue } from "@racrproto/codec";
 import type { DocumentData } from "@did-plc/lib";
 
 export const PUBLIC_EVIDENCE_LIMITS = { ...DEFAULT_HAIL_RESOURCE_LIMITS,

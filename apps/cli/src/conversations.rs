@@ -129,7 +129,7 @@ async fn submit(client: &Client, args: &Args) -> Result<Value, Error> {
         _ => "/connections/cli-conversation-revive",
     };
     let state = if let Some(state) = saved {
-        if state["type"] != "hailp.conversation-operation"
+        if state["type"] != "racr.conversation-operation"
             || state["version"] != 1
             || state["accountId"] != account["accountId"]
             || state["provider"] != account["provider"]
@@ -174,7 +174,7 @@ async fn submit(client: &Client, args: &Args) -> Result<Value, Error> {
             }
             _ => json!({"operationId":id,"conversationId":args.positionals[0]}),
         };
-        let state = json!({"type":"hailp.conversation-operation","version":1,"accountId":account["accountId"],"provider":account["provider"],"path":path,"intent":intent,"request":request});
+        let state = json!({"type":"racr.conversation-operation","version":1,"accountId":account["accountId"],"provider":account["provider"],"path":path,"intent":intent,"request":request});
         private::create(state_path, state.to_string().as_bytes())?;
         state
     };

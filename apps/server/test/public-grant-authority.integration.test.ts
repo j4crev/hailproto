@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { SQL } from "bun";
-import { createWebCryptoSigner,signPayload,type HailGrant,type HailAddressBinding,type HailSenderProfile } from "@hailproto/codec";
+import { createWebCryptoSigner,signPayload,type HailGrant,type HailAddressBinding,type HailSenderProfile } from "@racrproto/codec";
 import { expect,it } from "vitest";
 import { ProviderDatabase } from "../src/db/database.js";
 import { GrantRepository } from "../src/grants/repository.js";

@@ -5,20 +5,20 @@ Active Grant updates retain explicit selection, fresh consent where required and
 ## Explicit selection and signed revisions
 
 ```bash
-hailp grant create updates@sender.example.com \
+racr grant create updates@sender.example.com \
   --category receipts --category security --output /secure/grant.cose \
   --vault /secure/account.vault.json --expires-at "$initial_deadline"
-hailp grant update "$grant_id" --category receipts --category security \
+racr grant update "$grant_id" --category receipts --category security \
   --expires-at "$renewed_deadline" --output /secure/revision.cose \
   --vault /secure/account.vault.json
 # Refresh current consent without changing permissions/expiry:
-hailp grant update "$grant_id" --category receipts --category security \
+racr grant update "$grant_id" --category receipts --category security \
   --refresh-consent --output /secure/refreshed.cose --vault /secure/account.vault.json
 # A unilateral restriction preserves old expiry and consent:
-hailp grant update "$grant_id" --category receipts \
+racr grant update "$grant_id" --category receipts \
   --output /secure/restricted.cose --vault /secure/account.vault.json
 # Remove the remaining category entirely:
-hailp grant revoke "$grant_id" --output /secure/revoked.cose \
+racr grant revoke "$grant_id" --output /secure/revoked.cose \
   --vault /secure/account.vault.json
 ```
 

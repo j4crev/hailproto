@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { inspectSignedPayload, type HailCancellationReason, type HailEnvelope, type HailFailureReason, type HailHoldReason } from "@hailproto/codec";
+import { inspectSignedPayload, type HailCancellationReason, type HailEnvelope, type HailFailureReason, type HailHoldReason } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { bodyDigest, validateBodyBytes } from "../bodies/service.js";
 import {connectionMessageAllowed,type ConnectionMessagingAuthority} from "../accounts/connection-authorization.js";

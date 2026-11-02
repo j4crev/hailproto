@@ -1,4 +1,4 @@
-# `@hailproto/codec`
+# `@racrproto/codec`
 
 Reference TypeScript implementation of the Hail v0 deterministic CBOR and COSE_Sign1 profile.
 
@@ -25,7 +25,7 @@ import {
   signPayload,
   verifySignedPayload,
   type HailAddressBinding,
-} from "@hailproto/codec";
+} from "@racrproto/codec";
 
 const binding: HailAddressBinding = {
   version: 2,

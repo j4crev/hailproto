@@ -1,4 +1,4 @@
-import { decodeDeterministic } from "@hailproto/codec";
+import { decodeDeterministic } from "@racrproto/codec";
 import type { SQL } from "bun";
 import type { HailDidResolver } from "../plc/resolver.js";
 import { handshakeDigest, sameDigest, verifyHandshake, type SignedHandshake } from "./handshake.js";

@@ -2,7 +2,7 @@ import {assertCheckpointConformance} from "./support/account-history-conformance
 import {collectConnectionHistory} from "../src/migration/connection-history.js";
 import {expect,it} from 'vitest';
 import {createHash} from 'node:crypto';
-import {createWebCryptoSigner,createWebCryptoVerifier,signPayload,verifySignedPayload,inspectSignedPayload} from '@hailproto/codec';
+import {createWebCryptoSigner,createWebCryptoVerifier,signPayload,verifySignedPayload,inspectSignedPayload} from '@racrproto/codec';
 import {ProviderDatabase} from '../src/db/database.js';
 import {withServingGeneration} from '../src/db/serving.js';
 import {sharedConversationFixture} from './support/shared-conversation-fixture.js';

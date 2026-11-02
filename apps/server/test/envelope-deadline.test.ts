@@ -1,5 +1,5 @@
 import { base58btc } from "multiformats/bases/base58";
-import { createWebCryptoSigner, signPayload } from "@hailproto/codec";
+import { createWebCryptoSigner, signPayload } from "@racrproto/codec";
 import { describe, expect, it, vi } from "vitest";
 import { EnvelopeReceiver } from "../src/envelopes/receiver.js";
 import type { EnvelopeRepository } from "../src/envelopes/repository.js";

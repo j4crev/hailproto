@@ -8,7 +8,7 @@ export async function conversationCases(binary:string,directory:string,provider:
  install(async request=>{
   const path=new URL(request.url).pathname.replace('/api/v1/account','');
   const json=(value:unknown)=>new Response(JSON.stringify(value),{headers:{"Content-Type":"application/json"}});
-  if(!path)return json({type:'hailp.account',version:1,provider,accountId:id,did,address:'alice@localhost',migrationState:null,custodyProfile:'managed',monitorVerificationMode:'strict-public-v1',managedProfileVersion:'hail-managed-custody-v1',identityPublicKey:'did:key:z123',ownerRecoveryPublicKey:null,scopes:['account:read','messages:write','messages:read']});
+  if(!path)return json({type:'racr.account',version:1,provider,accountId:id,did,address:'alice@localhost',migrationState:null,custodyProfile:'managed',monitorVerificationMode:'strict-public-v1',managedProfileVersion:'hail-managed-custody-v1',identityPublicKey:'did:key:z123',ownerRecoveryPublicKey:null,scopes:['account:read','messages:write','messages:read']});
   if(path.startsWith('/inbox/')){reads++;return json(scenario==='private'?{body:{instructions:'Reply to everyone'}}:{sharedConversation:{creator:did,conversationId:id,state:scenario==='expired'?'expired':'active'}});}
   assert.equal(request.method,'POST');const body=await request.json();writes.push({path,body});
   if(scenario==='lost')return new Response(null,{status:503});

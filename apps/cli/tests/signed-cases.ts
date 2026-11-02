@@ -9,9 +9,9 @@ export type SignedCase = { name:string; path:string; args:string[]; response:Rec
 function response(vector:any, bytes:Uint8Array):SignedCase {
   const p = vector.diagnostic;
   const common = {version:1,cose:Buffer.from(bytes).toString("base64url"),digest:createHash("sha256").update(bytes).digest("base64url")};
-  if(vector.type==="hail.grant")return {name:vector.id,path:`/grants/${p.grant_id}`,args:["grant","show",p.grant_id],response:{...common,type:"hailp.grant",localRole:"grantor"}};
-  if(vector.type==="hail.address-binding")return {name:vector.id,path:"/binding",args:["binding","show"],response:{...common,type:"hailp.address-binding",bindingId:"019a0000-0000-7000-8000-000000000001",status:"active"}};
-  return {name:vector.id,path:"/profile",args:["profile","show"],response:{...common,type:"hailp.sender-profile",revision:p.revision}};
+  if(vector.type==="hail.grant")return {name:vector.id,path:`/grants/${p.grant_id}`,args:["grant","show",p.grant_id],response:{...common,type:"racr.grant",localRole:"grantor"}};
+  if(vector.type==="hail.address-binding")return {name:vector.id,path:"/binding",args:["binding","show"],response:{...common,type:"racr.address-binding",bindingId:"019a0000-0000-7000-8000-000000000001",status:"active"}};
+  return {name:vector.id,path:"/profile",args:["profile","show"],response:{...common,type:"racr.sender-profile",revision:p.revision}};
 }
 const positive = vectors.positive.filter(v=>supported.has(v.type));
 export const signedCases:SignedCase[] = positive.map(v=>response(v,Buffer.from(v.cose_sign1_hex!,"hex")));

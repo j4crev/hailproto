@@ -1,8 +1,8 @@
-# Hail Protocol Concept Design Notes
+# RACR Protocol Concept Design Notes
 
 This document is a nonnormative design overview. The files under [`../spec`](../spec) are authoritative where they differ. Sections explicitly labeled as future direction are not part of v0.
 
-Hail Protocol is a federated, permission-based messaging concept intended to solve the downfalls of email by changing the default delivery model and strengthening sender identity, message authorization, deliverability, and client-side safety.
+RACR Protocol is a federated, permission-based messaging concept intended to solve the downfalls of email by changing the default delivery model and strengthening sender identity, message authorization, deliverability, and client-side safety.
 
 ## Goals
 
@@ -466,7 +466,7 @@ The pitch to legitimate senders is better deliverability and more honest engagem
 ## Reference Architecture
 
 The TypeScript provider owns account APIs, federation handlers, durable workers
-and transactional delivery/transfer state. The browser client and `hailp` use
+and transactional delivery/transfer state. The browser client and `racr` use
 its account API; independent providers interoperate through the federation
 specifications. TypeScript and Go codecs share conformance vectors.
 

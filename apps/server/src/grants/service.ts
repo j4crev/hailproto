@@ -8,7 +8,7 @@ import {
   validatePayload,
   type HailGrant,
   type HailGrantScope,
-} from "@hailproto/codec";
+} from "@racrproto/codec";
 import type { AddressVerifier } from "../discovery/verifier.js";
 import { canonicalizeHailAddress } from "../identity/address.js";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
@@ -20,7 +20,7 @@ import type { HailDidResolver } from "../plc/resolver.js";
 import type { PlcResolutionEvidence } from "../plc/resolver.js";
 import type { SenderProfileVerifier } from "../profiles/verifier.js";
 import type { GrantStore, SignedGrantRevision, SignedGrantRevisionInput } from "./store.js";
-import { inspectSignedPayload } from "@hailproto/codec";
+import { inspectSignedPayload } from "@racrproto/codec";
 import { expandsAuthorization, restrictsAuthorization } from "./revision.js";
 import { assertPublicAuthorityFresh } from "../plc/authority.js";
 
