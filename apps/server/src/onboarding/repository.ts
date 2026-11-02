@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Operation } from "@did-plc/lib";
-import { encodeBase64Url, fromDiagnosticJson, toDiagnosticJson, type DiagnosticJson } from "@hailproto/codec";
+import { encodeBase64Url, fromDiagnosticJson, toDiagnosticJson, type DiagnosticJson } from "@racrproto/codec";
 import type { SQL } from "bun";
 import type { StoredAccountKey } from "../identity/keys.js";
 import type { DiscoveryStore, PublishedAddressBinding } from "../discovery/store.js";

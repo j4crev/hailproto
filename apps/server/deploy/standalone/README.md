@@ -128,7 +128,7 @@ Alternative clients should start with the
 [account API contract](../../../cli/docs/cli-contract.md),
 [CLI workflows](../../../cli/docs/cli-workflows.md), and
 [protocol specifications](../../../../spec). Shared TypeScript response contracts
-live in `@hailproto/client-support/provider-contracts`; native apps consume the
+live in `@racrproto/client-support/provider-contracts`; native apps consume the
 same HTTP representations without depending on TypeScript packages. The reference
 client is an example consumer, not a required runtime dependency. The API remains
 pre-launch; this packaging split does not promise version-stable contracts.
@@ -175,7 +175,7 @@ create a host `brand` directory and add a local Compose overlay:
 services:
   web-client:
     volumes:
-      - ./brand:/workspace/hailproto/apps/client/build/client/brand:ro
+      - ./brand:/workspace/hail/apps/client/build/client/brand:ro
 ```
 
 Append this overlay to every Compose command. Assets must be readable by the
@@ -253,7 +253,7 @@ the prompts. Origins include `https://` and have no trailing slash or path; for
 example, a provider origin might be `https://mail.example.org`.
 
 ```bash
-read -r -p 'Absolute path to your hailproto checkout: ' hail_repo
+read -r -p 'Absolute path to your hail checkout: ' hail_repo
 read -r -p 'Provider HTTPS origin: ' provider_origin
 read -r -p 'Monitor identity HTTPS origin: ' monitor_origin
 read -r -p 'Verified monitor public signing key (did:key:...): ' monitor_key
@@ -330,7 +330,7 @@ ownership instead of replacing it.
 
 If the file check fails, update/rebuild the provider image before continuing.
 A host path such as `/opt/...` is not a container path. The reference container's
-working directory is `/workspace/hailproto/apps/server`; the relative CLI paths
+working directory is `/workspace/hail/apps/server`; the relative CLI paths
 above are resolved there by `docker exec`.
 
 #### Create the administrator's private invitation

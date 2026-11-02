@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { Hono } from "hono";
-import { encodeBase64Url } from "@hailproto/codec/base64url";
+import { encodeBase64Url } from "@racrproto/codec/base64url";
 import { expect, it, vi } from "vitest";
 import { SignupEmailClient, registerSignupEmailRoutes } from "../src/onboarding/email.js";
 import { tokenHash } from "../src/accounts/repository.js";

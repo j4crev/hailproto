@@ -6,7 +6,7 @@ import {join,resolve} from "node:path";
 import {createServer} from "node:http";
 import {connect} from "node:net";
 import {createUserVault,cipher,unlockIdentityKey} from "../../../packages/hail-client-support/src/vault-crypto.ts";
-const {encodeDeterministic,decodeDeterministic}=await import(Bun.resolveSync("@hailproto/codec",new URL("../../cli",import.meta.url).pathname));
+const {encodeDeterministic,decodeDeterministic}=await import(Bun.resolveSync("@racrproto/codec",new URL("../../cli",import.meta.url).pathname));
 const {verifySignature}=await import(Bun.resolveSync("@atproto/crypto",new URL("../../cli",import.meta.url).pathname));
 const {encode}=await import(Bun.resolveSync("@ipld/dag-cbor",new URL("../../cli",import.meta.url).pathname));
 const {cidForCbor}=await import(Bun.resolveSync("@atproto/common",new URL("../../cli",import.meta.url).pathname));

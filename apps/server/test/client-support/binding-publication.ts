@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { createWebCryptoVerifier, decodeBase64Url, encodeBase64Url, inspectSignedPayload, verifySignedPayload, type HailAddressBinding } from "@hailproto/codec";
+import { createWebCryptoVerifier, decodeBase64Url, encodeBase64Url, inspectSignedPayload, verifySignedPayload, type HailAddressBinding } from "@racrproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { AccountApiClient } from "../../../../packages/hail-client-support/src/account-api.js";
 import { privateFile,savePrivateBytes } from "./grant-revocation.js";

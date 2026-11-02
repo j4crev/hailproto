@@ -1,4 +1,4 @@
-import type {HailSpt2Body} from '@hailproto/codec';
+import type {HailSpt2Body} from '@racrproto/codec';
 import {messageDisplayContent, parseMessage, type MessageBlock, type MessageView} from './messages.js';
 
 export const REPLY_HEADING='Quoted reply';

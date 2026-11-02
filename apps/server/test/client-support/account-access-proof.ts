@@ -1,5 +1,5 @@
 import { isIP } from "node:net";
-import { encodeDeterministic, type HailValue } from "@hailproto/codec";
+import { encodeDeterministic, type HailValue } from "@racrproto/codec";
 
 export interface AccountAccessChallenge {
   type: "racr.account-access"; version: 1; purpose: "new-api-credential"|"passkey-enrollment";

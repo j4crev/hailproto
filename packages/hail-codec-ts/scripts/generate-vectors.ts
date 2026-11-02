@@ -506,7 +506,7 @@ const tokenText = encodeBase64Url(token);
 
 const manifest = {
   format: "hail-conformance-vectors-1",
-  generated_by: "@hailproto/codec@0.0.0",
+  generated_by: "@racrproto/codec@0.0.0",
   signature_profile: "COSE_Sign1 / RFC 9864 Ed25519 (-19)",
   test_keys: testKeys,
   positive,

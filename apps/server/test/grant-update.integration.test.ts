@@ -3,7 +3,7 @@ import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
-import {createWebCryptoSigner,encodeBase64Url,inspectSignedPayload,signPayload,toDiagnosticJson,type HailAddressBinding,type HailGrant,type HailSenderProfile} from "@hailproto/codec";
+import {createWebCryptoSigner,encodeBase64Url,inspectSignedPayload,signPayload,toDiagnosticJson,type HailAddressBinding,type HailGrant,type HailSenderProfile} from "@racrproto/codec";
 import {base58btc} from "multiformats/bases/base58";
 import {Hono} from "hono";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";

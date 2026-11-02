@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { resolve } from "node:path";
-import { encodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url } from "@racrproto/codec";
 import { AccountApiClient, AccountApiError, credentialScopes, type AccountApiScope } from "../../../../packages/hail-client-support/src/account-api.js";
 import { privateFile, savePrivateBytes } from "./grant-revocation.js";
 import { writeState } from "./account-creation.js";

@@ -40,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix=project) as temporary:
     provider_override.write_text(json.dumps({'services': {'provider': {'ports': ['127.0.0.1::3000']}}}))
     client_override = directory / 'client.json'
     client_override.write_text(json.dumps({'services': {'web-client': {
-        'volumes': [f'{brand}:/workspace/hailproto/apps/client/build/client/brand:ro']
+        'volumes': [f'{brand}:/workspace/hail/apps/client/build/client/brand:ro']
     }}}))
     base = ['docker', 'compose', '--project-name', project, '--env-file', str(environment), '-f', str(profile / 'compose.yaml')]
     server = base + ['-f', str(provider_override)]
@@ -67,7 +67,7 @@ with tempfile.TemporaryDirectory(prefix=project) as temporary:
         assert request('/')[0] == 404
         assert request('/api/unknown')[0] == 404
         run(server + ['exec', '-T', 'provider', 'sh', '-c',
-            'test ! -d /workspace/hailproto/apps/client && test -f src/cli/create-signup-invitation.ts'])
+            'test ! -d /workspace/hail/apps/client && test -f src/cli/create-signup-invitation.ts'])
         print('PASS: provider-only migrations, readiness and API/page boundaries', flush=True)
         run(client + ['up', '-d', '--no-build', '--wait', '--wait-timeout', '120', 'db', 'web-client', 'provider'])
         status, html = request('/')

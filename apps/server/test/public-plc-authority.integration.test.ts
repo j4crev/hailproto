@@ -2,7 +2,7 @@ import { randomBytes,randomUUID } from "node:crypto";
 import { SQL } from "bun";
 import { cidForCbor } from "@atproto/common";
 import { signOperation } from "@did-plc/lib";
-import { createWebCryptoSigner,signPayload,inspectSignedPayload,decodeDeterministic,type HailEnvelope,type HailGrant } from "@hailproto/codec";
+import { createWebCryptoSigner,signPayload,inspectSignedPayload,decodeDeterministic,type HailEnvelope,type HailGrant } from "@racrproto/codec";
 import { expect,it } from "vitest";
 import { ProviderDatabase } from "../src/db/database.js";
 import { EnvelopeRepository } from "../src/envelopes/repository.js";

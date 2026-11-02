@@ -2,7 +2,7 @@ import {createHash} from "node:crypto";
 import {isDeepStrictEqual} from "node:util";
 import {cidForCbor} from "@atproto/common";
 import {def,validateOperationLog,type Operation} from "@did-plc/lib";
-import {decodeBase64Url} from "@hailproto/codec";
+import {decodeBase64Url} from "@racrproto/codec";
 import type {SQL} from "bun";
 import {parseJsonWithoutDuplicateKeys} from "../discovery/strict-json.js";
 import type {PlcDirectoryClient} from "../plc/client.js";

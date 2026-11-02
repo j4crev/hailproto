@@ -8,7 +8,7 @@ import { getCookie } from "hono/cookie";
 import { assureValidSig, def, didForCreateOp, type Operation } from "@did-plc/lib";
 import { encode as encodeDagCbor } from "@ipld/dag-cbor";
 import { parseDidKey, P256_JWT_ALG, SECP256K1_JWT_ALG } from "@atproto/crypto";
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec/base64url";
 import { canonicalizeHailAddress } from "../identity/address.js";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import { accountRequestBytes } from "../accounts/routes.js";

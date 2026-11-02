@@ -2,7 +2,7 @@ import { cidForCbor } from "@atproto/common";
 import { P256Keypair } from "@atproto/crypto";
 import { formatDidDoc, signOperation, validateOperationLog, type DocumentData } from "@did-plc/lib";
 import { base58btc } from "multiformats/bases/base58";
-import { createWebCryptoSigner, signPayload, type HailEnvelope } from "@hailproto/codec";
+import { createWebCryptoSigner, signPayload, type HailEnvelope } from "@racrproto/codec";
 import { describe, expect, it, vi } from "vitest";
 import { bodyDigest, bodyFromText } from "../src/bodies/service.js";
 import { BodyRetriever } from "../src/delivery/retriever.js";

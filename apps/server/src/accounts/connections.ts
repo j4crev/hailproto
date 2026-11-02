@@ -5,7 +5,7 @@ import type {SQL} from "bun";
 import type {AuthenticationResponseJSON} from "@simplewebauthn/server";
 import {createWebCryptoSigner,createWebCryptoVerifier,decodeBase64Url,decodeDeterministic,encodeBase64Url,
   encodeDeterministic,toDiagnosticJson,signPayload,verifySignedPayload,type HailConnectionConfirmation,
-  type HailConnectionInvitation,type HailPayloadByType,type HailSignedPayloadType} from "@hailproto/codec";
+  type HailConnectionInvitation,type HailPayloadByType,type HailSignedPayloadType} from "@racrproto/codec";
 import {OnboardingRepository} from "../onboarding/repository.js";
 import type {HailDidResolver} from "../plc/resolver.js";
 import {requireFreshPublicAuthority} from "../plc/authority.js";
@@ -255,7 +255,7 @@ export class AccountConnections {
     if(Object.keys(input).sort().join(',')!=='connectionId,cose,epoch'||typeof input.cose!=='string'||input.cose.length>21846||
       typeof input.connectionId!=='string'||!UUID.test(input.connectionId)||!Number.isSafeInteger(input.epoch)||Number(input.epoch)<1)throw new ConnectionError(400);
     const cose=decodeBase64Url(input.cose);if(encodeBase64Url(cose)!==input.cose)throw new ConnectionError(400);
-    const {inspectSignedPayload}=await import('@hailproto/codec');
+    const {inspectSignedPayload}=await import('@racrproto/codec');
     const inspected=inspectSignedPayload('hail.conversation-revival',cose),r=inspected.payload;
     const sender=await this.resolver.resolve(r.from),recipient=await this.resolver.resolve(r.to);
     if(recipient.serviceBase!==this.origin+'/hail')throw new ConnectionError(403);

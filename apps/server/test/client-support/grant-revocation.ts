@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { open, readFile, stat, unlink } from "node:fs/promises";
 import { isDeepStrictEqual } from "node:util";
-import { createWebCryptoVerifier, inspectSignedPayload, verifySignedPayload, type HailGrant } from "@hailproto/codec";
+import { createWebCryptoVerifier, inspectSignedPayload, verifySignedPayload, type HailGrant } from "@racrproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { unlockUserIdentity, type UserVaultFile } from "./vault.js";
 

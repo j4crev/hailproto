@@ -6,7 +6,7 @@ import { TransferInvitationService } from "../migration/handshake.js";
 import { OnboardingRepository } from "../onboarding/repository.js";
 import { createHailDidResolver } from "../plc/public-resolver.js";
 import { readTransferRecord, writeTransferRecord } from "./transfer-record.js";
-import { decodeDeterministic } from "@hailproto/codec";
+import { decodeDeterministic } from "@racrproto/codec";
 import { SafeHttpsTransport } from "../discovery/safe-fetch.js";
 import { TransferInvitationDelivery } from "../migration/invitation-delivery.js";
 

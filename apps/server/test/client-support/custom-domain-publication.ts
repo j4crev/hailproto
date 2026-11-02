@@ -2,7 +2,7 @@ import { SameProviderCustodyTransition } from "../../src/accounts/custody-transi
 import { createHash, randomUUID } from "node:crypto";
 import { expect, vi } from "vitest";
 import { Hono } from "hono";
-import { createWebCryptoSigner, encodeBase64Url, inspectSignedPayload, signPayload } from "@hailproto/codec";
+import { createWebCryptoSigner, encodeBase64Url, inspectSignedPayload, signPayload } from "@racrproto/codec";
 import type { ProviderDatabase } from "../../src/db/database.js";
 import type { KeyEncryptor } from "../../src/identity/key-encryption.js";
 import { importEd25519PrivateKey } from "../../src/identity/keys.js";

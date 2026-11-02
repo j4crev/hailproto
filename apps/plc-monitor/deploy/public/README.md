@@ -219,7 +219,7 @@ Do not reset coverage history, replace consumer webhooks or approve unexpected s
 merely to make a health check pass. Keep polling and notification working when
 pausing new enrollment.
 
-The installed Haili monitor builds from `/opt/hailproto` while retaining protected
+The installed Haili monitor builds from `/opt/hail` while retaining protected
 legacy storage/configuration paths. Its overrides and operations configuration live
 under `/etc/hail-monitor-enrollment`; `compose.postgres.yaml` selects its database.
 Every deployment, backup and rollback must preserve those overlays. Application

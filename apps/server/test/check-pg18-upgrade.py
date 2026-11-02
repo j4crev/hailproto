@@ -131,7 +131,7 @@ with tempfile.TemporaryDirectory(prefix='hail-provider-pg18-launcher-') as direc
     for path in (deploy / '.env', deploy / 'compose.yaml', wrapper, backup): path.write_text('fixture-' + path.name)
     source = (ROOT / 'apps/server/deploy/public/run-pg18-provider-upgrade.sh').read_text()
     for old, new in {'/var/lib': str(root), '/usr/local/sbin/hail-provider-ops': str(wrapper), '/usr/local/sbin/hail-provider-backup': str(backup),
-        '/opt/hailproto/apps/server/deploy/public': str(deploy),
+        '/opt/hail/apps/server/deploy/public': str(deploy),
         '963e376172b6d256ba8d09a92fc26afb5f7400d88633244e0d9668e06ee23fb7': upgrade.digest(wrapper),
         '2f2f1b0e01427fa8f550bbbdaac4cc00bdc9747184073aea5e12fecc760e4306': upgrade.digest(backup)}.items(): source = source.replace(old, new)
     (capsule / 'run.sh').write_text(source); (capsule / 'plan.json').write_text('{}')

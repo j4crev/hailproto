@@ -2,7 +2,7 @@ import {reconstructConversations} from './conversation-history.js';
 import {createHash} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import type {SQL} from 'bun';
-import {encodeBase64Url} from '@hailproto/codec';
+import {encodeBase64Url} from '@racrproto/codec';
 import type {HailDidResolver} from '../plc/resolver.js';
 import {requireFreshPublicAuthority} from '../plc/authority.js';
 import type {RemoteConnectionReview} from '../accounts/connection-review.js';

@@ -10,7 +10,7 @@ import {
   type HailBundledImageAsset,
   type HailSenderCategory,
   type HailSenderProfile,
-} from "@hailproto/codec";
+} from "@racrproto/codec";
 import { canonicalizeHailAddress } from "../identity/address.js";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import { importEd25519PrivateKey } from "../identity/keys.js";

@@ -7,7 +7,7 @@ import secrets
 import subprocess
 import tempfile
 
-ENV = Path('/opt/hailproto/apps/server/deploy/public/.env')
+ENV = Path('/opt/hail/apps/server/deploy/public/.env')
 FIELDS = ('PUBLIC_ALPHA_SIGNUP', 'ALPHA_SIGNUP_INVITE_KEY', 'ALPHA_SIGNUP_MONITOR_ORIGIN')
 
 

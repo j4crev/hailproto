@@ -3,7 +3,7 @@ import {isDeepStrictEqual} from "node:util";
 import {verifySignature} from "@atproto/crypto";
 import {cidForCbor} from "@atproto/common";
 import {assureValidSig,def,validateOperationLog} from "@did-plc/lib";
-import {decodeDeterministic,encodeDeterministic,type HailValue} from "@hailproto/codec";
+import {decodeDeterministic,encodeDeterministic,type HailValue} from "@racrproto/codec";
 import type {SQL} from "bun";
 import type {KeyEncryptor} from "../../src/identity/key-encryption.js";
 import {importEd25519PrivateKey} from "../../src/identity/keys.js";

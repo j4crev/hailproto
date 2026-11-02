@@ -21,7 +21,7 @@ cfg=m.validate(json.load(sys.stdin)); rendered=m.override(); edge=m.caddy(cfg['a
 assert 'db' not in rendered['services'] and 'monitor_db' not in rendered['volumes']
 assert rendered['services']['monitor']['ports']==['127.0.0.1:3001:3001']
 assert 'volumes' not in rendered['services']['monitor']
-assert rendered['services']['monitor']['build']['context']=='/opt/hailproto'
+assert rendered['services']['monitor']['build']['context']=='/opt/hail'
 assert 'respond 403' in edge and 'admin off' in edge and 'remote_ip' not in edge
 assert 'reverse_proxy 127.0.0.1:3001' in edge and ':8080' in edge
 assert 'bind 127.0.0.1' in edge and 'host '+cfg['api_domain'] in edge

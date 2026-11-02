@@ -5,7 +5,7 @@ import {
   type HailAddressBinding,
   type HailGrant,
   type HailSenderProfile,
-} from "@hailproto/codec";
+} from "@racrproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ProviderDatabase } from "../src/db/database.js";

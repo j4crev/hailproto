@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { encodePayload, inspectSignedPayload, type HailEnvelope } from "@hailproto/codec";
+import { encodePayload, inspectSignedPayload, type HailEnvelope } from "@racrproto/codec";
 import type { SQL } from "bun";
 import type { PlcResolutionEvidence } from "../plc/resolver.js";
 import { retainPublicEnvelopeAuthority } from "../plc/envelope-authority.js";
@@ -7,7 +7,7 @@ import { validateBodyBytes, type BodyProfile } from "../bodies/service.js";
 import {connectionMessageAllowed} from "../accounts/connection-authorization.js";
 import {EnvelopeAuthorizationError} from "./service.js";
 import {admitConversation,conversationMessageAllowed,lockOwner} from "../accounts/conversation-memberships.js";
-import type {HailConversation,VerifiedHailObject} from "@hailproto/codec";
+import type {HailConversation,VerifiedHailObject} from "@racrproto/codec";
 import {requireFreshPublicAuthority} from '../plc/authority.js';
 
 export interface PublishedBodyInfo { size: number; senderAccountId: string; profile: BodyProfile; }

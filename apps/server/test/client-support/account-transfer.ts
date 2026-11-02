@@ -4,7 +4,7 @@ import {domainToASCII} from "node:url";
 import {cidForCbor} from "@atproto/common";
 import {def} from "@did-plc/lib";
 import * as dagCbor from "@ipld/dag-cbor";
-import {decodeBase64Url,decodeDeterministic,encodeBase64Url,encodeDeterministic} from "@hailproto/codec";
+import {decodeBase64Url,decodeDeterministic,encodeBase64Url,encodeDeterministic} from "@racrproto/codec";
 import {base58btc} from "multiformats/bases/base58";
 import {AccountApiClient} from "../../../../packages/hail-client-support/src/account-api.js";
 import {privateFile,savePrivateBytes} from "./grant-revocation.js";

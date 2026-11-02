@@ -1,4 +1,4 @@
-import { createWebCryptoSigner, signPayload, type HailAddressBinding } from "@hailproto/codec";
+import { createWebCryptoSigner, signPayload, type HailAddressBinding } from "@racrproto/codec";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { AddressVerifier } from "../src/discovery/verifier.js";
 import { createProviderDiscovery, providerDiscoveryForOrigin, type ProviderDiscovery } from "../src/discovery/delegation.js";

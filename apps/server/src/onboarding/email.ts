@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
 import type { SQL } from "bun";
 import { timingSafeEqual } from "node:crypto";
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec/base64url";
 import { tokenHash } from "../accounts/repository.js";
 import { accountRequestBytes } from "../accounts/routes.js";
 import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";

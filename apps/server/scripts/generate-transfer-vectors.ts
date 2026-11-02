@@ -3,7 +3,7 @@ import {createPrivateKey,createPublicKey,createHash} from 'node:crypto';
 import {writeFile} from 'node:fs/promises';
 import {base58btc} from 'multiformats/bases/base58';
 import {P256Keypair} from '@atproto/crypto';
-import {encodeDeterministic,decodeDeterministic,encodeBase64Url,type HailValue} from '@hailproto/codec';
+import {encodeDeterministic,decodeDeterministic,encodeBase64Url,type HailValue} from '@racrproto/codec';
 import {signHandshake} from '../src/migration/handshake.js';
 import {encodeManagedHandshake,managedHandshakeSignatureInput,signManagedProviderHandshake} from '../src/migration/managed-handshake.js';
 import {signPortableMigrationConsent} from '../src/migration/consent.js';
@@ -89,7 +89,7 @@ await writeFile(new URL('../../../spec/vectors/transfer-wire.json',import.meta.u
 console.log('Wrote '+records.length+' signed transfer/handover records');
 
 // Complete coherent consent bundle, not arbitrary base64 placeholders.
-const {signPayload}=await import('@hailproto/codec');
+const {signPayload}=await import('@racrproto/codec');
 const objects:any[]=[];
 async function cose(name:string,value:any,key:any,role='hail-messaging'){
   const kid=value.from??value.did;

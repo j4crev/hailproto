@@ -1,4 +1,4 @@
-import { decodeDeterministic,encodeBase64Url } from "@hailproto/codec";
+import { decodeDeterministic,encodeBase64Url } from "@racrproto/codec";
 import type { SQL } from "bun";
 import type { AccountApiSession } from "./repository.js";
 import type { TransferGrantSubmission } from "../migration/grant-submission.js";

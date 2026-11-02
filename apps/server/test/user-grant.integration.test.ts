@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createWebCryptoSigner, encodeBase64Url, signPayload,
-  inspectSignedPayload, type HailAddressBinding, type HailGrant, type HailSenderProfile } from "@hailproto/codec";
+  inspectSignedPayload, type HailAddressBinding, type HailGrant, type HailSenderProfile } from "@racrproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ProviderDatabase } from "../src/db/database.js";

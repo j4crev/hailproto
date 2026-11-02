@@ -3,7 +3,7 @@ import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {generateAuthenticationOptions,generateRegistrationOptions,verifyAuthenticationResponse,
   verifyRegistrationResponse,type AuthenticationResponseJSON,type RegistrationResponseJSON} from "@simplewebauthn/server";
 import {COSEALG} from "@simplewebauthn/server/helpers";
-import {decodeBase64Url,encodeBase64Url} from "@hailproto/codec";
+import {decodeBase64Url,encodeBase64Url} from "@racrproto/codec";
 import type {SQL} from "bun";
 import {tokenHash,type AccountApiSession,type AccountApiScope} from "./repository.js";
 

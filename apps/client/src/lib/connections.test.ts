@@ -1,7 +1,7 @@
 import {expect,it,vi} from "vitest";
 import {recoverConnection,connectionCode,connectionHomeLink,connectApproval,signedConnectionFile,type ConnectApproval} from "./connections.js";
-import {encodeDeterministic} from "@hailproto/codec/cbor";
-import {encodeBase64Url} from "@hailproto/codec/base64url";
+import {encodeDeterministic} from "@racrproto/codec/cbor";
+import {encodeBase64Url} from "@racrproto/codec/base64url";
 import {returnPath} from "./auth-routing.js";
 
 it("reads only a complete identity-pinned fragment code and keeps login destinations local",()=>{

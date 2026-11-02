@@ -7,7 +7,7 @@ import { cidForCbor } from "@atproto/common";
 import { assureValidSig, def, validateOperationLog, type DocumentData, type Operation, type UnsignedOperation } from "@did-plc/lib";
 import { verifySignature } from "@atproto/crypto";
 import { createWebCryptoSigner, createWebCryptoVerifier, decodeDeterministic, encodeBase64Url, encodeDeterministic, inspectSignedPayload,
-  signPayload, verifySignedPayload, type HailAddressBinding, type HailGrant, type HailValue } from "@hailproto/codec";
+  signPayload, verifySignedPayload, type HailAddressBinding, type HailGrant, type HailValue } from "@racrproto/codec";
 import * as dagCbor from "@ipld/dag-cbor";
 import type { SQL } from "bun";
 import { materializedServingGeneration } from "../db/serving.js";

@@ -1,6 +1,6 @@
 import {createHash,timingSafeEqual} from "node:crypto";
 import type {SQL} from "bun";
-import {createWebCryptoVerifier,decodeBase64Url,encodeBase64Url,verifySignedPayload} from "@hailproto/codec";
+import {createWebCryptoVerifier,decodeBase64Url,encodeBase64Url,verifySignedPayload} from "@racrproto/codec";
 import type {DiscoveryFetch,NetworkTargetValidator} from "../discovery/verifier.js";
 import {parseJsonWithoutDuplicateKeys} from "../discovery/strict-json.js";
 import {canonicalizeHailServiceBase,type HailDidResolver} from "../plc/resolver.js";

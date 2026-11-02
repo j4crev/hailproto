@@ -1,4 +1,4 @@
-import {inspectSignedPayload} from "@hailproto/codec";
+import {inspectSignedPayload} from "@racrproto/codec";
 import type {SQL} from "bun";
 import type {AccountApiSession} from "./repository.js";
 import {bodyDocument, messageParent} from "./messaging.js";

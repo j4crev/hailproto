@@ -470,7 +470,7 @@ been incorporated into this document. This document obsoletes RFC
         <seriesInfo name="RFC" value="6839" />
         <seriesInfo name="DOI" value="10.17487/RFC6839" />
       </reference>
-      <reference anchor="HAIL-SPEC" target="https://github.com/j4crev/hailproto/tree/d286113cd82024d009fb07cc60041f290047f148/spec">
+      <reference anchor="HAIL-SPEC" target="https://github.com/j4crev/hail/tree/d286113cd82024d009fb07cc60041f290047f148/spec">
         <front>
           <title>Hail alpha specification, commit d286113cd82024d009fb07cc60041f290047f148</title>
           <author fullname="Hail contributors" />

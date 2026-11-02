@@ -1,6 +1,6 @@
 import type {startAuthentication} from "@simplewebauthn/browser";
-import {decodeDeterministic,encodeDeterministic} from "@hailproto/codec/cbor";
-import {encodeBase64Url} from "@hailproto/codec/base64url";
+import {decodeDeterministic,encodeDeterministic} from "@racrproto/codec/cbor";
+import {encodeBase64Url} from "@racrproto/codec/base64url";
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/,DID=/^did:plc:[a-z2-7]{24}$/;
 export const CONNECTION_APPROVAL="hail.connection-approval.v1",CONNECTION_CODE="hail.connection-code.v1";
 export interface ConnectCode {id:string;did:string;token:string;}

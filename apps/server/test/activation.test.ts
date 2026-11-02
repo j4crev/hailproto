@@ -10,7 +10,7 @@ import type { AccountRecord } from "../src/onboarding/repository.js";
 const account: AccountRecord = {
   id: "11111111-1111-4111-8111-111111111111",
   tenantId: "22222222-2222-4222-8222-222222222222",
-  canonicalAddress: "alice@hailproto.app",
+  canonicalAddress: "alice@racrproto.app",
   did: "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
   state: "address-staged",
   activationAttemptId: null,

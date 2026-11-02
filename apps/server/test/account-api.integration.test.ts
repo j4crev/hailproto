@@ -4,7 +4,7 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWebCryptoSigner, encodeBase64Url, signPayload, type HailAddressBinding,
-  type HailSenderProfile } from "@hailproto/codec";
+  type HailSenderProfile } from "@racrproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createUserVault, unlockUserVault } from "./client-support/vault.js";
@@ -27,7 +27,7 @@ import {EnvelopeReceiver} from "../src/envelopes/receiver.js";
 import {DeliveryRepository} from "../src/delivery/repository.js";
 import {DeliveryWorker} from "../src/delivery/worker.js";
 import {KeyEncryptor} from "../src/identity/key-encryption.js";
-import {inspectSignedPayload} from "@hailproto/codec";
+import {inspectSignedPayload} from "@racrproto/codec";
 import {ALL_ACCOUNT_SCOPES} from "../src/accounts/repository.js";
 
 const integration = process.env.DATABASE_URL ? describe : describe.skip;

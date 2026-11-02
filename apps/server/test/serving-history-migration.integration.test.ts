@@ -3,7 +3,7 @@ import {SQL} from "bun";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
 import {ProviderDatabase} from "../src/db/database.js";
 import {AccountApiRepository,tokenHash} from "../src/accounts/repository.js";
-import {encodeBase64Url} from "@hailproto/codec";
+import {encodeBase64Url} from "@racrproto/codec";
 
 const integration=process.env.DATABASE_URL?describe:describe.skip;
 integration("current-schema serving metadata and immutable retirement history",()=>{

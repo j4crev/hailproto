@@ -1,7 +1,7 @@
 import { generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
 import { P256Keypair } from "@atproto/crypto";
 import { signOperation } from "@did-plc/lib";
-import { encodeBase64Url } from "@hailproto/codec/base64url";
+import { encodeBase64Url } from "@racrproto/codec/base64url";
 import { base58btc } from "multiformats/bases/base58";
 import { expect, it, vi } from "vitest";
 import { createMonitorEnrollmentApi, monitorEnrollmentConfig } from "../src/enrollment.js";

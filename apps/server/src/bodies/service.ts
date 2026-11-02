@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { DEFAULT_HAIL_RESOURCE_LIMITS, decodePayload, encodePayload, type HailSpt2Body, type HailSpt3Body, type HailSptBody } from "@hailproto/codec";
+import { DEFAULT_HAIL_RESOURCE_LIMITS, decodePayload, encodePayload, type HailSpt2Body, type HailSpt3Body, type HailSptBody } from "@racrproto/codec";
 
 export const BODY_MEDIA_TYPE = "application/hail-body+cbor";
 export const BODY_MAX_BYTES = 1_048_576;

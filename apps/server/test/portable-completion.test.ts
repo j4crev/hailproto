@@ -1,7 +1,7 @@
 import {P256Keypair} from "@atproto/crypto";
 import {cidForCbor} from "@atproto/common";
 import {signOperation} from "@did-plc/lib";
-import {encodeBase64Url,encodeDeterministic} from "@hailproto/codec";
+import {encodeBase64Url,encodeDeterministic} from "@racrproto/codec";
 import {createHash} from "node:crypto";
 import {expect,it} from "vitest";
 import {TRANSFER_TABLES,TRANSFER_AUTHORITY_TABLES,type TransferManifest} from "../src/migration/transfer.js";

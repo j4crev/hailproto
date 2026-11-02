@@ -3,7 +3,7 @@ import { SQL } from "bun";
 import { cidForCbor } from "@atproto/common";
 import { P256Keypair } from "@atproto/crypto";
 import { didForCreateOp, formatDidDoc, PlcClientError, signOperation, validateOperationLog, type Operation } from "@did-plc/lib";
-import { createWebCryptoSigner, encodeBase64Url, inspectSignedPayload, signPayload } from "@hailproto/codec";
+import { createWebCryptoSigner, encodeBase64Url, inspectSignedPayload, signPayload } from "@racrproto/codec";
 import { expect, it } from "vitest";
 import { ProviderDatabase } from "../src/db/database.js";
 import { KeyEncryptor } from "../src/identity/key-encryption.js";

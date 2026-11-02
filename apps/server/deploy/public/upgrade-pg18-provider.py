@@ -13,7 +13,7 @@ import urllib.request
 
 from pg14_checks import manifest, run, sql, wait_version
 
-DEPLOY = Path('/opt/hailproto/apps/server/deploy/public')
+DEPLOY = Path('/opt/hail/apps/server/deploy/public')
 CONFIG = Path('/etc/hail-provider-postgres')
 OVERLAY = CONFIG / 'compose.yaml'
 WRAPPER = Path('/usr/local/sbin/hail-provider-ops')
@@ -94,7 +94,7 @@ def check_keys(stage, work, image):
     if '@db:5432/hail' not in address: raise RuntimeError('Unexpected application database endpoint')
     private = work / 'probe.env'
     probe = work / 'probe.ts'
-    destination = '/workspace/hailproto/apps/server/deploy/public/check-pg18-clone.ts'
+    destination = '/workspace/hail/apps/server/deploy/public/check-pg18-clone.ts'
     try:
         private.write_text('LAB_DATABASE_URL=' + address.replace('@db:5432/hail', '@127.0.0.1:5432/hail') +
             '\nKEY_ENCRYPTION_KEY=' + environment['KEY_ENCRYPTION_KEY'] + '\nHAIL_BACKUP_REHEARSAL=isolated-pg18\n')
@@ -103,7 +103,7 @@ def check_keys(stage, work, image):
         result = json.loads(run(['docker', 'run', '--rm', '--pull=never', '--network', 'container:' + DB,
             '--read-only', '--tmpfs', '/tmp', '--cap-drop=ALL', '--security-opt=no-new-privileges', '--memory', '256m',
             '--env-file', str(private), '--mount', 'type=bind,src=' + str(probe) + ',dst=' + destination + ',readonly',
-            '--workdir', '/workspace/hailproto/apps/server', '--entrypoint', 'bun', image, destination, 'provider']))
+            '--workdir', '/workspace/hail/apps/server', '--entrypoint', 'bun', image, destination, 'provider']))
         if not result['driver_roundtrip'] or result['account_keys_decrypted'] != int(query('SELECT count(*) FROM account_keys')):
             raise RuntimeError('Retained account-key verification incomplete')
         expected = int(query("SELECT coalesce(sum(CASE WHEN custody_profile='managed' THEN 3 ELSE 2 END),0) FROM prepared_migration_target_keys"))

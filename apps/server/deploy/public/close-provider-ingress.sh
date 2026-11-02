@@ -4,15 +4,15 @@ set -eu
 [ "$(id -u)" -eq 0 ] || { echo 'Use the provider root console.' >&2; exit 1; }
 [ "$(tailscale ip -4)" = 100.89.223.70 ] || { echo 'This is not the approved provider.' >&2; exit 1; }
 stage=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-deploy=/opt/hailproto/apps/server/deploy/public
+deploy=/opt/hail/apps/server/deploy/public
 unit=hail-provider-ingress-rollback
 if systemctl is-active --quiet "$unit.timer"; then
   echo 'A rollback timer is already active; inspect it before retrying.' >&2
   exit 1
 fi
 sha256sum --check "$stage/SHA256SUMS"
-echo '9d8fb4a9cb541de298b2f109a3181cb70b1efd18833044ab300e24fa7f8ccb4f  /opt/hailproto/apps/server/deploy/public/Caddyfile' | sha256sum --check
-echo '1abb3f8a40a35513adfce41503f8464cac783401f5df586c617b405723b7d85d  /opt/hailproto/apps/server/deploy/public/compose.yaml' | sha256sum --check
+echo '9d8fb4a9cb541de298b2f109a3181cb70b1efd18833044ab300e24fa7f8ccb4f  /opt/hail/apps/server/deploy/public/Caddyfile' | sha256sum --check
+echo '1abb3f8a40a35513adfce41503f8464cac783401f5df586c617b405723b7d85d  /opt/hail/apps/server/deploy/public/compose.yaml' | sha256sum --check
 ufw status | grep -q '^Status: active$'
 systemctl is-active --quiet haili-tunnel.service
 curl --fail --silent --show-error --max-time 10 http://127.0.0.1:20241/ready

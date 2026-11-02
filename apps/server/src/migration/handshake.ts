@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { decodeDeterministic, encodeDeterministic, type HailValue } from "@hailproto/codec";
+import { decodeDeterministic, encodeDeterministic, type HailValue } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import { canonicalizeHailAddress } from "../identity/address.js";

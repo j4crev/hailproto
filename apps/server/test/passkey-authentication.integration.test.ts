@@ -1,7 +1,7 @@
 import {createHash,generateKeyPairSync,randomBytes,randomUUID,sign} from "node:crypto";
 import {SQL} from "bun";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
-import {encodeBase64Url} from "@hailproto/codec";
+import {encodeBase64Url} from "@racrproto/codec";
 
 import {PasskeyAuth} from "../src/accounts/passkeys.js";
 import {ProviderDatabase} from "../src/db/database.js";

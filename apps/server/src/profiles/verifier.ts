@@ -5,7 +5,7 @@ import {
   decodeBase64Url,
   encodeBase64Url,
   verifySignedPayload,
-} from "@hailproto/codec";
+} from "@racrproto/codec";
 import { COSE_SIGN1_MEDIA_TYPE } from "../discovery/routes.js";
 import type { DiscoveryFetch, NetworkTargetValidator } from "../discovery/verifier.js";
 import { isCoseSign1MediaType } from "../http/media-type.js";

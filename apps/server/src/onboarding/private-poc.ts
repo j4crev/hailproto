@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { cidForCbor } from "@atproto/common";
 import { assureValidSig, def, didForCreateOp, validateOperationLog, type Operation } from "@did-plc/lib";
-import { createWebCryptoVerifier, createWebCryptoSigner, signPayload, verifySignedPayload } from "@hailproto/codec";
+import { createWebCryptoVerifier, createWebCryptoSigner, signPayload, verifySignedPayload } from "@racrproto/codec";
 import * as dagCbor from "@ipld/dag-cbor";
 import { base58btc } from "multiformats/bases/base58";
 import type { SQL } from "bun";

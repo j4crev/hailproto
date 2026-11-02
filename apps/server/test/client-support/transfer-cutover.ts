@@ -5,7 +5,7 @@ import { assureValidSig, def, type Operation } from "@did-plc/lib";
 import * as dagCbor from "@ipld/dag-cbor";
 import { createWebCryptoVerifier, decodeBase64Url, decodeDeterministic, encodeBase64Url,
   verifySignedPayload,
-  type HailAddressBinding } from "@hailproto/codec";
+  type HailAddressBinding } from "@racrproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { unlockUserVault, type UserMigrationConsent, type UserVaultFile } from "./vault.js";
 import { readRecoverySecret } from "./private-input.js";

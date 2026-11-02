@@ -5,7 +5,7 @@ import {tmpdir} from "node:os";
 import {SQL} from "bun";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
 import {Hono} from "hono";
-import {encodeBase64Url} from "@hailproto/codec";
+import {encodeBase64Url} from "@racrproto/codec";
 import {browserLogin} from "./client-support/browser-login.js";
 import {PasskeyAuth} from "../src/accounts/passkeys.js";
 import {registerPasskeyRoutes} from "../src/accounts/passkey-routes.js";

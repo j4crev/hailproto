@@ -146,7 +146,7 @@ def main():
         report['phase']='application-start'
         compose('start','monitor')
         if inspect(MONITOR)['Image']!=old_app_image:raise RuntimeError('Monitor application image changed')
-        run(['python3','/opt/hailproto/apps/plc-monitor/deploy/public/enrollment-setup.py','--verify'])
+        run(['python3','/opt/hail/apps/plc-monitor/deploy/public/enrollment-setup.py','--verify'])
         request=urllib.request.Request('http://127.0.0.1:8080/api/v1/onboarding',data=b'{}',
             headers={'Host':'enroll.plcmonitor.us','CF-Connecting-IP':'5.161.254.78','Content-Type':'application/json'})
         try:urllib.request.urlopen(request,timeout=15)

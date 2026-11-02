@@ -2,7 +2,7 @@ import type { SQL } from "bun";
 import type { HailDidResolver } from "../plc/resolver.js";
 import type { SignedHandshake } from "./handshake.js";
 import { handshakeDigest, sameDigest } from "./handshake.js";
-import { decodeDeterministic } from "@hailproto/codec";
+import { decodeDeterministic } from "@racrproto/codec";
 import { PreparedMigrationTarget } from "./target-keys.js";
 
 interface ReceivedRow {

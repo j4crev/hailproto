@@ -12,7 +12,7 @@ Use the documented same-origin deployment for browser authentication.
 `HAIL_WEB_CLIENT_NAME`, `HAIL_WEB_CLIENT_LOGO_PATH` and
 `HAIL_WEB_CLIENT_FAVICON_PATH` customize the public brand without rebuilding.
 Logo/favicon paths must be served on the same origin, for example from a read-only
-mount at `/workspace/hailproto/apps/client/build/client/brand` in the image.
+mount at `/workspace/hail/apps/client/build/client/brand` in the image.
 
 Configuration migration: rename all `HAIL_GUI_*` settings to `HAIL_WEB_CLIENT_*`.
 Provider-side `THIN_GUI_ORIGIN` is now `WEB_CLIENT_ORIGIN`. Recreate containers;

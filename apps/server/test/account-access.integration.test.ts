@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { P256Keypair } from "@atproto/crypto";
 import { createUpdateOp, formatDidDoc, type Operation } from "@did-plc/lib";
-import { encodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url } from "@racrproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

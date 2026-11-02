@@ -2,7 +2,7 @@ import {groupConnectionMessages,connectionKey} from '../../server/src/accounts/c
 import {threadBodyPreview} from '../../server/src/accounts/message-threads.js';
 // Local-only visual fixture provider. Never imports production configuration or credentials.
 // Build first, then: bun scripts/preview-design.ts. All changes disappear on restart.
-import {createWebCryptoSigner, signPayload, encodeBase64Url, type HailGrant, type HailSenderProfile} from '@hailproto/codec';
+import {createWebCryptoSigner, signPayload, encodeBase64Url, type HailGrant, type HailSenderProfile} from '@racrproto/codec';
 import {uuidV7} from '../../server/src/identity/uuid-v7.js';
 
 const sharedMode=process.env.HAIL_DESIGN_SHARED_CONVERSATIONS==='1';

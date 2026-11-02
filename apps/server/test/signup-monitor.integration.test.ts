@@ -3,7 +3,7 @@ import { createHash, generateKeyPairSync, randomBytes, randomUUID, sign } from "
 import { SQL } from "bun";
 import { cidForCbor } from "@atproto/common";
 import { formatDidDoc, PlcClientError, validateOperationLog, type Operation } from "@did-plc/lib";
-import { encodeBase64Url, decodeBase64Url, inspectSignedPayload } from "@hailproto/codec";
+import { encodeBase64Url, decodeBase64Url, inspectSignedPayload } from "@racrproto/codec";
 import { expect, it, vi } from "vitest";
 import { Hono } from "hono";
 import { createUserVault, unlockUserVault } from "./client-support/vault.js";

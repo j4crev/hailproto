@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
 import type { SQL } from "bun";
 import { def } from "@did-plc/lib";
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec/base64url";
 import { base58btc } from "multiformats/bases/base58";
 import { tokenHash } from "../accounts/repository.js";
 import { accountRequestBytes } from "../accounts/routes.js";

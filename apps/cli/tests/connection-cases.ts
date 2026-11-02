@@ -3,7 +3,7 @@ import {writeFile,readFile} from "node:fs/promises";
 import {join} from "node:path";
 import {createUserVault} from "../../../packages/hail-client-support/src/vault-crypto.ts";
 import {unlockUserIdentity} from "../../server/test/client-support/vault.ts";
-const {fromDiagnosticJson}=await import(Bun.resolveSync("@hailproto/codec",new URL("../../cli",import.meta.url).pathname));
+const {fromDiagnosticJson}=await import(Bun.resolveSync("@racrproto/codec",new URL("../../cli",import.meta.url).pathname));
 export async function connectionCases(binary:string,root:string,directory:string,provider:string,env:Record<string,string|undefined>,install:(handler:(r:Request)=>Promise<Response>)=>void){
  const id="019a0000-0000-7000-8000-000000000001",did=`did:plc:${"a".repeat(24)}`,peer=`did:plc:${"b".repeat(24)}`,token=`racr_${"a".repeat(43)}`,admission=Buffer.alloc(32,21).toString("base64url");
  const commands=[[binary]],fixtures=(await Bun.file(join(root,"packages/hail-codec-ts/vectors/connections-draft.json")).json()).positive;

@@ -1,5 +1,5 @@
 import { CustomDomainAuthorityError } from "./custom-domain-authority.js";
-import { decodeBase64Url, encodeBase64Url, encodeDeterministic, fromDiagnosticJson, HailCodecError, inspectSignedPayload, toDiagnosticJson, type DiagnosticJson } from "@hailproto/codec";
+import { decodeBase64Url, encodeBase64Url, encodeDeterministic, fromDiagnosticJson, HailCodecError, inspectSignedPayload, toDiagnosticJson, type DiagnosticJson } from "@racrproto/codec";
 import type { Context, Hono } from "hono";
 import { isCoseSign1MediaType } from "../http/media-type.js";
 import { RECENT_PASSKEY_WINDOW_MS } from "./session-policy.js";
@@ -245,7 +245,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           !Number.isSafeInteger(input.expectedRevision)||typeof input.expectedDigest!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(input.expectedDigest)||
           typeof input.refreshConsent!=="boolean"||input.expiresAt!==null&&!Number.isSafeInteger(input.expiresAt)||
           input.sender!==undefined&&typeof input.sender!=="string"||!input.scope||typeof input.scope!=="object"||Array.isArray(input.scope))return problem(400);
-        const proposed=await service.prepareUserSignedUpdate(session.did,grantId,{scope:input.scope as import("@hailproto/codec").HailGrantScope,
+        const proposed=await service.prepareUserSignedUpdate(session.did,grantId,{scope:input.scope as import("@racrproto/codec").HailGrantScope,
           expiresAt:input.expiresAt as number|null,expectedRevision:input.expectedRevision as number,expectedDigest:decodeBase64Url(input.expectedDigest),
           refreshConsent:input.refreshConsent,...(input.sender?{sender:input.sender as string}:{})});
         return context.json({type:"racr.grant-proposal",version:1,grant:toDiagnosticJson("hail.grant",proposed)});

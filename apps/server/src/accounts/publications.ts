@@ -1,6 +1,6 @@
 import { BODY_CONTAINER_LIMITS } from "../bodies/service.js";
 import {createHash} from "node:crypto";
-import {decodeDeterministic,decodePayload,encodeDeterministic,HailCodecError} from "@hailproto/codec";
+import {decodeDeterministic,decodePayload,encodeDeterministic,HailCodecError} from "@racrproto/codec";
 import type {SQL} from "bun";
 import {validateBodyBytes} from "../bodies/service.js";
 import {withServingGeneration} from "../db/serving.js";

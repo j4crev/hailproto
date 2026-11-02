@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec";
 import type { Hono } from "hono";
 import { BODY_MEDIA_TYPE, type BodyStore } from "./service.js";
 import {clientAddress,FixedWindowRateLimit} from "../http/rate-limit.js";

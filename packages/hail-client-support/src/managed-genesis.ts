@@ -1,6 +1,6 @@
 import { P256Keypair, parseDidKey, P256_JWT_ALG, SECP256K1_JWT_ALG } from "@atproto/crypto";
 import type { UnsignedOperation } from "@did-plc/lib";
-import { encodeBase64Url } from "@hailproto/codec/base64url";
+import { encodeBase64Url } from "@racrproto/codec/base64url";
 import * as dagCbor from "@ipld/dag-cbor";
 import { base32 } from "multiformats/bases/base32";
 import { base58btc } from "multiformats/bases/base58";

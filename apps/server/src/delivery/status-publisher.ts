@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { encodeBase64Url, inspectSignedPayload } from "@hailproto/codec";
+import { encodeBase64Url, inspectSignedPayload } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { COSE_SIGN1_MEDIA_TYPE } from "../discovery/routes.js";
 import type { DiscoveryFetch, NetworkTargetValidator } from "../discovery/verifier.js";

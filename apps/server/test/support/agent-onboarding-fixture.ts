@@ -11,7 +11,7 @@ import { stat, writeFile, readFile, unlink } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { cidForCbor } from "@atproto/common";
 import { didForCreateOp, formatDidDoc, PlcClientError, validateOperationLog, type Operation } from "@did-plc/lib";
-import { encodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url } from "@racrproto/codec";
 import { createApp } from "../../src/app.js";
 import type { AppConfig } from "../../src/config.js";
 import { ProviderDatabase } from "../../src/db/database.js";

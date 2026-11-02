@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { P256Keypair } from "@atproto/crypto";
 import { didForCreateOp, signOperation } from "@did-plc/lib";
-import { decodeDeterministic, encodeBase64Url } from "@hailproto/codec";
+import { decodeDeterministic, encodeBase64Url } from "@racrproto/codec";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { AccountApiClient } from "../../../packages/hail-client-support/src/account-api.js";
 import { cancelTransfer } from "./client-support/account-transfer.js";

@@ -1,6 +1,6 @@
 import {randomBytes,randomUUID} from "node:crypto";
 import {P256Keypair} from "@atproto/crypto";
-import {encodeBase64Url} from "@hailproto/codec";
+import {encodeBase64Url} from "@racrproto/codec";
 import {SQL} from "bun";
 import {expect,it} from "vitest";
 import {ProviderDatabase} from "../src/db/database.js";

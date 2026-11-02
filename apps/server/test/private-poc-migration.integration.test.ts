@@ -7,7 +7,7 @@ import { cidForCbor } from "@atproto/common";
 import { formatDidDoc, PlcClientError, validateOperationLog,assureValidNextOp,signOperation,didForCreateOp, type Operation } from "@did-plc/lib";
 import {CID} from "multiformats/cid";
 import { decodeBase64Url, decodeDeterministic, encodeBase64Url, inspectSignedPayload,
-   createWebCryptoSigner,signPayload,type HailGrant,type HailEnvelope,type HailAddressBinding,type HailSenderProfile } from "@hailproto/codec";
+   createWebCryptoSigner,signPayload,type HailGrant,type HailEnvelope,type HailAddressBinding,type HailSenderProfile } from "@racrproto/codec";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createUserVault, unlockUserVault,unlockUserIdentity } from "./client-support/vault.js";

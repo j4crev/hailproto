@@ -1,6 +1,6 @@
 import {randomUUID,createHash} from 'node:crypto';
 import type {SQL} from 'bun';
-import {decodeDeterministic,encodeBase64Url} from '@hailproto/codec';
+import {decodeDeterministic,encodeBase64Url} from '@racrproto/codec';
 import type {DiscoveryFetch,NetworkTargetValidator} from '../discovery/verifier.js';
 import {parseJsonWithoutDuplicateKeys} from '../discovery/strict-json.js';
 import type {KeyEncryptor} from '../identity/key-encryption.js';

@@ -1,5 +1,5 @@
-import type {StorageStats} from "@hailproto/client-support/provider-contracts";
-export type {StorageStats} from "@hailproto/client-support/provider-contracts";
+import type {StorageStats} from "@racrproto/client-support/provider-contracts";
+export type {StorageStats} from "@racrproto/client-support/provider-contracts";
 import type {SQL} from "bun";
 
 export const storageCategories = [

@@ -24,7 +24,7 @@ expected={'/usr/local/sbin/hail-provider-ops':'963e376172b6d256ba8d09a92fc26afb5
 for file,checksum in expected.items():
     if hashlib.sha256(Path(file).read_bytes()).hexdigest()!=checksum:
         raise SystemExit('Installed operations/backup script changed; review instead of overwriting')
-deploy=Path('/opt/hailproto/apps/server/deploy/public')
+deploy=Path('/opt/hail/apps/server/deploy/public')
 plan['protected_files']={**expected,**{str(file):hashlib.sha256(file.read_bytes()).hexdigest() for file in [deploy/'.env',deploy/'compose.yaml']}}
 path.write_text(json.dumps(plan,indent=2)+'\n')
 PY

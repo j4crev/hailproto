@@ -3,7 +3,7 @@ import * as dagCbor from "@ipld/dag-cbor";
 import {cidForCbor} from "@atproto/common";
 import {def} from "@did-plc/lib";
 import {createWebCryptoSigner,createWebCryptoVerifier,inspectSignedPayload,signPayload,toDiagnosticJson,verifySignedPayload,
-  type HailGrant,type HailSenderProfile} from "@hailproto/codec";
+  type HailGrant,type HailSenderProfile} from "@racrproto/codec";
 import type {SQL} from "bun";
 import {materializedServingGeneration} from "../db/serving.js";
 import type {KeyEncryptor} from "../identity/key-encryption.js";

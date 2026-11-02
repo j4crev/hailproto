@@ -1,4 +1,4 @@
-import { decodeDeterministic } from "@hailproto/codec";
+import { decodeDeterministic } from "@racrproto/codec";
 import type { SQL } from "bun";
 import type { KeyEncryptor } from "../identity/key-encryption.js";
 import { importEd25519PrivateKey } from "../identity/keys.js";

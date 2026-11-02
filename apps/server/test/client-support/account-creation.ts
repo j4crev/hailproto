@@ -2,7 +2,7 @@ import { createHash,randomBytes,randomUUID } from "node:crypto";
 import { rename } from "node:fs/promises";
 import {resolve} from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { encodeBase64Url,decodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url,decodeBase64Url } from "@racrproto/codec";
 import { assureValidSig, didForCreateOp, type Operation } from "@did-plc/lib";
 import { cidForCbor } from "@atproto/common";
 import { AccountApiClient } from "../../../../packages/hail-client-support/src/account-api.js";

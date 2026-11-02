@@ -1,4 +1,4 @@
-import { decodeBase64Url, encodeDeterministic, inspectSignedPayload, verifySignedPayload, createWebCryptoVerifier, type HailGrantScope, type HailValue } from "@hailproto/codec";
+import { decodeBase64Url, encodeDeterministic, inspectSignedPayload, verifySignedPayload, createWebCryptoVerifier, type HailGrantScope, type HailValue } from "@racrproto/codec";
 import { isDeepStrictEqual } from "node:util";
 import { base58btc } from "multiformats/bases/base58";
 import { privateFile, savePrivateBytes } from "./grant-revocation.js";

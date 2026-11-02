@@ -42,8 +42,8 @@ def main():
           '--env-file','/etc/hail-monitor-enrollment/enrollment.env','-f','/opt/hail/hail-plc-monitor-ts/deploy/public/compose.yaml',
           '-f','/etc/hail-monitor-enrollment/compose.override.json']
     else:
-        command=['docker','compose','--env-file','/opt/hailproto/apps/server/deploy/public/.env',
-          '-f','/opt/hailproto/apps/server/deploy/public/compose.yaml']
+        command=['docker','compose','--env-file','/opt/hail/apps/server/deploy/public/.env',
+          '-f','/opt/hail/apps/server/deploy/public/compose.yaml']
     overlay=Path('/etc/hail-monitor-enrollment/compose.postgres.yaml' if role=='monitor' else '/etc/hail-provider-postgres/compose.yaml')
     if overlay.exists(): command+=['-f',str(overlay)]
     # Rendered Compose contains credentials: keep it in memory and report only non-secret shape.

@@ -1,7 +1,7 @@
 import type {Hono} from "hono";
 import {getCookie} from "hono/cookie";
 import type {AuthenticationResponseJSON} from "@simplewebauthn/server";
-import {decodeBase64Url,encodeBase64Url} from "@hailproto/codec";
+import {decodeBase64Url,encodeBase64Url} from "@racrproto/codec";
 import {AccountConnections,ConnectionError} from "./connections.js";
 import type {AccountApiRepository} from "./repository.js";
 import {PasskeyError} from "./passkeys.js";

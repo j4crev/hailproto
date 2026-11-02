@@ -1,7 +1,7 @@
 import { def, type CompatibleOpOrTombstone, type DocumentData, type ExportedOp, type ExportedOpWithSeq } from "@did-plc/lib";
 import { parseJsonWithoutDuplicateKeys } from "./strict-json.js";
 import { createHash } from "node:crypto";
-import { encodeBase64Url, encodeDeterministic, type HailValue } from "@hailproto/codec";
+import { encodeBase64Url, encodeDeterministic, type HailValue } from "@racrproto/codec";
 
 export function plcStateDigest(state: DocumentData): string {
   return encodeBase64Url(new Uint8Array(createHash("sha256").update(encodeDeterministic(state as unknown as HailValue)).digest()));

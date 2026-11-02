@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {writeFile,readFile} from "node:fs/promises";
 import {join} from "node:path";
 import {createUserVault} from "../../../packages/hail-client-support/src/vault-crypto.ts";
-const {decodeDeterministic,encodeDeterministic}=await import(Bun.resolveSync("@hailproto/codec",new URL("../../cli",import.meta.url).pathname));
+const {decodeDeterministic,encodeDeterministic}=await import(Bun.resolveSync("@racrproto/codec",new URL("../../cli",import.meta.url).pathname));
 const {verifySignature}=await import(Bun.resolveSync("@atproto/crypto",new URL("../../cli",import.meta.url).pathname));
 const {encode}=await import(Bun.resolveSync("@ipld/dag-cbor",new URL("../../cli",import.meta.url).pathname));
 const {cidForCbor}=await import(Bun.resolveSync("@atproto/common",new URL("../../cli",import.meta.url).pathname));

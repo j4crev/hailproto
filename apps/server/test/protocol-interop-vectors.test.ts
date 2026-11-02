@@ -2,7 +2,7 @@ import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {Hono} from 'hono';
 import {expect,it} from 'vitest';
-import {decodeDeterministic,encodeDeterministic,createWebCryptoVerifier,verifySignedPayload,type HailValue} from '@hailproto/codec';
+import {decodeDeterministic,encodeDeterministic,createWebCryptoVerifier,verifySignedPayload,type HailValue} from '@racrproto/codec';
 import {verifyHandshake} from '../src/migration/handshake.js';
 import {verifyManagedOwnerHandshake,verifyManagedProviderHandshake,verifyManagedHandshakeChain} from '../src/migration/managed-handshake.js';
 import {verifyPortableMigrationConsent} from '../src/migration/consent.js';

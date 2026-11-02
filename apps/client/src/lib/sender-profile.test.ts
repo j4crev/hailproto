@@ -1,6 +1,6 @@
 import {expect, it} from "vitest";
 import {editableProfile, profileDraft, type ProfileDefinition} from "./sender-profile.js";
-import type {HailSenderProfile} from "@hailproto/codec";
+import type {HailSenderProfile} from "@racrproto/codec";
 
 const base: ProfileDefinition = {version: 2, display_name: "Original", description: "Old", offers_uncategorized: true, categories: [], avatar: "AQID"};
 it("preserves existing avatar and legacy delivery settings while updating and sorting categories", () => {

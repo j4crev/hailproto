@@ -2,7 +2,7 @@ import {building} from "$app/environment";
 import {accountRead} from "./account-reads.js";
 import { env } from "$env/dynamic/private";
 import { error,redirect } from "@sveltejs/kit";
-import { AccountApiClient,AccountApiError } from "@hailproto/client-support/account-api";
+import { AccountApiClient,AccountApiError } from "@racrproto/client-support/account-api";
 import {loginPath} from "$lib/auth-routing.js";
 
 export const PROVIDER = env.HAIL_WEB_CLIENT_PROVIDER?.replace(/\/$/, "") || "";

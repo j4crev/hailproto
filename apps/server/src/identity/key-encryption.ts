@@ -1,4 +1,4 @@
-import { decodeBase64Url } from "@hailproto/codec";
+import { decodeBase64Url } from "@racrproto/codec";
 
 export type AccountKeyRole = "plc-rotation" | "hail-identity" | "hail-messaging";
 export type AccountKeyAlgorithm = "p256" | "ed25519";

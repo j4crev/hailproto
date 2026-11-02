@@ -90,7 +90,7 @@ jobs:
         run: |
           docker buildx build --load -t hail-provider:ci -f apps/server/Dockerfile .
           docker buildx build --load -t hail-web-client:ci -f apps/client/Dockerfile .
-          docker run --rm --entrypoint sh hail-provider:ci -c 'test ! -d /workspace/hailproto/apps/client && test -f src/cli/provider-operator.ts && test -f src/cli/create-signup-invitation.ts'
+          docker run --rm --entrypoint sh hail-provider:ci -c 'test ! -d /workspace/hail/apps/client && test -f src/cli/provider-operator.ts && test -f src/cli/create-signup-invitation.ts'
           docker buildx build --load -f apps/plc-monitor/Dockerfile .
       - name: Verify independent provider and optional web-client deployment
         run: python3 scripts/check-independent-deployment.py

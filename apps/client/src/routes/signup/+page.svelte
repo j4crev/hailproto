@@ -4,7 +4,7 @@
   import SignupDomainRecords from "$lib/SignupDomainRecords.svelte";
   import CopyButton from "$lib/CopyButton.svelte";
   import {startRegistration,startAuthentication} from "@simplewebauthn/browser";
-  import {decodeBase64Url} from "@hailproto/codec/base64url";
+  import {decodeBase64Url} from "@racrproto/codec/base64url";
   import {createSignupBackup,signSignupGenesis,encodeBase64Url} from "$lib/signup-recovery.js";
   import {PENDING_STORAGE,validSignupAddress,setupToken,pendingKey,sealPending,openPending,enrollmentHash,signupRequest,checkSummary,SignupRequestError,
     type PendingSignup,type SignupSummary} from "$lib/signup.js";

@@ -1,4 +1,4 @@
-import { encodeDeterministic,type HailGrant,type HailValue } from "@hailproto/codec";
+import { encodeDeterministic,type HailGrant,type HailValue } from "@racrproto/codec";
 export const equalGrantValue=(a:unknown,b:unknown)=>Buffer.from(encodeDeterministic(a as HailValue)).equals(Buffer.from(encodeDeterministic(b as HailValue)));
 
 export function expandsAuthorization(current:HailGrant,next:HailGrant):boolean {

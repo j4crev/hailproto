@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-root=/opt/hailproto
+root=/opt/hail
 deploy=$root/apps/server/deploy/public
 compose="docker compose --env-file $deploy/.env -f $deploy/compose.yaml"
 postgres=/etc/hail-provider-postgres/compose.yaml

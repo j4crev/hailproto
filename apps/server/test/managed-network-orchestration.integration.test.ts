@@ -11,7 +11,7 @@ import {signMonitorAttestation,type PlcMonitorAttestation} from "../src/migratio
 import {createPublicManagedRuntime} from "../src/migration/public-managed-runtime.js";
 import {loadConfig} from "../src/config.js";
 import {createWebCryptoSigner,createWebCryptoVerifier,decodeBase64Url,decodeDeterministic,encodeBase64Url,encodeDeterministic,signPayload,
-  verifySignedPayload,type HailEnvelope,type HailGrant,type HailValue} from "@hailproto/codec";
+  verifySignedPayload,type HailEnvelope,type HailGrant,type HailValue} from "@racrproto/codec";
 import {SQL} from "bun";
 import {Hono} from "hono";
 import {expect,it} from "vitest";

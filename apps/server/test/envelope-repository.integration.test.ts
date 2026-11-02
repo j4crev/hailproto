@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { base58btc } from "multiformats/bases/base58";
-import { createWebCryptoSigner, encodeBase64Url, inspectSignedPayload, signPayload, type HailEnvelope } from "@hailproto/codec";
+import { createWebCryptoSigner, encodeBase64Url, inspectSignedPayload, signPayload, type HailEnvelope } from "@racrproto/codec";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ProviderDatabase } from "../src/db/database.js";
 import { EnvelopeRepository } from "../src/envelopes/repository.js";

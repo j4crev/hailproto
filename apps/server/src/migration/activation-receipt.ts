@@ -1,4 +1,4 @@
-import { decodeDeterministic, encodeDeterministic, type HailValue } from "@hailproto/codec";
+import { decodeDeterministic, encodeDeterministic, type HailValue } from "@racrproto/codec";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 
 const CONTEXT = new TextEncoder().encode("hail.portable-migration-activated.v1\0");

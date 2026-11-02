@@ -110,8 +110,8 @@ No live deployment or database update has been performed by this task.
 ### 2026-11-01 — repository protections and Linux CLI qualification
 
 - Enabled and read back active GitHub rulesets for
-  [main](https://github.com/j4crev/hailproto/rules/26294624) and
-  [version tags](https://github.com/j4crev/hailproto/rules/26294625).
+  [main](https://github.com/j4crev/hail/rules/26294624) and
+  [version tags](https://github.com/j4crev/hail/rules/26294625).
   Main requires a pull request, resolved review threads and up-to-date `verify`
   status from GitHub Actions (app 15368); force-push/deletion are blocked.
   Existing `v*` tags cannot be updated or deleted. Neither ruleset has bypass
@@ -136,13 +136,13 @@ No live deployment or database update has been performed by this task.
 ### 2026-11-01 — native CLI shared conversations rollout
 
 - Committed and pushed application revision `82165c2819ae65f6b74f36d9aa96e3a3997488ac`.
-  [Push CI](https://github.com/j4crev/hailproto/actions/runs/41259376974) passed all
+  [Push CI](https://github.com/j4crev/hail/actions/runs/41259376974) passed all
   gates, including **56 database integration suites, zero failures**, native CLI
   packaging/install checks, 16 shared-conversation CLI regression cases and 151
   base HTTPS contract cases.
-- [Publication run 41260425977](https://github.com/j4crev/hailproto/actions/runs/41260425977)
+- [Publication run 41260425977](https://github.com/j4crev/hail/actions/runs/41260425977)
   succeeded for that exact revision. The downloaded artifact selected
-  `ghcr.io/j4crev/hailproto/provider@sha256:7baecf903b2a59c0e89100465fcf1e44722bbb12b4287e539a661d929f7bca4a`.
+  `ghcr.io/j4crev/hail/provider@sha256:7baecf903b2a59c0e89100465fcf1e44722bbb12b4287e539a661d929f7bca4a`.
 - Production checkout was clean and installed provider/backup wrapper hashes
   matched reviewed source. The installed wrapper completed the encrypted backup,
   download digest verification, rollback-image retention and application rollout
@@ -167,10 +167,10 @@ No live deployment or database update has been performed by this task.
 
 ### 2026-11-01 — shared conversation wording and sender rollout
 
-- [Publication run 41258770082](https://github.com/j4crev/hailproto/actions/runs/41258770082)
+- [Publication run 41258770082](https://github.com/j4crev/hail/actions/runs/41258770082)
   succeeded for `cfd0c79c87207e460e7441ac3b9ba6b08fbc7eda`; the downloaded
   release artifact matched that commit.
-- Deployed image: `ghcr.io/j4crev/hailproto/provider@sha256:f0395092fc16cdd369bc68a52ffca80531e3f18f3cdb66d31088911af7b27917`.
+- Deployed image: `ghcr.io/j4crev/hail/provider@sha256:f0395092fc16cdd369bc68a52ffca80531e3f18f3cdb66d31088911af7b27917`.
   Production checkout was clean and installed provider/backup wrapper checksums
   matched the reviewed source. Preflight disk availability was 6.8 GiB.
 - The installed wrapper completed its encrypted backup and download verification,
@@ -190,11 +190,11 @@ No live deployment or database update has been performed by this task.
 ### 2026-10-31 — conversation spacing rollout through CI publication
 
 - All local branch commits were already synchronized with origin before release.
-  [Publication run 41253534310](https://github.com/j4crev/hailproto/actions/runs/41253534310)
+  [Publication run 41253534310](https://github.com/j4crev/hail/actions/runs/41253534310)
   succeeded for `aa344ad7a8a3f0cb88196c2751d9f95bd3b2d1be`, including workspace,
   image, browser, native CLI and database checks. Database integration: **55
   suites, zero failures, zero skipped tests**.
-- Deployed image: `ghcr.io/j4crev/hailproto/provider@sha256:880602df4d9af875ee20e906a2795263f34fc6c889721f786123aea212f3083d`.
+- Deployed image: `ghcr.io/j4crev/hail/provider@sha256:880602df4d9af875ee20e906a2795263f34fc6c889721f786123aea212f3083d`.
   The artifact commit matched the successful run. Installed provider/backup
   wrapper checksums matched the reviewed source; production checkout was clean.
 - The installed wrapper pulled and verified the image, completed the encrypted
@@ -214,12 +214,12 @@ No live deployment or database update has been performed by this task.
 
 ### 2026-10-31 — production digest cutover completed
 
-- [Publication run 41251716346](https://github.com/j4crev/hailproto/actions/runs/41251716346)
+- [Publication run 41251716346](https://github.com/j4crev/hail/actions/runs/41251716346)
   passed the complete hosted gate and published the provider/GUI image for
   `c38aedf93956d97b6ad3c3e892d91970908d93ae`. Database integration: **55 suites,
   zero failures, zero skipped tests**. Browser, CLI, clean-install, documentation
   freshness and image checks passed. The same 55 database suites passed locally.
-- Image: `ghcr.io/j4crev/hailproto/provider@sha256:ebde465a049ba900194a44ec196d9c212a7869bda1c6ec4083cbaeec9fb447db`.
+- Image: `ghcr.io/j4crev/hail/provider@sha256:ebde465a049ba900194a44ec196d9c212a7869bda1c6ec4083cbaeec9fb447db`.
   Anonymous registry access and the manifest digest were verified.
 - The operator installed the reviewed provider/backup wrappers through the VPS
   console. Installed checksums matched the reviewed files; prior copies were

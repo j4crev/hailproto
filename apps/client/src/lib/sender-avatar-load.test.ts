@@ -1,7 +1,7 @@
 import {expect,it,vi} from "vitest";
 vi.mock("$env/dynamic/private",()=>({env:{HAIL_WEB_CLIENT_PROVIDER:"https://provider.example"}}));
 import {senderAvatars} from "./server/canary.js";
-import type {AccountApiClient} from "@hailproto/client-support/account-api";
+import type {AccountApiClient} from "@racrproto/client-support/account-api";
 const did=`did:plc:${"a".repeat(24)}`;
 it("returns same-origin image URLs without waiting for API or identity requests",async()=>{
   const request=vi.fn(()=>new Promise<never>(()=>{})),senderProfile=vi.fn(()=>new Promise<never>(()=>{}));

@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { cidForCbor } from "@atproto/common";
 import { def,validateOperationLog } from "@did-plc/lib";
-import { decodeDeterministic, type HailValue } from "@hailproto/codec";
+import { decodeDeterministic, type HailValue } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { PLC_READ_EVIDENCE_POLICY_VERSION } from "../identity/managed-profile.js";
 import { verifyMonitorAttestation } from "./monitor-attestation.js";

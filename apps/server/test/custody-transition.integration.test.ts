@@ -3,7 +3,7 @@ import { SQL } from "bun";
 import { cidForCbor } from "@atproto/common";
 import { P256Keypair } from "@atproto/crypto";
 import { didForCreateOp, formatDidDoc, PlcClientError, signOperation, validateOperationLog, type Operation } from "@did-plc/lib";
-import { createWebCryptoSigner, encodeBase64Url, encodeDeterministic, signPayload, type HailGrant, type HailValue } from "@hailproto/codec";
+import { createWebCryptoSigner, encodeBase64Url, encodeDeterministic, signPayload, type HailGrant, type HailValue } from "@racrproto/codec";
 import { expect, it, vi } from "vitest";
 import { Hono } from "hono";
 import { SameProviderCustodyTransition, type CustodyTransitionApproval } from "../src/accounts/custody-transition.js";
@@ -53,7 +53,7 @@ integration.each([[false,false],[true,false],[true,true]])("same-provider custod
   const verifier={async verify(address:string){const account=await repository.getAccountByAddress(address),binding=await repository.getBindingForAccount(account.id);
     const resolved=await resolver.resolve(account.did!);return {address,did:account.did!,serviceBase:resolved.serviceBase,
       identityDidKey:resolved.identityDidKey,messagingDidKey:resolved.messagingDidKey,plcEvidence:resolved.evidence,verifiedAt:new Date(),
-      binding:(await import("@hailproto/codec")).inspectSignedPayload("hail.address-binding",binding.cose).payload,
+      binding:(await import("@racrproto/codec")).inspectSignedPayload("hail.address-binding",binding.cose).payload,
       representation:binding.cose,digest:binding.digest};}};
   const encryptor=new KeyEncryptor(encodeBase64Url(randomBytes(32)));
   try{

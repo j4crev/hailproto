@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { signPayload, inspectSignedPayload, toDiagnosticJson, type HailSenderProfile } from "@hailproto/codec";
-import { createWebCryptoSigner } from "@hailproto/codec";
+import { signPayload, inspectSignedPayload, toDiagnosticJson, type HailSenderProfile } from "@racrproto/codec";
+import { createWebCryptoSigner } from "@racrproto/codec";
 import type { SQL } from "bun";
 import type { VerifiedAddress } from "../discovery/verifier.js";
 import type { KeyEncryptor } from "../identity/key-encryption.js";

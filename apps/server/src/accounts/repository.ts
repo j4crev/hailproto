@@ -1,6 +1,6 @@
 import {DEFAULT_SESSION_POLICY, type SessionPolicy} from "./session-policy.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { encodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { canonicalizeHailAddress } from "../identity/address.js";
 

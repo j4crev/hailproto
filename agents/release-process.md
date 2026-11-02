@@ -110,8 +110,8 @@ The **Publish provider and web-client images** workflow (`publish-provider.yml`)
 requires a successful `verify-main` handoff for the exact reviewed commit on
 `main`. Full verification is required on the PR; the main push check reuses that
 successful run only when the merged PR head has the identical Git tree. It
-publishes separate `ghcr.io/j4crev/hailproto/provider` and
-`ghcr.io/j4crev/hailproto/provider-web-client` images. The `provider-release`
+publishes separate `ghcr.io/j4crev/hail/provider` and
+`ghcr.io/j4crev/hail/provider-web-client` images. The `provider-release`
 artifact records the full commit and both immutable digest references. Initial
 platform support is Linux amd64. A push alone neither publishes nor deploys.
 
@@ -162,7 +162,7 @@ profile; do not replace it with the new fresh-install profile.
 
    ```bash
    sudo -n /usr/local/sbin/hail-provider-ops status
-   sudo -n /usr/local/sbin/hail-provider-ops deploy FULL_COMMIT_SHA ghcr.io/j4crev/hailproto/provider@sha256:PROVIDER_DIGEST ghcr.io/j4crev/hailproto/provider-web-client@sha256:CLIENT_DIGEST
+   sudo -n /usr/local/sbin/hail-provider-ops deploy FULL_COMMIT_SHA ghcr.io/j4crev/hail/provider@sha256:PROVIDER_DIGEST ghcr.io/j4crev/hail/provider-web-client@sha256:CLIENT_DIGEST
    ```
 
    Both candidates are pulled and checked against the commit before backup or

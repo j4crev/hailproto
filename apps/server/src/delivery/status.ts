@@ -1,7 +1,7 @@
 import {
   createWebCryptoSigner, createWebCryptoVerifier, encodePayload, signPayload,
   verifySignedPayload, inspectSignedPayload, type HailDeliveryStatus,
-} from "@hailproto/codec";
+} from "@racrproto/codec";
 import type { SQL } from "bun";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import type { KeyEncryptor } from "../identity/key-encryption.js";

@@ -14,7 +14,7 @@ import sys
 import tempfile
 from urllib.parse import urlsplit
 
-ENV = Path('/opt/hailproto/apps/server/deploy/public/.env')
+ENV = Path('/opt/hail/apps/server/deploy/public/.env')
 FIELDS = ('SIGNUP_MONITOR_API_ORIGIN', 'SIGNUP_MONITOR_TOKEN', 'SIGNUP_MONITOR_PUBLIC_KEY')
 
 

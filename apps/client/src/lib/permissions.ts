@@ -1,5 +1,5 @@
 import qrcode from "qrcode-generator";
-import type {HailGrant,HailGrantScope} from "@hailproto/codec";
+import type {HailGrant,HailGrantScope} from "@racrproto/codec";
 import type {startAuthentication} from "@simplewebauthn/browser";
 
 export const APPROVAL_STORAGE="hail.pending-grant-approval.v1";

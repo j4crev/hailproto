@@ -1,6 +1,6 @@
 import {loadAccountSecurity} from "$lib/server/account-security.js";
 import {editableProfile, type ProfileDefinition} from "$lib/sender-profile.js";
-import {AccountApiError} from "@hailproto/client-support/account-api";
+import {AccountApiError} from "@racrproto/client-support/account-api";
 import {canaryAccount} from "$lib/server/canary.js";
 export async function load({cookies, url}) {
   const {account, client} = await canaryAccount(cookies, url);

@@ -2,7 +2,7 @@ import {createHash} from "node:crypto";
 import {cidForCbor} from "@atproto/common";
 import {P256Keypair} from "@atproto/crypto";
 import {signOperation} from "@did-plc/lib";
-import {encodeBase64Url} from "@hailproto/codec";
+import {encodeBase64Url} from "@racrproto/codec";
 import {expect,it,vi} from "vitest";
 import {ManagedMigrationCompletion} from "../src/migration/managed-completion.js";
 

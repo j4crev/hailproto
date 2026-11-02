@@ -1,7 +1,7 @@
 # racr developer/agent contract — v2
 
 This is the reference client's contract, not a mandatory federation API. Hail
-signed objects and federation HTTP semantics remain governed by `hailproto/spec`.
+signed objects and federation HTTP semantics remain governed by `hail/spec`.
 The CLI package version is separate from contract v2,
 the provider's `/api/v1` path, and signed-object/file format versions.
 

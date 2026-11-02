@@ -3,7 +3,7 @@ import {SQL} from "bun";
 import {Hono} from "hono";
 import {expect,it,vi} from "vitest";
 import {P256Keypair} from "@atproto/crypto";
-import {createWebCryptoSigner,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,signPayload,createWebCryptoVerifier,verifySignedPayload} from "@hailproto/codec";
+import {createWebCryptoSigner,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,signPayload,createWebCryptoVerifier,verifySignedPayload} from "@racrproto/codec";
 import {ProviderDatabase} from "../src/db/database.js";
 import {AccountConnections} from "../src/accounts/connections.js";
 import {registerConnectionRoutes} from "../src/accounts/connection-routes.js";

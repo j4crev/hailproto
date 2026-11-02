@@ -1,6 +1,6 @@
 // Shared by racr and browser signup. Keep filesystem, network and Node imports out.
 import { P256Keypair } from "@atproto/crypto";
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec/base64url";
 import { base58btc } from "multiformats/bases/base58";
 
 type Role = "user-recovery" | "hail-identity";

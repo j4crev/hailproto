@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { encodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url } from "@racrproto/codec";
 import { ProviderDatabase } from "../src/db/database.js";
 import { KeyEncryptor } from "../src/identity/key-encryption.js";
 import { TransferCleanup } from "../src/migration/cleanup.js";

@@ -2,7 +2,7 @@ import {generateKeyPairSync} from "node:crypto";
 import {expect,it,vi} from "vitest";
 import {MonitorSigner} from "../src/signing.js";
 import worker,{AlertDeduplicator,type Env} from "../deploy/cloudflare-alert-worker/worker.js";
-import {encodeBase64Url} from "@hailproto/codec";
+import {encodeBase64Url} from "@racrproto/codec";
 import {cidForCbor} from "@atproto/common";
 import type {EmailBinding} from "../deploy/cloudflare-alert-worker/signup-email.js";
 import {SIGNUP_ALERT_PATH,SIGNUP_BINDING_PATH,type MonitorEmailBindingQuery} from "../src/email-binding.js";

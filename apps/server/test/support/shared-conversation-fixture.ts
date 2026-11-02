@@ -1,6 +1,6 @@
 import {createHash,generateKeyPairSync,randomBytes,randomUUID,sign} from 'node:crypto';
 import {P256Keypair} from '@atproto/crypto';
-import {createWebCryptoSigner,encodeBase64Url,signPayload} from '@hailproto/codec';
+import {createWebCryptoSigner,encodeBase64Url,signPayload} from '@racrproto/codec';
 import type {SQL} from 'bun';
 import {KeyEncryptor} from '../../src/identity/key-encryption.js';
 import {generateAccountKeys} from '../../src/identity/keys.js';

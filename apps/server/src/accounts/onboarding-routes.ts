@@ -1,6 +1,6 @@
 import {RegistrationPolicy,RegistrationError} from "../onboarding/registration.js";
 import { createHash,randomUUID,timingSafeEqual } from "node:crypto";
-import { decodeBase64Url } from "@hailproto/codec";
+import { decodeBase64Url } from "@racrproto/codec";
 import type { Hono } from "hono";
 import type { SQL } from "bun";
 import { parseJsonWithoutDuplicateKeys } from "../discovery/strict-json.js";

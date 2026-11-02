@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { cidForCbor } from "@atproto/common";
 import { assureValidSig, def, validateOperationLog, type DocumentData } from "@did-plc/lib";
 import * as dagCbor from "@ipld/dag-cbor";
-import { decodeBase64Url } from "@hailproto/codec";
+import { decodeBase64Url } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import type { HailDidResolver } from "../plc/resolver.js";

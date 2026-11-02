@@ -21,8 +21,8 @@ Do not point an independent provider at Haili's private tokens or deployment scr
 Clone the monorepo and initialize its pinned PLC dependency:
 
 ```bash
-git clone --recurse-submodules https://github.com/j4crev/hailproto.git
-cd hailproto
+git clone --recurse-submodules https://github.com/j4crev/hail.git
+cd hail
 # Select your reviewed release before building.
 git submodule update --init --recursive
 cd apps/server/deploy/public
@@ -108,7 +108,7 @@ openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
 
 The checked-in `.env.example` contains placeholders, not production secrets.
 The real `.env` is ignored by Git and should have mode `600`. On the Haili host,
-`provider-ops.sh` reads `/opt/hailproto/apps/server/deploy/public/.env` explicitly
+`provider-ops.sh` reads `/opt/hail/apps/server/deploy/public/.env` explicitly
 with Docker Compose's `--env-file`. Do not commit that file or rendered Compose
 output, which can contain resolved secrets.
 

@@ -1,6 +1,6 @@
 import {createHash} from "node:crypto";
 import {cidForCbor} from "@atproto/common";
-import {encodeBase64Url} from "@hailproto/codec";
+import {encodeBase64Url} from "@racrproto/codec";
 import type {HailDidResolver,ResolvedHailDid} from "./resolver.js";
 
 // One configured private registry is sufficient for POC retry/cutover proof,

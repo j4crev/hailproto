@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
-import { encodeBase64Url, type HailEnvelope } from "@hailproto/codec";
+import { encodeBase64Url, type HailEnvelope } from "@racrproto/codec";
 import { describe, expect, it, vi } from "vitest";
 import { bodyFromText, bodyDigest } from "../src/bodies/service.js";
 import { BodyRetriever } from "../src/delivery/retriever.js";

@@ -1,6 +1,6 @@
 // Native vault regression with independent browser crypto/signing fixtures. Never reads user credentials.
 import assert from "node:assert/strict";
-import {fromDiagnosticJson} from "@hailproto/codec";
+import {fromDiagnosticJson} from "@racrproto/codec";
 import { mkdtemp, rm, writeFile, readFile, stat, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";

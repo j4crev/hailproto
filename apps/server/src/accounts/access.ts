@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { verifySignature } from "@atproto/crypto";
-import { decodeBase64Url, encodeBase64Url, encodeDeterministic, type HailValue } from "@hailproto/codec";
+import { decodeBase64Url, encodeBase64Url, encodeDeterministic, type HailValue } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { ed25519PublicKeyFromDidKey } from "../identity/did-key.js";
 import type { HailDidResolver } from "../plc/resolver.js";

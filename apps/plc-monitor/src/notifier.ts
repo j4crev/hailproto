@@ -3,7 +3,7 @@ import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import ipaddr from "ipaddr.js";
 import type { SQL } from "bun";
-import { encodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url } from "@racrproto/codec";
 import { assertWebhookUrl } from "./monitor.js";
 import type { MonitorSigner } from "./signing.js";
 

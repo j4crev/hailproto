@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {decodePayload,encodePayload} from '@hailproto/codec';
+import {decodePayload,encodePayload} from '@racrproto/codec';
 import {composeBlocks} from './compose.js';
 import {parseMessage,messageDisplayContent,messageListSummary} from './messages.js';
 import {replyBody,replyExcerpt,replyQuoteIndex} from './reply.js';

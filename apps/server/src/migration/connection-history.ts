@@ -1,6 +1,6 @@
 import { BODY_CONTAINER_LIMITS, BODY_MAX_BYTES } from "../bodies/service.js";
 import {createHash} from "node:crypto";
-import {decodeBase64Url,decodeDeterministic,encodeDeterministic,inspectSignedPayload,type HailValue} from "@hailproto/codec";
+import {decodeBase64Url,decodeDeterministic,encodeDeterministic,inspectSignedPayload,type HailValue} from "@racrproto/codec";
 import type {SQL} from "bun";
 import {parseJsonWithoutDuplicateKeys} from "../discovery/strict-json.js";
 import {canonicalizeHailServiceBase} from "../plc/resolver.js";

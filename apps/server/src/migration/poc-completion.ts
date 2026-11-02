@@ -1,4 +1,4 @@
-import { decodeBase64Url,encodeBase64Url } from "@hailproto/codec";
+import { decodeBase64Url,encodeBase64Url } from "@racrproto/codec";
 import { cidForCbor } from "@atproto/common";
 import { def } from "@did-plc/lib";
 import type { SQL } from "bun";

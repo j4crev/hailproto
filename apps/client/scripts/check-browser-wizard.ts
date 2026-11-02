@@ -6,7 +6,7 @@ import {createRequire} from "node:module";
 import {createSignupBackup} from "../src/lib/signup-recovery.js";
 import {assureValidSig,didForCreateOp} from "@did-plc/lib";
 import {cidForCbor} from "@atproto/common";
-import {createWebCryptoSigner,signPayload,encodeBase64Url,toDiagnosticJson,fromDiagnosticJson,encodePayload,type HailGrant} from "@hailproto/codec";
+import {createWebCryptoSigner,signPayload,encodeBase64Url,toDiagnosticJson,fromDiagnosticJson,encodePayload,type HailGrant} from "@racrproto/codec";
 import {createApp} from "../../server/src/app.js";
 import type {AppConfig} from "../../server/src/config.js";
 import {uuidV7} from "../../server/src/identity/uuid-v7.js";

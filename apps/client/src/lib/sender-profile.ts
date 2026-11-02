@@ -1,5 +1,5 @@
-import type {HailSenderProfile} from "@hailproto/codec";
-import {encodeBase64Url} from "@hailproto/codec/base64url";
+import type {HailSenderProfile} from "@racrproto/codec";
+import {encodeBase64Url} from "@racrproto/codec/base64url";
 
 export type Category = {id: string; label: string; description?: string};
 export const GENERAL_CATEGORY: Readonly<Category> = Object.freeze({id: "general", label: "General"});

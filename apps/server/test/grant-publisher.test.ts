@@ -1,4 +1,4 @@
-import { encodeBase64Url, type HailGrant } from "@hailproto/codec";
+import { encodeBase64Url, type HailGrant } from "@racrproto/codec";
 import { describe, expect, it, vi } from "vitest";
 import { COSE_SIGN1_MEDIA_TYPE } from "../src/discovery/routes.js";
 import { GrantPublisher } from "../src/grants/publisher.js";

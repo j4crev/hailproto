@@ -80,7 +80,7 @@ services:
 
   gui:
     image: ${HAIL_WEB_CLIENT_IMAGE:-hail-web-client:public}
-    command: [bun, /workspace/hailproto/apps/client/build/index.js]
+    command: [bun, /workspace/hail/apps/client/build/index.js]
     restart: unless-stopped
     init: true
     read_only: true

@@ -1,6 +1,6 @@
-import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
-import { bytes, cipher, validateVault, type UserVaultFile } from "@hailproto/client-support/vault-crypto";
-import type { PublicOnboardingPreparation } from "@hailproto/client-support/provider-contracts";
+import { decodeBase64Url, encodeBase64Url } from "@racrproto/codec/base64url";
+import { bytes, cipher, validateVault, type UserVaultFile } from "@racrproto/client-support/vault-crypto";
+import type { PublicOnboardingPreparation } from "@racrproto/client-support/provider-contracts";
 import type { Operation } from "@did-plc/lib";
 
 export interface SignupPolicy { provider:string; monitorOrigin:string; monitorKey:string; }

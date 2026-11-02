@@ -1,7 +1,7 @@
 import {randomBytes,randomUUID} from "node:crypto";
 import {SQL} from "bun";
 import {afterAll,beforeAll,describe,expect,it} from "vitest";
-import {encodeBase64Url} from "@hailproto/codec";
+import {encodeBase64Url} from "@racrproto/codec";
 import {verifyRegistrationResponse} from "@simplewebauthn/server";
 
 import {ProviderDatabase} from "../src/db/database.js";

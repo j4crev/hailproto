@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { encodeBase64Url, inspectSignedPayload } from "@hailproto/codec";
+import { encodeBase64Url, inspectSignedPayload } from "@racrproto/codec";
 import { COSE_SIGN1_MEDIA_TYPE } from "../discovery/routes.js";
 import type { SafeHttpsTransport } from "../discovery/safe-fetch.js";
 import type { HailDidResolver } from "../plc/resolver.js";

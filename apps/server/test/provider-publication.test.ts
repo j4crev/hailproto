@@ -9,9 +9,9 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 const sha = "a".repeat(40);
 const successfulRun = {
   id: 100, head_sha: sha, head_branch: "main", event: "push",
-  head_repository: {full_name: "j4crev/hailproto"},
+  head_repository: {full_name: "j4crev/hail"},
   status: "completed", conclusion: "success", run_attempt: 2,
-  html_url: "https://github.com/j4crev/hailproto/actions/runs/100",
+  html_url: "https://github.com/j4crev/hail/actions/runs/100",
 };
 
 async function verify(

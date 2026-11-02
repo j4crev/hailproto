@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { isIP } from "node:net";
-import { decodeBase64Url, encodeBase64Url, inspectSignedPayload, fromDiagnosticJson, type DiagnosticJson, type HailGrant, type HailSenderProfile } from "@hailproto/codec";
+import { decodeBase64Url, encodeBase64Url, inspectSignedPayload, fromDiagnosticJson, type DiagnosticJson, type HailGrant, type HailSenderProfile } from "@racrproto/codec";
 import { privateFile } from "./private-files.js";
 import { ClientError } from "./client-error.js";
 import { MANAGED_CUSTODY_PROFILE_VERSION } from "./managed-profile.js";

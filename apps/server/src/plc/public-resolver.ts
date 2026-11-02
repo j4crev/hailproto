@@ -1,7 +1,7 @@
 import { storePublicResolution } from "./evidence-storage.js";
 import { isDeepStrictEqual } from "node:util";
 import { encode as encodeDagCbor } from "@ipld/dag-cbor";
-import { decodeDeterministic, encodeBase64Url, type HailValue } from "@hailproto/codec";
+import { decodeDeterministic, encodeBase64Url, type HailValue } from "@racrproto/codec";
 import { def, formatDidDoc, type ExportedOp } from "@did-plc/lib";
 import type { SQL } from "bun";
 import type { AppConfig } from "../config.js";

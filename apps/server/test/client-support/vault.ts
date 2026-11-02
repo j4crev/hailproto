@@ -5,7 +5,7 @@ import { P256Keypair, parseDidKey, P256_JWT_ALG, SECP256K1_JWT_ALG } from "@atpr
 import { assureValidSig, def, didForCreateOp, signOperation, type DocumentData, type Operation, type UnsignedOperation } from "@did-plc/lib";
 import { isIP } from "node:net";
 import { createWebCryptoSigner, encodeDeterministic, signPayload,
-  type HailAddressBinding, type HailGrant, type HailConnectionInvitation,type HailConnectionConfirmation,type HailValue } from "@hailproto/codec";
+  type HailAddressBinding, type HailGrant, type HailConnectionInvitation,type HailConnectionConfirmation,type HailValue } from "@racrproto/codec";
 import * as dagCbor from "@ipld/dag-cbor";
 import { base58btc } from "multiformats/bases/base58";
 import { accountAccessInput, type AccountAccessChallenge } from "./account-access-proof.js";

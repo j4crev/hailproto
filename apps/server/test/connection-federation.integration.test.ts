@@ -10,7 +10,7 @@ import {expect,it,vi} from "vitest";
 import {P256Keypair} from "@atproto/crypto";
 import {cidForCbor} from '@atproto/common';
 import {def,didForCreateOp,formatDidDoc,signOperation,validateOperationLog} from "@did-plc/lib";
-import {createWebCryptoSigner,decodeBase64Url,decodeDeterministic,encodeBase64Url,encodeDeterministic,fromDiagnosticJson,inspectSignedPayload,signPayload} from "@hailproto/codec";
+import {createWebCryptoSigner,decodeBase64Url,decodeDeterministic,encodeBase64Url,encodeDeterministic,fromDiagnosticJson,inspectSignedPayload,signPayload} from "@racrproto/codec";
 import {ProviderDatabase} from "../src/db/database.js";
 import {AccountConnections} from "../src/accounts/connections.js";
 import {RemoteConnectionReview} from "../src/accounts/connection-review.js";

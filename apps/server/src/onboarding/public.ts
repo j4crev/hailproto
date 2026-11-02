@@ -1,11 +1,11 @@
-import type {PublicOnboardingPreparation} from "@hailproto/client-support/provider-contracts";
-export type {PublicOnboardingPreparation} from "@hailproto/client-support/provider-contracts";
+import type {PublicOnboardingPreparation} from "@racrproto/client-support/provider-contracts";
+export type {PublicOnboardingPreparation} from "@racrproto/client-support/provider-contracts";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { isIP } from "node:net";
 import { cidForCbor } from "@atproto/common";
 import { assureValidSig, def, didForCreateOp, validateOperationLog, type DocumentData, type Operation } from "@did-plc/lib";
-import { createWebCryptoSigner, createWebCryptoVerifier, signPayload, verifySignedPayload } from "@hailproto/codec";
+import { createWebCryptoSigner, createWebCryptoVerifier, signPayload, verifySignedPayload } from "@racrproto/codec";
 import * as dagCbor from "@ipld/dag-cbor";
 import type { SQL } from "bun";
 import type { AddressVerificationService } from "./activation.js";

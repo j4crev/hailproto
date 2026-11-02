@@ -15,8 +15,8 @@ import { managedHandshakeDigest, signManagedProviderHandshake, verifyManagedOwne
   verifyManagedProviderHandshake, type ManagedTransferGrant, type ManagedTransferOffer,
   type ManagedTransferReservation, type ManagedTransferFenceRequest,
   type SignedManagedHandshake } from "./managed-handshake.js";
-import { decodeDeterministic } from "@hailproto/codec";
-import { createWebCryptoSigner, signPayload, type HailAddressBinding } from "@hailproto/codec";
+import { decodeDeterministic } from "@racrproto/codec";
+import { createWebCryptoSigner, signPayload, type HailAddressBinding } from "@racrproto/codec";
 import { canonicalizeHailAddress } from "../identity/address.js";
 
 export interface PreparedTargetKeys {

@@ -5,7 +5,7 @@ import {join} from "node:path";
 import {tmpdir} from "node:os";
 import {cidForCbor} from "@atproto/common";
 import {formatDidDoc,PlcClientError,type Operation} from "@did-plc/lib";
-import {encodeBase64Url,inspectSignedPayload,signPayload,createWebCryptoSigner,type HailSenderProfile} from "@hailproto/codec";
+import {encodeBase64Url,inspectSignedPayload,signPayload,createWebCryptoSigner,type HailSenderProfile} from "@racrproto/codec";
 import {createHash} from "node:crypto";
 import {importEd25519PrivateKey} from "../src/identity/keys.js";
 import {describe,it,expect,beforeAll,afterAll,vi} from "vitest";

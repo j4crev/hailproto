@@ -1,4 +1,4 @@
-import { encodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url } from "@racrproto/codec";
 import { MonitorDatabase } from "../database.js";
 import { PlcMonitor } from "../monitor.js";
 import { BoundedMonitorPlcClient } from "../plc.js";

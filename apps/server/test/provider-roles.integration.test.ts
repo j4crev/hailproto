@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { SQL } from "bun";
 import { P256Keypair } from "@atproto/crypto";
-import { encodeBase64Url } from "@hailproto/codec";
+import { encodeBase64Url } from "@racrproto/codec";
 import { expect, it } from "vitest";
 import { ProviderDatabase } from "../src/db/database.js";
 import { authorizeProviderRole, providerRoleAccountId } from "../src/onboarding/provider-roles.js";

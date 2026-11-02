@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
 import { writeFile } from "node:fs/promises";
 import { SQL } from "bun";
-import { decodePayload, decodeDeterministic, inspectSignedPayload } from "@hailproto/codec";
+import { decodePayload, decodeDeterministic, inspectSignedPayload } from "@racrproto/codec";
 import type { Trace } from "./agent-eval-evidence.js";
 
 const [mode,path]=Bun.argv.slice(2);

@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
 import { isCoseSign1MediaType } from "../http/media-type.js";
 import type { EnvelopeReceiver } from "./receiver.js";
-import { inspectSignedPayload } from "@hailproto/codec";
+import { inspectSignedPayload } from "@racrproto/codec";
 import { COSE_SIGN1_MEDIA_TYPE } from "../discovery/routes.js";
 import type { DeliveryStatusSigner } from "../delivery/status.js";
 import { ProtectedResponseSchedule } from "../http/protected-schedule.js";

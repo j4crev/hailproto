@@ -6,7 +6,7 @@ import {
   verifySignedPayload,
   type HailGrant,
   type HailGrantScope,
-} from "@hailproto/codec";
+} from "@racrproto/codec";
 import { base58btc } from "multiformats/bases/base58";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { VerifiedAddress } from "../src/discovery/verifier.js";

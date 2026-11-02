@@ -11,7 +11,7 @@
 - malformed CBOR and COSE inputs with expected error classifications; and
 - fixed Ed25519 seeds and public keys used only for reproducible tests.
 
-Package consumers can access the manifest through the exported `@hailproto/codec/vectors/v0.json` subpath. JSON module loading syntax remains runtime-specific; consumers may also read the file as package data.
+Package consumers can access the manifest through the exported `@racrproto/codec/vectors/v0.json` subpath. JSON module loading syntax remains runtime-specific; consumers may also read the file as package data.
 
 The private seeds are public test material. They MUST NOT be used for any identity, deployment, or non-test message. `seed_hex` is the raw 32-byte Ed25519 seed used in RFC 8410 PKCS#8 key material. `public_key_hex` is the corresponding raw 32-byte Ed25519 public key.
 

@@ -1,4 +1,4 @@
-import {decodeDeterministic,encodeBase64Url} from "@hailproto/codec";
+import {decodeDeterministic,encodeBase64Url} from "@racrproto/codec";
 import type {SQL} from "bun";
 import type {ManagedTransferAuthorization} from "../migration/managed-authorization.js";
 import type {ManagedTransferDelivery} from "../migration/managed-delivery.js";

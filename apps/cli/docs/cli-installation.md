@@ -7,7 +7,7 @@ Node, pnpm or Rust installation to run a release binary.
 
 ## Download a release
 
-Check [GitHub Releases](https://github.com/j4crev/hailproto/releases) for a
+Check [GitHub Releases](https://github.com/j4crev/hail/releases) for a
 published version with `racr` assets. Older releases use `hailp` asset names;
 follow their release-specific instructions. Until a release with the new name
 is published, use the source-build instructions below.
@@ -21,7 +21,7 @@ Bash, replacing `X.Y.Z` with that version (without the `v` prefix):
   version='X.Y.Z'
   test "$(uname -s)" = Linux && test "$(uname -m)" = x86_64
   archive="racr-${version}-linux-x64.tar.gz"
-  base="https://github.com/j4crev/hailproto/releases/download/v${version}"
+  base="https://github.com/j4crev/hail/releases/download/v${version}"
   work=$(mktemp -d)
   trap 'rm -rf "$work"' EXIT
   cd "$work"
@@ -33,8 +33,8 @@ Bash, replacing `X.Y.Z` with that version (without the `v` prefix):
     --output "$archive.sigstore.json" "$base/$archive.sigstore.json"
   sha256sum --check "$archive.sha256"
   gh attestation verify "$archive" --bundle "$archive.sigstore.json" \
-    --repo j4crev/hailproto \
-    --signer-workflow j4crev/hailproto/.github/workflows/release-linux.yml \
+    --repo j4crev/hail \
+    --signer-workflow j4crev/hail/.github/workflows/release-linux.yml \
     --source-ref "refs/tags/v${version}" --deny-self-hosted-runners
   tar -xzf "$archive" racr
   test "$(./racr --version)" = "$version"
@@ -126,8 +126,8 @@ Build a reviewed revision with rustup, a C linker and Python 3 installed. Rust
 database, vault or live account is needed.
 
 ```bash
-git clone https://github.com/j4crev/hailproto.git
-cd hailproto
+git clone https://github.com/j4crev/hail.git
+cd hail
 python3 apps/cli/scripts/build.py
 install -Dm755 apps/cli/dist/racr "$HOME/.local/bin/racr"
 racr --version

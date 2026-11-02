@@ -11,7 +11,7 @@ import { validateManagedTransferManifest } from "./managed-snapshot.js";
 import { verifyMonitorAttestation, type SignedMonitorAttestation } from "./monitor-attestation.js";
 import { encodePublicCutoverEvidence, evidenceHash, requirePublicCutoverEvidence } from "./public-cutover-evidence.js";
 import { encode as encodeDagCbor } from "@ipld/dag-cbor";
-import type { HailValue } from "@hailproto/codec";
+import type { HailValue } from "@racrproto/codec";
 import { PLC_READ_EVIDENCE_POLICY_VERSION } from "../identity/managed-profile.js";
 import {withAbort} from "../plc/client.js";
 import type {PlcDirectoryClient} from "../plc/client.js";
