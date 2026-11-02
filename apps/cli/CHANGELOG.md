@@ -1,6 +1,11 @@
 # Hail CLI release notes
 
-## 0.1.1 (prerelease)
+## 0.1.2 (prerelease)
+
+The `v0.1.1` tag did not produce a release: GitHub rejected its workflow because
+the reusable CI workflow required read permissions that its caller omitted.
+Version 0.1.2 supplies those permissions and carries the intended 0.1.1 changes
+below. The immutable `v0.1.1` tag is retained.
 
 - Plain-text sends and conversation replies now support bodies up to 1 MiB,
   including their encoded Safe Portable Text framing. The CLI checks the exact
