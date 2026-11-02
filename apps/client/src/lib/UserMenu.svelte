@@ -1,7 +1,7 @@
 <script lang="ts">
   import {afterNavigate} from "$app/navigation";
   import Icon from "$lib/Icon.svelte";
-  let {address = "Your account", compact = false, avatar = null}: {address?: string; compact?: boolean; avatar?: string | null} = $props();
+  let {address = "Your account", compact = false, avatar = null, drawerAccount = false}: {address?: string; compact?: boolean; avatar?: string | null; drawerAccount?: boolean} = $props();
   let failedAvatar = $state(''), avatarImage = $state<HTMLImageElement>();
   $effect(() => {
     const element=avatarImage, src=avatar;
@@ -32,15 +32,15 @@
   const initials = $derived(address === "Your account" ? "" : address.split("@")[0].slice(0, 2).toUpperCase());
   afterNavigate(() => panel?.hidePopover());
 </script>
-<button class:compact class="account-trigger" popovertarget={id} aria-label="Open account menu" aria-expanded={open} aria-controls={id}>
+<button class:compact class:drawer-account={drawerAccount} class="account-trigger" popovertarget={id} aria-label="Open account menu" aria-expanded={open} aria-controls={id}>
   <span class="avatar">{#if avatar && failedAvatar !== avatar}<img bind:this={avatarImage} src={avatar} alt="" />{:else if initials}{initials}{:else}<Icon name="user" />{/if}</span>
   {#if !compact}<span class="account-label"><strong>{address}</strong><small>Personal account</small></span><span class="account-dots" aria-hidden="true">···</span>{/if}
 </button>
 <div id={id} bind:this={panel} popover="auto" class="account-popover" ontoggle={event => {open = event.newState === "open";}}>
   <div class="menu-heading"><span class="hail-eyebrow">Signed in as</span><strong>{address}</strong></div>
   <nav aria-label="Account menu">
-    <a href="/account"><Icon name="user" />Account<Icon name="chevron" size={16} /></a>
-    <a href="/settings"><Icon name="settings" />Settings<Icon name="chevron" size={16} /></a>
+    <a href="/account"><Icon name="user" />Account</a>
+    <a href="/settings"><Icon name="settings" />Settings</a>
   </nav>
   <form method="POST" action="/auth/logout" onsubmit={signOut}><button disabled={signingOut}><Icon name="logout" />{signingOut ? "Signing out…" : "Sign out"}</button></form>
   {#if error}<p class="hail-error" role="alert">{error}</p>{/if}
@@ -61,9 +61,11 @@
   .menu-heading strong { overflow-wrap:anywhere; font-size:13px; }
   nav { padding:6px 0; }
   nav a, form button { display:flex; width:100%; align-items:center; gap:12px; padding:12px; border:0; border-radius:10px; font-size:13px; font-weight:600; text-decoration:none; background:transparent; }
-  nav a :global(svg:last-child) { margin-left:auto; color:var(--color-muted); }
   nav a:hover, form button:hover { background:var(--color-brand-soft); }
   form { border-top:1px solid var(--color-line); padding-top:6px; }
   form button { color:var(--color-danger); }
-  @media(max-width:900px) { .account-popover { inset:74px 16px auto auto; } }
+  @media(max-width:900px) {
+    .account-popover { inset:74px 16px auto auto; }
+    .drawer-account + .account-popover { inset:auto auto calc(82px + env(safe-area-inset-bottom)) 16px; }
+  }
 </style>

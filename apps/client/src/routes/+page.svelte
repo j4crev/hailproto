@@ -90,7 +90,7 @@
   @media(max-width:900px) {
     .feed-layout { padding-bottom:88px; }
     .has-selection { padding-bottom:180px; }
-    .mobile-compose { position:fixed; z-index:9; right:max(20px,env(safe-area-inset-right)); bottom:calc(20px + env(safe-area-inset-bottom)); display:grid; place-items:center; width:56px; height:56px; border-radius:18px; background:var(--color-brand); color:var(--color-on-brand); box-shadow:0 4px 16px #0003; text-decoration:none; }
+    .mobile-compose { position:fixed; z-index:11; right:max(20px,env(safe-area-inset-right)); bottom:calc(40px + env(safe-area-inset-bottom)); display:grid; place-items:center; width:56px; height:56px; border-radius:18px; background:var(--color-brand); color:var(--color-on-brand); box-shadow:0 4px 16px #0003; text-decoration:none; }
     .mobile-compose:hover { background:var(--color-brand-strong); }
   }
 
