@@ -2,13 +2,13 @@
 
 Reference-provider authentication and recovery behavior.
 This document defines provider-local account authentication, not a Hail
-federation requirement. Hail protocol authority remains defined by the
+federation requirement. RACR protocol authority remains defined by the
 specifications in [`../spec`](../spec).
 
 ## Goals
 
 - Passwordless, phishing-resistant account login without SMS or TOTP.
-- Support web, Android, iOS, macOS, Windows, Linux and `hailp`.
+- Support web, Android, iOS, macOS, Windows, Linux and `racr`.
 - Keep long-lived account credentials and Hail private keys out of browsers.
 - Continue to work when a Hail address changes.
 - Preserve independent-provider boundaries during provider transfer.
@@ -42,7 +42,7 @@ specifications in [`../spec`](../spec).
 7. Browser login creates a revocable server-side session represented by a
    secure cookie. It does not expose a long-lived account API bearer credential
    to browser JavaScript.
-8. Native clients and `hailp` authenticate in the system browser and receive a
+8. Native clients and `racr` authenticate in the system browser and receive a
    one-use authorization code bound with PKCE. Direct authenticator access is
    deferred.
 9. Adding or removing a passkey requires a trusted existing account path and
@@ -58,7 +58,7 @@ specifications in [`../spec`](../spec).
 | --- | --- |
 | Passkey | Provider-local account authentication |
 | Server session | Temporary account API authorization at one provider |
-| API credential | Provider-local non-browser access, including `hailp` |
+| API credential | Provider-local non-browser access, including `racr` |
 | `#hail-identity` | Hail identity objects such as Grants and Address Bindings |
 | Top PLC recovery key | Reviewed onboarding, recovery, custody and transfer operations |
 | Provider messaging/rotation keys | Provider operations allowed by the selected custody profile |
@@ -82,7 +82,7 @@ one passkey automatically appears on every platform.
 | macOS | System browser | AuthenticationServices, Touch ID, iCloud Keychain or security keys |
 | Windows | System browser | Win32 WebAuthn, Windows Hello or security keys |
 | Linux | Browser with a credential manager, phone or security key | `libfido2` hardware-key support only if later justified |
-| `hailp` | System browser plus loopback callback and PKCE | Direct CTAP/libfido2 access deferred |
+| `racr` | System browser plus loopback callback and PKCE | Direct CTAP/libfido2 access deferred |
 
 A first-party application can be associated with one provider domain. A generic
 Hail application cannot assume every independent provider has published Apple
@@ -130,7 +130,7 @@ must first establish that the requester controls that account.
 The owner-authorized onboarding ceremony creates and activates the account.
 When requested after activation, the provider issues a short-lived, single-use passkey
 enrollment capability bound to the exact account and serving generation.
-`hailp account create --passkey-enrollment new-account.passkey.json` generates
+`racr account create --passkey-enrollment new-account.passkey.json` generates
 an independent token, sends it only to the selected provider and stores the
 returned enrollment URL in that private file. Open the URL within ten minutes;
 the browser receives the enrollment capability, never the signup API credential
@@ -163,7 +163,7 @@ The reference CLI creates the capability without exposing owner keys or a
 long-lived API credential to the browser:
 
 ```console
-hailp account passkey-recover \
+racr account passkey-recover \
   --provider https://provider.example \
   --did did:plc:... \
   --signer owner-recovery \
@@ -247,24 +247,24 @@ credentials. Server-rendered routes resolve the authenticated account from the
 session. Signup has a separate, transient owner-key boundary; there is no fixed
 shared GUI credential.
 
-## `hailp` And Native Application Login
+## `racr` And Native Application Login
 
 The baseline command behaves like:
 
 ```console
-hailp account browser-login \
+racr account browser-login \
   --provider https://provider.example \
   --state browser-login.state.json \
   --credentials account.credential.json
 ```
 
-1. `hailp` generates state, a PKCE verifier/challenge and a loopback callback.
+1. `racr` generates state, a PKCE verifier/challenge and a loopback callback.
 2. It opens the provider's authorization URL in the system browser.
 3. The provider performs normal passkey authentication.
 4. The browser redirects a short-lived one-use code to the loopback callback.
-5. `hailp` checks state and exchanges the code, verifier and exact redirect URI.
+5. `racr` checks state and exchanges the code, verifier and exact redirect URI.
 6. The provider issues an appropriately scoped provider-local API credential.
-7. `hailp` stores it using the existing private credential-file rules.
+7. `racr` stores it using the existing private credential-file rules.
 
 The initial browser-issued CLI scope set is `account:read`, `grants:read`,
 `messages:read` and `messages:write`. Callers may request a narrower subset;
@@ -280,7 +280,7 @@ the browser presentation while preserving the server ceremonies.
 
 A headless device-code flow is deferred until required. It needs explicit
 anti-phishing UX, short expiry, clear provider/account/client presentation and
-one-use polling semantics. Direct CTAP support in `hailp` is also deferred
+one-use polling semantics. Direct CTAP support in `racr` is also deferred
 because it adds native dependencies while covering fewer synced passkeys than
 the browser.
 
@@ -331,7 +331,7 @@ the browser.
 - Optional conditional mediation needs feature detection.
 - Complete the real-device matrix across Android, iOS, macOS, Windows and Linux.
 - Exercise synced passkeys, hardware keys and phone-based cross-device authentication.
-- Verify `hailp` system-browser login on each supported desktop platform.
+- Verify `racr` system-browser login on each supported desktop platform.
 
 Virtual-authenticator tests and mobile viewport emulation do not establish those
 platform guarantees. Authentication, session and recovery requirements below remain
@@ -347,7 +347,7 @@ The first slice is complete when:
   long-lived API credential;
 - changing the account address does not break login;
 - multiple passkeys can be managed with recent user verification;
-- `hailp` can obtain a scoped provider credential through browser login and
+- `racr` can obtain a scoped provider credential through browser login and
   PKCE on Linux, macOS and Windows;
 - owner-proof recovery can enroll a replacement passkey without changing Hail
   custody or PLC state;
@@ -361,7 +361,7 @@ The first slice is complete when:
 
 - Native Android Credential Manager and Apple AuthenticationServices UX.
 - Windows native WebAuthn integration.
-- Direct hardware-key support in `hailp` through `libfido2`.
+- Direct hardware-key support in `racr` through `libfido2`.
 - Headless device authorization.
 - OIDC/social login, email links or one-time recovery codes.
 - Hardware attestation policy.

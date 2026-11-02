@@ -8,7 +8,7 @@ import { CID } from "multiformats/cid";
 import { sha256 } from "multiformats/hashes/sha2";
 import type { UserVaultFile } from "./vault-crypto.js";
 
-// Shared role checks after schema validation (hailp) or construction from exact
+// Shared role checks after schema validation (racr) or construction from exact
 // expected fields (browser). No provider-specific or arbitrary PLC updates.
 export function reviewManagedGenesisRoles(operation: UnsignedOperation, vault: UserVaultFile): UnsignedOperation {
   const identity = operation.verificationMethods["hail-identity"], messaging = operation.verificationMethods["hail-messaging"];

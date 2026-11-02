@@ -1,5 +1,10 @@
 # Hail specification index
 
+Hail is the communication medium; a hail is an individual recipient-authorized
+message. RACR (Recipient-Authorized Content Retrieval, pronounced “racer”) is
+the underlying protocol for exchanging hail messages. Existing `hail.*` identifiers name
+its protocol objects and remain current.
+
 Status: Working alpha specification; not an RFC or an adopted standard.
 
 The specification describes the current intended system. Alpha changes may break
@@ -46,6 +51,18 @@ Grant delivery. New direct replies use v3 rather than the historical unthreaded
 v1 reply representation. Historical Sender Profile v1 and connection-grant objects
 may remain in codecs or retained evidence, but are not required creation formats.
 
+## Reference client namespace
+
+The reference provider's account API and client state use `racr.*` type names,
+`racr_` API tokens, and browser-login client ID `racr-cli-v1`. Client-only signing
+domains include `racr.account-access.v1\0` and `racr.custody-transition.v1\0`
+(the final byte is NUL). These replace the former `hailp` namespace in the current
+alpha; they do not establish a required cross-provider account API. See the
+[client contract](../apps/cli/docs/cli-contract.md) and
+[breaking upgrade instructions](../apps/cli/docs/cli-installation.md#moving-from-hailp-to-racr).
+Federation object names, DID fragments, and encrypted `hail.user-vault` files
+remain unchanged.
+
 ## Protocol extensions and implementation policy
 
 Connections and shared conversations are protocol extensions: advertising or using
@@ -65,6 +82,11 @@ field, reference mapping and continuity requirement. Schema and signature validi
 alone do not replace live cutover, owner and monitor authority checks.
 
 ## Conformance and publication work
+
+The separate [first Internet-Draft workspace](../drafts/README.md) contains
+`draft-creviston-racr-00`, its RFCXML source and readable renderings. It is an
+unsubmitted review draft anchored to a fixed specification snapshot, not a
+replacement for these working specifications or a claim of IETF adoption.
 
 The [CDDL](hail.cddl), codec vectors and reference-provider tests provide evidence,
 not a blanket interoperability certification. Changes to the protocol should update

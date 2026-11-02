@@ -16,9 +16,9 @@ function fixture(absoluteSeconds=43200){
     recoveryOptions:vi.fn(async()=>({challengeId:"00000000-0000-4000-8000-000000000004",options:{challenge:"recovery"}})),
     recover:vi.fn(async()=>({registered:true})),revokeSessions:vi.fn(async()=>({revoked:true})),
     prepareAuthorization:vi.fn(async()=>({requestId:"00000000-0000-4000-8000-000000000005"})),
-    authorizationDetails:vi.fn(async()=>({clientId:"hailp-cli-v1",scopes:["account:read"]})),
+    authorizationDetails:vi.fn(async()=>({clientId:"racr-cli-v1",scopes:["account:read"]})),
     completeAuthorization:vi.fn(async()=>({redirectUri:"http://127.0.0.1:45678/callback"})),
-    exchangeAuthorization:vi.fn(async()=>({type:"hailp.api-credential"})),logout:vi.fn(async()=>{})};
+    exchangeAuthorization:vi.fn(async()=>({type:"racr.api-credential"})),logout:vi.fn(async()=>{})};
   const app=new Hono(),audit=vi.fn();registerPasskeyRoutes(app,service as unknown as PasskeyAuth,{authenticate} as unknown as AccountApiRepository,audit);
   return {app,service,authenticate,audit};
 }
@@ -43,7 +43,7 @@ describe("passkey routes",()=>{
 
   it("permits server-side trusted enrollment but still requires account access",async()=>{
     const {app,service,authenticate}=fixture();
-    const response=await app.request("/api/v1/auth/passkeys/registration/options",{method:"POST",headers:{Authorization:`Bearer hailp_${"B".repeat(43)}`}});
+    const response=await app.request("/api/v1/auth/passkeys/registration/options",{method:"POST",headers:{Authorization:`Bearer racr_${"B".repeat(43)}`}});
     expect(response.status).toBe(200);expect(authenticate).toHaveBeenCalledOnce();expect(service.registrationOptions).toHaveBeenCalledOnce();
   });
 
@@ -57,10 +57,10 @@ describe("passkey routes",()=>{
 
   it("accepts recovery tokens only through origin-checked JSON posts",async()=>{
     const {app,service}=fixture(),response=await app.request("/api/v1/auth/passkeys/recovery/options",{method:"POST",
-      headers:{Origin:origin,"Content-Type":"application/json"},body:JSON.stringify({token:`hailp_${"B".repeat(43)}`})});
+      headers:{Origin:origin,"Content-Type":"application/json"},body:JSON.stringify({token:`racr_${"B".repeat(43)}`})});
     expect(response.status).toBe(200);expect(service.recoveryOptions).toHaveBeenCalledOnce();
     expect((await app.request("/api/v1/auth/passkeys/recovery/options",{method:"POST",headers:{Origin:"https://evil.example",
-      "Content-Type":"application/json"},body:JSON.stringify({token:`hailp_${"B".repeat(43)}`})})).status).toBe(403);
+      "Content-Type":"application/json"},body:JSON.stringify({token:`racr_${"B".repeat(43)}`})})).status).toBe(403);
   });
 
   it("revokes every account session and clears the current cookie",async()=>{

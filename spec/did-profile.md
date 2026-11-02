@@ -2,7 +2,7 @@
 
 Status: Draft
 
-This document defines the verification methods and service entry a DID uses to participate in Hail Protocol. DID creation, registration, custody, and account activation are defined in [account-onboarding.md](account-onboarding.md).
+This document defines the verification methods and service entry a DID uses to participate in the RACR protocol. DID creation, registration, custody, and account activation are defined in [account-onboarding.md](account-onboarding.md).
 
 The profile answers two questions:
 
@@ -15,7 +15,7 @@ The v0 DID method is:
 did:plc
 ```
 
-Every DID and DID URL in a Hail v0 protocol object uses `did:plc`. PLC resolution and validation remain behind a resolver interface so implementations can use a local validator, mirror, or configured directory without changing protocol objects.
+Every DID and DID URL in a RACR v0 protocol object uses `did:plc`. PLC resolution and validation remain behind a resolver interface so implementations can use a local validator, mirror, or configured directory without changing protocol objects.
 
 ## Identifier Syntax
 
@@ -104,7 +104,7 @@ claim portable identity custody or resolve the production policies below.
 
 ## Hail Messaging Key
 
-The verification method with fragment `#hail-messaging` authorizes routine Hail protocol operations.
+The verification method with fragment `#hail-messaging` authorizes routine RACR protocol operations.
 
 It signs:
 

@@ -9,7 +9,7 @@ import tempfile
 import termios
 import time
 
-with tempfile.TemporaryDirectory(prefix="hailp-terminal-") as directory:
+with tempfile.TemporaryDirectory(prefix="racr-terminal-") as directory:
     vault, recovery = directory + "/vault", directory + "/secret"
     subprocess.run([sys.argv[1], "vault", "create", "--vault", vault,
                     "--recovery-file", recovery], check=True, capture_output=True)

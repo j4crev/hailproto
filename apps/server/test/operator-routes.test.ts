@@ -15,7 +15,7 @@ it("requires a passkey session and explicit operator authority on every request"
   const t=setup();expect((await t.request()).status).toBe(200);
   expect(t.accounts.authenticate).toHaveBeenCalledWith(undefined,"test");
   t.invitations.authorized.mockResolvedValue(false);expect((await t.request()).status).toBe(403);
-  t.accounts.authenticate.mockResolvedValue(null as never);expect((await t.request("GET",{Authorization:"Bearer hailp_token"})).status).toBe(401);
+  t.accounts.authenticate.mockResolvedValue(null as never);expect((await t.request("GET",{Authorization:"Bearer racr_token"})).status).toBe(401);
   expect(t.invitations.list).toHaveBeenCalledTimes(1);
 });
 it("rejects cross-origin requests, stale login, fenced accounts, and malformed bodies before creation",async()=>{

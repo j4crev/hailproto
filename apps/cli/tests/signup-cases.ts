@@ -30,11 +30,11 @@ export async function signupCases(binary:string,root:string,directory:string,pro
    if(fail==="complete")return new Response("",{status:503});
    if(monitor&&!body.monitor)return json({did,monitorRequired:true,operationCid:(await cidForCbor(body.operation)).toString()});
    if(monitor)assert.deepEqual(body.monitor,{payload:"reviewed",signature:"fixture"});
-   return json({did:fail==="ack"?"did:plc:bbbbbbbbbbbbbbbbbbbbbbbb":did,credential:{type:"hailp.api-credential",version:1,provider,accountId:id,credentialId:id,token,scopes:["account:read"],expiresAt},enrollment:{type:"hailp.passkey-enrollment",version:1,provider,accountId:id,token:body.enrollmentToken,url:`${provider}/auth/recover#token=${body.enrollmentToken}`,expiresAt}});
+   return json({did:fail==="ack"?"did:plc:bbbbbbbbbbbbbbbbbbbbbbbb":did,credential:{type:"racr.api-credential",version:1,provider,accountId:id,credentialId:id,token,scopes:["account:read"],expiresAt},enrollment:{type:"racr.passkey-enrollment",version:1,provider,accountId:id,token:body.enrollmentToken,url:`${provider}/auth/recover#token=${body.enrollmentToken}`,expiresAt}});
   });
   const base=["account","create","--provider",provider,"--address","alice@example.com","--custody",custody,"--vault",vault,"--state",state,"--credentials",output,"--backup-verified","--passkey-enrollment",enrollment,...monitor?["--monitor-origin","https://monitor.example","--monitor-key",peer.vault.identity.publicDidKey]:[]];
   async function run(success:boolean,args=base){
-   const child=Bun.spawn([...command,...args],{env:{...env,HAILP_CREDENTIAL_FILE:""},stdin:new Blob([secret+"\n"]),stdout:"pipe",stderr:"pipe"});
+   const child=Bun.spawn([...command,...args],{env:{...env,RACR_CREDENTIAL_FILE:""},stdin:new Blob([secret+"\n"]),stdout:"pipe",stderr:"pipe"});
    const [code,out,err]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
    assert.equal(code===0,success,err);assert(!(out+err).includes(secret));for(const c of calls)assert(!(out+err).includes(c.token));cases++;return out?JSON.parse(out):null;
   }

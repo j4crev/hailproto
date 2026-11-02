@@ -143,11 +143,11 @@ interact directly with its authenticated account-management API. A normal
 account operation must not require SSH access, a provider-local administrator
 CLI, database credentials or direct database writes.
 
-**CLI name:** `hailp` is the Hail-provided reference account CLI (`p` for
-Protocol), avoiding the existing unrelated `hail` agent calling/text/email tool.
+**CLI name:** `racr` is the Hail reference account CLI, named after the RACR
+protocol and distinct from the unrelated `hail` agent calling/text/email tool.
 
 ```text
-human app / agent / native CLI / hailp
+human app / agent / native CLI / racr
     -> authenticated account API
     -> account-bound authorization and custody-specific signing
     -> shared provider services, transactions and durable jobs
@@ -168,7 +168,7 @@ not receive raw private keys in model context. An owner-controlled agent's
 trusted signer can validate its configured permissions before signing; a
 managed agent's provider checks its account API permissions before signing.
 Human and agent callers exercise the same account ownership and authorization
-rules. A provider-native CLI and `hailp` are alternative API clients, not
+rules. A provider-native CLI and `racr` are alternative API clients, not
 distinct signing authorities or bypasses around server validation.
 
 The reference account surface covers signup and onboarding, account/custody
@@ -185,8 +185,8 @@ its CLIs as first-party examples. Cross-provider management-API standardization
 is a separate decision, not implied by API-first operation.
 
 Current commands and capability status belong in the
-[`hailp` workflow guide](../apps/cli/docs/cli-workflows.md) and
-[`hailp` roadmap](cli-roadmap.md), not in this architecture
+[`racr` workflow guide](../apps/cli/docs/cli-workflows.md) and
+[`racr` roadmap](cli-roadmap.md), not in this architecture
 document. API credentials remain provider-local and never enter portable
 snapshots.
 

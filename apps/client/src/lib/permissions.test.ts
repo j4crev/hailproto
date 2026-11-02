@@ -4,7 +4,7 @@ import {recoverPermission,senderLink,senderRequest,senderQr,permissionRequest,su
 it("makes public identity-pinned QR links and rejects malformed or credential-bearing requests",()=>{
   const did="did:plc:"+"a".repeat(24),link=senderLink("https://haili.app","canary-prov@haili.app",did),url=new URL(link);
   expect(url.pathname).toBe("/permissions");expect(senderRequest(url.hash)).toEqual({sender:"canary-prov@haili.app",did});
-  expect(link).not.toMatch(/token|credential|hails_|hailp_/);
+  expect(link).not.toMatch(/token|credential|hails_|racr_/);
   const qr=senderQr(link);expect(qr.size).toBeGreaterThan(29);expect(qr.path).toMatch(/^M\d+ \d+h1v1h-1z/);expect(qr.path).not.toContain("<");
   expect(senderQr(link)).toEqual(qr);
   expect(senderRequest("")).toBeNull();

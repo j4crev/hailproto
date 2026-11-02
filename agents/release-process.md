@@ -42,7 +42,7 @@ must be investigated; do not replace assertions with skips to publish a release.
 ```bash
 python3 apps/cli/scripts/generate-reference.py
 python3 apps/cli/scripts/generate-reference.py --check
-python3 apps/cli/scripts/check-release.py --binary apps/cli/target/debug/hailp
+python3 apps/cli/scripts/check-release.py --binary apps/cli/target/debug/racr
 ```
 
 The reference generator reads commands and parser-required flags from Rust source.

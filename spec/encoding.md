@@ -6,7 +6,7 @@ This document defines the sole Hail-owned payload, body, and signed-object repre
 
 ## Protocol Boundary
 
-Deterministic Hail CBOR is used for Hail protocol payloads, bodies and checkpoint hash inputs. The explicitly scoped reference snapshot profile in [transfer-formats.md](transfer-formats.md) instead signs a digest of exact retained JSON manifest bytes. JSON is not an alternate encoding of these signed or hashed values. Explicit HTTP bindings may wrap their exact bytes in base64url JSON fields.
+Deterministic Hail CBOR is used for RACR protocol payloads, bodies and checkpoint hash inputs. The explicitly scoped reference snapshot profile in [transfer-formats.md](transfer-formats.md) instead signs a digest of exact retained JSON manifest bytes. JSON is not an alternate encoding of these signed or hashed values. Explicit HTTP bindings may wrap their exact bytes in base64url JSON fields.
 
 Externally defined formats retain their own encodings. In particular, WebFinger JRD and rendered DID documents remain JSON. RFC 9457 Problem Details and the fixed generic HTTP receipt also remain JSON. Client-to-provider APIs are outside the Hail federation boundary and may expose JSON or native application types.
 

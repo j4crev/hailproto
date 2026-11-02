@@ -64,7 +64,7 @@ pub async fn run(args: &Args) -> Result<Value, Error> {
     if let Some(token) = state.get("enrollmentToken")
         && !token
             .as_str()
-            .is_some_and(|s| s.len() == 49 && TOKEN.is_match(s))
+            .is_some_and(|s| s.len() == 48 && TOKEN.is_match(s))
     {
         return Err(invalid());
     }
@@ -231,7 +231,7 @@ pub async fn run(args: &Args) -> Result<Value, Error> {
     }
     let credential = &result["credential"];
     if result["did"] != did
-        || credential["type"] != "hailp.api-credential"
+        || credential["type"] != "racr.api-credential"
         || credential["version"].as_f64() != Some(1.0)
         || credential["provider"] != provider
         || credential["accountId"] != prepared["accountId"]
@@ -250,7 +250,7 @@ pub async fn run(args: &Args) -> Result<Value, Error> {
     let mut output = json!({"did":did,"address":address,"custody":custody,"credentialFile":output});
     if let Some(path) = enrollment {
         let e = &result["enrollment"];
-        if e["type"] != "hailp.passkey-enrollment"
+        if e["type"] != "racr.passkey-enrollment"
             || e["version"].as_f64() != Some(1.0)
             || e["provider"] != provider
             || e["accountId"] != prepared["accountId"]

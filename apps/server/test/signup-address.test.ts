@@ -7,7 +7,7 @@ it("routes invited address checks through the bounded, origin-checked signup sur
   const checkAddress=vi.fn(async(input)=>({address:input.address,available:true}));
   const app=new Hono(),origin="https://provider.example";
   registerSignupRoutes(app,{checkAddress} as unknown as SignupCoordinator,{} as AccountApiRepository,origin);
-  const headers={Origin:origin,"Content-Type":"application/json",Authorization:"Bearer hailp_"+"A".repeat(43)};
+  const headers={Origin:origin,"Content-Type":"application/json",Authorization:"Bearer racr_"+"A".repeat(43)};
   const response=await app.request(origin+"/api/v1/signup/check-address",{method:"POST",headers,body:JSON.stringify({address:"alice@provider.example",invitation:"test"})});
   expect(response.status).toBe(200);expect(await response.json()).toEqual({address:"alice@provider.example",available:true});
   expect(checkAddress).toHaveBeenCalledOnce();

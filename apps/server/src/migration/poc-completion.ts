@@ -45,19 +45,19 @@ export class PortableTransferCompletion {
     }else await this.imports.stageImport({bytes,digest,signature,sourceMessagingPublicKey:snapshot.sourceMessagingPublicKey},consent,operation,binding);
     const operationCid=(await cidForCbor(def.operation.parse(parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(operation))))).toString();
     const movingConnections=connectionHandoverPending(manifest);
-    if(movingConnections&&!this.connections)return {type:"hailp.transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
+    if(movingConnections&&!this.connections)return {type:"racr.transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
       transferId:manifest.transferId,operationCid,phase:"awaiting-connection-handover"};
     if(prior?.state!=="active") {
       if(movingConnections)await this.connections!.freeze(manifest.transferId);
       if(await this.submission.submit(manifest.transferId)!==operationCid)throw new Error("Configured PLC retained another operation");
       if(movingConnections)await this.connections!.commit(manifest.transferId);
-      if(this.profile==="public"&&!monitor)return {type:"hailp.transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
+      if(this.profile==="public"&&!monitor)return {type:"racr.transfer-completion",version:1,did:manifest.did,accountId:manifest.accountId,
         transferId:manifest.transferId,operationCid,phase:"awaiting-monitor"};
       await this.publication.publish(manifest.transferId,monitor);
     }
     const activated=await this.activation.activate(manifest.transferId,monitor),receipt=await this.activation.issueReceipt(manifest.transferId);
     if(movingConnections)await this.connections!.finish(manifest.transferId,receipt);
-    return {type:"hailp.transfer-completion",version:1,did:activated.did,accountId:activated.accountId,transferId:manifest.transferId,
+    return {type:"racr.transfer-completion",version:1,did:activated.did,accountId:activated.accountId,transferId:manifest.transferId,
       operationCid,phase:"active",receipt:encodeSignedRecord(receipt)};
   }
 }

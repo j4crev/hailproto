@@ -11,12 +11,12 @@ Identity-key reconciliation remains [separately constrained](../../../agents/gra
 ## Commands and authority
 
 ```bash
-hailp binding show --credentials /secure/account.credential.json
+racr binding show --credentials /secure/account.credential.json
 # Owner-controlled account: sign with the local identity vault.
-hailp binding publish --credentials /secure/writer.credential.json \
+racr binding publish --credentials /secure/writer.credential.json \
   --vault /secure/account.vault.json --output /secure/replacement-binding.cose
 # Managed account: omit --vault; retain the same output on retry.
-hailp binding publish --credentials /secure/managed-writer.credential.json \
+racr binding publish --credentials /secure/managed-writer.credential.json \
   --output /secure/managed-binding.cose
 ```
 

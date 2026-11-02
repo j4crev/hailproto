@@ -16,7 +16,7 @@ pub fn profile_response(result: Value) -> Result<Value, Error> {
             && s.bytes()
                 .all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-')
     });
-    if result["type"] != "hailp.sender-profile"
+    if result["type"] != "racr.sender-profile"
         || result["version"].as_f64() != Some(1.0)
         || cose.is_none()
         || digest.is_none()
@@ -56,7 +56,7 @@ pub async fn grant_record(client: &Client, id: &str) -> Result<(Value, Vec<u8>, 
     }
     let result = client.get(&format!("/grants/{id}")).await?;
     let cose = result["cose"].as_str().filter(|s| s.len() <= 349_528);
-    if result["type"] != "hailp.grant"
+    if result["type"] != "racr.grant"
         || result["version"].as_f64() != Some(1.0)
         || cose.is_none()
         || !result["digest"].is_string()
@@ -88,7 +88,7 @@ pub async fn binding(client: &Client) -> Result<Value, Error> {
 }
 pub fn binding_record(result: &Value) -> Result<(Vec<u8>, Value), Error> {
     let cose = result["cose"].as_str().filter(|s| s.len() <= 21_846);
-    if result["type"] != "hailp.address-binding"
+    if result["type"] != "racr.address-binding"
         || result["version"].as_f64() != Some(1.0)
         || cose.is_none()
         || !result["digest"].is_string()

@@ -21,7 +21,7 @@ try{
     assert.equal(onboarding.passed,true,"Verify the account-first gate before extending authorization");
     const challenge=`hail-connection-eval:${crypto.randomUUID()}`,expiresAt=Math.floor(Date.now()/1000)+3600;
     await json(join(directory,"exchange.json"),{alice:alice.did,bob:bob.did,challenge});
-    const boundary=(actor:string)=>`Use only ${root(actor)}/hailp, its --help, and the shipped docs in ${directory}/docs.
+    const boundary=(actor:string)=>`Use only ${root(actor)}/racr, its --help, and the shipped docs in ${directory}/docs.
 Your workspace is ${root(actor)}. Do not inspect source, provider/database state, harness internals, or another actor's workspace.
 Use your existing credential/vault/recovery files. Secret input must be protected stdin, never printed. Retain every state/artifact for exact retries.
 The coordinator has authorized the native Connection actions specified below with the named peer. No subscriptions, credential changes, custody changes, or deletion.

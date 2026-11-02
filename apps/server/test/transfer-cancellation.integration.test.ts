@@ -248,8 +248,8 @@ integration("user cancellation before ambiguous final handoff", () => {
     try {
       const credentialPath=join(directory,"credential.json"),statePath=join(directory,"state.json");
       const encoded=(signed:SignedHandshake)=>JSON.parse(new TextDecoder().decode(requestWire(signed)));
-      await writeFile(credentialPath,JSON.stringify({type:"hailp.api-credential",version:1,provider:"https://source.example.com",...credential}),{mode:0o600});
-      await writeFile(statePath,JSON.stringify({type:"hailp.account-transfer",version:1,provider:"https://source.example.com",accountId:credential.accountId,did,
+      await writeFile(credentialPath,JSON.stringify({type:"racr.api-credential",version:1,provider:"https://source.example.com",...credential}),{mode:0o600});
+      await writeFile(statePath,JSON.stringify({type:"racr.account-transfer",version:1,provider:"https://source.example.com",accountId:credential.accountId,did,
         key:sourceKeys.identityDidKey,destination:"https://target.example.com",grant:encoded(grant),offer:encoded(offer),cancellation:encoded(signedCancel)}),{mode:0o600});
       const api=await AccountApiClient.fromCredentialFile(credentialPath);
       let sourceCancels=0,lostTargetResponse=true;const received:string[]=[];

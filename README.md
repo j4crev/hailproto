@@ -1,6 +1,6 @@
-# Hail Messaging Protocol (HMP)
+# Hail
 
-Hail is a federated, permission-based messaging protocol where recipients decide who can reach their inbox. For approved senders, that permission provides a clear, reliable path to delivery.
+Hail is a federated messaging medium powered by the RACR Protocol (Recipient-Authorized Content Retrieval, pronounced “racer”). Recipients control who may deliver messages to them. Senders submit signed envelopes announcing available content; the recipient’s provider validates authorization before retrieving and delivering that content.
 
 Hail is designed for independent providers, portable `did:plc` identities, rich and safe messages, and inexpensive spam rejection.
 
@@ -29,7 +29,7 @@ first dashboard login.
 
 ## Client capabilities
 
-| Capability | [`hailp` CLI](apps/cli) | [Web client](apps/client) |
+| Capability | [`racr` CLI](apps/cli) | [Web client](apps/client) |
 | --- | --- | --- |
 | View account identity | Full account details | Address, DID and custody summary |
 | Account onboarding | Owner-controlled and managed | Invited managed signup: resumable setup, verified recovery kit, external email verification and automatic monitoring |
@@ -52,42 +52,14 @@ first dashboard login.
 ## Repository layout
 
 - [`apps/server`](apps/server): TypeScript provider server
-- [`apps/cli`](apps/cli): Native Rust `hailp` CLI
+- [`apps/cli`](apps/cli): Native Rust `racr` CLI
 - [`apps/client`](apps/client): Web client
 - [`apps/plc-monitor`](apps/plc-monitor): PLC history monitor, durable coverage and alerting, and signed onboarding/transfer attestations.
 - [`packages/hail-client-support`](packages/hail-client-support): Shared browser vault/recovery and server-side web account transport.
 - [`packages/hail-codec-ts`](packages/hail-codec-ts): TypeScript reference codec.
 - [`packages/hail-codec-go`](packages/hail-codec-go): Go reference codec.
-- [`vendor/did-method-plc`](vendor/did-method-plc): pinned upstream submodule; maintained outside Hail.
-
-## Documentation
-
-- [Install hailp](apps/cli/docs/cli-installation.md), [CLI quickstart](apps/cli/docs/cli-quickstart.md), and [command reference](apps/cli/docs/cli-reference.md).
-- [`docs/portable-custody.md`](docs/portable-custody.md): Key custody, transfer ceremony, recovery checkpoints and POC/production boundaries.
-- [`docs/passkey-authentication.md`](docs/passkey-authentication.md): Passwordless provider login, cross-platform client strategy, recovery boundaries and remaining platform validation.
-- [Key custody and offline operation](docs/portable-custody.md#key-custody-in-plain-language): Signing-role and custody comparisons, offline requirements and binding lifecycle and trust boundaries.
-- [Managed profiles and API-first clients](docs/portable-custody.md#managed-profiles-and-people-or-agents): Human/agent custody choices, owner-controlled recovery and native/`hailp` API interaction.
-- [Provider deployment runbook](apps/server/deploy/standalone/README.md): Strict-public provider setup and validation.
-- [User-key CLI](apps/cli/README.md): User-device vault, onboarding, Grant signing and exact-byte cutover commands.
-- [Public monitor deployment](apps/plc-monitor/deploy/public/README.md): Per-DID public PLC monitoring, reviewed bootstrap, signed attestations and external email alerts.
-- [`BODY_FORMAT.md`](BODY_FORMAT.md): Safe Portable Text body-format design.
-- [`packages/hail-codec-ts`](packages/hail-codec-ts): Bun-workspace TypeScript reference codec, validators, COSE implementation, diagnostic tooling, and tests.
-- [`packages/hail-codec-go`](packages/hail-codec-go): Independent Go reference codec and cross-language conformance implementation.
-- [`spec/encoding.md`](spec/encoding.md): Normative Hail data model, deterministic CBOR, COSE, and diagnostic JSON profile.
-- [`spec/hail.cddl`](spec/hail.cddl): Draft machine-readable structural schemas for Hail v0 payloads and the initial body profile.
-- [`spec/core-delivery.md`](spec/core-delivery.md): Core grant-authorized delivery flow.
-- [`spec/account-onboarding.md`](spec/account-onboarding.md): New and existing DID registration, portable key custody, address activation, and onboarding failure handling.
-- [`spec/managed-custody.md`](spec/managed-custody.md): Frozen managed-identity v1 custody, owner authority and production conformance gates.
-- [`spec/plc-read-evidence.md`](spec/plc-read-evidence.md): Frozen v1 read agreement, reviewed monitor bootstrap and v2 coverage evidence.
-- [`spec/address-binding.md`](spec/address-binding.md): Human-readable address-to-DID binding.
-- [`spec/did-profile.md`](spec/did-profile.md): PLC identity, Hail key roles, resolution, recovery, and service entry.
-- [`spec/sender-profile.md`](spec/sender-profile.md): Signed sender metadata and category manifest.
-- [`spec/grants.md`](spec/grants.md): Hail Grant schema and lifecycle.
-- [`spec/bodies.md`](spec/bodies.md): Detached body publication, authorization, retrieval, and retention.
-- [`spec/envelopes.md`](spec/envelopes.md): Hail Envelope schema, authorization, signatures, and replay behavior.
-- [`spec/delivery-state.md`](spec/delivery-state.md): Acceptance, delivery, retries, failures, and signed status updates.
-- [`spec/http-binding.md`](spec/http-binding.md): HTTPS submission outcomes, privacy, timing, retries, and remaining wire bindings.
+- [`vendor/did-method-plc`](vendor/did-method-plc): pinned upstream submodule; maintained outside Hail. 
 
 ## License
 
-Hail Messaging Protocol is licensed under the [MIT License](LICENSE).
+This project is licensed under the [MIT License](LICENSE).

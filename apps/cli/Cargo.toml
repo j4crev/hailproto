@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [[bin]]
-name = "hailp"
+name = "racr"
 path = "src/main.rs"
 
 [dependencies]

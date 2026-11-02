@@ -67,7 +67,7 @@ It defines the identity values, labels each machine, and provides upload and
 attestation-download commands. The abbreviated canary example below assumes
 `DID`, `GENESIS_CID` and `ALERT_WEBHOOK` have already been set in the monitor shell.
 
-After the first `hailp account create` call returns the DID and genesis CID,
+After the first `racr account create` call returns the DID and genesis CID,
 derive a public reviewed state file from the private signup state on the user
 workstation:
 
@@ -92,7 +92,7 @@ docker compose --env-file .env exec monitor bun src/cli/attest-onboarding.ts \
   "$DID" "$GENESIS_CID" > onboarding-attestation.json
 ```
 
-Copy the attestation to the user workstation and resume the exact saved `hailp`
+Copy the attestation to the user workstation and resume the exact saved `racr`
 signup command. Do not copy the monitor private key, database password, user vault,
 recovery secret or provider credential between trust domains.
 

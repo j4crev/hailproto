@@ -1,4 +1,20 @@
-# Hail CLI release notes
+# RACR CLI release notes
+
+## Unreleased
+
+- Rename the executable and release archives from `hailp` to `racr`.
+- Use `RACR_CREDENTIAL_FILE` instead of `HAILP_CREDENTIAL_FILE`; update shell
+  configuration and automation, or continue passing `--credentials` explicitly.
+- Breaking alpha rename: client/API file and response types now use `racr.*`,
+  API tokens use `racr_`, and browser login uses `racr-cli-v1`. Update the
+  provider, browser client, and CLI together; migration 99 clears pending browser
+  logins and updates the database client-ID constraint. There are no old-name aliases.
+- Reissue test API credentials and restart pending login/signup/recovery,
+  custody-transition and transfer operations. Old retry files and signatures
+  using the former domains cannot be resumed by the new tools. Do not edit token
+  prefixes or signed files to convert them. Encrypted `hail.user-vault` files,
+  keys, recovery secrets, and `hail.*` federation identifiers are unchanged.
+- CLI JSON output now reports `cliContractVersion: 2`.
 
 ## 0.1.2 (prerelease)
 

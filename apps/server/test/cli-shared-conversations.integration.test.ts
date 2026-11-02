@@ -57,10 +57,10 @@ it.skipIf(!process.env.DATABASE_URL)('native CLI participates in browser and CLI
     registerConnectionRoutes(app,connections,accounts,origin);
     registerAccountApiRoutes(app,accounts,grants,{} as GrantService,provider,messaging,undefined,undefined,undefined,undefined,undefined,undefined,origin,publications);
     const credentials=await Promise.all([a,b,c].map(user=>accounts.issue(user.address,false,undefined,[...ALL_ACCOUNT_SCOPES])));
-    for(const [n,user] of [a,b,c].entries())await writeFile(join(directory,user.id),JSON.stringify({type:'hailp.api-credential',version:1,provider,...credentials[n]}),{mode:0o600});
+    for(const [n,user] of [a,b,c].entries())await writeFile(join(directory,user.id),JSON.stringify({type:'racr.api-credential',version:1,provider,...credentials[n]}),{mode:0o600});
     const file=join(directory,'message.txt');await writeFile(file,'Shared from the native CLI');
     const cli=async(user:typeof a,args:string[],success=true)=>{
-      const child=Bun.spawn([new URL('../../cli/target/debug/hailp',import.meta.url).pathname,...args,'--credentials',join(directory,user.id)],{
+      const child=Bun.spawn([new URL('../../cli/target/debug/racr',import.meta.url).pathname,...args,'--credentials',join(directory,user.id)],{
         env:{...process.env,SSL_CERT_FILE:join(directory,'ca.pem'),NO_PROXY:'localhost',no_proxy:'localhost'},stdout:'pipe',stderr:'pipe'});
       const [exit,out,err]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
       expect(exit,err).toBe(success?0:1);for(const credential of credentials)expect(out+err).not.toContain(credential.token);

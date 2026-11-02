@@ -56,28 +56,28 @@ jobs:
           cargo clippy --locked --all-targets -- -D warnings
           cargo test --locked
           cargo build --release --locked
-          bun tests/compatibility.ts target/release/hailp
-          bun tests/vault-compatibility.ts target/release/hailp
-          bun tests/transfer-e2e.ts target/release/hailp
-          python3 tests/terminal-input.py target/release/hailp
+          bun tests/compatibility.ts target/release/racr
+          bun tests/vault-compatibility.ts target/release/racr
+          bun tests/transfer-e2e.ts target/release/racr
+          python3 tests/terminal-input.py target/release/racr
           python3 scripts/verify-install.py
-      - name: Build and verify hailp
+      - name: Build and verify racr
         working-directory: apps/cli
         run: |
           bun run build
-          bun run smoke -- dist/hailp
+          bun run smoke -- dist/racr
       - name: Package
         working-directory: apps/cli
         run: |
           version=$(bun -e 'console.log(require("./package.json").version)')
           python3 scripts/generate-reference.py --check
           if [ "${GITHUB_REF_TYPE:-}" = tag ]; then
-            python3 scripts/check-release.py --binary dist/hailp --tag "$GITHUB_REF_NAME"
+            python3 scripts/check-release.py --binary dist/racr --tag "$GITHUB_REF_NAME"
           else
-            python3 scripts/check-release.py --binary dist/hailp
+            python3 scripts/check-release.py --binary dist/racr
           fi
-          tar -C dist -czf "hailp-$version-linux-x64.tar.gz" hailp
-          sha256sum "hailp-$version-linux-x64.tar.gz" > "hailp-$version-linux-x64.tar.gz.sha256"
+          tar -C dist -czf "racr-$version-linux-x64.tar.gz" racr
+          sha256sum "racr-$version-linux-x64.tar.gz" > "racr-$version-linux-x64.tar.gz.sha256"
       - name: Test packaged artifact on clean supported Linux runtimes
         working-directory: apps/cli
         run: |
@@ -87,14 +87,14 @@ jobs:
               -v "$PWD:/release:ro" "$distribution" sh -ec '
                 apt-get update -qq
                 apt-get install -y -qq --no-install-recommends python3 ca-certificates openssl
-                python3 /release/scripts/verify-artifact.py "/release/hailp-$1-linux-x64.tar.gz" "$1"
+                python3 /release/scripts/verify-artifact.py "/release/racr-$1-linux-x64.tar.gz" "$1"
               ' sh "$version"
           done
       - name: Attest release archive
         id: provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: apps/cli/hailp-*-linux-x64.tar.gz
+          subject-path: apps/cli/racr-*-linux-x64.tar.gz
       - name: Retain and verify provenance
         working-directory: apps/cli
         env:
@@ -102,7 +102,7 @@ jobs:
           BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
         run: |
           version=$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')
-          archive="hailp-$version-linux-x64.tar.gz"
+          archive="racr-$version-linux-x64.tar.gz"
           cp "$BUNDLE" "$archive.sigstore.json"
           gh attestation verify "$archive" --bundle "$archive.sigstore.json" \
             --repo "$GITHUB_REPOSITORY" \
@@ -111,14 +111,14 @@ jobs:
             --deny-self-hosted-runners
       - uses: actions/upload-artifact@v5
         with:
-          name: hailp-linux-x64
+          name: racr-linux-x64
           path: |
-            apps/cli/hailp-*-linux-x64.tar.gz
-            apps/cli/hailp-*-linux-x64.tar.gz.sha256
-            apps/cli/hailp-*-linux-x64.tar.gz.sigstore.json
+            apps/cli/racr-*-linux-x64.tar.gz
+            apps/cli/racr-*-linux-x64.tar.gz.sha256
+            apps/cli/racr-*-linux-x64.tar.gz.sigstore.json
       - name: Publish GitHub release
         if: github.ref_type == 'tag'
         working-directory: apps/cli
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" hailp-*-linux-x64.tar.gz hailp-*-linux-x64.tar.gz.sha256 hailp-*-linux-x64.tar.gz.sigstore.json --verify-tag --generate-notes --prerelease
+        run: gh release create "$GITHUB_REF_NAME" racr-*-linux-x64.tar.gz racr-*-linux-x64.tar.gz.sha256 racr-*-linux-x64.tar.gz.sigstore.json --verify-tag --generate-notes --prerelease

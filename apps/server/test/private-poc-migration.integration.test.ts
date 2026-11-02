@@ -144,7 +144,7 @@ integration("private PLC transfer between disposable POC providers", () => {
         representation: oldBinding, digest: sourcePublished.digest };
     } }, oldBase, "public").activate(prepared.accountId);
     expect((await sourceRepo.getAccount(prepared.accountId)).state).toBe("active");
-    const oldAccess=new AccountAccess(source.sql,resolver,"https://source.example.com"),oldLoginToken=`hailp_${encodeBase64Url(randomBytes(32))}`;
+    const oldAccess=new AccountAccess(source.sql,resolver,"https://source.example.com"),oldLoginToken=`racr_${encodeBase64Url(randomBytes(32))}`;
     const hash=(bytes:Uint8Array)=>new Uint8Array(createHash("sha256").update(bytes).digest());
     const oldChallenge=await oldAccess.prepare({did:genesis.did,signer:"identity",publicKey:client.vault.identity.publicDidKey,scopes:["account:read"],tokenHash:encodeBase64Url(hash(new TextEncoder().encode(oldLoginToken)))});
     const oldLoginSignature=encodeBase64Url(await (await unlockUserIdentity(client.vault,vault.recoverySecret)).signAccountAccess(oldChallenge));
@@ -229,7 +229,7 @@ integration("private PLC transfer between disposable POC providers", () => {
     try {
       const vaultPath=join(preparationDir,"vault.json"),statePath=join(preparationDir,"state.json"),credentialPath=join(preparationDir,"credential.json");
       await writeFile(vaultPath,JSON.stringify({...client.vault,recovery:{...client.vault.recovery,ciphertext:"AA"}}),{mode:0o600});
-      await writeFile(credentialPath,JSON.stringify({type:"hailp.api-credential",version:1,provider:"https://source.example.com",...credential}),{mode:0o600});
+      await writeFile(credentialPath,JSON.stringify({type:"racr.api-credential",version:1,provider:"https://source.example.com",...credential}),{mode:0o600});
       const api=await AccountApiClient.fromCredentialFile(credentialPath);
       let loseExport=true;
       const sourceFetch=vi.spyOn(globalThis,"fetch").mockImplementation(async(input,init)=>{
@@ -296,7 +296,7 @@ integration("private PLC transfer between disposable POC providers", () => {
           sourceMessagingPublicKey: signedSnapshot.sourceMessagingPublicKey }), { mode: 0o600 }),
       ]);
       const runClient = async (operation=paths.operation) => {
-        const child = Bun.spawn(["./target/debug/hailp","account","transfer","sign-cutover",
+        const child = Bun.spawn(["./target/debug/racr","account","transfer","sign-cutover",
           "--vault",paths.vault,"--state",paths.state,"--snapshot",paths.snapshot,
           "--consent",paths.consent,"--operation",operation,"--binding",paths.binding],
         { cwd: new URL("../../cli/", import.meta.url).pathname,
@@ -410,7 +410,7 @@ integration("private PLC transfer between disposable POC providers", () => {
     expect(await target.sql`SELECT canonical_address FROM provider_accounts
       WHERE did = ${genesis.did}`).toHaveLength(1);
     expect(await target.sql`SELECT credential_id FROM account_passkeys WHERE account_id=${prepared.accountId}`).toHaveLength(0);
-    const enrollmentToken=`hailp_${encodeBase64Url(randomBytes(32))}`,destinationAccess=new AccountAccess(target.sql,resolver,"https://target.example.com"),
+    const enrollmentToken=`racr_${encodeBase64Url(randomBytes(32))}`,destinationAccess=new AccountAccess(target.sql,resolver,"https://target.example.com"),
       enrollmentChallenge=await destinationAccess.prepare({did:genesis.did,signer:"owner-recovery",publicKey:client.vault.recovery.publicDidKey,
         scopes:["credentials:write"],tokenHash:encodeBase64Url(hash(new TextEncoder().encode(enrollmentToken))),purpose:"passkey-enrollment"}),
       enrollmentSignature=encodeBase64Url(await client.signAccountRecovery(enrollmentChallenge));
@@ -476,7 +476,7 @@ integration("private PLC transfer between disposable POC providers", () => {
         {fence:backFence,snapshots:new MigrationTransferService(target.sql,targetRepo,targetEncryptor,resolver,newBase)}));
     registerTransferRoutes(backSourceRoutes,new TransferInvitationReceiver(target.sql,resolver,new PreparedMigrationTarget(target.sql,targetEncryptor,newBase)),undefined,backFence,undefined,undefined,undefined,undefined,undefined,backCompletion);
     const backState=join(ceremony,"return-state.json"),backSnapshot=join(ceremony,"return-snapshot.json"),backCredentialPath=join(ceremony,"return-source-credential.json"),username=`returned-${randomUUID()}`;
-    await writeFile(backCredentialPath,JSON.stringify({type:"hailp.api-credential",version:1,provider:"https://target.example.com",...backCredential}),{mode:0o600});
+    await writeFile(backCredentialPath,JSON.stringify({type:"racr.api-credential",version:1,provider:"https://target.example.com",...backCredential}),{mode:0o600});
     const backApi=await AccountApiClient.fromCredentialFile(backCredentialPath);
     let loseReturn=true;
     const returnFetch=vi.spyOn(globalThis,"fetch").mockImplementation(async(input,init)=>{
@@ -566,7 +566,7 @@ integration("private PLC transfer between disposable POC providers", () => {
         transferAddressReservation:new TransferAddressReservation(target.sql,resolver,nextKeys),transferFinalRequestPublisher:nextPublisher,async checkReadiness(){return {ready:true};}});
       const nextSourceCredential=await withFreshServingGenerations(source.sql,()=>alphaAccounts.issue(`${username}@source.example.com`,false,undefined,["account:read","account:write"]));
       const nextCredentialPath=join(ceremony,"abandon-source-credential.json"),nextState=join(ceremony,"abandon-state.json"),nextSnapshot=join(ceremony,"abandon-snapshot.json");
-      await writeFile(nextCredentialPath,JSON.stringify({type:"hailp.api-credential",version:1,provider:"https://source.example.com",...nextSourceCredential}),{mode:0o600});
+      await writeFile(nextCredentialPath,JSON.stringify({type:"racr.api-credential",version:1,provider:"https://source.example.com",...nextSourceCredential}),{mode:0o600});
       const nextApi=await AccountApiClient.fromCredentialFile(nextCredentialPath);
       // The existing source delivery service routes its destination request through this replacement test boundary.
       const nextFetch=vi.spyOn(globalThis,"fetch").mockImplementation(async(input,init)=>{
@@ -586,7 +586,7 @@ integration("private PLC transfer between disposable POC providers", () => {
         await withFreshServingGenerations(source.sql,()=>new TransferGrantSubmission(source.sql,resolver,oldBase,sourceRepo,sourceEncryptor,new TransferInvitationService(source.sql,resolver,oldBase),delivery).submit(signedGrant));
         if(targetError)throw targetError;
         const credentialAccount=await nextApi.account(),status=await nextApi.request("/transfers");
-        await writeFile(nextState,JSON.stringify({type:"hailp.account-transfer",version:1,provider:credentialAccount.provider,accountId:credentialAccount.accountId,did:genesis.did,key:client.vault.identity.publicDidKey,destination:"https://target.example.com",grant:encodeSignedRecord(signedGrant),offer:status.offer}),{mode:0o600});
+        await writeFile(nextState,JSON.stringify({type:"racr.account-transfer",version:1,provider:credentialAccount.provider,accountId:credentialAccount.accountId,did:genesis.did,key:client.vault.identity.publicDidKey,destination:"https://target.example.com",grant:encodeSignedRecord(signedGrant),offer:status.offer}),{mode:0o600});
         expect((await selectTransferAddress(nextApi,`abandoned-${randomUUID()}`,join(ceremony,"vault.json"),nextState,secret)).requestAcknowledged).toBe(true);
         await exportTransferSnapshot(nextApi,nextState,nextSnapshot);
         await signAccountTransferCutover(join(ceremony,"vault.json"),nextState,nextSnapshot,join(ceremony,"abandon-consent.json"),join(ceremony,"abandon-operation.json"),join(ceremony,"abandon-binding.cose"),secret);
@@ -599,11 +599,11 @@ integration("private PLC transfer between disposable POC providers", () => {
       const sourceAbandon=new PrivatePocTransferAbandonment(source.sql,sourceEncryptor,plc,oldBase,registry,backVerifier);
       const targetAbandon=new PrivatePocTransferAbandonment(target.sql,targetEncryptor,plc,newBase,registry,verifier);
       const cutoverCid=(await cidForCbor(thirdOperation!)).toString(),digest=decodeBase64Url(thirdSnapshot.digest),approvalTime=Math.floor(Date.now()/1000);
-      const intent=encodeSignedRecord(await client.signTransferRecoveryApproval({type:"hailp.transfer-abandon",version:1,did:genesis.did,transfer_id:thirdTransfer!,source_service_base:oldBase,destination_service_base:newBase,source_generation:2,snapshot_digest:digest,
+      const intent=encodeSignedRecord(await client.signTransferRecoveryApproval({type:"racr.transfer-abandon",version:1,did:genesis.did,transfer_id:thirdTransfer!,source_service_base:oldBase,destination_service_base:newBase,source_generation:2,snapshot_digest:digest,
         cutover_operation_cid:cutoverCid,user_recovery_key:client.vault.recovery.publicDidKey,nonce:randomUUID(),issued_at:approvalTime,expires_at:approvalTime+3600}));
       const activeAttempt=JSON.parse(await readFile(backState,"utf8")),activeSnapshot=JSON.parse(await readFile(backSnapshot,"utf8"));
       const activeTransfer=(decodeDeterministic(decodeSignedRecord(activeAttempt.offer).payloadBytes) as any).transfer_id;
-      const cannotUndoActive=encodeSignedRecord(await client.signTransferRecoveryApproval({type:"hailp.transfer-abandon",version:1,did:genesis.did,transfer_id:activeTransfer,source_service_base:newBase,destination_service_base:oldBase,source_generation:1,snapshot_digest:decodeBase64Url(activeSnapshot.digest),
+      const cannotUndoActive=encodeSignedRecord(await client.signTransferRecoveryApproval({type:"racr.transfer-abandon",version:1,did:genesis.did,transfer_id:activeTransfer,source_service_base:newBase,destination_service_base:oldBase,source_generation:1,snapshot_digest:decodeBase64Url(activeSnapshot.digest),
         cutover_operation_cid:activeAttempt.cutover.operationCid,user_recovery_key:client.vault.recovery.publicDidKey,nonce:randomUUID(),issued_at:approvalTime,expires_at:approvalTime+3600}));
       await expect(withFreshServingGenerations(source.sql,()=>sourceAbandon.invalidate(cannotUndoActive))).rejects.toThrow("reverse transfer");
       let signalStarted!:()=>void,finishRemote!:()=>void;
@@ -634,7 +634,7 @@ integration("private PLC transfer between disposable POC providers", () => {
         // A fresh, explicit owner approval appends to the recognized committed cutover; never a hidden same-key fork.
         protective=await client.signPlcOperation({type:"plc_operation",prev:cutoverCid,rotationKeys:restore.rotationKeys,verificationMethods:restore.verificationMethods,services:restore.services,alsoKnownAs:restore.alsoKnownAs});
       }
-      const resume=encodeSignedRecord(await client.signTransferRecoveryApproval({type:"hailp.transfer-resume",version:1,did:genesis.did,transfer_id:thirdTransfer!,source_service_base:oldBase,destination_service_base:newBase,source_generation:2,snapshot_digest:digest,
+      const resume=encodeSignedRecord(await client.signTransferRecoveryApproval({type:"racr.transfer-resume",version:1,did:genesis.did,transfer_id:thirdTransfer!,source_service_base:oldBase,destination_service_base:newBase,source_generation:2,snapshot_digest:digest,
         cutover_operation_cid:cutoverCid,protective_operation_cid:protective.cid,invalidation_digest:hash(decodeSignedRecord(invalidation).payloadBytes),user_recovery_key:client.vault.recovery.publicDidKey,nonce:randomUUID(),issued_at:approvalTime,expires_at:approvalTime+3600}));
       await expect(withFreshServingGenerations(source.sql,()=>sourceAbandon.resume(resume,invalidation, new TextEncoder().encode(JSON.stringify(protective.operation))))).rejects.toThrow("protective source operation is not current");
       expect((await sourceFence.get(genesis.did))?.state).toBe("exported");

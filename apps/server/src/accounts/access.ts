@@ -7,7 +7,7 @@ import type { HailDidResolver } from "../plc/resolver.js";
 import { ALL_ACCOUNT_SCOPES, tokenHash, type AccountApiScope } from "./repository.js";
 
 interface Challenge {
-  type: "hailp.account-access"; version: 1; purpose: "new-api-credential"|"passkey-enrollment";
+  type: "racr.account-access"; version: 1; purpose: "new-api-credential"|"passkey-enrollment";
   challengeId: string; provider: string; accountId: string; did: string;
   signer: "identity" | "owner-recovery"; publicKey: string; scopes: AccountApiScope[];
   tokenHash: string; nonce: string; issuedAt: number; expiresAt: number;
@@ -19,7 +19,7 @@ const equal = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.fro
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const payload = (row: ChallengeRow) => typeof row.payload === "string" ? JSON.parse(row.payload) as Challenge : row.payload;
 function signatureInput(challenge: Challenge) {
-  const tag = new TextEncoder().encode("hailp.account-access.v1\0");
+  const tag = new TextEncoder().encode("racr.account-access.v1\0");
   const bytes = encodeDeterministic(challenge as unknown as HailValue);
   const input = new Uint8Array(tag.length + bytes.length); input.set(tag); input.set(bytes, tag.length); return input;
 }
@@ -62,7 +62,7 @@ export class AccountAccess {
       const accounts = await tx<{id:string}[]>`SELECT id FROM provider_accounts WHERE did=${did}`;
       const issuedAt = Math.floor(Date.now() / 1000);
       // Unknown accounts receive the same opaque shape, not an existence/custody result.
-      const challenge: Challenge = { type: "hailp.account-access", version: 1, purpose,
+      const challenge: Challenge = { type: "racr.account-access", version: 1, purpose,
         challengeId: randomUUID(), provider: this.provider, accountId: accounts[0]?.id ?? randomUUID(),
         did, signer, publicKey, scopes, tokenHash: input.tokenHash as string,
         nonce: encodeBase64Url(randomBytes(32)), issuedAt, expiresAt: issuedAt + 300 };
@@ -73,7 +73,7 @@ export class AccountAccess {
   }
 
   async complete(id: string, token: string, encodedSignature: string, signal?: AbortSignal) {
-    if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id) || !/^hailp_[A-Za-z0-9_-]{43}$/.test(token) ||
+    if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id) || !/^racr_[A-Za-z0-9_-]{43}$/.test(token) ||
       !/^[A-Za-z0-9_-]{86}$/.test(encodedSignature)) throw new Error("Invalid login proof");
     const signature = decodeBase64Url(encodedSignature);
     if (signature.length !== 64 || encodeBase64Url(signature) !== encodedSignature) throw new Error("Invalid login signature");
@@ -131,7 +131,7 @@ export class AccountAccess {
         const capability=await tx<{expires_at:Date}[]>`SELECT expires_at FROM account_passkey_enrollment_capabilities
           WHERE id=${capabilityId} AND token_hash=${tokenHash(token)} AND consumed_at IS NULL AND expires_at>clock_timestamp()`;
         if(!capability[0]||signal?.aborted)throw new Error("Enrollment capability is terminal");
-        return {type:"hailp.passkey-enrollment",version:1,provider:this.provider,accountId:challenge.accountId,token,
+        return {type:"racr.passkey-enrollment",version:1,provider:this.provider,accountId:challenge.accountId,token,
           url:`${this.provider}/auth/recover#token=${encodeURIComponent(token)}`,expiresAt:capability[0].expires_at.toISOString()};
       }
       let credentialId = stored[0].credential_id;
@@ -150,7 +150,7 @@ export class AccountAccess {
           AND revoked_at IS NULL AND expires_at > clock_timestamp()
           AND EXISTS (SELECT 1 FROM account_access_challenges WHERE id=${id} AND expires_at > clock_timestamp()) FOR UPDATE`;
       if (!credential[0] || signal?.aborted) throw new Error("Credential or challenge is terminal");
-      return { type: "hailp.api-credential", version: 1, provider: this.provider, accountId: challenge.accountId,
+      return { type: "racr.api-credential", version: 1, provider: this.provider, accountId: challenge.accountId,
         credentialId, token, scopes: challenge.scopes, expiresAt: credential[0].expires_at.toISOString() };
     });
   }

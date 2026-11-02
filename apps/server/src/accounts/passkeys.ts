@@ -112,7 +112,7 @@ export class PasskeyAuth {
   }
 
   async recoveryOptions(token:string){
-    if(!/^hailp_[A-Za-z0-9_-]{43}$/.test(token))throw new PasskeyError(401);
+    if(!/^racr_[A-Za-z0-9_-]{43}$/.test(token))throw new PasskeyError(401);
     await this.sql`DELETE FROM account_passkey_enrollment_capabilities WHERE expires_at<=now()`;
     const rows=await this.sql<{id:string;account_id:string;serving_generation:number|string;canonical_address:string}[]>`
       SELECT capability.id,capability.account_id,capability.serving_generation,account.canonical_address
@@ -137,7 +137,7 @@ export class PasskeyAuth {
 
   async prepareAuthorization(input:Record<string,unknown>){
     if(Object.keys(input).length!==6||Object.keys(input).some(key=>!["clientId","redirectUri","state","code","codeChallenge","scopes"].includes(key))||
-      input.clientId!=="hailp-cli-v1"||typeof input.redirectUri!=="string"||typeof input.state!=="string"||
+      input.clientId!=="racr-cli-v1"||typeof input.redirectUri!=="string"||typeof input.state!=="string"||
       typeof input.code!=="string"||typeof input.codeChallenge!=="string"||!Array.isArray(input.scopes)||
       !/^[A-Za-z0-9_-]{43}$/.test(input.state)||!/^hailc_[A-Za-z0-9_-]{43}$/.test(input.code)||
       !/^[A-Za-z0-9_-]{43}$/.test(input.codeChallenge)||new Set(input.scopes).size!==input.scopes.length||
@@ -198,9 +198,9 @@ export class PasskeyAuth {
 
   async exchangeAuthorization(input:Record<string,unknown>){
     if(Object.keys(input).length!==5||Object.keys(input).some(key=>!["clientId","redirectUri","code","verifier","token"].includes(key))||
-      input.clientId!=="hailp-cli-v1"||typeof input.redirectUri!=="string"||typeof input.code!=="string"||
+      input.clientId!=="racr-cli-v1"||typeof input.redirectUri!=="string"||typeof input.code!=="string"||
       typeof input.verifier!=="string"||typeof input.token!=="string"||!/^hailc_[A-Za-z0-9_-]{43}$/.test(input.code)||
-      !/^[A-Za-z0-9_-]{43}$/.test(input.verifier)||!/^hailp_[A-Za-z0-9_-]{43}$/.test(input.token))throw new PasskeyError(400);
+      !/^[A-Za-z0-9_-]{43}$/.test(input.verifier)||!/^racr_[A-Za-z0-9_-]{43}$/.test(input.token))throw new PasskeyError(400);
     const redirectUri=input.redirectUri as string,code=input.code as string,verifier=input.verifier as string,token=input.token as string;
     loopback(redirectUri);const challenge=encodeBase64Url(new Uint8Array(createHash("sha256").update(verifier).digest()));
     try{return await this.sql.begin(async tx=>{
@@ -224,13 +224,13 @@ export class PasskeyAuth {
       const credential=await tx<{expires_at:Date}[]>`SELECT expires_at FROM account_api_credentials WHERE id=${credentialId}
         AND account_id=${row.account_id} AND token_hash=${tokenHash(token)} AND revoked_at IS NULL AND expires_at>now()`;
       if(!credential[0])throw new PasskeyError(401);
-      return {type:"hailp.api-credential",version:1,provider:this.origin,accountId:row.account_id,credentialId,token,
+      return {type:"racr.api-credential",version:1,provider:this.origin,accountId:row.account_id,credentialId,token,
         scopes,expiresAt:credential[0].expires_at.toISOString()};
     });}catch(error){if(uniqueConflict(error))throw new PasskeyError(409);throw error;}
   }
 
   async recover(token:string,challengeId:string,response:RegistrationResponseJSON,label:string){
-    if(!/^hailp_[A-Za-z0-9_-]{43}$/.test(token)||!UUID.test(challengeId)||!label.trim()||label.trim().length>80||!ID.test(response.id))
+    if(!/^racr_[A-Za-z0-9_-]{43}$/.test(token)||!UUID.test(challengeId)||!label.trim()||label.trim().length>80||!ID.test(response.id))
       throw new PasskeyError(400);
     const rows=await this.sql<{challenge:string;account_id:string;serving_generation:number|string;capability_id:string}[]>`
       SELECT challenge.challenge,challenge.account_id,challenge.serving_generation,capability.id AS capability_id

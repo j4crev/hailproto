@@ -26,13 +26,13 @@ export async function createAccount(provider:string,address:string,custody:"owne
   try {state=JSON.parse(new TextDecoder().decode(await privateFile(statePath,64000)));}
   catch(error) {
     if(!(error instanceof Error&&"code" in error&&error.code==="ENOENT"))throw error;
-    state={provider,address,custody,...(invitation?{invitation}:{}),token:`hailp_${encodeBase64Url(randomBytes(32))}`,
+    state={provider,address,custody,...(invitation?{invitation}:{}),token:`racr_${encodeBase64Url(randomBytes(32))}`,
       ...(monitor?{monitorOrigin:monitor.origin,monitorKey:monitor.publicKey}:{})};
     await savePrivateBytes(statePath,new TextEncoder().encode(JSON.stringify(state)));
   }
   if(state.provider!==provider||state.address!==address||state.custody!==custody||state.monitorOrigin!==monitor?.origin||state.monitorKey!==monitor?.publicKey)throw new Error("Signup state belongs to another request");
-  if(enrollmentPath&&!state.enrollmentToken){state.enrollmentToken=`hailp_${encodeBase64Url(randomBytes(32))}`;await writeState(statePath,state);}
-  if(state.enrollmentToken&&!/^hailp_[A-Za-z0-9_-]{43}$/.test(state.enrollmentToken))throw new Error("Invalid signup enrollment state");
+  if(enrollmentPath&&!state.enrollmentToken){state.enrollmentToken=`racr_${encodeBase64Url(randomBytes(32))}`;await writeState(statePath,state);}
+  if(state.enrollmentToken&&!/^racr_[A-Za-z0-9_-]{43}$/.test(state.enrollmentToken))throw new Error("Invalid signup enrollment state");
   if(invitation!==undefined&&invitation!==state.invitation)throw new Error("Invitation differs from retained signup state");
   const secret=decodeBase64Url(await recoveryInput());
   try {
@@ -92,7 +92,7 @@ export async function createAccount(provider:string,address:string,custody:"owne
       return {did:state.did,address,custody,stateFile:statePath,monitorRequired:true,operationCid};
     }
     const credential=result.credential as Record<string,unknown>;
-    if(result.did!==state.did||!credential||credential.type!=="hailp.api-credential"||credential.version!==1||
+    if(result.did!==state.did||!credential||credential.type!=="racr.api-credential"||credential.version!==1||
       credential.provider!==provider||credential.accountId!==prepared.accountId||credential.token!==state.token||
       typeof credential.credentialId!=="string"||!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(credential.credentialId)||
       !Array.isArray(credential.scopes)||credential.scopes.some(scope=>typeof scope!=="string")||
@@ -105,7 +105,7 @@ export async function createAccount(provider:string,address:string,custody:"owne
     }
     if(enrollmentPath){
       const enrollment=result.enrollment as Record<string,unknown>;
-      if(!enrollment||enrollment.type!=="hailp.passkey-enrollment"||enrollment.version!==1||enrollment.provider!==provider||
+      if(!enrollment||enrollment.type!=="racr.passkey-enrollment"||enrollment.version!==1||enrollment.provider!==provider||
         enrollment.accountId!==prepared.accountId||enrollment.token!==state.enrollmentToken||typeof enrollment.url!=="string"||
         typeof enrollment.expiresAt!=="string"||!Number.isFinite(Date.parse(enrollment.expiresAt)))throw new Error("Signup returned another passkey enrollment");
       try{await savePrivateBytes(enrollmentPath,new TextEncoder().encode(JSON.stringify(enrollment)));}

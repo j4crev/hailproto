@@ -22,7 +22,7 @@ import type { AlphaMonitoringPolicy, PublicOnboarding, PublicOnboardingPreparati
 import {RegistrationPolicy,RegistrationError} from "./registration.js";
 import { CustomDomains, CustomDomainError } from "../accounts/custom-domains.js";
 
-const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/,TOKEN=/^hailp_[A-Za-z0-9_-]{43}$/;
+const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/,TOKEN=/^racr_[A-Za-z0-9_-]{43}$/;
 const equal=(a:Uint8Array,b:Uint8Array)=>a.length===b.length&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
 interface SignupRequest {address:string;recoveryKey:string;identityKey:string;enrollmentHash:string;invitationDigest:string;addressAuthorizationDigest?:string;}
 interface SignupRow {
@@ -316,7 +316,7 @@ export function registerSignupRoutes(app:Hono,signup:SignupCoordinator,accounts:
     if(suppliedOrigin!==origin&&!(context.req.method==="GET"&&suppliedOrigin===undefined))return context.json({error:"Signup origin refused"},403);
     const retry=rate.take(clientAddress(context.req.raw),20);
     if(retry!==null){context.header("Retry-After",String(retry));return context.json({error:"Rate limited"},429);}
-    const id=context.req.param("id"),step=context.req.param("step"),token=/^Bearer (hailp_[A-Za-z0-9_-]{43})$/.exec(context.req.header("Authorization")??"")?.[1];
+    const id=context.req.param("id"),step=context.req.param("step"),token=/^Bearer (racr_[A-Za-z0-9_-]{43})$/.exec(context.req.header("Authorization")??"")?.[1];
     try{
       if(id&&id!=="check-address"&&!UUID.test(id))throw new SignupError(400);
       if(id==="check-address"&&(context.req.method!=="POST"||step))throw new SignupError(405);

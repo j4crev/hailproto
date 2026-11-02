@@ -44,7 +44,7 @@ export class AccountApiClient {
 
   static signup(provider: string, token: string) {
     const url=new URL(provider);
-    if(url.protocol!=="https:"||url.origin!==provider||url.username||url.password||url.search||url.hash||isIP(url.hostname)!==0||!/^[a-z0-9.-]+$/.test(url.hostname)||!/^hailp_[A-Za-z0-9_-]{43}$/.test(token))throw new Error("Invalid signup origin or token");
+    if(url.protocol!=="https:"||url.origin!==provider||url.username||url.password||url.search||url.hash||isIP(url.hostname)!==0||!/^[a-z0-9.-]+$/.test(url.hostname)||!/^racr_[A-Za-z0-9_-]{43}$/.test(token))throw new Error("Invalid signup origin or token");
     return new AccountApiClient(provider,token,"");
   }
 
@@ -66,10 +66,10 @@ export class AccountApiClient {
   static async fromCredentialFile(path: string, selection: { provider?: string | undefined; accountId?: string | undefined;
     transport?:string|undefined } = {}): Promise<AccountApiClient> {
     const record = object(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(await privateFile(path, 16_384))));
-    if (record.type !== "hailp.api-credential" || record.version !== 1 ||
+    if (record.type !== "racr.api-credential" || record.version !== 1 ||
       typeof record.provider !== "string" || typeof record.token !== "string" ||
-      !/^hailp_[A-Za-z0-9_-]{43}$/.test(record.token) || typeof record.accountId !== "string" || !UUID.test(record.accountId)) {
-      throw new Error("Invalid hailp credential file");
+      !/^racr_[A-Za-z0-9_-]{43}$/.test(record.token) || typeof record.accountId !== "string" || !UUID.test(record.accountId)) {
+      throw new Error("Invalid racr credential file");
     }
     const url = new URL(record.provider);
     if (url.protocol !== "https:" || url.origin !== record.provider || url.username || url.password ||
@@ -144,7 +144,7 @@ export class AccountApiClient {
     const result = await this.request("");
     const publicKey = (value: unknown) => value === null || typeof value === "string" &&
       value.length <= 256 && /^did:key:z[1-9A-HJ-NP-Za-km-z]+$/.test(value);
-    if (result.type !== "hailp.account" || result.version !== 1 || result.provider !== this.provider ||
+    if (result.type !== "racr.account" || result.version !== 1 || result.provider !== this.provider ||
       typeof result.accountId!=="string"||(this.accountId!==""?result.accountId!==this.accountId:
         this.sessionOrigin!==undefined&&!UUID.test(result.accountId))||
       typeof result.did !== "string" || !/^did:plc:[a-z2-7]{24}$/.test(result.did) ||
@@ -181,7 +181,7 @@ export class AccountApiClient {
   async grant(id: string): Promise<{ representation: Uint8Array; payload: HailGrant; localRole: "grantor" | "grantee"; digest: string }> {
     if (!GRANT_ID.test(id)) throw new Error("Grant ID must be a canonical UUIDv7");
     const result = await this.request(`/grants/${id}`);
-    if (result.type !== "hailp.grant" || result.version !== 1 ||
+    if (result.type !== "racr.grant" || result.version !== 1 ||
       typeof result.cose !== "string" || result.cose.length > 349_528 || typeof result.digest !== "string" ||
       !["grantor", "grantee"].includes(result.localRole as string)) throw new ClientError("RESPONSE_ERROR", "Invalid provider Grant response");
     const representation = decodeBase64Url(result.cose);
@@ -208,9 +208,9 @@ export class AccountApiClient {
   async senderProfile(did:string):Promise<{representation:Uint8Array;payload:HailSenderProfile;digest:string}>{
     if(!/^did:plc:[a-z2-7]{24}$/.test(did))throw new Error("Sender DID must be canonical");
     const result=await this.request(`/senders/${encodeURIComponent(did)}/profile`);
-    if(result.type!=="hailp.verified-sender-profile"||result.version!==1||result.did!==did)
+    if(result.type!=="racr.verified-sender-profile"||result.version!==1||result.did!==did)
       throw new ClientError("RESPONSE_ERROR","Invalid verified Sender Profile response");
-    const profile=this.profileResponse(result,"hailp.verified-sender-profile");
+    const profile=this.profileResponse(result,"racr.verified-sender-profile");
     if(profile.payload.did!==did)throw new ClientError("RESPONSE_ERROR","Verified Sender Profile names another DID");
     return profile;
   }
@@ -220,7 +220,7 @@ export class AccountApiClient {
     return this.profileResponse(await this.request("/profile",{definition,expectedRevision}));
   }
 
-  private profileResponse(result:JsonObject,responseType="hailp.sender-profile"){
+  private profileResponse(result:JsonObject,responseType="racr.sender-profile"){
     if(result.type!==responseType||result.version!==1||typeof result.cose!=="string"||
       result.cose.length>349_528||typeof result.digest!=="string"||!/^[A-Za-z0-9_-]{43}$/.test(result.digest)||
       !Number.isSafeInteger(result.revision))throw new ClientError("RESPONSE_ERROR","Invalid provider Sender Profile response");
@@ -232,7 +232,7 @@ export class AccountApiClient {
 
   async propose(sender: string, category: string|string[] | null, expiresAt: number | null): Promise<HailGrant> {
     const result = await this.request("/grants/proposals", Array.isArray(category)?{sender,scope:{type:"categories",values:[...category].sort()},expiresAt}:{sender,category,expiresAt});
-    if (result.type !== "hailp.grant-proposal" || result.version !== 1) throw new ClientError("RESPONSE_ERROR", "Invalid Grant proposal");
+    if (result.type !== "racr.grant-proposal" || result.version !== 1) throw new ClientError("RESPONSE_ERROR", "Invalid Grant proposal");
     return fromDiagnosticJson("hail.grant", result.grant as DiagnosticJson);
   }
 }

@@ -45,7 +45,7 @@ export class PrivatePocTransferAbandonment {
   }
   private async owner(value:unknown,manifest:TransferManifest,digest:Uint8Array,kind:string,fresh=true) {
     const {signed,payload}=raw(value),fields=["type","version","did","transfer_id","source_service_base","destination_service_base","source_generation","snapshot_digest","cutover_operation_cid","user_recovery_key","nonce","issued_at","expires_at",
-      ...(kind==="hailp.transfer-resume"?["protective_operation_cid","invalidation_digest"]:[])];
+      ...(kind==="racr.transfer-resume"?["protective_operation_cid","invalidation_digest"]:[])];
     if(!payload||Object.keys(payload).length!==fields.length||!fields.every(field=>Object.hasOwn(payload,field))||payload.type!==kind||payload.version!==1||
       payload.did!==manifest.did||payload.transfer_id!==manifest.transferId||payload.source_service_base!==manifest.sourceServiceBase||payload.destination_service_base!==manifest.destinationServiceBase||
       payload.user_recovery_key!==manifest.tables.portable_custody_evidence[0]!.user_recovery_public_key||!Number.isSafeInteger(payload.source_generation)||payload.source_generation<1||
@@ -53,7 +53,7 @@ export class PrivatePocTransferAbandonment {
       typeof payload.nonce!=="string"||!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(payload.nonce)||!Number.isSafeInteger(payload.issued_at)||!Number.isSafeInteger(payload.expires_at)||
       payload.expires_at<=payload.issued_at||payload.expires_at-payload.issued_at>3600||fresh&&(payload.issued_at>Math.floor(Date.now()/1000)+300||payload.expires_at<=Math.floor(Date.now()/1000))||
       !same(signed.payloadBytes,encodeDeterministic(payload))||!await verifySignature(payload.user_recovery_key,input(kind,signed.payloadBytes),signed.signature,{jwtAlg:"ES256"}))throw new Error("Invalid independent owner abandonment/resumption approval");
-    if(kind==="hailp.transfer-resume"&&(typeof payload.protective_operation_cid!=="string"||payload.protective_operation_cid.length>100||!(payload.invalidation_digest instanceof Uint8Array)||payload.invalidation_digest.length!==32))throw new Error("Invalid protective resumption binding");
+    if(kind==="racr.transfer-resume"&&(typeof payload.protective_operation_cid!=="string"||payload.protective_operation_cid.length>100||!(payload.invalidation_digest instanceof Uint8Array)||payload.invalidation_digest.length!==32))throw new Error("Invalid protective resumption binding");
     return {signed,payload};
   }
   private async receipt(value:unknown,kind:string,key:string) {
@@ -76,12 +76,12 @@ export class PrivatePocTransferAbandonment {
   }
   async invalidate(intent:unknown) {
     const transfer=raw(intent).payload?.transfer_id;if(typeof transfer!=="string")throw new Error("Missing transfer ID");
-    const {manifest,digest}=await this.manifest(transfer,"target"),approval=await this.owner(intent,manifest,digest,"hailp.transfer-abandon",false);
+    const {manifest,digest}=await this.manifest(transfer,"target"),approval=await this.owner(intent,manifest,digest,"racr.transfer-abandon",false);
     return this.sql.begin(async tx=>{
       const pending=(await tx<RecordValue[]>`SELECT * FROM pending_migration_imports WHERE transfer_id=${transfer} FOR UPDATE`)[0];
       const prior=(await tx<RecordValue[]>`SELECT * FROM provider_transfer_abandonments WHERE transfer_id=${transfer}`)[0];
       if(prior){if(!isDeepStrictEqual(prior.evidence.intent,intent))throw new Error("Abandonment intent changed");return prior.evidence.invalidation;}
-      await this.owner(intent,manifest,digest,"hailp.transfer-abandon");
+      await this.owner(intent,manifest,digest,"racr.transfer-abandon");
       if(!pending||pending.state!=="staged"||pending.activated_at)throw new Error("An active/uncertain destination requires a latest-state reverse transfer");
       const operation=def.operation.parse(parseJsonWithoutDuplicateKeys(new TextDecoder().decode(pending.signed_plc_operation_bytes)));
       if((await cidForCbor(operation)).toString()!==approval.payload.cutover_operation_cid)throw new Error("Abandonment names another prepared PLC operation");
@@ -89,7 +89,7 @@ export class PrivatePocTransferAbandonment {
       if(!current||!tip||current.rotationKeys[0]!==approval.payload.user_recovery_key||current.verificationMethods['hail-identity']!==manifest.tables.portable_custody_evidence[0]!.user_identity_public_key||
         ![operation.prev,approval.payload.cutover_operation_cid].includes((await cidForCbor(tip)).toString()))throw new Error("Unrecognized PLC authority requires separate recovery");
       await tx`UPDATE pending_migration_imports SET state='invalidated',invalidated_at=clock_timestamp() WHERE transfer_id=${transfer} AND state='staged'`;
-      const receipt=await this.targetSign(tx,transfer,{type:"hailp.transfer-invalidated",version:1,did:manifest.did,transfer_id:transfer,snapshot_digest:digest,
+      const receipt=await this.targetSign(tx,transfer,{type:"racr.transfer-invalidated",version:1,did:manifest.did,transfer_id:transfer,snapshot_digest:digest,
         source_generation:approval.payload.source_generation,cutover_operation_cid:approval.payload.cutover_operation_cid,intent_digest:hash(approval.signed.payloadBytes),never_active:true,invalidated_at:Math.floor(Date.now()/1000)});
       const archived=(await tx<RecordValue[]>`SELECT to_jsonb(i) AS imported,to_jsonb(invitation) AS invitation,to_jsonb(reservation) AS reservation,
           to_jsonb(prepared)-'rotation_private_ciphertext'-'rotation_nonce'-'messaging_private_ciphertext'-'messaging_nonce' AS prepared,to_jsonb(observation) AS observation
@@ -119,7 +119,7 @@ export class PrivatePocTransferAbandonment {
   }
   async release(resume:unknown,operationBytes:Uint8Array) {
     const transfer=raw(resume).payload?.transfer_id;if(typeof transfer!=="string")throw new Error("Missing transfer ID");
-    const {manifest,digest}=await this.manifest(transfer,"target"),approval=await this.owner(resume,manifest,digest,"hailp.transfer-resume",false);
+    const {manifest,digest}=await this.manifest(transfer,"target"),approval=await this.owner(resume,manifest,digest,"racr.transfer-resume",false);
     await this.protective(operationBytes,manifest,approval.payload);
     let reserved="";
     const receipt=await this.sql.begin(async tx=>{
@@ -128,7 +128,7 @@ export class PrivatePocTransferAbandonment {
       if(!record||record.side!=="target")throw new Error("Target is not durably invalidated");
       if(record.state==="target-released"){if(!isDeepStrictEqual(record.evidence.resume,resume))throw new Error("Resumption approval changed");return record.evidence.release;}
       if(pending?.state!=="invalidated")throw new Error("Target is not durably invalidated");
-      await this.owner(resume,manifest,digest,"hailp.transfer-resume");
+      await this.owner(resume,manifest,digest,"racr.transfer-resume");
       const invalidation=raw(record.evidence.invalidation);
       if(!same(hash(invalidation.signed.payloadBytes),approval.payload.invalidation_digest)||approval.payload.cutover_operation_cid!==invalidation.payload.cutover_operation_cid||
         approval.payload.source_generation!==invalidation.payload.source_generation)throw new Error("Resumption does not bind the retained invalidation");
@@ -138,7 +138,7 @@ export class PrivatePocTransferAbandonment {
         await tx`DELETE FROM transfer_address_reservations WHERE transfer_id=${transfer}`;
         const removed=await tx`DELETE FROM provider_accounts WHERE id=${reserved} AND did IS NULL AND onboarding_state='reserved' RETURNING id`;
         if(removed.length!==1)throw new Error("Target reservation no longer reversible");}
-      const released=await this.targetSign(tx,transfer,{type:"hailp.transfer-released",version:1,did:manifest.did,transfer_id:transfer,snapshot_digest:digest,
+      const released=await this.targetSign(tx,transfer,{type:"racr.transfer-released",version:1,did:manifest.did,transfer_id:transfer,snapshot_digest:digest,
         source_generation:approval.payload.source_generation,cutover_operation_cid:approval.payload.cutover_operation_cid,protective_operation_cid:approval.payload.protective_operation_cid,
         invalidation_digest:approval.payload.invalidation_digest,resume_digest:hash(approval.signed.payloadBytes),never_active:true,released_at:Math.floor(Date.now()/1000)});
       await tx`UPDATE provider_transfer_abandonments SET state='target-released',evidence=(${JSON.stringify({...record.evidence,resume,release:released})}::text)::jsonb WHERE transfer_id=${transfer}`;
@@ -158,7 +158,7 @@ export class PrivatePocTransferAbandonment {
     const prior=(await this.sql<RecordValue[]>`SELECT * FROM provider_transfer_abandonments WHERE transfer_id=${transfer}`)[0];
     if(prior&&prior.side!=="source")throw new Error("Wrong resumption source");
     const {manifest,digest}=prior?{manifest:validateTransferManifest(hex(prior.evidence.export.manifest_bytes)),digest:hex(prior.evidence.export.manifest_digest)}:await this.manifest(transfer,"source");
-    const approval=await this.owner(resume,manifest,digest,"hailp.transfer-resume",false),protectedState=await this.protective(operationBytes,manifest,approval.payload);
+    const approval=await this.owner(resume,manifest,digest,"racr.transfer-resume",false),protectedState=await this.protective(operationBytes,manifest,approval.payload);
     if(this.serviceBase!==manifest.sourceServiceBase)throw new Error("Wrong resumption source");
     if(prior){if(prior.side!=="source"||!isDeepStrictEqual(prior.evidence.resume,resume)||!isDeepStrictEqual(prior.evidence.release,release))throw new Error("Completed resumption evidence changed");
       const generation=Number((await this.sql<RecordValue[]>`SELECT generation FROM account_serving_generations WHERE account_id=${manifest.accountId}`)[0]?.generation);
@@ -173,7 +173,7 @@ export class PrivatePocTransferAbandonment {
       const authorization=(await tx<RecordValue[]>`SELECT to_jsonb(a) AS value FROM provider_transfer_authorizations a WHERE did=${manifest.did} AND consumed_transfer_id=${transfer}`)[0]?.value;
       const generation=Number((await tx<RecordValue[]>`SELECT generation FROM account_serving_generations WHERE account_id=${manifest.accountId}`)[0]?.generation);
       if(!fence||fence.state!=="exported"||!exported||generation!==approval.payload.source_generation||!same(fence.snapshot_digest,digest))throw new Error("Source resumption lacks the exact frozen generation/export");
-      const receipt=await this.receipt(release,"hailp.transfer-released",fence.destination_messaging_public_key),payload=receipt.payload;
+      const receipt=await this.receipt(release,"racr.transfer-released",fence.destination_messaging_public_key),payload=receipt.payload;
       if(payload.did!==manifest.did||payload.transfer_id!==transfer||payload.never_active!==true||payload.source_generation!==generation||
         payload.cutover_operation_cid!==approval.payload.cutover_operation_cid||payload.protective_operation_cid!==approval.payload.protective_operation_cid||
         !same(payload.snapshot_digest,digest)||!same(payload.resume_digest,hash(approval.signed.payloadBytes))||!same(payload.invalidation_digest,approval.payload.invalidation_digest)||
@@ -183,7 +183,7 @@ export class PrivatePocTransferAbandonment {
       const key=(await tx<RecordValue[]>`SELECT * FROM account_keys WHERE account_id=${manifest.accountId} AND role='hail-messaging'`)[0];
       if(!key||key.public_key!==protectedState.state.verificationMethods["hail-messaging"])throw new Error("Source messaging authority changed");
       const secret=await this.encryptor.decrypt(manifest.accountId,"hail-messaging","ed25519",key.public_key,{ciphertext:key.encrypted_private_key,nonce:key.encryption_nonce,encryptionVersion:key.encryption_version,kekId:key.kek_id});
-      const sourceReceipt=await this.sign({type:"hailp.transfer-resumed",version:1,did:manifest.did,transfer_id:transfer,snapshot_digest:digest,protective_operation_cid:approval.payload.protective_operation_cid,
+      const sourceReceipt=await this.sign({type:"racr.transfer-resumed",version:1,did:manifest.did,transfer_id:transfer,snapshot_digest:digest,protective_operation_cid:approval.payload.protective_operation_cid,
         source_generation:generation+1,resume_digest:hash(approval.signed.payloadBytes),release_digest:hash(receipt.signed.payloadBytes)},secret);
       await tx`INSERT INTO provider_transfer_abandonments (transfer_id,did,side,state,evidence) VALUES (${transfer},${manifest.did},'source','source-resumed',
         (${JSON.stringify({resume,release,receipt:sourceReceipt,fence:fence.record,export:exported,authorization})}::text)::jsonb)`;

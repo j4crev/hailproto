@@ -17,7 +17,7 @@ fn integer(v: &Value) -> Option<i64> {
         .filter(|n| n.unsigned_abs() <= 9_007_199_254_740_991)
 }
 fn retained(mut state: Value, a: &Value, direction: &str) -> Result<Value, Error> {
-    if state["type"] != "hailp.custody-transition-state"
+    if state["type"] != "racr.custody-transition-state"
         || state["version"].as_f64() != Some(1.0)
         || state["provider"] != a["provider"]
         || state["accountId"] != a["accountId"]
@@ -48,7 +48,7 @@ fn retained(mut state: Value, a: &Value, direction: &str) -> Result<Value, Error
             &codec::decode_base64(state["approval"].as_str().unwrap())?,
             262144,
         )?;
-        if approval["type"] != "hailp.custody-transition"
+        if approval["type"] != "racr.custody-transition"
             || approval["version"] != 1
             || approval["transition_id"] != state["transitionId"]
             || approval["did"] != state["did"]
@@ -145,12 +145,12 @@ fn preparation(
         &hex[16..20],
         &hex[20..]
     );
-    let approval = json!({"type":"hailp.custody-transition","version":1,"transition_id":raw["transitionId"],"did":raw["did"],"direction":direction,"provider_service_base":format!("{}/hail",a["provider"].as_str().unwrap()),"owner_recovery_key":raw["ownerRecoveryKey"],"old_identity_key":raw["oldIdentityKey"],"new_identity_key":raw["newIdentityKey"],"previous_operation_cid":raw["previousOperationCid"],"operation_cid":cid,"history_checkpoint_sha256":raw["historyCheckpointDigest"],"binding_sha256":raw["bindingDigest"],"generation_from":raw["generationFrom"],"generation_to":raw["generationTo"],"nonce":nonce,"issued_at":now,"expires_at":expiry.min(now+3600)});
+    let approval = json!({"type":"racr.custody-transition","version":1,"transition_id":raw["transitionId"],"did":raw["did"],"direction":direction,"provider_service_base":format!("{}/hail",a["provider"].as_str().unwrap()),"owner_recovery_key":raw["ownerRecoveryKey"],"old_identity_key":raw["oldIdentityKey"],"new_identity_key":raw["newIdentityKey"],"previous_operation_cid":raw["previousOperationCid"],"operation_cid":cid,"history_checkpoint_sha256":raw["historyCheckpointDigest"],"binding_sha256":raw["bindingDigest"],"generation_from":raw["generationFrom"],"generation_to":raw["generationTo"],"nonce":nonce,"issued_at":now,"expires_at":expiry.min(now+3600)});
     let bytes = plc::with_digests(&approval, &["history_checkpoint_sha256", "binding_sha256"])?;
-    let mut input = b"hailp.custody-transition.v1\0".to_vec();
+    let mut input = b"racr.custody-transition.v1\0".to_vec();
     input.extend_from_slice(&bytes);
     Ok(
-        json!({"type":"hailp.custody-transition-state","version":1,"provider":a["provider"],"accountId":a["accountId"],"did":a["did"],"direction":direction,"transitionId":raw["transitionId"],"operation":URL_SAFE_NO_PAD.encode(operation.to_string()),"operationCid":cid,"approval":URL_SAFE_NO_PAD.encode(bytes),"signature":URL_SAFE_NO_PAD.encode(crypto::sign_recovery(&owner.recovery,&input)),"binding":raw["bindingCose"],"bindingDigest":raw["bindingDigest"],"newIdentityKey":raw["newIdentityKey"],"generationTo":raw["generationTo"]}),
+        json!({"type":"racr.custody-transition-state","version":1,"provider":a["provider"],"accountId":a["accountId"],"did":a["did"],"direction":direction,"transitionId":raw["transitionId"],"operation":URL_SAFE_NO_PAD.encode(operation.to_string()),"operationCid":cid,"approval":URL_SAFE_NO_PAD.encode(bytes),"signature":URL_SAFE_NO_PAD.encode(crypto::sign_recovery(&owner.recovery,&input)),"binding":raw["bindingCose"],"bindingDigest":raw["bindingDigest"],"newIdentityKey":raw["newIdentityKey"],"generationTo":raw["generationTo"]}),
     )
 }
 pub async fn run(client: &Client, args: &Args) -> Result<Value, Error> {
@@ -177,7 +177,7 @@ pub async fn run(client: &Client, args: &Args) -> Result<Value, Error> {
     let mut key_ready = None;
     let existing = if let Some(raw) = raw {
         if to_owner
-            && raw["type"] == "hailp.custody-transition-key"
+            && raw["type"] == "racr.custody-transition-key"
             && raw["version"] == 1
             && raw["provider"] == a["provider"]
             && raw["accountId"] == a["accountId"]
@@ -246,7 +246,7 @@ pub async fn run(client: &Client, args: &Args) -> Result<Value, Error> {
                 private::replace(vp, &user.vault)?;
                 private::replace(
                     path,
-                    &json!({"type":"hailp.custody-transition-key","version":1,"provider":a["provider"],"accountId":a["accountId"],"did":a["did"],"direction":direction,"newIdentityKey":user.vault["identity"]["publicDidKey"]}),
+                    &json!({"type":"racr.custody-transition-key","version":1,"provider":a["provider"],"accountId":a["accountId"],"did":a["did"],"direction":direction,"newIdentityKey":user.vault["identity"]["publicDidKey"]}),
                 )?;
             }
             let review = client

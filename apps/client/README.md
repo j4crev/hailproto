@@ -89,7 +89,7 @@ or reuse of expired reservations is introduced. Browser recovery of an already
 completed account remains outside this signup flow.
 
 The updated CLI can verify the package and extract its existing v1 vault offline
-with `hailp vault import --file <package> --vault <output> --expected-did <did>`.
+with `racr vault import --file <package> --vault <output> --expected-did <did>`.
 See the CLI README for private-file permissions. Recovery does not depend on
 valid setup tokens or a reachable provider. During rollback, retain schema 73
 and use compatible code; its down migration refuses to discard any new-format
@@ -142,7 +142,7 @@ HAIL_WEB_CLIENT_PROVIDER=https://your-provider.example \
 
 The HTTP commands above support GUI development after an account already has a
 passkey. Initial owner-authorized enrollment requires an HTTPS provider/GUI origin;
-use the enrollment link issued by account creation or `hailp account
+use the enrollment link issued by account creation or `racr account
 passkey-recover` in that environment, then sign in from the homepage. The legacy
 `/auth/enroll/*` bootstrap credential proxy is disabled; setting
 `HAIL_WEB_CLIENT_CREDENTIAL_FILE` does not enable passkey enrollment.

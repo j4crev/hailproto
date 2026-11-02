@@ -11,7 +11,7 @@ import {tokenHash} from "../src/accounts/repository.js";
 const integration=process.env.DATABASE_URL?describe:describe.skip;
 integration("owner-proof passkey recovery",()=>{
   let admin:SQL,db:ProviderDatabase,schema:string,account:string,other:string,passkeys:PasskeyAuth;
-  const token=()=>`hailp_${encodeBase64Url(randomBytes(32))}`;
+  const token=()=>`racr_${encodeBase64Url(randomBytes(32))}`;
   const response=(id:string)=>({id,rawId:id,type:"public-key" as const,response:{clientDataJSON:"AA",attestationObject:"AA",transports:[]},clientExtensionResults:{}});
   const verifyRegistration:typeof verifyRegistrationResponse=async({response})=>({verified:true,registrationInfo:{credential:{id:response.id,publicKey:randomBytes(64),counter:0,transports:[]},
     credentialDeviceType:"multiDevice",credentialBackedUp:true,fmt:"none",aaguid:"00000000-0000-0000-0000-000000000000",

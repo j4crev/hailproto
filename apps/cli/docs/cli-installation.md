@@ -1,4 +1,4 @@
-# Install hailp
+# Install racr
 
 The default executable is native Rust. The release qualification targets Linux
 x86-64 on Ubuntu 22.04 (glibc 2.35) and Ubuntu 24.04 (glibc 2.39). Users need
@@ -8,9 +8,9 @@ Node, pnpm or Rust installation to run a release binary.
 ## Download a release
 
 Check [GitHub Releases](https://github.com/j4crev/hailproto/releases) for a
-published version. At the initial readiness assessment there were no published
-releases; until the first one is published, use the source-build instructions
-below. These commands are the download procedure **once that version exists**.
+published version with `racr` assets. Older releases use `hailp` asset names;
+follow their release-specific instructions. Until a release with the new name
+is published, use the source-build instructions below.
 
 On Linux x86-64, choose the version explicitly from the release page. Run this in
 Bash, replacing `X.Y.Z` with that version (without the `v` prefix):
@@ -20,7 +20,7 @@ Bash, replacing `X.Y.Z` with that version (without the `v` prefix):
   set -euo pipefail
   version='X.Y.Z'
   test "$(uname -s)" = Linux && test "$(uname -m)" = x86_64
-  archive="hailp-${version}-linux-x64.tar.gz"
+  archive="racr-${version}-linux-x64.tar.gz"
   base="https://github.com/j4crev/hailproto/releases/download/v${version}"
   work=$(mktemp -d)
   trap 'rm -rf "$work"' EXIT
@@ -36,12 +36,12 @@ Bash, replacing `X.Y.Z` with that version (without the `v` prefix):
     --repo j4crev/hailproto \
     --signer-workflow j4crev/hailproto/.github/workflows/release-linux.yml \
     --source-ref "refs/tags/v${version}" --deny-self-hosted-runners
-  tar -xzf "$archive" hailp
-  test "$(./hailp --version)" = "$version"
-  install -Dm755 hailp "$HOME/.local/bin/hailp"
+  tar -xzf "$archive" racr
+  test "$(./racr --version)" = "$version"
+  install -Dm755 racr "$HOME/.local/bin/racr"
 )
 export PATH="$HOME/.local/bin:$PATH"
-hailp --version
+racr --version
 ```
 
 Add `export PATH="$HOME/.local/bin:$PATH"` to your shell startup file if needed.
@@ -69,7 +69,41 @@ acceptance remain tracked in the production-readiness checklist.
 
 ## Upgrade or uninstall
 
-Read the selected release notes before upgrading. Record `hailp --version`, keep
+### Moving from hailp to racr
+
+Update scripts and command invocations from `hailp` to `racr`, and replace
+`HAILP_CREDENTIAL_FILE` with `RACR_CREDENTIAL_FILE` in shell configuration and
+service environments. The old environment variable is no longer read;
+`--credentials` remains supported.
+
+This is a breaking alpha update: deploy matching provider, browser client, and
+CLI revisions together. Provider migration 99 discards pending browser logins
+and changes the accepted client ID to `racr-cli-v1`. API tokens now use `racr_`;
+file/response types and client signing domains now use `racr.*`. Old identifiers
+are rejected, with no compatibility aliases. CLI output reports contract version 2.
+
+Reissue API credentials through browser login, owner-key login, or the provider
+operator credential tool; revoke obsolete credentials. Restart pending signup,
+login/recovery, custody-transition and transfer ceremonies with fresh state files.
+Do not change a token's prefix or edit signed state files: token hashes and
+signatures bind the original bytes. Reconcile any fenced or partially completed
+provider operation before starting another; a CLI file deletion is not a server
+rollback. Retained test history with old signed client approvals is not converted
+by this change and cannot be assumed valid under the new domains.
+
+Keep existing `hail.user-vault` files, keys and recovery secrets: their format and
+encryption are unchanged. Hail federation identifiers such as `hail.envelope`
+and `#hail-identity` are unchanged as well.
+
+Installing `racr` does not overwrite an installed `hailp`. Remove the old binary
+once the matching stack works. Rollback requires the matching old provider and
+client versions plus a pre-upgrade database backup; reverting only the executable
+or database client-ID constraint is insufficient. This repository change does
+not alter any installed binaries or live account data.
+
+### Routine upgrades and removal
+
+Read the selected release notes before upgrading. Record `racr --version`, keep
 the previous executable if rollback is needed, and repeat the versioned download
 procedure. Existing credentials, vaults and retry state stay at the paths you chose;
 keep them until their operations are confirmed complete. Binary rollback does not
@@ -78,7 +112,7 @@ reverse provider changes or guarantee older software can read newer state format
 To remove the executable installed above:
 
 ```bash
-rm -- "$HOME/.local/bin/hailp"
+rm -- "$HOME/.local/bin/racr"
 ```
 
 This does not revoke credentials or delete recovery material. Revoke unwanted
@@ -95,16 +129,16 @@ database, vault or live account is needed.
 git clone https://github.com/j4crev/hailproto.git
 cd hailproto
 python3 apps/cli/scripts/build.py
-install -Dm755 apps/cli/dist/hailp "$HOME/.local/bin/hailp"
-hailp --version
-hailp account show --help
+install -Dm755 apps/cli/dist/racr "$HOME/.local/bin/racr"
+racr --version
+racr account show --help
 ```
 
 Alternatively, run `cargo build --release --locked` inside `apps/cli` and install
-`target/release/hailp` directly. Put `$HOME/.local/bin` on PATH. HTTPS certificate
+`target/release/racr` directly. Put `$HOME/.local/bin` on PATH. HTTPS certificate
 verification remains enabled; keep private credentials and vaults separate.
 
-Tagged releases retain `hailp-<version>-linux-x64.tar.gz`, its SHA-256 checksum,
+Tagged releases retain `racr-<version>-linux-x64.tar.gz`, its SHA-256 checksum,
 and its `.sigstore.json` provenance bundle. Verify both checksum and provenance
 before extracting and installing. Local source builds use the local C runtime
 and do not inherit the release compatibility promise. The package remains private;
@@ -118,8 +152,9 @@ Workspace development and test fixtures use Bun 1.4.0, Node 26.7.0 and pnpm
 unit and workflow regressions. The `package.json` in this directory only connects
 native builds and test tooling to the monorepo; no TypeScript CLI remains.
 
-Existing credential/vault and retry formats remain supported. When resuming a
-write, preserve its exact arguments and saved files.
+Only current `racr.*` credential and retry formats are supported. When resuming
+a write created by this revision, preserve its exact arguments and saved files.
+Encrypted `hail.user-vault` files remain supported without conversion.
 
 ## Fresh-install verification
 

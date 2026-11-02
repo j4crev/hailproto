@@ -4,13 +4,13 @@
   "private": true,
   "type": "module",
   "bin": {
-    "hailp": "dist/hailp"
+    "racr": "dist/racr"
   },
   "scripts": {
     "build": "python3 scripts/build.py",
-    "hailp": "./dist/hailp",
+    "racr": "./dist/racr",
     "test": "cargo test --locked",
-    "test:workflows": "bun tests/compatibility.ts && bun tests/vault-compatibility.ts && bun tests/transfer-e2e.ts && python3 tests/terminal-input.py target/debug/hailp",
+    "test:workflows": "bun tests/compatibility.ts && bun tests/vault-compatibility.ts && bun tests/transfer-e2e.ts && python3 tests/terminal-input.py target/debug/racr",
     "smoke": "bun scripts/smoke.ts",
     "verify:install": "python3 scripts/verify-install.py",
     "eval:agents": "bun scripts/agent-eval.ts",

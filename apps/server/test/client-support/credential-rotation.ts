@@ -7,7 +7,7 @@ import { writeState } from "./account-creation.js";
 import { createCredential } from "./credential-creation.js";
 
 interface RotationState {
-  type: "hailp.credential-rotation"; version: 1; provider: string; accountId: string;
+  type: "racr.credential-rotation"; version: 1; provider: string; accountId: string;
   sourceCredentialId: string; sourceTokenHash: string; token: string; scopes: AccountApiScope[];
 }
 
@@ -30,18 +30,18 @@ export async function rotateCredential(source: string, output: string) {
     if (account.credential.credentialId !== sourceRecord.credentialId) throw new Error("Source credential ID differs from the authenticated credential");
     if (account.migrationState || !account.scopes.includes("credentials:write")) throw new Error("Account cannot rotate credentials");
     if (!sameScopes(account.scopes, sourceRecord.scopes)) throw new Error("Source credential scopes differ from its authenticated permissions");
-    state = { type: "hailp.credential-rotation", version: 1, provider: account.provider, accountId: account.accountId,
+    state = { type: "racr.credential-rotation", version: 1, provider: account.provider, accountId: account.accountId,
       sourceCredentialId: account.credential.credentialId, sourceTokenHash: hash(sourceRecord.token),
-      token: `hailp_${encodeBase64Url(randomBytes(32))}`, scopes: credentialScopes(account.scopes) };
+      token: `racr_${encodeBase64Url(randomBytes(32))}`, scopes: credentialScopes(account.scopes) };
     await savePrivateBytes(statePath, new TextEncoder().encode(JSON.stringify(state)));
   }
-  if (!state || state.type !== "hailp.credential-rotation" || state.version !== 1 ||
+  if (!state || state.type !== "racr.credential-rotation" || state.version !== 1 ||
     state.provider !== sourceRecord.provider || state.accountId !== sourceRecord.accountId ||
     state.sourceCredentialId !== sourceRecord.credentialId || state.sourceTokenHash !== hash(sourceRecord.token) ||
     !sameScopes(state.scopes, sourceRecord.scopes) ||
-    typeof state.token !== "string" || !/^hailp_[A-Za-z0-9_-]{43}$/.test(state.token) || state.token === sourceRecord.token ||
+    typeof state.token !== "string" || !/^racr_[A-Za-z0-9_-]{43}$/.test(state.token) || state.token === sourceRecord.token ||
     !credentialScopes(state.scopes).includes("credentials:write")) throw new Error("Rotation state does not match the original credential");
-  const pending = { type: "hailp.api-credential", version: 1, provider: state.provider,
+  const pending = { type: "racr.api-credential", version: 1, provider: state.provider,
     accountId: state.accountId, token: state.token, scopes: state.scopes };
   try {
     const saved = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(await privateFile(output, 16_384)));

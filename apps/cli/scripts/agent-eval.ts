@@ -52,8 +52,8 @@ function cliCommand(run: Run, args: string[], credential = "") {
     "--name", `${run.container}-cli-${crypto.randomUUID()}`, "--label", `hail.agent-eval.run=${run.container}`,
     "--workdir", process.cwd(),
     "--user", `${process.getuid!()}:${process.getgid!()}`, "--volume", `${run.directory}:${run.directory}:rw`,
-    "--env", `NODE_EXTRA_CA_CERTS=${join(run.directory, "cert.pem")}`, "--env", `HAILP_CREDENTIAL_FILE=${credential}`,
-    "--entrypoint", join(run.directory, "hailp"), "oven/bun:1.4.0", ...args];
+    "--env", `NODE_EXTRA_CA_CERTS=${join(run.directory, "cert.pem")}`, "--env", `RACR_CREDENTIAL_FILE=${credential}`,
+    "--entrypoint", join(run.directory, "racr"), "oven/bun:1.4.0", ...args];
 }
 async function traces(directory: string): Promise<Trace[]> {
   try { return (await readFile(join(directory, "trace.jsonl"), "utf8")).trim().split("\n").filter(Boolean).map(line => JSON.parse(line)); }
@@ -94,7 +94,7 @@ inspect your credentials, Grants, and inbox. Discover whether this installed CLI
 can establish a native Connection with the other actor and exchange messages;
 report capability support accurately. Do not establish it during this first gate.
 
-Use ${root}/hailp for every CLI call (it supplies the test CA and your credential
+Use ${root}/racr for every CLI call (it supplies the test CA and your credential
 selection and records calls). Use --help to discover the interface. Read the
 shipped documentation in ${run.directory}/docs, starting with agent-guide.md.
 Do not read repository source, harness internals, provider files/database, or the
@@ -163,7 +163,7 @@ async function serve() {
       "-subj", "/CN=source.example.com", "-addext", "subjectAltName=DNS:source.example.com",
       "-addext", "basicConstraints=critical,CA:TRUE", "-keyout", join(directory, "key.pem"), "-out", join(directory, "cert.pem")]);
     await checked(["python3", join(cliRoot, "scripts/build.py")]);
-    await copyFile(join(cliRoot, "dist/hailp"), join(directory, "hailp"));
+    await copyFile(join(cliRoot, "dist/racr"), join(directory, "racr"));
     fixture = Bun.spawn(["docker", "run", "--rm", "--name", `${container}-provider`, "--network", `container:${container}`,
       "--user", `${process.getuid!()}:${process.getgid!()}`, "--volume", `${repoRoot}:${repoRoot}:ro`,
       "--volume", `${directory}:${directory}:rw`, "--env", "DATABASE_URL=postgresql://postgres@127.0.0.1:5432/hail_agent_eval",
@@ -179,14 +179,14 @@ async function serve() {
     }
     assert.ok(ready, "Provider fixture readiness timed out");
     const run: Run = { version: 1, directory, container, databaseUrl, provider: ready.provider, startedAt: new Date().toISOString(),
-      cliVersion: await checked([join(directory, "hailp"), "--version"]) };
+      cliVersion: await checked([join(directory, "racr"), "--version"]) };
     await privateJson(join(directory, "run.json"), run);
     await mkdir(join(directory, "docs"), { mode: 0o700 });
     for (const name of ["agent-guide.md", "cli-contract.md", "cli-workflows.md"]) await copyFile(join(cliRoot, "docs", name), join(directory, "docs", name));
     for (const actor of actors) {
       const root = join(directory, "actors", actor);
       await mkdir(join(root, "backup"), { recursive: true, mode: 0o700 });
-      await writeFile(join(root, "hailp"), `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(script)} proxy ${shellQuote(directory)} ${actor} "$@"\n`, { mode: 0o700 });
+      await writeFile(join(root, "racr"), `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(script)} proxy ${shellQuote(directory)} ${actor} "$@"\n`, { mode: 0o700 });
       await writeFile(join(root, "task.md"), task(run, actor), { mode: 0o600 });
     }
     console.info(JSON.stringify({ ready: true, directory, provider: run.provider, profile: "private-poc",

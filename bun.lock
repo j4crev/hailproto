@@ -14,7 +14,7 @@
       "name": "hail-cli",
       "version": "0.1.2",
       "bin": {
-        "hailp": "dist/hailp",
+        "racr": "dist/racr",
       },
       "devDependencies": {
         "@atproto/common": "0.8.1",

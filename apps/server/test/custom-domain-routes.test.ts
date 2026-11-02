@@ -26,7 +26,7 @@ describe("custom domain HTTP boundaries", () => {
     for(const body of [{address:"a@example.com"},{address:"a@example.com",eraseInbox:false},{address:"a@example.com",eraseInbox:true,extra:true}])
       expect((await app.request(url,{method:"POST",headers,body:JSON.stringify(body)})).status).toBe(400);
     expect((await app.request(url,{headers})).status).toBe(405);
-    expect((await app.request(url,{method:"POST",headers:{...headers,Authorization:"Bearer hailp_fake"},body:'{}'})).status).toBe(403);
+    expect((await app.request(url,{method:"POST",headers:{...headers,Authorization:"Bearer racr_fake"},body:'{}'})).status).toBe(403);
     expect((await app.request(origin+`/api/v1/account/custom-domains/${id}/withdraw`,{method:"POST",headers,body:JSON.stringify({domain:"example.com"})})).status).toBe(200);
     expect(domains.withdraw).toHaveBeenCalledWith(session,id,"example.com");expect(domains.removePending).not.toHaveBeenCalled();
   });

@@ -5,9 +5,9 @@ use std::{
 };
 
 fn run(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_hailp"))
+    Command::new(env!("CARGO_BIN_EXE_racr"))
         .args(args)
-        .env_remove("HAILP_CREDENTIAL_FILE")
+        .env_remove("RACR_CREDENTIAL_FILE")
         .output()
         .unwrap()
 }
@@ -17,7 +17,7 @@ fn error(args: &[&str], code: &str) {
     assert_eq!(result.status.code(), Some(1));
     assert!(result.stdout.is_empty());
     let value: Value = serde_json::from_slice(&result.stderr).unwrap();
-    assert_eq!(value["cliContractVersion"], 1);
+    assert_eq!(value["cliContractVersion"], 2);
     assert_eq!(value["error"]["code"], code);
 }
 
@@ -39,7 +39,7 @@ fn offline_help_version_and_usage() {
         let result = run(&args);
         assert!(result.status.success());
         assert!(result.stderr.is_empty());
-        assert!(String::from_utf8(result.stdout).unwrap().contains("hailp"));
+        assert!(String::from_utf8(result.stdout).unwrap().contains("racr"));
     }
     for args in [
         vec!["--version", "--help"],
@@ -69,7 +69,7 @@ fn help_commands_are_alphabetical() {
         let text = String::from_utf8(result.stdout).unwrap();
         let commands: Vec<_> = text
             .lines()
-            .filter_map(|line| line.strip_prefix("  hailp "))
+            .filter_map(|line| line.strip_prefix("  racr "))
             .map(|line| line.split(['<', '[']).next().unwrap().trim())
             .collect();
         assert!(commands.len() > 1, "{prefix}");
@@ -128,8 +128,8 @@ fn credential_privacy_selection_and_origin_are_checked_before_network() {
     use std::os::unix::fs::PermissionsExt;
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("credential.json");
-    let token = format!("hailp_{}", "a".repeat(43));
-    let mut credential = json!({"type":"hailp.api-credential", "version":1,
+    let token = format!("racr_{}", "a".repeat(43));
+    let mut credential = json!({"type":"racr.api-credential", "version":1,
         "provider":"https://example.com", "accountId":"019a0000-0000-7000-8000-000000000001", "token":token});
     fs::write(&path, credential.to_string()).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
@@ -156,9 +156,9 @@ fn credential_privacy_selection_and_origin_are_checked_before_network() {
         ],
         "SELECTION_MISMATCH",
     );
-    let env_result = Command::new(env!("CARGO_BIN_EXE_hailp"))
+    let env_result = Command::new(env!("CARGO_BIN_EXE_racr"))
         .args(["account", "show", "--account-id", "wrong"])
-        .env("HAILP_CREDENTIAL_FILE", name)
+        .env("RACR_CREDENTIAL_FILE", name)
         .output()
         .unwrap();
     assert_eq!(

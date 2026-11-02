@@ -7,9 +7,9 @@ import {privateFile,savePrivateBytes} from "./grant-revocation.js";
 import {writeState} from "./account-creation.js";
 import {ClientError} from "../../../../packages/hail-client-support/src/client-error.js";
 
-const CLIENT="hailp-cli-v1",DEFAULT_SCOPES=["account:read","grants:read","messages:read","messages:write"];
+const CLIENT="racr-cli-v1",DEFAULT_SCOPES=["account:read","grants:read","messages:read","messages:write"];
 interface BrowserLoginState {
-  type:"hailp.browser-login";version:1;provider:string;scopes:string[];state:string;code:string;verifier:string;token:string;
+  type:"racr.browser-login";version:1;provider:string;scopes:string[];state:string;code:string;verifier:string;token:string;
   redirectUri:string;createdAt:number;requestId?:string;authorizationUrl?:string;expiresAt?:string;approved?:boolean;
 }
 type OpenBrowser=(url:string)=>Promise<void>;
@@ -50,11 +50,11 @@ export async function browserLogin(provider:string,requestedScopes:string[],stat
   let state:BrowserLoginState|null=null;
   try{state=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(await privateFile(statePath,16_384)));}
   catch(error){if(!(error instanceof Error&&"code" in error&&error.code==="ENOENT"))throw error;}
-  if(state&&(!state.redirectUri||state.type!=="hailp.browser-login"||state.version!==1||state.provider!==provider||
+  if(state&&(!state.redirectUri||state.type!=="racr.browser-login"||state.version!==1||state.provider!==provider||
     JSON.stringify(state.scopes)!==JSON.stringify(scopes)||!Number.isSafeInteger(state.createdAt)||
     state.createdAt>Math.floor(Date.now()/1000)+30||Math.floor(Date.now()/1000)-state.createdAt>=300||
     !/^[A-Za-z0-9_-]{43}$/.test(state.state)||!/^hailc_[A-Za-z0-9_-]{43}$/.test(state.code)||
-    !/^[A-Za-z0-9_-]{43}$/.test(state.verifier)||!/^hailp_[A-Za-z0-9_-]{43}$/.test(state.token)))
+    !/^[A-Za-z0-9_-]{43}$/.test(state.verifier)||!/^racr_[A-Za-z0-9_-]{43}$/.test(state.token)))
     throw new Error("Browser login state differs or expired; retain it and start a deliberate new attempt with new paths");
   const redirect=state?new URL(state.redirectUri):null;
   if(redirect&&(redirect.protocol!=="http:"||redirect.hostname!=="127.0.0.1"||redirect.pathname!=="/callback"||redirect.search||redirect.hash||
@@ -81,8 +81,8 @@ export async function browserLogin(provider:string,requestedScopes:string[],stat
     if(!state){
       try{await privateFile(output,16_384);throw new Error("Credential output already exists without its original state");}
       catch(error){if(!(error instanceof Error&&"code" in error&&error.code==="ENOENT"))throw error;}
-      state={type:"hailp.browser-login",version:1,provider,scopes,state:encodeBase64Url(randomBytes(32)),
-        code:`hailc_${encodeBase64Url(randomBytes(32))}`,verifier:encodeBase64Url(randomBytes(32)),token:`hailp_${encodeBase64Url(randomBytes(32))}`,
+      state={type:"racr.browser-login",version:1,provider,scopes,state:encodeBase64Url(randomBytes(32)),
+        code:`hailc_${encodeBase64Url(randomBytes(32))}`,verifier:encodeBase64Url(randomBytes(32)),token:`racr_${encodeBase64Url(randomBytes(32))}`,
         redirectUri:`http://127.0.0.1:${server.port}/callback`,createdAt:Math.floor(Date.now()/1000)};expected=state;await savePrivateBytes(statePath,new TextEncoder().encode(JSON.stringify(state)));
     }
     if(!state.requestId){
@@ -104,7 +104,7 @@ export async function browserLogin(provider:string,requestedScopes:string[],stat
       finally{if(timer)clearTimeout(timer);}
     }
     const credential=await request(provider,"token",{clientId:CLIENT,redirectUri:state.redirectUri,code:state.code,verifier:state.verifier,token:state.token},transport);
-    if(credential.type!=="hailp.api-credential"||credential.version!==1||credential.provider!==provider||credential.token!==state.token||
+    if(credential.type!=="racr.api-credential"||credential.version!==1||credential.provider!==provider||credential.token!==state.token||
       typeof credential.accountId!=="string"||!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(credential.accountId)||
       typeof credential.credentialId!=="string"||!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(credential.credentialId)||
       typeof credential.expiresAt!=="string"||!Number.isFinite(Date.parse(credential.expiresAt))||

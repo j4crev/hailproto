@@ -1,6 +1,6 @@
 # Hail Server TypeScript
 
-Reusable Bun and Hono provider implementation for Hail Protocol.
+Reusable Bun and Hono provider implementation of the RACR protocol.
 
 This repository is under active development. Use the
 [standalone provider deployment profile](deploy/standalone/README.md) for a new
@@ -89,10 +89,10 @@ Upgrades preserve existing accounts and warn about occupied role names for manua
 ownership review; they never take over or rename an account. Reservation does not
 configure email forwarding. Keep an off-provider email path for outage alerts.
 
-## hailp Account API
+## racr Account API
 
 Migration 32 adds the authenticated account-management slice used by
-`hailp` in [`../cli`](../cli). It is separate from provider administration and
+`racr` in [`../cli`](../cli). It is separate from provider administration and
 federation. The credential commands below are an API reference, not additional
 steps required after completing the administrator setup guide.
 
@@ -200,9 +200,9 @@ snapshot remains a separate profile change. Current reported PLC authority is
 not recovery-window finality or proof of owner intent. See the
 [routine authority policy and boundaries](https://github.com/j4crev/hailproto/blob/main/spec/plc-read-evidence.md#routine-strict-public-v1-authority).
 
-The consolidated [reference account API v1 / hailp CLI contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-contract.md)
+The consolidated [reference account API v1 / racr CLI contract](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-contract.md)
 defines compatibility, output/error semantics and bounded read convenience.
-The client version is 0.1.0 and its JSON adds `cliContractVersion: 1`; provider
+The client version is 0.1.0 and its JSON adds `cliContractVersion: 2`; provider
 response shapes and API paths remain unchanged. Command-specific help, deliberate
 origin/account assertions and a compiled executable are documented in the
 [developer workflows](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/cli-workflows.md#conventions).
@@ -255,7 +255,7 @@ distributed limits and production load calibration remain future hardening.
 
 ### Verification
 
-The opt-in test exercises actual `hailp` processes against a local TLS Hono
+The opt-in test exercises actual `racr` processes against a local TLS Hono
 server using a temporary CA trusted through `NODE_EXTRA_CA_CERTS` (never
 disabled certificate verification). It requires OpenSSL and a disposable
 PostgreSQL database:
@@ -381,7 +381,7 @@ changing the owner-approved artifacts. The private endpoint still accepts only
 the original three-field request and never public monitor evidence.
 
 Owner-controlled completion uses the equivalent two-phase
-`/.well-known/hail/transfers/completions` flow. Retry `hailp account transfer complete` with
+`/.well-known/hail/transfers/completions` flow. Retry `racr account transfer complete` with
 `--monitor-attestation` after the monitor approves the exact operation.
 
 ### Post-export recovery boundary
@@ -413,7 +413,7 @@ and [key decision](https://github.com/j4crev/hailproto/blob/main/apps/cli/docs/g
 ### Address Binding publication
 
 The provider exposes `GET/POST /api/v1/account/binding` and
-`hailp binding show/publish`. Reading reports publication state rather than
+`racr binding show/publish`. Reading reports publication state rather than
 expiry reminders. Explicit publication requires `account:write` authority,
 current identity/service ownership and an active/public account. Migration 35
 expanded the scope constraint without upgrading existing credentials. Both
@@ -661,7 +661,7 @@ bun run dev
 The server also runs pending migrations before binding its HTTP listener.
 
 Create and activate test accounts through the owner-key account API using the
-[`hailp` signup workflow](../cli/docs/cli-workflows.md#create-an-account). The
+[`racr` signup workflow](../cli/docs/cli-workflows.md#create-an-account). The
 legacy provider-custodial onboarding and activation commands have been removed.
 The public deployment profile is in [`deploy/public/README.md`](deploy/public/README.md).
 

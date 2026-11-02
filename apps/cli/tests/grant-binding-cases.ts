@@ -6,7 +6,7 @@ import {unlockUserIdentity} from "../../server/test/client-support/vault.ts";
 const {fromDiagnosticJson,inspectSignedPayload,toDiagnosticJson}=await import(Bun.resolveSync("@hailproto/codec",new URL("../../cli",import.meta.url).pathname));
 const digest=(b:Uint8Array)=>new Bun.CryptoHasher("sha256").update(b).digest("base64url");
 export async function grantBindingCases(binary:string,root:string,directory:string,provider:string,env:Record<string,string|undefined>,install:(handler:(r:Request)=>Promise<Response>)=>void){
- const id="019a0000-0000-7000-8000-000000000001",did=`did:plc:${"a".repeat(24)}`,token=`hailp_${"a".repeat(43)}`;
+ const id="019a0000-0000-7000-8000-000000000001",did=`did:plc:${"a".repeat(24)}`,token=`racr_${"a".repeat(43)}`;
  const commands=[[binary]],vectors=(await Bun.file(join(root,"packages/hail-codec-ts/vectors/v0.json")).json()).positive;
  let cases=0;
  for(const [index,command] of commands.entries())for(const managed of [false,true]){
@@ -18,13 +18,13 @@ export async function grantBindingCases(binary:string,root:string,directory:stri
   grantBytes=await owner.signGrant(fromDiagnosticJson("hail.grant",grant));const gid=grant.grant_id;
   let currentBinding={...vectors.find((v:any)=>v.type==="hail.address-binding").diagnostic,issued_at:now-120*86400};
   let bindingBytes=await owner.signAddressBinding(currentBinding),fail="",calls:any[]=[],proposal:any;
-  const grantRecord=()=>({type:"hailp.grant",version:1,cose:Buffer.from(grantBytes).toString("base64url"),digest:digest(grantBytes),localRole:"grantor"});
+  const grantRecord=()=>({type:"racr.grant",version:1,cose:Buffer.from(grantBytes).toString("base64url"),digest:digest(grantBytes),localRole:"grantor"});
   const ack=()=>({grantId:gid,revision:grant.revision,status:grant.status,digest:fail==="ack"?"A".repeat(43):digest(grantBytes),publication:"durable"});
-  const bindingRecord=()=>({type:"hailp.address-binding",version:1,bindingId:id,cose:Buffer.from(bindingBytes).toString("base64url"),digest:digest(bindingBytes),status:"active"});
+  const bindingRecord=()=>({type:"racr.address-binding",version:1,bindingId:id,cose:Buffer.from(bindingBytes).toString("base64url"),digest:digest(bindingBytes),status:"active"});
   install(async(request)=>{
    const path=new URL(request.url).pathname.replace("/api/v1/account",""),body=request.method==="POST"?await request.json():null;calls.push({path,body,method:request.method});assert.equal(request.headers.get("authorization"),`Bearer ${token}`);
    const json=(v:unknown)=>new Response(JSON.stringify(v),{headers:{"Content-Type":"application/json"}});
-   if(!path)return json({type:"hailp.account",version:1,provider,accountId:id,did,address:currentBinding.address,migrationState:null,custodyProfile:managed?"managed":"owner-controlled",monitorVerificationMode:"strict-public-v1",managedProfileVersion:managed?"hail-managed-custody-v1":null,identityPublicKey:created.vault.identity.publicDidKey,ownerRecoveryPublicKey:created.vault.recovery.publicDidKey,scopes:["account:read","account:write","grants:write"],credential:{credentialId:id,expiresAt:"2030-01-01T00:00:00.000Z"}});
+   if(!path)return json({type:"racr.account",version:1,provider,accountId:id,did,address:currentBinding.address,migrationState:null,custodyProfile:managed?"managed":"owner-controlled",monitorVerificationMode:"strict-public-v1",managedProfileVersion:managed?"hail-managed-custody-v1":null,identityPublicKey:created.vault.identity.publicDidKey,ownerRecoveryPublicKey:created.vault.recovery.publicDidKey,scopes:["account:read","account:write","grants:write"],credential:{credentialId:id,expiresAt:"2030-01-01T00:00:00.000Z"}});
    if(path==="/binding"){
     if(body){
      assert.equal(body.signingKey,created.vault.identity.publicDidKey);
@@ -43,10 +43,10 @@ export async function grantBindingCases(binary:string,root:string,directory:stri
    }
    if(path==="/grants/proposals"||path==="/grants/managed"){
     grant.scope=[body.scope];grant.expires_at=body.expiresAt;grantBytes=await owner.signGrant(fromDiagnosticJson("hail.grant",grant));
-    return json(path.endsWith("managed")?ack():{type:"hailp.grant-proposal",version:1,grant});
+    return json(path.endsWith("managed")?ack():{type:"racr.grant-proposal",version:1,grant});
    }
    if(path===`/grants/${gid}/proposals`){
-    proposal={...grant,scope:[body.scope],revision:grant.revision+1,previous:digest(grantBytes),updated_at:now,expires_at:body.expiresAt};return json({type:"hailp.grant-proposal",version:1,grant:proposal});
+    proposal={...grant,scope:[body.scope],revision:grant.revision+1,previous:digest(grantBytes),updated_at:now,expires_at:body.expiresAt};return json({type:"racr.grant-proposal",version:1,grant:proposal});
    }
    if(path===`/grants/${gid}/update`){grant=body.payload;grantBytes=await owner.signGrant(fromDiagnosticJson("hail.grant",grant));return json({...ack(),cose:Buffer.from(grantBytes).toString("base64url")});}
    if(path===`/grants/${gid}/revoke`){grant={...grant,status:"revoked",revision:grant.revision+1,previous:digest(grantBytes),updated_at:now+1};grantBytes=await owner.signGrant(fromDiagnosticJson("hail.grant",grant));return json(ack());}

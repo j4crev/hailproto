@@ -1,21 +1,21 @@
-# Use hailp with your existing web account
+# Use racr with your existing web account
 
-[Install hailp](cli-installation.md) first. This guide assumes an existing Hail
+[Install racr](cli-installation.md) first. This guide assumes an existing Hail
 account with a working browser passkey and a provider that enables CLI browser
 authorization. It does not create another identity or change custody.
 
 ## Sign in with read-only access
 
-On supported Linux desktops, `hailp` opens your default browser through `xdg-open`.
+On supported Linux desktops, `racr` opens your default browser through `xdg-open`.
 Run it on the same desktop as the browser so the local callback can complete.
 Replace the provider origin below with your account's provider.
 
 ```bash
-install -d -m 700 "$HOME/.local/share/hailp"
-hailp account browser-login \
+install -d -m 700 "$HOME/.local/share/racr"
+racr account browser-login \
   --provider https://haili.app \
-  --state "$HOME/.local/share/hailp/browser-login.json" \
-  --credentials "$HOME/.local/share/hailp/read-only.credential.json" \
+  --state "$HOME/.local/share/racr/browser-login.json" \
+  --credentials "$HOME/.local/share/racr/read-only.credential.json" \
   --scope account:read \
   --scope messages:read
 ```
@@ -28,11 +28,11 @@ retry. This is a desktop flow, not headless-device authorization.
 ## Read your account and inbox
 
 ```bash
-export HAILP_CREDENTIAL_FILE="$HOME/.local/share/hailp/read-only.credential.json"
-hailp account show
-hailp doctor --scope account:read --scope messages:read
-hailp inbox list --pages 1
-hailp inbox wait --timeout 60
+export RACR_CREDENTIAL_FILE="$HOME/.local/share/racr/read-only.credential.json"
+racr account show
+racr doctor --scope account:read --scope messages:read
+racr inbox list --pages 1
+racr inbox wait --timeout 60
 ```
 
 Output is JSON. A successful wait can time out without a message; inspect the
@@ -40,7 +40,7 @@ returned result rather than treating exit 0 as proof of delivery. Read a message
 using the `sender` and `messageId` from the inbox result:
 
 ```bash
-hailp inbox show 'did:plc:REPLACE_WITH_SENDER' 'REPLACE_WITH_MESSAGE_ID'
+racr inbox show 'did:plc:REPLACE_WITH_SENDER' 'REPLACE_WITH_MESSAGE_ID'
 ```
 
 This credential deliberately cannot send messages or administer your account.
@@ -50,7 +50,7 @@ vault secrets or recovery packages into support requests.
 
 ## Troubleshooting and next steps
 
-- `hailp doctor --provider https://haili.app --action 'account browser-login'`
+- `racr doctor --provider https://haili.app --action 'account browser-login'`
   checks public workflow prerequisites without changing an account.
 - If a credential expires or is revoked, repeat browser login with **new** state
   and credential paths. An interrupted login should retain its original paths.

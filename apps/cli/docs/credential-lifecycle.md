@@ -27,7 +27,7 @@ Credential inventory, scoped issuance and rotation are account API operations.
   authenticated token, never its secret/hash. The client accepts older responses
   without that field as `credential: null`; safe rotation requires the metadata.
 
-CLI: `hailp credential list [--after <UUID>]` and `hailp credential create
+CLI: `racr credential list [--after <UUID>]` and `racr credential create
 --output <new-private-file> [--scope <permission> ...]`. Omitted scope flags
 inherit; explicit repeated flags select permissions. Request state saves the
 token, account/provider and exact scopes before issuance. Retries reuse that
@@ -43,7 +43,7 @@ no fallback that silently widens a requested credential.
 
 ## Resumable rotation
 
-`hailp credential rotate --credentials <original-file> --output <new-file>`
+`racr credential rotate --credentials <original-file> --output <new-file>`
 inherits the original credential's exact scope set. It requires both account
 reading and credential management authority; it never unlocks identity/recovery
 keys or changes custody. It reuses issuance, account reading and revocation,

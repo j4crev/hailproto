@@ -19,10 +19,10 @@ integration("resumable credential rotation over real HTTPS", () => {
   let omitMetadata = false;
   const id = randomUUID(), otherId = randomUUID();
   const address = `rotation-${id}@example.com`, otherAddress = `rotation-${otherId}@example.com`;
-  const record = (credential: unknown) => ({ type: "hailp.api-credential", version: 1, provider: origin, ...credential as object });
+  const record = (credential: unknown) => ({ type: "racr.api-credential", version: 1, provider: origin, ...credential as object });
   const save = (name: string, value: unknown) => writeFile(join(directory, name), JSON.stringify(value), { mode: 0o600 });
   const rotate = async (source: string, output: string) => {
-    const child = Bun.spawn(["./target/debug/hailp", "credential", "rotate", "--credentials", join(directory, source), "--output", join(directory, output)], {
+    const child = Bun.spawn(["./target/debug/racr", "credential", "rotate", "--credentials", join(directory, source), "--output", join(directory, output)], {
       cwd: new URL("../../cli/", import.meta.url).pathname,
       env: { ...Bun.env, SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost" }, stdout: "pipe", stderr: "pipe",
     });

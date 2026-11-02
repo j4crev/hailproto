@@ -199,7 +199,7 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
       method,headers:{Authorization:`Bearer ${token}`,...(payload?{"Content-Type":"application/json"}:{})},...(payload?{body:payload}:{})});
     expect((await call("/api/v1/account/transfers/managed/offer","POST",body,"wrong")).status).toBe(401);
     const firstResponse=await call("/api/v1/account/transfers/managed/offer","POST",body);expect(firstResponse.status).toBe(200);
-    const first=await firstResponse.json() as Record<string,any>;expect(first).toMatchObject({type:"hailp.managed-transfer-status",
+    const first=await firstResponse.json() as Record<string,any>;expect(first).toMatchObject({type:"racr.managed-transfer-status",
       phase:"acknowledgement-retained",did,originConfirmed:false,destinationServiceBase:targetBase,offer:null});
     expect(first.acknowledgement).toEqual(expect.objectContaining({payload:expect.any(String),signature:expect.any(String)}));
     const sourceWorker=new TransferDeliveryWorker(source.sql,{async deliver(){throw new Error("portable worker must not claim managed work");}},
@@ -469,7 +469,7 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
         headers:{"Content-Type":TRANSFER_MEDIA_TYPE},body:completionBody}));
     phase="completion route retries";
     const completed=await complete();if(completed.status!==200)throw new Error(await completed.text());expect(await completed.json()).toMatchObject({
-      type:"hailp.managed-transfer-completion",did,accountId,transferId:offer.transfer_id,generation:2,phase:"active"});
+      type:"racr.managed-transfer-completion",did,accountId,transferId:offer.transfer_id,generation:2,phase:"active"});
     if(publicRuntime)expect(await target.sql`SELECT 1 FROM public_cutover_evidence_selection WHERE transfer_id=${offer.transfer_id} AND activated_at IS NOT NULL`).toHaveLength(1);
     expect((await complete()).status).toBe(200);
     if(publicRuntime) {
@@ -502,7 +502,7 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
     expect((await target.sql<{state:string}[]>`SELECT state FROM delivery_work WHERE sender_did=${grantee} AND message_id=${incomingId}`)[0]?.state).toBe("accepted");
     expect(await target.sql`SELECT 1 FROM account_api_credentials WHERE account_id=${accountId}`).toHaveLength(0);
     expect(await target.sql`SELECT 1 FROM account_passkeys WHERE account_id=${accountId}`).toHaveLength(0);
-    const targetOrigin="https://b.example.com",enrollmentToken=`hailp_${encodeBase64Url(randomBytes(32))}`,
+    const targetOrigin="https://b.example.com",enrollmentToken=`racr_${encodeBase64Url(randomBytes(32))}`,
       access=new AccountAccess(target.sql,resolver,targetOrigin),challenge=await access.prepare({did,signer:"owner-recovery",publicKey:owner.did(),
         scopes:["credentials:write"],tokenHash:encodeBase64Url(new Uint8Array(createHash("sha256").update(enrollmentToken).digest())),purpose:"passkey-enrollment"}),
       signature=encodeBase64Url(await owner.sign(accountAccessInput(challenge)));

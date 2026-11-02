@@ -6,7 +6,7 @@ import { SignupEmailClient, registerSignupEmailRoutes } from "../src/onboarding/
 import { tokenHash } from "../src/accounts/repository.js";
 
 function fixture() {
-  const secret = encodeBase64Url(randomBytes(32)), token = `hailp_${encodeBase64Url(randomBytes(32))}`, signupId = crypto.randomUUID();
+  const secret = encodeBase64Url(randomBytes(32)), token = `racr_${encodeBase64Url(randomBytes(32))}`, signupId = crypto.randomUUID();
   const transport = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => Response.json({ verified: false, expiresAt: Date.now() + 600_000 }));
   const client = new SignupEmailClient({ origin: "https://alerts.plcmonitor.us", token: secret }, transport as unknown as typeof fetch);
   const sql = vi.fn(async (_parts: TemplateStringsArray, ..._values: unknown[]) => [] as { did: string; operation_cid: string; signup_token_hash: Uint8Array }[]);
@@ -39,7 +39,7 @@ it("binds only the alpha genesis retained for the same signup capability, never 
   expect((await f.post("bind", input)).status).toBe(403); expect(f.transport).not.toHaveBeenCalled();
   const row = { did: `did:plc:${"a".repeat(24)}`, operation_cid: "bafyreifixture", signup_token_hash: tokenHash(f.token) };
   f.sql.mockResolvedValue([row]);
-  expect((await f.post("bind", input, { Authorization: `Bearer hailp_${encodeBase64Url(randomBytes(32))}` })).status).toBe(403);
+  expect((await f.post("bind", input, { Authorization: `Bearer racr_${encodeBase64Url(randomBytes(32))}` })).status).toBe(403);
   f.transport.mockResolvedValue(Response.json({ bound: true, did: row.did, operationCid: row.operation_cid }));
   expect((await f.post("bind", input)).status).toBe(200);
   expect(JSON.parse(f.transport.mock.calls[0]![1]!.body as string)).toEqual({

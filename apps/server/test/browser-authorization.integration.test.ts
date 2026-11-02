@@ -20,7 +20,7 @@ integration("browser authorization code and PKCE",()=>{
   const secret=(prefix:string)=>`${prefix}_${encodeBase64Url(randomBytes(32))}`;
   const prepare=async()=>{
     const verifier=encodeBase64Url(randomBytes(32)),code=secret("hailc"),state=encodeBase64Url(randomBytes(32)),redirectUri="http://127.0.0.1:45678/callback";
-    const input={clientId:"hailp-cli-v1",redirectUri,state,code,
+    const input={clientId:"racr-cli-v1",redirectUri,state,code,
       codeChallenge:encodeBase64Url(new Uint8Array(createHash("sha256").update(verifier).digest())),scopes:["account:read"]};
     const result=await passkeys.prepareAuthorization(input);return {verifier,code,state,redirectUri,input,...result};
   };
@@ -41,16 +41,16 @@ integration("browser authorization code and PKCE",()=>{
     await admin.unsafe(`DROP SCHEMA "${otherSchema}" CASCADE`);await admin.close();}if(directory)await rm(directory,{recursive:true,force:true});});
 
   it("exchanges one exact code with PKCE and makes lost responses idempotent",async()=>{
-    const request=await prepare(),token=secret("hailp");
+    const request=await prepare(),token=secret("racr");
     expect(await passkeys.prepareAuthorization(request.input)).toMatchObject({requestId:request.requestId,expiresAt:request.expiresAt});
     const restarted=new PasskeyAuth(db.sql,"example.com",origin);
-    expect(await restarted.authorizationDetails(request.requestId,request.state)).toMatchObject({clientId:"hailp-cli-v1",scopes:["account:read"]});
+    expect(await restarted.authorizationDetails(request.requestId,request.state)).toMatchObject({clientId:"racr-cli-v1",scopes:["account:read"]});
     const redirect=await restarted.completeAuthorization(session,request.requestId,request.state,request.code);
     expect(new URL(redirect.redirectUri).searchParams.get("code")).toBe(request.code);
-    const credential=await restarted.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:request.redirectUri,code:request.code,verifier:request.verifier,token});
-    expect(credential).toMatchObject({type:"hailp.api-credential",accountId:session.account_id,token,scopes:["account:read"]});
-    expect(await restarted.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:request.redirectUri,code:request.code,verifier:request.verifier,token})).toEqual(credential);
-    await expect(restarted.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:request.redirectUri,code:request.code,verifier:request.verifier,token:secret("hailp")}))
+    const credential=await restarted.exchangeAuthorization({clientId:"racr-cli-v1",redirectUri:request.redirectUri,code:request.code,verifier:request.verifier,token});
+    expect(credential).toMatchObject({type:"racr.api-credential",accountId:session.account_id,token,scopes:["account:read"]});
+    expect(await restarted.exchangeAuthorization({clientId:"racr-cli-v1",redirectUri:request.redirectUri,code:request.code,verifier:request.verifier,token})).toEqual(credential);
+    await expect(restarted.exchangeAuthorization({clientId:"racr-cli-v1",redirectUri:request.redirectUri,code:request.code,verifier:request.verifier,token:secret("racr")}))
       .rejects.toMatchObject({status:401});
   });
 
@@ -60,7 +60,7 @@ integration("browser authorization code and PKCE",()=>{
     await passkeys.completeAuthorization(session,wrong.requestId,wrong.state,wrong.code);
     await expect(passkeys.completeAuthorization({...session,account_id:randomUUID()},wrong.requestId,wrong.state,wrong.code)).rejects.toMatchObject({status:409});
     for(const changed of [{verifier:encodeBase64Url(randomBytes(32))},{redirectUri:"http://127.0.0.1:45679/callback"}])
-      await expect(passkeys.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:wrong.redirectUri,code:wrong.code,verifier:wrong.verifier,token:secret("hailp"),...changed}))
+      await expect(passkeys.exchangeAuthorization({clientId:"racr-cli-v1",redirectUri:wrong.redirectUri,code:wrong.code,verifier:wrong.verifier,token:secret("racr"),...changed}))
         .rejects.toMatchObject({status:401});
     const expired=await prepare();await db.sql`UPDATE account_browser_authorizations SET created_at=now()-interval '10 minutes',expires_at=now()-interval '5 minutes' WHERE id=${expired.requestId}`;
     await expect(passkeys.completeAuthorization(session,expired.requestId,expired.state,expired.code)).rejects.toMatchObject({status:404});
@@ -72,7 +72,7 @@ integration("browser authorization code and PKCE",()=>{
       expect((await fetch(completed.redirectUri)).ok).toBe(true);
     },async(url,init)=>app.request(url,init));
     expect(result.credentialFile).toBe(output);expect(result).not.toHaveProperty("token");
-    const saved=JSON.parse(await readFile(output,"utf8"));expect(saved.token).toMatch(/^hailp_/);
+    const saved=JSON.parse(await readFile(output,"utf8"));expect(saved.token).toMatch(/^racr_/);
     expect(await browserLogin(origin,[],statePath,output,async()=>{},async(url,init)=>app.request(url,init))).toEqual(result);
   });
 
@@ -80,15 +80,39 @@ integration("browser authorization code and PKCE",()=>{
     const generation=await prepare();await passkeys.completeAuthorization(session,generation.requestId,generation.state,generation.code);
     await db.sql.begin(async tx=>{await tx`SELECT set_config('hail.returning_account',${session.account_id},true)`;
       await tx`UPDATE account_serving_generations SET generation=2 WHERE account_id=${session.account_id}`;});
-    await expect(passkeys.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:generation.redirectUri,code:generation.code,
-      verifier:generation.verifier,token:secret("hailp")})).rejects.toMatchObject({status:401});
+    await expect(passkeys.exchangeAuthorization({clientId:"racr-cli-v1",redirectUri:generation.redirectUri,code:generation.code,
+      verifier:generation.verifier,token:secret("racr")})).rejects.toMatchObject({status:401});
 
   });
 
   it("rejects a code at a separate provider database",async()=>{
     const request=await prepare();await passkeys.completeAuthorization(session,request.requestId,request.state,request.code);
     const other=new PasskeyAuth(otherDb.sql,"other.example","https://other.example");
-    await expect(other.exchangeAuthorization({clientId:"hailp-cli-v1",redirectUri:request.redirectUri,code:request.code,
-      verifier:request.verifier,token:secret("hailp")})).rejects.toMatchObject({status:401});
+    await expect(other.exchangeAuthorization({clientId:"racr-cli-v1",redirectUri:request.redirectUri,code:request.code,
+      verifier:request.verifier,token:secret("racr")})).rejects.toMatchObject({status:401});
   });
+  it("migration 99 clears old browser requests and replaces the client constraint",async()=>{
+    await prepare();
+    await db.sql.unsafe("ALTER TABLE account_browser_authorizations DROP CONSTRAINT account_browser_authorizations_client_id_check");
+    await db.sql`UPDATE account_browser_authorizations SET client_id='hailp-cli-v1'`;
+    await db.sql.unsafe("ALTER TABLE account_browser_authorizations ADD CONSTRAINT account_browser_authorizations_client_id_check CHECK (client_id = 'hailp-cli-v1')");
+    await db.sql`DELETE FROM schema_migrations WHERE version=99`;
+    await db.migrate();
+    expect((await db.sql`SELECT count(*)::int AS count FROM account_browser_authorizations`)[0].count).toBe(0);
+    const request=await prepare();
+    expect(await passkeys.authorizationDetails(request.requestId,request.state)).toMatchObject({clientId:"racr-cli-v1"});
+    await expect(db.sql`UPDATE account_browser_authorizations SET client_id='hailp-cli-v1'`).rejects.toBeDefined();
+    await expect(passkeys.prepareAuthorization({...request.input,clientId:"hailp-cli-v1"})).rejects.toMatchObject({status:400});
+    await db.migrate(); // Applying the already-recorded migration is idempotent.
+    expect((await db.sql`SELECT count(*)::int AS count FROM account_browser_authorizations`)[0].count).toBe(1);
+    const rollback=await Bun.file(new URL("../migrations/rollback/0099_racr_client_id.sql",import.meta.url)).text();
+    await expect(db.sql.unsafe(rollback)).rejects.toThrow("prevent rollback");
+    await db.sql`DELETE FROM account_browser_authorizations`;
+    await db.sql.unsafe(rollback);
+    await db.sql`DELETE FROM schema_migrations WHERE version=99`;
+    await db.migrate();
+    await prepare();
+
+  });
+
 });

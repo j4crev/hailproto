@@ -6,7 +6,7 @@ export const CONNECTION_APPROVAL="hail.connection-approval.v1",CONNECTION_CODE="
 export interface ConnectCode {id:string;did:string;token:string;}
 export interface ConnectReview {id:string;did:string;address:string;expiresAt:number|null;preview:true;admissionSupported?:boolean;provider?:string;}
 export interface ConnectApproval {requestId:string;action:string;review:Record<string,any>;expiresAt:string;
-  ownerSigning?:{type:"hailp.connection-signing";version:1;provider:string;requestId:string;expiresAt:string;payload:Record<string,unknown>}|null;
+  ownerSigning?:{type:"racr.connection-signing";version:1;provider:string;requestId:string;expiresAt:string;payload:Record<string,unknown>}|null;
   result:{connectionIds?:string[];connectionId?:string|null;invitationId?:string;state?:string;revoked?:boolean;attemptId?:string;propagation?:string}|null;
   options:Parameters<typeof startAuthentication>[0]["optionsJSON"]|null;}
 export interface ConnectionList {preview:true;codes:{id:string;personal:boolean;label:string;expiresAt:number|null;link:string}[];
@@ -58,7 +58,7 @@ export function connectApproval(value:any):ConnectApproval {
   }
   if(value.review.previousDids!==undefined&&(!Array.isArray(value.review.previousDids)||value.review.previousDids.length>20||value.review.previousDids.some((did:unknown)=>typeof did!=="string"||!DID.test(did))))throw new Error("Invalid identity history.");
   const owner=value.ownerSigning;
-  if(owner!==undefined&&owner!==null&&(owner.type!=="hailp.connection-signing"||owner.version!==1||owner.requestId!==value.requestId||
+  if(owner!==undefined&&owner!==null&&(owner.type!=="racr.connection-signing"||owner.version!==1||owner.requestId!==value.requestId||
     owner.expiresAt!==value.expiresAt||typeof owner.provider!=="string"||!owner.payload||
     !(value.action==="connect"&&owner.payload.type==="hail.connection-confirmation"||["create","replace"].includes(value.action)&&owner.payload.type==="hail.connection-invitation")))
     throw new Error("The provider returned an invalid owner-signing proposal.");

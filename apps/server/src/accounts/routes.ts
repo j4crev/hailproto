@@ -70,7 +70,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
     try {
       const session = await accounts.authenticate(context.req.header("Authorization"),getCookie(context,"hail_session"));
       if (!session) {const retry=anonymous.take(client,120);if(retry!==null){context.header("Retry-After",String(retry));return problem(429);}
-        context.header("WWW-Authenticate", 'Bearer realm="hailp-account"'); return problem(401,await accounts.authenticationFailure?.(context.req.header("Authorization"))); }
+        context.header("WWW-Authenticate", 'Bearer realm="racr-account"'); return problem(401,await accounts.authenticationFailure?.(context.req.header("Authorization"))); }
       const retry=authenticated.take(session.account_id,120);if(retry!==null){context.header("Retry-After",String(retry));return problem(429);}
       if(getCookie(context,"hail_session")&&context.req.method!=="GET"&&context.req.method!=="HEAD"&&
         context.req.header("Origin")!==sessionOrigin)return problem(403);
@@ -150,7 +150,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         if(!profileVerifier)return problem(503);
         const did=grantId!;if(!/^did:plc:[a-z2-7]{24}$/.test(did))return problem(400);
         const verified=await profileVerifier.verify(did);
-        return context.json({type:"hailp.verified-sender-profile",version:1,did,revision:verified.profile.revision,digest:encodeBase64Url(verified.digest),
+        return context.json({type:"racr.verified-sender-profile",version:1,did,revision:verified.profile.revision,digest:encodeBase64Url(verified.digest),
           cose:encodeBase64Url(verified.representation),profile:toDiagnosticJson("hail.sender-profile",verified.profile)});
       }
       if(action==="custody-review-owner"||action==="custody-prepare-owner"||action==="custody-prepare"||action==="custody-commit") {
@@ -248,7 +248,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         const proposed=await service.prepareUserSignedUpdate(session.did,grantId,{scope:input.scope as import("@hailproto/codec").HailGrantScope,
           expiresAt:input.expiresAt as number|null,expectedRevision:input.expectedRevision as number,expectedDigest:decodeBase64Url(input.expectedDigest),
           refreshConsent:input.refreshConsent,...(input.sender?{sender:input.sender as string}:{})});
-        return context.json({type:"hailp.grant-proposal",version:1,grant:toDiagnosticJson("hail.grant",proposed)});
+        return context.json({type:"racr.grant-proposal",version:1,grant:toDiagnosticJson("hail.grant",proposed)});
       }
       if(action==="binding") {
         if(!session.scopes.includes(method==="GET"?"account:read":"account:write"))return problem(403,"MISSING_SCOPE");
@@ -273,7 +273,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         if(!profiles)return problem(503);
         if(method==="GET"){
           const current=await profiles.getLatest(session.did);if(!current)return problem(404);
-          return context.json({type:"hailp.sender-profile",version:1,revision:current.revision,
+          return context.json({type:"racr.sender-profile",version:1,revision:current.revision,
             digest:encodeBase64Url(current.digest),cose:encodeBase64Url(current.cose),
             profile:toDiagnosticJson("hail.sender-profile",current.payload)});
         }
@@ -293,7 +293,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           if(general.length!==1||general[0]!.label!=="General"||general[0]!.description!==undefined)return problem(400);
         }
         const saved=await profiles.createOrReuse(session.did,definition,Number(input.expectedRevision));
-        return context.json({type:"hailp.sender-profile",version:1,revision:saved.revision,
+        return context.json({type:"racr.sender-profile",version:1,revision:saved.revision,
           digest:encodeBase64Url(saved.digest),cose:encodeBase64Url(saved.cose),
           profile:toDiagnosticJson("hail.sender-profile",saved.payload)});
       }
@@ -405,13 +405,13 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           await accounts.revoke(input.revoke,session.account_id);return context.json({revoked:true});
         }
         if (Object.keys(input).some(key => !["token", "scopes"].includes(key))) return problem(400);
-        if(typeof input.token!=="string" || !/^hailp_[A-Za-z0-9_-]{43}$/.test(input.token))return problem(400);
+        if(typeof input.token!=="string" || !/^racr_[A-Za-z0-9_-]{43}$/.test(input.token))return problem(400);
         const scopes = input.scopes === undefined ? session.scopes : input.scopes;
         if (!Array.isArray(scopes) || !scopes.length || new Set(scopes).size !== scopes.length ||
           scopes.some(scope => !ALL_ACCOUNT_SCOPES.includes(scope))) return problem(400);
         if (scopes.some(scope => !session.scopes.includes(scope))) return problem(403);
         const credential=await accounts.issue(session.did,false,input.token,scopes);
-        return context.json({type:"hailp.api-credential",version:1,provider,...credential});
+        return context.json({type:"racr.api-credential",version:1,provider,...credential});
       }
       if (action === "managed-revoke") {
         if (method !== "POST") return problem(405);
@@ -442,7 +442,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         }
         const payload = await service.prepareUserSignedGrant(session.did, input.sender,
           { scope: input.scope ?? (input.category === null ? { type: "uncategorized" } : { type: "categories", values: [input.category] }), expiresAt: input.expiresAt });
-        return context.json({ type: "hailp.grant-proposal", version: 1, grant: toDiagnosticJson("hail.grant", payload) });
+        return context.json({ type: "racr.grant-proposal", version: 1, grant: toDiagnosticJson("hail.grant", payload) });
       }
       if (action === "list") {
         if (method !== "GET") return problem(405);
@@ -465,7 +465,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         if (!owned || owned.localAccountId !== session.account_id) return problem(404);
         const digest = encodeBase64Url(owned.digest);
         context.header("ETag", `"${digest}"`);
-        return context.json({ type: "hailp.grant", version: 1, localRole: owned.localRole,
+        return context.json({ type: "racr.grant", version: 1, localRole: owned.localRole,
           digest, cose: encodeBase64Url(owned.representation) });
       }
       if (session.migration_state) return problem(409);

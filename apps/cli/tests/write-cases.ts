@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import {writeFile,readFile} from "node:fs/promises";
 import {join} from "node:path";
 export async function writeCases(binary:string,root:string,directory:string,provider:string,env:Record<string,string|undefined>,install:(handler:(r:Request)=>Promise<Response>)=>void){
- const id="019a0000-0000-7000-8000-000000000001",did=`did:plc:${"a".repeat(24)}`,token=`hailp_${"a".repeat(43)}`;
+ const id="019a0000-0000-7000-8000-000000000001",did=`did:plc:${"a".repeat(24)}`,token=`racr_${"a".repeat(43)}`;
  const commands=[[binary]];
  const vector=(await Bun.file(join(root,"packages/hail-codec-ts/vectors/v0.json")).json()).positive.find((v:any)=>v.id==="sender-profile-basic");
- const profile={type:"hailp.sender-profile",version:1,revision:vector.diagnostic.revision,digest:vector.representation_sha256_base64url,cose:Buffer.from(vector.cose_sign1_hex,"hex").toString("base64url")};
+ const profile={type:"racr.sender-profile",version:1,revision:vector.diagnostic.revision,digest:vector.representation_sha256_base64url,cose:Buffer.from(vector.cose_sign1_hex,"hex").toString("base64url")};
  let cases=0;
  for(const [index,command] of commands.entries()){
   let fail="",calls:any[]=[],text="Hello, this is text.\n";
@@ -13,7 +13,7 @@ export async function writeCases(binary:string,root:string,directory:string,prov
    assert.equal(request.headers.get("authorization"),`Bearer ${token}`);
    const path=new URL(request.url).pathname.replace("/api/v1/account",""),body=request.method==="POST"?await request.json():null;calls.push({path,body});
    const json=(v:unknown)=>new Response(JSON.stringify(v),{headers:{"Content-Type":"application/json"}});
-   if(!path)return json({type:"hailp.account",version:1,provider,accountId:id,did,address:"alice@localhost",migrationState:fail==="fenced"?"fenced":null,custodyProfile:"managed",monitorVerificationMode:"strict-public-v1",managedProfileVersion:"hail-managed-custody-v1",identityPublicKey:"did:key:z123",ownerRecoveryPublicKey:null,scopes:["account:read","messages:write"],credential:{credentialId:id,expiresAt:"2030-01-01T00:00:00.000Z"}});
+   if(!path)return json({type:"racr.account",version:1,provider,accountId:id,did,address:"alice@localhost",migrationState:fail==="fenced"?"fenced":null,custodyProfile:"managed",monitorVerificationMode:"strict-public-v1",managedProfileVersion:"hail-managed-custody-v1",identityPublicKey:"did:key:z123",ownerRecoveryPublicKey:null,scopes:["account:read","messages:write"],credential:{credentialId:id,expiresAt:"2030-01-01T00:00:00.000Z"}});
    if(path==="/connections/cli-list")return json({connections:[{id,epoch:3,did}]});
    if(path==="/profile")return json(fail==="digest"?{...profile,digest:"A".repeat(43)}:profile);
    assert.equal(path,"/messages");assert.equal(body.text,text);assert.match(body.messageId,/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);

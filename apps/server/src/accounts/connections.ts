@@ -366,11 +366,11 @@ export class AccountConnections {
       if(code.account_id!==session.account_id||code.revoked_at||code.expires_at!==null&&Number(code.expires_at)<=now())
         throw new ConnectionError(410,"The retained invitation is expired or revoked.");
       const token=await this.encryptor.decryptConnectionToken(code.account_id,code.id,{ciphertext:code.ciphertext,nonce:code.nonce,encryptionVersion:1,kekId:"poc-v1"});
-      try{invitation={type:"hailp.connection-invitation",version:1,id:code.id,did:code.did,token:encodeBase64Url(token)};}finally{token.fill(0);}
+      try{invitation={type:"racr.connection-invitation",version:1,id:code.id,did:code.did,token:encodeBase64Url(token)};}finally{token.fill(0);}
     }
     return {requestId:row.id,action:row.action==="disconnect"&&Array.isArray(intent.connections)?"disconnect-batch":row.action,review,expiresAt:row.expires_at.toISOString(),result,
       ...(invitation?{invitation}:{}),
-      ownerSigning:payload?{type:"hailp.connection-signing",version:1,provider:this.origin,requestId:row.id,expiresAt:row.expires_at.toISOString(),payload:toDiagnosticJson(payload.type,payload)}:null,
+      ownerSigning:payload?{type:"racr.connection-signing",version:1,provider:this.origin,requestId:row.id,expiresAt:row.expires_at.toISOString(),payload:toDiagnosticJson(payload.type,payload)}:null,
       options:!session.passkey_credential_id||row.result||row.expires_at.getTime()<=Date.now()?null:await this.passkeys.actionOptions(session,row.challenge)};
   }
   async status(session:AccountApiSession,id:string){

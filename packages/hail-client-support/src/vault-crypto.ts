@@ -1,4 +1,4 @@
-// Shared by hailp and browser signup. Keep filesystem, network and Node imports out.
+// Shared by racr and browser signup. Keep filesystem, network and Node imports out.
 import { P256Keypair } from "@atproto/crypto";
 import { decodeBase64Url, encodeBase64Url } from "@hailproto/codec/base64url";
 import { base58btc } from "multiformats/bases/base58";

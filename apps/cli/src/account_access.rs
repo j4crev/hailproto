@@ -53,7 +53,7 @@ pub fn input(c: &Value) -> Result<Vec<u8>, Error> {
     let purpose = c["purpose"].as_str().unwrap_or("");
     let issued = integer(&c["issuedAt"]).ok_or_else(invalid)?;
     let expires = integer(&c["expiresAt"]).ok_or_else(invalid)?;
-    if c["type"] != "hailp.account-access"
+    if c["type"] != "racr.account-access"
         || c["version"].as_f64() != Some(1.0)
         || !matches!(purpose, "new-api-credential" | "passkey-enrollment")
         || !c["challengeId"].as_str().is_some_and(|s| UUID.is_match(s))
@@ -75,7 +75,7 @@ pub fn input(c: &Value) -> Result<Vec<u8>, Error> {
         return Err(invalid());
     }
     crate::api::canonical_origin(c["provider"].as_str().ok_or_else(invalid)?)?;
-    let mut bytes = b"hailp.account-access.v1\0".to_vec();
+    let mut bytes = b"racr.account-access.v1\0".to_vec();
     bytes.extend(plc::dag(c)?);
     Ok(bytes)
 }
@@ -109,9 +109,9 @@ pub async fn run(args: &Args) -> Result<Value, Error> {
         .as_str()
         .ok_or_else(invalid)?;
     let state_type = if recovery {
-        "hailp.passkey-recovery"
+        "racr.passkey-recovery"
     } else {
-        "hailp.account-login"
+        "racr.account-login"
     };
     let mut state = if let Some(s) = private::optional_json(state_path)? {
         s
@@ -202,9 +202,9 @@ pub async fn run(args: &Args) -> Result<Value, Error> {
     let artifact = &result[if recovery { "enrollment" } else { "credential" }];
     if artifact["type"]
         != if recovery {
-            "hailp.passkey-enrollment"
+            "racr.passkey-enrollment"
         } else {
-            "hailp.api-credential"
+            "racr.api-credential"
         }
         || artifact["version"].as_f64() != Some(1.0)
         || artifact["provider"] != provider

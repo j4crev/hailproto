@@ -65,7 +65,7 @@ impl Credential {
             return Err(Error::client("Credential file exceeded its limit"));
         }
         let record: Value = serde_json::from_slice(&bytes)
-            .map_err(|_| Error::client("Invalid hailp credential file"))?;
+            .map_err(|_| Error::client("Invalid racr credential file"))?;
         Self::from_record(record, provider, account_id)
     }
 
@@ -74,14 +74,14 @@ impl Credential {
         provider: Option<&String>,
         account_id: Option<&String>,
     ) -> Result<Self, Error> {
-        let invalid = || Error::client("Invalid hailp credential file");
+        let invalid = || Error::client("Invalid racr credential file");
         let p = record["provider"].as_str().ok_or_else(invalid)?;
         let id = record["accountId"].as_str().ok_or_else(invalid)?;
         let token = record["token"].as_str().ok_or_else(invalid)?;
-        if record["type"] != "hailp.api-credential"
+        if record["type"] != "racr.api-credential"
             || record["version"].as_f64() != Some(1.0)
             || !UUID.is_match(id)
-            || token.len() != 49
+            || token.len() != 48
             || !TOKEN.is_match(token)
         {
             return Err(invalid());
@@ -146,7 +146,7 @@ impl Client {
 
     pub fn signup(provider: &str, token: &str) -> Result<Self, Error> {
         canonical_origin(provider).map_err(|_| Error::client("Invalid signup origin or token"))?;
-        if token.len() != 49 || !TOKEN.is_match(token) {
+        if token.len() != 48 || !TOKEN.is_match(token) {
             return Err(Error::client("Invalid signup origin or token"));
         }
         Self::new(Credential {
@@ -347,7 +347,7 @@ fn account_response(result: Value, credential: &Credential) -> Result<Value, Err
     };
     let managed = result["custodyProfile"] == "managed";
     let mode = result["monitorVerificationMode"].as_str();
-    if result["type"] != "hailp.account"
+    if result["type"] != "racr.account"
         || result["version"].as_f64() != Some(1.0)
         || result["provider"] != credential.provider
         || result["accountId"] != credential.account_id

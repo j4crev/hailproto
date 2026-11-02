@@ -22,7 +22,7 @@ integration("current-schema serving metadata and immutable retirement history",(
     const address=`history-${id}@source.example.com`,manifest=randomBytes(512),digest=new Uint8Array(createHash("sha256").update(manifest).digest()),signature=randomBytes(64);
     await db.sql`INSERT INTO provider_accounts (id,tenant_id,canonical_address,did,onboarding_state,activated_at,activation_binding_digest,activation_verification_mode)
       VALUES (${id},${randomUUID()},${address},${did},'active',now(),${randomBytes(32)},'public')`;
-    const credential={token:`hailp_${encodeBase64Url(randomBytes(32))}`};
+    const credential={token:`racr_${encodeBase64Url(randomBytes(32))}`};
     await db.sql`INSERT INTO account_api_credentials (id,account_id,token_hash,scopes,expires_at)
       VALUES (${randomUUID()},${id},${tokenHash(credential.token)},'["account:read"]',clock_timestamp()+interval '30 days')`;
     await db.sql`INSERT INTO account_access_challenges (id,token_hash,payload,expires_at)

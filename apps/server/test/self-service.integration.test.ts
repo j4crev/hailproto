@@ -59,7 +59,7 @@ integration("self-service custody profiles and credentials",()=>{
     }
     await db.close();}});
   it.each(["owner-controlled","managed"] as const)("creates %s with owner recovery, resumes exact signup and rotates scoped credentials",async custody=>{
-    const directory=await mkdtemp(join(tmpdir(),"hailp-signup-"));
+    const directory=await mkdtemp(join(tmpdir(),"racr-signup-"));
     const vault=await createUserVault();
     const repository=new OnboardingRepository(db.sql),accounts=new AccountApiRepository(db.sql),grants=new GrantRepository(db.sql);
     const resolver=new PlcHailDidResolver(plc);
@@ -95,7 +95,7 @@ integration("self-service custody profiles and credentials",()=>{
       expect(await createAccount(origin,address,custody,paths.vault,paths.state,paths.credential,input,undefined,paths.enrollment)).toEqual(created);
       expect(writes).toBe(before);
       const enrollment=JSON.parse(await readFile(paths.enrollment,"utf8"));
-      expect(created).toMatchObject({enrollmentFile:paths.enrollment});expect(enrollment).toMatchObject({type:"hailp.passkey-enrollment",provider:origin});
+      expect(created).toMatchObject({enrollmentFile:paths.enrollment});expect(enrollment).toMatchObject({type:"racr.passkey-enrollment",provider:origin});
       expect(enrollment.url).toBe(`${origin}/auth/recover#token=${enrollment.token}`);expect((await stat(paths.enrollment)).mode&0o777).toBe(0o600);
       const client=await AccountApiClient.fromCredentialFile(paths.credential),summary=await client.account();
       const savedCredential=JSON.parse(await readFile(paths.credential,"utf8"));expect(enrollment.token).not.toBe(savedCredential.token);
@@ -127,7 +127,7 @@ integration("self-service custody profiles and credentials",()=>{
       const state=JSON.parse(await readFile(paths.state,"utf8"));
       const denied=await app.request(`${origin}/api/v1/onboarding/${summary.accountId}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:state.operation,binding:state.binding})});
       expect(denied.status).toBe(401);
-      const newToken=`hailp_${encodeBase64Url(randomBytes(32))}`;
+      const newToken=`racr_${encodeBase64Url(randomBytes(32))}`;
       const credential=await client.request("/credentials",{token:newToken});
       expect((await client.request("/credentials",{token:newToken})).credentialId).toBe(credential.credentialId);
       expect((await client.request("/credentials",{revoke:credential.credentialId})).revoked).toBe(true);
@@ -166,7 +166,7 @@ integration("self-service custody profiles and credentials",()=>{
       await expect(binding.publish(session,conflicting)).rejects.toThrow("cannot publish");
       await db.sql`DELETE FROM provider_migration_fences WHERE account_id=${summary.accountId}`;
       const deniedCredential=await accounts.issue(address,false,undefined,["account:read","grants:write"]);
-      await writeFile(join(directory,"limited.json"),JSON.stringify({type:"hailp.api-credential",version:1,provider:origin,...deniedCredential}),{mode:0o600});
+      await writeFile(join(directory,"limited.json"),JSON.stringify({type:"racr.api-credential",version:1,provider:origin,...deniedCredential}),{mode:0o600});
       const limited=await AccountApiClient.fromCredentialFile(join(directory,"limited.json"));
       await expect(publishBinding(limited,join(directory,"denied.cose"),paths.vault,input)).rejects.toThrow("cannot publish");
       const limitedSession=(await accounts.authenticate(`Bearer ${deniedCredential.token}`))!;

@@ -99,7 +99,7 @@ not the GUI. Leaving both empty keeps the new provider endpoints disabled.
 ### API And Ordering
 
 The browser talks to the provider, not the private Worker endpoints. Each request
-uses a client-generated, random `hailp_...` signup capability in its Authorization
+uses a client-generated, random `racr_...` signup capability in its Authorization
 header and the expected browser Origin. It is scoped signup state, not an account
 API credential or owner recovery key. The provider sends only its hash to the
 Worker, alongside a UUID `signupId` retained across retries.

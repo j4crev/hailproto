@@ -7,7 +7,7 @@ const {verifySignature}=await import(Bun.resolveSync("@atproto/crypto",new URL("
 const {encode}=await import(Bun.resolveSync("@ipld/dag-cbor",new URL("../../cli",import.meta.url).pathname));
 const {cidForCbor}=await import(Bun.resolveSync("@atproto/common",new URL("../../cli",import.meta.url).pathname));
 export async function custodyCases(binary:string,root:string,directory:string,provider:string,env:Record<string,string|undefined>,install:(handler:(r:Request)=>Promise<Response>)=>void){
- const id="019a0000-0000-7000-8000-000000000001",did=`did:plc:${"a".repeat(24)}`,token=`hailp_${"a".repeat(43)}`;
+ const id="019a0000-0000-7000-8000-000000000001",did=`did:plc:${"a".repeat(24)}`,token=`racr_${"a".repeat(43)}`;
  const commands=[[binary]],peer=await createUserVault();let cases=0;
  for(const [index,command] of commands.entries())for(const toOwner of [false,true]){
   const created=await createUserVault();created.vault.did=did;const secret=Buffer.from(created.recoverySecret).toString("base64url");
@@ -19,7 +19,7 @@ export async function custodyCases(binary:string,root:string,directory:string,pr
   install(async(request)=>{
    const path=new URL(request.url).pathname.replace("/api/v1/account",""),body=request.method==="POST"?await request.json():null;calls.push({path,body});assert.equal(request.headers.get("authorization"),`Bearer ${token}`);
    const json=(v:unknown)=>new Response(JSON.stringify(v),{headers:{"Content-Type":"application/json"}});
-   if(!path)return json({type:"hailp.account",version:1,provider,accountId:id,did,address:"alice@example.com",migrationState:null,custodyProfile:toOwner?"managed":"owner-controlled",monitorVerificationMode:"strict-public-v1",managedProfileVersion:toOwner?"hail-managed-custody-v1":null,identityPublicKey:old,ownerRecoveryPublicKey:created.vault.recovery.publicDidKey,scopes:["account:read","account:write"],credential:{credentialId:id,expiresAt:"2030-01-01T00:00:00.000Z"}});
+   if(!path)return json({type:"racr.account",version:1,provider,accountId:id,did,address:"alice@example.com",migrationState:null,custodyProfile:toOwner?"managed":"owner-controlled",monitorVerificationMode:"strict-public-v1",managedProfileVersion:toOwner?"hail-managed-custody-v1":null,identityPublicKey:old,ownerRecoveryPublicKey:created.vault.recovery.publicDidKey,scopes:["account:read","account:write"],credential:{credentialId:id,expiresAt:"2030-01-01T00:00:00.000Z"}});
    if(path==="/custody/owner-controlled/review"){
     newKey=body.newIdentityKey;assert.notEqual(newKey,originalKey);
     const now=Math.floor(Date.now()/1000),binding={type:"hail.address-binding",version:2,address:"alice@example.com",did,issued_at:now,key_id:did+"#hail-identity"};
@@ -31,7 +31,7 @@ export async function custodyCases(binary:string,root:string,directory:string,pr
    const operation=JSON.parse(Buffer.from(body.operation,"base64url").toString()),{sig,...unsigned}=operation;
    assert(await verifySignature(created.vault.recovery.publicDidKey,encode(unsigned),Buffer.from(sig,"base64url")));
    const bytes=Buffer.from(body.approval,"base64url"),approval=decodeDeterministic(bytes);
-   assert(await verifySignature(created.vault.recovery.publicDidKey,Buffer.concat([Buffer.from("hailp.custody-transition.v1\0"),bytes]),Buffer.from(body.signature,"base64url")));
+   assert(await verifySignature(created.vault.recovery.publicDidKey,Buffer.concat([Buffer.from("racr.custody-transition.v1\0"),bytes]),Buffer.from(body.signature,"base64url")));
    assert.equal(approval.operation_cid,(await cidForCbor(operation)).toString());assert.equal(approval.direction,direction);assert.equal(approval.new_identity_key,newKey);assert.equal(approval.generation_to,2);
    if(fail==="commit")return new Response("",{status:503});return json({transitionId:id,did,state:"complete",generation:fail==="ack"?3:2});
   });

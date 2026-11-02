@@ -265,8 +265,8 @@ and signature are canonical base64url strings; decoded manifest size is at most
 versions MUST match. Preserve exact artifacts across retries; fresh monitor evidence
 may be supplied without changing the snapshot, consent/approval or PLC operation.
 
-Phase responses have `type` (`hailp.transfer-completion` or
-`hailp.managed-transfer-completion`), `version:1`, `did`, `accountId`, `transferId`,
+Phase responses have `type` (`racr.transfer-completion` or
+`racr.managed-transfer-completion`), `version:1`, `did`, `accountId`, `transferId`,
 `operationCid` and `phase`. Active responses additionally carry `receipt` as a
 signed record; managed active responses also carry `generation`.
 The lifecycle and monitor requirements are specified in the HTTP binding and

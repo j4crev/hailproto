@@ -43,7 +43,7 @@ integration("post-expiry owner account access", () => {
   };
   const publicKey = async (key:CryptoKey) => { const raw = new Uint8Array(34); raw.set([0xed,1]);
     raw.set(new Uint8Array(await crypto.subtle.exportKey("raw",key)),2); return `did:key:${base58btc.encode(raw)}`; };
-  const token = () => `hailp_${encodeBase64Url(randomBytes(32))}`;
+  const token = () => `racr_${encodeBase64Url(randomBytes(32))}`;
   const prepare = async (fixture:typeof fixtures[number], signer:"identity"|"owner-recovery", secret=token(), key?:string,
     purpose:"new-api-credential"|"passkey-enrollment"="new-api-credential") => {
     const publicDidKey = key ?? (signer === "identity" ? fixture.vault.vault.identity.publicDidKey : fixture.vault.vault.recovery.publicDidKey);
@@ -56,7 +56,7 @@ integration("post-expiry owner account access", () => {
     await (await unlockUserIdentity(fixture.vault.vault,fixture.vault.recoverySecret)).signAccountAccess(challenge) :
     await (await unlockUserVault(fixture.vault.vault,fixture.vault.recoverySecret)).signAccountRecovery(challenge));
   const login = async (fixture:typeof fixtures[number], name:string, signer:"identity"|"owner-recovery", vaultFile?:string, scopes=["account:read"]) => {
-    const child = Bun.spawn(["./target/debug/hailp","account","login","--provider",origin,"--did",fixture.vault.vault.did!,
+    const child = Bun.spawn(["./target/debug/racr","account","login","--provider",origin,"--did",fixture.vault.vault.did!,
       "--signer",signer,"--vault",vaultFile ?? join(directory,`${fixture.mode}.vault.json`),"--state",join(directory,`${name}.state.json`),
       "--credentials",join(directory,`${name}.credential.json`),...scopes.flatMap(scope=>["--scope",scope])], {
       cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost"},
@@ -69,7 +69,7 @@ integration("post-expiry owner account access", () => {
   };
   const recoverPasskey=async(fixture:typeof fixtures[number],name:string,signer:"identity"|"owner-recovery")=>{
     const statePath=join(directory,`${name}.passkey-recovery.json`),output=join(directory,`${name}.passkey-enrollment.json`),
-      child=Bun.spawn(["./target/debug/hailp","account","passkey-recover",
+      child=Bun.spawn(["./target/debug/racr","account","passkey-recover",
       "--provider",origin,"--did",fixture.vault.vault.did!,"--signer",signer,"--vault",join(directory,`${fixture.mode}.vault.json`),"--state",statePath,"--output",output],{
       cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost"},stdin:"pipe",stdout:"pipe",stderr:"pipe"});
     child.stdin.write(`${encodeBase64Url(fixture.vault.recoverySecret)}\n`);child.stdin.end();
@@ -165,7 +165,7 @@ integration("post-expiry owner account access", () => {
       request=await prepare(fixture,signer,token(),undefined,"passkey-enrollment"),signature=await sign(fixture,request.challenge),
       before=JSON.stringify(logs.get(fixture.vault.vault.did!));
     const enrollment=await access.complete(request.challenge.challengeId,request.secret,signature);
-    expect(enrollment).toMatchObject({type:"hailp.passkey-enrollment",provider:origin,accountId:fixture.id,token:request.secret});
+    expect(enrollment).toMatchObject({type:"racr.passkey-enrollment",provider:origin,accountId:fixture.id,token:request.secret});
     expect((enrollment as {url:string}).url).toBe(`${origin}/auth/recover#token=${request.secret}`);
     expect(await db.sql`SELECT id FROM account_api_credentials WHERE token_hash=${tokenHash(request.secret)}`).toHaveLength(0);
     const options=await new PasskeyAuth(db.sql,"localhost",origin).recoveryOptions(request.secret);
@@ -174,7 +174,7 @@ integration("post-expiry owner account access", () => {
     expect(await access.complete(request.challenge.challengeId,request.secret,signature)).toEqual(enrollment);
   });
 
-  it("returns a reviewed browser enrollment URL through hailp without issuing an API credential",async()=>{
+  it("returns a reviewed browser enrollment URL through racr without issuing an API credential",async()=>{
     const fixture=fixtures.find(value=>value.mode==="owner-controlled")!,result=await recoverPasskey(fixture,"cli-recovery","identity");
     expect(result.code,result.stderr).toBe(0);const output=JSON.parse(result.stdout);
     expect(output.enrollmentFile).toContain("cli-recovery.passkey-enrollment.json");

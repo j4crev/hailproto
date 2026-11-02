@@ -150,7 +150,7 @@ pub async fn export(client: &Client, args: &Args, managed: bool) -> Result<Value
     let a = client.account().await?;
     let s = t::load(&args.options["state"])?;
     if managed {
-        if s["type"] != "hailp.managed-account-transfer"
+        if s["type"] != "racr.managed-account-transfer"
             || s["version"] != 1
             || s["provider"] != a["provider"]
             || s["accountId"] != a["accountId"]

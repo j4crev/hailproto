@@ -9,7 +9,7 @@ pub static ID: LazyLock<Regex> = LazyLock::new(|| {
 });
 pub static DID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^did:plc:[a-z2-7]{24}$").unwrap());
 pub static TOKEN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"hailp_[A-Za-z0-9_-]{43}").unwrap());
+    LazyLock::new(|| Regex::new(r"racr_[A-Za-z0-9_-]{43}").unwrap());
 
 pub fn redact(text: &str) -> String {
     TOKEN.replace_all(text, "[REDACTED]").into_owned()
@@ -56,6 +56,6 @@ impl Error {
                 error["retryAfterSeconds"] = seconds.into();
             }
         }
-        json!({"cliContractVersion": 1, "error": error})
+        json!({"cliContractVersion": 2, "error": error})
     }
 }

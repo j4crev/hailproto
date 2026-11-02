@@ -200,9 +200,9 @@ pub fn allowed(a: &Value) -> bool {
 pub fn selected(s: &Value, a: &Value, managed: bool) -> Result<(), Error> {
     if s["type"]
         != if managed {
-            "hailp.managed-account-transfer"
+            "racr.managed-account-transfer"
         } else {
-            "hailp.account-transfer"
+            "racr.account-transfer"
         }
         || s["version"] != 1
         || s["provider"] != a["provider"]
@@ -340,9 +340,9 @@ pub fn validate_status(v: &Value, a: &Value, managed: bool) -> Result<(), Error>
     };
     if v["type"]
         != if managed {
-            "hailp.managed-transfer-status"
+            "racr.managed-transfer-status"
         } else {
-            "hailp.transfer-status"
+            "racr.transfer-status"
         }
         || v["version"] != 1
         || v["provider"] != a["provider"]
@@ -420,7 +420,7 @@ pub async fn offer(client: &Client, args: &Args, managed: bool) -> Result<Value,
     let mut s = if let Some(bytes) = private::optional_bytes(path, 32768)? {
         serde_json::from_slice::<Value>(&bytes).map_err(|_| invalid())?
     } else {
-        let mut s = json!({"type":if managed{"hailp.managed-account-transfer"}else{"hailp.account-transfer"},"version":1,"provider":a["provider"],"accountId":a["accountId"],"did":a["did"],"destination":dest});
+        let mut s = json!({"type":if managed{"racr.managed-account-transfer"}else{"racr.account-transfer"},"version":1,"provider":a["provider"],"accountId":a["accountId"],"did":a["did"],"destination":dest});
         if managed {
             s["ownerRecoveryKey"] = a["ownerRecoveryPublicKey"].clone();
             s["sourceIdentityKey"] = a["identityPublicKey"].clone();
@@ -467,7 +467,7 @@ pub async fn offer(client: &Client, args: &Args, managed: bool) -> Result<Value,
         }
         s["acknowledgement"] = response["acknowledgement"].clone();
         private::replace(path, &s)?;
-    } else if response["type"] != "hailp.transfer-status"
+    } else if response["type"] != "racr.transfer-status"
         || response["version"] != 1
         || response["did"] != s["did"]
         || response["accountId"] != s["accountId"]
@@ -750,11 +750,11 @@ pub async fn cancel(client: &Client, args: &Args) -> Result<Value, Error> {
         return Err(invalid());
     }
     let result = if !s["receipt"].is_null() && !s["sourceMessagingKey"].is_null() {
-        json!({"type":"hailp.transfer-cancellation","version":1,"cancelled":true,"receipt":s["receipt"],"sourceMessagingPublicKey":s["sourceMessagingKey"]})
+        json!({"type":"racr.transfer-cancellation","version":1,"cancelled":true,"receipt":s["receipt"],"sourceMessagingPublicKey":s["sourceMessagingKey"]})
     } else {
         client.post("/transfers/cancel", &s["cancellation"]).await?
     };
-    if result["type"] != "hailp.transfer-cancellation"
+    if result["type"] != "racr.transfer-cancellation"
         || result["version"] != 1
         || result["cancelled"] != true
     {

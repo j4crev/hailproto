@@ -14,24 +14,24 @@ production user.
 
 Do not create the canary while reader or monitor health is stale.
 
-## Build or install hailp
+## Build or install racr
 
 ```bash
 bun run build
-bun run smoke -- dist/hailp
-install -Dm755 dist/hailp "$HOME/.local/bin/hailp"
+bun run smoke -- dist/racr
+install -Dm755 dist/racr "$HOME/.local/bin/racr"
 ```
 
 ## Create and publish
 
 ```bash
 install -d -m 700 /secure/hail-canary
-hailp vault create \
+racr vault create \
   --vault /secure/hail-canary/vault.json \
   --recovery-file /secure/hail-canary/recovery-secret.txt
-hailp vault verify --vault /secure/hail-canary/vault.json --expected-did unbound
+racr vault verify --vault /secure/hail-canary/vault.json --expected-did unbound
 
-hailp account create \
+racr account create \
   --provider https://provider.example \
   --address canary@provider.example \
   --custody owner-controlled \
@@ -49,7 +49,7 @@ CID/state and alert destination with the monitor, wait for a fresh audit poll,
 then create `/secure/hail-canary/onboarding-attestation.json` with the monitor's
 `monitor:attest-onboarding` command.
 
-Repeat the exact `hailp account create` command with:
+Repeat the exact `racr account create` command with:
 
 ```text
   --monitor-attestation /secure/hail-canary/onboarding-attestation.json
@@ -58,11 +58,11 @@ Repeat the exact `hailp account create` command with:
 After activation, publish an explicit Sender Profile before testing Grants:
 
 ```bash
-hailp profile create --file /secure/hail-canary/profile.json \
+racr profile create --file /secure/hail-canary/profile.json \
   --credentials /secure/hail-canary/api.credential.json
 ```
 
-After activation, verify `hailp account show`, resolve the DID through each
+After activation, verify `racr account show`, resolve the DID through each
 configured reader, and set the same DID as `PLC_READER_DIAGNOSTIC_DID` on the
 provider. Preserve the vault, recovery secret, signup state, credential and
 attestation; never commit them or store them on the provider/monitor VPS only.

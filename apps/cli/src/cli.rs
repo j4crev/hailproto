@@ -533,7 +533,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
         let arg = if arg == "-h" { "--help" } else { &arg };
         let option = arg
             .strip_prefix("--")
-            .ok_or_else(|| Error::usage("Unknown option; use hailp --help"))?;
+            .ok_or_else(|| Error::usage("Unknown option; use racr --help"))?;
         let (name, inline) = option
             .split_once('=')
             .map_or((option, None), |(k, v)| (k, Some(v)));
@@ -591,7 +591,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
                 } else {
                     let value = args
                         .next()
-                        .ok_or_else(|| Error::usage("Missing option value; use hailp --help"))?;
+                        .ok_or_else(|| Error::usage("Missing option value; use racr --help"))?;
                     if value.starts_with('-') {
                         return Err(Error::usage(
                             "Invalid option value; use --option=value for values starting with '-'",
@@ -602,7 +602,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
             }
             _ => {
                 return Err(Error::usage(
-                    "Unknown option or invalid option value; use hailp --help",
+                    "Unknown option or invalid option value; use racr --help",
                 ));
             }
         };
@@ -628,7 +628,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
     let help = options.contains_key("help") || command.is_empty() && options.is_empty();
     if version {
         if !command.is_empty() || options.len() != 1 {
-            return Err(Error::usage("Use hailp --version alone"));
+            return Err(Error::usage("Use racr --version alone"));
         }
     } else if let Some((name, positional, allowed, _)) = COMMANDS.iter().find(|(name, _, _, _)| {
         name.split_whitespace()
@@ -651,7 +651,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
             })
         {
             return Err(Error::usage(&format!(
-                "Invalid arguments/options for {name}; use hailp {name} --help"
+                "Invalid arguments/options for {name}; use racr {name} --help"
             )));
         }
         command = (*name).into();
@@ -663,7 +663,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
                 .iter()
                 .any(|(name, _, _, _)| name.starts_with(&format!("{command} ")))))
     {
-        return Err(Error::usage("Unknown command; use hailp --help."));
+        return Err(Error::usage("Unknown command; use racr --help."));
     }
     let pages = if help {
         1
@@ -710,7 +710,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
                 .is_none_or(|s| s.is_empty() && k != "backup-verified")
         }) {
             return Err(Error::usage(&format!(
-                "Missing required options; use hailp {command} --help"
+                "Missing required options; use racr {command} --help"
             )));
         }
         for (name, max, fallback) in [("timeout", 300, 60), ("wait", 300, 1), ("interval", 30, 2)] {
@@ -870,7 +870,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
 }
 
 pub fn help(prefix: &str) -> String {
-    let mut text = String::from("hailp — Hail Protocol account CLI\n\n");
+    let mut text = String::from("racr — Hail account CLI\n\n");
     let mut commands: Vec<_> = COMMANDS
         .iter()
         .filter(|(name, _, _, _)| {
@@ -894,9 +894,9 @@ pub fn help(prefix: &str) -> String {
             .collect::<Vec<String>>()
             .join(" ");
         text.push_str(&format!(
-            "  hailp {name} {positional} {flags}\n    {description}\n"
+            "  racr {name} {positional} {flags}\n    {description}\n"
         ));
     }
-    text.push_str("\nSelection: --credentials <private-file> or HAILP_CREDENTIAL_FILE; optional --provider <https-origin> and --account-id <uuid> assertions.\nResults: JSON stdout; errors: JSON stderr. --help/-h and --version are offline.\nPaged lists: --pages 1–100 (default 1). Repeat --scope for doctor requirements.");
+    text.push_str("\nSelection: --credentials <private-file> or RACR_CREDENTIAL_FILE; optional --provider <https-origin> and --account-id <uuid> assertions.\nResults: JSON stdout; errors: JSON stderr. --help/-h and --version are offline.\nPaged lists: --pages 1–100 (default 1). Repeat --scope for doctor requirements.");
     text
 }

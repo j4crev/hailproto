@@ -26,13 +26,13 @@ pub fn scopes(value: &Value) -> Result<Vec<String>, Error> {
 }
 pub fn token() -> Result<String, Error> {
     Ok(format!(
-        "hailp_{}",
+        "racr_{}",
         URL_SAFE_NO_PAD.encode(crypto::random::<32>()?.as_ref())
     ))
 }
 fn valid_token(v: &Value) -> bool {
     v.as_str()
-        .is_some_and(|s| s.len() == 49 && TOKEN.is_match(s))
+        .is_some_and(|s| s.len() == 48 && TOKEN.is_match(s))
 }
 fn migrating(v: &Value) -> bool {
     !v["migrationState"].is_null() && v["migrationState"] != false
@@ -79,7 +79,7 @@ pub async fn create(
         Some(s) => s["token"].as_str().unwrap().to_string(),
         None => token()?,
     };
-    let pending = json!({"type":"hailp.api-credential","version":1,"provider":account["provider"],"accountId":account["accountId"],"token":token,"scopes":chosen});
+    let pending = json!({"type":"racr.api-credential","version":1,"provider":account["provider"],"accountId":account["accountId"],"token":token,"scopes":chosen});
     if let Some(saved) = &saved {
         if saved.get("scopes").is_none() {
             private::replace(output, &pending)?;
@@ -93,7 +93,7 @@ pub async fn create(
         json!({"token":token,"scopes":chosen})
     };
     let record = client.post("/credentials", &body).await?;
-    if record["type"] != "hailp.api-credential"
+    if record["type"] != "racr.api-credential"
         || record["version"].as_f64() != Some(1.0)
         || record["provider"] != account["provider"]
         || record["accountId"] != account["accountId"]
@@ -172,11 +172,11 @@ pub async fn rotate(source: &str, output: &str) -> Result<Value, Error> {
                 "Source credential scopes differ from its authenticated permissions",
             ));
         }
-        let state = json!({"type":"hailp.credential-rotation","version":1,"provider":account["provider"],"accountId":account["accountId"],"sourceCredentialId":account["credential"]["credentialId"],"sourceTokenHash":format!("{:x}",Sha256::digest(record["token"].as_str().unwrap())),"token":token()?,"scopes":scopes(&account["scopes"])?});
+        let state = json!({"type":"racr.credential-rotation","version":1,"provider":account["provider"],"accountId":account["accountId"],"sourceCredentialId":account["credential"]["credentialId"],"sourceTokenHash":format!("{:x}",Sha256::digest(record["token"].as_str().unwrap())),"token":token()?,"scopes":scopes(&account["scopes"])?});
         private::create(&state_path, state.to_string().as_bytes())?;
         state
     };
-    if state["type"] != "hailp.credential-rotation"
+    if state["type"] != "racr.credential-rotation"
         || state["version"].as_f64() != Some(1.0)
         || state["provider"] != record["provider"]
         || state["accountId"] != record["accountId"]
@@ -194,7 +194,7 @@ pub async fn rotate(source: &str, output: &str) -> Result<Value, Error> {
             "Rotation state does not match the original credential",
         ));
     }
-    let mut pending = json!({"type":"hailp.api-credential","version":1,"provider":state["provider"],"accountId":state["accountId"],"token":state["token"],"scopes":state["scopes"]});
+    let mut pending = json!({"type":"racr.api-credential","version":1,"provider":state["provider"],"accountId":state["accountId"],"token":state["token"],"scopes":state["scopes"]});
     if let Some(saved) = private::optional_json(output)? {
         if saved["provider"] != state["provider"]
             || saved["accountId"] != state["accountId"]

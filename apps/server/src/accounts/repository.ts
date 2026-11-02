@@ -41,8 +41,8 @@ export class AccountApiRepository {
   }
 
   async issue(address: string, writeGrants = false, suppliedToken?: string, requestedScopes?: AccountApiScope[]) {
-    const token = suppliedToken ?? `hailp_${encodeBase64Url(randomBytes(32))}`;
-    if (!/^hailp_[A-Za-z0-9_-]{43}$/.test(token)) throw new Error("Invalid API token");
+    const token = suppliedToken ?? `racr_${encodeBase64Url(randomBytes(32))}`;
+    if (!/^racr_[A-Za-z0-9_-]{43}$/.test(token)) throw new Error("Invalid API token");
     const id = randomUUID();
     const selected = requestedScopes ?? ["account:read", "grants:read", ...(writeGrants ? ["grants:write" as const] : [])];
     if (!selected.length || new Set(selected).size !== selected.length || selected.some(scope => !ALL_ACCOUNT_SCOPES.includes(scope as AccountApiScope))) {
@@ -97,14 +97,14 @@ export class AccountApiRepository {
   }
 
   async authenticationFailure(header:string|undefined):Promise<string|undefined>{
-    const token=/^Bearer (hailp_[A-Za-z0-9_-]{43})$/i.exec(header??"")?.[1];
+    const token=/^Bearer (racr_[A-Za-z0-9_-]{43})$/i.exec(header??"")?.[1];
     if(!token)return undefined;
     const rows=await this.sql<{expired:boolean;revoked:boolean}[]>`SELECT expires_at<=now() AS expired,revoked_at IS NOT NULL AS revoked FROM account_api_credentials WHERE token_hash=${tokenHash(token)}`;
     return rows[0]?.revoked?"CREDENTIAL_REVOKED":rows[0]?.expired?"CREDENTIAL_EXPIRED":undefined;
   }
 
   async authenticate(header: string | undefined, sessionToken?:string): Promise<AccountApiSession | null> {
-    const token = /^Bearer (hailp_[A-Za-z0-9_-]{43})$/i.exec(header ?? "")?.[1];
+    const token = /^Bearer (racr_[A-Za-z0-9_-]{43})$/i.exec(header ?? "")?.[1];
     if (!token) {
       if(!/^hails_[A-Za-z0-9_-]{43}$/.test(sessionToken??""))return null;
       const rows=await this.sql<(Omit<AccountApiSession,"scopes">&{scopes:unknown})[]>`
@@ -154,7 +154,7 @@ export class AccountApiRepository {
     const profile = managed[0] && identity ? "managed" : custody[0] && !identity ? "owner-controlled" : !custody[0] && identity && rotation ?
       "custodial-poc" : "unknown";
     const operator=await this.sql`SELECT op.account_id FROM provider_operators op JOIN account_serving_generations g ON g.account_id=op.account_id AND g.generation=op.serving_generation WHERE op.account_id=${session.account_id}`;
-    return { providerOperator:operator.length>0, type: "hailp.account", version: 1, provider, accountId: session.account_id,
+    return { providerOperator:operator.length>0, type: "racr.account", version: 1, provider, accountId: session.account_id,
       did: session.did, address: session.canonical_address, addressReleased:!!session.address_released_at, migrationState: session.migration_state,
       custodyProfile: profile, monitorVerificationMode: managed[0]?.verification_mode ?? custody[0]?.monitor_verification_mode ?? null,
       managedProfileVersion: managed[0]?.managed_profile_version ?? null,

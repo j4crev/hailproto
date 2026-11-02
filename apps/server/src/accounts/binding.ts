@@ -27,7 +27,7 @@ export class AccountBinding {
   }
   private summary(row:Row) {
     const binding=inspectSignedPayload("hail.address-binding",new Uint8Array(row.cose)).payload;
-    return {type:"hailp.address-binding",version:1,bindingId:row.id,cose:encodeBase64Url(row.cose),digest:encodeBase64Url(row.representation_digest),
+    return {type:"racr.address-binding",version:1,bindingId:row.id,cose:encodeBase64Url(row.cose),digest:encodeBase64Url(row.representation_digest),
       binding:toDiagnosticJson("hail.address-binding",binding),
       status:row.selected_at?"active":"superseded"};
   }

@@ -20,7 +20,7 @@ it("completes only the exact retained managed artifacts",async()=>{
     receipt={payloadBytes:new Uint8Array([2]),signature},issueReceipt=vi.fn(async()=>receipt),
     completion=new ManagedMigrationCompletion({stage} as never,{submit},{activate,issueReceipt});
   await expect(completion.complete({snapshot,approval,operation:encodeBase64Url(operationBytes)})).resolves.toMatchObject({
-    type:"hailp.managed-transfer-completion",transferId,did,accountId,generation:2,operationCid,phase:"active"});
+    type:"racr.managed-transfer-completion",transferId,did,accountId,generation:2,operationCid,phase:"active"});
   expect(stage).toHaveBeenCalledOnce();expect(submit).toHaveBeenCalledWith(transferId);
   expect(activate).toHaveBeenCalledWith(transferId,undefined);expect(issueReceipt).toHaveBeenCalledWith(transferId);
   await expect(completion.complete({...snapshot})).rejects.toThrow(/requires exact/);

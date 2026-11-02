@@ -151,7 +151,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
         const tokenBytes=new Uint8Array(Buffer.from("M".repeat(43),"base64url"));
         const payload={type:"hail.connection-invitation" as const,version:1 as const,invitation_id:uuidV7(),from:did!,
           token_hash:{algorithm:"sha-256" as const,value:new Uint8Array(await crypto.subtle.digest("SHA-256",tokenBytes))},issued_at:Math.floor(Date.now()/1000),expires_at:input.expiresAt,key_id:did!+"#hail-identity"};
-        Object.assign(row,{ownerSigning:{type:"hailp.connection-signing",version:1,provider:origin,requestId:row.requestId,expiresAt:row.expiresAt,payload:toDiagnosticJson(payload.type,payload)}});
+        Object.assign(row,{ownerSigning:{type:"racr.connection-signing",version:1,provider:origin,requestId:row.requestId,expiresAt:row.expiresAt,payload:toDiagnosticJson(payload.type,payload)}});
       }
       connectionApprovals.set(input.requestId,row);return json(row);
     }
@@ -266,8 +266,8 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     if(approvals.has(step))return json(actionSummary(step));
   }
   if(path==="/api/v1/account/grants")return json({grants:[...(allowed?[{grantId:allowed.grant_id,localRole:"grantor",grantee:allowed.grantee,status:allowed.status}]:[]),...(sendingGrant?[{grantId:sendingGrantId,localRole:"grantee",status:"active",expiresAt:sendingGrant.payload.expires_at}]:[])],next:null});
-  if(path===`/api/v1/account/grants/${sendingGrantId}`&&sendingGrant)return json({type:"hailp.grant",version:1,cose:sendingGrant.cose,digest:sendingGrant.digest,localRole:"grantee"});
-  if(path.startsWith("/api/v1/account/grants/")&&allowed)return json({type:"hailp.grant",version:1,cose:allowedCose,digest:allowedDigest,localRole:"grantor"});
+  if(path===`/api/v1/account/grants/${sendingGrantId}`&&sendingGrant)return json({type:"racr.grant",version:1,cose:sendingGrant.cose,digest:sendingGrant.digest,localRole:"grantee"});
+  if(path.startsWith("/api/v1/account/grants/")&&allowed)return json({type:"racr.grant",version:1,cose:allowedCose,digest:allowedDigest,localRole:"grantor"});
   if(path==="/api/v1/account/profile"){
     if(!request.headers.get("Cookie")?.includes("hail_session="+sessionToken))return json({},401);
     if(request.method==="POST"){
@@ -278,7 +278,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
         display_name:input.definition.display_name,...(input.definition.description?{description:input.definition.description}:{}),
         offers_uncategorized:input.definition.offers_uncategorized,categories:input.definition.categories,updated_at:Math.floor(Date.now()/1000),key_id:did+"#hail-messaging"};
       const cose=await signPayload("hail.sender-profile",payload,createWebCryptoSigner(payload.key_id,permissionSigner.privateKey));
-      ownProfile={type:"hailp.sender-profile",version:1,revision:payload.revision,cose:encodeBase64Url(cose),
+      ownProfile={type:"racr.sender-profile",version:1,revision:payload.revision,cose:encodeBase64Url(cose),
         digest:encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256",Uint8Array.from(cose)))),profile:toDiagnosticJson("hail.sender-profile",payload)};
       profileWrites++;
     }
@@ -290,7 +290,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     if(!request.headers.get("Cookie")?.includes("hail_session="+sessionToken))return json({},401);
     assert(retired,"Inbox must use the completed account's session");
     const query=new URL(request.url).searchParams,personal=query.get('kind')==='connections';
-    return json(path.endsWith("/inbox")?{messages:(personal?(connectionIncoming?[connectionReply()]:[]):incoming?[incomingMessage()]:[]).filter(m=>!trashed.has(m.messageId)&&!deleted.has(m.messageId)),next:!personal&&incoming&&!query.has("after")?"older-page":null}:{type:"hailp.account",version:1,provider:policy.provider,accountId:prepared.accountId,
+    return json(path.endsWith("/inbox")?{messages:(personal?(connectionIncoming?[connectionReply()]:[]):incoming?[incomingMessage()]:[]).filter(m=>!trashed.has(m.messageId)&&!deleted.has(m.messageId)),next:!personal&&incoming&&!query.has("after")?"older-page":null}:{type:"racr.account",version:1,provider:policy.provider,accountId:prepared.accountId,
       address:prepared.address,did:profileVerificationMismatch?peerDid:did,migrationState:null,custodyProfile:"managed",monitorVerificationMode:"reduced-assurance-alpha-v1",managedProfileVersion:"hail-managed-custody-v1",
       identityPublicKey:prepared.userIdentityKey,ownerRecoveryPublicKey:prepared.userRecoveryKey,scopes:["account:read","grants:read","messages:read","messages:write"]});
   }
@@ -432,7 +432,7 @@ try{
   await cdp("Page.navigate",{url:origin+"/"});await wait(()=>has("Your permission."),"homepage sign-in");
   assert.equal(await evaluate("location.pathname"),"/");
   assert.equal(await evaluate("document.querySelector('nav[aria-label=\"Main navigation\"]')===null"),true,"Login keeps a focused shell");
-  await cdp("Page.navigate",{url:origin+"/auth/recover#token=hailp_"+"C".repeat(43)});
+  await cdp("Page.navigate",{url:origin+"/auth/recover#token=racr_"+"C".repeat(43)});
   await wait(async()=>evaluate(`location.hash==='' && document.querySelector('button')?.disabled===false`),"owner-authorized enrollment consumes its fragment locally");
   assert(await has("does not import a recovery backup"));
   assert(!requests.some(r=>r.path.includes("/recovery")),"Opening an enrollment link must not create a passkey");
@@ -989,7 +989,7 @@ try{
   const ownerRow=[...connectionApprovals.values()].find(row=>row.ownerSigning)!;
   await click("Download consent proposal");await wait(async()=>{try{return (await readdir(work)).includes(`hail-connection-${ownerRow.requestId}.json`);}catch{return false;}},"owner proposal download");
   const downloaded=JSON.parse(await readFile(join(work,`hail-connection-${ownerRow.requestId}.json`),"utf8"));assert.deepEqual(downloaded,JSON.parse(JSON.stringify(ownerRow.ownerSigning)));
-  const wrongUpload=join(work,"not-consent.json");await writeFile(wrongUpload,JSON.stringify({type:"hailp.user-vault",ciphertext:"must-stay-local"}));
+  const wrongUpload=join(work,"not-consent.json");await writeFile(wrongUpload,JSON.stringify({type:"racr.user-vault",ciphertext:"must-stay-local"}));
   await upload("Signed consent file",wrongUpload);await wait(()=>has("not a vault or backup"),"browser rejects a vault before uploading");
   assert(!requests.some(r=>r.body.includes("must-stay-local")));
   const ownerPayload=fromDiagnosticJson("hail.connection-invitation",downloaded.payload);

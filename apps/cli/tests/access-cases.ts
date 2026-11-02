@@ -20,7 +20,7 @@ export async function accessCases(binary:string,root:string,directory:string,pro
    if(path.endsWith("/prepare")){
     assert.deepEqual(body.scopes,scopes);assert.equal(body.did,did);assert.equal(body.signer,signer);
     const now=Math.floor(Date.now()/1000);
-    challenge={...body,type:"hailp.account-access",version:1,purpose:operation==="login"?"new-api-credential":"passkey-enrollment",challengeId:id,provider,accountId:id,nonce:Buffer.alloc(32,7).toString("base64url"),issuedAt:now,expiresAt:now+120};
+    challenge={...body,type:"racr.account-access",version:1,purpose:operation==="login"?"new-api-credential":"passkey-enrollment",challengeId:id,provider,accountId:id,nonce:Buffer.alloc(32,7).toString("base64url"),issuedAt:now,expiresAt:now+120};
     if(fail==="challenge")challenge.provider="https://wrong.example";
     return json(challenge);
    }
@@ -30,12 +30,12 @@ export async function accessCases(binary:string,root:string,directory:string,pro
    assert.equal(body.signature,Buffer.from(expected).toString("base64url"));
    assert.equal(body.token,token);assert.equal(body.challengeId,id);
    if(fail==="complete")return new Response("",{status:503});
-   issued=operation==="login"?{type:"hailp.api-credential",version:1,provider,accountId:id,credentialId:id,token,scopes,expiresAt}:{type:"hailp.passkey-enrollment",version:1,provider,accountId:id,token,url:`${provider}/auth/recover#token=${token}`,expiresAt};
+   issued=operation==="login"?{type:"racr.api-credential",version:1,provider,accountId:id,credentialId:id,token,scopes,expiresAt}:{type:"racr.passkey-enrollment",version:1,provider,accountId:id,token,url:`${provider}/auth/recover#token=${token}`,expiresAt};
    return json({[operation==="login"?"credential":"enrollment"]:fail==="ack"?{...issued,accountId:"wrong"}:issued});
   });
   const args=["account",operation,"--provider",provider,"--did",did,"--signer",signer,"--vault",vault,"--state",state,operation==="login"?"--credentials":"--output",output,...(operation==="login"?scopes.flatMap(s=>["--scope",s]):[])];
   async function run(success:boolean, input=secret, selected=args){
-   const child=Bun.spawn([...command,...selected],{env:{...env,HAILP_CREDENTIAL_FILE:""},stdin:new Blob([input+"\n"]),stdout:"pipe",stderr:"pipe"});
+   const child=Bun.spawn([...command,...selected],{env:{...env,RACR_CREDENTIAL_FILE:""},stdin:new Blob([input+"\n"]),stdout:"pipe",stderr:"pipe"});
    const [code,out,err]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
    assert.equal(code===0,success,err);assert(!(out+err).includes(secret));
    for(const c of calls)assert(!(out+err).includes(c.token));cases++;

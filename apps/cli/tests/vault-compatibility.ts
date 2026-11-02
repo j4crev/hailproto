@@ -7,12 +7,12 @@ import { join, resolve } from "node:path";
 import { unlockUserVault } from "../../server/test/client-support/vault.ts";
 import { createUserVault, verifyUserVault } from "../../../packages/hail-client-support/src/vault-crypto.ts";
 const root = resolve(import.meta.dir, "../../..");
-const binary = resolve(Bun.argv[2] ?? join(root, "apps/cli/target/debug/hailp"));
-const directory = await mkdtemp(join(tmpdir(), "hailp-vault-compat-"));
+const binary = resolve(Bun.argv[2] ?? join(root, "apps/cli/target/debug/racr"));
+const directory = await mkdtemp(join(tmpdir(), "racr-vault-compat-"));
 
 let cases = 0;
 async function run(command: string[], args: string[], secret = "", success = true) {
-  const child = Bun.spawn([...command, ...args], { stdin: new Blob([secret + "\n"]), stdout: "pipe", stderr: "pipe", env: {...process.env, HAILP_CREDENTIAL_FILE: ""} });
+  const child = Bun.spawn([...command, ...args], { stdin: new Blob([secret + "\n"]), stdout: "pipe", stderr: "pipe", env: {...process.env, RACR_CREDENTIAL_FILE: ""} });
   const [exit, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
   assert.equal(exit === 0, success, `${args.join(" ")}: ${stderr}`);
   if (secret) { assert(!stdout.includes(secret)); assert(!stderr.includes(secret)); }
@@ -96,7 +96,7 @@ try {
   for (const fixture of fixtures.positive.filter((v:any)=>["hail.connection-invitation","hail.connection-confirmation"].includes(v.type))) {
     const payload=structuredClone(fixture.diagnostic), now=Math.floor(Date.now()/1000);
     payload.from=genesis.did;payload.key_id=genesis.did+"#hail-identity";payload.issued_at=now;payload.expires_at=now+120;
-    const proposal={type:"hailp.connection-signing",version:1,provider:"https://provider.example",requestId:"019a0000-0000-7000-8000-000000000001",expiresAt:new Date(Date.now()+120000).toISOString(),payload};
+    const proposal={type:"racr.connection-signing",version:1,provider:"https://provider.example",requestId:"019a0000-0000-7000-8000-000000000001",expiresAt:new Date(Date.now()+120000).toISOString(),payload};
     const path=join(directory,"proposal.json");await writeFile(path,JSON.stringify(proposal),{mode:0o600});
     const outputs=[];
     for (const [index,consumer] of [[binary]].entries()) {

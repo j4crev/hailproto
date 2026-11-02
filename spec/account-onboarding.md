@@ -33,7 +33,7 @@ Provider migration is defined by the DID, delivery-state, and address-binding pr
 
 ## Terminology
 
-- **Local account**: Provider-private account state used to authenticate a user and administer service. It is not a Hail protocol identity.
+- **Local account**: Provider-private account state used to authenticate a user and administer service. It is not a RACR protocol identity.
 - **Public Hail identity**: A registered `did:plc` satisfying the Hail DID profile.
 - **Portable custody profile**: The production onboarding profile in which the user controls the top PLC recovery key and `#hail-identity`, while the provider controls a lower-priority PLC rotation key and `#hail-messaging`.
 - **Write registry**: The PLC directory to which creation and update operations are submitted.

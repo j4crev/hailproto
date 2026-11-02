@@ -33,7 +33,7 @@ pub async fn doctor(
     let mut blockers = Vec::new();
     let capabilities = async {
         let result = client.capabilities().await?;
-        if result["type"] != "hailp.capabilities"
+        if result["type"] != "racr.capabilities"
             || result["version"].as_f64() != Some(1.0)
             || !truthy(&result["features"])
             || !truthy(&result["signup"])

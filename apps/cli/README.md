@@ -1,6 +1,6 @@
-# Native Rust hailp
+# Native Rust racr
 
-`hailp` is the native Hail Protocol CLI. Commands are implemented in Rust,
+`racr` is the native Hail account CLI. Commands are implemented in Rust,
 including vaults, account access, credentials, shared conversations and reply-all,
 Grants, profiles, connections, custody transitions and provider transfers. It does
 not invoke Bun or Node at runtime. See [CLI workflows](docs/cli-workflows.md)
@@ -19,12 +19,12 @@ are required. Build without installing the JavaScript workspace:
 ```sh
 cd apps/cli
 cargo build --release --locked
-./target/release/hailp --help
-install -Dm755 target/release/hailp "$HOME/.local/bin/hailp"
+./target/release/racr --help
+install -Dm755 target/release/racr "$HOME/.local/bin/racr"
 ```
 
 From the repository root, `python3 apps/cli/scripts/build.py` builds the same
-binary at `apps/cli/dist/hailp`, the existing release artifact path.
+binary at `apps/cli/dist/racr`, the existing release artifact path.
 `bun run build:cli` is an equivalent development convenience. Release builds use
 LTO, one codegen unit and stripped symbols.
 
@@ -36,7 +36,7 @@ must reuse the same arguments and artifacts. The TypeScript CLI has been retired
 its read/output contracts are retained as fixed regression fixtures. Browser vault
 interoperability is checked against independent shared cryptographic helpers.
 
-Results use JSON stdout with `cliContractVersion: 1`; errors use JSON stderr and
+Results use JSON stdout with `cliContractVersion: 2`; errors use JSON stderr and
 exit status 1. Tokens are redacted. Help/error prose may differ. Private files must
 be regular files without group/other permissions. Non-Unix credential access fails
 closed. Credential expiry metadata requires RFC 3339, the provider's emitted
@@ -67,10 +67,10 @@ cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 cargo build --release --locked
-bun tests/compatibility.ts target/release/hailp
-bun tests/vault-compatibility.ts target/release/hailp
-bun tests/transfer-e2e.ts target/release/hailp
-python3 tests/terminal-input.py target/release/hailp
+bun tests/compatibility.ts target/release/racr
+bun tests/vault-compatibility.ts target/release/racr
+bun tests/transfer-e2e.ts target/release/racr
+python3 tests/terminal-input.py target/release/racr
 python3 scripts/verify-install.py
 ```
 

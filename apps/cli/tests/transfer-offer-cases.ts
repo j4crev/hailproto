@@ -7,7 +7,7 @@ const {verifySignature}=await import(Bun.resolveSync("@atproto/crypto",new URL("
 const {base58btc}=await import(Bun.resolveSync("multiformats/bases/base58",new URL("../../cli",import.meta.url).pathname));
 const hash=(v:Uint8Array)=>new Uint8Array(new Bun.CryptoHasher("sha256").update(v).digest());
 export async function transferOfferCases(binary:string,root:string,directory:string,provider:string,env:Record<string,string|undefined>,install:(handler:(r:Request)=>Promise<Response>)=>void){
- const id="019a0000-0000-7000-8000-000000000001",did=`did:plc:${"a".repeat(24)}`,token=`hailp_${"a".repeat(43)}`,destination="https://destination.example";
+ const id="019a0000-0000-7000-8000-000000000001",did=`did:plc:${"a".repeat(24)}`,token=`racr_${"a".repeat(43)}`,destination="https://destination.example";
  const commands=[[binary]],peer=await createUserVault(),other=await createUserVault();
  const signer=await unlockIdentityKey(peer.vault,await cipher(peer.recoverySecret));let cases=0;
  async function signed(payload:any){const bytes=encodeDeterministic(payload);const sig=await crypto.subtle.sign("Ed25519",signer,Buffer.concat([Buffer.from(payload.type+".v1\0"),bytes]));return {payload:Buffer.from(bytes).toString("base64url"),signature:Buffer.from(sig).toString("base64url")};}
@@ -18,7 +18,7 @@ export async function transferOfferCases(binary:string,root:string,directory:str
   install(async(request)=>{
    const path=new URL(request.url).pathname.replace("/api/v1/account",""),body=request.method==="POST"?await request.json():null;calls.push({path,body});assert.equal(request.headers.get("authorization"),`Bearer ${token}`);
    const json=(v:unknown)=>new Response(JSON.stringify(v),{headers:{"Content-Type":"application/json"}});
-   if(!path)return json({type:"hailp.account",version:1,provider,accountId:id,did,address:"alice@example.com",migrationState:null,custodyProfile:managed?"managed":"owner-controlled",monitorVerificationMode:"strict-public-v1",managedProfileVersion:managed?"hail-managed-custody-v1":null,identityPublicKey:managed?other.vault.identity.publicDidKey:created.vault.identity.publicDidKey,ownerRecoveryPublicKey:created.vault.recovery.publicDidKey,scopes:["account:read","account:write"],credential:{credentialId:id,expiresAt:"2030-01-01T00:00:00.000Z"}});
+   if(!path)return json({type:"racr.account",version:1,provider,accountId:id,did,address:"alice@example.com",migrationState:null,custodyProfile:managed?"managed":"owner-controlled",monitorVerificationMode:"strict-public-v1",managedProfileVersion:managed?"hail-managed-custody-v1":null,identityPublicKey:managed?other.vault.identity.publicDidKey:created.vault.identity.publicDidKey,ownerRecoveryPublicKey:created.vault.recovery.publicDidKey,scopes:["account:read","account:write"],credential:{credentialId:id,expiresAt:"2030-01-01T00:00:00.000Z"}});
    if(body){
     if(grantWire)assert.deepEqual(body,grantWire);else grantWire=body;
     const bytes=Buffer.from(body.payload,"base64url");grant=decodeDeterministic(bytes);
@@ -29,7 +29,7 @@ export async function transferOfferCases(binary:string,root:string,directory:str
     if(managed&&!ack)ack=await signed({...common,type:"hail.managed-transfer-acknowledgement",grant_digest:hash(bytes),source_messaging_key:peer.vault.identity.publicDidKey});
     if(!offer)offer=await signed({...common,type:managed?"hail.managed-transfer-offer":"hail.transfer-offer",transfer_id:id,grant_digest:hash(bytes),destination_rotation_key:peer.vault.recovery.publicDidKey,destination_messaging_key:peer.vault.identity.publicDidKey,...managed?{destination_identity_key:other.vault.identity.publicDidKey,acknowledgement_digest:hash(Buffer.from(ack.payload,"base64url"))}:{invitation_digest:new Uint8Array(32),invitation_challenge:new Uint8Array(32)}});
    }
-   return json({type:managed?"hailp.managed-transfer-status":"hailp.transfer-status",version:1,provider,accountId:id,did:fail==="did"?`did:plc:${"b".repeat(24)}`:did,phase:fail==="pending"?(managed?"acknowledgement-retained":"invitation-pending"):"offer-ready",nonce:grant?.nonce,destinationServiceBase:destination+"/hail",transferId:id,originConfirmed:true,...ack?{acknowledgement:ack}:{},...fail!=="pending"?{offer}:{}});
+   return json({type:managed?"racr.managed-transfer-status":"racr.transfer-status",version:1,provider,accountId:id,did:fail==="did"?`did:plc:${"b".repeat(24)}`:did,phase:fail==="pending"?(managed?"acknowledgement-retained":"invitation-pending"):"offer-ready",nonce:grant?.nonce,destinationServiceBase:destination+"/hail",transferId:id,originConfirmed:true,...ack?{acknowledgement:ack}:{},...fail!=="pending"?{offer}:{}});
   });
   const args=["account",group,"offer","--destination",destination,"--vault",vault,"--state",state];
   async function run(selected=args,success=true,cmd=command){
