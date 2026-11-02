@@ -143,6 +143,60 @@ Specifications must name the domain and must not use an unqualified phrase such 
 
 An implementation applies transport-byte limits before decoding and uses a decoder with explicit nesting, collection, string, and total-allocation limits. It rejects oversized declarations before allocation where possible. Object specifications define transport and semantic limits; accepting valid small inputs does not require allocating according to attacker-controlled lengths.
 
+### Current CBOR Budgets
+
+The following inclusive limits apply to a decoded Hail body or signed-object
+payload. Implementations MUST reject values exceeding them and MUST support
+otherwise valid values within them, subject to the object's stricter schema and
+representation-size rules. A larger provider-local decoder budget does not extend
+the interoperable profile.
+
+| Budget | Maximum |
+| --- | ---: |
+| Encoded bytes | 1048576, further bounded by the object's representation limit |
+| Item depth | 32 |
+| Total items | 16384 |
+| Elements in one array | 4096 |
+| Entries in one map | 256 |
+| UTF-8 bytes in one text string, including a map key | 1048576 |
+| Bytes in one byte string | 1048576 |
+
+Counting is defined on the CBOR data, independently of host-language objects:
+
+- The root item has depth zero and counts as one item. Every array or map counts
+  as one item, including an empty container. Each array element, map key and map
+  value is an item at its containing collection's depth plus one. Nested items
+  count recursively. A map with two scalar keys and two scalar values has five
+  items including the map itself.
+- Text and byte strings each count as one item; their contents do not count as
+  nested items. Text lengths are UTF-8 octets, not characters or UTF-16 units.
+  Map entries count key/value pairs, not individual keys and values.
+- Encoded size includes CBOR headers. For example, a 1048571-byte byte string
+  occupies 1048576 encoded bytes; a 1048576-byte string exceeds that encoded budget.
+- Budgets restart for each independently decoded CBOR domain. COSE's payload and
+  protected-header byte strings count as single items in the outer representation;
+  their embedded CBOR is checked separately, not charged twice to the outer budget.
+
+For the COSE wrapper, the maximum depth is 8, total items 256, array length 8,
+map entries 8, and text-string length 1024. Its encoded-byte and byte-string
+ceilings equal the object's complete signed-representation limit. Tag 18 counts
+as one item at depth zero and its enclosed array is at depth one; no other tags
+are permitted. The protected-header domain uses those same wrapper budgets but
+with a 1024-byte encoded/byte-string ceiling, depth zero at its map, and no tag.
+The exact COSE shape, labels and signature rules remain mandatory even when an
+otherwise different structure fits these budgets.
+
+These budgets do not apply wholesale to transfer snapshots or history checkpoint
+domains, whose larger bounds are specified in [account history](account-history.md)
+and [transfer formats](transfer-formats.md). They do not authorize whole-snapshot
+allocation from an untrusted declared size. Decoder working memory and concurrent
+work MUST remain bounded in addition to the wire budgets.
+
+[Resource vectors](vectors/cbor-resource-limits.json) define exact boundary bytes
+using repeated hex segments, expected lengths/digests and accept/reject results.
+Small test-only budget overrides isolate counting rules; they are not additional
+negotiated wire profiles.
+
 The common signed-object validation sequence is:
 
 1. Enforce HTTP method, media type, content coding, framing, and representation-size requirements.

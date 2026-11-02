@@ -39,7 +39,7 @@ const respond=(all:boolean)=>async({params,request,cookies,url}:import("./$types
     const source=await client.request(ownSharedReply?`/sent/${encodeURIComponent(params.messageId)}`:`/inbox/${encodeURIComponent(params.sender)}/${encodeURIComponent(params.messageId)}`);
     const original=ownSharedReply?parseSentMessage(source):parseMessage(source);
     const body=replyBody(source,{sender:params.sender,messageId:params.messageId},text);
-    if(encodePayload("hail.body.spt-2",body).length>262144)
+    if(encodePayload("hail.body.spt-2",body).length>1048576)
       return fail(400,{error:"This reply exceeds the message limit.",messageId:id,text,replyUntil,allowReply});
     if(all){
       const shared=original.sharedConversation;

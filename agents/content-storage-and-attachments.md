@@ -28,6 +28,17 @@ attachments or outgoing availability commitments at it without extending that
 ownership model. Reference counts alone are insufficient unless updates are
 transactional and reconcilable against authoritative references.
 
+## Current body expansion
+
+Migration 98 expands body storage to 1 MiB without rewriting retained content.
+Use matching codecs, provider, and web-client readers/writers for this alpha
+change; older peers can reject larger bodies. The rollback script refuses while
+any detached, shared received, publication, or connection-batch body exceeds
+256 KiB, including unreferenced shared blobs. Never truncate content to roll back.
+Existing 192 KiB header-image and pixel limits remain unchanged. The 2 MiB gzip
+wire cap and local JSON API budgets are separate from stored body size. These
+are body limits, not attachment support or an aggregate detached-resource budget.
+
 ## Attachment design direction (not implemented)
 
 Attachments are deferred. The existing body/asset profiles and their limits

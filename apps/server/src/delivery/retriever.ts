@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { gunzipSync } from "node:zlib";
+import { gunzip } from "node:zlib";
+import { promisify } from "node:util";
 import { encodeBase64Url, type HailEnvelope, type HailFailureReason, type HailHoldReason } from "@hailproto/codec";
-import { validateBodyBytes } from "../bodies/service.js";
+import { BODY_MAX_BYTES, validateBodyBytes } from "../bodies/service.js";
 import type { DiscoveryFetch, NetworkTargetValidator } from "../discovery/verifier.js";
 import type { HailDidResolver } from "../plc/resolver.js";
 
@@ -12,6 +13,7 @@ export type RetrievalResult =
 
 class TransferInterrupted extends Error {}
 class OversizedTransfer extends Error {}
+const decompressGzip = promisify(gunzip);
 
 async function boundedResponse(response: Response, limit: number): Promise<Uint8Array> {
   const header = response.headers.get("content-length");
@@ -63,6 +65,9 @@ export class BodyRetriever {
   ) {}
 
   async retrieve(envelope: HailEnvelope): Promise<RetrievalResult> {
+    if (!Number.isSafeInteger(envelope.body.size) || envelope.body.size < 1 || envelope.body.size > BODY_MAX_BYTES) {
+      return { kind: "fail", reason: "body-integrity-failed" };
+    }
     try {
       const sender = await this.resolver.resolve(envelope.from);
       const first = await this.at(sender.serviceBase, envelope);
@@ -112,7 +117,7 @@ export class BodyRetriever {
     }
     let wire: Uint8Array;
     try {
-      wire = await boundedResponse(response, encoding === "gzip" ? 524_288 : envelope.body.size);
+      wire = await boundedResponse(response, encoding === "gzip" ? 2_097_152 : envelope.body.size);
     } catch (error) {
       return error instanceof OversizedTransfer
         ? { kind: "fail", reason: "body-integrity-failed" }
@@ -123,7 +128,7 @@ export class BodyRetriever {
     }
     let bytes = wire;
     if (encoding === "gzip") {
-      try { bytes = new Uint8Array(gunzipSync(wire, { maxOutputLength: envelope.body.size + 1 })); }
+      try { bytes = new Uint8Array(await decompressGzip(wire, { maxOutputLength: envelope.body.size })); }
       catch (error) {
         if ((error as { code?: string }).code === "Z_BUF_ERROR") {
           return { kind: "retry", reason: "body-transfer-interrupted", retryAfter: null };

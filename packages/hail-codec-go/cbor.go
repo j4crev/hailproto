@@ -21,7 +21,7 @@ type ResourceLimits struct {
 }
 
 func DefaultResourceLimits() ResourceLimits {
-	return ResourceLimits{262144, 32, 16384, 4096, 256, 262144, 262144}
+	return ResourceLimits{1048576, 32, 16384, 4096, 256, 1048576, 1048576}
 }
 
 var (
@@ -261,6 +261,9 @@ func unsignedSize(value uint64) (uint64, error) {
 }
 
 func scanCBOR(data []byte, limits ResourceLimits, allowOuterTag18, requireTextMapKeys bool) error {
+	if len(data) > limits.MaximumBytes {
+		return errors.New("resource limit: encoded value too large")
+	}
 	offset, items := 0, 0
 	var scan func(int, bool) error
 	readArgument := func(ai byte) (uint64, error) {

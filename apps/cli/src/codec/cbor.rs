@@ -113,6 +113,13 @@ impl Limits {
             cose: false,
         }
     }
+    pub fn body(bytes: usize) -> Self {
+        Self {
+            text: bytes,
+            string: bytes,
+            ..Self::payload(bytes)
+        }
+    }
     pub fn cose(bytes: usize) -> Self {
         Self {
             bytes,

@@ -76,7 +76,7 @@ export const actions={publish:async({request,cookies,url})=>{
       } catch {return fail(400,{delivery,error:"The original message is unavailable for forwarding. Return to your inbox and try again."});}
       try {
         const bytes=body.profile==="spt-3"?encodePayload("hail.body.spt-3",body as unknown as HailSpt3Body):encodePayload("hail.body.spt-2",body as unknown as HailSpt2Body);
-        if(bytes.length>262144)throw new Error("Body too large");
+        if(bytes.length>1048576)throw new Error("Body too large");
       } catch {return fail(400,{delivery,error:"This forward exceeds the supported message limits. Shorten your note; if it still fails, the original message is too large to forward."});}
     }
     try{

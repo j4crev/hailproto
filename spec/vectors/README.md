@@ -9,6 +9,7 @@ Normal tests read committed files; they do not generate their own expected bytes
 
 | Artifact | Actual producer and coverage |
 | --- | --- |
+| `cbor-resource-limits.json` | Synthetic exact CBOR boundaries for default depth, item, array, map and encoded-byte budgets; small override cases isolate map-key counting and UTF-8/byte-string lengths. Segments expand to fixed bytes checked against committed length and SHA-256 in both codecs. These are data-model tests, not valid signed Hail objects. |
 | `portable-history.json` | `MigrationTransferService.exportFenced` in the private-PLC transfer/return integration test; v7 with Grants, consent, accepted and delivered messages, body provenance, immutable statuses and retry obligations |
 | `managed-history.json` | `ManagedMigrationExportService.exportFenced` in the managed network orchestration integration test; v8 with public source role metadata, managed custody, Grants, detached body authorization and pending delivery |
 | `connection-history.json` | `collectConnectionHistory` after real local connection admission in the shared-conversation integration test; nonempty pair, proof, result and signing-evidence history |
@@ -39,7 +40,9 @@ Run from the repository root:
 
 ```sh
 bun run --cwd apps/server test -- test/protocol-interop-vectors.test.ts
+bun run --cwd packages/hail-codec-ts test -- test/resource-vectors.test.ts
 mise exec -- go -C packages/hail-codec-go test -run 'Test(AccountHistory|TransferWire|ConnectionWire)Interoperability|TestPublishedHistoryRejections' ./...
+mise exec -- go -C packages/hail-codec-go test -run TestPublishedResourceBudgets ./...
 ```
 
 TypeScript calls the actual server decoders/verifiers and manifest/checkpoint

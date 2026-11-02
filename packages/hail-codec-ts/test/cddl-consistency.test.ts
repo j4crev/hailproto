@@ -721,7 +721,7 @@ describe("CDDL and TypeScript structural consistency", () => {
     );
     record(minimumEnvelope.body as HailValue).size = 1;
     expectStructuralAcceptance("hail.envelope", minimumEnvelope);
-    record(minimumEnvelope.body as HailValue).size = 262_144;
+    record(minimumEnvelope.body as HailValue).size = 1_048_576;
     expectStructuralAcceptance("hail.envelope", minimumEnvelope);
 
     const emptyBody = record(
@@ -748,7 +748,7 @@ describe("CDDL and TypeScript structural consistency", () => {
     const body = record(envelope.body as HailValue);
     body.size = 0;
     expectStructuralRejection("hail.envelope", envelope);
-    body.size = 262_145;
+    body.size = 1_048_577;
     expectStructuralRejection("hail.envelope", envelope);
 
     for (const length of [31, 33]) {

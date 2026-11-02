@@ -1,3 +1,4 @@
+import { BODY_CONTAINER_LIMITS, BODY_MAX_BYTES } from "../bodies/service.js";
 import {createHash} from "node:crypto";
 import {decodeBase64Url,decodeDeterministic,encodeDeterministic,inspectSignedPayload,type HailValue} from "@hailproto/codec";
 import type {SQL} from "bun";
@@ -194,7 +195,7 @@ export function validateConnectionHistory(input:Uint8Array,owner:ConnectionHisto
     const targets=tables.connection_message_targets.filter(t=>t.publication_id===row.id);
     if(!Array.isArray(audience)||!audience.length||audience.length>100||audience.length!==targets.length||
       new Set(audience.map(t=>t.recipientDid)).size!==audience.length||audience.some(t=>!targets.some(r=>r.connection_id===t.connectionId&&r.recipient_did===t.recipientDid&&integer(r.connection_epoch,1)===t.epoch))||
-      !same(hash(encodeDeterministic({connections:audience.map(t=>t.connectionId).sort(),body:bytes(row.body_bytes,262144)})),bytes(row.request_digest,32)))return fail("message audience or body differs from retained intent");
+      !same(hash(encodeDeterministic({connections:audience.map(t=>t.connectionId).sort(),body:bytes(row.body_bytes,BODY_MAX_BYTES)},BODY_CONTAINER_LIMITS)),bytes(row.request_digest,32)))return fail("message audience or body differs from retained intent");
   }
   for(const row of tables.connection_message_targets)if(!batches.has(row.publication_id)||!["submitted","blocked","cancelled","expired","indeterminate"].includes(String(row.state))||
     !DID.test(String(row.recipient_did))||!UUID.test(String(row.connection_id))||!UUID.test(String(row.message_id))||integer(row.connection_epoch,1)<1)return fail("has unfinished or orphaned message work");

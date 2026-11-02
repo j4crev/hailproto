@@ -1,3 +1,4 @@
+import { BODY_CONTAINER_LIMITS, BODY_MAX_BYTES } from "../bodies/service.js";
 import {createHash} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import {decodeBase64Url,decodeDeterministic,encodeDeterministic,inspectSignedPayload,type HailValue} from '@hailproto/codec';
@@ -81,7 +82,7 @@ export function validateConversationHistory(h:ConversationHistory,owner:Connecti
     if(!d||r.sender_did!==owner.did||r.sealed!==true||context.logicalId!==r.id||typeof context.introduction!=='boolean'||
       context.introduction&&(context.creator!==owner.did||context.conversationId!==r.id)||!Array.isArray(audience)||audience.length!==d.participants.length-1||targets.length!==audience.length||
       new Set(audience.map(t=>t.recipientDid)).size!==audience.length||audience.some(t=>t.recipientDid===owner.did||!d.participants.includes(t.recipientDid)||!targets.some(r=>r.recipient_did===t.recipientDid&&r.connection_id===t.connectionId&&Number(r.connection_epoch)===Number(t.epoch)))||
-      !same(hash(encodeDeterministic({context:bytes(r.conversation_context),manifest:bytes(r.manifest),body:bytes(r.body_bytes)})),bytes(r.request_digest,32)))return fail();
+      !same(hash(encodeDeterministic({context:bytes(r.conversation_context),manifest:bytes(r.manifest),body:bytes(r.body_bytes,BODY_MAX_BYTES)},BODY_CONTAINER_LIMITS)),bytes(r.request_digest,32)))return fail();
   }
   for(const r of h.tables.connection_message_targets)if(!batches.has(r.publication_id)||!['submitted','blocked','cancelled','expired','indeterminate'].includes(r.state)||(r.connection_id===null)!==(r.connection_epoch===null)||r.connection_epoch!==null&&!positive(r.connection_epoch))return fail();
   return h;

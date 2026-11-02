@@ -177,8 +177,8 @@ function parseCose<T extends HailSignedPayloadType>(
     maximumItems: 16_384,
     maximumArrayLength: 4_096,
     maximumMapEntries: 256,
-    maximumTextBytes: 262_144,
-    maximumByteStringLength: 262_144,
+    maximumTextBytes: 1_048_576,
+    maximumByteStringLength: 1_048_576,
   });
   validatePayload(type, payload);
   if (keyId !== expectedKeyId(type, payload)) {

@@ -150,8 +150,10 @@ by JSON authority or a signed snapshot, or needed as the latest anti-regression
 checkpoint. A future retention policy must enumerate all those roots, distinguish
 committed action history from incidental reads, and define retention deadlines and
 restoration guarantees before permitting deletion. Compaction preserves all of them.
-See [storage operations](../docs/verification-evidence-storage.md) for the coordinated
-upgrade, resumable compaction and lossless rollback procedure.
+The reference compaction entry point is
+[`compact-plc-evidence.ts`](../apps/server/src/cli/compact-plc-evidence.ts).
+Its implementation is not a protocol requirement or a substitute for a reviewed
+operational rollout/rollback procedure.
 
 ## Reviewed monitor bootstrap and coverage
 

@@ -972,7 +972,7 @@ func validateEnvelope(m map[any]any) error {
 		return e
 	}
 	size, e := intValue(b["size"], "$.body.size", 1)
-	if e != nil || size > 262144 {
+	if e != nil || size > 1048576 {
 		return errors.New("invalid body size")
 	}
 	if e = expectText(b, "media_type", "application/hail-body+cbor", "$.body.media_type"); e != nil {

@@ -367,9 +367,11 @@ lower-priority-signed change, an unexpected intervening operation or observer
 disagreement is **not** an alternate fast-path migration; fail closed and
 invoke a separately specified recovery procedure. Continuous monitoring still
 matters because a provider's lower-priority key can publish a *subsequent*
-unwanted PLC operation. This rule is a proposed production authority policy;
-the remaining cache, mirror and historical-evidence requirements under
-[Before Production](#before-production) still apply.
+unwanted PLC operation. The current reference cutover/read policy is specified in
+[PLC read evidence](plc-read-evidence.md). Deployment evidence and general
+historical-authority review under [Before Production](#before-production) remain
+separate requirements; the reference policy is not a complete standard for all
+recovery cases.
 
 The `#hail-identity` key should remain unchanged unless the DID controller is separately rotating it. The full-state migration operation preserves all other entries under the PLC state rules above, including every non-Hail `alsoKnownAs` value and its order unless the DID controller explicitly authorizes a separate alias change.
 
@@ -397,7 +399,7 @@ Rotating either Hail key does not change the DID.
 
 At ingest, servers verify signatures using PLC state valid under the Hail resolution, recovery-window, and historical-verification rules.
 
-For the POC, cached PLC state used for new envelope intake must be no more than 300 seconds old. The recipient re-resolves immediately when the protected `kid` is absent or the cached key fails verification. Clients using the discovered service follow the endpoint-refresh triggers in the HTTP binding. A successful refresh replaces cached state; removed keys and endpoints do not remain valid for new operations. Production still needs an explicit policy for the PLC recovery window.
+For the POC cache profile, cached PLC state used for new envelope intake must be no more than 300 seconds old. The recipient re-resolves immediately when the protected `kid` is absent or the cached key fails verification. The strict-public reference profile instead performs fresh bounded audit reads with no cross-call resolution cache, as specified in [PLC read evidence](plc-read-evidence.md). Clients using the discovered service follow the endpoint-refresh triggers in the HTTP binding. A successful refresh replaces cached state; removed keys and endpoints do not remain valid for new operations. The current reference recovery-window policy does not settle general historical-object admission after recovery or nullification.
 
 Recipient servers should retain the verification evidence needed to audit an accepted message after a key rotates. They should not require an old stored message to verify against only the current DID document.
 

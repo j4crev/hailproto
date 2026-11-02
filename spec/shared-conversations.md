@@ -193,7 +193,8 @@ history is never automatically quoted into the group.
 `packages/hail-codec-ts/vectors/conversations-v1.json` contains immutable fixtures
 for TypeScript and Go, including descriptors, revivals and v4 envelopes. Test keys
 are public fixtures and must never be used by an account. Database tests exercise
-same-provider and independent-provider messaging, policy denial, introduction
-races, leave/expiry/revival, portable consent and rollback guards. The remaining
-rollout checks and future organization work live in the
-[implementation checklist](../docs/connection-messaging.md#shared-conversations-implementation-checklist).
+same-provider and separate-provider test scenarios, policy denial, introduction
+races, leave/expiry/revival, portable consent and rollback guards. These exercise
+the reference implementation, not an independently developed provider. Operational
+release evidence is tracked separately in
+[production readiness](../agents/production-readiness.md).

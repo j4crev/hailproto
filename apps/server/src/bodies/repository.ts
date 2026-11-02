@@ -66,16 +66,22 @@ export class BodyRepository implements BodyStore {
     const row = auth[0];
     if (!row || row.status !== "active" || Number(row.expires_at) < now ||
       !timingSafeEqual(Buffer.from(row.body_digest), Buffer.from(digest))) return null;
-    const fences = await this.sql<{ state: string }[]>`
-      SELECT state FROM provider_migration_fences WHERE account_id = ${row.sender_account_id}
-    `;
-    if (fences[0]) return fences[0].state === "retired" ? null : "missing-body";
-    const bodies = await this.sql<BodyRow[]>`
-      SELECT digest, body_bytes, sender_account_id FROM detached_bodies WHERE digest = ${digest} AND sender_account_id = ${row.sender_account_id}
-    `;
-    const body = bodies[0];
-    if (!body?.body_bytes) return "missing-body";
-    if (!Buffer.from(bodyDigest(body.body_bytes)).equals(Buffer.from(digest))) throw new Error("Persisted body integrity failure");
-    return { bytes: new Uint8Array(body.body_bytes), digest: new Uint8Array(digest) };
+    // From this point onward, token, digest, active status and expiry are verified.
+    // Content/fence failures may be retried without exposing unauthenticated state.
+    try {
+      const fences = await this.sql<{ state: string }[]>`
+        SELECT state FROM provider_migration_fences WHERE account_id = ${row.sender_account_id}
+      `;
+      if (fences[0]) return fences[0].state === "retired" ? null : "missing-body";
+      const bodies = await this.sql<BodyRow[]>`
+        SELECT digest, body_bytes, sender_account_id FROM detached_bodies WHERE digest = ${digest} AND sender_account_id = ${row.sender_account_id}
+      `;
+      const body = bodies[0];
+      if (!body?.body_bytes) return "missing-body";
+      if (!Buffer.from(bodyDigest(body.body_bytes)).equals(Buffer.from(digest))) throw new Error("Persisted body integrity failure");
+      return { bytes: new Uint8Array(body.body_bytes), digest: new Uint8Array(digest) };
+    } catch {
+      return "missing-body";
+    }
   }
 }

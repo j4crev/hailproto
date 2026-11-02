@@ -275,7 +275,10 @@ The body is malformed, non-deterministic, fails the declared SPT schema, or viol
 
 The body requires a media type, profile, or content coding that the recipient was not required to support and could not reject before acceptance.
 
-The POC validates its fixed media type and profile before acceptance, so this reason is primarily reserved for future negotiated profiles.
+The current alpha validates the fixed media type and one of its three mandatory
+SPT profiles before acceptance. `body-unsupported` also covers an unsupported
+retrieval representation or content coding; it does not make current SPT profiles
+optional.
 
 #### `delivery-expired`
 
@@ -534,6 +537,7 @@ Deferred:
 
 - batching status updates for many recipients
 - campaign-level federation objects
-- client synchronization and optional read receipts
+- a standardized client synchronization protocol and optional federated read
+  receipts (reference account APIs and local read state already exist)
 - authenticated delivery-status query
 - emergency status recovery when provider state and backups are unavailable

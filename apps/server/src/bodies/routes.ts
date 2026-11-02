@@ -69,7 +69,8 @@ export function registerBodyRoutes(app: Hono, store: BodyStore): void {
         },
       });
     } catch {
-      return problem(503, "Service Unavailable", { "Retry-After": "30" });
+      // Only the store's authenticated unavailable result may disclose a 503.
+      return notFound();
     }
   });
   app.all("/hail/bodies", () => problem(404, "Not Found"));

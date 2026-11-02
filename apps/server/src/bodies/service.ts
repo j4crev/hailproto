@@ -1,8 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
-import { decodePayload, encodePayload, type HailSpt2Body, type HailSpt3Body, type HailSptBody } from "@hailproto/codec";
+import { DEFAULT_HAIL_RESOURCE_LIMITS, decodePayload, encodePayload, type HailSpt2Body, type HailSpt3Body, type HailSptBody } from "@hailproto/codec";
 
 export const BODY_MEDIA_TYPE = "application/hail-body+cbor";
-export const BODY_MAX_BYTES = 262_144;
+export const BODY_MAX_BYTES = 1_048_576;
+// Local digest containers include a body plus bounded audience/context metadata.
+export const BODY_CONTAINER_LIMITS = { ...DEFAULT_HAIL_RESOURCE_LIMITS, maximumBytes: 2 * BODY_MAX_BYTES };
 const DID = /^did:plc:[a-z2-7]{24}$/;
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -29,7 +31,7 @@ export function bodyFromDocument(document: HailSpt2Body | HailSpt3Body): Uint8Ar
 
 export type BodyProfile = "spt-1" | "spt-2" | "spt-3";
 export function validateBodyBytes(bytes: Uint8Array, expected?: BodyProfile): BodyProfile {
-  if (bytes.length < 1 || bytes.length > BODY_MAX_BYTES) throw new Error("Body exceeds the 256 KiB limit");
+  if (bytes.length < 1 || bytes.length > BODY_MAX_BYTES) throw new Error("Body exceeds the 1 MiB limit");
   let profile:BodyProfile,encoded:Uint8Array;
   try { const document=decodePayload("hail.body.spt-1",bytes);profile="spt-1";encoded=encodePayload("hail.body.spt-1",document); }
   catch {
@@ -51,6 +53,8 @@ export interface StoredBody {
 export interface BodyStore {
   publish(senderDid: string, bytes: Uint8Array): Promise<StoredBody>;
   authorize(input: BodyAuthorizationInput): Promise<void>;
+  // "missing-body" means unavailable after successful token/digest authorization.
+  // Unknown authorization (including thrown lookup errors) must never imply 503.
   retrieve(digest: Uint8Array, tokenHash: Uint8Array, now: number): Promise<StoredBody | "missing-body" | null>;
 }
 

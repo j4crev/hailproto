@@ -107,7 +107,11 @@ async fn submit(client: &Client, args: &Args) -> Result<Value, Error> {
     let saved: Option<Value> = match std::fs::metadata(state_path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         _ => Some(
-            serde_json::from_slice(&private::read(state_path, 524288)?).map_err(|_| invalid())?,
+            serde_json::from_slice(&private::read(
+                state_path,
+                messages::MESSAGE_STATE_MAX_BYTES,
+            )?)
+            .map_err(|_| invalid())?,
         ),
     };
     let mut intent = json!({"command":args.command,"source":args.positionals});

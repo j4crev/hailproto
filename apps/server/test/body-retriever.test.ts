@@ -66,6 +66,52 @@ describe("authenticated detached body retrieval", () => {
       .toEqual({ kind: "fail", reason: "body-authorization-failed" });
   });
 
+  it("accepts gzip at the body ceiling and rejects output one byte beyond the signed size", async () => {
+    // The CBOR framing is constant for text lengths in this range.
+    const framing = bodyFromText("x".repeat(260_000)).length - 260_000;
+    const maximum = bodyFromText("x".repeat(1_048_576 - framing));
+    expect(maximum.length).toBe(1_048_576);
+    const descriptor = { ...envelope, body: { ...envelope.body, size: maximum.length,
+      digest: { algorithm: "sha-256" as const, value: bodyDigest(maximum) } } };
+    const response = (data: Uint8Array) => new Response(gzipSync(data), { headers: {
+      "Content-Type": "application/hail-body+cbor", "Content-Encoding": "gzip" } });
+    const result = await setup([response(maximum)]).retriever.retrieve(descriptor);
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") throw new Error("Expected successful maximum-sized body retrieval");
+    // Compare exact bytes natively; deep equality walks a million array properties
+    // and can exhaust the test timeout on shared CI runners.
+    expect(Buffer.from(result.bytes).equals(Buffer.from(maximum))).toBe(true);
+    const oversized = new Uint8Array(maximum.length + 1);
+    oversized.set(maximum);
+    expect(await setup([response(oversized)]).retriever.retrieve(descriptor)).toEqual({ kind: "fail", reason: "body-integrity-failed" });
+  });
+
+  it("rejects concatenated gzip members whose aggregate output exceeds the signed size", async () => {
+    const wire = Buffer.concat([gzipSync(bytes), gzipSync(new Uint8Array([0]))]);
+    const response = new Response(wire, { headers: { "Content-Type": "application/hail-body+cbor", "Content-Encoding": "gzip" } });
+    expect(await setup([response]).retriever.retrieve(envelope)).toEqual({ kind: "fail", reason: "body-integrity-failed" });
+  });
+
+  it("bounds compressed input without trusting Content-Length and rejects invalid declared body sizes before fetching", async () => {
+    const response = new Response(new Uint8Array(2_097_153), { headers: { "Content-Type": "application/hail-body+cbor", "Content-Encoding": "gzip" } });
+    expect(await setup([response]).retriever.retrieve(envelope)).toEqual({ kind: "fail", reason: "body-integrity-failed" });
+    for (const size of [0, -1, 1_048_577, NaN, 1.5]) {
+      const { retriever, fetch } = setup([]);
+      expect(await retriever.retrieve({ ...envelope, body: { ...envelope.body, size } })).toEqual({ kind: "fail", reason: "body-integrity-failed" });
+      expect(fetch).not.toHaveBeenCalled();
+    }
+  });
+
+  it("keeps truncated gzip retryable but rejects corrupt gzip", async () => {
+    const coded = gzipSync(bytes);
+    const response = (wire: Uint8Array) => new Response(Uint8Array.from(wire), { headers: {
+      "Content-Type": "application/hail-body+cbor", "Content-Encoding": "gzip" } });
+    expect(await setup([response(coded.subarray(0, coded.length - 4))]).retriever.retrieve(envelope))
+      .toEqual({ kind: "retry", reason: "body-transfer-interrupted", retryAfter: null });
+    const corrupt = Uint8Array.from(coded); corrupt[corrupt.length - 8]! ^= 1;
+    expect(await setup([response(corrupt)]).retriever.retrieve(envelope)).toEqual({ kind: "fail", reason: "body-integrity-failed" });
+  });
+
   it("classifies transient responses separately from integrity and schema failures", async () => {
     expect(await setup([new Response(null, { status: 503 })]).retriever.retrieve(envelope))
       .toEqual({ kind: "retry", reason: "body-temporarily-unavailable", retryAfter: null });

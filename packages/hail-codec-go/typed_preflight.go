@@ -339,7 +339,7 @@ func preflightEnvelope(v *Envelope) error {
 	if err := preflightDigest(v.Body.Digest); err != nil {
 		return err
 	}
-	if v.Body.Size < 1 || v.Body.Size > 262144 || v.Body.MediaType != "application/hail-body+cbor" || v.Body.Profile != "spt-1" && v.Body.Profile != "spt-2" && v.Body.Profile != "spt-3" {
+	if v.Body.Size < 1 || v.Body.Size > 1048576 || v.Body.MediaType != "application/hail-body+cbor" || v.Body.Profile != "spt-1" && v.Body.Profile != "spt-2" && v.Body.Profile != "spt-3" {
 		return errors.New("invalid body descriptor")
 	}
 	if v.Body.AvailableUntil < v.CreatedAt+2592000 || v.Body.AvailableUntil < v.ExpiresAt+300 || v.Body.Access.Type != "bearer" || len(v.Body.Access.Token) != 32 || v.Body.Access.ExpiresAt < v.Body.AvailableUntil {

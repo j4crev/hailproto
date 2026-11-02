@@ -372,6 +372,11 @@ Rules:
 - Revocation immediately prevents envelopes not yet accepted; an envelope whose acceptance transaction committed first retains its fixed authorization under [delivery-state.md](delivery-state.md).
 - A revoked grant ID can never become active again.
 - The recipient retains a tombstone sufficient to reject replayed older revisions.
+- Revocation state MUST NOT be removed merely because time has elapsed while the
+  account's grant lineage remains usable. Migration and restoration MUST preserve
+  the terminal state; a new grant ID is required for renewed consent. This does
+  not require a deleted account's data to be retained forever or prescribe storage
+  layout, but deleting local state MUST NOT reactivate an old grant lineage.
 - The sender retains signed revocation evidence as needed for compliance and list cleanup.
 - Re-subscribing creates a new grant ID.
 
@@ -545,6 +550,11 @@ Permanent conflicts require reconciliation. The recipient remains authoritative 
 
 ## Abuse Protection
 
+The current alpha requires support for valid signed grant representations through
+262144 octets, including embedded consent evidence, subject to the authorization
+and schema rules. Larger requests MAY be rejected with `413 Content Too Large`.
+This transport support floor does not bypass rate limits or account quotas.
+
 The sender's grant endpoint is intentionally unsolicited and must enforce:
 
 - strict request-size limits
@@ -601,6 +611,12 @@ Deferred:
 
 ## Open Questions
 
-- What maximum grant size must servers accept?
-- How long must revoked grant tombstones be retained?
 - How does historical DID key verification interact with old grant revisions?
+
+The current receive path authenticates a newly submitted revision with the current
+identity key. A historical signature or a claimed signing timestamp alone does
+not establish authority to admit a previously unseen revision. The acknowledged
+rotation procedure above remains the supported path. Recovery after rotation
+without that acknowledgement still needs a specified evidence and reconciliation
+procedure; implementations MUST NOT silently treat arbitrary historical keys as
+current authority to bridge the gap.
