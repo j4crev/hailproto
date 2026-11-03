@@ -253,7 +253,8 @@ jobs:
           load: true
           tags: hail-provider:ci
           cache-from: type=gha,scope=ci-provider
-          cache-to: type=gha,mode=max,scope=ci-provider
+          # Main full runs populate shared caches; PR uploads cost more than these builds.
+          cache-to: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'type=gha,mode=max,scope=ci-provider' || '' }}
       - name: Build client image
         uses: docker/build-push-action@v7
         with:
@@ -262,7 +263,8 @@ jobs:
           load: true
           tags: hail-web-client:ci
           cache-from: type=gha,scope=ci-web-client
-          cache-to: type=gha,mode=max,scope=ci-web-client
+          # Main full runs populate shared caches; PR uploads cost more than these builds.
+          cache-to: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'type=gha,mode=max,scope=ci-web-client' || '' }}
       - name: Verify image boundaries and independent deployment
         run: |
           docker run --rm --entrypoint sh hail-provider:ci -c 'test ! -d /workspace/hail/apps/client && test -f src/cli/provider-operator.ts && test -f src/cli/create-signup-invitation.ts'
@@ -294,7 +296,8 @@ jobs:
           load: true
           tags: hail-plc-monitor:ci
           cache-from: type=gha,scope=ci-monitor
-          cache-to: type=gha,mode=max,scope=ci-monitor
+          # Main full runs populate shared caches; PR uploads cost more than these builds.
+          cache-to: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'type=gha,mode=max,scope=ci-monitor' || '' }}
 
   # Keep the required ruleset context stable. Unexpected skips cannot pass it.
   verify:

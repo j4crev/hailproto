@@ -66,7 +66,9 @@ publication workflows are otherwise unchanged.
 
 Reusable calls default to full verification. A nightly run at 06:23 UTC and
 manual `workflow_dispatch` runs also execute every job and populate main-branch
-caches. To run all checks manually:
+caches. PR image builds read these caches but do not export their own: measured
+cache uploads cost more time than building the images. Docker cache exports run
+only in full runs on main. To run all checks manually:
 
 ```sh
 gh workflow run ci.yml --ref main
