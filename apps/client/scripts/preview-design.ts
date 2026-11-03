@@ -1,3 +1,4 @@
+import {parseDraftContent,type Draft} from "@racrproto/client-support/drafts";
 import {groupConnectionMessages,connectionKey} from '../../server/src/accounts/connection-threads.js';
 import {threadBodyPreview} from '../../server/src/accounts/message-threads.js';
 // Local-only visual fixture provider. Never imports production configuration or credentials.
@@ -77,6 +78,7 @@ const profile: HailSenderProfile = {type:'hail.sender-profile',version:2,did,rev
   categories:[{id:'essays',label:'Essays',description:'Occasional thoughts and discoveries.'},{id:'general',label:'General'}],updated_at:Math.floor(started/1000),key_id:did+'#hail-messaging'};
 const profileBytes = await signPayload('hail.sender-profile',profile,createWebCryptoSigner(profile.key_id,keys.privateKey));
 const profileResponse = {type:'racr.sender-profile',version:1,revision:1,cose:encodeBase64Url(profileBytes),digest:await digest(profileBytes)};
+const drafts = new Map<string,Draft>();
 const trash = new Map<string,string>();
 const deleted = new Set<string>();
 const preferences = {theme:'system',showHeaderImages:true,trashEnabled:true};
@@ -98,11 +100,23 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
     catch {return new Response('Local preview is starting. Refresh in a moment.',{status:503});}
   }
   const input = request.method==='POST' ? await request.json().catch(()=>({})) as Record<string,any> : {};
+  if(path==='/api/v1/account/drafts')return json({drafts:[...drafts.values()].filter(d=>(d.trashedAt!==null)===(url.searchParams.get('trash')==='true')),next:null});
+  const draftPath=path.match(/^\/api\/v1\/account\/drafts\/([^/]+)(?:\/(save|delete|restore))?$/);
+  if(draftPath){
+    const [,id,operation]=draftPath,previous=drafts.get(id!);
+    if(request.method==='GET')return previous&&!previous.trashedAt?json(previous):json({},404);
+    if(operation==='save'){
+      if(previous?.trashedAt||(previous?.revision??0)!==input.revision)return json({},409);
+      try{const draft={id:id!,revision:(previous?.revision??0)+1,content:parseDraftContent(input.content),updatedAt:new Date().toISOString(),trashedAt:null};drafts.set(id!,draft);return json(draft);}catch{return json({},400);}
+    }
+    if(operation==='delete'){if(previous){if(preferences.trashEnabled)previous.trashedAt=new Date().toISOString();else drafts.delete(id!);previous.revision++;}return json({state:preferences.trashEnabled?'trashed':'deleted'});}
+    if(operation==='restore'){if(previous){previous.trashedAt=null;previous.revision++;}return json({restored:previous?1:0});}
+  }
   if(path==='/api/v1/account/message-preferences') {
     if(request.method==='POST') {
       if(['system','light','dark'].includes(input.theme))preferences.theme=input.theme;
       if(typeof input.showHeaderImages==='boolean')preferences.showHeaderImages=input.showHeaderImages;
-      if(typeof input.trashEnabled==='boolean'){preferences.trashEnabled=input.trashEnabled;if(!input.trashEnabled){for(const id of trash.keys())deleted.add(id);trash.clear();}}
+      if(typeof input.trashEnabled==='boolean'){preferences.trashEnabled=input.trashEnabled;if(!input.trashEnabled){for(const id of trash.keys())deleted.add(id);trash.clear();for(const [id,draft] of drafts)if(draft.trashedAt)drafts.delete(id);}}
     }
     return json(preferences);
   }
@@ -123,7 +137,7 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
     m.isRead=action[3]==='mark-read';return json({messageId:m.messageId,isRead:m.isRead});
   }
   if(path==='/api/v1/account/trash/empty'&&request.method==='POST'){
-    const count=trash.size;for(const id of trash.keys())deleted.add(id);trash.clear();return json({deleted:count});
+    const count=trash.size+[...drafts.values()].filter(d=>d.trashedAt).length;for(const [id,draft] of drafts)if(draft.trashedAt)drafts.delete(id);for(const id of trash.keys())deleted.add(id);trash.clear();return json({deleted:count});
   }
   if(path==='/api/v1/account/sent/clear'&&request.method==='POST'){
     if(input.trashEnabled!==preferences.trashEnabled)return json({},409);

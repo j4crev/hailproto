@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {parseDraft} from "@racrproto/client-support/drafts";
   import {page} from "$app/state";
   import {forwardBody} from "$lib/forward.js";
   import { tick,untrack,onDestroy } from "svelte";
@@ -8,6 +9,16 @@
   import RichText from "$lib/RichText.svelte";
   import Icon from "$lib/Icon.svelte";
   let {data,form}=$props();
+  let draftRevision=$state(untrack(()=>data.draft?.revision??0)),draftIdentity=$state(untrack(()=>data.newPublicationId)),savedHeader=$state<string|null>(null);
+  let saving=$state(false);
+  $effect(()=>{
+    const draft=data.draft;
+    draftIdentity=data.newPublicationId;draftRevision=draft?.revision??0;
+    title=draft?.content.title??'';text=draft?.content.text??'';alt=draft?.content.alt??'';caption=draft?.content.caption??'';
+    allowReply=draft?.content.allowReply??false;category=draft?.content.category??'';categoryQuery=categoryLabel(draft?.content.category??'');
+    selected=draft?.content.connections??(data.defaultConnection?[data.defaultConnection]:[]);
+    savedHeader=draft?.content.header??null;preview=draft?.content.header?'data:image/png;base64,'+draft.content.header.replace(/-/g,'+').replace(/_/g,'/'):null;
+  });
   let sentToast=$state(false);
   const sentPublication=$derived(!form?.error ? data.status?.publicationId : null);
   $effect(()=>{
@@ -26,8 +37,9 @@
   let activeSuggestion=$state(0);
   let sending=$state(false);
   let allowReply=$state(false);
+  let selected=$state<string[]>(untrack(()=>data.defaultConnection?[data.defaultConnection]:[]));
   const isConnection=$derived(data.kind==='connections');
-  const recipients=$derived(data.connections.filter(c=>selected.includes(c.connectionId)));
+  const recipients=$derived(selected.map(id=>data.connections.find(c=>c.connectionId===id)??{connectionId:id,address:"Unavailable connection",recipientDid:""}));
   const matches=$derived(data.connections.filter(c=>!selected.includes(c.connectionId)&&`${c.address} ${c.recipientDid}`.toLowerCase().includes(search.trim().toLowerCase())));
   const showSuggestions=$derived(suggestionsOpen&&(matches.length>0||!!search.trim()||!data.connections.length));
   const wordCount=$derived(text.trim()?text.trim().split(/\s+/).length:0);
@@ -54,11 +66,10 @@
       document.getElementById(`category-option-${activeCategory}`)?.scrollIntoView({block:'nearest'});
     }
   }
-  let selected=$state<string[]>(untrack(()=>data.defaultConnection?[data.defaultConnection]:[]));
-  $effect(()=>{const available=new Set(data.connections.map(c=>c.connectionId));selected=untrack(()=>selected.filter(id=>available.has(id)));});
+
   let audience=$derived(data.categories.find(row=>row.category===category)?.subscribers??0);
   const destination=$derived(isConnection?`${selected.length} connection${selected.length===1?'':'s'}`:`${audience} subscriber${audience===1?'':'s'}`);
-  let canPublish=$derived(data.kind==="connections"?selected.length>0&&selected.length<=data.maxRecipients:categoryReady&&audience>0&&audience<=data.maxRecipients);
+  let canPublish=$derived(data.kind==="connections"?selected.length>0&&selected.length<=data.maxRecipients&&selected.every(id=>data.connections.some(c=>c.connectionId===id)):categoryReady&&audience>0&&audience<=data.maxRecipients);
   let retryPublication=$derived(form&&"publicationId" in form&&typeof form.publicationId==="string"?form.publicationId:null);
   const batchUrl=(id:string)=>`/compose?${data.kind==='connections'?'audience=connections&':''}publication=${id}`;
   let forwarded=$derived(data.forward?parseBody(forwardBody(data.forward,text)):null);
@@ -103,10 +114,10 @@
   async function removeImage(){
     if(preview)URL.revokeObjectURL(preview);
     if(headerInput)headerInput.value="";
-    preview=null;alt="";caption="";
+    preview=null;savedHeader=null;alt="";caption="";
     await tick();coverSummary?.focus();
   }
-  function image(event:Event){if(preview)URL.revokeObjectURL(preview);const file=(event.currentTarget as HTMLInputElement).files?.[0];preview=file?URL.createObjectURL(file):null;}
+  function image(event:Event){savedHeader=null;if(preview)URL.revokeObjectURL(preview);const file=(event.currentTarget as HTMLInputElement).files?.[0];preview=file?URL.createObjectURL(file):null;}
   async function insert(before:string,after=before,placeholder="text"){
     if(!editor)return;
     const start=editor.selectionStart,end=editor.selectionEnd,value=text.slice(start,end)||placeholder;
@@ -131,11 +142,17 @@
   </header>
   <div role="status" aria-atomic="true">{#if sentToast}<div class="sent-toast"><Icon name="check"/><span>Message sent.</span></div>{/if}</div>
   {#if form?.error}<div class="mb-5"><p class="hail-error" role="alert">{form.error}</p>{#if retryPublication}<a class="hail-back mt-2" href={batchUrl(retryPublication)}>Check original {isConnection?'message batch':'publication'} status →</a>{/if}</div>{/if}
-  <form class="compose-layout" method="POST" use:enhance={()=>{
-    sending=true;
-    return async({update})=>{try{await update({reset:false});}finally{sending=false;}};
+  {#if form && 'savedDraft' in form && form.savedDraft}<p role="status">Draft saved. <a href="/drafts">View drafts</a></p>{/if}
+  <form class="compose-layout" method="POST" use:enhance={({submitter})=>{
+    saving=submitter?.getAttribute('formaction')==='?/save';sending=true;
+    return async({update,result})=>{try{
+      if(result.type==='success'&&result.data?.savedDraft){const saved=parseDraft(result.data.savedDraft);draftRevision=saved.revision;draftIdentity=saved.id;}
+      await update({reset:false,invalidateAll:false});
+    }finally{sending=false;saving=false;}};
   }} action={isConnection?'?/publish&audience=connections':'?/publish'} enctype="multipart/form-data" aria-busy={sending}>
-    <input type="hidden" name="publicationId" value={retryPublication??data.newPublicationId}/>
+    <input type="hidden" name="publicationId" value={retryPublication??draftIdentity}/>
+    <input type="hidden" name="draftRevision" value={draftRevision}/>
+    <input type="hidden" name="savedHeader" value={savedHeader??''}/>
     <input type="hidden" name="audience" value={data.kind}/>
     {#if data.forward}<input type="hidden" name="forwardSender" value={data.forward.message.sender}/><input type="hidden" name="forwardMessage" value={data.forward.message.messageId}/>{/if}
     <div class="writing-workspace">
@@ -194,7 +211,7 @@
         </div>
         <section id="compose-preview" hidden={!previewOpen} class="compose-preview" aria-label="Message preview"><div class="preview-byline"><span class="avatar">{data.account.address.slice(0,1).toUpperCase()}</span><span><strong>{data.account.address}</strong><small>{isConnection?"Message preview":"Publication preview"}</small></span></div><div class="mt-5 text-[17px] leading-[1.8] [overflow-wrap:anywhere]">{#if forwarded}<RichText blocks={forwarded.blocks} header={forwarded.header}/>{:else}{#if data.kind==='category'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-contain" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}<RichText {blocks}/>{#if !text&&!title&&!preview}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}{/if}</div></section>
         {#if !isConnection}<label class="reply-setting"><input name="allowReply" type="checkbox" value="yes" bind:checked={allowReply}/>Allow one reply per subscriber, within 7 days</label>{/if}
-        <footer class="send-bar"><div><strong>{selected.length>1&&isConnection?'Shared conversation':'Ready when you are'}</strong><span>{isConnection&&search.trim()?'Select a matching connection':canPublish?`To ${destination}`:isConnection?'Choose at least one recipient':'Choose a category with subscribers'}</span></div><button class="hail-button" disabled={sending||!canPublish||(isConnection&&!!search.trim())||(!data.forward&&!text.trim())}>{sending?'Sending…':data.forward?'Forward message':'Send message'}</button></footer>
+        <footer class="send-bar"><div><strong>{selected.length>1&&isConnection?'Shared conversation':'Ready when you are'}</strong><span>{isConnection&&search.trim()?'Select a matching connection':canPublish?`To ${destination}`:isConnection?'Choose at least one recipient':'Choose a category with subscribers'}</span></div><button class="hail-button-secondary" type="submit" formaction="?/save" formnovalidate disabled={sending}>{saving?'Saving…':'Save as Draft'}</button><button class="hail-button" disabled={sending||!canPublish||(isConnection&&!!search.trim())||(!data.forward&&!text.trim())}>{sending&&!saving?'Sending…':data.forward?'Forward message':'Send message'}</button></footer>
       </div>
     </div>
   </form>

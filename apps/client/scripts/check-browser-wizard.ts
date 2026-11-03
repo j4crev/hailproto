@@ -128,6 +128,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     const id=path.split('/').at(-2)!;if(trashEnabled)trashed.set(id,new Date().toISOString());else deleted.add(id);
     return json({state:trashEnabled?'trashed':'deleted'});
   }
+  if(path==='/api/v1/account/drafts')return json({drafts:[],next:null});
   if(path==='/api/v1/account/trash')return json({messages:[incomingMessage(),connectionReply()].filter(m=>trashed.has(m.messageId)).map(m=>({...m,trashedAt:trashed.get(m.messageId)})),next:null});
   if(path==='/api/v1/account/trash/restore'){let restored=0;for(const m of input.messages)if(trashed.delete(m.messageId))restored++;return json({restored});}
   if(connectionIncoming&&(path===`/api/v1/account/inbox/${encodeURIComponent(peerDid)}/${connectionIncomingId}`||path===`/api/v1/account/inbox/${peerDid}/${connectionIncomingId}`))return json(connectionReply());
@@ -420,7 +421,7 @@ try{
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Signed-out feed overflows viewport");
   assert.equal(await evaluate(`!!document.querySelector('nav[aria-label="Main navigation"]') || !!document.querySelector('a[href="/compose"]')`),false,"Public home must not show private folders or compose");
   await narrowLayouts();await screenshot("home");
-  const privatePaths=["/trash","/categories","/account","/settings","/connections","/permissions","/settings/security","/sent?after=older","/compose","/?view=connections",`/sent/${incomingId}`,`/message/${encodeURIComponent(peerDid)}/${incomingId}`];
+  const privatePaths=["/drafts","/trash","/categories","/account","/settings","/connections","/permissions","/settings/security","/sent?after=older","/compose","/?view=connections",`/sent/${incomingId}`,`/message/${encodeURIComponent(peerDid)}/${incomingId}`];
   for(const path of privatePaths){
     const response=await fetch(origin+path,{redirect:"manual"});assert.equal(response.status,303);
     assert.equal(new URL(response.headers.get("location")!,origin).searchParams.get("next"),path);

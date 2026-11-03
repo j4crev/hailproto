@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DraftList from "$lib/DraftList.svelte";
   import MailboxCleanup from "$lib/MailboxCleanup.svelte";
   import {page} from "$app/state";
   import Icon from "$lib/Icon.svelte";
@@ -33,7 +34,7 @@
 </script>
 <svelte:head><title>Trash · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="trash-list min-w-0 pb-28 min-[901px]:pb-0" class:has-selection={selectedMessages.length>0}>
-  <MailboxCleanup folder="Trash" trashEnabled={data.trashEnabled} empty={!data.messages.length&&!data.sent.messages.length&&!data.paged&&!data.sentPaged} />
+  <MailboxCleanup folder="Trash" trashEnabled={data.trashEnabled} empty={!data.messages.length&&!data.sent.messages.length&&!data.paged&&!data.sentPaged&&!data.drafts.drafts.length&&!data.draftPaged} />
   {#if status}<p role="status">{status}</p>{/if}
   {#if data.messages.length}
     {#if selectedMessages.length}
@@ -50,7 +51,7 @@
         </MessageListRow>
       {/each}
     </section>
-  {:else if !data.sent.messages.length}<MailboxEmptyState icon="trash" title="Must be pickup day." />{/if}
+  {:else if !data.sent.messages.length&&!data.drafts.drafts.length}<MailboxEmptyState icon="trash" title="Must be pickup day." />{/if}
   {#if data.sent.messages.length}
     <section aria-label="Trashed sent messages" class="mt-6">
       <h2 class="text-sm text-muted">Sent messages</h2>
@@ -64,11 +65,13 @@
       {/each}
     </section>
   {/if}
+  {#if data.drafts.drafts.length}<section class="mt-6"><h2 class="text-sm text-muted">Drafts</h2><DraftList drafts={data.drafts.drafts} trash address={data.account.address}/></section>{/if}
+  {#if data.draftPaged||data.drafts.next}<nav class="mt-6 flex gap-3" aria-label="Trashed draft pages">{#if data.draftPaged}<a href="/trash">Newest drafts</a>{/if}{#if data.drafts.next}<a href={`/trash?draftAfter=${data.drafts.next}`}>Older drafts</a>{/if}</nav>{/if}
   {#if data.sentPaged||data.sent.next}<nav class="mt-6 flex gap-3" aria-label="Trashed sent pages">{#if data.sentPaged}<a href="/trash">Newest sent messages</a>{/if}{#if data.sent.next}<a href={`/trash?sentAfter=${encodeURIComponent(data.sent.next)}`}>Older sent messages</a>{/if}</nav>{/if}
   {#if data.paged||data.next}<nav class="mt-6 flex gap-3" aria-label="Trash pages">{#if data.paged}<a class="hail-button-secondary" href="/trash">Newest messages</a>{/if}{#if data.next}<a class="hail-button-secondary" href={`/trash?after=${encodeURIComponent(data.next)}`}>Older messages</a>{/if}</nav>{/if}
 </div>
 
 <style>
   .trashed-send { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; }
-  @media(max-width:900px) { .has-selection :global(.mobile-cleanup) { display:none; } .has-selection { padding-bottom:180px; } }
+  @media(max-width:900px) { .trash-list:has(:global(.selection-actions)) :global(.mobile-cleanup) { display:none; } .trash-list:has(:global(.selection-actions)) { padding-bottom:180px; } }
 </style>

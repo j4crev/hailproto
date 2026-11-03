@@ -1,6 +1,6 @@
 // Only account screens and connection review are post-login destinations, never auth or external URLs.
 export function isAccountPath(path: string): boolean {
-  return /^\/(?:trash|admin|account|categories|connections|compose|permissions|sent(?:\/[^/]+)?|message\/[^/]+\/[^/]+|settings(?:\/security)?)\/?$/.test(path);
+  return /^\/(?:drafts|trash|admin|account|categories|connections|compose|permissions|sent(?:\/[^/]+)?|message\/[^/]+\/[^/]+|settings(?:\/security)?)\/?$/.test(path);
 }
 
 export function returnPath(value: string | null): string {

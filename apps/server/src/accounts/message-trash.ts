@@ -30,6 +30,7 @@ export class MessageTrash {
       await tx`INSERT INTO account_message_preferences(account_id,trash_enabled) VALUES(${session.account_id},${enabled})
         ON CONFLICT(account_id) DO UPDATE SET trash_enabled=EXCLUDED.trash_enabled`;
       if(!enabled){
+        await tx`DELETE FROM account_message_drafts WHERE account_id=${session.account_id} AND trashed_at IS NOT NULL`;
         await tx`UPDATE account_sent_dispositions SET deleted=true WHERE account_id=${session.account_id} AND NOT deleted`;
         const removed=await tx<BodyReference[]>`DELETE FROM delivered_messages WHERE recipient_did=${session.did} AND trashed_at IS NOT NULL RETURNING sender_did,body_digest,media_type,profile`;
         await this.cleanBodies(tx as SQL,session.did,removed);
@@ -94,7 +95,8 @@ export class MessageTrash {
       const removed=await tx<BodyReference[]>`DELETE FROM delivered_messages WHERE recipient_did=${session.did} AND trashed_at IS NOT NULL RETURNING sender_did,body_digest,media_type,profile`;
       await this.cleanBodies(tx as SQL,session.did,removed);
       const sent=await tx`UPDATE account_sent_dispositions SET deleted=true WHERE account_id=${session.account_id} AND NOT deleted RETURNING send_id`;
-      return {deleted:removed.length+sent.length};
+      const drafts=await tx`DELETE FROM account_message_drafts WHERE account_id=${session.account_id} AND trashed_at IS NOT NULL RETURNING id`;
+      return {deleted:removed.length+sent.length+drafts.length};
     });
   }
   async clearSent(session:AccountApiSession,expectedTrashEnabled:unknown){
@@ -126,7 +128,8 @@ export class MessageTrash {
     const accounts=await this.sql<{id:string;did:string;generation:number}[]>`SELECT a.id,a.did,g.generation FROM provider_accounts a
       JOIN account_serving_generations g ON g.account_id=a.id WHERE a.onboarding_state='active'
       AND NOT EXISTS(SELECT 1 FROM provider_migration_fences f WHERE f.account_id=a.id)
-      AND EXISTS(SELECT 1 FROM delivered_messages m WHERE m.recipient_did=a.did AND m.trashed_at<=clock_timestamp()-interval '30 days')
+      AND (EXISTS(SELECT 1 FROM delivered_messages m WHERE m.recipient_did=a.did AND m.trashed_at<=clock_timestamp()-interval '30 days')
+        OR EXISTS(SELECT 1 FROM account_message_drafts d WHERE d.account_id=a.id AND d.trashed_at<=clock_timestamp()-interval '30 days'))
       ORDER BY a.id LIMIT 100`;
     let deleted=0;
     for(const account of accounts)await withServingGeneration(account.id,Number(account.generation),()=>this.sql.begin(async tx=>{
@@ -135,7 +138,8 @@ export class MessageTrash {
       const rows=await tx<BodyReference[]>`DELETE FROM delivered_messages WHERE (sender_did,message_id) IN
         (SELECT sender_did,message_id FROM delivered_messages WHERE recipient_did=${account.did}
           AND trashed_at<=clock_timestamp()-interval '30 days' ORDER BY trashed_at LIMIT 500) RETURNING sender_did,body_digest,media_type,profile`;
-      await this.cleanBodies(tx as SQL,account.did,rows);deleted+=rows.length;
+      const drafts=await tx`DELETE FROM account_message_drafts WHERE account_id=${account.id} AND trashed_at<=clock_timestamp()-interval '30 days' RETURNING id`;
+      await this.cleanBodies(tx as SQL,account.did,rows);deleted+=rows.length+drafts.length;
     }));
     await this.sql`SELECT hail_collect_received_blobs(500)`;
     return {deleted};

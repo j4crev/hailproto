@@ -1,0 +1,102 @@
+{
+  "valid": [
+    {
+      "name": "incomplete-category",
+      "content": {
+        "audience": "category",
+        "category": "",
+        "connections": [],
+        "title": "",
+        "text": "",
+        "alt": "",
+        "caption": "",
+        "allowReply": false,
+        "header": null,
+        "forward": null
+      }
+    },
+    {
+      "name": "forward-note",
+      "content": {
+        "audience": "connections",
+        "category": "",
+        "connections": [],
+        "title": "",
+        "text": "A note",
+        "alt": "",
+        "caption": "",
+        "allowReply": false,
+        "header": null,
+        "forward": {
+          "sender": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
+          "messageId": "019a0000-0000-7000-8000-000000000001"
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "connection-cover",
+      "content": {
+        "audience": "connections",
+        "category": "",
+        "connections": [],
+        "title": "",
+        "text": "",
+        "alt": "",
+        "caption": "",
+        "allowReply": false,
+        "header": "iVBORw0KGgo",
+        "forward": null
+      }
+    },
+    {
+      "name": "unknown-field",
+      "content": {
+        "audience": "category",
+        "category": "",
+        "connections": [],
+        "title": "",
+        "text": "",
+        "alt": "",
+        "caption": "",
+        "allowReply": false,
+        "header": null,
+        "forward": null,
+        "extra": true
+      }
+    },
+    {
+      "name": "utf8-title-budget",
+      "content": {
+        "audience": "category",
+        "category": "",
+        "connections": [],
+        "title": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+        "text": "",
+        "alt": "",
+        "caption": "",
+        "allowReply": false,
+        "header": null,
+        "forward": null
+      }
+    },
+    {
+      "name": "category-with-recipient",
+      "content": {
+        "audience": "category",
+        "category": "",
+        "connections": [
+          "019a0000-0000-7000-8000-000000000001"
+        ],
+        "title": "",
+        "text": "",
+        "alt": "",
+        "caption": "",
+        "allowReply": false,
+        "header": null,
+        "forward": null
+      }
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import {AccountDrafts} from "../src/accounts/drafts.js";
 import {assertCheckpointConformance} from "./support/account-history-conformance.js";
 import {collectConnectionHistory} from "../src/migration/connection-history.js";
 import {expect,it} from 'vitest';
@@ -51,7 +52,13 @@ it.skipIf(!process.env.DATABASE_URL)('delivers shared replies between non-connec
     }throw Error('Delivery queue did not drain');};
     const id=uuidV7(),targets=(await publications.connectionTargets(a.session)).connections;
     expect((await authority.targets(b.session)).map(t=>t.recipientDid)).toEqual([a.did]);
-    await withServingGeneration(a.id,1,()=>publications.createConnections(a.session,{publicationId:id,connections:targets.map(t=>t.connectionId),text:'Shared original'}));
+    const drafts=new AccountDrafts(db.sql),draftSession={...a.session,passkey_credential_id:'draft-device'};
+    await drafts.mutate(draftSession,id,'save',{revision:0,content:{audience:'connections',category:'',connections:targets.map(t=>t.connectionId),title:'',text:'Shared original',alt:'',caption:'',allowReply:false,header:null,forward:null}});
+    await expect(publications.createConnections(draftSession,{publicationId:id,connections:targets.map(t=>t.connectionId),text:'Shared original',draftRevision:2})).rejects.toThrow('Draft changed');
+    expect(await drafts.read(draftSession,id)).toMatchObject({revision:1});
+    await withServingGeneration(a.id,1,()=>publications.createConnections(draftSession,{publicationId:id,connections:targets.map(t=>t.connectionId),text:'Shared original',draftRevision:1}));
+    expect(await drafts.read(draftSession,id)).toBeNull();
+    await expect(drafts.mutate(draftSession,id,'save',{revision:0,content:{audience:'connections',category:'',connections:[],title:'',text:'',alt:'',caption:'',allowReply:false,header:null,forward:null}})).rejects.toThrow('already sent');
     // Compare server-side values too: Bun 1.4.0's SQL.array persisted literal
     // quote characters around DIDs, causing membership checks to reject them.
     const roster=(await db.sql<{participants:string[];creator_present:boolean}[]>`SELECT array_to_json(participants) AS participants,

@@ -166,3 +166,6 @@ all database state transitions have been revalidated.
 
 Reference-provider application policy: [mailbox cleanup](provider-mailbox.md)
 defines Sent/Trash cleanup, restore, retention and its separation from protocol evidence.
+[Saved drafts](provider-drafts.md) defines the current provider-local draft JSON
+format, device synchronization, revision checks and atomic publication consumption;
+it introduces no signed protocol version.

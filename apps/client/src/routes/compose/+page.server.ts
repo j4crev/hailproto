@@ -1,3 +1,5 @@
+import {parseDraft,draftIdPattern} from "@racrproto/client-support/drafts";
+import {draftForm} from "$lib/server/draft-form.js";
 import {forwardSource, forwardBody} from "$lib/forward.js";
 import { createHash } from "node:crypto";
 import { error,fail,isRedirect,redirect } from "@sveltejs/kit";
@@ -14,10 +16,14 @@ const CATEGORY=/^[a-z0-9][a-z0-9._-]{0,63}$/;
 
 export async function load({url,cookies}) {
   const oldMessage=url.searchParams.get("message");if(oldMessage&&UUID7.test(oldMessage))redirect(303,`/sent/${oldMessage}`);
-  const forwardSender=url.searchParams.get("forwardSender"),forwardMessage=url.searchParams.get("forwardMessage");
-  if((forwardSender||forwardMessage)&&(!forwardSender||!forwardMessage||!UUID7.test(forwardMessage)||url.searchParams.get("audience")!=="connections"))error(400,"Invalid forward source");
-  const kind=url.searchParams.get("audience")==="connections"?"connections":"category";
   const {account,client}=await canaryAccount(cookies,url);
+  const draftId=url.searchParams.get("draft");
+  if(draftId&&!draftIdPattern.test(draftId))error(400,"Invalid draft ID");
+  let draft=null;
+  if(draftId){try{draft=parseDraft(await client.request(`/drafts/${draftId}`));}catch{error(404,"Draft unavailable. It may have been sent, deleted, or changed on another device.");}}
+  const forwardSender=draft?.content.forward?.sender??url.searchParams.get("forwardSender"),forwardMessage=draft?.content.forward?.messageId??url.searchParams.get("forwardMessage");
+  if((forwardSender||forwardMessage)&&(!forwardSender||!forwardMessage||!UUID7.test(forwardMessage)||(draft?.content.audience??url.searchParams.get("audience"))!=="connections"))error(400,"Invalid forward source");
+  const kind=(draft?.content.audience??url.searchParams.get("audience"))==="connections"?"connections":"category";
   const [audiences,targets]=await Promise.all([
     client.request("/publications/audiences").then(publicationAudiences),
     kind==="connections"?client.request("/connection-messages/targets").then(connectionMessageTargets):{maxRecipients:100,connections:[]},
@@ -35,11 +41,20 @@ export async function load({url,cookies}) {
     try {forward=forwardSource(await client.request(`/inbox/${encodeURIComponent(forwardSender)}/${encodeURIComponent(forwardMessage)}`),{sender:forwardSender,messageId:forwardMessage});}
     catch {error(404,"Original message unavailable for forwarding");}
   }
-  return {forward,account,...audiences,connections:targets.connections,maxRecipients:kind==="connections"?targets.maxRecipients:audiences.maxRecipients,kind,status,newPublicationId:messageId(),
+  return {draft,forward,account,...audiences,connections:targets.connections,maxRecipients:kind==="connections"?targets.maxRecipients:audiences.maxRecipients,kind,status,newPublicationId:draft?.id??messageId(),
     defaultConnection:targets.connections.some(t=>t.connectionId===preferred)?preferred:null};
 }
 
-export const actions={publish:async({request,cookies,url})=>{
+export const actions={save:async({request,cookies,url})=>{
+  const {client}=await canaryAccount(cookies,url),form=await request.formData();
+  const id=form.get("publicationId"),revision=Number(form.get("draftRevision"));
+  if(typeof id!=="string"||!draftIdPattern.test(id)||!Number.isSafeInteger(revision)||revision<0)return fail(400,{error:"Invalid draft identity."});
+  try{
+    const content=await draftForm(form);
+    const savedDraft=parseDraft(await client.request(`/drafts/${id}/save`,{revision,content}));
+    return {savedDraft};
+  }catch(cause){return fail(cause instanceof AccountApiError&&cause.status===409?409:400,{error:cause instanceof AccountApiError?"Draft could not be saved. It may have changed on another device; reopen it from Drafts before trying again.":cause instanceof Error?cause.message:"Unable to save draft."});}
+},publish:async({request,cookies,url})=>{
   try {
     const {client}=await canaryAccount(cookies,url),form=await request.formData(),field=(name:string)=>{const value=form.get(name);return typeof value==="string"?value:"";};
     const id=field("publicationId"),category=field("category"),title=field("title"),text=field("text"),alt=field("alt"),caption=field("caption"),header=form.get("header"),allowReply=field("allowReply")==="yes";
@@ -47,20 +62,21 @@ export const actions={publish:async({request,cookies,url})=>{
     const forwardSender=field("forwardSender"),forwardMessage=field("forwardMessage"),forwarding=form.has("forwardSender")||form.has("forwardMessage");
     if(forwarding&&(kind!=="connections"||!forwardSender||!UUID7.test(forwardMessage)))return fail(400,{error:"Forwards can only be sent to connections."});
     const keys=[...form.keys()];
-    if(keys.some(key=>!["forwardSender","forwardMessage","publicationId","category","title","text","alt","caption","header","allowReply","audience","connection"].includes(key))||
+    if(keys.some(key=>!["draftRevision","savedHeader","forwardSender","forwardMessage","publicationId","category","title","text","alt","caption","header","allowReply","audience","connection"].includes(key))||
       new Set(keys.filter(k=>k!=="connection")).size!==keys.filter(k=>k!=="connection").length||
       !["","category","connections"].includes(field("audience"))||!UUID7.test(id)||(kind==="category"?!CATEGORY.test(category)||connections.length>0:connections.length<1||connections.length>100||connections.some(v=>typeof v!=="string"||!UUID7.test(v))||new Set(connections).size!==connections.length||form.has("category")||form.has("allowReply"))||
       (!forwarding&&!text.trim())||Buffer.byteLength(text)>65536||Buffer.byteLength(title)>128||
       Buffer.byteLength(alt)>1024||Buffer.byteLength(caption)>1024)
       return fail(400,{error:"Check the audience, title, and message text."});
-    const hasHeader=header instanceof File&&header.size>0;
+    const savedHeader=field("savedHeader");
+    const hasHeader=header instanceof File&&header.size>0||!!savedHeader;
     if(kind==="connections"&&hasHeader)return fail(400,{error:"Header images are available for subscriber publications only."});
     const blocks=composeBlocks(title.trim(),text.trim());
     let body:Record<string,unknown>={version:1,profile:"spt-2",blocks};
     if(!forwarding&&hasHeader){
-      if(!(header instanceof File)||header.type!=="image/png"||header.size>196608||!alt.trim())return fail(400,{error:"Choose a bounded PNG and provide image alt text."});
-      const data=new Uint8Array(await header.arrayBuffer());
-      if(data.length<24)return fail(400,{error:"The header is not a valid PNG."});
+      if((header instanceof File&&header.size>0&&(header.type!=="image/png"||header.size>196608))||!alt.trim()||savedHeader.length>262144)return fail(400,{error:"Choose a bounded PNG and provide image alt text."});
+      const data=header instanceof File&&header.size>0?new Uint8Array(await header.arrayBuffer()):new Uint8Array(Buffer.from(savedHeader,"base64url"));
+      if(data.length<24||data.length>196608||Buffer.from(data.subarray(0,8)).toString("hex")!=="89504e470d0a1a0a")return fail(400,{error:"The header is not a valid PNG."});
       const view=new DataView(data.buffer,data.byteOffset,data.byteLength),digest=new Uint8Array(createHash("sha256").update(data).digest());
       body={version:1,profile:"spt-3",assets:{version:1,assets:[{id:"header",role:"header",media_type:"image/png",loading:"bundled",
         size:data.length,digest:{algorithm:"sha-256",value:encodeBase64Url(digest)},width:view.getUint32(16),height:view.getUint32(20),data:encodeBase64Url(data)}]},
@@ -77,8 +93,8 @@ export const actions={publish:async({request,cookies,url})=>{
       } catch {return fail(400,{error:"This forward exceeds the supported message limits. Shorten your note; if it still fails, the original message is too large to forward."});}
     }
     try{
-      const result=publicationStatus(await client.request(kind==="connections"?"/connection-messages":"/publications",{publicationId:id,
-        ...(kind==="connections"?{connections,delivery:"shared"}:{category,allowReplies:allowReply}),body}),kind);
+      const result=publicationStatus(await client.request(kind==="connections"?"/connection-messages":"/publications",{publicationId:id,...(Number(field("draftRevision"))>0?{draftRevision:Number(field("draftRevision"))}:{}),
+        ...(kind==="connections"?{connections,delivery:connections.length>1?"shared":"private"}:{category,allowReplies:allowReply}),body}),kind);
       if(result.publicationId!==id)throw new Error("Provider acknowledged another publication");
     }catch{
       // A lost acceptance response must not cause another publication or another audience snapshot.

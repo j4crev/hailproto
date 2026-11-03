@@ -1,0 +1,133 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Provider draft content (current alpha)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "audience",
+    "category",
+    "connections",
+    "title",
+    "text",
+    "alt",
+    "caption",
+    "allowReply",
+    "header",
+    "forward"
+  ],
+  "properties": {
+    "audience": {
+      "enum": [
+        "category",
+        "connections"
+      ]
+    },
+    "category": {
+      "type": "string",
+      "pattern": "^$|^[a-z0-9][a-z0-9._-]{0,63}$"
+    },
+    "connections": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      }
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "At most 128 UTF-8 bytes; byte validation is additionally required."
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 65536,
+      "description": "At most 65536 UTF-8 bytes; byte validation is additionally required."
+    },
+    "alt": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "At most 1024 UTF-8 bytes; byte validation is additionally required."
+    },
+    "caption": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "At most 1024 UTF-8 bytes; byte validation is additionally required."
+    },
+    "allowReply": {
+      "type": "boolean"
+    },
+    "header": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "maxLength": 262144,
+          "pattern": "^iVBORw0KGgo[A-Za-z0-9_-]*$"
+        }
+      ]
+    },
+    "forward": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sender",
+            "messageId"
+          ],
+          "properties": {
+            "sender": {
+              "type": "string",
+              "pattern": "^did:plc:[a-z2-7]{24}$"
+            },
+            "messageId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "audience": {
+            "const": "category"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "connections": {
+            "maxItems": 0
+          },
+          "forward": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "category": {
+            "const": ""
+          },
+          "allowReply": {
+            "const": false
+          },
+          "header": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -23,6 +23,7 @@
   const navigation = [
     {href: "/", label: "Feed", icon: "feed"},
     {href: "/?view=connections", label: "Inbox", icon: "chat"},
+    {href: "/drafts", label: "Drafts", icon: "compose"},
     {href: "/sent", label: "Sent", icon: "sent"},
     {href: "/trash", label: "Trash", icon: "trash"},
     {href: "/permissions", label: "Subscriptions", icon: "people"},

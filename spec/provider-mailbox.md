@@ -15,7 +15,7 @@ owning account and never affect another account's mail.
 
 | POST path under `/api/v1/account` | Body | Result |
 | --- | --- | --- |
-| `/trash/empty` | `{}` | `{deleted: number}`; permanently removes all received Trash copies and makes all sent Trash copies non-restorable |
+| `/trash/empty` | `{}` | `{deleted: number}`; permanently removes all received copies and saved drafts in Trash, and makes all sent Trash copies non-restorable |
 | `/sent/clear` | `{trashEnabled: boolean}` | `{affected: number, state: "trashed" \| "deleted"}`; clears all eligible Sent items across every page |
 | `/sent/restore` | `{kind: "category" \| "connections" \| "message", messageId: UUIDv7}` | `{restored: number}`; restores one live sent Trash item to Sent |
 
@@ -38,7 +38,7 @@ active batch cannot be cleared separately. Cleanup does not change worker state.
 With Trash enabled, Sent copies become restorable for 30 days from the original
 removal time. Retrying cleanup cannot extend that deadline. Restore after expiry
 or permanent deletion returns zero. Disabling Trash immediately makes existing
-received and sent Trash non-restorable; future Sent cleanup deletes the mailbox
+received, sent and draft Trash non-restorable; future Sent cleanup deletes the mailbox
 copy permanently. Sent copies removed from the mailbox also disappear from its
 normal conversation views. Restoring a batch restores its constituent copies.
 
@@ -83,3 +83,7 @@ Confirmation states the whole-folder scope, permanence or 30-day restore period,
 and that active sends stay in Sent. It uses **Cancel** and **Confirm**. Empty
 folders disable the action. Successful cleanup refreshes the folder without a
 success banner; failures remain visible and retryable.
+
+[Saved drafts](provider-drafts.md) also participate in Trash. Emptying Trash,
+disabling Trash and expiration remove draft content permanently; restoration
+returns them to Drafts. Migration 0101 adds this provider-local compose storage.
