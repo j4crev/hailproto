@@ -27,7 +27,7 @@ export async function conversations(sql:SQL,session:AccountApiSession,messaging:
       WITH messages AS (
         SELECT sender_did AS peer,delivered_at AS at,(NOT is_read)::integer AS unread FROM delivered_messages
         WHERE recipient_did=${session.did} AND ((${trash}=false AND trashed_at IS NULL) OR (${trash}=true AND trashed_at>clock_timestamp()-interval '30 days'))
-        UNION ALL SELECT recipient_did,created_at,0 FROM sent_envelopes WHERE sender_account_id=${session.account_id} AND ${trash}=false
+        UNION ALL SELECT recipient_did,created_at,0 FROM sent_envelopes WHERE hail_sent_visible(sender_account_id,message_id) AND sender_account_id=${session.account_id} AND ${trash}=false
       ) SELECT peer,sum(unread)::integer AS unread,max(at) AS last_activity FROM messages
       WHERE (${after}::text IS NULL OR peer>${after}) GROUP BY peer ORDER BY peer LIMIT 51`;
     return {conversations:rows.slice(0,50).map(r=>({peer:r.peer,unread:r.unread,lastActivity:r.last_activity.toISOString()})),next:rows.length>50?rows[49]!.peer:null};
@@ -37,7 +37,7 @@ export async function conversations(sql:SQL,session:AccountApiSession,messaging:
   const rows=await sql<{sender:string;id:string}[]>`
     WITH messages AS (
       SELECT sender_did AS sender,message_id AS id FROM delivered_messages WHERE recipient_did=${session.did} AND sender_did=${peer} AND trashed_at IS NULL
-      UNION SELECT sender_did,message_id FROM sent_envelopes WHERE sender_account_id=${session.account_id} AND recipient_did=${peer}
+      UNION SELECT sender_did,message_id FROM sent_envelopes WHERE hail_sent_visible(sender_account_id,message_id) AND sender_account_id=${session.account_id} AND recipient_did=${peer}
     ) SELECT sender,id FROM messages WHERE (${after}::text IS NULL OR (id,sender)<(${cursor?.id??null}::uuid,${cursor?.sender??null}::text)) ORDER BY id DESC,sender DESC LIMIT 6`;
   return {peer,messages:await Promise.all(rows.slice(0,5).map(r=>r.sender===session.did?messaging.sentMessage(session,r.id):messaging.read(session,r.sender,r.id))),
     next:rows.length>5?Buffer.from(JSON.stringify(rows[4])).toString("base64url"):null,contentTrust:"untrusted"};

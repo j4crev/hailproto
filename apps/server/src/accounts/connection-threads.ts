@@ -45,7 +45,7 @@ export function groupConnectionMessages(nodes:ConnectionNode[]) {
 
 async function graph(sql:SQL,session:AccountApiSession) {
   const rows=await sql<{sender:string;message_id:string;recipient:string;sent:boolean;visible:boolean;is_read:boolean;at:Date;parent_sender:string|null;parent_id:string|null;batch:string|null;conversation_creator:string|null;conversation_id:string|null}[]>`
-    SELECT e.sender_did AS sender,e.message_id,e.recipient_did AS recipient,true AS sent,true AS visible,true AS is_read,e.created_at AS at,
+    SELECT e.sender_did AS sender,e.message_id,e.recipient_did AS recipient,true AS sent,hail_sent_visible(e.sender_account_id,e.message_id) AS visible,true AS is_read,e.created_at AS at,
       e.parent_sender,e.parent_message_id AS parent_id,t.publication_id::text AS batch,e.conversation_creator,e.conversation_id
     FROM sent_envelopes e LEFT JOIN connection_message_targets t ON t.account_id=e.sender_account_id AND t.message_id=e.message_id
     WHERE e.sender_account_id=${session.account_id} AND e.sender_did=${session.did} AND e.authorization_type IN ('connection','conversation')

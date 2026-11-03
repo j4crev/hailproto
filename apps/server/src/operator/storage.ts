@@ -20,7 +20,7 @@ export function storageCategory(name:string):CategoryId{
   if(["detached_bodies","verified_body_provenance","shared_content_blobs"].includes(name))return "content";
   if(["sent_envelopes","received_envelopes","delivered_messages","body_authorizations","delivery_work",
     "delivery_status_payloads","delivery_status_wrappers","terminal_status_publications","sent_delivery_status",
-    "reply_capabilities","account_message_preferences","account_publications","publication_targets",
+    "reply_capabilities","account_sent_dispositions","account_message_preferences","account_publications","publication_targets",
     "connection_message_batches","connection_message_targets"].includes(name))return "delivery";
   if(/migration|transfer|custody|cutover|^provider_retired_|^connection_(history_archives|import_handovers|handover_)/.test(name))return "migration";
   if(/^public_.*_(evidence|selection)$|^plc_operation_evidence$|^connection_proof_signatures$/.test(name))return "evidence";

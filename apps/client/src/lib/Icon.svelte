@@ -2,6 +2,7 @@
   let {name, size = 20}: {name: string; size?: number} = $props();
   const person = 'M20 21v-2a7 7 0 0 0-14 0v2 M17 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0';
   const paths: Record<string, string> = {
+    calendar: 'M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z M8 3v4 M16 3v4 M3 11h18',
     ellipsis: 'M5 12h.01 M12 12h.01 M19 12h.01',
     'arrow-left': 'M19 12H5 m7-7-7 7 7 7',
     'double-check': 'M18 6 7 17l-5-5 M22 6 11 17l-3-3',
@@ -16,6 +17,8 @@
     'bell-off': 'm3 3 18 18 M10.6 4.2A6 6 0 0 1 18 10v3 M6.3 6.3A6 6 0 0 0 6 10c0 7-3 7-3 7h14 M10 21h4',
     more: 'M12 5h.01 M12 12h.01 M12 19h.01',
     trash: 'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7',
+    'trash-delete': 'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M9 11l6 6 M15 11l-6 6',
+    'trash-down': 'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M12 10v8 m-3-3 3 3 3-3',
     restore: 'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M12 18v-8 m-3 3 3-3 3 3',
     sent: 'm3 11 18-8-8 18-3-8-7-2Z M10 13 21 3',
     people: person + ' M18.5 8l1.5 1.5 2.5-3',

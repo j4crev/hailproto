@@ -30,6 +30,7 @@ export class MessageTrash {
       await tx`INSERT INTO account_message_preferences(account_id,trash_enabled) VALUES(${session.account_id},${enabled})
         ON CONFLICT(account_id) DO UPDATE SET trash_enabled=EXCLUDED.trash_enabled`;
       if(!enabled){
+        await tx`UPDATE account_sent_dispositions SET deleted=true WHERE account_id=${session.account_id} AND NOT deleted`;
         const removed=await tx<BodyReference[]>`DELETE FROM delivered_messages WHERE recipient_did=${session.did} AND trashed_at IS NOT NULL RETURNING sender_did,body_digest,media_type,profile`;
         await this.cleanBodies(tx as SQL,session.did,removed);
       }
@@ -85,6 +86,40 @@ export class MessageTrash {
         restored+=rows.length;
       }
       return {restored};
+    });
+  }
+  async empty(session:AccountApiSession){
+    return this.sql.begin(async tx=>{
+      await this.lock(tx as SQL,session);
+      const removed=await tx<BodyReference[]>`DELETE FROM delivered_messages WHERE recipient_did=${session.did} AND trashed_at IS NOT NULL RETURNING sender_did,body_digest,media_type,profile`;
+      await this.cleanBodies(tx as SQL,session.did,removed);
+      const sent=await tx`UPDATE account_sent_dispositions SET deleted=true WHERE account_id=${session.account_id} AND NOT deleted RETURNING send_id`;
+      return {deleted:removed.length+sent.length};
+    });
+  }
+  async clearSent(session:AccountApiSession,expectedTrashEnabled:unknown){
+    if(typeof expectedTrashEnabled!=="boolean")throw new UserGrantError(400,"Invalid Trash preference");
+    return this.sql.begin(async tx=>{
+      await this.lock(tx as SQL,session);
+      const settings=await tx`SELECT trash_enabled FROM account_message_preferences WHERE account_id=${session.account_id}`;
+      const enabled=settings[0]?.trash_enabled!==false;
+      if(enabled!==expectedTrashEnabled)throw new UserGrantError(409,"Trash settings changed. Reload and try again.");
+      const removed=await tx`INSERT INTO account_sent_dispositions(account_id,kind,send_id,deleted)
+        SELECT item.account_id,item.kind,item.id,${!enabled} FROM account_sent_items item
+        WHERE item.account_id=${session.account_id} AND item.sender_did=${session.did}
+          AND EXISTS(SELECT 1 FROM account_sent_members m WHERE m.account_id=item.account_id AND m.kind=item.kind AND m.send_id=item.id AND m.submitted)
+          AND NOT EXISTS(SELECT 1 FROM account_sent_members m WHERE m.account_id=item.account_id AND m.kind=item.kind AND m.send_id=item.id AND m.completed IS NOT TRUE)
+        ON CONFLICT DO NOTHING RETURNING send_id`;
+      return {affected:removed.length,state:enabled?"trashed":"deleted"};
+    });
+  }
+  async restoreSent(session:AccountApiSession,kind:unknown,id:unknown){
+    if(typeof kind!=="string"||!["category","connections","message"].includes(kind)||typeof id!=="string"||!ID.test(id))throw new UserGrantError(400,"Invalid sent message");
+    return this.sql.begin(async tx=>{
+      await this.lock(tx as SQL,session);
+      const rows=await tx`DELETE FROM account_sent_dispositions WHERE account_id=${session.account_id} AND kind=${kind} AND send_id=${id}
+        AND NOT deleted AND trashed_at>clock_timestamp()-interval '30 days' RETURNING send_id`;
+      return {restored:rows.length};
     });
   }
   async purgeExpired(){

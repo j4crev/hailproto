@@ -297,7 +297,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           digest:encodeBase64Url(saved.digest),cose:encodeBase64Url(saved.cose),
           profile:toDiagnosticJson("hail.sender-profile",saved.payload)});
       }
-      if(["message-read","message-unread","trash","trash-restore","message-delete","message-purge","message-preferences"].includes(action??"")){
+      if(["message-read","message-unread","trash","trash-restore","trash-empty","sent-clear","sent-restore","message-delete","message-purge","message-preferences"].includes(action??"")){
         if(!messaging)return problem(503);
         const reading=method==="GET";
         if(!session.scopes.includes(reading?"messages:read":"messages:write"))return problem(403,"MISSING_SCOPE");
@@ -321,6 +321,18 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
             return context.json(await messaging.trash.saveSettings(session,input.trashEnabled));
           }
           return context.json(await messaging.trash.saveDisplaySettings(session,input));
+        }
+        if(action==="sent-clear"){
+          if(Object.keys(input).length!==1||!("trashEnabled" in input))return problem(400);
+          return context.json(await messaging.trash.clearSent(session,input.trashEnabled));
+        }
+        if(action==="sent-restore"){
+          if(Object.keys(input).length!==2||!("kind" in input)||!("messageId" in input))return problem(400);
+          return context.json(await messaging.trash.restoreSent(session,input.kind,input.messageId));
+        }
+        if(action==="trash-empty"){
+          if(Object.keys(input).length)return problem(400);
+          return context.json(await messaging.trash.empty(session));
         }
         if(action==="trash-restore"){
           if(Object.keys(input).length!==1||!("messages" in input))return problem(400);
@@ -363,15 +375,17 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           return found?context.json(found):problem(404);
         }
         if(action==="sent") {
-          if([...query.keys()].some(k=>!["after","include"].includes(k))||query.getAll("after").length>1||query.getAll("include").length>1||
+          if([...query.keys()].some(k=>!["after","include","trash"].includes(k))||query.getAll("after").length>1||query.getAll("include").length>1||query.getAll("trash").length>1||
             ![null,"body","sends"].includes(query.get("include")))return problem(400);
-          if(query.get("include")==="sends")return context.json(await messaging.sentSends(session,query.get("after")));
+          if(query.has("trash")&&(query.get("trash")!=="true"||query.get("include")!=="sends"))return problem(400);
+          if(query.get("include")==="sends")return context.json(await messaging.sentSends(session,query.get("after"),undefined,query.get("trash")==="true"));
           return context.json(query.get("include")==="body"?await messaging.sentFeed(session,query.get("after")):await messaging.sent(session,query.get("after")));
         }
         if(action==="sent-read") {
-          if([...query.keys()].some(k=>k!=="kind")||query.getAll("kind").length>1)return problem(400);
+          if([...query.keys()].some(k=>!["kind","trash"].includes(k))||query.getAll("trash").length>1||query.getAll("kind").length>1)return problem(400);
+          if(query.has("trash")&&(query.get("trash")!=="true"||!query.has("kind")))return problem(400);
           if(query.has("kind")){
-            const found=(await messaging.sentSends(session,null,{id:grantId!,kind:query.get("kind")!})).messages[0];
+            const found=(await messaging.sentSends(session,null,{id:grantId!,kind:query.get("kind")!},query.get("trash")==="true")).messages[0];
             return found?context.json(found):problem(404);
           }
           const found=await messaging.sentMessage(session,grantId!);return found?context.json(found):problem(404);
@@ -536,6 +550,9 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/connection-messages/:publicationId",context=>handle(context,context.req.param("publicationId"),"connection-message-status"));
   app.all("/api/v1/account/message-preferences",context=>handle(context,null,"message-preferences"));
   app.all("/api/v1/account/trash",context=>handle(context,null,"trash"));
+  app.all("/api/v1/account/trash/empty",context=>handle(context,null,"trash-empty"));
+  app.all("/api/v1/account/sent/clear",context=>handle(context,null,"sent-clear"));
+  app.all("/api/v1/account/sent/restore",context=>handle(context,null,"sent-restore"));
   app.all("/api/v1/account/trash/restore",context=>handle(context,null,"trash-restore"));
   app.all("/api/v1/account/inbox/:sender/:messageId/permanent-delete",context=>handle(context,context.req.param("messageId"),"message-purge"));
   app.all("/api/v1/account/inbox/:sender/:messageId/mark-read",context=>handle(context,context.req.param("messageId"),"message-read"));

@@ -200,8 +200,8 @@ export class AccountMessaging {
         sender:rows[PAGE_SIZE-1]!.sender_did})).toString("base64url"):null};
   }
 
-  sentSends(session:AccountApiSession,after:string|null,selection?:{id:string;kind:string}) {
-    return sentSends(this.sql,session,after,selection);
+  sentSends(session:AccountApiSession,after:string|null,selection?:{id:string;kind:string},trash=false) {
+    return sentSends(this.sql,session,after,selection,trash);
   }
 
   async sent(session:AccountApiSession,after:string|null) {
@@ -210,7 +210,7 @@ export class AccountMessaging {
       SELECT envelope.message_id,envelope.recipient_did,envelope.created_at,status.current_state,status.current_revision
       FROM sent_envelopes envelope LEFT JOIN sent_delivery_status status
         ON status.sender_did=envelope.sender_did AND status.message_id=envelope.message_id
-      WHERE envelope.sender_did=${session.did} AND (${after}::uuid IS NULL OR envelope.message_id<${after}::uuid)
+      WHERE envelope.sender_did=${session.did} AND hail_sent_visible(envelope.sender_account_id,envelope.message_id) AND (${after}::uuid IS NULL OR envelope.message_id<${after}::uuid)
       ORDER BY envelope.message_id DESC LIMIT 51`;
     return {messages:rows.slice(0,50).map(row=>({messageId:row.message_id,recipient:row.recipient_did,
       createdAt:row.created_at.toISOString(),state:row.current_state??"indeterminate",revision:row.current_revision})),
@@ -231,7 +231,7 @@ export class AccountMessaging {
         WHERE lineage.local_account_id=${session.account_id} AND lineage.local_role='grantor'
           AND lineage.grantee_did=envelope.recipient_did ORDER BY consent.revision DESC LIMIT 1
       ) presentation ON true
-      WHERE envelope.sender_did=${session.did} AND (${after}::uuid IS NULL OR envelope.message_id<${after}::uuid)
+      WHERE envelope.sender_did=${session.did} AND hail_sent_visible(envelope.sender_account_id,envelope.message_id) AND (${after}::uuid IS NULL OR envelope.message_id<${after}::uuid)
       ORDER BY envelope.message_id DESC LIMIT ${PAGE_SIZE+1}`;
     return {messages:await Promise.all(rows.slice(0,PAGE_SIZE).map(async row=>{const envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
       return {messageId:row.message_id,sender:session.did,recipient:row.recipient_did,recipientAddress:["connection","conversation"].includes(envelope.authorization.type)?await this.connectionAddress(session.account_id,row.recipient_did):row.recipient_address,
@@ -253,7 +253,7 @@ export class AccountMessaging {
         WHERE lineage.local_account_id=${session.account_id} AND lineage.local_role='grantor'
           AND lineage.grantee_did=envelope.recipient_did ORDER BY consent.revision DESC LIMIT 1
       ) presentation ON true
-      WHERE envelope.sender_did=${session.did} AND envelope.message_id=${id}`;
+      WHERE envelope.sender_did=${session.did} AND hail_sent_visible(envelope.sender_account_id,envelope.message_id) AND envelope.message_id=${id}`;
     if(!rows[0])return null;
     const row=rows[0],envelope=inspectSignedPayload("hail.envelope",row.envelope_cose).payload;
     return {messageId:id,sender:session.did,recipient:row.recipient_did,recipientAddress:["connection","conversation"].includes(envelope.authorization.type)?await this.connectionAddress(session.account_id,row.recipient_did):row.recipient_address,
