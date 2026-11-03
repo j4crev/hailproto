@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MessageBack from "$lib/MessageBack.svelte";
   import {page} from "$app/state";
   import {tick} from 'svelte';
   import {invalidate,invalidateAll} from '$app/navigation';
@@ -34,7 +35,7 @@
   let replyAll=$state(false),membershipSaving=$state(false);
   let revival=$state<{operationId:string;targets:{recipient:string;outcome:string}[]}|null>(null);
   async function revive(){
-    const shared=message?.sharedConversation;if(!shared?.canRevive)return;
+    const shared=message?.sharedConversation;if(!shared?.canRevive||shared.state!=='expired')return;
     membershipSaving=true;error='';
     try{revival=await connectionRequest('conversation-revive',{operationId:revival?.operationId??data.newRevivalId,conversationId:shared.conversationId});await invalidateAll();}
     catch(e){error=e instanceof Error?e.message:'Unable to revive this conversation.';}
@@ -62,7 +63,7 @@
     const actions=[];
     if(shared.state==='active')actions.push({label:'Leave conversation',icon:'logout',run:()=>{void membership('leave');}});
     if(shared.state==='left')actions.push({label:'Rejoin conversation',icon:'plus',run:()=>{void membership('rejoin');}});
-    if(shared.canRevive&&shared.state!=='left')actions.push({label:revival?'Refresh revival status':'Revive expired participation',icon:'chat',run:()=>{void revive();}});
+    if(shared.canRevive&&shared.state==='expired')actions.push({label:'Revive expired participation',icon:'chat',run:()=>{void revive();}});
     return actions;
   });
   let request=0;
@@ -115,23 +116,11 @@
     finally{paging=false;}
   }
   const conversationSubject=$derived(messageDisplayContent(data.message.blocks).title);
-  async function markedUnread(row:ConversationRow){
-    const key=conversationKey(row);
-    rows=rows.map(m=>conversationKey(m)===key?{...m,isRead:false}:m);
-    if(selected===key){
-      selected='';message=undefined;replyOpen=false;replyFailure={};
-      await tick();
-      const element=document.getElementById('row-'+row.messageId);
-      element?.querySelector<HTMLElement>('button.row-button')?.focus({preventScroll:true});
-      if(element&&(element.getBoundingClientRect().top<80||element.getBoundingClientRect().bottom>innerHeight))element.scrollIntoView({block:'nearest'});
-    }
-    await invalidate('hail:mailbox');
-  }
   const content=$derived(message?messageDisplayContent(message.blocks):null);
   async function reply(all=false){replyAll=all;replyOpen=true;await tick();replyInput?.focus();}
 </script>
 <svelte:head><title>{conversationSubject || 'Messages'} · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
-<a class="hail-back" href="/?view=connections">← Inbox</a>
+<MessageBack href="/?view=connections" label="Inbox" />
 <h1 class="hail-title conversation-subject" class:sr-only={!conversationSubject}>{conversationSubject || 'Messages'}</h1>
 {#if error}<p class="hail-error" role="alert">{error}</p>{/if}
 {#if replyFailure.error}<p class="hail-error" role="alert">{replyFailure.error}</p>{/if}
@@ -154,13 +143,13 @@
           {#if row.sent || row.senderAddress}<IdentityDetails did={row.sender} />{/if}
           {#if row.sent && !message.sharedConversation}<p class="recipients">To {row.recipients.map(r=>r.address??r.did).join(', ')}</p>{/if}
         </div>
-        <div class="message-tools">
+        <div class="message-tools mobile-message-actions" role="group" aria-label="Message actions">
 
             {#if message.sharedConversation}<button class="hail-icon-button compact" title="Reply all" aria-label="Reply all" aria-expanded={replyOpen&&replyAll} disabled={message.sharedConversation.state!=='active'||sending} onclick={()=>reply(true)}><Icon name="reply-all"/></button>{/if}
             {#if !row.sent}
               <button class="hail-icon-button compact" title="Reply privately" aria-label="Reply privately" disabled={!message.connection?.active||sending} aria-expanded={replyOpen&&!replyAll} onclick={()=>reply(false)}><Icon name="reply" /></button>
               <a class="hail-icon-button compact" title="Forward" aria-label="Forward" href={forwardHref(message as MessageView)}><Icon name="forward" /></a>
-              <MessageActions compact menu disabled={readPending||sending||membershipSaving} extraActions={conversationActions} messages={[message]} onmarkedunread={()=>markedUnread(row)} returnTo="/?view=connections" />
+              <MessageActions compact menu disabled={readPending||sending||membershipSaving} extraActions={conversationActions} messages={[message]} returnTo="/?view=connections" />
             {:else}<a class="text-xs text-muted" href={`/sent/${row.messageId}`}>Delivery details</a>{#if message.sharedConversation}<MessageActions compact menu disabled={sending||membershipSaving} messages={[]} extraActions={conversationActions}/>{/if}{/if}
         </div>
         {#if message.sharedConversation}
@@ -221,7 +210,6 @@
     .conversation-subject { margin-bottom:16px; }
     .expanded-date { font-size:11px; padding-top:4px; }
     .sender-identity { grid-column:2; grid-row:1; }
-    .message-tools { grid-column:2 / -1; grid-row:2; flex-direction:column; align-items:flex-end; }
     .expanded-body { padding:0 0 24px; }
   }
 </style>

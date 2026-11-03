@@ -2,6 +2,8 @@
   let {name, size = 20}: {name: string; size?: number} = $props();
   const person = 'M20 21v-2a7 7 0 0 0-14 0v2 M17 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0';
   const paths: Record<string, string> = {
+    ellipsis: 'M5 12h.01 M12 12h.01 M19 12h.01',
+    'arrow-left': 'M19 12H5 m7-7-7 7 7 7',
     'double-check': 'M18 6 7 17l-5-5 M22 6 11 17l-3-3',
     unread: 'M21 11v8H3V5h11 M3 5l9 7 4-3 M23 4a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
     feed: 'M4 5h16v14H4z M4 9h16 M8 13h8 M8 16h5',

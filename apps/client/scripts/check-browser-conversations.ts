@@ -71,15 +71,12 @@ if(!sharedMode)for(const width of [1440,390,320]){
  assert(await evaluate(`document.querySelector('.expanded').textContent.includes('maya@')`));
  assert.equal(await evaluate(`document.querySelectorAll('.expanded-body').length`),1);
  assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`));
- const openId=await evaluate(`document.querySelector('.expanded').id`),path=await evaluate('location.pathname');
  await evaluate(`document.querySelector('.expanded .action-menu summary').click()`);
  await evaluate(`Array.from(document.querySelectorAll('.expanded .menu-item')).find(b=>b.textContent.includes('Mark unread')).click()`);
- await wait(async()=>evaluate(`!document.querySelector('.expanded-body')`));
- await evaluate(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`);
- assert.equal(await evaluate('location.pathname'),path,'Mark unread stays in the conversation');
- assert.equal((await grouped()).messages[0].conversation.unreadCount,39,'Closed message remains unread');
- assert(await evaluate(`!document.getElementById(${JSON.stringify(openId)}).querySelector('.message-row').classList.contains('is-read')`));
- await evaluate(`document.getElementById(${JSON.stringify(openId)}).querySelector('button.row-button').click()`);
+ await wait(async()=>evaluate(`location.pathname==='/' && location.search==='?view=connections' && document.querySelectorAll('.message-row').length===2`));
+ assert.equal((await grouped()).messages[0].conversation.unreadCount,39,'Message remains unread after returning to Inbox');
+ assert(await evaluate(`document.querySelector('.message-row').textContent.includes('(39)')`));
+ await evaluate(`document.querySelector('.message-row .message-link').click()`);
  await wait(async()=> (await grouped()).messages[0].conversation.unreadCount===38);
  console.log('PASS: 40 unread replies load in bounded batches on scroll, with independent read state and sent original at '+width);
 }
@@ -99,20 +96,21 @@ if(sharedMode){
   assert(await evaluate(`document.querySelector('.participants').closest('.expanded-header')!==null`));
   for(const width of [320,390]){
     await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:true});
-    assert(await evaluate(`(()=>{const tools=document.querySelector('.message-tools');return Math.abs(tools.lastElementChild.getBoundingClientRect().right-tools.getBoundingClientRect().right)<1;})()`),'Mobile message actions align to the right at '+width);
-    assert(await evaluate(`(()=>{const identity=document.querySelector('.sender-identity').getBoundingClientRect(),tools=document.querySelector('.message-tools').getBoundingClientRect(),participants=document.querySelector('.participants').getBoundingClientRect();return tools.top>=identity.bottom && tools.top-identity.bottom<=5 && participants.top>=tools.bottom && participants.top-tools.bottom<=5;})()`),'Mobile identity, actions and participants have compact gaps at '+width);
+    assert(await evaluate(`(()=>{const tools=document.querySelector('.message-tools'),rect=tools.getBoundingClientRect();return getComputedStyle(tools).position==='fixed' && Math.abs((rect.left+rect.right)/2-innerWidth/2)<1 && rect.height===44;})()`),'Mobile message actions are centered in a compact floating bar at '+width);
     assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`));
     assert(await evaluate(`Math.abs(document.querySelector('.participants').getBoundingClientRect().left-document.querySelector('.sender-avatar').getBoundingClientRect().left)<1`),'Participants aligns with the avatar at '+width);
   }
-  assert(await evaluate(`document.querySelector('.participants').getBoundingClientRect().top>=document.querySelector('.message-tools').getBoundingClientRect().bottom`),'Participants occupies its own row below message actions');
+  assert(await evaluate(`document.querySelector('.participants').getBoundingClientRect().top>=document.querySelector('.sender-identity').getBoundingClientRect().bottom`),'Participants remains below the identity');
   await evaluate(`document.querySelector('.participants summary').click()`);
   assert(await evaluate(`document.querySelector('.participants').textContent.includes('maya@connections.example.com')`));
   assert(await evaluate(`${button('Reply all')}.querySelector('svg')!==null && ${button('Reply all')}.textContent.trim()===''`));
   await evaluate(`document.querySelector('[aria-label="More message actions"]').click()`);
   assert(await evaluate(`${button('Leave conversation')}.closest('details').open`));
+  assert(await evaluate(`!${button('Revive expired participation')}`),'Active participation has no revival action');
   await evaluate(`${button('Leave conversation')}.click()`);
   await wait(async()=>evaluate(`Boolean(${button('Rejoin conversation')})`));
   assert(await evaluate(`${button('Reply all')}.disabled`));
+  assert(await evaluate(`!${button('Revive expired participation')}`),'Left participation must rejoin instead of revive');
   await evaluate(`document.querySelector('[aria-label="More message actions"]').click()`);
   await evaluate(`${button('Rejoin conversation')}.click()`);
   await wait(async()=>evaluate(`Boolean(${button('Leave conversation')})`));
@@ -125,6 +123,7 @@ if(sharedMode){
   await wait(async()=>evaluate(`document.querySelector('[aria-label="Revival status"]')?.textContent.includes('renewed')`));
   await wait(async()=>evaluate(`${button('Reply all')}.disabled===false`));
   assert(await evaluate(`${button('Reply all')}.disabled===false`));
+  assert(await evaluate(`!${button('Revive expired participation')}`),'Successful revival removes the action');
   assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`));
   const own=(await(await fetch(origin+'/api/v1/account/sent')).json()).messages[0];
   await navigate(`/conversation/${encodeURIComponent(own.sender)}/${own.messageId}`,'Saturday at the market?');

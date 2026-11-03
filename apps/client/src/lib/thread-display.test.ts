@@ -12,7 +12,8 @@ it('renders quotes collapsed, preserves the response, and escapes content',()=>{
   const parsed=parseBody(replyBody(source,source,'My response'));
   const {body}=render(QuotedMessage,{props:parsed});
   expect(body).toContain('My response');
-  expect(body).toContain('Show quoted message');
+  expect(body).toContain('aria-label="Toggle quoted text"');
+  expect(body).not.toContain('Show quoted message');
   expect(body).toContain('&lt;script>');
   expect(body).not.toContain('<script>');
   expect(body).not.toMatch(/<details[^>]*\bopen/);

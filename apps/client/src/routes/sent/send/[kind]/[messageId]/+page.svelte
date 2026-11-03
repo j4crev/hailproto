@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MessageBack from "$lib/MessageBack.svelte";
   import {page} from "$app/state";
   import ForwardedPill from "$lib/ForwardedPill.svelte";
   import {forwardedAttribution, messageDisplayContent} from "$lib/messages.js";
@@ -11,7 +12,7 @@
 
 <svelte:head><title>{data.message.title} · Sent · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="mx-auto max-w-[800px]">
-<a class="hail-back" href="/sent">← Sent messages</a>
+<MessageBack href="/sent" label="Sent messages" />
 {#if content.title}<h1 class="reader-title">{content.title}</h1>{:else}<h1 class="sr-only">Sent message</h1>{/if}
 <article class="reader-panel overflow-hidden">
   <header class="border-0 border-b border-solid border-line pb-5 text-xs text-muted">{#if forwardedAttribution(data.message.blocks)}<div class="mb-3"><ForwardedPill /></div>{/if}{#if !forwardedAttribution(data.message.blocks) && data.message.kind === 'category' && data.message.category}
