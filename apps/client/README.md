@@ -3,8 +3,9 @@
 ## Verification
 
 PRs confined to this directory run web typechecking, unit tests, browser checks,
-and the provider/client image deployment smoke test. Shared library or provider
-changes can also select these checks. See [CI job ownership](../../agents/ci.md)
+and the provider/client image deployment smoke test. Standalone Go/Rust checks
+and provider/monitor database suites are skipped for web-only changes. Shared
+library or provider changes can also select these checks. See [CI job ownership](../../agents/ci.md)
 for the dependency map and full-suite escape hatch.
 
 After installing the repository's pinned dependencies and building the vendored
