@@ -3,11 +3,11 @@
   import {invalidateAll} from "$app/navigation";
   import {mailboxRequest} from "$lib/mailbox.js";
   let {data}=$props();
-  let confirmDisable=$state(false),saving=$state(false),trashStatus=$state("");
+  let confirmDisable=$state(false),saving=$state(false),trashError=$state("");
   async function saveTrash(enabled:boolean){
-    saving=true;trashStatus="";
-    try{await mailboxRequest("message-preferences",{trashEnabled:enabled});confirmDisable=false;await invalidateAll();trashStatus=enabled?"Trash enabled.":"Trash disabled. All messages in Trash were permanently deleted.";}
-    catch(e){trashStatus=e instanceof Error?e.message:"Unable to save Trash preference.";}finally{saving=false;}
+    saving=true;trashError="";
+    try{await mailboxRequest("message-preferences",{trashEnabled:enabled});confirmDisable=false;await invalidateAll();}
+    catch(e){trashError=e instanceof Error?e.message:"Unable to save Trash preference.";}finally{saving=false;}
   }
   import {onMount} from "svelte";
   import {showInboxHeaders, themePreference, syncAccountPreferences, saveAccountPreferences, type ThemePreference} from "$lib/preferences.js";
@@ -55,11 +55,25 @@
       <label class="flex cursor-pointer items-center justify-between gap-6" for="use-trash"><span class="grid gap-2"><strong class="text-sm">Use Trash</strong><span class="text-sm text-muted">Keep deleted messages for 30 days so you can restore them.</span></span><input id="use-trash" class="preference-switch" type="checkbox" role="switch" checked={data.trashEnabled} disabled={saving||!ready} onchange={event=>{const enabled=event.currentTarget.checked;event.currentTarget.checked=data.trashEnabled;if(enabled)void saveTrash(true);else confirmDisable=true;}} /></label>
     </div>
     {#if displayError}<p role="alert" class="m-0 text-sm">{displayError}</p>{/if}
-    {#if confirmDisable}<p class="m-0 text-sm">Disabling Trash immediately and permanently deletes everything already in Trash. Future deletions cannot be restored.</p><div class="flex flex-wrap gap-2"><button class="hail-button-secondary" disabled={saving||!ready} onclick={()=>saveTrash(false)}>Disable Trash and delete contents</button><button class="hail-button-secondary" disabled={saving||!ready} onclick={()=>confirmDisable=false}>Cancel</button></div>{/if}
-    {#if trashStatus}<p role="status" class="m-0 text-sm">{trashStatus}</p>{/if}
+    {#if confirmDisable}
+      <section class="trash-confirmation" aria-labelledby="disable-trash-title">
+        <h2 id="disable-trash-title" class="m-0 text-sm font-semibold">Disable Trash?</h2>
+        <p class="m-0 text-sm">Disabling Trash immediately and permanently deletes everything already in Trash. Future deletions cannot be restored.</p>
+        <div class="confirmation-actions">
+          <button class="hail-button-secondary" disabled={saving||!ready} onclick={()=>confirmDisable=false}>Cancel</button>
+          <button class="hail-button-secondary confirm-delete" disabled={saving||!ready} onclick={()=>saveTrash(false)}>Confirm</button>
+        </div>
+      </section>
+    {/if}
+    {#if trashError}<p role="alert" class="m-0 text-sm">{trashError}</p>{/if}
   </section>
 </div>
 <style>
+  .trash-confirmation { display:grid; gap:12px; padding:16px; border:1px solid var(--color-danger); border-radius:12px; background:var(--color-danger-soft); }
+  .confirmation-actions { display:flex; justify-content:flex-end; gap:8px; }
+  .confirmation-actions button { min-height:44px; }
+  .confirm-delete { color:var(--color-danger); border-color:var(--color-danger); }
+  @media(max-width:640px) { .confirmation-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } }
   .preference-switch { appearance:none; position:relative; flex-shrink:0; width:46px; height:28px; margin:0; border:1px solid var(--color-muted); border-radius:20px; background:var(--color-line); cursor:pointer; transition:background .15s; }
   .preference-switch::before { content:''; position:absolute; width:20px; height:20px; top:3px; left:3px; border-radius:50%; background:var(--color-surface); box-shadow:0 1px 3px #172b2d30; transition:transform .15s; }
   .preference-switch:checked { background:var(--color-brand); border-color:var(--color-brand); }

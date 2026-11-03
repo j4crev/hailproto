@@ -9,37 +9,20 @@ const PAGE_SIZE=5;
 
 // Publication identity, never body equality, defines a send. Keep the legacy
 // per-envelope APIs available for delivery diagnostics and submission retries.
-export async function sentSends(sql:SQL,session:AccountApiSession,after:string|null,selection?:{id:string;kind:string}) {
+export async function sentSends(sql:SQL,session:AccountApiSession,after:string|null,selection?:{id:string;kind:string},trash=false) {
   const [cursorId,cursorKind,...extra]=after?.split("/")??[];
   if(after!==null&&(!cursorId||!ID.test(cursorId)||!kinds.includes(cursorKind!)||extra.length)||
     selection&&(!ID.test(selection.id)||!kinds.includes(selection.kind)))throw new UserGrantError(400,"Invalid sent message selection");
-  const rows=await sql<{id:string;kind:string;category:string|null;created_at:Date;body_bytes:Uint8Array}[]>`
-    WITH sends AS (
-      SELECT id,'category'::text AS kind,category,created_at,body_bytes
-      FROM account_publications WHERE account_id=${session.account_id} AND sender_did=${session.did} AND sealed
-        AND EXISTS (SELECT 1 FROM publication_targets target JOIN sent_envelopes envelope
-          ON envelope.sender_account_id=target.account_id AND envelope.message_id=target.message_id
-          WHERE target.account_id=account_publications.account_id AND target.publication_id=account_publications.id)
-      UNION ALL
-      SELECT id,'connections',NULL::text,created_at,body_bytes
-      FROM connection_message_batches WHERE account_id=${session.account_id} AND sender_did=${session.did} AND sealed
-        AND EXISTS (SELECT 1 FROM connection_message_targets target JOIN sent_envelopes envelope
-          ON envelope.sender_account_id=target.account_id AND envelope.message_id=target.message_id
-          WHERE target.account_id=connection_message_batches.account_id AND target.publication_id=connection_message_batches.id)
-      UNION ALL
-      SELECT envelope.message_id,'message',NULL::text,envelope.created_at,body.body_bytes
-      FROM sent_envelopes envelope JOIN detached_bodies body
-        ON body.sender_account_id=envelope.sender_account_id AND body.digest=envelope.body_digest
-      WHERE envelope.sender_account_id=${session.account_id} AND envelope.sender_did=${session.did}
-        AND NOT EXISTS (SELECT 1 FROM publication_targets target
-          WHERE target.account_id=envelope.sender_account_id AND target.message_id=envelope.message_id)
-        AND NOT EXISTS (SELECT 1 FROM connection_message_targets target
-          WHERE target.account_id=envelope.sender_account_id AND target.message_id=envelope.message_id)
-    )
-    SELECT * FROM sends
-    WHERE (${cursorId??null}::uuid IS NULL OR (id,kind)<(${cursorId??null}::uuid,${cursorKind??null}::text))
-      AND (${selection?.id??null}::uuid IS NULL OR (id=${selection?.id??null}::uuid AND kind=${selection?.kind??null}))
-    ORDER BY id DESC,kind DESC LIMIT ${PAGE_SIZE+1}`;
+  const rows=await sql<{id:string;kind:string;category:string|null;created_at:Date;body_bytes:Uint8Array;trashed_at:Date|null}[]>`
+    SELECT item.id,item.kind,item.category,item.created_at,item.body_bytes,d.trashed_at
+    FROM account_sent_items item LEFT JOIN account_sent_dispositions d
+      ON d.account_id=item.account_id AND d.kind=item.kind AND d.send_id=item.id
+    WHERE item.account_id=${session.account_id} AND item.sender_did=${session.did}
+      AND EXISTS(SELECT 1 FROM account_sent_members m WHERE m.account_id=item.account_id AND m.kind=item.kind AND m.send_id=item.id AND m.submitted)
+      AND ((${trash}=false AND d.send_id IS NULL) OR (${trash}=true AND NOT d.deleted AND d.trashed_at>clock_timestamp()-interval '30 days'))
+      AND (${cursorId??null}::uuid IS NULL OR (item.id,item.kind)<(${cursorId??null}::uuid,${cursorKind??null}::text))
+      AND (${selection?.id??null}::uuid IS NULL OR (item.id=${selection?.id??null}::uuid AND item.kind=${selection?.kind??null}))
+    ORDER BY item.id DESC,item.kind DESC LIMIT ${PAGE_SIZE+1}`;
   const page=rows.slice(0,PAGE_SIZE);
   const connectionIds=page.filter(row=>row.kind==="connections").map(row=>row.id);
   const messageIds=page.filter(row=>row.kind==="message").map(row=>row.id);
@@ -73,6 +56,6 @@ export async function sentSends(sql:SQL,session:AccountApiSession,after:string|n
       ORDER BY target.recipient_did`
     : undefined;
   return {messages:page.map(row=>({messageId:row.id,kind:row.kind,category:row.category,
-    createdAt:row.created_at.toISOString(),body:bodyDocument(row.body_bytes),...(summaryById.has(`${row.kind}/${row.id}`)?{recipientSummary:summaryById.get(`${row.kind}/${row.id}`)}:{}),...(recipients ? {recipients} : {})})),
+    createdAt:row.created_at.toISOString(),trashedAt:row.trashed_at?.toISOString()??null,body:bodyDocument(row.body_bytes),...(summaryById.has(`${row.kind}/${row.id}`)?{recipientSummary:summaryById.get(`${row.kind}/${row.id}`)}:{}),...(recipients ? {recipients} : {})})),
     next:rows.length>PAGE_SIZE?`${rows[PAGE_SIZE-1]!.id}/${rows[PAGE_SIZE-1]!.kind}`:null};
 }

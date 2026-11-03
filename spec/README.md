@@ -163,3 +163,6 @@ Remaining issues, not resolved by these fixes or passing conformance vectors:
 This audit checks specification consistency against repository source and selected
 tests. It is not a full security review, a production exercise, or a claim that
 all database state transitions have been revalidated.
+
+Reference-provider application policy: [mailbox cleanup](provider-mailbox.md)
+defines Sent/Trash cleanup, restore, retention and its separation from protocol evidence.

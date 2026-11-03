@@ -22,7 +22,7 @@ await wait(async()=>{try{return (await fetch(origin+'/?view=connections')).ok;}c
 
 async function navigate(path:string,title:string){
  await cdp('Page.navigate',{url:origin+path});
- await wait(async()=>evaluate(`document.querySelector('main h1')?.textContent===${JSON.stringify(title)} && document.readyState==='complete' && getComputedStyle(document.body).fontFamily.includes('Inter')`));
+ await wait(async()=>evaluate(`(${JSON.stringify(path)}.startsWith('/compose')?!!document.querySelector('form.compose-layout'):document.querySelector('main h1')?.textContent===${JSON.stringify(title)}) && document.readyState==='complete' && getComputedStyle(document.body).fontFamily.includes('Inter')`));
  await evaluate('document.fonts.ready');
 }
 
@@ -51,6 +51,11 @@ if(!sharedMode)for(const width of [1440,390,320]){
  assert(await evaluate(`document.querySelector('main h1').textContent==='Saturday at the market?' && !document.querySelector('.conversation-item .message-subject') && !document.querySelector('.different-subject')`),'The shared subject appears once, without a Conversation heading');
  assert(await evaluate(`Math.abs(document.querySelector('.reading-body').getBoundingClientRect().left-document.querySelector('.expanded-header').getBoundingClientRect().left)<14`),'Reading column is aligned to the left');
 
+ await evaluate(`document.querySelector('.message-details summary').click()`);
+ assert.equal(await evaluate(`document.querySelector('.message-details time').dateTime`),new Date(oldest.deliveredAt).toISOString(),'Details uses the received timestamp');
+ assert(await evaluate(`document.querySelector('.message-details time').textContent===new Intl.DateTimeFormat(undefined,{dateStyle:'long',timeStyle:'long'}).format(new Date(${JSON.stringify(oldest.deliveredAt)}))`),'Timestamp includes seconds and timezone');
+ assert(await evaluate(`!document.querySelector('.message-details ul')`),'Direct messages have no participant list');
+ assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'Expanded details fit the viewport');
  assert.equal(await evaluate(`document.querySelector('.expanded-header').textContent.split(${JSON.stringify(oldest.senderAddress)}).length-1`),1,'Sender address appears once');
  const originalTitle=await evaluate(`document.querySelector('.conversation-subject').textContent`);
  await evaluate(`document.querySelector('.conversation-subject').textContent='Saturday at the market — planning our morning together, choosing a meeting place, and everything we should bring along for a picnic afterward'`);
@@ -93,16 +98,20 @@ if(sharedMode){
   assert.equal(await evaluate(`document.querySelector('form.reply-form label').textContent.trim()`),'Reply to everyone');
   await evaluate(`${button('Cancel')}.click()`);
   assert(await evaluate(`!document.querySelector('[aria-label="Shared conversation"]')`));
-  assert(await evaluate(`document.querySelector('.participants').closest('.expanded-header')!==null`));
+  assert(await evaluate(`document.querySelector('.message-details').closest('.expanded-header')!==null`));
   for(const width of [320,390]){
     await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:true});
     assert(await evaluate(`(()=>{const tools=document.querySelector('.message-tools'),rect=tools.getBoundingClientRect();return getComputedStyle(tools).position==='fixed' && Math.abs((rect.left+rect.right)/2-innerWidth/2)<1 && rect.height===44;})()`),'Mobile message actions are centered in a compact floating bar at '+width);
     assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`));
-    assert(await evaluate(`Math.abs(document.querySelector('.participants').getBoundingClientRect().left-document.querySelector('.sender-avatar').getBoundingClientRect().left)<1`),'Participants aligns with the avatar at '+width);
+    assert(await evaluate(`Math.abs(document.querySelector('.message-details').getBoundingClientRect().left-document.querySelector('.sender-identity').getBoundingClientRect().left)<1`),'Details aligns with the sender identity at '+width);
   }
-  assert(await evaluate(`document.querySelector('.participants').getBoundingClientRect().top>=document.querySelector('.sender-identity').getBoundingClientRect().bottom`),'Participants remains below the identity');
-  await evaluate(`document.querySelector('.participants summary').click()`);
-  assert(await evaluate(`document.querySelector('.participants').textContent.includes('maya@connections.example.com')`));
+  assert(await evaluate(`document.querySelector('.message-details').getBoundingClientRect().top>=document.querySelector('.sender-identity').getBoundingClientRect().bottom`),'Details remains below the identity');
+  await evaluate(`document.querySelector('.message-details summary').click()`);
+  assert(await evaluate(`document.querySelector('.message-details').textContent.includes('maya@connections.example.com')`));
+  assert(await evaluate(`document.querySelectorAll('.message-details .detail-row > svg').length===2 && !document.querySelector('.message-details details')`),'Timestamp and participants have small icons with no nested disclosure');
+  assert(await evaluate(`document.querySelector('.message-details ul').getBoundingClientRect().top>document.querySelector('.message-details time').getBoundingClientRect().top`),'Participants appear below the timestamp');
+  assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'Expanded group details fit the viewport');
+
   assert(await evaluate(`${button('Reply all')}.querySelector('svg')!==null && ${button('Reply all')}.textContent.trim()===''`));
   await evaluate(`document.querySelector('[aria-label="More message actions"]').click()`);
   assert(await evaluate(`${button('Leave conversation')}.closest('details').open`));
@@ -130,15 +139,13 @@ if(sharedMode){
   await wait(async()=>evaluate(`Boolean(${button('Reply all')})`));
   await evaluate(`${button('Reply all')}.click()`);
   await wait(async()=>evaluate(`document.querySelector('form.reply-form')?.action.endsWith('?/replyAll')`));
-  await navigate('/compose?audience=connections','Send a message');
-  await evaluate(`document.querySelectorAll('input[name="connection"]').forEach(input=>input.click())`);
-  await wait(async()=>evaluate(`Boolean(document.querySelector('select[name="delivery"]'))`));
-  assert.equal(await evaluate(`document.querySelector('select[name="delivery"]').value`),'shared');
-  assert(await evaluate(`Array.from(document.querySelector('select[name="delivery"]').options).some(o=>o.value==='private')`));
-  await evaluate(`(()=>{const select=document.querySelector('select[name="delivery"]');select.value='private';select.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('input[name="connection"]').click();})()`);
-  await wait(async()=>evaluate(`!document.querySelector('select[name="delivery"]')`));
-  await evaluate(`document.querySelector('input[name="connection"]').click()`);
-  await wait(async()=>evaluate(`document.querySelector('select[name="delivery"]')?.value==='private'`));
+  await navigate('/compose?audience=connections','Start a conversation.');
+  await evaluate(`document.querySelector('#recipient-search').focus();document.querySelector('.recipient-option').click()`);
+  await wait(async()=>evaluate(`document.querySelectorAll('.recipient-chip').length===1`));
+  await evaluate(`document.querySelector('.recipient-option').click()`);
+  await wait(async()=>evaluate(`document.querySelectorAll('.recipient-chip').length===2`));
+  assert(await evaluate(`!document.querySelector('input[name="delivery"]')`));
+  assert(await evaluate(`document.querySelector('.recipient-suggestions').hidden`));
   console.log('PASS: shared default, non-connection Reply all, leave/rejoin, creator revival and mobile layout');
 }
 }finally{socket?.close();chrome.kill();fixture.kill();await Promise.all([chrome.exited,fixture.exited]);await rm(work,{recursive:true,force:true});}

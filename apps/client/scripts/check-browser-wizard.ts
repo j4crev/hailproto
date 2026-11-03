@@ -97,12 +97,12 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     {connectionId:fixtureConnectionId,recipientDid:peerDid,epoch:1,address:peerAddress},{connectionId:otherConnectionId,recipientDid:otherConnectionDid,epoch:1,address:'other@peer.example.com'}]:[]});
   if(path==='/api/v1/account/connection-messages'){
     if(request.method==='GET')return json({publications:connectionMessageIntent?[{publicationId:connectionMessageIntent.publicationId,category:null,createdAt:new Date().toISOString(),pending:connectionMessageReads<2}]:[]});
-    assert(personalConnection);assert.deepEqual(Object.keys(input).sort(),['connections','delivery','publicationId','text']);assert.equal(input.delivery,'private');
+    assert(personalConnection);assert.deepEqual(Object.keys(input).sort(),['body','connections','delivery','publicationId']);assert.equal(input.delivery,'shared');
     assert.deepEqual([...input.connections].sort(),[fixtureConnectionId,otherConnectionId].sort());
     if(connectionMessageIntent){assert.deepEqual(input,connectionMessageIntent);return json(connectionMessageResult(),202);}
     connectionMessageIntent=input;
     for(const [recipient,address] of [[peerDid,peerAddress],[otherConnectionDid,'other@peer.example.com']])connectionSent.push({messageId:uuidV7(),sender:did,recipient,recipientAddress:address,
-      category:null,kind:'connection',createdAt:new Date().toISOString(),state:'delivered',revision:2,reason:null,retryAt:null,body:textBody(input.text)});
+      category:null,kind:'connection',createdAt:new Date().toISOString(),state:'delivered',revision:2,reason:null,retryAt:null,body:input.body});
     if(loseConnectionAcceptance){loseConnectionAcceptance=false;return json({error:'Simulated lost acceptance response'},503);}
     return json(connectionMessageResult(),202);
   }
@@ -222,7 +222,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     ...(replied?[{...replied,kind:"message",recipientSummary:{count:1,address:replied.recipientAddress,did:replied.recipient}}]:[])
   ];
   const sentQuery=new URL(request.url).searchParams;
-  if(path==="/api/v1/account/sent"&&sentQuery.get("include")==="sends")return json({messages:sentSends,next:null});
+  if(path==="/api/v1/account/sent"&&sentQuery.get("include")==="sends")return json({messages:sentQuery.get("trash")==="true"?[]:sentSends,next:null});
   if(path.startsWith("/api/v1/account/sent/")&&sentQuery.has("kind")){
     const send=sentSends.find(message=>message.messageId===path.split('/').at(-1)&&message.kind===sentQuery.get("kind"));
     return send?json(send):json({},404);
@@ -384,13 +384,18 @@ try{
   const selectedAudience=async(label:string)=>{
     await evaluate('document.activeElement?.blur()');
     assert.equal(await evaluate(`document.querySelector('[aria-label="Compose audience"] [aria-current="page"]').textContent`),label);
-    assert.deepEqual(await styles('[aria-label="Compose audience"] [aria-current="page"]',["backgroundColor","color"]),["rgb(18, 115, 101)","rgb(255, 255, 255)"]);
-    assert.deepEqual(await styles('[aria-label="Compose audience"] a:not([aria-current])',["backgroundColor"]),["rgb(255, 255, 255)"]);
+    assert.deepEqual(await styles('[aria-label="Compose audience"] [aria-current="page"]',["backgroundColor","color"]),["rgb(255, 255, 255)","rgb(20, 92, 80)"]);
+    assert.deepEqual(await styles('[aria-label="Compose audience"] a:not([aria-current])',["backgroundColor"]),["rgba(0, 0, 0, 0)"]);
   };
   const screenshot=async(name:string)=>{if(!process.env.HAIL_WIZARD_SCREENSHOTS)return;await mkdir(process.env.HAIL_WIZARD_SCREENSHOTS,{recursive:true});const shot=await cdp("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});await writeFile(join(process.env.HAIL_WIZARD_SCREENSHOTS,`${process.env.HAIL_WIZARD_MOBILE==='true'?'mobile':'desktop'}-${name}.png`),Buffer.from(shot.data,"base64"));};
   const escape=async()=>{await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});};
   const pointer=async(x:number,y:number)=>{await cdp("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,x,y});await cdp("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,x,y});};
-  const openAccount=async()=>{await evaluate(`(()=>{const b=[...document.querySelectorAll('[aria-label="Open account menu"]')].find(b=>b.checkVisibility());b.focus();b.click();})()`);await wait(async()=>evaluate(`!!document.querySelector('[popover]:popover-open')`),"avatar opens account menu");};
+  const openAccount=async()=>{
+    if(process.env.HAIL_WIZARD_MOBILE==='true'&&!await evaluate(`document.querySelector('dialog')?.open`)){
+      await evaluate(`document.querySelector('[aria-label="Open navigation"]').click()`);
+      await wait(async()=>evaluate(`document.querySelector('dialog').open`),'open navigation for account menu');
+    }
+    await evaluate(`(()=>{const b=[...document.querySelectorAll('[aria-label="Open account menu"]')].find(b=>b.checkVisibility());b.focus();b.click();})()`);await wait(async()=>evaluate(`!!document.querySelector('[popover]:popover-open')`),"avatar opens account menu");};
   const accountNavigation=async()=>assert(await evaluate(`Array.from(document.querySelectorAll('a[href="/account"], a[href="/settings"], a[href="/settings/security"]')).every(a=>a.closest('nav[aria-label="Account menu"]'))`),"Account destinations belong only in the profile menu");
   const narrowLayouts=async()=>{
     if(process.env.HAIL_WIZARD_MOBILE!=="true")return;
@@ -534,13 +539,16 @@ try{
     assert(await evaluate(`getComputedStyle(document.querySelector('.sidebar')).display==='none' && !document.querySelector('dialog').open`),"Mobile sidebar starts closed");
     await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click()`);
     await wait(async()=>evaluate(`document.querySelector('dialog').open`),"mobile drawer opens");
-    assert(await evaluate(`Array.from(document.querySelectorAll('dialog nav a')).every(a=>a.getBoundingClientRect().right<=innerWidth && a.getBoundingClientRect().height>=44)`),"Drawer links are touch-sized and fit");
+    assert(await evaluate(`(()=>{const links=Array.from(document.querySelectorAll('dialog nav a')).filter(a=>a.checkVisibility());return links.length>0&&links.every(a=>a.getBoundingClientRect().right<=innerWidth&&a.getBoundingClientRect().height>=44);})()`),"Drawer links are touch-sized and fit");
     assert(await evaluate(`document.body.style.overflow==='hidden'`),"Drawer locks background scrolling");
     for(let i=0;i<16;i++){await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:"Tab",code:"Tab",windowsVirtualKeyCode:9});await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:"Tab",code:"Tab",windowsVirtualKeyCode:9});assert(await evaluate(`document.querySelector('dialog').contains(document.activeElement)||document.activeElement===document.body`),"Modal keeps keyboard focus out of the background");}
     await screenshot("navigation");await escape();
     await wait(async()=>evaluate(`!document.querySelector('dialog').open`),"Escape closes drawer");
     assert(await evaluate(`document.activeElement?.getAttribute('aria-label')==='Open navigation'`),"Drawer restores focus to trigger");
-    await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click()`);await pointer(380,200);
+    await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click()`);
+    await wait(async()=>evaluate(`document.querySelector('dialog').open`),'drawer reopens');
+    const backdrop=await evaluate(`({x:innerWidth/2,y:document.querySelector('dialog').getBoundingClientRect().top/2})`);
+    await pointer(backdrop.x,backdrop.y);
     await wait(async()=>evaluate(`!document.querySelector('dialog').open`),"Outside click closes drawer");
     await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click();document.querySelector('dialog a[href="/sent"]').click()`);
     await wait(async()=>evaluate(`location.pathname==='/sent'&&!document.querySelector('dialog').open`),"Drawer closes after navigation");
@@ -563,7 +571,7 @@ try{
   await screenshot("messages-empty");
   if(process.env.HAIL_WIZARD_MOBILE==='true'){
     await evaluate(`document.querySelector('.mobile-compose').click()`);
-    await wait(()=>has('Send a message'),'Inbox FAB opens connection composer');
+    await wait(()=>evaluate("!!document.querySelector('#recipient-search')"),'Inbox FAB opens connection composer');
     assert(await evaluate(`!document.querySelector('.mobile-compose')`));
     await navigateInboxView('/?view=connections');await wait(async()=>evaluate(`document.querySelector('main h1')?.textContent==='Inbox'`),'back to Inbox');
   }
@@ -576,7 +584,7 @@ try{
   await screenshot("feed-empty");
   if(process.env.HAIL_WIZARD_MOBILE==='true'){
     await evaluate(`document.querySelector('.mobile-compose').click()`);
-    await wait(()=>has('Send a hail'),'Feed FAB opens subscriber composer');
+    await wait(()=>evaluate("!!document.querySelector('#category-search')"),'Feed FAB opens subscriber composer');
     assert(await evaluate(`!document.querySelector('.mobile-compose')`));
     await navigateInboxView('/');await wait(async()=>evaluate(`document.querySelector('main h1')?.textContent==='Feed'`),'back to Feed');
   }
@@ -794,42 +802,47 @@ try{
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Opening a QR must not prepare or approve a permission");
   await click("Continue");await wait(()=>has("Test sender"),"QR and typed address share the same review");
-  await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>has("Send a hail"),"publisher styling");
+  await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>evaluate("!!document.querySelector('#category-search')"),"publisher styling");
   await selectedAudience("Subscribers");
-  assert.deepEqual(await styles("form[enctype] label",["display","fontWeight"]),["grid","600"]);
-  assert.deepEqual(await styles("fieldset label",["display","gap"]),["flex","8px"]);
-  assert.deepEqual(await styles("fieldset input",["width"]),["13px"]);
   assert.deepEqual(await styles('[aria-label="Bold"]',["backgroundColor","paddingTop","borderTopWidth"]),["rgba(0, 0, 0, 0)","8px","0px"]);
   assert(await evaluate(`document.querySelector('#compose-preview').hidden`),'Composer starts with full writing space');
-  await click('Show preview');
+  await click('Preview');
   assert(await evaluate(`!document.querySelector('#compose-preview').hidden`),'Preview toggle exposes the safe renderer');
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Composer overflows viewport");
+  await click('Back to writing');
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='A clear message';e.dispatchEvent(new Event('input',{bubbles:true}));e.setSelectionRange(2,7);})()`);
   await evaluate(`document.querySelector('[aria-label="Bold"]').click()`);
+  await click('Preview');
   await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] span[class*="font-[750]"]')?.textContent==='clear'`),"formatting stays visible in preview");
   for(const [button,selector] of [["Heading","h2"],["Quote","blockquote"],["Bullets","ul li"],["Numbered list","ol li"]]){
-    await click(button);await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] ${selector}')?.textContent==='A clear message'`),"block toolbar: "+button);
+    await click('Back to writing');await click(button);await click('Preview');await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] ${selector}')?.textContent==='A clear message'`),"block toolbar: "+button);
   }
-  await evaluate(`document.querySelector('input[type=radio][value=plain]').click()`);
-  await wait(async()=>evaluate(`document.querySelector('input[name=title]').disabled && !document.querySelector('[aria-label="Text formatting"]') && !document.querySelector('[aria-label="Block formatting"]')`),"plain format disables rich-only controls");
+  assert(await evaluate(`!document.querySelector('input[name=mode]') && !!document.querySelector('[aria-label="Text formatting"]')`),'Rich formatting is always available');
   // Publish a local-fixture incoming Grant, then submit the real native composer form.
   const payload:HailGrant={...permissionPayload(sendingGrantId),grantor:peerDid,grantee:did!,key_id:peerDid+"#hail-identity",
     consent_context:{...permissionPayload(sendingGrantId).consent_context,grantee_address:prepared.address}};
   const signed=await signPayload("hail.grant",payload,createWebCryptoSigner(peerDid+"#hail-identity",permissionSigner.privateKey));
   sendingGrant={payload,cose:encodeBase64Url(signed),digest:encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256",Uint8Array.from(signed))))};
   await cdp("Page.navigate",{url:origin+"/compose?rich-proof=1"});
-  await wait(async()=>evaluate(`document.querySelector('select[name=category]')?.options.length===3`),"category audiences are available");
-  assert.equal(await evaluate(`document.querySelector('select[name=category]').value`),"general","General is the default category");
+  await wait(async()=>evaluate(`document.readyState==='complete' && document.querySelectorAll('.category-option').length===2`),"category audiences are available");
+  assert.equal(await evaluate(`document.querySelector('input[name=category]').value`),"","Category starts unselected");
+  const categoryPoint=await evaluate(`(()=>{const r=document.querySelector('#category-search').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+  await pointer(categoryPoint.x,categoryPoint.y);
+  await wait(async()=>evaluate(`document.querySelector('#category-search').getAttribute('aria-expanded')==='true'`),'category picker is interactive');
+  const optionPoint=await evaluate(`(()=>{const r=document.querySelector('.category-option').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+  await pointer(optionPoint.x,optionPoint.y);
+  await wait(async()=>evaluate(`document.querySelector('input[name=category]').value==='general'`),'explicit category selection');
   assert(await evaluate(`!document.querySelector('select[name=target]') && !document.querySelector('input[name=grantId]')`),"Publisher must not select individual subscription recipients");
   const richText="## Highlights\n- **First**\n- Second\n1. Number one\n2. Number two\n> A quote\n\n<img src=x onerror=alert(1)>";
-  await click("Show preview");
   await fill("Title","Release notes");
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value=${JSON.stringify(richText)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await click("Preview");
   await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] h1')?.textContent==='Release notes' && document.querySelectorAll('[aria-label="Message preview"] ul li').length===2 && document.querySelectorAll('[aria-label="Message preview"] ol li').length===2`),"rich message preview");
   assert(await evaluate(`!!document.querySelector('input[name="header"]')`),"Subscriber composer retains header images");
   const rendered=async(selector:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});return {headings:[...e.querySelectorAll('h1,h2,h3')].map(n=>n.textContent),bullets:[...e.querySelectorAll('ul li')].map(n=>n.textContent),numbered:[...e.querySelectorAll('ol li')].map(n=>n.textContent),quote:e.querySelector('blockquote')?.textContent,images:e.querySelectorAll('img').length,text:e.innerText.includes('<img src=x onerror=alert(1)>')};})()`);
   const previewContent=await rendered('[aria-label="Message preview"]');
   assert.deepEqual(previewContent,{headings:["Release notes","Highlights"],bullets:["First","Second"],numbered:["Number one","Number two"],quote:"A quote",images:0,text:true});
+  assert.equal(await evaluate(`document.querySelector('input[name=category]').value`),'general','Chosen category reaches the form submission');
   await evaluate(`document.querySelector('form[enctype]').requestSubmit()`);
   await wait(()=>has("Message sent."),"provider accepted category message before delivery");assert.equal(composePosts,1);
   assert(!await has("Publication publishing"));assert(!await has("Recent publications"));
@@ -850,12 +863,12 @@ try{
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Signing in through a QR must not approve or prepare it");
   // Verify each ordinary folder resumes after login, including its query string.
-  for(const [path,text] of [["/sent?after=older","Sent"],["/compose","Send a hail"],["/account","Sign-in & security"]]){
+  for(const [path,text] of [["/sent?after=older","Sent"],["/compose","New publication"],["/account","Sign-in & security"]]){
     await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
     await cdp("Page.navigate",{url:origin+path});
     await wait(async()=>evaluate(`location.pathname==='/' && new URL(location.href).searchParams.get('next')===${JSON.stringify(path)}`),"folder login: "+path);
     await click("Sign in with a passkey");
-    await wait(async()=>evaluate(`location.pathname+location.search===${JSON.stringify(path)} && document.body.innerText.includes(${JSON.stringify(text)})`),"resume folder: "+path);
+    await wait(async()=>evaluate(`location.pathname+location.search===${JSON.stringify(path)} && (${JSON.stringify(path)}==='/compose'?!!document.querySelector('#category-search'):document.body.innerText.includes(${JSON.stringify(text)}))`),"resume folder: "+path);
     assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),path+" overflows viewport");
   }
   // Copy controls report success only after clipboard access succeeds, and recover on failure.
@@ -933,20 +946,23 @@ try{
   await cdp("Page.reload");await wait(()=>has("Add connection"),"pending connection review restored without extra steps");
   assert.equal([...connectionApprovals.values()].filter(row=>row.action==="connect").length,preparedConnections);
   assert(!personalConnection);await click("Add connection");await wait(()=>has("Connection saved"),"one click confirms mutual connection");
-  await cdp('Page.navigate',{url:origin+'/compose?audience=connections'});await wait(()=>has('Send a message'),'connection composer uses existing editor');
+  await cdp('Page.navigate',{url:origin+'/compose?audience=connections'});await wait(()=>evaluate("!!document.querySelector('#recipient-search')"),'connection composer uses existing editor');
   await selectedAudience("Connections");
   assert(await evaluate(`!document.querySelector('input[name="header"]') && !document.querySelector('input[name="alt"]')`),"Connection composer has no new header-image controls");
-  await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]').length===2`),'connection recipient picker');
+  await evaluate(`document.querySelector('#recipient-search').focus()`);
+  await wait(async()=>evaluate(`document.querySelectorAll('.recipient-option').length===2`),'connection recipient picker');
   assert(!await evaluate(`!!document.querySelector('select[name="category"]')||!!document.querySelector('input[name="allowReply"]')`));
-  await evaluate(`document.querySelectorAll('input[name="connection"]').forEach(e=>e.click());document.querySelector('input[value="plain"]').click()`);
-  await wait(async()=>evaluate(`!!document.querySelector('select[name=delivery]')`),'multi-recipient delivery choice');
-  await evaluate(`(()=>{const e=document.querySelector('select[name=delivery]');e.value='private';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Personal message to chosen connections';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);await click('Send →');
+  await evaluate(`document.querySelector('.recipient-option').click()`);
+  await wait(async()=>evaluate(`document.querySelectorAll('.recipient-chip').length===1`));
+  await evaluate(`document.querySelector('.recipient-option').click()`);
+  await wait(async()=>evaluate(`document.querySelectorAll('.recipient-chip').length===2`),'multiple recipients selected');
+  assert(await evaluate(`!document.querySelector('input[name=delivery]')`));
+  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Personal message to chosen connections';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);await click('Send message');
   await wait(()=>has('Message batch not confirmed'),'ambiguous connection acceptance retains the original intent');
-  assert(await evaluate(`document.querySelector('textarea[name=text]').value==='Personal message to chosen connections'&&document.querySelectorAll('input[name="connection"]:checked').length===2`),'Connection retry must retain body and recipients');
-  assert.equal(await evaluate(`document.querySelector('select[name=delivery]').value`),'private','Retry retains private delivery');
+  assert(await evaluate(`document.querySelector('textarea[name=text]').value==='Personal message to chosen connections'&&document.querySelectorAll('.recipient-chip').length===2`),'Connection retry must retain body and recipients');
+  assert(await evaluate(`!document.querySelector('input[name=delivery]')`));
   assert(!await has('Message sent.'),'Lost acceptance response must not show success');
-  await click('Send →');await wait(()=>has('Message sent.'),'provider accepted connection message before delivery');
+  await click('Send message');await wait(()=>has('Message sent.'),'provider accepted connection message before delivery');
   assert(!await has('Message batch publishing'));assert(!await has('Recent messages'));assert(!await has('Refresh status'));
   assert.equal(connectionSent.length,2);assert.equal(composePosts,1);assert.deepEqual(allowed!.scope,[{type:'categories',values:['general']}]);
   connectionIncoming=true;
@@ -1015,7 +1031,9 @@ try{
   await click('Delete message');await wait(()=>has('Lonely in here'),'inbox deletion moves directly to Trash');
   assert(trashed.has(incomingId));assert(!deleted.has(incomingId));
   await mailboxPage('/?view=connections','Inbox');await selectMessage();
-  await click('Delete message');await wait(()=>has('Mailman late?'),'connection deletion moves directly to Trash');
+  await click('Delete message');await wait(()=>has('Delivery late?'),'connection deletion moves directly to Trash');
+  assert(trashed.has(connectionIncomingId),'Deleted connection message is in Trash');
+  assert(!deleted.has(connectionIncomingId),'Trash deletion remains restorable');
   await mailboxPage('/trash','Trash');await selectMessage();await click('Select all');
   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Trashed messages"] button[aria-pressed="true"]').length`),2,'Both trashed messages selected');
   await click('Restore selected messages');await wait(()=>has('Must be pickup day.'),'bulk restore');
@@ -1023,13 +1041,13 @@ try{
   await mailboxPage('/','Feed');await selectMessage();
   await click('Delete message');await wait(()=>has('Lonely in here'),'second trash deletion');
   await mailboxPage('/settings','Settings');await wait(async()=>evaluate(`document.querySelector('#use-trash')?.disabled===false`),'account Trash preference');
-  await evaluate(`document.querySelector('#use-trash').click()`);await click('Disable Trash and delete contents');await wait(()=>has('Trash disabled.'),'disable purges existing trash');
+  await evaluate(`document.querySelector('#use-trash').click()`);await wait(()=>has('Disable Trash?'),'disable Trash confirmation');await click('Confirm');await wait(async()=>!trashEnabled&&await evaluate(`!document.querySelector('#use-trash').checked && !document.querySelector('#use-trash').disabled && !document.querySelector('#disable-trash-title')`),'disable purges existing trash');
   assert.equal(trashed.size,0);assert(deleted.has(incomingId));
   await mailboxPage('/?view=connections','Inbox');await selectMessage();
   await click('Delete message');await wait(()=>has('Delete permanently'),'disabled trash warning');
   assert(!deleted.has(connectionIncomingId),'Permanent deletion waits for confirmation');
   await click('Cancel');assert(!deleted.has(connectionIncomingId),'Cancel preserves the message');
-  await click('Delete message');await click('Delete permanently');await wait(()=>has('Mailman late?'),'confirmed permanent deletion');
+  await click('Delete message');await click('Delete permanently');await wait(()=>has('Delivery late?'),'confirmed permanent deletion');
   assert(deleted.has(connectionIncomingId));
   await mailboxPage('/trash','Trash');await wait(()=>has('Must be pickup day.'),'disabled Trash has no deleted messages');
   await mailboxPage('/admin','Your Hail server');

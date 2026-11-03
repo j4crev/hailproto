@@ -168,15 +168,14 @@ The browser fetches these PNGs only from its own provider, never from senders.
 Deploy the provider and GUI together for this endpoint; an older provider yields
 initials. No database migration is needed. Fresh profile verification remains
 available for protocol operations that require it.
-The compose route publishes plain or structured updates to all active subscribers
-in a selected category, optionally with one bundled PNG header. General defaults
-when available; there is no individual subscription-recipient picker. The provider
+The compose route publishes rich updates to all active subscribers
+in a selected category, optionally with one bundled PNG header. A category must be
+selected before publishing; there is no individual subscription-recipient picker. The provider
 durably snapshots the audience and exposes refreshable work and delivery status.
 See [category publishing](../../docs/category-publishing.md) for alpha limits,
-cancellation and transfer/rollback boundaries. Rich mode provides selection-based bold, italic,
+cancellation and transfer/rollback boundaries. The editor provides selection-based bold, italic,
 code and HTTPS-link controls, plus line-based headings, flat bullet/numbered lists
-and quotes. Formatting shortcuts are documented in the composer; HTML remains
-literal text. The preview uses the same safe body projection and renderer as
+and quotes. HTML remains literal text. The preview uses the same safe body projection and renderer as
 received/sent messages. Senders can invite one reply for seven days;
 Inbox detail exposes a plain-text reply form only while that signed capability
 is locally unused. It requires `grants:read` and `messages:write`.
@@ -360,10 +359,28 @@ typed-address confirmation and provider-side recent-passkey requirement. Setting
 contains appearance, header-image, and Trash preferences.
 
 New header-image uploads are offered only for subscriber publications. Connection
-composition supports plain and rich text; switching to Connections clears a draft
+composition uses rich text; switching to Connections clears a draft
 header image. The browser form handler also rejects new header uploads for
 connections. Existing message images remain readable, and forwarding preserves
 the original message content, including its image.
+The compose form always submits a structured body and no longer accepts a format
+selector (`mode`); reload any compose page opened before this change before sending.
+This is a web compose policy: protocol and provider plain-text support remain intact.
+No stored-message conversion or database migration is required.
+
+Compose has audience-specific workspaces around a shared rich editor. Connections
+uses an inline To-field search with keyboard-selectable connection suggestions and
+removable address chips. Multi-recipient messages always start a shared
+conversation; private-copy delivery remains a provider API option, not a web
+compose option.
+Only existing connections can be selected; unmatched search text blocks sending.
+Subscribers uses an initially empty, searchable Category field above From, a headline and optional
+cover image. The one-reply-per-subscriber option sits just above the publish footer.
+Both workspaces use a single writing column without a settings sidebar.
+Preview replaces the writing area without
+clearing the draft. Send failures retain the draft, recipients and original request ID.
+Run `bun run --cwd apps/client test:compose` for local Chromium checks of both
+workspaces at desktop and narrow mobile widths, including search, preview and retry.
 
 Browser session lifetimes are controlled by the provider, not the GUI. Set
 `PASSKEY_SESSION_IDLE_SECONDS` (default `1800`) and

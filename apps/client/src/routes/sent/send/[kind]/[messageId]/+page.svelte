@@ -12,7 +12,7 @@
 
 <svelte:head><title>{data.message.title} · Sent · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="mx-auto max-w-[800px]">
-<MessageBack href="/sent" label="Sent messages" />
+<MessageBack href={data.trash?"/trash":"/sent"} label={data.trash?"Trash":"Sent messages"} />
 {#if content.title}<h1 class="reader-title">{content.title}</h1>{:else}<h1 class="sr-only">Sent message</h1>{/if}
 <article class="reader-panel overflow-hidden">
   <header class="border-0 border-b border-solid border-line pb-5 text-xs text-muted">{#if forwardedAttribution(data.message.blocks)}<div class="mb-3"><ForwardedPill /></div>{/if}{#if !forwardedAttribution(data.message.blocks) && data.message.kind === 'category' && data.message.category}

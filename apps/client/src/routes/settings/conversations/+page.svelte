@@ -3,13 +3,12 @@
   import {invalidateAll} from "$app/navigation";
   import {connectionRequest} from "$lib/connections.js";
   let {data}=$props();
-  let saving=$state(false),status=$state(""),error=$state("");
+  let saving=$state(false),error=$state("");
   async function save(input:{allowIntroductions:boolean}|{connectionId:string;epoch:number;override:boolean|null}){
-    saving=true;status="";error="";
+    saving=true;error="";
     try{
       await connectionRequest("conversation-preferences",input);
       await invalidateAll();
-      status="Conversation preference saved.";
     }catch(e){error=e instanceof Error?e.message:"Unable to save. Reload to check your current preference.";}
     finally{saving=false;}
   }
@@ -44,7 +43,6 @@
       {:else}<p class="m-0 text-sm text-muted">No active connections to customize.</p>{/each}
       {#if data.preferences.truncated}<p class="m-0 text-sm text-muted">Showing the first 200 connections. Other connections retain their saved choices or use the global setting.</p>{/if}
     </div>
-    {#if status}<p role="status" class="m-0 text-sm">{status}</p>{/if}
     {#if error}<p role="alert" class="m-0 text-sm">{error}</p>{/if}
   </section>
 </div>

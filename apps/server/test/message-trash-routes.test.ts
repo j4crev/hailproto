@@ -12,8 +12,9 @@ it('requires authenticated scoped same-origin web access for Trash mutations',as
   const accounts={authenticate:vi.fn(async()=>authenticated?session:null)} as unknown as AccountApiRepository;
   const remove=vi.fn(async()=>({state:'trashed'})),restore=vi.fn(async()=>({restored:1})),saveSettings=vi.fn(async()=>({trashEnabled:false}));
   const saveDisplaySettings=vi.fn(async()=>({theme:'dark',showHeaderImages:true}));
+  const empty=vi.fn(async()=>({deleted:1})),clearSent=vi.fn(async()=>({affected:1,state:"trashed"})),restoreSent=vi.fn(async()=>({restored:1}));
   const setRead=vi.fn(async()=>({isRead:true}));
-  const messaging={setRead,trash:{remove,restore,saveSettings,saveDisplaySettings,settings:async()=>({trashEnabled:true})},inboxFeed:async()=>({messages:[],next:null})} as unknown as AccountMessaging;
+  const messaging={setRead,trash:{empty,clearSent,restoreSent,remove,restore,saveSettings,saveDisplaySettings,settings:async()=>({trashEnabled:true})},inboxFeed:async()=>({messages:[],next:null})} as unknown as AccountMessaging;
   const origin='https://example.com',app=createApp({publicOrigin:origin,providerId:'test',passkeys:{origin}} as AppConfig,
     {accountApi:{accounts,grants:{} as GrantRepository,service:{} as GrantService,messaging},async checkReadiness(){return {ready:true};}});
   const path='/api/v1/account/inbox/did:plc:'+ 'b'.repeat(24)+'/019a0000-0000-7000-8000-000000000001/delete';
@@ -42,6 +43,16 @@ it('requires authenticated scoped same-origin web access for Trash mutations',as
   expect((await post('/api/v1/account/trash/restore',{messages:[]})).status).toBe(200);
   expect(restore).toHaveBeenCalledWith(session,[]);
   expect((await app.request('/api/v1/account/trash?unknown=1',{headers})).status).toBe(400);
+  for(const [url,body] of [['/api/v1/account/trash/empty',{}],['/api/v1/account/sent/clear',{trashEnabled:true}],['/api/v1/account/sent/restore',{kind:'message',messageId:'019a0000-0000-7000-8000-000000000001'}]] as const){
+    authenticated=false;expect((await post(url,body)).status).toBe(401);authenticated=true;
+    expect((await post(url,body,{Origin:'https://evil.example'})).status).toBe(403);
+    session.scopes=['messages:read'];expect((await post(url,body)).status).toBe(403);
+    session.scopes=['messages:read','messages:write'];session.passkey_credential_id=null;
+    expect((await post(url,body)).status).toBe(403);session.passkey_credential_id='passkey';
+    expect((await post(url,{...body,extra:true})).status).toBe(400);
+    expect((await post(url,body)).status).toBe(200);
+  }
+  expect(empty).toHaveBeenCalledTimes(1);expect(clearSent).toHaveBeenCalledWith(session,true);
   session.passkey_credential_id=null;
   session.scopes=['messages:read'];expect((await post(path.replace('/delete','/permanent-delete'))).status).toBe(403);
   session.scopes=['messages:write'];expect((await post(path.replace('/delete','/permanent-delete'))).status).toBe(200);

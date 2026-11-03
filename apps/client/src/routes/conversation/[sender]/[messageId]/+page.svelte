@@ -152,12 +152,19 @@
               <MessageActions compact menu disabled={readPending||sending||membershipSaving} extraActions={conversationActions} messages={[message]} returnTo="/?view=connections" />
             {:else}<a class="text-xs text-muted" href={`/sent/${row.messageId}`}>Delivery details</a>{#if message.sharedConversation}<MessageActions compact menu disabled={sending||membershipSaving} messages={[]} extraActions={conversationActions}/>{/if}{/if}
         </div>
-        {#if message.sharedConversation}
-          {@const shared=message.sharedConversation}
-          <details class="participants"><summary>Participants</summary>
-            <ul>{#each shared.participants as did}<li>{#if did===data.account.did}You{:else}<ContactAddress owner={data.account.did} {did} address={shared.participantAddresses?.[did]??null}/>{/if}</li>{/each}</ul>
-          </details>
-        {/if}
+        <details class="message-details"><summary>Details</summary>
+          <div class="detail-row">
+            <Icon name="calendar" size={14} />
+            <span><span class="sr-only">{row.sent?'Sent':'Received'}: </span><DateTime format="detailed" value={'deliveredAt' in message?message.deliveredAt:message.createdAt} /></span>
+          </div>
+          {#if message.sharedConversation}
+            {@const shared=message.sharedConversation}
+            <div class="detail-row">
+              <Icon name="user" size={14} />
+              <ul aria-label="Participants">{#each shared.participants as did}<li>{#if did===data.account.did}You{:else}<ContactAddress owner={data.account.did} {did} address={shared.participantAddresses?.[did]??null}/>{/if}</li>{/each}</ul>
+            </div>
+          {/if}
+        </details>
       </header>
       <div class="expanded-body">
         {#if message.sharedConversation?.state==='left'}<p class="text-sm text-muted">You left this conversation. Saved messages remain readable.</p>
@@ -197,9 +204,11 @@
   .sender-identity { grid-column:2; grid-row:1 / 3; min-width:0; overflow-wrap:anywhere; }
   .sender-address { font-size:14px; font-weight:550; line-height:1.5; margin-bottom:3px; }
   .sender-address :global(.address) { white-space:normal; overflow-wrap:anywhere; }
-  .participants { grid-column:1 / -1; grid-row:3; min-width:0; overflow-wrap:anywhere; margin:0; font-size:12px; color:var(--color-muted); }
-  .participants summary { cursor:pointer; width:fit-content; }
-  .participants ul { list-style:none; padding:0; margin:8px 0 0; display:grid; gap:6px; }
+  .message-details { grid-column:2 / -1; grid-row:3; min-width:0; overflow-wrap:anywhere; margin:0; font-size:12px; color:var(--color-muted); }
+  .message-details summary { cursor:pointer; width:fit-content; }
+  .detail-row { display:grid; grid-template-columns:14px minmax(0,1fr); align-items:start; gap:8px; margin-top:8px; }
+  .detail-row :global(svg) { margin-top:2px; }
+  .detail-row ul { list-style:none; padding:0; margin:0; display:grid; gap:6px; }
   .recipients { margin:6px 0 0; font-size:12px; color:var(--color-muted); }
   .message-tools { grid-column:3; grid-row:2; display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
 
