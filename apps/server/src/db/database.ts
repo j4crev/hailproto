@@ -242,6 +242,7 @@ const migrations: readonly Migration[] = [
   {version:98,name:"body-budget",url:new URL("../../migrations/0098_body_budget.sql",import.meta.url)},
   {version:99,name:"racr-client-id",url:new URL("../../migrations/0099_racr_client_id.sql",import.meta.url)},
   {version:100,name:"sent-mailbox",url:new URL("../../migrations/0100_sent_mailbox.sql",import.meta.url)},
+  {version:101,name:"message-drafts",url:new URL("../../migrations/0101_message_drafts.sql",import.meta.url)},
 ];
 
 export class ProviderDatabase {

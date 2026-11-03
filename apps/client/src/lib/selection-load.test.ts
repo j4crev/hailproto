@@ -7,7 +7,7 @@ const event=()=>({url:new URL('https://example.com/'),cookies:{},setHeaders:vi.f
 beforeEach(()=>{vi.clearAllMocks();fixture.avatars.mockResolvedValue(new Map([['sender',{src:'data:image/png;base64,AQID',width:44,height:44}]]));});
 it('adds sender avatars to Trash without changing restoration identity',async()=>{
   fixture.request.mockResolvedValueOnce({messages:[{sender:'sender',messageId:'message',recipient:'owner',deliveredAt:'2026-10-27T12:00:00Z',trashedAt:'2026-10-28T12:00:00Z',category:null,body:{version:1,profile:'spt-1',blocks:[]}}],next:null});
-  fixture.request.mockResolvedValueOnce({trashEnabled:true}).mockResolvedValueOnce({messages:[],next:null});
+  fixture.request.mockResolvedValueOnce({trashEnabled:true}).mockResolvedValueOnce({messages:[],next:null}).mockResolvedValueOnce({drafts:[],next:null});
   const result=await trash(event());
   expect(result.messages[0]).toMatchObject({sender:'sender',messageId:'message',avatar:{width:44}});
   expect(fixture.avatars.mock.calls[0][1]).toEqual(new Set(['sender']));
@@ -21,7 +21,7 @@ it('loads connection portraits and preserves the component retry path on API fai
 it('separates Trash subjects from previews while retaining restore identity and dates',async()=>{
   const block=(style:string,text:string)=>({_type:'block',style,children:[{_type:'span',text,marks:[]}],markDefs:[]});
   fixture.request.mockResolvedValueOnce({messages:[{sender:'sender',messageId:'message',recipient:'owner',deliveredAt:'2026-10-27T12:00:00Z',trashedAt:'2026-10-28T12:00:00Z',category:null,kind:'connection',body:{version:1,profile:'spt-2',blocks:[block('h1','Weekend plans'),block('normal','See you Saturday.')]}}],next:'next-page'});
-  fixture.request.mockResolvedValueOnce({trashEnabled:true}).mockResolvedValueOnce({messages:[],next:null});
+  fixture.request.mockResolvedValueOnce({trashEnabled:true}).mockResolvedValueOnce({messages:[],next:null}).mockResolvedValueOnce({drafts:[],next:null});
   const result=await trash(event());
   expect(result).toMatchObject({next:'next-page',messages:[{sender:'sender',messageId:'message',kind:'connection',deliveredAt:'2026-10-27T12:00:00Z',trashedAt:'2026-10-28T12:00:00Z',title:'Weekend plans',preview:'See you Saturday.',avatar:{width:44}}]});
 });

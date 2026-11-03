@@ -25,7 +25,7 @@ for(const kind of ["category","connections"] as const){
       body:{version:1,profile:"spt-2",blocks:[{_type:"block",children:[{_type:"span",text:"Hello",marks:[]}]}]},
     }]);
     expect(request.mock.calls[0][1]).not.toHaveProperty("text");
-    if(kind==="connections")expect(request.mock.calls[0][1].delivery).toBe("shared");
+    if(kind==="connections")expect(request.mock.calls[0][1].delivery).toBe("private");
   });
   it(`${kind}: does not acknowledge a lost or mismatched provider response`,async()=>{
     request.mockRejectedValueOnce(new Error("Response lost"));

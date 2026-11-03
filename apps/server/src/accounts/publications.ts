@@ -1,3 +1,4 @@
+import {consumeDraft,validateDraftRevision} from "./drafts.js";
 import { BODY_CONTAINER_LIMITS } from "../bodies/service.js";
 import {createHash} from "node:crypto";
 import {decodeDeterministic,decodePayload,encodeDeterministic,HailCodecError} from "@racrproto/codec";
@@ -33,7 +34,8 @@ export class AccountPublications {
     return {maxRecipients:100,connections:await this.connections.targets(session,sql)};
   }
   async createConnections(session:AccountApiSession,input:Record<string,unknown>){
-    if(Object.keys(input).some(k=>!["publicationId","connections","text","body","delivery"].includes(k))||typeof input.publicationId!=="string"||!ID.test(input.publicationId)||
+    validateDraftRevision(input.draftRevision);
+    if(Object.keys(input).some(k=>!["publicationId","connections","text","body","delivery","draftRevision"].includes(k))||typeof input.publicationId!=="string"||!ID.test(input.publicationId)||
       (input.delivery!==undefined&&!['shared','private'].includes(input.delivery as string))||
       !Array.isArray(input.connections)||!input.connections.length||input.connections.length>100||input.connections.some(id=>typeof id!=="string"||!ID.test(id))||
       new Set(input.connections).size!==input.connections.length||("text" in input)===("body" in input))throw new UserGrantError(400,"Choose between 1 and 100 distinct connections and one message body");
@@ -52,15 +54,17 @@ export class AccountPublications {
       const targets=(await this.connectionTargets(session)).connections.filter(t=>ids.includes(t.connectionId)).sort((a,b)=>a.recipientDid.localeCompare(b.recipientDid));
       if(targets.length!==ids.length)throw new UserGrantError(409,'A selected connection changed');
       if(!this.messaging.ensureConversation)throw new UserGrantError(409,'Shared conversation messaging unavailable');
-      return this.createSharedBatch(session,id,body,{creator:session.did,conversationId:id,logicalId:id,introduction:true},targets);
+      return this.createSharedBatch(session,id,body,{creator:session.did,conversationId:id,logicalId:id,introduction:true},targets,input.draftRevision);
     }
     if(prior?.conversation_context)throw new UserGrantError(409,'Shared conversation cannot be retried as private copies');
     await this.sql.begin(async tx=>{
+      await tx`SELECT id FROM provider_accounts WHERE id=${session.account_id} FOR UPDATE`;
       await tx`SELECT hail_assert_unfenced_account(${session.account_id}::uuid)`;
       if(!(await tx`SELECT a.id FROM provider_accounts a JOIN account_serving_generations g ON g.account_id=a.id WHERE a.id=${session.account_id}
         AND a.did=${session.did} AND a.onboarding_state='active' AND a.activation_verification_mode='public' AND g.generation=${session.serving_generation??1}`).length)throw new UserGrantError(409,"Current serving account is required");
       const prior=(await tx<Publication[]>`SELECT * FROM connection_message_batches WHERE account_id=${session.account_id} AND id=${id}`)[0];
       if(prior){if(Number(prior.serving_generation)!==(session.serving_generation??1)||!Buffer.from(prior.request_digest).equals(Buffer.from(requestDigest)))throw new UserGrantError(409,"Message batch ID already has another intent");return;}
+      await consumeDraft(tx as SQL,session,id,input.draftRevision);
       const active=await tx`SELECT publication_id,'category' AS kind FROM publication_targets WHERE account_id=${session.account_id} AND state='pending'
         UNION SELECT publication_id,'connections' FROM connection_message_targets WHERE account_id=${session.account_id} AND state='pending' LIMIT 5`;
       if(active.length>=5)throw new UserGrantError(409,"Finish or cancel open message batches first");
@@ -96,7 +100,7 @@ export class AccountPublications {
       parent:{sender:input.sender,message_id:parent.conversation_message_id}},state.participants.filter(did=>did!==session.did).map(did=>({recipientDid:did,address:did,connectionId:null,epoch:null})));
   }
 
-  private async createSharedBatch(session:AccountApiSession,id:string,body:Uint8Array,context:SharedContext,targets:SharedTarget[]){
+  private async createSharedBatch(session:AccountApiSession,id:string,body:Uint8Array,context:SharedContext,targets:SharedTarget[],draftRevision?:unknown){
     const bytes=encodeDeterministic(context as never),manifest=encodeDeterministic(targets as never),requestDigest=sharedDigest(bytes,manifest,body);
     await this.sql.begin(async tx=>{
       await lockOwner(tx as SQL,session);
@@ -104,6 +108,7 @@ export class AccountPublications {
         AND a.onboarding_state='active' AND g.generation=${session.serving_generation??1}`).length)throw new UserGrantError(409,'Current account required');
       const prior=(await tx<Publication[]>`SELECT * FROM connection_message_batches WHERE account_id=${session.account_id} AND id=${id}`)[0];
       if(prior){if(!Buffer.from(prior.request_digest).equals(Buffer.from(requestDigest)))throw new UserGrantError(409,'Message batch ID already has another intent');return;}
+      await consumeDraft(tx as SQL,session,id,draftRevision);
       const active=await tx<{publication_id:string}[]>`SELECT publication_id FROM publication_targets WHERE account_id=${session.account_id} AND state='pending'
         UNION ALL SELECT publication_id FROM connection_message_targets WHERE account_id=${session.account_id} AND state='pending'`;
       if(new Set(active.map(r=>r.publication_id)).size>=5)throw new UserGrantError(409,'Finish or cancel open message batches first');
@@ -149,11 +154,13 @@ export class AccountPublications {
   }
 
   async create(session:AccountApiSession,input:Record<string,unknown>){
-    if(Object.keys(input).some(key=>!["publicationId","category","text","body","allowReplies"].includes(key))||
+    validateDraftRevision(input.draftRevision);
+    if(Object.keys(input).some(key=>!["publicationId","category","text","body","allowReplies","draftRevision"].includes(key))||
       typeof input.publicationId!=="string"||!ID.test(input.publicationId)||typeof input.category!=="string"||!CATEGORY.test(input.category)||
       typeof input.allowReplies!=="boolean"||("text" in input)===("body" in input))throw new UserGrantError(400,"Invalid publication intent");
     const id=input.publicationId,category=input.category,body=outboundBody(input),requestDigest=digest(category,body,input.allowReplies);
     await this.sql.begin(async tx=>{
+      await tx`SELECT id FROM provider_accounts WHERE id=${session.account_id} FOR UPDATE`;
       await tx`SELECT hail_assert_unfenced_account(${session.account_id}::uuid)`;
       const account=await tx`SELECT a.id FROM provider_accounts a JOIN account_serving_generations g ON g.account_id=a.id
         WHERE a.id=${session.account_id} AND a.did=${session.did} AND a.onboarding_state='active'
@@ -162,6 +169,7 @@ export class AccountPublications {
       const prior=(await tx<Publication[]>`SELECT * FROM account_publications WHERE account_id=${session.account_id} AND id=${id}`)[0];
       if(prior){if(Number(prior.serving_generation)!==(session.serving_generation??1)||!Buffer.from(prior.request_digest).equals(Buffer.from(requestDigest)))
         throw new UserGrantError(409,"Publication ID already has another intent");return;}
+      await consumeDraft(tx as SQL,session,id,input.draftRevision);
       // ponytail: five open publications and 100 recipients each; qualify a higher-throughput queue before expanding the alpha.
       const active=await tx`SELECT publication_id,'category' AS kind FROM publication_targets WHERE account_id=${session.account_id} AND state='pending'
         UNION SELECT publication_id,'connections' FROM connection_message_targets WHERE account_id=${session.account_id} AND state='pending' LIMIT 5`;

@@ -76,6 +76,25 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         context.req.header("Origin")!==sessionOrigin)return problem(403);
       return await withServingGeneration<Response>(session.account_id,session.serving_generation??1,async():Promise<Response>=>{
       const query = new URL(context.req.url).searchParams;
+      if(action==="drafts"){
+        const operation=context.req.param("operation"),id=context.req.param("id")??null,reading=context.req.method==="GET";
+        if(!session.scopes.includes(reading?"messages:read":"messages:write"))return problem(403,"MISSING_SCOPE");
+        if(!session.passkey_credential_id)return problem(403,"PASSKEY_REQUIRED");
+        if(!messaging)return problem(503);
+        if(reading){
+          if(operation||[...query.keys()].some(k=>!["trash","after"].includes(k)||query.getAll(k).length!==1)||query.has("trash")&&query.get("trash")!=="true"||id&&query.size)return problem(400);
+          const result=await messaging.drafts.read(session,id,query.get("trash")==="true",query.get("after"));
+          return result?context.json(result):problem(404);
+        }
+        if(context.req.method!=="POST")return problem(405);
+        if(!id||!operation||query.size)return problem(400);
+        if(session.migration_state)return problem(409);
+        if(context.req.header("Content-Type")!=="application/json"||context.req.header("Content-Encoding"))return problem(415);
+        const bytes=await accountRequestBytes(context.req.raw,400000);if(!bytes)return problem(413);
+        let input:unknown;try{input=parseJsonWithoutDuplicateKeys(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}catch{return problem(400);}
+        if(!input||typeof input!=="object"||Array.isArray(input))return problem(400);
+        return context.json(await messaging.drafts.mutate(session,id,operation,input as Record<string,unknown>));
+      }
       if(action==="inbox-updates"||action==="conversations"){
         const operation=context.req.param("operation")??(context.req.param("peer")?"show":"list");
         const reading=action==="inbox-updates"||operation==="list"||operation==="show";
@@ -549,6 +568,9 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/connection-messages/:publicationId/cancel",context=>handle(context,context.req.param("publicationId"),"connection-message-cancel"));
   app.all("/api/v1/account/connection-messages/:publicationId",context=>handle(context,context.req.param("publicationId"),"connection-message-status"));
   app.all("/api/v1/account/message-preferences",context=>handle(context,null,"message-preferences"));
+  app.all("/api/v1/account/drafts/:id/:operation",context=>handle(context,null,"drafts"));
+  app.all("/api/v1/account/drafts/:id",context=>handle(context,null,"drafts"));
+  app.all("/api/v1/account/drafts",context=>handle(context,null,"drafts"));
   app.all("/api/v1/account/trash",context=>handle(context,null,"trash"));
   app.all("/api/v1/account/trash/empty",context=>handle(context,null,"trash-empty"));
   app.all("/api/v1/account/sent/clear",context=>handle(context,null,"sent-clear"));

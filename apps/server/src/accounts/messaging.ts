@@ -16,6 +16,7 @@ import type { AccountApiSession } from "./repository.js";
 import {connectionMessageAllowed} from "./connection-authorization.js";
 import {conversationState} from './conversation-memberships.js';
 
+import {AccountDrafts} from "./drafts.js";
 import {MessageTrash} from "./message-trash.js";
 
 const ID=/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -52,8 +53,9 @@ function statusDetails(bytes:Uint8Array|null) {
 }
 export class AccountMessaging {
   readonly trash:MessageTrash;
+  readonly drafts:AccountDrafts;
   constructor(private readonly sql:SQL,private readonly bodies:BodyRepository,private readonly envelopes:EnvelopeRepository,
-    private readonly service:EnvelopeService,private readonly submitEnvelope:(sender:string,id:string)=>Promise<object>){this.trash=new MessageTrash(sql);}
+    private readonly service:EnvelopeService,private readonly submitEnvelope:(sender:string,id:string)=>Promise<object>){this.trash=new MessageTrash(sql);this.drafts=new AccountDrafts(sql);}
   async submit(sender:string,id:string){
     try{return await this.submitEnvelope(sender,id);}catch(error){if(error instanceof EnvelopeAuthorizationError)throw new UserGrantError(409,error.message);throw error;}
   }

@@ -97,3 +97,8 @@ The passing corpus is evidence for the cases represented here. It does not prove
 all recovery races, resource-exhaustion behavior or a third-party deployment's
 correctness. Those require the separate state-machine, database, authority and
 operational conformance tests.
+
+`provider-drafts.json` covers the provider-local draft content format, including
+incomplete input, forwarding references, audience constraints and UTF-8 budgets.
+It is not signed federation evidence. `apps/client/src/lib/drafts.test.ts` executes
+these examples against the shared parser.

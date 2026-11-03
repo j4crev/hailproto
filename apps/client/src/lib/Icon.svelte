@@ -25,7 +25,7 @@
     settings: 'M4 7h16 M4 17h16 M8 4v6 M16 14v6',
     shield: 'm12 3 8 4v5c0 5-8 9-8 9s-8-4-8-9V7l8-4Z m-4 9 3 3 5-5',
     user: person,
-    preview: 'M3 4h18v16H3z M14 4v16 M10 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0 M9 12l3 4',
+    preview: 'M6 9V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7 M14 3v18 M10 14a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M9 17l4 4',
     compose: 'm16 3 5 5-12 12-6 1 1-6Z M13 6l5 5',
     plus: 'M12 5v14 M5 12h14', menu: 'M4 6h16 M4 12h16 M4 18h16',
     close: 'm6 6 12 12 M6 18 18 6', arrow: 'M5 12h14 m-5-5 5 5-5 5',
