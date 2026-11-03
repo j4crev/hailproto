@@ -103,4 +103,8 @@
   .menu-item { display:flex; align-items:center; gap:10px; width:100%; min-width:172px; padding:10px 12px; border:0; border-radius:6px; background:transparent; text-align:left; font-size:16px; }
   @media (hover:hover) and (pointer:fine) { .menu-item:hover { background:var(--color-brand-soft); } }
   .menu-items { position:absolute; right:0; top:100%; z-index:5; padding:6px; background:var(--color-surface); border:1px solid var(--color-line); border-radius:12px; box-shadow:0 4px 12px #0002; }
+  @media(max-width:900px) {
+    :global(.mobile-message-actions) .menu-items { top:auto; bottom:calc(100% + 12px); max-height:50dvh; overflow-y:auto; color:var(--color-ink); }
+    :global(.mobile-message-actions) .inline-actions.expanded { max-height:50dvh; overflow-y:auto; }
+  }
 </style>

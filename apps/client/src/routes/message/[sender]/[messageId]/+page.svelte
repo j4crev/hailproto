@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MessageBack from "$lib/MessageBack.svelte";
   import {page} from "$app/state";
   import QuotedMessage from "$lib/QuotedMessage.svelte";
   import MessageThread from "$lib/MessageThread.svelte";
@@ -70,7 +71,7 @@
 
 <svelte:head><title>Message · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="message-detail mx-auto max-w-[800px]" class:feed-reader={data.message.kind!=='connection'}>
-<a class="hail-back" href={data.message.trashedAt?'/trash':data.message.kind==='connection'?'/?view=connections':'/'}>← {data.message.trashedAt?'Trash':data.message.kind==='connection'?'Inbox':'Feed'}</a>
+<MessageBack href={data.message.trashedAt?'/trash':data.message.kind==='connection'?'/?view=connections':'/'} label={data.message.trashedAt?'Trash':data.message.kind==='connection'?'Inbox':'Feed'} />
 {#if content.title}<h1 class="reader-title">{content.title}</h1>{:else}<h1 class="sr-only">Received message</h1>{/if}
 {#if restoreError}<p class="hail-error" role="alert">{restoreError}</p>{/if}
 {#if readError}<p class="hail-error" role="alert">{readError}</p>{/if}
@@ -88,7 +89,7 @@
     <div class="flex w-full min-w-0 flex-wrap items-center gap-1">
       {#if forwardedAttribution(data.message.blocks)}<ForwardedPill />
       {:else if data.message.kind!=='connection' && data.message.category}<mark class="max-w-full rounded-full bg-brand-soft px-2 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{data.message.category==='general'?'General':data.message.category}</mark>{/if}
-      <div class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-0.5 [&>section]:w-full [&>p]:w-full">
+      <div class="mobile-message-actions ml-auto flex min-w-0 flex-wrap items-center justify-end gap-0.5 [&>section]:w-full [&>p]:w-full" role="group" aria-label="Message actions">
         {#if data.message.trashedAt}
           <button class="hail-button-secondary" disabled={restoring} onclick={restore}>Restore</button>
         {:else}

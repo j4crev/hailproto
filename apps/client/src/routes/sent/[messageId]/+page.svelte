@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MessageBack from "$lib/MessageBack.svelte";
   import {page} from "$app/state";
   import QuotedMessage from "$lib/QuotedMessage.svelte";
   import MessageThread from "$lib/MessageThread.svelte";
@@ -15,7 +16,7 @@
 
 <svelte:head><title>Sent message · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="mx-auto max-w-[800px]">
-<a class="hail-back" href="/sent">← Sent messages</a>
+<MessageBack href="/sent" label="Sent messages" />
 {#if content.title}<h1 class="reader-title">{content.title}</h1>{:else}<h1 class="sr-only">Sent message</h1>{/if}
 <article class="reader-panel overflow-hidden">
   <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line pb-5"><div class="grid min-w-0 gap-1"><span class="text-xs text-muted">To</span><strong class="[overflow-wrap:anywhere]"><ContactAddress owner={data.message.sender} did={data.message.recipient} address={data.message.recipientAddress} /></strong><span class="text-xs text-muted"><DateTime value={data.message.createdAt} /></span>{#if data.message.recipientAddress}<IdentityDetails did={data.message.recipient} />{/if}</div><span class="rounded-full bg-canvas px-3 py-1.5 text-xs font-semibold capitalize" aria-label={`Status: ${data.message.state}`}><DeliveryIcon state={data.message.state} /> {data.message.state}</span>{#if forwardedAttribution(data.message.blocks)}<div class="w-full"><ForwardedPill /></div>{/if}</header>

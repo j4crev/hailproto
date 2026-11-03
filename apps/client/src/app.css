@@ -117,6 +117,28 @@
 @utility hail-error { @apply m-0 rounded-xl border border-solid border-danger bg-danger-soft p-4 text-sm text-danger; }
 @utility hail-back { @apply mb-5 inline-flex min-h-11 items-center text-sm font-semibold text-brand underline-offset-4; }
 
+/* Keep one set of message controls: inline on desktop, floating on mobile. */
+@media(max-width:900px) {
+  .mobile-message-actions {
+    position:fixed;
+    inset:auto 0 calc(46px + env(safe-area-inset-bottom));
+    z-index:11;
+    width:fit-content;
+    max-width:calc(100% - 32px - env(safe-area-inset-left) - env(safe-area-inset-right));
+    min-height:44px;
+    margin:0 auto;
+    padding:0 8px;
+    justify-content:center;
+    border:0;
+    border-radius:14px;
+    background:var(--color-brand);
+    color:var(--color-on-brand);
+    box-shadow:0 4px 16px #0003;
+  }
+  .mobile-message-actions .hail-icon-button.compact { width:44px; height:44px; min-height:44px; }
+  .mobile-message-actions .hail-icon-button:hover:not(:disabled) { background:var(--color-brand-strong); }
+}
+
 @layer components {
   .hail-icon-button { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:44px; height:44px; min-height:44px; padding:0; border:0; border-radius:10px; background:transparent; color:inherit; text-decoration:none; cursor:pointer; }
   @media (hover:hover) and (pointer:fine) { .hail-icon-button:hover:not(:disabled) { background:var(--color-brand-soft); } }

@@ -19,6 +19,7 @@
   let {children} = $props();
   let drawer = $state<HTMLDialogElement>();
   let drawerOpen = $state(false);
+  let viewingMessage = $derived(page.route.id === '/message/[sender]/[messageId]' || page.route.id === '/conversation/[sender]/[messageId]' || page.route.id === '/sent/[messageId]' || page.route.id === '/sent/send/[kind]/[messageId]');
   const navigation = [
     {href: "/", label: "Feed", icon: "feed"},
     {href: "/?view=connections", label: "Inbox", icon: "chat"},
@@ -68,7 +69,7 @@
   <div class="nav-bottom"></div>
 {/snippet}
 <!-- Full navigation prevents signup/recovery CSP from leaking into the app. -->
-<div class:focused class="app-shell" data-sveltekit-reload={!page.data.hasAccountSession || page.url.pathname === "/signup" || page.url.pathname === "/signup/recovery"}>
+<div class:focused class:viewing-message={viewingMessage} class="app-shell" data-sveltekit-reload={!page.data.hasAccountSession || page.url.pathname === "/signup" || page.url.pathname === "/signup/recovery"}>
   <a class="skip-link" href="#main-content">Skip to content</a>
   {#if focused}
     <header class="public-header">{@render brand()}{#if page.url.pathname !== "/"}<a class="hail-button-secondary" href="/">{page.data.hasAccountSession ? "Back to feed" : "Home"}</a>{:else if page.data.registration?.mode === "invite"}<span class="alpha-badge">Invitation-only alpha</span>{/if}</header>
@@ -116,9 +117,12 @@
   @media(max-width:900px) {
     .app-shell { padding:0 16px calc(88px + env(safe-area-inset-bottom)); }
     .sidebar { display:none; }
+    .viewing-message .mobile-header { display:none; }
+    .viewing-message main { min-height:calc(100dvh - 68px - env(safe-area-inset-bottom)); }
+    .viewing-message::after { content:""; position:fixed; inset:auto 0 0; height:calc(68px + env(safe-area-inset-bottom)); z-index:10; background:var(--color-canvas); pointer-events:none; }
     .mobile-header { position:fixed; inset:auto 0 0; display:flex; z-index:10; align-items:center; justify-content:space-between; min-height:68px; padding:10px 20px max(10px, env(safe-area-inset-bottom)); border-top:1px solid var(--color-line); background:var(--color-canvas); }
     .mobile-header > .icon-button { margin-left:auto; }
-    .mobile-header > .brand { position:absolute; left:50%; transform:translateX(-50%); white-space:nowrap; }
+    .mobile-header > .brand { position:absolute; left:20px; white-space:nowrap; }
     .mobile-header .brand { font-size:24px; }
     .mobile-header .brand-mark { width:34px; height:34px; border-radius:11px; font-size:27px; }
     main { padding:24px; min-height:calc(100dvh - 84px); }
@@ -140,5 +144,6 @@
     .public-header { padding:22px 0; }
     .alpha-badge { max-width:120px; text-align:center; font-size:10px; }
     .mobile-header { min-height:64px; padding-inline:16px; }
+    .mobile-header > .brand { left:16px; }
   }
 </style>
