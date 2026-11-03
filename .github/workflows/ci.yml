@@ -2,6 +2,14 @@ name: ci
 
 on:
   workflow_call:
+    inputs:
+      force_full:
+        description: Run every suite when called by a release workflow
+        type: boolean
+        default: true
+  workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * *'
   pull_request:
   push:
     branches: [main]
@@ -9,42 +17,151 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  docs-check:
+  changes:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main' || inputs.force_full
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
-      docs_only: ${{ steps.changes.outputs.docs_only }}
+      plan: ${{ steps.select.outputs.plan }}
+      codec-ts: ${{ steps.select.outputs.codec-ts }}
+      codec-go: ${{ steps.select.outputs.codec-go }}
+      web: ${{ steps.select.outputs.web }}
+      server: ${{ steps.select.outputs.server }}
+      cli: ${{ steps.select.outputs.cli }}
+      database-server: ${{ steps.select.outputs.database-server }}
+      monitor: ${{ steps.select.outputs.monitor }}
+      database-monitor: ${{ steps.select.outputs.database-monitor }}
+      images: ${{ steps.select.outputs.images }}
+      monitor-image: ${{ steps.select.outputs.monitor-image }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - id: changes
-        if: github.event_name == 'pull_request'
+      - name: Test selection and gate regressions
+        run: python3 -B -m unittest discover -s scripts/ci -p 'test_*.py' -v
+      - id: select
+        name: Select affected components
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          files=$(git diff --no-renames --name-only "$BASE_SHA...$HEAD_SHA")
-          if [ -z "$files" ]; then
-            echo 'docs_only=false' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          while IFS= read -r file; do
-            case "$file" in
-              *.md|*.mdx|*.rst|*.txt|*.adoc) ;;
-              *)
-                echo 'docs_only=false' >> "$GITHUB_OUTPUT"
-                exit 0
-                ;;
-            esac
-          done <<< "$files"
-          echo 'docs_only=true' >> "$GITHUB_OUTPUT"
+          FORCE_FULL: ${{ inputs.force_full }}
+        run: python3 scripts/ci/plan.py select
 
-  verify:
-    needs: [docs-check]
-    if: (github.event_name != 'push' || github.ref != 'refs/heads/main') &&
-      (github.event_name != 'pull_request' || needs.docs-check.outputs.docs_only != 'true')
+  codec-ts:
+    needs: changes
+    if: needs.changes.outputs.codec-ts == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-ts
+      - name: Verify shared TypeScript libraries
+        run: |
+          bun run --cwd packages/hail-codec-ts typecheck
+          bun run --cwd packages/hail-codec-ts test
+          bun run --cwd packages/hail-client-support typecheck
+
+  codec-go:
+    needs: changes
+    if: needs.changes.outputs.codec-go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: jdx/mise-action@v3
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ hashFiles('mise.toml', 'packages/hail-codec-go/go.sum') }}-${{ hashFiles('packages/hail-codec-go/**/*.go') }}
+          restore-keys: go-${{ runner.os }}-${{ hashFiles('mise.toml', 'packages/hail-codec-go/go.sum') }}-
+      - run: mise exec -- go -C packages/hail-codec-go test ./...
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-ts
+      - name: Verify web client and build once
+        run: |
+          bun run --cwd apps/client typecheck
+          bun run --cwd apps/client test
+          bun run --cwd apps/client build
+      - name: Verify browser recovery, wizard, compose and conversations
+        working-directory: apps/client
+        env:
+          CHROMIUM: google-chrome
+          OPENCODE_TMP_DIR: ${{ runner.temp }}
+        run: |
+          bun scripts/check-browser-signup.ts
+          bun scripts/check-browser-wizard.ts
+          bun scripts/check-browser-compose.ts
+          bun scripts/check-browser-conversations.ts
+          bun scripts/check-browser-conversations.ts --shared
+
+  server:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-ts
+      - name: Verify server
+        run: |
+          bun run --cwd apps/server typecheck
+          bun run --cwd apps/server test
+          bun run --cwd apps/server build
+
+  cli:
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-ts
+      - uses: ./.github/actions/setup-rust
+      - name: Verify native CLI and package once
+        working-directory: apps/cli
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+          bun run build
+          bun tests/compatibility.ts dist/racr
+          bun tests/vault-compatibility.ts dist/racr
+          bun tests/transfer-e2e.ts dist/racr
+          python3 tests/terminal-input.py dist/racr
+          bun scripts/smoke.ts dist/racr
+          python3 scripts/verify-install.py
+          python3 scripts/generate-reference.py --check
+          python3 scripts/check-release.py --binary dist/racr
+
+  database-server:
+    needs: changes
+    if: needs.changes.outputs.database-server == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:18.6-alpine
@@ -58,25 +175,67 @@ jobs:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.0
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.11.0
-      - uses: jdx/mise-action@v3
-      - name: Install pinned dependencies
+      - uses: ./.github/actions/setup-ts
+      - uses: ./.github/actions/setup-rust
+      - name: Build CLI used by real provider integration tests
+        run: cargo build --locked
+        working-directory: apps/cli
+      - name: Verify server database integration (no skipped tests)
+        env:
+          DATABASE_TEST_ADMIN_URL: postgresql://postgres:hail-test-only@127.0.0.1:5432/postgres
         run: |
-          pnpm --dir vendor/did-method-plc install --frozen-lockfile
-          pnpm --dir vendor/did-method-plc --filter @did-plc/lib build
-          bun install --frozen-lockfile
-      - name: Install Rust toolchain
-        run: rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
-      - name: Verify workspace
+          bun scripts/export-account-history-schema.ts --check
+          bun scripts/test-database-integration.ts server/
+
+  monitor:
+    needs: changes
+    if: needs.changes.outputs.monitor == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-ts
+      - name: Verify PLC monitor
         run: |
-          bun run typecheck
-          bun run test
-          bun run build
+          bun run --cwd apps/plc-monitor typecheck
+          bun run --cwd apps/plc-monitor test
+          bun run --cwd apps/plc-monitor build
+
+  database-monitor:
+    needs: changes
+    if: needs.changes.outputs.database-monitor == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_PASSWORD: hail-test-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-ts
+      - name: Verify monitor database integration (no skipped tests)
+        env:
+          DATABASE_TEST_ADMIN_URL: postgresql://postgres:hail-test-only@127.0.0.1:5432/postgres
+        run: bun scripts/test-database-integration.ts plc-monitor/
+
+  images:
+    needs: changes
+    if: needs.changes.outputs.images == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
       - uses: docker/setup-buildx-action@v4
         with:
           driver: docker-container
@@ -86,49 +245,74 @@ jobs:
           buildkitd-config-inline: |
             [worker.oci]
               max-parallelism = 2
-      - name: Verify images
+      - name: Build server image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/server/Dockerfile
+          load: true
+          tags: hail-provider:ci
+          cache-from: type=gha,scope=ci-provider
+          cache-to: type=gha,mode=max,scope=ci-provider
+      - name: Build client image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/client/Dockerfile
+          load: true
+          tags: hail-web-client:ci
+          cache-from: type=gha,scope=ci-web-client
+          cache-to: type=gha,mode=max,scope=ci-web-client
+      - name: Verify image boundaries and independent deployment
         run: |
-          docker buildx build --load -t hail-provider:ci -f apps/server/Dockerfile .
-          docker buildx build --load -t hail-web-client:ci -f apps/client/Dockerfile .
           docker run --rm --entrypoint sh hail-provider:ci -c 'test ! -d /workspace/hail/apps/client && test -f src/cli/provider-operator.ts && test -f src/cli/create-signup-invitation.ts'
-          docker buildx build --load -f apps/plc-monitor/Dockerfile .
-      - name: Verify independent provider and optional web-client deployment
-        run: python3 scripts/check-independent-deployment.py
-      - name: Verify browser recovery cryptography and wizard
+          python3 scripts/check-independent-deployment.py
+
+  monitor-image:
+    needs: changes
+    if: needs.changes.outputs.monitor-image == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: docker/setup-buildx-action@v4
+        with:
+          driver: docker-container
+          driver-opts: |
+            memory=4g
+            memory-swap=4g
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 2
+      - name: Build plc-monitor image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: apps/plc-monitor/Dockerfile
+          load: true
+          tags: hail-plc-monitor:ci
+          cache-from: type=gha,scope=ci-monitor
+          cache-to: type=gha,mode=max,scope=ci-monitor
+
+  # Keep the required ruleset context stable. Unexpected skips cannot pass it.
+  verify:
+    if: always() && (github.event_name != 'push' || github.ref != 'refs/heads/main' || inputs.force_full)
+    needs: [changes, codec-ts, codec-go, web, server, cli, database-server, monitor, database-monitor, images, monitor-image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Require every selected check to succeed
         env:
-          CHROMIUM: google-chrome
-          OPENCODE_TMP_DIR: ${{ runner.temp }}
-        run: |
-          bun run --cwd apps/client test:browser
-          bun run --cwd apps/client test:wizard
-          bun run --cwd apps/client test:compose
-          bun run --cwd apps/client test:conversations
-      - name: Verify native CLI
-        working-directory: apps/cli
-        run: |
-          cargo fmt --check
-          cargo clippy --locked --all-targets -- -D warnings
-          cargo test --locked
-          cargo build --release --locked
-          bun tests/compatibility.ts target/release/racr
-          bun tests/vault-compatibility.ts target/release/racr
-          bun tests/transfer-e2e.ts target/release/racr
-          python3 tests/terminal-input.py target/release/racr
-          bun scripts/smoke.ts target/release/racr
-          python3 scripts/verify-install.py
-          python3 scripts/generate-reference.py --check
-          python3 scripts/check-release.py --binary target/release/racr
-      - name: Verify database integration (no skipped tests)
-        env:
-          DATABASE_TEST_ADMIN_URL: postgresql://postgres:hail-test-only@127.0.0.1:5432/postgres
-        run: |
-          bun scripts/export-account-history-schema.ts --check
-          bun scripts/test-database-integration.ts
+          PLAN: ${{ needs.changes.outputs.plan }}
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/ci/plan.py gate
 
   verify-main:
     name: verify-main
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [docs-check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !inputs.force_full
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -186,20 +370,8 @@ jobs:
             });
             const verify = jobs.find(job => job.name === 'verify');
             if (verify?.conclusion !== 'success') {
-              const docsCheck = jobs.find(job => job.name === 'docs-check');
-              const files = await github.paginate(github.rest.pulls.listFiles, {
-                owner, repo, pull_number: pull.number, per_page: 100,
-              });
-              const isDocumentation = path => ['.md', '.mdx', '.rst', '.txt', '.adoc']
-                .some(extension => path.endsWith(extension));
-              const docsOnly = files.length > 0 && files.every(file =>
-                isDocumentation(file.filename) &&
-                (!file.previous_filename || isDocumentation(file.previous_filename))) &&
-                files.length === pull.changed_files;
-              if (verify?.conclusion !== 'skipped' || docsCheck?.conclusion !== 'success' || !docsOnly) {
-                core.setFailed(`PR CI run ${run.html_url} did not complete the required verify job.`);
-                return;
-              }
+              core.setFailed(`PR CI run ${run.html_url} did not complete the required verify gate.`);
+              return;
             }
 
             core.info(`Reused successful PR CI ${run.html_url} for merged tree ${mainTree}.`);
