@@ -1,0 +1,24 @@
+name: Set up TypeScript workspaces
+description: Install pinned workspace dependencies and build the shared codec
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: 1.4.0
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 11.11.0
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun/install/cache
+          ~/.local/share/pnpm/store
+        key: ts-${{ runner.os }}-${{ hashFiles('bun.lock', 'vendor/did-method-plc/pnpm-lock.yaml') }}
+        restore-keys: ts-${{ runner.os }}-
+    - shell: bash
+      run: |
+        pnpm --dir vendor/did-method-plc install --frozen-lockfile
+        pnpm --dir vendor/did-method-plc --filter @did-plc/lib build
+        bun install --frozen-lockfile
+        bun run --cwd packages/hail-codec-ts build

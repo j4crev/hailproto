@@ -1,0 +1,16 @@
+name: Set up native CLI toolchain
+description: Install the pinned Rust toolchain and cache Cargo compilation
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      working-directory: apps/cli
+      run: rustup show active-toolchain
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          apps/cli/target
+        key: rust-${{ runner.os }}-${{ hashFiles('apps/cli/rust-toolchain.toml', 'apps/cli/Cargo.lock', 'apps/cli/Cargo.toml') }}-${{ github.job }}-${{ hashFiles('apps/cli/src/**', 'apps/cli/tests/**', 'packages/hail-codec-ts/vectors/**', 'spec/**') }}
+        restore-keys: rust-${{ runner.os }}-${{ hashFiles('apps/cli/rust-toolchain.toml', 'apps/cli/Cargo.lock', 'apps/cli/Cargo.toml') }}-${{ github.job }}-
