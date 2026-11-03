@@ -34,8 +34,7 @@
 <button class="mobile-cleanup" aria-label={label} title={label} disabled={!ready||busy||empty} onclick={review}><Icon name={icon} size={24}/></button>
 {#if confirming}
   <section class="cleanup-confirmation" bind:this={confirmation} tabindex="-1" class:permanent aria-labelledby="cleanup-title">
-    <h2 id="cleanup-title" class="m-0 text-sm font-semibold">{label}?</h2>
-    <p class="m-0 text-sm">{folder==='Trash'?'Permanently delete everything in Trash? This cannot be undone.':trashEnabled?'Move all completed sent messages to Trash? You can restore them for 30 days. Active sends stay in Sent.':'Permanently delete all sent messages? This cannot be undone. Active sends stay in Sent.'}</p>
+    <p class="m-0 text-sm">{folder==='Trash'?'Permanently delete everything in Trash? This cannot be undone.':trashEnabled?'Move all sent messages to Trash? You can restore them for 30 days. Active sends stay in Sent.':'Permanently delete all sent messages? This cannot be undone. Active sends stay in Sent.'}</p>
     {#if folder==='Sent'}<p class="m-0 text-sm text-muted">Recipients keep their copies.</p>{/if}
     <div class="confirmation-actions"><button class="hail-button-secondary" disabled={busy} onclick={()=>confirming=false}>Cancel</button><button class="hail-button-secondary" disabled={busy} onclick={clear}>Confirm</button></div>
   </section>
