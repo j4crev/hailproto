@@ -222,7 +222,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     ...(replied?[{...replied,kind:"message",recipientSummary:{count:1,address:replied.recipientAddress,did:replied.recipient}}]:[])
   ];
   const sentQuery=new URL(request.url).searchParams;
-  if(path==="/api/v1/account/sent"&&sentQuery.get("include")==="sends")return json({messages:sentSends,next:null});
+  if(path==="/api/v1/account/sent"&&sentQuery.get("include")==="sends")return json({messages:sentQuery.get("trash")==="true"?[]:sentSends,next:null});
   if(path.startsWith("/api/v1/account/sent/")&&sentQuery.has("kind")){
     const send=sentSends.find(message=>message.messageId===path.split('/').at(-1)&&message.kind===sentQuery.get("kind"));
     return send?json(send):json({},404);
@@ -390,7 +390,12 @@ try{
   const screenshot=async(name:string)=>{if(!process.env.HAIL_WIZARD_SCREENSHOTS)return;await mkdir(process.env.HAIL_WIZARD_SCREENSHOTS,{recursive:true});const shot=await cdp("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});await writeFile(join(process.env.HAIL_WIZARD_SCREENSHOTS,`${process.env.HAIL_WIZARD_MOBILE==='true'?'mobile':'desktop'}-${name}.png`),Buffer.from(shot.data,"base64"));};
   const escape=async()=>{await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});};
   const pointer=async(x:number,y:number)=>{await cdp("Input.dispatchMouseEvent",{type:"mousePressed",button:"left",clickCount:1,x,y});await cdp("Input.dispatchMouseEvent",{type:"mouseReleased",button:"left",clickCount:1,x,y});};
-  const openAccount=async()=>{await evaluate(`(()=>{const b=[...document.querySelectorAll('[aria-label="Open account menu"]')].find(b=>b.checkVisibility());b.focus();b.click();})()`);await wait(async()=>evaluate(`!!document.querySelector('[popover]:popover-open')`),"avatar opens account menu");};
+  const openAccount=async()=>{
+    if(process.env.HAIL_WIZARD_MOBILE==='true'&&!await evaluate(`document.querySelector('dialog')?.open`)){
+      await evaluate(`document.querySelector('[aria-label="Open navigation"]').click()`);
+      await wait(async()=>evaluate(`document.querySelector('dialog').open`),'open navigation for account menu');
+    }
+    await evaluate(`(()=>{const b=[...document.querySelectorAll('[aria-label="Open account menu"]')].find(b=>b.checkVisibility());b.focus();b.click();})()`);await wait(async()=>evaluate(`!!document.querySelector('[popover]:popover-open')`),"avatar opens account menu");};
   const accountNavigation=async()=>assert(await evaluate(`Array.from(document.querySelectorAll('a[href="/account"], a[href="/settings"], a[href="/settings/security"]')).every(a=>a.closest('nav[aria-label="Account menu"]'))`),"Account destinations belong only in the profile menu");
   const narrowLayouts=async()=>{
     if(process.env.HAIL_WIZARD_MOBILE!=="true")return;
@@ -534,13 +539,16 @@ try{
     assert(await evaluate(`getComputedStyle(document.querySelector('.sidebar')).display==='none' && !document.querySelector('dialog').open`),"Mobile sidebar starts closed");
     await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click()`);
     await wait(async()=>evaluate(`document.querySelector('dialog').open`),"mobile drawer opens");
-    assert(await evaluate(`Array.from(document.querySelectorAll('dialog nav a')).every(a=>a.getBoundingClientRect().right<=innerWidth && a.getBoundingClientRect().height>=44)`),"Drawer links are touch-sized and fit");
+    assert(await evaluate(`(()=>{const links=Array.from(document.querySelectorAll('dialog nav a')).filter(a=>a.checkVisibility());return links.length>0&&links.every(a=>a.getBoundingClientRect().right<=innerWidth&&a.getBoundingClientRect().height>=44);})()`),"Drawer links are touch-sized and fit");
     assert(await evaluate(`document.body.style.overflow==='hidden'`),"Drawer locks background scrolling");
     for(let i=0;i<16;i++){await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:"Tab",code:"Tab",windowsVirtualKeyCode:9});await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:"Tab",code:"Tab",windowsVirtualKeyCode:9});assert(await evaluate(`document.querySelector('dialog').contains(document.activeElement)||document.activeElement===document.body`),"Modal keeps keyboard focus out of the background");}
     await screenshot("navigation");await escape();
     await wait(async()=>evaluate(`!document.querySelector('dialog').open`),"Escape closes drawer");
     assert(await evaluate(`document.activeElement?.getAttribute('aria-label')==='Open navigation'`),"Drawer restores focus to trigger");
-    await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click()`);await pointer(380,200);
+    await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click()`);
+    await wait(async()=>evaluate(`document.querySelector('dialog').open`),'drawer reopens');
+    const backdrop=await evaluate(`({x:innerWidth/2,y:document.querySelector('dialog').getBoundingClientRect().top/2})`);
+    await pointer(backdrop.x,backdrop.y);
     await wait(async()=>evaluate(`!document.querySelector('dialog').open`),"Outside click closes drawer");
     await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click();document.querySelector('dialog a[href="/sent"]').click()`);
     await wait(async()=>evaluate(`location.pathname==='/sent'&&!document.querySelector('dialog').open`),"Drawer closes after navigation");
@@ -816,9 +824,14 @@ try{
   const signed=await signPayload("hail.grant",payload,createWebCryptoSigner(peerDid+"#hail-identity",permissionSigner.privateKey));
   sendingGrant={payload,cose:encodeBase64Url(signed),digest:encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256",Uint8Array.from(signed))))};
   await cdp("Page.navigate",{url:origin+"/compose?rich-proof=1"});
-  await wait(async()=>evaluate(`document.querySelectorAll('.category-option').length===2`),"category audiences are available");
+  await wait(async()=>evaluate(`document.readyState==='complete' && document.querySelectorAll('.category-option').length===2`),"category audiences are available");
   assert.equal(await evaluate(`document.querySelector('input[name=category]').value`),"","Category starts unselected");
-  await evaluate(`document.querySelector('#category-search').focus();document.querySelector('.category-option').click()`);
+  const categoryPoint=await evaluate(`(()=>{const r=document.querySelector('#category-search').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+  await pointer(categoryPoint.x,categoryPoint.y);
+  await wait(async()=>evaluate(`document.querySelector('#category-search').getAttribute('aria-expanded')==='true'`),'category picker is interactive');
+  const optionPoint=await evaluate(`(()=>{const r=document.querySelector('.category-option').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+  await pointer(optionPoint.x,optionPoint.y);
+  await wait(async()=>evaluate(`document.querySelector('input[name=category]').value==='general'`),'explicit category selection');
   assert(await evaluate(`!document.querySelector('select[name=target]') && !document.querySelector('input[name=grantId]')`),"Publisher must not select individual subscription recipients");
   const richText="## Highlights\n- **First**\n- Second\n1. Number one\n2. Number two\n> A quote\n\n<img src=x onerror=alert(1)>";
   await fill("Title","Release notes");
@@ -829,6 +842,7 @@ try{
   const rendered=async(selector:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});return {headings:[...e.querySelectorAll('h1,h2,h3')].map(n=>n.textContent),bullets:[...e.querySelectorAll('ul li')].map(n=>n.textContent),numbered:[...e.querySelectorAll('ol li')].map(n=>n.textContent),quote:e.querySelector('blockquote')?.textContent,images:e.querySelectorAll('img').length,text:e.innerText.includes('<img src=x onerror=alert(1)>')};})()`);
   const previewContent=await rendered('[aria-label="Message preview"]');
   assert.deepEqual(previewContent,{headings:["Release notes","Highlights"],bullets:["First","Second"],numbered:["Number one","Number two"],quote:"A quote",images:0,text:true});
+  assert.equal(await evaluate(`document.querySelector('input[name=category]').value`),'general','Chosen category reaches the form submission');
   await evaluate(`document.querySelector('form[enctype]').requestSubmit()`);
   await wait(()=>has("Message sent."),"provider accepted category message before delivery");assert.equal(composePosts,1);
   assert(!await has("Publication publishing"));assert(!await has("Recent publications"));
@@ -1017,7 +1031,9 @@ try{
   await click('Delete message');await wait(()=>has('Lonely in here'),'inbox deletion moves directly to Trash');
   assert(trashed.has(incomingId));assert(!deleted.has(incomingId));
   await mailboxPage('/?view=connections','Inbox');await selectMessage();
-  await click('Delete message');await wait(()=>has('Mailman late?'),'connection deletion moves directly to Trash');
+  await click('Delete message');await wait(()=>has('Delivery late?'),'connection deletion moves directly to Trash');
+  assert(trashed.has(connectionIncomingId),'Deleted connection message is in Trash');
+  assert(!deleted.has(connectionIncomingId),'Trash deletion remains restorable');
   await mailboxPage('/trash','Trash');await selectMessage();await click('Select all');
   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Trashed messages"] button[aria-pressed="true"]').length`),2,'Both trashed messages selected');
   await click('Restore selected messages');await wait(()=>has('Must be pickup day.'),'bulk restore');
@@ -1025,13 +1041,13 @@ try{
   await mailboxPage('/','Feed');await selectMessage();
   await click('Delete message');await wait(()=>has('Lonely in here'),'second trash deletion');
   await mailboxPage('/settings','Settings');await wait(async()=>evaluate(`document.querySelector('#use-trash')?.disabled===false`),'account Trash preference');
-  await evaluate(`document.querySelector('#use-trash').click()`);await click('Disable Trash and delete contents');await wait(()=>has('Trash disabled.'),'disable purges existing trash');
+  await evaluate(`document.querySelector('#use-trash').click()`);await wait(()=>has('Disable Trash?'),'disable Trash confirmation');await click('Confirm');await wait(async()=>!trashEnabled&&await evaluate(`!document.querySelector('#use-trash').checked && !document.querySelector('#use-trash').disabled && !document.querySelector('#disable-trash-title')`),'disable purges existing trash');
   assert.equal(trashed.size,0);assert(deleted.has(incomingId));
   await mailboxPage('/?view=connections','Inbox');await selectMessage();
   await click('Delete message');await wait(()=>has('Delete permanently'),'disabled trash warning');
   assert(!deleted.has(connectionIncomingId),'Permanent deletion waits for confirmation');
   await click('Cancel');assert(!deleted.has(connectionIncomingId),'Cancel preserves the message');
-  await click('Delete message');await click('Delete permanently');await wait(()=>has('Mailman late?'),'confirmed permanent deletion');
+  await click('Delete message');await click('Delete permanently');await wait(()=>has('Delivery late?'),'confirmed permanent deletion');
   assert(deleted.has(connectionIncomingId));
   await mailboxPage('/trash','Trash');await wait(()=>has('Must be pickup day.'),'disabled Trash has no deleted messages');
   await mailboxPage('/admin','Your Hail server');
