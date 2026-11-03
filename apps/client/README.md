@@ -1,5 +1,35 @@
 # Independent reference web client
 
+## Verification
+
+PRs confined to this directory run web typechecking, unit tests, browser checks,
+and the provider/client image deployment smoke test. Shared library or provider
+changes can also select these checks. See [CI job ownership](../../agents/ci.md)
+for the dependency map and full-suite escape hatch.
+
+After installing the repository's pinned dependencies and building the vendored
+PLC library, run the web checks from the repository root:
+
+```sh
+bun run --cwd packages/hail-codec-ts build
+bun run --cwd apps/client typecheck
+bun run --cwd apps/client test
+bun run --cwd apps/client build
+cd apps/client
+export CHROMIUM=chromium # Use google-chrome if that is your installed executable.
+bun scripts/check-browser-signup.ts
+bun scripts/check-browser-wizard.ts
+bun scripts/check-browser-compose.ts
+bun scripts/check-browser-conversations.ts
+bun scripts/check-browser-conversations.ts --shared
+```
+
+The direct browser scripts reuse the build above, matching CI. The individual
+`test:wizard`, `test:compose`, and `test:conversations` package commands remain
+available when you want a fresh build before a single suite.
+
+## Configuration
+
 This optional web client runs separately from the provider. Build with
 `apps/client/Dockerfile` and deploy its own image; the provider image contains no
 web client. See the [standalone deployment guide](../server/deploy/standalone/README.md)
