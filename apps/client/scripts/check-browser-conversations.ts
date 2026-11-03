@@ -22,7 +22,7 @@ await wait(async()=>{try{return (await fetch(origin+'/?view=connections')).ok;}c
 
 async function navigate(path:string,title:string){
  await cdp('Page.navigate',{url:origin+path});
- await wait(async()=>evaluate(`document.querySelector('main h1')?.textContent===${JSON.stringify(title)} && document.readyState==='complete' && getComputedStyle(document.body).fontFamily.includes('Inter')`));
+ await wait(async()=>evaluate(`(${JSON.stringify(path)}.startsWith('/compose')?!!document.querySelector('form.compose-layout'):document.querySelector('main h1')?.textContent===${JSON.stringify(title)}) && document.readyState==='complete' && getComputedStyle(document.body).fontFamily.includes('Inter')`));
  await evaluate('document.fonts.ready');
 }
 
@@ -139,15 +139,13 @@ if(sharedMode){
   await wait(async()=>evaluate(`Boolean(${button('Reply all')})`));
   await evaluate(`${button('Reply all')}.click()`);
   await wait(async()=>evaluate(`document.querySelector('form.reply-form')?.action.endsWith('?/replyAll')`));
-  await navigate('/compose?audience=connections','Send a message');
-  await evaluate(`document.querySelectorAll('input[name="connection"]').forEach(input=>input.click())`);
-  await wait(async()=>evaluate(`Boolean(document.querySelector('select[name="delivery"]'))`));
-  assert.equal(await evaluate(`document.querySelector('select[name="delivery"]').value`),'shared');
-  assert(await evaluate(`Array.from(document.querySelector('select[name="delivery"]').options).some(o=>o.value==='private')`));
-  await evaluate(`(()=>{const select=document.querySelector('select[name="delivery"]');select.value='private';select.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('input[name="connection"]').click();})()`);
-  await wait(async()=>evaluate(`!document.querySelector('select[name="delivery"]')`));
-  await evaluate(`document.querySelector('input[name="connection"]').click()`);
-  await wait(async()=>evaluate(`document.querySelector('select[name="delivery"]')?.value==='private'`));
+  await navigate('/compose?audience=connections','Start a conversation.');
+  await evaluate(`document.querySelector('#recipient-search').focus();document.querySelector('.recipient-option').click()`);
+  await wait(async()=>evaluate(`document.querySelectorAll('.recipient-chip').length===1`));
+  await evaluate(`document.querySelector('.recipient-option').click()`);
+  await wait(async()=>evaluate(`document.querySelectorAll('.recipient-chip').length===2`));
+  assert(await evaluate(`!document.querySelector('input[name="delivery"]')`));
+  assert(await evaluate(`document.querySelector('.recipient-suggestions').hidden`));
   console.log('PASS: shared default, non-connection Reply all, leave/rejoin, creator revival and mobile layout');
 }
 }finally{socket?.close();chrome.kill();fixture.kill();await Promise.all([chrome.exited,fixture.exited]);await rm(work,{recursive:true,force:true});}

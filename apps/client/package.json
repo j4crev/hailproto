@@ -13,6 +13,7 @@
     "test:wizard": "bun run build && bun scripts/check-browser-wizard.ts",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test:cleanup": "bun run build && bun scripts/check-browser-mailbox-cleanup.ts",
+    "test:compose": "bun run build && bun scripts/check-browser-compose.ts",
     "test:conversations": "bun run build && bun scripts/check-browser-conversations.ts && bun scripts/check-browser-conversations.ts --shared"
   },
   "dependencies": {

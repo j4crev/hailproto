@@ -13,13 +13,19 @@ for(const kind of ["category","connections"] as const){
     createdAt:"2026-10-24T00:00:00Z",expiresAt:"2026-10-25T00:00:00Z"});
   const publish=()=>{
     const body=new FormData();
-    for(const [key,value] of Object.entries({publicationId:id,audience:kind,mode:"plain",text:"Hello",
+    for(const [key,value] of Object.entries({publicationId:id,audience:kind,text:"Hello",
       ...(kind==="category"?{category:"general"}:{connection:targetId})}))body.set(key,value);
     return actions.publish({request:new Request("https://example.com/compose",{method:"POST",body}),cookies:{get:()=>undefined,getAll:()=>[],set:vi.fn(),delete:vi.fn(),serialize:()=>""},url:new URL("https://example.com/compose")} as unknown as Parameters<typeof actions.publish>[0]);
   };
   it(`${kind}: acknowledges provider acceptance while all recipients are still pending`,async()=>{
+    request.mockReset();
     request.mockResolvedValueOnce(accepted());
     await expect(publish()).rejects.toMatchObject({status:303,location:`/compose?${kind==="connections"?"audience=connections&":""}publication=${id}`});
+    expect(request.mock.calls[0]).toMatchObject([kind==="connections"?"/connection-messages":"/publications",{
+      body:{version:1,profile:"spt-2",blocks:[{_type:"block",children:[{_type:"span",text:"Hello",marks:[]}]}]},
+    }]);
+    expect(request.mock.calls[0][1]).not.toHaveProperty("text");
+    if(kind==="connections")expect(request.mock.calls[0][1].delivery).toBe("shared");
   });
   it(`${kind}: does not acknowledge a lost or mismatched provider response`,async()=>{
     request.mockRejectedValueOnce(new Error("Response lost"));
@@ -33,7 +39,7 @@ it('forwards an authenticated inbox source only through connection sends',async(
   request.mockReset();
   const body=new FormData();
   const sender='did:plc:'+'a'.repeat(24);
-  for(const [key,value] of Object.entries({publicationId:id,audience:'connections',mode:'rich',text:'',connection:targetId,forwardSender:sender,forwardMessage:id}))body.set(key,value);
+  for(const [key,value] of Object.entries({publicationId:id,audience:'connections',text:'',connection:targetId,forwardSender:sender,forwardMessage:id}))body.set(key,value);
   const publish=()=>actions.publish({request:new Request('https://example.com/compose',{method:'POST',body}),cookies:{},url:new URL('https://example.com/compose')} as unknown as Parameters<typeof actions.publish>[0]);
   request.mockResolvedValueOnce({sender,messageId:id,recipient:'did:plc:'+'b'.repeat(24),category:'general',deliveredAt:'2026-10-29T00:00:00Z',body:{version:1,profile:'spt-1',blocks:[{_type:'block',style:'normal',children:[{_type:'span',text:'Original message',marks:[]}],markDefs:[]}]}});
   request.mockRejectedValueOnce(new Error('Response lost'));
@@ -51,14 +57,14 @@ it('forwards an authenticated inbox source only through connection sends',async(
 it('does not send when the forward source is missing',async()=>{
   request.mockReset();request.mockRejectedValueOnce(new Error('Not found'));
   const body=new FormData();
-  for(const [key,value] of Object.entries({publicationId:id,audience:'connections',mode:'rich',text:'Note',connection:targetId,forwardSender:'did:plc:'+'a'.repeat(24),forwardMessage:id}))body.set(key,value);
+  for(const [key,value] of Object.entries({publicationId:id,audience:'connections',text:'Note',connection:targetId,forwardSender:'did:plc:'+'a'.repeat(24),forwardMessage:id}))body.set(key,value);
   expect(await actions.publish({request:new Request('https://example.com/compose',{method:'POST',body}),cookies:{},url:new URL('https://example.com/compose')} as unknown as Parameters<typeof actions.publish>[0])).toMatchObject({status:400});
   expect(request).toHaveBeenCalledTimes(1);
 });
 
 it('limits new header uploads to subscribers while retaining rich connection text',async()=>{
   const body=new FormData();
-  for(const [key,value] of Object.entries({publicationId:id,audience:'connections',mode:'rich',title:'Hello',text:'**Rich text**',connection:targetId,alt:'A small image'}))body.set(key,value);
+  for(const [key,value] of Object.entries({publicationId:id,audience:'connections',title:'Hello',text:'**Rich text**',connection:targetId,alt:'A small image'}))body.set(key,value);
   body.set('header',new File([Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ6kAAAAASUVORK5CYII=','base64'))],'header.png',{type:'image/png'}));
   const publish=()=>actions.publish({request:new Request('https://example.com/compose',{method:'POST',body}),cookies:{},url:new URL('https://example.com/compose')} as unknown as Parameters<typeof actions.publish>[0]);
   request.mockReset();

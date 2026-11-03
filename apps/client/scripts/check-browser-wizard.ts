@@ -97,12 +97,12 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     {connectionId:fixtureConnectionId,recipientDid:peerDid,epoch:1,address:peerAddress},{connectionId:otherConnectionId,recipientDid:otherConnectionDid,epoch:1,address:'other@peer.example.com'}]:[]});
   if(path==='/api/v1/account/connection-messages'){
     if(request.method==='GET')return json({publications:connectionMessageIntent?[{publicationId:connectionMessageIntent.publicationId,category:null,createdAt:new Date().toISOString(),pending:connectionMessageReads<2}]:[]});
-    assert(personalConnection);assert.deepEqual(Object.keys(input).sort(),['connections','delivery','publicationId','text']);assert.equal(input.delivery,'private');
+    assert(personalConnection);assert.deepEqual(Object.keys(input).sort(),['body','connections','delivery','publicationId']);assert.equal(input.delivery,'shared');
     assert.deepEqual([...input.connections].sort(),[fixtureConnectionId,otherConnectionId].sort());
     if(connectionMessageIntent){assert.deepEqual(input,connectionMessageIntent);return json(connectionMessageResult(),202);}
     connectionMessageIntent=input;
     for(const [recipient,address] of [[peerDid,peerAddress],[otherConnectionDid,'other@peer.example.com']])connectionSent.push({messageId:uuidV7(),sender:did,recipient,recipientAddress:address,
-      category:null,kind:'connection',createdAt:new Date().toISOString(),state:'delivered',revision:2,reason:null,retryAt:null,body:textBody(input.text)});
+      category:null,kind:'connection',createdAt:new Date().toISOString(),state:'delivered',revision:2,reason:null,retryAt:null,body:input.body});
     if(loseConnectionAcceptance){loseConnectionAcceptance=false;return json({error:'Simulated lost acceptance response'},503);}
     return json(connectionMessageResult(),202);
   }
@@ -384,8 +384,8 @@ try{
   const selectedAudience=async(label:string)=>{
     await evaluate('document.activeElement?.blur()');
     assert.equal(await evaluate(`document.querySelector('[aria-label="Compose audience"] [aria-current="page"]').textContent`),label);
-    assert.deepEqual(await styles('[aria-label="Compose audience"] [aria-current="page"]',["backgroundColor","color"]),["rgb(18, 115, 101)","rgb(255, 255, 255)"]);
-    assert.deepEqual(await styles('[aria-label="Compose audience"] a:not([aria-current])',["backgroundColor"]),["rgb(255, 255, 255)"]);
+    assert.deepEqual(await styles('[aria-label="Compose audience"] [aria-current="page"]',["backgroundColor","color"]),["rgb(255, 255, 255)","rgb(20, 92, 80)"]);
+    assert.deepEqual(await styles('[aria-label="Compose audience"] a:not([aria-current])',["backgroundColor"]),["rgba(0, 0, 0, 0)"]);
   };
   const screenshot=async(name:string)=>{if(!process.env.HAIL_WIZARD_SCREENSHOTS)return;await mkdir(process.env.HAIL_WIZARD_SCREENSHOTS,{recursive:true});const shot=await cdp("Page.captureScreenshot",{format:"png",captureBeyondViewport:false});await writeFile(join(process.env.HAIL_WIZARD_SCREENSHOTS,`${process.env.HAIL_WIZARD_MOBILE==='true'?'mobile':'desktop'}-${name}.png`),Buffer.from(shot.data,"base64"));};
   const escape=async()=>{await cdp("Input.dispatchKeyEvent",{type:"keyDown",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});await cdp("Input.dispatchKeyEvent",{type:"keyUp",key:"Escape",code:"Escape",windowsVirtualKeyCode:27});};
@@ -563,7 +563,7 @@ try{
   await screenshot("messages-empty");
   if(process.env.HAIL_WIZARD_MOBILE==='true'){
     await evaluate(`document.querySelector('.mobile-compose').click()`);
-    await wait(()=>has('Send a message'),'Inbox FAB opens connection composer');
+    await wait(()=>evaluate("!!document.querySelector('#recipient-search')"),'Inbox FAB opens connection composer');
     assert(await evaluate(`!document.querySelector('.mobile-compose')`));
     await navigateInboxView('/?view=connections');await wait(async()=>evaluate(`document.querySelector('main h1')?.textContent==='Inbox'`),'back to Inbox');
   }
@@ -576,7 +576,7 @@ try{
   await screenshot("feed-empty");
   if(process.env.HAIL_WIZARD_MOBILE==='true'){
     await evaluate(`document.querySelector('.mobile-compose').click()`);
-    await wait(()=>has('Send a hail'),'Feed FAB opens subscriber composer');
+    await wait(()=>evaluate("!!document.querySelector('#category-search')"),'Feed FAB opens subscriber composer');
     assert(await evaluate(`!document.querySelector('.mobile-compose')`));
     await navigateInboxView('/');await wait(async()=>evaluate(`document.querySelector('main h1')?.textContent==='Feed'`),'back to Feed');
   }
@@ -794,37 +794,36 @@ try{
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Opening a QR must not prepare or approve a permission");
   await click("Continue");await wait(()=>has("Test sender"),"QR and typed address share the same review");
-  await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>has("Send a hail"),"publisher styling");
+  await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>evaluate("!!document.querySelector('#category-search')"),"publisher styling");
   await selectedAudience("Subscribers");
-  assert.deepEqual(await styles("form[enctype] label",["display","fontWeight"]),["grid","600"]);
-  assert.deepEqual(await styles("fieldset label",["display","gap"]),["flex","8px"]);
-  assert.deepEqual(await styles("fieldset input",["width"]),["13px"]);
   assert.deepEqual(await styles('[aria-label="Bold"]',["backgroundColor","paddingTop","borderTopWidth"]),["rgba(0, 0, 0, 0)","8px","0px"]);
   assert(await evaluate(`document.querySelector('#compose-preview').hidden`),'Composer starts with full writing space');
-  await click('Show preview');
+  await click('Preview');
   assert(await evaluate(`!document.querySelector('#compose-preview').hidden`),'Preview toggle exposes the safe renderer');
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Composer overflows viewport");
+  await click('Back to writing');
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='A clear message';e.dispatchEvent(new Event('input',{bubbles:true}));e.setSelectionRange(2,7);})()`);
   await evaluate(`document.querySelector('[aria-label="Bold"]').click()`);
+  await click('Preview');
   await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] span[class*="font-[750]"]')?.textContent==='clear'`),"formatting stays visible in preview");
   for(const [button,selector] of [["Heading","h2"],["Quote","blockquote"],["Bullets","ul li"],["Numbered list","ol li"]]){
-    await click(button);await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] ${selector}')?.textContent==='A clear message'`),"block toolbar: "+button);
+    await click('Back to writing');await click(button);await click('Preview');await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] ${selector}')?.textContent==='A clear message'`),"block toolbar: "+button);
   }
-  await evaluate(`document.querySelector('input[type=radio][value=plain]').click()`);
-  await wait(async()=>evaluate(`document.querySelector('input[name=title]').disabled && !document.querySelector('[aria-label="Text formatting"]') && !document.querySelector('[aria-label="Block formatting"]')`),"plain format disables rich-only controls");
+  assert(await evaluate(`!document.querySelector('input[name=mode]') && !!document.querySelector('[aria-label="Text formatting"]')`),'Rich formatting is always available');
   // Publish a local-fixture incoming Grant, then submit the real native composer form.
   const payload:HailGrant={...permissionPayload(sendingGrantId),grantor:peerDid,grantee:did!,key_id:peerDid+"#hail-identity",
     consent_context:{...permissionPayload(sendingGrantId).consent_context,grantee_address:prepared.address}};
   const signed=await signPayload("hail.grant",payload,createWebCryptoSigner(peerDid+"#hail-identity",permissionSigner.privateKey));
   sendingGrant={payload,cose:encodeBase64Url(signed),digest:encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256",Uint8Array.from(signed))))};
   await cdp("Page.navigate",{url:origin+"/compose?rich-proof=1"});
-  await wait(async()=>evaluate(`document.querySelector('select[name=category]')?.options.length===3`),"category audiences are available");
-  assert.equal(await evaluate(`document.querySelector('select[name=category]').value`),"general","General is the default category");
+  await wait(async()=>evaluate(`document.querySelectorAll('.category-option').length===2`),"category audiences are available");
+  assert.equal(await evaluate(`document.querySelector('input[name=category]').value`),"","Category starts unselected");
+  await evaluate(`document.querySelector('#category-search').focus();document.querySelector('.category-option').click()`);
   assert(await evaluate(`!document.querySelector('select[name=target]') && !document.querySelector('input[name=grantId]')`),"Publisher must not select individual subscription recipients");
   const richText="## Highlights\n- **First**\n- Second\n1. Number one\n2. Number two\n> A quote\n\n<img src=x onerror=alert(1)>";
-  await click("Show preview");
   await fill("Title","Release notes");
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value=${JSON.stringify(richText)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await click("Preview");
   await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] h1')?.textContent==='Release notes' && document.querySelectorAll('[aria-label="Message preview"] ul li').length===2 && document.querySelectorAll('[aria-label="Message preview"] ol li').length===2`),"rich message preview");
   assert(await evaluate(`!!document.querySelector('input[name="header"]')`),"Subscriber composer retains header images");
   const rendered=async(selector:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});return {headings:[...e.querySelectorAll('h1,h2,h3')].map(n=>n.textContent),bullets:[...e.querySelectorAll('ul li')].map(n=>n.textContent),numbered:[...e.querySelectorAll('ol li')].map(n=>n.textContent),quote:e.querySelector('blockquote')?.textContent,images:e.querySelectorAll('img').length,text:e.innerText.includes('<img src=x onerror=alert(1)>')};})()`);
@@ -850,12 +849,12 @@ try{
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Signing in through a QR must not approve or prepare it");
   // Verify each ordinary folder resumes after login, including its query string.
-  for(const [path,text] of [["/sent?after=older","Sent"],["/compose","Send a hail"],["/account","Sign-in & security"]]){
+  for(const [path,text] of [["/sent?after=older","Sent"],["/compose","New publication"],["/account","Sign-in & security"]]){
     await cdp("Network.deleteCookies",{name:"hail_session",url:origin});
     await cdp("Page.navigate",{url:origin+path});
     await wait(async()=>evaluate(`location.pathname==='/' && new URL(location.href).searchParams.get('next')===${JSON.stringify(path)}`),"folder login: "+path);
     await click("Sign in with a passkey");
-    await wait(async()=>evaluate(`location.pathname+location.search===${JSON.stringify(path)} && document.body.innerText.includes(${JSON.stringify(text)})`),"resume folder: "+path);
+    await wait(async()=>evaluate(`location.pathname+location.search===${JSON.stringify(path)} && (${JSON.stringify(path)}==='/compose'?!!document.querySelector('#category-search'):document.body.innerText.includes(${JSON.stringify(text)}))`),"resume folder: "+path);
     assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),path+" overflows viewport");
   }
   // Copy controls report success only after clipboard access succeeds, and recover on failure.
@@ -933,20 +932,23 @@ try{
   await cdp("Page.reload");await wait(()=>has("Add connection"),"pending connection review restored without extra steps");
   assert.equal([...connectionApprovals.values()].filter(row=>row.action==="connect").length,preparedConnections);
   assert(!personalConnection);await click("Add connection");await wait(()=>has("Connection saved"),"one click confirms mutual connection");
-  await cdp('Page.navigate',{url:origin+'/compose?audience=connections'});await wait(()=>has('Send a message'),'connection composer uses existing editor');
+  await cdp('Page.navigate',{url:origin+'/compose?audience=connections'});await wait(()=>evaluate("!!document.querySelector('#recipient-search')"),'connection composer uses existing editor');
   await selectedAudience("Connections");
   assert(await evaluate(`!document.querySelector('input[name="header"]') && !document.querySelector('input[name="alt"]')`),"Connection composer has no new header-image controls");
-  await wait(async()=>evaluate(`document.querySelectorAll('input[name="connection"]').length===2`),'connection recipient picker');
+  await evaluate(`document.querySelector('#recipient-search').focus()`);
+  await wait(async()=>evaluate(`document.querySelectorAll('.recipient-option').length===2`),'connection recipient picker');
   assert(!await evaluate(`!!document.querySelector('select[name="category"]')||!!document.querySelector('input[name="allowReply"]')`));
-  await evaluate(`document.querySelectorAll('input[name="connection"]').forEach(e=>e.click());document.querySelector('input[value="plain"]').click()`);
-  await wait(async()=>evaluate(`!!document.querySelector('select[name=delivery]')`),'multi-recipient delivery choice');
-  await evaluate(`(()=>{const e=document.querySelector('select[name=delivery]');e.value='private';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Personal message to chosen connections';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);await click('Send →');
+  await evaluate(`document.querySelector('.recipient-option').click()`);
+  await wait(async()=>evaluate(`document.querySelectorAll('.recipient-chip').length===1`));
+  await evaluate(`document.querySelector('.recipient-option').click()`);
+  await wait(async()=>evaluate(`document.querySelectorAll('.recipient-chip').length===2`),'multiple recipients selected');
+  assert(await evaluate(`!document.querySelector('input[name=delivery]')`));
+  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Personal message to chosen connections';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);await click('Send message');
   await wait(()=>has('Message batch not confirmed'),'ambiguous connection acceptance retains the original intent');
-  assert(await evaluate(`document.querySelector('textarea[name=text]').value==='Personal message to chosen connections'&&document.querySelectorAll('input[name="connection"]:checked').length===2`),'Connection retry must retain body and recipients');
-  assert.equal(await evaluate(`document.querySelector('select[name=delivery]').value`),'private','Retry retains private delivery');
+  assert(await evaluate(`document.querySelector('textarea[name=text]').value==='Personal message to chosen connections'&&document.querySelectorAll('.recipient-chip').length===2`),'Connection retry must retain body and recipients');
+  assert(await evaluate(`!document.querySelector('input[name=delivery]')`));
   assert(!await has('Message sent.'),'Lost acceptance response must not show success');
-  await click('Send →');await wait(()=>has('Message sent.'),'provider accepted connection message before delivery');
+  await click('Send message');await wait(()=>has('Message sent.'),'provider accepted connection message before delivery');
   assert(!await has('Message batch publishing'));assert(!await has('Recent messages'));assert(!await has('Refresh status'));
   assert.equal(connectionSent.length,2);assert.equal(composePosts,1);assert.deepEqual(allowed!.scope,[{type:'categories',values:['general']}]);
   connectionIncoming=true;
