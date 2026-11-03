@@ -65,7 +65,7 @@
 {/snippet}
 {#snippet links()}
   <a class="hail-button compose-button" href="/compose" aria-current={page.url.pathname === "/compose" ? "page" : undefined}>Compose</a>
-  <div class="nav-group"><nav aria-label="Main navigation">{#each navigation as item, index}{#if index === 4}<p class="nav-label">Your network</p>{/if}<a href={item.href} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} />{item.label}</a>{/each}</nav></div>
+  <div class="nav-group"><nav aria-label="Main navigation">{#each navigation as item, index}{#if index === 5}<p class="nav-label">Your network</p>{/if}<a href={item.href} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} />{item.label}</a>{/each}</nav></div>
   {#if page.data.account?.providerOperator}<a class="hail-button-secondary" href="/admin">Provider administration</a>{/if}
   <div class="nav-bottom"></div>
 {/snippet}
