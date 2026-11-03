@@ -177,3 +177,10 @@
   .reader-title { margin:0 0 24px; font-size:clamp(24px,3vw,30px); line-height:1.25; font-weight:650; letter-spacing:-.035em; overflow-wrap:anywhere; }
   @media(max-width:640px) { .reading-body { padding:20px 16px; font-size:16px; } }
 }
+
+/* Shared placement and theme for mobile compose and preview actions. */
+.mobile-floating-action { display:none; }
+@media(max-width:900px) {
+  .mobile-floating-action { position:fixed; z-index:11; left:50%; transform:translateX(-50%); bottom:calc(40px + env(safe-area-inset-bottom)); display:grid; place-items:center; width:56px; height:56px; padding:0; border:0; border-radius:18px; background:var(--color-brand); color:var(--color-on-brand); box-shadow:0 4px 16px #0003; text-decoration:none; cursor:pointer; }
+  .mobile-floating-action:hover { background:var(--color-brand-strong); }
+}

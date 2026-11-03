@@ -139,7 +139,7 @@
     <input type="hidden" name="audience" value={data.kind}/>
     {#if data.forward}<input type="hidden" name="forwardSender" value={data.forward.message.sender}/><input type="hidden" name="forwardMessage" value={data.forward.message.messageId}/>{/if}
     <div class="writing-workspace">
-      <div class="editor-topline"><button class="preview-toggle" type="button" aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'feed'} size={16}/>{previewOpen?'Back to writing':'Preview'}</button></div>
+      <div class="editor-topline"><button class="preview-toggle" type="button" aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={16}/>{previewOpen?'Back to writing':'Preview'}</button></div>
       <div class="writing-card">
         {#if isConnection}
           {#each selected as id}<input type="hidden" name="connection" value={id}/>{/each}
@@ -198,6 +198,7 @@
       </div>
     </div>
   </form>
+  <button class="mobile-floating-action" type="button" aria-label={previewOpen?'Back to writing':'Preview'} title={previewOpen?'Back to writing':'Preview'} aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={24}/></button>
 </div>
 
 <style>
@@ -267,6 +268,7 @@
   .forward-notice p { margin:0; }
   .forward-notice :global(svg) { flex-shrink:0; }
   .sent-toast { position:fixed; z-index:30; bottom:calc(90px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:12px; width:max-content; max-width:calc(100vw - 32px); padding:16px 24px; border:1px solid var(--color-brand); border-radius:14px; background:var(--color-brand-soft); color:var(--color-brand-strong); box-shadow:0 8px 28px #0003; font-size:15px; font-weight:600; pointer-events:none; }
+  @media(max-width:900px) { .editor-topline { display:none; } .compose-workspace { padding-bottom:112px; } }
   @media(max-width:760px) { .workspace-heading { margin-bottom:24px; } .audience-switch { width:100%; } .audience-switch a { flex:1; } .editor-content,.compose-preview { padding:20px; } .sender-line,.to-line,.reply-setting { padding:16px 20px; } .send-bar { padding:18px 20px; flex-wrap:wrap; } .send-bar button { margin-left:auto; } }
   @media(prefers-reduced-motion:no-preference) { .recipient-option,.audience-switch a { transition:background .15s ease; } }
 </style>

@@ -82,17 +82,14 @@
   {#if data.paged||data.next}<nav aria-label={data.view === 'connections' ? 'Inbox pages' : 'Feed pages'} class="mt-6 flex flex-wrap justify-center gap-3">{#if data.paged}<a class="hail-button-secondary" href={data.view==='connections'?'/?view=connections':'/'}>← Newest messages</a>{/if}{#if data.next}<a class="hail-button-secondary" href={`/?${data.view==='connections'?'view=connections&':''}after=${encodeURIComponent(data.next)}`}>Older messages →</a>{/if}</nav>{/if}
   </div>
   {#if !selectedMessages.length}
-    <a class="mobile-compose" href={data.view==='connections'?'/compose?audience=connections':'/compose'} aria-label={data.view==='connections'?'Message connections':'Publish to subscribers'} title={data.view==='connections'?'Message connections':'Publish to subscribers'}><Icon name="compose" size={24} /></a>
+    <a class="mobile-compose mobile-floating-action" href={data.view==='connections'?'/compose?audience=connections':'/compose'} aria-label={data.view==='connections'?'Message connections':'Publish to subscribers'} title={data.view==='connections'?'Message connections':'Publish to subscribers'}><Icon name="compose" size={24} /></a>
   {/if}
 {/if}
 
 <style>
-  .mobile-compose { display:none; }
   @media(max-width:900px) {
     .feed-layout { padding-bottom:88px; }
     .has-selection { padding-bottom:180px; }
-    .mobile-compose { position:fixed; z-index:11; left:50%; transform:translateX(-50%); bottom:calc(40px + env(safe-area-inset-bottom)); display:grid; place-items:center; width:56px; height:56px; border-radius:18px; background:var(--color-brand); color:var(--color-on-brand); box-shadow:0 4px 16px #0003; text-decoration:none; }
-    .mobile-compose:hover { background:var(--color-brand-strong); }
   }
 
   .welcome { display:grid; grid-template-columns:1.1fr 1fr; align-items:center; gap:48px; padding:28px 0 48px; }
