@@ -598,7 +598,11 @@ try{
     assert(await evaluate(`!document.querySelector('.mobile-compose')`));
     await navigateInboxView('/?view=subscriptions');await wait(async()=>evaluate(`document.querySelector('main h1')?.textContent==='Feed'`),'back to Feed');
   }
-  await openAccount();await screenshot("account-menu");await escape();
+  await openAccount();
+  if(process.env.HAIL_WIZARD_MOBILE==='true'){
+    assert(await evaluate(`(()=>{const button=document.querySelector('.drawer-footer .account-trigger').getBoundingClientRect(),avatar=document.querySelector('.drawer-footer .account-trigger .avatar').getBoundingClientRect();return button.width===48&&button.height===48&&Math.abs((avatar.left+avatar.right)-(button.left+button.right))<1&&Math.abs((avatar.top+avatar.bottom)-(button.top+button.bottom))<1;})()`),'Mobile account avatar is centered in its square expanded button');
+  }
+  await screenshot("account-menu");await escape();
   await wait(async()=>evaluate(`!document.querySelector('[popover]:popover-open')`),"Escape closes account menu");
   assert(await evaluate(`document.activeElement?.getAttribute('aria-label')==='Open account menu'`),"Account menu restores focus");
   await openAccount();await pointer(process.env.HAIL_WIZARD_MOBILE==='true'?20:600,200);

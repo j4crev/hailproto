@@ -134,7 +134,7 @@
     .navigation-drawer :global(.compose-button) { display:none; }
     .navigation-drawer :global(.nav-bottom) { display:none; }
     .drawer-footer { display:flex; flex:none; align-items:center; justify-content:space-between; margin-top:auto; padding-top:12px; border-top:1px solid var(--color-line); }
-    .drawer-footer :global(.account-trigger) { width:48px; padding:2px; }
+    .drawer-footer :global(.account-trigger) { width:48px; padding:4px; }
     .drawer-footer .icon-button { margin-left:auto; }
   }
   @media(max-width:540px) {
