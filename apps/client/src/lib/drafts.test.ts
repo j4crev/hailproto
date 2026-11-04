@@ -33,3 +33,15 @@ it('sends a resumed PNG and draft revision without requiring a new file selectio
   expect(await actions.publish({request:new Request('https://example.com/compose',{method:'POST',body:form}),cookies:{},url:new URL('https://example.com/compose')} as never)).toMatchObject({status:502,data:{publicationId:id}});
   expect(request).toHaveBeenCalledWith('/publications',expect.objectContaining({publicationId:id,draftRevision:3,body:expect.objectContaining({profile:'spt-3',assets:expect.objectContaining({assets:[expect.objectContaining({width:1,height:1})]})})}));
 });
+
+it('saves and resumes rich drafts without converting them to simple compose text',async()=>{
+  request.mockReset();
+  const builder={version:1,body:{version:1,profile:'spt-2',blocks:[{_type:'block',style:'normal',children:[{_type:'span',text:'**Literal**',marks:['em','strong']}],markDefs:[]}]}};
+  const saved={id,revision:2,content:{...content,builder},updatedAt:'2026-11-04T00:00:00Z',trashedAt:null};
+  request.mockResolvedValueOnce(saved);
+  const form=new FormData();for(const [key,value] of Object.entries({publicationId:id,draftRevision:'1',audience:'category',builder:JSON.stringify(builder)}))form.set(key,value);
+  expect(await actions.save({request:new Request('https://example.com/compose',{method:'POST',body:form}),cookies:{},url:new URL('https://example.com/compose')} as never)).toEqual({savedDraft:saved});
+  expect(request).toHaveBeenCalledWith(`/drafts/${id}/save`,{revision:1,content:{...content,builder}});
+  request.mockReset();request.mockResolvedValueOnce(saved).mockResolvedValueOnce({maxRecipients:100,categories:[]});
+  expect(await load({cookies:{},url:new URL(`https://example.com/compose?draft=${id}`)} as never)).toMatchObject({draft:saved});
+});

@@ -187,3 +187,9 @@ Inbox redirects to `/?view=connections`. Explicit Feed (`/?view=subscriptions`)
 and Inbox links, including pagination, override the preference. Sign-in return
 paths retain their existing behavior. This is reference-provider/client behavior,
 not a federation requirement or a change to the portable account-history format.
+
+The reference-provider draft inventory also includes optional **builder draft v1**
+(`{version:1, body}`), documented in [provider drafts](provider-drafts.md) and its
+[schema](schemas/content-builder-draft.json). This is editable provider-local state,
+not a new SPT profile. Portable Text interchange and editor integration are client
+contracts documented in the [builder compatibility inventory](../packages/hail-content-builder/COMPATIBILITY.md).

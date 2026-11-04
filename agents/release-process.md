@@ -199,7 +199,8 @@ recorded PostgreSQL major. Never select an older database volume as image rollba
 
 CI and publication use an isolated BuildKit container with 4 GiB memory, no extra
 swap and at most two concurrent steps. The client build additionally limits V8
-old space to 512 MiB. Never run these builds on the live provider. Publication
+old space to 1,024 MiB to accommodate the Portable Text editor build. Never run
+these builds on the live provider. Publication
 emits provenance and SBOM metadata; digest selection plus the trusted workflow
 remains the deployment trust model, not cryptographic attestation enforcement.
 

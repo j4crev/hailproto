@@ -6,6 +6,13 @@
   import {enhance} from "$app/forms";
   import { composeBlocks,formatLines } from "$lib/compose.js";
   import {parseBody} from "$lib/messages.js";
+  import Builder from '@racrproto/content-builder/svelte';
+  import {emptyBody,validateBody,plainText,type BuilderDraft} from '@racrproto/content-builder/core';
+  let rich=$state(false),richDraft=$state<BuilderDraft|null>(null),richInitial=$state<BuilderDraft>({version:1,body:emptyBody()});
+  function startBuilder(){
+    richInitial={version:1,body:validateBody({version:1,profile:'spt-2',blocks:composeBlocks(title,text)})};
+    richDraft=richInitial;rich=true;title='';text='';
+  }
   import RichText from "$lib/RichText.svelte";
   import Icon from "$lib/Icon.svelte";
   let {data,form}=$props();
@@ -13,6 +20,7 @@
   let saving=$state(false);
   $effect(()=>{
     const draft=data.draft;
+    rich=!!draft?.content.builder;richInitial=draft?.content.builder??{version:1,body:emptyBody()};richDraft=draft?.content.builder??null;
     draftIdentity=data.newPublicationId;draftRevision=draft?.revision??0;
     title=draft?.content.title??'';text=draft?.content.text??'';alt=draft?.content.alt??'';caption=draft?.content.caption??'';
     allowReply=draft?.content.allowReply??false;category=draft?.content.category??'';categoryQuery=categoryLabel(draft?.content.category??'');
@@ -153,13 +161,14 @@
       await update({reset:false,invalidateAll:false});
     }finally{sending=false;saving=false;}};
   }} action={isConnection?'?/publish&audience=connections':'?/publish'} enctype="multipart/form-data" aria-busy={sending}>
+    {#if rich}<input type="hidden" name="builder" value={richDraft?JSON.stringify(richDraft):''}/>{/if}
     <input type="hidden" name="publicationId" value={retryPublication??draftIdentity}/>
     <input type="hidden" name="draftRevision" value={draftRevision}/>
     <input type="hidden" name="savedHeader" value={savedHeader??''}/>
     <input type="hidden" name="audience" value={data.kind}/>
     {#if data.forward}<input type="hidden" name="forwardSender" value={data.forward.message.sender}/><input type="hidden" name="forwardMessage" value={data.forward.message.messageId}/>{/if}
     <div class="writing-workspace min-w-0">
-      <div class="editor-topline"><button class="preview-toggle flex gap-[7px] items-center [background:none] [border:0] text-brand-strong p-[8px] cursor-pointer text-[12px] font-[600]" type="button" aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={16}/>{previewOpen?'Back to writing':'Preview'}</button></div>
+      <div class="builder-entry">{#if !data.forward&&!rich}<button type="button" class="hail-button-secondary" disabled={!!preview} onclick={startBuilder}>Open content builder</button>{/if}</div><div class="editor-topline">{#if !rich}<button class="preview-toggle flex gap-[7px] items-center [background:none] [border:0] text-brand-strong p-[8px] cursor-pointer text-[12px] font-[600]" type="button" aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={16}/>{previewOpen?'Back to writing':'Preview'}</button>{/if}</div>
       <div class="writing-card [border:1px_solid_var(--color-line)] rounded-[18px] [box-shadow:0_12px_40px_#00000004] overflow-hidden [background:var(--color-surface)]">
         {#if isConnection}
           {#each selected as id}<input type="hidden" name="connection" value={id}/>{/each}
@@ -202,6 +211,9 @@
           {#if categoryReady&&audience>data.maxRecipients}<p class="category-limit text-sm text-danger px-[28px]">Choose an audience with at most {data.maxRecipients} subscribers.</p>{/if}
         {/if}
         <div class="sender-line"><span>From</span><strong>{data.account.address}</strong></div>
+        {#if rich}
+          {#key draftIdentity}<div class="p-5"><Builder initial={richInitial} profiles={isConnection?['spt-2']:['spt-2','spt-3']} storageKey={`${data.account.did}:${data.kind}:${data.draft?.id??'new'}`} revision={draftRevision} onchange={value=>richDraft=value}/></div>{/key}
+        {:else}
         <div class="editor-content" hidden={previewOpen}>
           {#if data.forward}<div class="forward-notice"><Icon name="forward"/><p>The original message and sender details will appear below your note.</p></div>{:else}
             {#if !isConnection}<details class="cover-control" open={!!preview}><summary bind:this={coverSummary}><Icon name="image" size={18}/>{preview?'Cover image added':'Add a cover image'}<span>Optional</span></summary><div class="cover-fields grid gap-[14px] [padding:4px_14px_14px]"><label class="hail-field">Header PNG<input name="header" bind:this={headerInput} type="file" accept="image/png" onchange={image}/></label>{#if preview}<img class="cover-thumbnail max-h-[180px] w-full object-contain rounded-[8px]" src={preview} alt={alt}/><button class="hail-button-secondary justify-self-start" type="button" onclick={removeImage}>Remove image</button>{/if}<label class="hail-field">Image description<input name="alt" oninvalid={revealInvalid} maxlength="1024" bind:value={alt} required={!!preview} placeholder="Describe the image for readers"/></label><label class="hail-field">Caption <span class="optional font-[400] text-[11px] text-muted">Optional</span><input name="caption" maxlength="1024" bind:value={caption}/></label><p class="setting-note text-[12px] leading-[1.6] text-muted">PNG up to 192 KiB. An image description is required.</p></div></details>{/if}
@@ -212,7 +224,8 @@
           <textarea id="message-text" oninvalid={revealInvalid} aria-describedby="format-help" name="text" rows={isConnection?10:13} maxlength="65536" bind:this={editor} bind:value={text} required={!data.forward} placeholder={data.forward?'Add a personal note…':isConnection?'What’s on your mind?':'Tell your story. Share an idea. Give them something to look forward to.'}></textarea>
           <div class="editor-meta"><span>{wordCount} word{wordCount===1?'':'s'}</span></div>
         </div>
-        <section id="compose-preview" hidden={!previewOpen} class="compose-preview" aria-label="Message preview"><div class="preview-byline"><span class="avatar">{data.account.address.slice(0,1).toUpperCase()}</span><span><strong>{data.account.address}</strong><small>{isConnection?"Message preview":"Publication preview"}</small></span></div><div class="mt-5 text-[17px] leading-[1.8] [overflow-wrap:anywhere]">{#if forwarded}<RichText blocks={forwarded.blocks} header={forwarded.header}/>{:else}{#if data.kind==='category'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-contain" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}<RichText {blocks}/>{#if !text&&!title&&!preview}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}{/if}</div></section>
+        {/if}
+        <section id="compose-preview" hidden={!previewOpen||rich} class="compose-preview" aria-label="Message preview"><div class="preview-byline"><span class="avatar">{data.account.address.slice(0,1).toUpperCase()}</span><span><strong>{data.account.address}</strong><small>{isConnection?"Message preview":"Publication preview"}</small></span></div><div class="mt-5 text-[17px] leading-[1.8] [overflow-wrap:anywhere]">{#if forwarded}<RichText blocks={forwarded.blocks} header={forwarded.header}/>{:else}{#if data.kind==='category'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-contain" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}<RichText {blocks}/>{#if !text&&!title&&!preview}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}{/if}</div></section>
         {#if !isConnection}<label class="reply-setting"><input name="allowReply" type="checkbox" value="yes" bind:checked={allowReply}/>Allow one reply per subscriber, within 7 days</label>{/if}
         <section aria-label="Attachments" class="grid min-w-0 justify-items-start gap-2 px-[28px] py-[20px] [@media(max-width:760px)]:px-[20px]">
           <label for="attachments">Attachments</label>
@@ -224,14 +237,14 @@
         <footer class="send-bar">
           <div class="grid min-w-0 flex-[1_1_220px] gap-[5px] [overflow-wrap:anywhere]"><strong>{selected.length>1&&isConnection?'Shared conversation':'Ready when you are'}</strong><span>{isConnection&&search.trim()?'Select a matching connection':canPublish?`To ${destination}`:isConnection?'Choose at least one recipient':'Choose a category with subscribers'}</span></div>
           <div class="grid min-w-0 flex-[1_1_300px] grid-cols-2 gap-[12px]">
-            <button class="hail-button-secondary min-w-0" type="submit" formaction="?/save" formnovalidate disabled={sending}>{saving?'Saving…':'Save as Draft'}</button>
-            <button class="hail-button min-w-0" disabled={sending||!canPublish||(isConnection&&!!search.trim())||(!data.forward&&!text.trim())}>{sending&&!saving?'Sending…':data.forward?'Forward message':'Send message'}</button>
+            <button class="hail-button-secondary min-w-0" type="submit" formaction="?/save" formnovalidate disabled={sending||(rich&&!richDraft)}>{saving?'Saving…':'Save as Draft'}</button>
+            <button class="hail-button min-w-0" disabled={sending||!canPublish||(isConnection&&!!search.trim())||(rich?(!richDraft||!plainText(richDraft.body).trim()):(!data.forward&&!text.trim()))}>{sending&&!saving?'Sending…':data.forward?'Forward message':'Send message'}</button>
           </div>
         </footer>
       </div>
     </div>
   </form>
-  <button class="mobile-floating-action" type="button" aria-label={previewOpen?'Back to writing':'Preview'} title={previewOpen?'Back to writing':'Preview'} aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={24}/></button>
+  {#if !rich}<button class="mobile-floating-action" type="button" aria-label={previewOpen?'Back to writing':'Preview'} title={previewOpen?'Back to writing':'Preview'} aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={24}/></button>{/if}
 </div>
 
 <style lang="postcss">

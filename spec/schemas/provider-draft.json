@@ -146,6 +146,9 @@
           }
         }
       }
+    },
+    "builder": {
+      "$ref": "content-builder-draft.json"
     }
   },
   "allOf": [
@@ -177,6 +180,46 @@
           },
           "header": {
             "type": "null"
+          },
+          "builder": {
+            "properties": {
+              "body": {
+                "properties": {
+                  "profile": {
+                    "const": "spt-2"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "builder"
+        ]
+      },
+      "then": {
+        "properties": {
+          "title": {
+            "const": ""
+          },
+          "text": {
+            "const": ""
+          },
+          "alt": {
+            "const": ""
+          },
+          "caption": {
+            "const": ""
+          },
+          "header": {
+            "const": null
+          },
+          "forward": {
+            "const": null
           }
         }
       }

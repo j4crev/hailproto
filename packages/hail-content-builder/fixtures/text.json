@@ -1,0 +1,12 @@
+{"version":1,"profile":"spt-2","blocks":[
+  {"_type":"block","style":"h1","children":[{"_type":"span","text":"A portable message","marks":[]}],"markDefs":[]},
+  {"_type":"block","style":"normal","children":[{"_type":"span","text":"Café 日本語\n","marks":["strong","em"]},{"_type":"span","text":"Visit <example>","marks":["go","code"]}],"markDefs":[{"_key":"go","_type":"spt.link","href":"https://example.invalid/path?private=1","title":"Example"}]},
+  {"_type":"block","style":"normal","listItem":"bullet","level":1,"children":[{"_type":"span","text":"First","marks":[]}],"markDefs":[]},
+  {"_type":"block","style":"normal","listItem":"bullet","level":2,"children":[{"_type":"span","text":"Nested","marks":[]}],"markDefs":[]},
+  {"_type":"block","style":"normal","listItem":"number","level":3,"children":[{"_type":"span","text":"Third level","marks":[]}],"markDefs":[]},
+  {"_type":"block","style":"h2","children":[{"_type":"span","text":"Second heading","marks":[]}],"markDefs":[]},
+  {"_type":"block","style":"h3","children":[{"_type":"span","text":"Third heading","marks":[]}],"markDefs":[]},
+  {"_type":"block","style":"blockquote","children":[{"_type":"span","text":"A quotation","marks":[]}],"markDefs":[]},
+  {"_type":"block","style":"caption","children":[{"_type":"span","text":"A caption","marks":[]}],"markDefs":[]},
+  {"_type":"block","style":"normal","children":[{"_type":"span","text":"","marks":[]}],"markDefs":[]}
+]}

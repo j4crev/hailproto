@@ -875,7 +875,7 @@ try{
   await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='A clear message';e.dispatchEvent(new Event('input',{bubbles:true}));e.setSelectionRange(2,7);})()`);
   await evaluate(`document.querySelector('[aria-label="Bold"]').click()`);
   await click('Preview');
-  await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] span[class*="font-[750]"]')?.textContent==='clear'`),"formatting stays visible in preview");
+  await wait(async()=>evaluate(`Array.from(document.querySelectorAll('[aria-label="Message preview"] span')).some(span=>span.textContent==='clear'&&Number(getComputedStyle(span).fontWeight)>=700)`),"formatting stays visible in preview");
   for(const [button,selector] of [["Heading","h2"],["Quote","blockquote"],["Bullets","ul li"],["Numbered list","ol li"]]){
     await click('Back to writing');await click(button);await click('Preview');await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] ${selector}')?.textContent==='A clear message'`),"block toolbar: "+button);
   }

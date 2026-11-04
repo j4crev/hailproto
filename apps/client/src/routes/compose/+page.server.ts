@@ -1,3 +1,4 @@
+import {parseBuilderDraft,plainText} from '@racrproto/content-builder/core';
 import {formAttachments} from '$lib/server/attachments.js';
 import {parseDraft,draftIdPattern} from "@racrproto/client-support/drafts";
 import {draftForm} from "$lib/server/draft-form.js";
@@ -63,18 +64,26 @@ export const actions={save:async({request,cookies,url})=>{
     const kind=field("audience")==="connections"?"connections":"category",connections=form.getAll("connection");
     const forwardSender=field("forwardSender"),forwardMessage=field("forwardMessage"),forwarding=form.has("forwardSender")||form.has("forwardMessage");
     if(forwarding&&(kind!=="connections"||!forwardSender||!UUID7.test(forwardMessage)))return fail(400,{error:"Forwards can only be sent to connections."});
+    let builder:ReturnType<typeof parseBuilderDraft>|null=null;
+    if(form.has('builder')){
+      try{builder=parseBuilderDraft(JSON.parse(field('builder')));}
+      catch(cause){return fail(400,{error:cause instanceof Error?cause.message:'Invalid builder content.'});}
+      if(forwarding||title||text||alt||caption||field('savedHeader')||header instanceof File&&header.size>0)return fail(400,{error:'Builder content cannot be combined with simple-compose fields.'});
+      if(kind==='connections'&&builder.body.profile==='spt-3')return fail(400,{error:'Header images are available for subscriber publications only.'});
+      if(!plainText(builder.body).trim())return fail(400,{error:'Write some message text before publishing.'});
+    }
     const keys=[...form.keys()];
-    if(keys.some(key=>!["attachment","savedAttachments","draftRevision","savedHeader","forwardSender","forwardMessage","publicationId","category","title","text","alt","caption","header","allowReply","audience","connection"].includes(key))||
+    if(keys.some(key=>!["builder","attachment","savedAttachments","draftRevision","savedHeader","forwardSender","forwardMessage","publicationId","category","title","text","alt","caption","header","allowReply","audience","connection"].includes(key))||
       new Set(keys.filter(k=>k!=="connection"&&k!=="attachment")).size!==keys.filter(k=>k!=="connection"&&k!=="attachment").length||
       !["","category","connections"].includes(field("audience"))||!UUID7.test(id)||(kind==="category"?!CATEGORY.test(category)||connections.length>0:connections.length<1||connections.length>100||connections.some(v=>typeof v!=="string"||!UUID7.test(v))||new Set(connections).size!==connections.length||form.has("category")||form.has("allowReply"))||
-      (!forwarding&&!text.trim())||Buffer.byteLength(text)>65536||Buffer.byteLength(title)>128||
+      (!builder&&!forwarding&&!text.trim())||Buffer.byteLength(text)>65536||Buffer.byteLength(title)>128||
       Buffer.byteLength(alt)>1024||Buffer.byteLength(caption)>1024)
       return fail(400,{error:"Check the audience, title, and message text."});
     const savedHeader=field("savedHeader");
     const hasHeader=header instanceof File&&header.size>0||!!savedHeader;
     if(kind==="connections"&&hasHeader)return fail(400,{error:"Header images are available for subscriber publications only."});
     const blocks=composeBlocks(title.trim(),text.trim());
-    let body:Record<string,unknown>={version:1,profile:"spt-2",blocks};
+    let body:Record<string,unknown>=builder?builder.body:{version:1,profile:"spt-2",blocks};
     if(!forwarding&&hasHeader){
       if((header instanceof File&&header.size>0&&(header.type!=="image/png"||header.size>196608))||!alt.trim()||savedHeader.length>262144)return fail(400,{error:"Choose a bounded PNG and provide image alt text."});
       const data=header instanceof File&&header.size>0?new Uint8Array(await header.arrayBuffer()):new Uint8Array(Buffer.from(savedHeader,"base64url"));

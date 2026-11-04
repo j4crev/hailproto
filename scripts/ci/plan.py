@@ -13,6 +13,8 @@ JOBS = (
 # These are test dependencies, not just runtime package dependencies. In
 # particular, browser fixtures import server code and server DB tests run racr.
 COMPONENTS = {
+    "apps/content-builder/": {"web"},
+    "packages/hail-content-builder/": set(JOBS),
     "apps/client/": {"web", "images"},
     "apps/server/": {"server", "database-server", "web", "monitor", "database-monitor", "images"},
     "apps/cli/": {"cli", "database-server"},

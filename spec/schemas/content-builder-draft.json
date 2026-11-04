@@ -1,0 +1,374 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Content builder draft v1 (provider-local)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "body"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "body": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "profile",
+            "blocks"
+          ],
+          "properties": {
+            "version": {
+              "const": 1
+            },
+            "profile": {
+              "const": "spt-2"
+            },
+            "blocks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "_type",
+                  "style",
+                  "children",
+                  "markDefs"
+                ],
+                "properties": {
+                  "_type": {
+                    "const": "block"
+                  },
+                  "style": {
+                    "enum": [
+                      "normal",
+                      "h1",
+                      "h2",
+                      "h3",
+                      "blockquote",
+                      "caption"
+                    ]
+                  },
+                  "children": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "_type",
+                        "text",
+                        "marks"
+                      ],
+                      "properties": {
+                        "_type": {
+                          "const": "span"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "marks": {
+                          "type": "array",
+                          "uniqueItems": true,
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "markDefs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "_type",
+                        "_key",
+                        "href"
+                      ],
+                      "properties": {
+                        "_type": {
+                          "const": "spt.link"
+                        },
+                        "_key": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                        },
+                        "href": {
+                          "type": "string",
+                          "pattern": "^https://"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "listItem": {
+                    "enum": [
+                      "bullet",
+                      "number"
+                    ]
+                  },
+                  "level": {
+                    "enum": [
+                      1,
+                      2,
+                      3
+                    ]
+                  }
+                },
+                "dependencies": {
+                  "level": [
+                    "listItem"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "profile",
+            "blocks",
+            "assets"
+          ],
+          "properties": {
+            "version": {
+              "const": 1
+            },
+            "profile": {
+              "const": "spt-3"
+            },
+            "blocks": {
+              "type": "array",
+              "minItems": 1,
+              "items": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "_type",
+                    "asset",
+                    "alt"
+                  ],
+                  "properties": {
+                    "_type": {
+                      "const": "spt.image"
+                    },
+                    "asset": {
+                      "type": "string"
+                    },
+                    "alt": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    "caption": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    }
+                  }
+                }
+              ],
+              "additionalItems": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "_type",
+                  "style",
+                  "children",
+                  "markDefs"
+                ],
+                "properties": {
+                  "_type": {
+                    "const": "block"
+                  },
+                  "style": {
+                    "enum": [
+                      "normal",
+                      "h1",
+                      "h2",
+                      "h3",
+                      "blockquote",
+                      "caption"
+                    ]
+                  },
+                  "children": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "_type",
+                        "text",
+                        "marks"
+                      ],
+                      "properties": {
+                        "_type": {
+                          "const": "span"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "marks": {
+                          "type": "array",
+                          "uniqueItems": true,
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "markDefs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "_type",
+                        "_key",
+                        "href"
+                      ],
+                      "properties": {
+                        "_type": {
+                          "const": "spt.link"
+                        },
+                        "_key": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                        },
+                        "href": {
+                          "type": "string",
+                          "pattern": "^https://"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "listItem": {
+                    "enum": [
+                      "bullet",
+                      "number"
+                    ]
+                  },
+                  "level": {
+                    "enum": [
+                      1,
+                      2,
+                      3
+                    ]
+                  }
+                },
+                "dependencies": {
+                  "level": [
+                    "listItem"
+                  ]
+                }
+              }
+            },
+            "assets": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "version",
+                "assets"
+              ],
+              "properties": {
+                "version": {
+                  "const": 1
+                },
+                "assets": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "id",
+                      "role",
+                      "media_type",
+                      "loading",
+                      "size",
+                      "digest",
+                      "width",
+                      "height",
+                      "data"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                      },
+                      "role": {
+                        "const": "header"
+                      },
+                      "media_type": {
+                        "const": "image/png"
+                      },
+                      "loading": {
+                        "const": "bundled"
+                      },
+                      "size": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 196608
+                      },
+                      "digest": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "algorithm",
+                          "value"
+                        ],
+                        "properties": {
+                          "algorithm": {
+                            "const": "sha-256"
+                          },
+                          "value": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_-]{43}$"
+                          }
+                        }
+                      },
+                      "width": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 2400
+                      },
+                      "height": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1200
+                      },
+                      "data": {
+                        "type": "string",
+                        "maxLength": 262144,
+                        "pattern": "^[A-Za-z0-9_-]+$"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "description": "Maximum 360,000 UTF-8 JSON bytes for body. Codec validation is additionally required: canonical base64url, link rules and annotation scope, resource budgets, PNG structure, digest, dimensions and pixels, asset binding, and NFC/control-free alt/caption. Block/span editor keys are not stored here."
+}
