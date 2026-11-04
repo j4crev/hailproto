@@ -126,25 +126,25 @@
 {#if error}<p class="hail-error" role="alert">{error}</p>{/if}
 {#if replyFailure.error}<p class="hail-error" role="alert">{replyFailure.error}</p>{/if}
 {#if pending}<p class="text-sm text-muted" role="status">Opening message…</p>{/if}
-{#if start>0}<div class="newer-edge" bind:this={newerEdge}>
+{#if start>0}<div class="newer-edge min-h-[32px] mb-[12px] text-[12px] text-muted" bind:this={newerEdge}>
   {#if pagingError}<button class="hail-button-secondary" disabled={paging} onclick={()=>more(true)}>Retry loading newer messages</button>
   {:else}<span role="status">{paging?'Loading newer messages…':newerUnread?`↑ ${newerUnread} unread above`:'↑ Newer messages above'}</span>{/if}
 </div>{/if}
 <section aria-label="Conversation messages" aria-busy={pending}>
 {#each rows as row (conversationKey(row))}
   {@const expanded=conversationKey(row)===selected}
-  <div class="conversation-item" class:expanded id={'row-'+row.messageId}>
+  <div class="conversation-item scroll-mt-[90px] [border-bottom:1px_solid_var(--color-line)]" class:expanded id={'row-'+row.messageId}>
     {#if expanded && message && content}
-      {#if content.title && content.title!==conversationSubject}<h2 class="different-subject">{content.title}</h2>{/if}
+      {#if content.title && content.title!==conversationSubject}<h2 class="different-subject [margin:20px_12px_0] text-[18px] font-[600] [overflow-wrap:anywhere]">{content.title}</h2>{/if}
       <header class="expanded-header" tabindex="-1" aria-label={row.sent?'Message from you':`Message from ${row.senderAddress??row.sender}`}>
         <span class="expanded-date"><DateTime format="list" value={row.createdAt} /></span>
-        <div class="sender-avatar"><SelectionAvatar name={row.sent?'You':row.senderAddress??row.sender} avatar={data.avatars[row.sender]} /></div>
+        <div class="sender-avatar [grid-column:1] [grid-row:1_/_3]"><SelectionAvatar name={row.sent?'You':row.senderAddress??row.sender} avatar={data.avatars[row.sender]} /></div>
         <div class="sender-identity">
           <div class="sender-address">{#if row.sent}You{:else}<ContactAddress owner={data.account.did} did={row.sender} address={row.senderAddress} />{/if}</div>
           {#if row.sent || row.senderAddress}<IdentityDetails did={row.sender} />{/if}
-          {#if row.sent && !message.sharedConversation}<p class="recipients">To {row.recipients.map(r=>r.address??r.did).join(', ')}</p>{/if}
+          {#if row.sent && !message.sharedConversation}<p class="recipients [margin:6px_0_0] text-[12px] text-muted">To {row.recipients.map(r=>r.address??r.did).join(', ')}</p>{/if}
         </div>
-        <div class="message-tools mobile-message-actions" role="group" aria-label="Message actions">
+        <div class="message-tools mobile-message-actions [grid-column:3] [grid-row:2] flex gap-[4px] items-center flex-wrap" role="group" aria-label="Message actions">
 
             {#if message.sharedConversation}<button class="hail-icon-button compact" title="Reply all" aria-label="Reply all" aria-expanded={replyOpen&&replyAll} disabled={message.sharedConversation.state!=='active'||sending} onclick={()=>reply(true)}><Icon name="reply-all"/></button>{/if}
             {#if !row.sent}
@@ -174,7 +174,7 @@
         <div class="reading-body"><QuotedMessage blocks={content.blocks} header={message.header} /><Attachments files={message.attachments} sender={message.sender} messageId={message.messageId} /></div>
         {#if !row.sent && !message.connection?.active}<p class="text-sm text-muted">{message.sharedConversation?'Private replies require a connection to this person.':'This connection is no longer active. Saved messages remain readable.'}</p>{/if}
         {#if replyOpen && (replyAll?message.sharedConversation?.state==='active':!row.sent&&message.connection?.active)}
-          <form class="reply-form" enctype="multipart/form-data" method="POST" action={`/message/${encodeURIComponent(row.sender)}/${row.messageId}?/${replyAll?'replyAll':'reply'}`} use:enhance={()=>{sending=true;return async({result})=>{sending=false;if(result.type==='failure')replyFailure=result.data??{};else await applyAction(result);};}}>
+          <form class="reply-form grid gap-[16px] mt-[24px]" enctype="multipart/form-data" method="POST" action={`/message/${encodeURIComponent(row.sender)}/${row.messageId}?/${replyAll?'replyAll':'reply'}`} use:enhance={()=>{sending=true;return async({result})=>{sending=false;if(result.type==='failure')replyFailure=result.data??{};else await applyAction(result);};}}>
             <input type="hidden" name="messageId" value={replyFailure.messageId??data.newReplyId} />
             <label class="hail-field">{replyAll?'Reply to everyone':'Reply to '+(row.senderAddress??row.sender)}<textarea bind:this={replyInput} name="text" rows="5" maxlength="65536" required value={replyFailure.text??''}></textarea></label>
     <label class="hail-field">Attachments (PNG, JPEG, WebP, PDF, TXT, LOG · 25 MiB total)<input type="file" name="attachment" accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.log" multiple /></label>
@@ -192,35 +192,29 @@
 {/each}
 </section>
 {#if start+rows.length<total}<button class="hail-button-secondary mt-4" disabled={paging} onclick={()=>more(false)}>Older messages ↓</button>{/if}
-<style>
-  .newer-edge { min-height:32px; margin-bottom:12px; font-size:12px; color:var(--color-muted); }
-  .conversation-item { scroll-margin-top:90px; border-bottom:1px solid var(--color-line); }
-  .expanded { background:var(--color-surface); }
-  .expanded-body { max-width:800px; margin:0; padding:8px 12px 32px; }
-  .expanded-header { display:grid; grid-template-columns:40px minmax(0,1fr) auto; align-items:start; gap:4px 16px; padding:20px 12px 4px; }
-  .conversation-subject { margin:0 0 24px; overflow-wrap:anywhere; }
-  .different-subject { margin:20px 12px 0; font-size:18px; font-weight:600; overflow-wrap:anywhere; }
-  .expanded-header:focus { outline:none; }
-  .expanded-date { grid-column:3; grid-row:1; justify-self:end; padding-top:3px; white-space:nowrap; font-size:12px; color:var(--color-muted); }
-  .sender-avatar { grid-column:1; grid-row:1 / 3; }
-  .sender-identity { grid-column:2; grid-row:1 / 3; min-width:0; overflow-wrap:anywhere; }
-  .sender-address { font-size:14px; font-weight:550; line-height:1.5; margin-bottom:3px; }
-  .sender-address :global(.address) { white-space:normal; overflow-wrap:anywhere; }
-  .message-details { grid-column:2 / -1; grid-row:3; min-width:0; overflow-wrap:anywhere; margin:0; font-size:12px; color:var(--color-muted); }
-  .message-details summary { cursor:pointer; width:fit-content; }
-  .detail-row { display:grid; grid-template-columns:14px minmax(0,1fr); align-items:start; gap:8px; margin-top:8px; }
-  .detail-row :global(svg) { margin-top:2px; }
-  .detail-row ul { list-style:none; padding:0; margin:0; display:grid; gap:6px; }
-  .recipients { margin:6px 0 0; font-size:12px; color:var(--color-muted); }
-  .message-tools { grid-column:3; grid-row:2; display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
+<style lang="postcss">
+  @reference "../../../../app.css";
 
-  .reading-body { min-height:0; margin-inline:0; padding:12px 0; }
-  .reply-form { display:grid; gap:16px; margin-top:24px; }
-  @media(max-width:640px){
-    .expanded-header { grid-template-columns:44px minmax(0,1fr) auto; gap:4px 10px; padding:12px 0 0; }
-    .conversation-subject { margin-bottom:16px; }
-    .expanded-date { font-size:11px; padding-top:4px; }
-    .sender-identity { grid-column:2; grid-row:1; }
-    .expanded-body { padding:0 0 24px; }
+  .expanded { @apply [background:var(--color-surface)]; }
+  .expanded-body { @apply max-w-[800px] m-0 [padding:8px_12px_32px]; }
+  .expanded-header { @apply grid [grid-template-columns:40px_minmax(0,1fr)_auto] [align-items:start] [gap:4px_16px] [padding:20px_12px_4px]; }
+  .conversation-subject { @apply [margin:0_0_24px] [overflow-wrap:anywhere]; }
+  .expanded-header:focus { @apply [outline:none]; }
+  .expanded-date { @apply [grid-column:3] [grid-row:1] [justify-self:end] pt-[3px] whitespace-nowrap text-[12px] text-muted; }
+  .sender-identity { @apply [grid-column:2] [grid-row:1_/_3] min-w-0 [overflow-wrap:anywhere]; }
+  .sender-address { @apply text-[14px] font-[550] leading-[1.5] mb-[3px]; }
+  .sender-address :global(.address) { @apply whitespace-normal [overflow-wrap:anywhere]; }
+  .message-details { @apply [grid-column:2_/_-1] [grid-row:3] min-w-0 [overflow-wrap:anywhere] m-0 text-[12px] text-muted; }
+  .message-details summary { @apply cursor-pointer w-[fit-content]; }
+  .detail-row { @apply grid [grid-template-columns:14px_minmax(0,1fr)] [align-items:start] gap-[8px] mt-[8px]; }
+  .detail-row :global(svg) { @apply mt-[2px]; }
+  .detail-row ul { @apply [list-style:none] p-0 m-0 grid gap-[6px]; }
+  .reading-body { @apply min-h-0 mx-0 [padding:12px_0]; }
+  @media (max-width:640px) {
+    .expanded-header { @apply [grid-template-columns:44px_minmax(0,1fr)_auto] [gap:4px_10px] [padding:12px_0_0]; }
+    .conversation-subject { @apply mb-[16px]; }
+    .expanded-date { @apply text-[11px] pt-[4px]; }
+    .sender-identity { @apply [grid-column:2] [grid-row:1]; }
+    .expanded-body { @apply [padding:0_0_24px]; }
   }
 </style>

@@ -16,7 +16,7 @@
       <div><dt>Of which: lookup indexes</dt><dd>{bytes(storage.indexBytes)}</dd></div>
     </dl>
     <p>Lookup indexes are extra structures that speed up database searches. They are already included in Hail storage and category totals.</p>
-    <div class="scroll"><table><thead><tr><th scope="col">Category</th><th scope="col">Data & storage overhead</th><th scope="col">Lookup indexes</th><th scope="col">Total</th></tr></thead><tbody>
+    <div class="scroll overflow-auto"><table><thead><tr><th scope="col">Category</th><th scope="col">Data & storage overhead</th><th scope="col">Lookup indexes</th><th scope="col">Total</th></tr></thead><tbody>
       {#each storage.categories as category (category.id)}
         <tr><th scope="row">{category.label}</th><td>{bytes(category.tableBytes)}</td><td>{bytes(category.indexBytes)}</td><td>{bytes(category.totalBytes)}</td></tr>
       {/each}
@@ -27,6 +27,17 @@
     <p>This is a current storage snapshot, independent of the activity period. Backups, PostgreSQL transaction logs, and host disk capacity are not included.</p>
   {:else}<p role="status">Storage statistics are temporarily unavailable.</p>{/if}
 </section>
-<style>
-  section{margin:28px 0;border-top:1px solid var(--color-line);padding-top:8px}h3{font-size:16px}dl{display:flex;flex-wrap:wrap;gap:24px}dt{font-size:13px;color:var(--color-muted)}dd{margin:8px 0;font-size:24px;font-weight:650}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px;text-align:left}th,td{padding:12px 10px;border-bottom:1px solid var(--color-line)}td{white-space:nowrap}thead th{color:var(--color-muted)}p{font-size:13px;line-height:1.6;color:var(--color-muted)}
+<style lang="postcss">
+  @reference "../app.css";
+
+  section { @apply [margin:28px_0] [border-top:1px_solid_var(--color-line)] pt-[8px]; }
+  h3 { @apply text-[16px]; }
+  dl { @apply flex flex-wrap gap-[24px]; }
+  dt { @apply text-[13px] text-muted; }
+  dd { @apply [margin:8px_0] text-[24px] font-[650]; }
+  table { @apply w-full border-collapse text-[13px] text-left; }
+  th,td { @apply [padding:12px_10px] [border-bottom:1px_solid_var(--color-line)]; }
+  td { @apply whitespace-nowrap; }
+  thead th { @apply text-muted; }
+  p { @apply text-[13px] leading-[1.6] text-muted; }
 </style>

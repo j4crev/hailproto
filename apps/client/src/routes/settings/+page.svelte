@@ -60,7 +60,7 @@
           <select id="theme" value={$themePreference} onchange={changeTheme} disabled={!ready||displaySaving}>
             <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
           </select>
-          <span class="select-arrow"><Icon name="chevron" size={16} /></span>
+          <span class="select-arrow absolute [inset-inline-end:14px] top-[50%] flex [transform:translateY(-50%)_rotate(90deg)] pointer-events-none"><Icon name="chevron" size={16} /></span>
         </span>
       </label>
       <p class="m-0 text-sm text-muted">System follows your device’s appearance.</p>
@@ -71,7 +71,7 @@
           <select id="start-screen" value={$startScreenPreference} onchange={changeStartScreen} disabled={!ready||displaySaving} aria-describedby="start-screen-description">
             <option value="feed">Feed</option><option value="inbox">Inbox</option>
           </select>
-          <span class="select-arrow"><Icon name="chevron" size={16} /></span>
+          <span class="select-arrow absolute [inset-inline-end:14px] top-[50%] flex [transform:translateY(-50%)_rotate(90deg)] pointer-events-none"><Icon name="chevron" size={16} /></span>
         </span>
       </label>
       <p id="start-screen-description" class="m-0 text-sm text-muted">Choose where you land when you open {page.data.branding?.name ?? "Hail"}.</p>
@@ -88,31 +88,40 @@
     </div>
     {#if displayError}<p role="alert" class="m-0 text-sm">{displayError}</p>{/if}
     {#if confirmDisable}
-      <section class="trash-confirmation" aria-labelledby="disable-trash-title">
+      <section class="trash-confirmation grid gap-[12px] p-[16px] [border:1px_solid_var(--color-danger)] rounded-[12px] [background:var(--color-danger-soft)]" aria-labelledby="disable-trash-title">
         <h2 id="disable-trash-title" class="m-0 text-sm font-semibold">Disable Trash?</h2>
         <p class="m-0 text-sm">Disabling Trash immediately and permanently deletes everything already in Trash. Future deletions cannot be restored.</p>
         <div class="confirmation-actions">
           <button class="hail-button-secondary" disabled={saving||!ready} onclick={()=>confirmDisable=false}>Cancel</button>
-          <button class="hail-button-secondary confirm-delete" disabled={saving||!ready} onclick={()=>saveTrash(false)}>Confirm</button>
+          <button class="hail-button-secondary confirm-delete text-danger [border-color:var(--color-danger)]" disabled={saving||!ready} onclick={()=>saveTrash(false)}>Confirm</button>
         </div>
       </section>
     {/if}
     {#if trashError}<p role="alert" class="m-0 text-sm">{trashError}</p>{/if}
   </section>
 </div>
-<style>
-  .settings-select { position:relative; display:block; }
-  .settings-select select { appearance:none; padding-inline-end:44px; }
-  .select-arrow { position:absolute; inset-inline-end:14px; top:50%; display:flex; transform:translateY(-50%) rotate(90deg); pointer-events:none; }
+<style lang="postcss">
+  @reference "../../app.css";
 
-  .trash-confirmation { display:grid; gap:12px; padding:16px; border:1px solid var(--color-danger); border-radius:12px; background:var(--color-danger-soft); }
-  .confirmation-actions { display:flex; justify-content:flex-end; gap:8px; }
-  .confirmation-actions button { min-height:44px; }
-  .confirm-delete { color:var(--color-danger); border-color:var(--color-danger); }
-  @media(max-width:640px) { .confirmation-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } }
-  .preference-switch { appearance:none; position:relative; flex-shrink:0; width:46px; height:28px; margin:0; border:1px solid var(--color-muted); border-radius:20px; background:var(--color-line); cursor:pointer; transition:background .15s; }
-  .preference-switch::before { content:''; position:absolute; width:20px; height:20px; top:3px; left:3px; border-radius:50%; background:var(--color-surface); box-shadow:0 1px 3px #172b2d30; transition:transform .15s; }
-  .preference-switch:checked { background:var(--color-brand); border-color:var(--color-brand); }
-  .preference-switch:checked::before { transform:translateX(18px); }
-  .preference-switch:disabled { opacity:.5; }
+  .settings-select { @apply relative block; }
+  .settings-select select { @apply appearance-none [padding-inline-end:44px]; }
+  .confirmation-actions { @apply flex justify-end gap-[8px]; }
+  .confirmation-actions button { @apply min-h-[44px]; }
+  @media (max-width:640px) {
+    .confirmation-actions { @apply grid grid-cols-[repeat(2,minmax(0,1fr))]; }
+  }
+  .preference-switch {
+    @apply appearance-none relative shrink-0 w-[46px] h-[28px] m-0 [border:1px_solid_var(--color-muted)] rounded-[20px]
+      [background:var(--color-line)] cursor-pointer;
+    transition: background .15s;
+  }
+  .preference-switch::before {
+    content: '';
+    @apply absolute w-[20px] h-[20px] top-[3px] left-[3px] rounded-[50%] [background:var(--color-surface)]
+      [box-shadow:0_1px_3px_#172b2d30];
+    transition: transform .15s;
+  }
+  .preference-switch:checked { @apply [background:var(--color-brand)] [border-color:var(--color-brand)]; }
+  .preference-switch:checked::before { @apply [transform:translateX(18px)]; }
+  .preference-switch:disabled { @apply opacity-[.5]; }
 </style>

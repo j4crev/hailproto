@@ -32,7 +32,9 @@
   {/if}
 {/each}
 
-<style>
-  .forward-heading { margin-top:1.75em; margin-bottom:.6em; padding-top:1.25em; border-top:1px solid var(--color-line); font-family:var(--font-sans); font-size:.85em; font-weight:650; }
-  .forward-metadata { margin-bottom:1.75em; padding-bottom:1.25em; border-bottom:1px solid var(--color-line); color:var(--color-muted); font-family:var(--font-sans); font-size:.75em; line-height:1.65; }
+<style lang="postcss">
+  @reference "../app.css";
+
+  .forward-heading { @apply mt-[1.75em] mb-[.6em] pt-[1.25em] [border-top:1px_solid_var(--color-line)] font-sans text-[.85em] font-[650]; }
+  .forward-metadata { @apply mb-[1.75em] pb-[1.25em] [border-bottom:1px_solid_var(--color-line)] text-muted font-sans text-[.75em] leading-[1.65]; }
 </style>

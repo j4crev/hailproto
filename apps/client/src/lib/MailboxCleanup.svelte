@@ -22,7 +22,7 @@
   }
 </script>
 <header class="page-heading">
-  <div class="heading-actions">
+  <div class="heading-actions flex items-center gap-[8px]">
     <h1 class="hail-title">{folder}</h1>
     <details class="cleanup-menu" bind:this={menu}>
       <summary class="hail-icon-button compact" aria-label={`${folder} actions`} title={`${folder} actions`}><Icon name="ellipsis" /></summary>
@@ -40,25 +40,36 @@
   </section>
 {/if}
 {#if error}<p class="hail-error" role="alert">{error}</p>{/if}
-<style>
-  .heading-actions { display:flex; align-items:center; gap:8px; }
-  .cleanup-menu { position:relative; }
-  summary { list-style:none; }
-  summary::-webkit-details-marker { display:none; }
-  .menu-items { position:absolute; left:0; top:100%; z-index:12; padding:6px; min-width:200px; background:var(--color-surface); border:1px solid var(--color-line); border-radius:12px; box-shadow:0 4px 12px #0002; }
-  .menu-item { display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px; border:0; border-radius:6px; background:transparent; color:var(--color-ink); text-align:left; font-size:14px; white-space:nowrap; }
-  .menu-item:hover { background:var(--color-brand-soft); }
-  .mobile-cleanup { display:none; }
-  .cleanup-confirmation { display:grid; gap:12px; padding:16px; margin-bottom:24px; border:1px solid var(--color-line); border-radius:12px; background:var(--color-surface); }
-  .cleanup-confirmation.permanent { border-color:var(--color-danger); background:var(--color-danger-soft); }
-  .confirmation-actions { display:flex; justify-content:flex-end; gap:8px; }
-  .confirmation-actions button { min-height:44px; }
-  .permanent .confirmation-actions button:last-child { color:var(--color-danger); border-color:var(--color-danger); }
-  @media(max-width:900px) {
-    .cleanup-menu { display:none; }
-    .mobile-cleanup { position:fixed; z-index:11; left:50%; transform:translateX(-50%); bottom:calc(40px + env(safe-area-inset-bottom)); display:grid; place-items:center; width:56px; height:56px; border:0; border-radius:18px; background:var(--color-brand); color:var(--color-on-brand); box-shadow:0 4px 16px #0003; }
-    .mobile-cleanup:hover { background:var(--color-brand-strong); }
-    .mobile-cleanup:disabled { opacity:.5; cursor:default; }
-    .confirmation-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+<style lang="postcss">
+  @reference "../app.css";
+
+  .cleanup-menu { @apply relative; }
+  summary { @apply [list-style:none]; }
+  summary::-webkit-details-marker { @apply hidden; }
+  .menu-items {
+    @apply absolute left-0 top-[100%] z-[12] p-[6px] min-w-[200px] [background:var(--color-surface)]
+      [border:1px_solid_var(--color-line)] rounded-[12px] [box-shadow:0_4px_12px_#0002];
+  }
+  .menu-item {
+    @apply flex items-center gap-[10px] w-full [padding:10px_12px] [border:0] rounded-[6px] [background:transparent]
+      text-ink text-left text-[14px] whitespace-nowrap;
+  }
+  .menu-item:hover { @apply [background:var(--color-brand-soft)]; }
+  .mobile-cleanup { @apply hidden; }
+  .cleanup-confirmation { @apply grid gap-[12px] p-[16px] mb-[24px] [border:1px_solid_var(--color-line)] rounded-[12px] [background:var(--color-surface)]; }
+  .cleanup-confirmation.permanent { @apply [border-color:var(--color-danger)] [background:var(--color-danger-soft)]; }
+  .confirmation-actions { @apply flex justify-end gap-[8px]; }
+  .confirmation-actions button { @apply min-h-[44px]; }
+  .permanent .confirmation-actions button:last-child { @apply text-danger [border-color:var(--color-danger)]; }
+  @media (max-width:900px) {
+    .cleanup-menu { @apply hidden; }
+    .mobile-cleanup {
+      @apply fixed z-[11] left-[50%] [transform:translateX(-50%)] bottom-[calc(40px_+_env(safe-area-inset-bottom))] grid
+        place-items-center w-[56px] h-[56px] [border:0] rounded-[18px] [background:var(--color-brand)] text-on-brand
+        [box-shadow:0_4px_16px_#0003];
+    }
+    .mobile-cleanup:hover { @apply [background:var(--color-brand-strong)]; }
+    .mobile-cleanup:disabled { @apply opacity-[.5] cursor-default; }
+    .confirmation-actions { @apply grid grid-cols-[repeat(2,minmax(0,1fr))]; }
   }
 </style>

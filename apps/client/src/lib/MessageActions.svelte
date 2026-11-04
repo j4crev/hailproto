@@ -79,7 +79,7 @@
   <div class="inline-actions" class:expanded={confirming || !!error}>
     {#if !confirming}
       {#if menu}
-        <details class="action-menu">
+        <details class="action-menu relative">
           <summary class="hail-icon-button compact" aria-label="More message actions" title="More actions"><Icon name="more" /></summary>
           <div class="menu-items">{#if messages.length}<button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');void markUnread();}}><Icon name="unread" /><span>Mark unread</span></button><button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');void review();}}><Icon name="trash" /><span>Trash</span></button>{/if}{#if onunsubscribe}<button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event => {event.currentTarget.closest('details')?.removeAttribute('open');onunsubscribe?.();}}><Icon name="bell-off" /><span>Unsubscribe</span></button>{/if}{#each extraActions as action}<button class="menu-item" type="button" disabled={disabled || busy || !ready} onclick={event=>{event.currentTarget.closest('details')?.removeAttribute('open');action.run();}}><Icon name={action.icon}/><span>{action.label}</span></button>{/each}</div>
         </details>
@@ -95,16 +95,25 @@
     {@render confirmation()}
   </SelectionActions>
 {/if}
-<style>
-  .inline-actions.expanded { flex-basis:100%; }
-  .action-menu { position:relative; }
-  summary { list-style:none; }
-  summary::-webkit-details-marker { display:none; }
-  .menu-item { display:flex; align-items:center; gap:10px; width:100%; min-width:172px; padding:10px 12px; border:0; border-radius:6px; background:transparent; text-align:left; font-size:16px; }
-  @media (hover:hover) and (pointer:fine) { .menu-item:hover { background:var(--color-brand-soft); } }
-  .menu-items { position:absolute; right:0; top:100%; z-index:5; padding:6px; background:var(--color-surface); border:1px solid var(--color-line); border-radius:12px; box-shadow:0 4px 12px #0002; }
-  @media(max-width:900px) {
-    :global(.mobile-message-actions) .menu-items { top:auto; bottom:calc(100% + 12px); max-height:50dvh; overflow-y:auto; color:var(--color-ink); }
-    :global(.mobile-message-actions) .inline-actions.expanded { max-height:50dvh; overflow-y:auto; }
+<style lang="postcss">
+  @reference "../app.css";
+
+  .inline-actions.expanded { @apply basis-[100%]; }
+  summary { @apply [list-style:none]; }
+  summary::-webkit-details-marker { @apply hidden; }
+  .menu-item {
+    @apply flex items-center gap-[10px] w-full min-w-[172px] [padding:10px_12px] [border:0] rounded-[6px]
+      [background:transparent] text-left text-[16px];
+  }
+  @media (hover:hover) and (pointer:fine) {
+    .menu-item:hover { @apply [background:var(--color-brand-soft)]; }
+  }
+  .menu-items {
+    @apply absolute right-0 top-[100%] z-[5] p-[6px] [background:var(--color-surface)]
+      [border:1px_solid_var(--color-line)] rounded-[12px] [box-shadow:0_4px_12px_#0002];
+  }
+  @media (max-width:900px) {
+    :global(.mobile-message-actions) .menu-items { @apply [top:auto] bottom-[calc(100%_+_12px)] max-h-[50dvh] overflow-y-auto text-ink; }
+    :global(.mobile-message-actions) .inline-actions.expanded { @apply max-h-[50dvh] overflow-y-auto; }
   }
 </style>

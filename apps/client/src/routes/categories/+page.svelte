@@ -75,8 +75,8 @@
           {#each categories as category, index}
             <div class="category-item">
               <div class="category-row" class:is-selected={selected.includes(index)}>
-                <label class="category-select"><input type="checkbox" checked={selected.includes(index)} aria-label={`Select ${category.label || 'new category'}`} onchange={() => selected = selected.includes(index) ? selected.filter(value => value !== index) : [...selected, index]} /></label>
-                <button class="category-open" type="button" aria-expanded={!category.persistedId || editing === index} aria-controls={`category-editor-${index}`} onclick={() => editing = editing === index ? null : index}>
+                <label class="category-select flex items-center justify-center min-w-[44px] min-h-[44px] cursor-pointer"><input type="checkbox" checked={selected.includes(index)} aria-label={`Select ${category.label || 'new category'}`} onchange={() => selected = selected.includes(index) ? selected.filter(value => value !== index) : [...selected, index]} /></label>
+                <button class="category-open grid gap-[4px] flex-1 min-w-0 [padding:16px_12px] [border:0] rounded-none [background:transparent] text-left [overflow-wrap:anywhere]" type="button" aria-expanded={!category.persistedId || editing === index} aria-controls={`category-editor-${index}`} onclick={() => editing = editing === index ? null : index}>
                   <strong>{category.label || 'New category'}</strong>
                   {#if category.description}<span class="text-sm text-muted">{category.description}</span>{/if}
                 </button>
@@ -112,12 +112,14 @@
   </aside>
 </div>
 
-<style>
-  .category-item + .category-item { border-top: 1px solid var(--color-line); }
-  .category-row { display: flex; align-items: center; gap: 4px; }
-  .category-row.is-selected { background: var(--color-brand-soft); }
-  .category-select { display: flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; cursor: pointer; }
-  .category-open { display: grid; gap: 4px; flex: 1; min-width: 0; padding: 16px 12px; border: 0; border-radius: 0; background: transparent; text-align: left; overflow-wrap: anywhere; }
-  input.fixed-id { background: var(--color-canvas); color: var(--color-muted); cursor: not-allowed; opacity: .65; }
-  @media(max-width:900px) { .has-selection { padding-bottom: 100px; } }
+<style lang="postcss">
+  @reference "../../app.css";
+
+  .category-item + .category-item { @apply [border-top:1px_solid_var(--color-line)]; }
+  .category-row { @apply flex items-center gap-[4px]; }
+  .category-row.is-selected { @apply [background:var(--color-brand-soft)]; }
+  input.fixed-id { @apply [background:var(--color-canvas)] text-muted cursor-not-allowed opacity-[.65]; }
+  @media (max-width:900px) {
+    .has-selection { @apply pb-[100px]; }
+  }
 </style>

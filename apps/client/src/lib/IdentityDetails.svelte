@@ -2,9 +2,4 @@
   let {did}: {did: string} = $props();
 </script>
 
-<span class="identity-details"><code>{did}</code></span>
-
-<style>
-  .identity-details { display:block; min-width:0; color:var(--color-muted); font-size:12px; font-weight:400; overflow-wrap:anywhere; }
-  code { font-family:var(--font-mono); user-select:all; }
-</style>
+<span class="identity-details block min-w-0 text-muted text-[12px] font-[400] [overflow-wrap:anywhere]"><code class="font-mono [user-select:all]">{did}</code></span>

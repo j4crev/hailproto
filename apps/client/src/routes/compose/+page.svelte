@@ -146,7 +146,7 @@
   <div role="status" aria-atomic="true">{#if sentToast}<div class="hail-success-toast"><Icon name="check"/><span>Message sent.</span></div>{/if}</div>
   {#if form?.error}<div class="mb-5"><p class="hail-error" role="alert">{form.error}</p>{#if retryPublication}<a class="hail-back mt-2" href={batchUrl(retryPublication)}>Check original {isConnection?'message batch':'publication'} status →</a>{/if}</div>{/if}
   {#if form && 'savedDraft' in form && form.savedDraft}<p role="status">Draft saved. <a href="/drafts">View drafts</a></p>{/if}
-  <form class="compose-layout" method="POST" use:enhance={({submitter})=>{
+  <form class="compose-layout grid grid-cols-[minmax(0,1fr)] max-w-[900px] mx-auto" method="POST" use:enhance={({submitter})=>{
     saving=submitter?.getAttribute('formaction')==='?/save';sending=true;
     return async({update,result})=>{try{
       if(result.type==='success'&&result.data?.savedDraft){const saved=parseDraft(result.data.savedDraft);draftRevision=saved.revision;draftIdentity=saved.id;savedAttachments=saved.content.attachments??[];if(attachmentInput)attachmentInput.value="";}
@@ -158,15 +158,15 @@
     <input type="hidden" name="savedHeader" value={savedHeader??''}/>
     <input type="hidden" name="audience" value={data.kind}/>
     {#if data.forward}<input type="hidden" name="forwardSender" value={data.forward.message.sender}/><input type="hidden" name="forwardMessage" value={data.forward.message.messageId}/>{/if}
-    <div class="writing-workspace">
-      <div class="editor-topline"><button class="preview-toggle" type="button" aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={16}/>{previewOpen?'Back to writing':'Preview'}</button></div>
-      <div class="writing-card">
+    <div class="writing-workspace min-w-0">
+      <div class="editor-topline"><button class="preview-toggle flex gap-[7px] items-center [background:none] [border:0] text-brand-strong p-[8px] cursor-pointer text-[12px] font-[600]" type="button" aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={16}/>{previewOpen?'Back to writing':'Preview'}</button></div>
+      <div class="writing-card [border:1px_solid_var(--color-line)] rounded-[18px] [box-shadow:0_12px_40px_#00000004] overflow-hidden [background:var(--color-surface)]">
         {#if isConnection}
           {#each selected as id}<input type="hidden" name="connection" value={id}/>{/each}
           <div class="to-line">
             <label for="recipient-search">To</label>
-            <div class="recipient-entry">
-              <div class="recipient-chips">
+            <div class="recipient-entry relative flex-1 min-w-0">
+              <div class="recipient-chips flex items-center flex-wrap gap-[6px] min-w-0">
                 {#each recipients as recipient}<button type="button" class="recipient-chip" onclick={()=>removeRecipient(recipient.connectionId)} aria-label={`Remove ${recipient.address}`}>{recipient.address}<Icon name="close" size={13}/></button>{/each}
                 <input id="recipient-search" type="text" role="combobox" aria-autocomplete="list" aria-expanded={showSuggestions} aria-controls="recipient-suggestions" aria-activedescendant={showSuggestions&&selected.length<data.maxRecipients&&matches[activeSuggestion]?`recipient-option-${activeSuggestion}`:undefined} autocomplete="off" spellcheck="false" placeholder={selected.length?'':'Find a connection…'} bind:this={recipientInput} bind:value={search} oninput={()=>{suggestionsOpen=true;activeSuggestion=0;}} onfocus={()=>{suggestionsOpen=true;activeSuggestion=0;}} onblur={()=>suggestionsOpen=false} onkeydown={recipientKey}/>
               </div>
@@ -189,7 +189,7 @@
           <input type="hidden" name="category" value={categoryReady?category:''}/>
           <div class="to-line category-line">
             <label for="category-search">Category</label>
-            <div class="recipient-entry">
+            <div class="recipient-entry relative flex-1 min-w-0">
               <input id="category-search" class="category-search" type="text" role="combobox" aria-autocomplete="list" aria-expanded={categoryOpen} aria-controls="category-suggestions" aria-activedescendant={categoryOpen&&categoryMatches[activeCategory]?`category-option-${activeCategory}`:undefined} autocomplete="off" spellcheck="false" placeholder="Find a category…" bind:value={categoryQuery} onfocus={(event)=>{categoryOpen=true;categoryFiltering=false;activeCategory=0;event.currentTarget.select();}} oninput={()=>{categoryFiltering=true;categoryOpen=true;activeCategory=0;}} onblur={()=>categoryOpen=false} onkeydown={categoryKey}/>
               <div class="recipient-suggestions" hidden={!categoryOpen}>
                 <div id="category-suggestions" role="listbox" aria-label="Categories">
@@ -199,101 +199,122 @@
               </div>
             </div>
           </div>
-          {#if categoryReady&&audience>data.maxRecipients}<p class="category-limit text-sm text-danger">Choose an audience with at most {data.maxRecipients} subscribers.</p>{/if}
+          {#if categoryReady&&audience>data.maxRecipients}<p class="category-limit text-sm text-danger px-[28px]">Choose an audience with at most {data.maxRecipients} subscribers.</p>{/if}
         {/if}
         <div class="sender-line"><span>From</span><strong>{data.account.address}</strong></div>
         <div class="editor-content" hidden={previewOpen}>
           {#if data.forward}<div class="forward-notice"><Icon name="forward"/><p>The original message and sender details will appear below your note.</p></div>{:else}
-            {#if !isConnection}<details class="cover-control" open={!!preview}><summary bind:this={coverSummary}><Icon name="image" size={18}/>{preview?'Cover image added':'Add a cover image'}<span>Optional</span></summary><div class="cover-fields"><label class="hail-field">Header PNG<input name="header" bind:this={headerInput} type="file" accept="image/png" onchange={image}/></label>{#if preview}<img class="cover-thumbnail" src={preview} alt={alt}/><button class="hail-button-secondary justify-self-start" type="button" onclick={removeImage}>Remove image</button>{/if}<label class="hail-field">Image description<input name="alt" oninvalid={revealInvalid} maxlength="1024" bind:value={alt} required={!!preview} placeholder="Describe the image for readers"/></label><label class="hail-field">Caption <span class="optional">Optional</span><input name="caption" maxlength="1024" bind:value={caption}/></label><p class="setting-note">PNG up to 192 KiB. An image description is required.</p></div></details>{/if}
+            {#if !isConnection}<details class="cover-control" open={!!preview}><summary bind:this={coverSummary}><Icon name="image" size={18}/>{preview?'Cover image added':'Add a cover image'}<span>Optional</span></summary><div class="cover-fields grid gap-[14px] [padding:4px_14px_14px]"><label class="hail-field">Header PNG<input name="header" bind:this={headerInput} type="file" accept="image/png" onchange={image}/></label>{#if preview}<img class="cover-thumbnail max-h-[180px] w-full object-contain rounded-[8px]" src={preview} alt={alt}/><button class="hail-button-secondary justify-self-start" type="button" onclick={removeImage}>Remove image</button>{/if}<label class="hail-field">Image description<input name="alt" oninvalid={revealInvalid} maxlength="1024" bind:value={alt} required={!!preview} placeholder="Describe the image for readers"/></label><label class="hail-field">Caption <span class="optional font-[400] text-[11px] text-muted">Optional</span><input name="caption" maxlength="1024" bind:value={caption}/></label><p class="setting-note text-[12px] leading-[1.6] text-muted">PNG up to 192 KiB. An image description is required.</p></div></details>{/if}
             <label class="title-field"><span class="sr-only">Title (optional)</span><input name="title" maxlength="128" bind:value={title} placeholder={isConnection?'Give it a title (optional)':'Your headline goes here'}/></label>
           {/if}
-          <div class="format-toolbar" role="group" aria-label="Text formatting"><button class="hail-button-secondary min-w-11" type="button" onclick={()=>insert('**')} aria-label="Bold"><strong>B</strong></button><button class="hail-button-secondary min-w-11" type="button" onclick={()=>insert('*')} aria-label="Italic"><em>I</em></button><button class="hail-button-secondary min-w-11" type="button" onclick={()=>insert('`')} aria-label="Code"><code>&lt;/&gt;</code></button><button class="hail-button-secondary" type="button" onclick={link} aria-label="Link">Link</button><span class="format-divider" aria-hidden="true"></span><button class="hail-button-secondary" type="button" onclick={()=>block('## ')}>Heading</button><button class="hail-button-secondary" type="button" onclick={()=>block('- ')}>Bullets</button><button class="hail-button-secondary" type="button" onclick={()=>block('1. ')}>Numbered list</button><button class="hail-button-secondary" type="button" onclick={()=>block('> ')}>Quote</button></div>
+          <div class="format-toolbar" role="group" aria-label="Text formatting"><button class="hail-button-secondary min-w-11" type="button" onclick={()=>insert('**')} aria-label="Bold"><strong>B</strong></button><button class="hail-button-secondary min-w-11" type="button" onclick={()=>insert('*')} aria-label="Italic"><em>I</em></button><button class="hail-button-secondary min-w-11" type="button" onclick={()=>insert('`')} aria-label="Code"><code>&lt;/&gt;</code></button><button class="hail-button-secondary" type="button" onclick={link} aria-label="Link">Link</button><span class="format-divider w-[1px] h-[18px] mx-[4px] [background:var(--color-line)]" aria-hidden="true"></span><button class="hail-button-secondary" type="button" onclick={()=>block('## ')}>Heading</button><button class="hail-button-secondary" type="button" onclick={()=>block('- ')}>Bullets</button><button class="hail-button-secondary" type="button" onclick={()=>block('1. ')}>Numbered list</button><button class="hail-button-secondary" type="button" onclick={()=>block('> ')}>Quote</button></div>
           <label class="sr-only" for="message-text">{data.forward?'Note (optional)':'Message'}</label>
           <textarea id="message-text" oninvalid={revealInvalid} aria-describedby="format-help" name="text" rows={isConnection?10:13} maxlength="65536" bind:this={editor} bind:value={text} required={!data.forward} placeholder={data.forward?'Add a personal note…':isConnection?'What’s on your mind?':'Tell your story. Share an idea. Give them something to look forward to.'}></textarea>
           <div class="editor-meta"><span>{wordCount} word{wordCount===1?'':'s'}</span></div>
         </div>
         <section id="compose-preview" hidden={!previewOpen} class="compose-preview" aria-label="Message preview"><div class="preview-byline"><span class="avatar">{data.account.address.slice(0,1).toUpperCase()}</span><span><strong>{data.account.address}</strong><small>{isConnection?"Message preview":"Publication preview"}</small></span></div><div class="mt-5 text-[17px] leading-[1.8] [overflow-wrap:anywhere]">{#if forwarded}<RichText blocks={forwarded.blocks} header={forwarded.header}/>{:else}{#if data.kind==='category'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-contain" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}<RichText {blocks}/>{#if !text&&!title&&!preview}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}{/if}</div></section>
         {#if !isConnection}<label class="reply-setting"><input name="allowReply" type="checkbox" value="yes" bind:checked={allowReply}/>Allow one reply per subscriber, within 7 days</label>{/if}
-        <section aria-label="Attachments">
-          <label for="attachments">Attachments (PNG, JPEG, WebP, PDF, TXT, LOG · 25 MiB total · up to 20 files)</label>
-          <input id="attachments" name="attachment" type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.log" multiple bind:this={attachmentInput} />
+        <section aria-label="Attachments" class="grid min-w-0 justify-items-start gap-2 px-[28px] py-[20px] [@media(max-width:760px)]:px-[20px]">
+          <label for="attachments">Attachments</label>
+          <input id="attachments" class="min-w-0 max-w-full" aria-describedby="attachments-help" name="attachment" type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.log" multiple bind:this={attachmentInput} />
+          <p id="attachments-help" class="m-0 text-xs text-muted">PNG, JPEG, WebP, PDF, TXT, LOG · 25 MiB total · up to 20 files</p>
           <input type="hidden" name="savedAttachments" value={JSON.stringify(savedAttachments)} />
           {#each savedAttachments??[] as file,i}<p>{file.filename} ({file.size.toLocaleString()} bytes) <button type="button" onclick={()=>savedAttachments=savedAttachments?.filter((_,index)=>index!==i)}>Remove</button></p>{/each}
         </section>
-        <footer class="send-bar"><div><strong>{selected.length>1&&isConnection?'Shared conversation':'Ready when you are'}</strong><span>{isConnection&&search.trim()?'Select a matching connection':canPublish?`To ${destination}`:isConnection?'Choose at least one recipient':'Choose a category with subscribers'}</span></div><button class="hail-button-secondary" type="submit" formaction="?/save" formnovalidate disabled={sending}>{saving?'Saving…':'Save as Draft'}</button><button class="hail-button" disabled={sending||!canPublish||(isConnection&&!!search.trim())||(!data.forward&&!text.trim())}>{sending&&!saving?'Sending…':data.forward?'Forward message':'Send message'}</button></footer>
+        <footer class="send-bar">
+          <div class="grid min-w-0 flex-[1_1_220px] gap-[5px] [overflow-wrap:anywhere]"><strong>{selected.length>1&&isConnection?'Shared conversation':'Ready when you are'}</strong><span>{isConnection&&search.trim()?'Select a matching connection':canPublish?`To ${destination}`:isConnection?'Choose at least one recipient':'Choose a category with subscribers'}</span></div>
+          <div class="grid min-w-0 flex-[1_1_300px] grid-cols-2 gap-[12px]">
+            <button class="hail-button-secondary min-w-0" type="submit" formaction="?/save" formnovalidate disabled={sending}>{saving?'Saving…':'Save as Draft'}</button>
+            <button class="hail-button min-w-0" disabled={sending||!canPublish||(isConnection&&!!search.trim())||(!data.forward&&!text.trim())}>{sending&&!saving?'Sending…':data.forward?'Forward message':'Send message'}</button>
+          </div>
+        </footer>
       </div>
     </div>
   </form>
   <button class="mobile-floating-action" type="button" aria-label={previewOpen?'Back to writing':'Preview'} title={previewOpen?'Back to writing':'Preview'} aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={24}/></button>
 </div>
 
-<style>
-  .workspace-heading { display:flex; justify-content:space-between; align-items:center; gap:24px; margin:8px 0 36px; }
-  .audience-switch { display:flex; padding:5px; border:1px solid var(--color-line); border-radius:12px; background:var(--color-canvas); flex-shrink:0; }
-  .audience-switch a { display:flex; align-items:center; justify-content:center; gap:8px; padding:10px 14px; border-radius:8px; text-decoration:none; font-size:12px; font-weight:600; color:var(--color-muted); }
-  .audience-switch a[aria-current] { background:var(--color-surface); color:var(--color-brand-strong); box-shadow:0 2px 5px #0000000a; }
-  .compose-layout { display:grid; grid-template-columns:minmax(0,1fr); max-width:900px; margin-inline:auto; }
-  .setting-note { font-size:12px; line-height:1.6; color:var(--color-muted); }
-  .reply-setting { display:flex; align-items:center; gap:10px; padding:16px 28px; border-top:1px solid var(--color-line); font-size:12px; cursor:pointer; }
-  .category-search { width:100%; border:0; background:transparent; padding:8px 4px; font-size:13px; }
-  .category-search:focus-visible { outline:none; }
-  .category-option>span { flex:1; min-width:0; overflow-wrap:anywhere; }
-  .category-option small { color:var(--color-muted); font-size:11px; }
-  .category-limit { padding-inline:28px; }
-  .avatar { display:grid; place-items:center; flex-shrink:0; width:30px; height:30px; border-radius:50%; background:var(--color-brand-soft); color:var(--color-brand-strong); font-size:12px; font-weight:650; }
-  .writing-workspace { min-width:0; }
-  .editor-topline { display:flex; align-items:center; justify-content:space-between; margin:0 0 12px; font-size:11px; color:var(--color-muted); }
-  .preview-toggle { display:flex; gap:7px; align-items:center; background:none; border:0; color:var(--color-brand-strong); padding:8px; cursor:pointer; font-size:12px; font-weight:600; }
-  .writing-card { border:1px solid var(--color-line); border-radius:18px; box-shadow:0 12px 40px #00000004; overflow:hidden; background:var(--color-surface); }
-  .sender-line,.to-line { display:flex; align-items:center; gap:16px; padding:16px 28px; font-size:12px; border-bottom:1px solid var(--color-line); }
-  .sender-line>span,.to-line>label { color:var(--color-muted); min-width:30px; }
-  .sender-line strong { font-weight:500; overflow-wrap:anywhere; min-width:0; }
-  .to-line { align-items:baseline; }
-  .recipient-entry { position:relative; flex:1; min-width:0; }
-  .recipient-chips { display:flex; align-items:center; flex-wrap:wrap; gap:6px; min-width:0; }
-  #recipient-search { flex:1; min-width:min(160px,100%); width:0; max-width:100%; border:0; background:transparent; padding:8px 4px; font-size:13px; }
-  #recipient-search:focus-visible { outline:none; }
-  .recipient-suggestions { position:absolute; top:calc(100% + 8px); left:0; right:0; z-index:5; max-height:260px; overflow-y:auto; padding:6px; border:1px solid var(--color-line); border-radius:10px; background:var(--color-surface); box-shadow:0 8px 24px #0002; }
-  .recipient-option { display:flex; align-items:center; gap:10px; width:100%; padding:10px; border:0; border-radius:6px; background:transparent; color:var(--color-ink); text-align:left; cursor:pointer; }
-  .recipient-option>span:nth-child(2) { flex:1; min-width:0; overflow-wrap:anywhere; font-size:12px; }
-  .recipient-option :global(svg) { flex-shrink:0; }
-  .recipient-option:hover,.recipient-option[aria-selected=true] { background:var(--color-brand-soft); }
-  .recipient-suggestions p { margin:0; padding:12px; font-size:12px; color:var(--color-muted); }
-  .recipient-chip { display:flex; align-items:center; gap:8px; font-size:11px; background:var(--color-brand-soft); color:var(--color-brand-strong); border:0; border-radius:6px; padding:6px 8px; cursor:pointer; overflow-wrap:anywhere; min-width:0; }
-  .recipient-chip :global(svg) { flex-shrink:0; }
-  .editor-content { padding:28px; }
-  .editor-content[hidden],.compose-preview[hidden] { display:none; }
-  .title-field input { width:100%; border:0; border-radius:0; padding:16px 0 24px; background:transparent; font:400 clamp(25px,2.7vw,36px)/1.25 Georgia,serif; letter-spacing:-.03em; }
-  .conversation .title-field input { font:500 21px/1.4 var(--font-sans); letter-spacing:-.02em; }
-  .title-field input::placeholder { color:var(--color-muted); opacity:.8; }
-  .cover-control { border:1px dashed var(--color-line); border-radius:10px; margin-bottom:14px; }
-  .cover-control summary { display:flex; align-items:center; gap:9px; padding:13px; cursor:pointer; font-size:12px; color:var(--color-muted); }
-  .cover-control summary>span { margin-left:auto; font-size:10px; }
-  .cover-fields { display:grid; gap:14px; padding:4px 14px 14px; }
-  .cover-thumbnail { max-height:180px; width:100%; object-fit:contain; border-radius:8px; }
-  .optional { font-weight:400; font-size:11px; color:var(--color-muted); }
-  .format-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:2px; padding:5px; border-block:1px solid var(--color-line); background:var(--color-canvas); }
-  .format-toolbar button { border:0; background:transparent; padding:8px; font-size:11px; min-height:36px; }
-  .format-toolbar button:hover { background:var(--color-brand-soft); }
-  .format-divider { width:1px; height:18px; margin-inline:4px; background:var(--color-line); }
-  textarea { display:block; width:100%; min-height:300px; border:0; border-radius:0; padding:22px 0; resize:vertical; background:transparent; font-size:16px; line-height:1.85; }
-  #message-text:focus-visible { outline:none; }
-  textarea::placeholder { color:var(--color-muted); }
-  .editor-meta { display:flex; justify-content:space-between; align-items:start; gap:16px; font-size:10px; color:var(--color-muted); }
-  .editor-meta>span { flex-shrink:0; }
-  .send-bar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px 28px; background:var(--color-canvas); border-top:1px solid var(--color-line); }
-  .send-bar>div { display:grid; gap:5px; }
-  .send-bar strong { font-size:12px; font-weight:600; }
-  .send-bar span { font-size:11px; color:var(--color-muted); }
-  .send-bar button { flex-shrink:0; }
-  .compose-preview { padding:32px; min-height:440px; }
-  .preview-byline { display:flex; gap:10px; align-items:center; font-size:12px; overflow-wrap:anywhere; }
-  .preview-byline>span:last-child { min-width:0; }
-  .preview-byline small { display:block; color:var(--color-muted); margin-top:3px; font-size:10px; }
-  .forward-notice { display:flex; gap:12px; font-size:12px; line-height:1.6; color:var(--color-muted); margin-bottom:24px; }
-  .forward-notice p { margin:0; }
-  .forward-notice :global(svg) { flex-shrink:0; }
-  @media(max-width:900px) { .editor-topline { display:none; } .compose-workspace { padding-bottom:112px; } }
-  @media(max-width:760px) { .workspace-heading { margin-bottom:24px; } .audience-switch { width:100%; } .audience-switch a { flex:1; } .editor-content,.compose-preview { padding:20px; } .sender-line,.to-line,.reply-setting { padding:16px 20px; } .send-bar { padding:18px 20px; flex-wrap:wrap; } .send-bar button { margin-left:auto; } }
-  @media(prefers-reduced-motion:no-preference) { .recipient-option,.audience-switch a { transition:background .15s ease; } }
+<style lang="postcss">
+  @reference "../../app.css";
+
+  .workspace-heading { @apply flex justify-between items-center gap-[24px] [margin:8px_0_36px]; }
+  .audience-switch { @apply flex p-[5px] [border:1px_solid_var(--color-line)] rounded-[12px] [background:var(--color-canvas)] shrink-0; }
+  .audience-switch a {
+    @apply flex items-center justify-center gap-[8px] [padding:10px_14px] rounded-[8px] [text-decoration:none]
+      text-[12px] font-[600] text-muted;
+  }
+  .audience-switch a[aria-current] { @apply [background:var(--color-surface)] text-brand-strong [box-shadow:0_2px_5px_#0000000a]; }
+  .reply-setting { @apply flex items-center gap-[10px] [padding:16px_28px] [border-top:1px_solid_var(--color-line)] text-[12px] cursor-pointer; }
+  .category-search { @apply w-full [border:0] [background:transparent] [padding:8px_4px] text-[13px]; }
+  .category-search:focus-visible { @apply [outline:none]; }
+  .category-option>span { @apply flex-1 min-w-0 [overflow-wrap:anywhere]; }
+  .category-option small { @apply text-muted text-[11px]; }
+  .avatar { @apply grid place-items-center shrink-0 w-[30px] h-[30px] rounded-[50%] [background:var(--color-brand-soft)] text-brand-strong text-[12px] font-[650]; }
+  .editor-topline { @apply flex items-center justify-between [margin:0_0_12px] text-[11px] text-muted; }
+  .sender-line,.to-line { @apply flex items-center gap-[16px] [padding:16px_28px] text-[12px] [border-bottom:1px_solid_var(--color-line)]; }
+  .sender-line>span,.to-line>label { @apply text-muted min-w-[30px]; }
+  .sender-line strong { @apply font-[500] [overflow-wrap:anywhere] min-w-0; }
+  .to-line { @apply items-baseline; }
+  #recipient-search { @apply flex-1 min-w-[min(160px,100%)] w-0 max-w-full [border:0] [background:transparent] [padding:8px_4px] text-[13px]; }
+  #recipient-search:focus-visible { @apply [outline:none]; }
+  .recipient-suggestions {
+    @apply absolute top-[calc(100%_+_8px)] left-0 right-0 z-[5] max-h-[260px] overflow-y-auto p-[6px]
+      [border:1px_solid_var(--color-line)] rounded-[10px] [background:var(--color-surface)] [box-shadow:0_8px_24px_#0002];
+  }
+  .recipient-option { @apply flex items-center gap-[10px] w-full p-[10px] [border:0] rounded-[6px] [background:transparent] text-ink text-left cursor-pointer; }
+  .recipient-option>span:nth-child(2) { @apply flex-1 min-w-0 [overflow-wrap:anywhere] text-[12px]; }
+  .recipient-option :global(svg) { @apply shrink-0; }
+  .recipient-option:hover,.recipient-option[aria-selected=true] { @apply [background:var(--color-brand-soft)]; }
+  .recipient-suggestions p { @apply m-0 p-[12px] text-[12px] text-muted; }
+  .recipient-chip {
+    @apply flex items-center gap-[8px] text-[11px] [background:var(--color-brand-soft)] text-brand-strong [border:0]
+      rounded-[6px] [padding:6px_8px] cursor-pointer [overflow-wrap:anywhere] min-w-0;
+  }
+  .recipient-chip :global(svg) { @apply shrink-0; }
+  .editor-content { @apply p-[28px]; }
+  .editor-content[hidden],.compose-preview[hidden] { @apply hidden; }
+  .title-field input {
+    @apply w-full [border:0] rounded-none [padding:16px_0_24px] [background:transparent];
+    font: 400 clamp(25px,2.7vw,36px)/1.25 Georgia,serif;
+    @apply tracking-[-.03em];
+  }
+  .conversation .title-field input { font: 500 21px/1.4 var(--font-sans); @apply tracking-[-.02em]; }
+  .title-field input::placeholder { @apply text-muted opacity-[.8]; }
+  .cover-control { @apply [border:1px_dashed_var(--color-line)] rounded-[10px] mb-[14px]; }
+  .cover-control summary { @apply flex items-center gap-[9px] p-[13px] cursor-pointer text-[12px] text-muted; }
+  .cover-control summary>span { @apply ml-auto text-[10px]; }
+  .format-toolbar { @apply flex items-center flex-wrap gap-[2px] p-[5px] [border-block:1px_solid_var(--color-line)] [background:var(--color-canvas)]; }
+  .format-toolbar button { @apply [border:0] [background:transparent] p-[8px] text-[11px] min-h-[36px]; }
+  .format-toolbar button:hover { @apply [background:var(--color-brand-soft)]; }
+  textarea { @apply block w-full min-h-[300px] [border:0] rounded-none [padding:22px_0] resize-y [background:transparent] text-[16px] leading-[1.85]; }
+  #message-text:focus-visible { @apply [outline:none]; }
+  textarea::placeholder { @apply text-muted; }
+  .editor-meta { @apply flex justify-between [align-items:start] gap-[16px] text-[10px] text-muted; }
+  .editor-meta>span { @apply shrink-0; }
+  .send-bar { @apply flex flex-wrap items-center justify-between gap-[16px] [padding:20px_28px] [background:var(--color-canvas)] [border-top:1px_solid_var(--color-line)]; }
+  .send-bar strong { @apply text-[12px] font-[600]; }
+  .send-bar span { @apply text-[11px] text-muted; }
+  .send-bar button { @apply shrink-0; }
+  .compose-preview { @apply p-[32px] min-h-[440px]; }
+  .preview-byline { @apply flex gap-[10px] items-center text-[12px] [overflow-wrap:anywhere]; }
+  .preview-byline>span:last-child { @apply min-w-0; }
+  .preview-byline small { @apply block text-muted mt-[3px] text-[10px]; }
+  .forward-notice { @apply flex gap-[12px] text-[12px] leading-[1.6] text-muted mb-[24px]; }
+  .forward-notice p { @apply m-0; }
+  .forward-notice :global(svg) { @apply shrink-0; }
+  @media (max-width:900px) {
+    .editor-topline { @apply hidden; }
+    .compose-workspace { @apply pb-[112px]; }
+  }
+  @media (max-width:760px) {
+    .workspace-heading { @apply mb-[24px]; }
+    .audience-switch { @apply w-full; }
+    .audience-switch a { @apply flex-1; }
+    .editor-content,.compose-preview { @apply p-[20px]; }
+    .sender-line,.to-line,.reply-setting { @apply [padding:16px_20px]; }
+    .send-bar { @apply [padding:18px_20px]; }
+  }
+  @media (prefers-reduced-motion:no-preference) {
+    .recipient-option,.audience-switch a { transition: background .15s ease; }
+  }
 </style>
