@@ -47,6 +47,33 @@ impl Error {
             "Provider API transport failed; check connectivity/HTTPS trust and retain exact retry artifacts",
         )
     }
+    pub fn render(&self, bold: bool) -> String {
+        let safe = |text: &str| {
+            redact(text)
+                .chars()
+                .map(|c| {
+                    if c.is_control() {
+                        c.escape_default().to_string()
+                    } else {
+                        c.to_string()
+                    }
+                })
+                .collect::<String>()
+        };
+        let title = if bold { "\x1b[1mError\x1b[0m" } else { "Error" };
+        let mut text = format!("{title}  {}\n  {}", safe(&self.code), safe(&self.message));
+        if let Some(status) = self.status {
+            text.push_str(&format!(
+                "\n\n  HTTP status  {status}\n  Retryable    {}",
+                matches!(status, 429 | 503)
+            ));
+            if let Some(seconds) = self.retry_after {
+                text.push_str(&format!("\n  Retry after  {seconds}s"));
+            }
+        }
+        text
+    }
+
     pub fn json(&self) -> Value {
         let mut error = json!({"code": self.code, "message": self.message});
         if let Some(status) = self.status {
@@ -57,5 +84,29 @@ impl Error {
             }
         }
         json!({"cliContractVersion": 2, "error": error})
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn readable_errors_preserve_metadata_and_escape_untrusted_text() {
+        let mut error = Error::new(
+            "HTTP_429",
+            format!("Wait\n\x1b[31m racr_{}", "a".repeat(43)),
+        );
+        error.status = Some(429);
+        error.retry_after = Some(12);
+        let text = error.render(false);
+        assert!(text.starts_with("Error  HTTP_429\n"));
+        assert!(text.contains("HTTP status  429"));
+        assert!(text.contains("Retryable    true"));
+        assert!(text.contains("Retry after  12s"));
+        assert!(text.contains("Wait\\n\\u{1b}[31m [REDACTED]"));
+        assert!(!text.contains('\x1b'));
+        assert!(error.render(true).starts_with("\x1b[1mError\x1b[0m"));
+        assert_eq!(error.json()["error"]["retryAfterSeconds"], 12);
     }
 }

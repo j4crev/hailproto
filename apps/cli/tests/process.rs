@@ -13,7 +13,7 @@ fn run(args: &[&str]) -> Output {
 }
 
 fn error(args: &[&str], code: &str) {
-    let result = run(args);
+    let result = run(&[&["--json"][..], args].concat());
     assert_eq!(result.status.code(), Some(1));
     assert!(result.stdout.is_empty());
     let value: Value = serde_json::from_slice(&result.stderr).unwrap();
@@ -157,7 +157,7 @@ fn credential_privacy_selection_and_origin_are_checked_before_network() {
         "SELECTION_MISMATCH",
     );
     let env_result = Command::new(env!("CARGO_BIN_EXE_racr"))
-        .args(["account", "show", "--account-id", "wrong"])
+        .args(["--json", "account", "show", "--account-id", "wrong"])
         .env("RACR_CREDENTIAL_FILE", name)
         .output()
         .unwrap();
@@ -188,4 +188,36 @@ fn credential_privacy_selection_and_origin_are_checked_before_network() {
     fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
     fs::write(&path, "a".repeat(16_385)).unwrap();
     error(&["account", "show", "--credentials", name], "CLIENT_ERROR");
+}
+
+#[test]
+fn errors_default_to_readable_text_and_json_is_global() {
+    for args in [vec!["doctor"], vec!["account", "show"], vec!["--unknown"]] {
+        let result = run(&args);
+        assert_eq!(result.status.code(), Some(1));
+        assert!(result.stdout.is_empty());
+        let text = String::from_utf8(result.stderr).unwrap();
+        assert!(text.starts_with("Error  "));
+        assert!(!text.contains('\x1b'));
+        assert!(!text.contains("cliContractVersion"));
+    }
+    let result = run(&["doctor"]);
+    assert!(
+        String::from_utf8(result.stderr)
+            .unwrap()
+            .contains("Doctor requires --provider or a selected credential")
+    );
+    error(&["doctor", "--json"], "USAGE_ERROR"); // repeated flag
+    let result = run(&["doctor", "--", "--json"]);
+    assert!(
+        String::from_utf8(result.stderr)
+            .unwrap()
+            .starts_with("Error  ")
+    );
+    assert!(
+        run(&["--json", "vault", "verify", "--help"])
+            .status
+            .success()
+    );
+    assert!(run(&["--json", "account", "--help"]).status.success());
 }

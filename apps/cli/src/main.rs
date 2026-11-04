@@ -28,6 +28,7 @@ mod vault;
 
 use contract::Error;
 use serde_json::Value;
+use std::io::IsTerminal;
 
 async fn run() -> Result<(), Error> {
     let args = cli::parse(std::env::args().skip(1))?;
@@ -315,14 +316,33 @@ async fn run() -> Result<(), Error> {
         _ => unreachable!("parser accepts only implemented commands"),
     };
     result["cliContractVersion"] = Value::from(2);
-    println!("{}", contract::redact(&result.to_string()));
+    if args.command == "doctor" && !args.options.contains_key("json") {
+        let bold = std::io::stdout().is_terminal()
+            && std::env::var_os("NO_COLOR").is_none()
+            && std::env::var("TERM").is_ok_and(|term| term != "dumb");
+        print!("{}", contract::redact(&doctor::render(&result, bold)));
+    } else {
+        println!("{}", contract::redact(&result.to_string()));
+    }
     Ok(())
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     if let Err(error) = run().await {
-        eprintln!("{}", contract::redact(&error.json().to_string()));
+        // Select error output even when argument parsing itself failed.
+        let json = std::env::args()
+            .skip(1)
+            .take_while(|arg| arg != "--")
+            .any(|arg| arg == "--json");
+        if json {
+            eprintln!("{}", contract::redact(&error.json().to_string()));
+        } else {
+            let bold = std::io::stderr().is_terminal()
+                && std::env::var_os("NO_COLOR").is_none()
+                && std::env::var("TERM").is_ok_and(|term| term != "dumb");
+            eprintln!("{}", error.render(bold));
+        }
         std::process::exit(1);
     }
 }

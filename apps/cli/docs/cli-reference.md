@@ -12,8 +12,8 @@ is authoritative for its accepted command inventory.
 - `<value>` means a value is required; brackets mean the flag is optional at parser level.
 - Conditional requirements (custody, provider policy, expiry or monitoring) still apply.
 - Positional arguments shown in syntax are required. `--help`/`-h` works offline on every command.
-- `racr --version` works alone and prints the version. Successful operations emit JSON on stdout;
-  failures emit JSON on stderr with exit 1. Exit 0 means the operation/report succeeded, not necessarily delivery.
+- `racr --version` works alone and prints the version. Successful operations emit JSON on stdout (except the default columnar doctor report);
+  failures emit readable text on stderr with exit 1. Use `--json` on any command for structured errors. Exit 0 means the operation/report succeeded, not necessarily delivery.
 - `doctor` may report `ok: false` with exit 0; inbox/status deadlines can also return successfully without delivery.
 - `--scope` and `--category` may be repeated; `conversation start` also accepts repeated `--connection`. Use `--option=value` for a value beginning with `-`.
 - Private files must have no group/other permissions; create parent directories with mode `0700`.
@@ -55,6 +55,7 @@ and run `racr doctor --action "<command>"` for supported prerequisite checks.
 | `--grant` | Grant UUID authorizing the message. |
 | `--interval` | Polling interval in seconds: integer 1–30, default 2. Message status requires `--wait` when specifying this. |
 | `--invitation` | Signed signup admission token from the URL-decoded `#invitation=` fragment, not the entire link. Required by invite-mode providers; retained in setup state. |
+| `--json` | Emit structured JSON errors on any command; also select JSON output for doctor. |
 | `--label` | Human-readable connection invitation label. |
 | `--monitor-attestation` | Path to retained signed monitor attestation JSON; needed when the onboarding/transfer authority profile requires it. |
 | `--monitor-key` | Pinned monitor public key; supply together with `--monitor-origin`. |
@@ -596,13 +597,15 @@ Options: [`--output`](#options).
 
 ### `doctor`
 
-Read provider features, account state, scopes and expiry without writes. Reports blockers and ok:false with exit 0 when a report is produced. Public checks require --provider.
+Read provider features, account state, scopes and expiry without writes. Reports blockers with exit 0 when a report is produced. Public checks require --provider.
+
+Defaults to aligned Provider, Account and Blockers sections. Use `--json` for the contract-v2 report in scripts. Report and error headings are bold on terminals unless `NO_COLOR` is set or `TERM` is unset or `dumb`. Redirected output is plain text.
 
 ```text
-racr doctor [--scope <value>] [--action <value>]
+racr doctor [--scope <value>] [--action <value>] [--json]
 ```
 
-Options: [`--scope`](#options), [`--action`](#options).
+Options: [`--scope`](#options), [`--action`](#options), [`--json`](#options).
 
 ### `grant create`
 

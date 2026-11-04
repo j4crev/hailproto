@@ -444,7 +444,7 @@ const COMMANDS: &[(&str, &str, &str, &str)] = &[
     (
         "doctor",
         "",
-        "scope action",
+        "scope action json",
         "Read provider features, account state, scopes and expiry without writes. Reports blockers and ok:false with exit 0 when a report is produced. Public checks require --provider.",
     ),
     (
@@ -540,7 +540,8 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
             .split_once('=')
             .map_or((option, None), |(k, v)| (k, Some(v)));
         let value: String = match name {
-            "help" | "version" | "trash" | "backup-verified" | "no-expiry" | "refresh-consent"
+            "help" | "version" | "json" | "trash" | "backup-verified" | "no-expiry"
+            | "refresh-consent"
                 if inline.is_none() =>
             {
                 String::new()
@@ -649,6 +650,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
             || !help && positionals.len() != words + count
             || options.keys().any(|k| {
                 !(k == "help"
+                    || k == "json"
                     || !name.starts_with("vault ")
                         && *name != "connection sign"
                         && !name.ends_with("sign-cutover")
@@ -664,7 +666,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
         command = (*name).into();
         positionals.drain(..words);
     } else if !(help
-        && options.keys().all(|k| k == "help")
+        && options.keys().all(|k| k == "help" || k == "json")
         && (command.is_empty()
             || COMMANDS
                 .iter()
@@ -892,7 +894,7 @@ pub fn help(prefix: &str) -> String {
             .map(|flag| {
                 if matches!(
                     flag,
-                    "trash" | "backup-verified" | "no-expiry" | "refresh-consent"
+                    "json" | "trash" | "backup-verified" | "no-expiry" | "refresh-consent"
                 ) {
                     format!("[--{flag}]")
                 } else {
@@ -905,6 +907,6 @@ pub fn help(prefix: &str) -> String {
             "  racr {name} {positional} {flags}\n    {description}\n"
         ));
     }
-    text.push_str("\nSelection: --credentials <private-file> or RACR_CREDENTIAL_FILE; optional --provider <https-origin> and --account-id <uuid> assertions.\nResults: JSON stdout; errors: JSON stderr. --help/-h and --version are offline.\nPaged lists: --pages 1–100 (default 1). Repeat --scope for doctor requirements.");
+    text.push_str("\nSelection: --credentials <private-file> or RACR_CREDENTIAL_FILE; optional --provider <https-origin> and --account-id <uuid> assertions.\nResults: JSON stdout (doctor: columns; --json for JSON); errors: readable stderr (--json for JSON on any command). --help/-h and --version are offline.\nPaged lists: --pages 1–100 (default 1). Repeat --scope for doctor requirements.");
     text
 }

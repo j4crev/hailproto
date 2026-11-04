@@ -40,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix="racr-artifact-") as directory:
 
     assert run("--version").stdout.strip() == version
     assert "racr" in run("account", "transfer", "--help").stdout
-    assert json.loads(run("--unknown", expected=1).stderr)["error"]["code"] == "USAGE_ERROR"
+    assert json.loads(run("--json", "--unknown", expected=1).stderr)["error"]["code"] == "USAGE_ERROR"
     vault, recovery = root / "vault.json", root / "recovery.txt"
     run("vault", "create", "--vault", vault, "--recovery-file", recovery)
     assert vault.stat().st_mode & 0o777 == recovery.stat().st_mode & 0o777 == 0o600
