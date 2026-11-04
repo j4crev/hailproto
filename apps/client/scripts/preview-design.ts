@@ -69,7 +69,7 @@ const fixtureGroups=()=>groupConnectionMessages([
 ]);
 const grants = await Promise.all(senders.slice(0,3).map(async sender => {
   const payload: HailGrant = {type:'hail.grant',version:1,grant_id:uuidV7(),revision:1,previous:null,grantor:did,grantee:sender.did,
-    scope:[{type:'categories',values:['general']}],status:'active',issued_at:Math.floor(started/1000),updated_at:Math.floor(started/1000),expires_at:null,
+    scope:[{type:'categories',values:sender===senders[0]?['general','offers','product-updates']:['general']}],status:'active',issued_at:Math.floor(started/1000),updated_at:Math.floor(started/1000),expires_at:null,
     consent_context:{grantee_address:sender.address,address_binding_hash:{algorithm:'sha-256',value:new Uint8Array(32)},sender_profile_hash:{algorithm:'sha-256',value:new Uint8Array(32)}},key_id:did+'#hail-identity'};
   const bytes = await signPayload('hail.grant',payload,signer);
   return {payload,representation:{type:'racr.grant',version:1,cose:encodeBase64Url(bytes),digest:await digest(bytes),localRole:'grantor'}};
