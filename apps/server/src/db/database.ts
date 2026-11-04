@@ -244,6 +244,7 @@ const migrations: readonly Migration[] = [
   {version:100,name:"sent-mailbox",url:new URL("../../migrations/0100_sent_mailbox.sql",import.meta.url)},
   {version:101,name:"message-drafts",url:new URL("../../migrations/0101_message_drafts.sql",import.meta.url)},
   {version:102,name:"message-attachments",url:new URL("../../migrations/0102_message_attachments.sql",import.meta.url)},
+  {version:103,name:"start-screen",url:new URL("../../migrations/0103_start_screen.sql",import.meta.url)},
 ];
 
 export class ProviderDatabase {
