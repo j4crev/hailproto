@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Attachments from "$lib/Attachments.svelte";
   import MessageBack from "$lib/MessageBack.svelte";
   import {page} from "$app/state";
   import QuotedMessage from "$lib/QuotedMessage.svelte";
@@ -108,17 +109,18 @@
     </div>
   </header>
   <div class="reading-body">
-    <QuotedMessage blocks={content.blocks} header={data.message.header} />
+    <QuotedMessage blocks={content.blocks} header={data.message.header} /><Attachments files={data.message.attachments} sender={data.message.sender} messageId={data.message.messageId} />
   </div>
 </article>
 {#if !data.message.trashedAt}
 {#if data.message.kind==='connection' && !data.message.connection?.active}<p class="mt-5 rounded-xl bg-warning-soft p-4 text-sm text-warning">This connection is no longer active. Existing delivered messages remain readable.</p>
 {:else if data.canReply}
   {#if replyOpen}
-  <form id="message-reply" class="hail-card mt-6 grid gap-4 p-5 sm:p-7" method="POST" action="?/reply">
+  <form id="message-reply" enctype="multipart/form-data" class="hail-card mt-6 grid gap-4 p-5 sm:p-7" method="POST" action="?/reply">
     <input type="hidden" name="messageId" value={form?.messageId??data.newReplyId}/>
     <input type="hidden" name="replyUntil" value={form?.replyUntil??data.newReplyUntil}/>
     <label class="hail-field">Reply<textarea bind:this={replyInput} class="resize-y" name="text" rows="5" maxlength="65536" required value={form?.text??""}></textarea></label>
+    <label class="hail-field">Attachments (PNG, JPEG, WebP, PDF, TXT, LOG · 25 MiB total)<input type="file" name="attachment" accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.log" multiple /></label>
     <details><summary class="cursor-pointer text-sm text-muted">Quoted message from {data.message.senderAddress??data.message.sender}</summary><blockquote class="ml-0 whitespace-pre-wrap border-0 border-l-2 border-solid border-brand pl-4 text-sm text-muted">{replyExcerpt(data.message)}</blockquote></details>
     {#if data.message.kind!=='connection'}<p class="m-0 text-xs text-muted">This invitation currently allows one reply before <DateTime value={data.message.replyUntil!*1000} />.</p>
     <label class="flex min-h-11 items-center gap-3 text-sm"><input name="allowReply" type="checkbox" value="yes" checked={form?.allowReply??false} /> Allow one reply for 7 days</label>{/if}

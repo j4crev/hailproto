@@ -1,3 +1,4 @@
+import {ATTACHMENT_TABLES,collectAttachmentHistory,validateAttachmentHistory} from './attachment-history.js';
 import {collectConversationHistory,conversationHistoryDigest,type ConversationHistory} from './conversation-history.js';
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -27,6 +28,7 @@ import {encodeBase64Url} from "@racrproto/codec";
 const context = (version: 2 | 3 | 5 | 7) => new TextEncoder().encode(`hail-migration-snapshot-v${version}\0`);
 
 export const TRANSFER_TABLES = [
+  ...ATTACHMENT_TABLES,
   "provider_accounts", "account_keys", "portable_custody_evidence", "plc_operation_evidence", "address_bindings",
   "sender_profiles", "grant_lineages", "grant_revisions", "grant_consent_evidence",
   "grant_publications", "detached_bodies", "body_authorizations", "sent_envelopes",
@@ -345,6 +347,7 @@ export function validateTransferManifest(bytes: Uint8Array): TransferManifest {
   }
   if (manifest.version !== 2) validateAuthorityHistory(manifest);
   validateSnapshotConnections(manifest);
+  validateAttachmentHistory(manifest);
   return manifest;
 }
 
@@ -646,6 +649,7 @@ export class MigrationTransferService {
         UNION SELECT evidence_digest FROM public_signing_authority_evidence WHERE local_account_id = ${accountId}
       ) ORDER BY evidence_digest`);
     return {
+      ...await collectAttachmentHistory(tx as SQL,accountId,did),
       provider_accounts: account, account_keys: keys, portable_custody_evidence: custody,
       plc_operation_evidence: plc,
       address_bindings: bindings, sender_profiles: profiles,

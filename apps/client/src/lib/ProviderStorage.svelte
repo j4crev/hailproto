@@ -23,7 +23,7 @@
     </tbody></table></div>
     <p>Other database storage: {bytes(storage.otherDatabaseBytes)} (approximately). Includes system catalogs and storage outside application tables.</p>
     <p>Allocated space includes stored content, row overhead, and reusable space from deleted records. Sizes may change during collection.</p>
-    <p>Message bodies live in the database. Attachments are not supported yet; no separate attachment store is measured. Migration history may contain additional copies of messages.</p>
+    <p>Message bodies and attachments live in the database and are included in message content. Migration history may contain additional copies of messages.</p>
     <p>This is a current storage snapshot, independent of the activity period. Backups, PostgreSQL transaction logs, and host disk capacity are not included.</p>
   {:else}<p role="status">Storage statistics are temporarily unavailable.</p>{/if}
 </section>

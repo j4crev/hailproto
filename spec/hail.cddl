@@ -399,7 +399,8 @@ delivery-state = "accepted" / "on-hold" / "delivered" / "failed" / "cancelled"
 hail-body-spt-1 = {
   "version": 1,
   "profile": "spt-1",
-  "blocks": [* spt-1-text-block]
+  "blocks": [* spt-1-text-block],
+  ? "attachments": [1*20 hail-attachment]
 }
 
 spt-1-text-block = {
@@ -419,7 +420,8 @@ spt-1-span = {
 hail-body-spt-2 = {
   "version": 1,
   "profile": "spt-2",
-  "blocks": [* spt-2-text-block]
+  "blocks": [* spt-2-text-block],
+  ? "attachments": [1*20 hail-attachment]
 }
 
 spt-2-text-block = {
@@ -449,7 +451,8 @@ hail-body-spt-3 = {
   "version": 1,
   "profile": "spt-3",
   "assets": asset-manifest-v1,
-  "blocks": [spt-image-block, * spt-2-text-block]
+  "blocks": [spt-image-block, * spt-2-text-block],
+  ? "attachments": [1*20 hail-attachment]
 }
 
 spt-image-block = {
@@ -475,4 +478,12 @@ bundled-image-asset-v1 = {
   "width": 1..2400,
   "height": 1..1200,
   "data": bstr
+}
+
+; Detached files: the sum of sizes is at most 26,214,400 bytes per body.
+hail-attachment = {
+  "filename": tstr,
+  "media_type": "application/pdf" / "text/plain" / "image/png" / "image/jpeg" / "image/webp",
+  "size": 1..26214400,
+  "digest": digest
 }

@@ -1,3 +1,5 @@
+import {encodePayload,decodePayload} from '@racrproto/codec';
+import {storeAttachment} from '../src/bodies/attachments.js';
 import {assertExportConformance} from "./support/account-history-conformance.js";
 import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {cidForCbor} from "@atproto/common";
@@ -114,10 +116,14 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
       VALUES (${terminalGrantId},1,'revoked',${grantNow},${grantNow},NULL,NULL,${JSON.stringify(terminalGrant.scope)}::jsonb,
         ${terminalGrant.consent_context.address_binding_hash.value},${terminalGrant.consent_context.sender_profile_hash.value},
         ${terminalGrantCose},${terminalGrantDigest},${keys.identityDidKey},'{}','{}','[]')`;
-    const bodyBytes=bodyFromText("managed continuity"),bodyHash=new Uint8Array(createHash("sha256").update(bodyBytes).digest()),
+    const attachmentBytes=new TextEncoder().encode('managed attachment continuity'),attachmentDigest=createHash('sha256').update(attachmentBytes).digest();
+    const bodyBytes=encodePayload('hail.body.spt-1',{...decodePayload('hail.body.spt-1',bodyFromText('managed continuity')),
+      attachments:[{filename:'managed.log',media_type:'text/plain',size:attachmentBytes.length,digest:{algorithm:'sha-256',value:attachmentDigest}}]}),bodyHash=new Uint8Array(createHash("sha256").update(bodyBytes).digest()),
       bodyToken=randomBytes(32),bodyTokenHash=new Uint8Array(createHash("sha256").update(bodyToken).digest());
     await source.sql`INSERT INTO detached_bodies(digest,sender_account_id,body_bytes,available_until)
       VALUES (${bodyHash},${accountId},${bodyBytes},${grantNow+7200})`;
+    await storeAttachment(source.sql,attachmentDigest,attachmentBytes);
+    await source.sql`INSERT INTO body_attachment_refs(sender_account_id,body_digest,digest) VALUES(${accountId},${bodyHash},${attachmentDigest})`;
     await source.sql`INSERT INTO body_authorizations(token_hash,body_digest,sender_account_id,recipient_did,message_id,
       expires_at,available_until) VALUES (${bodyTokenHash},${bodyHash},${accountId},${grantee},${uuidV7()},
         ${grantNow+7200},${grantNow+7200})`;
@@ -498,6 +504,8 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
     expect(Buffer.from(migratedGrant.previous_digest)).toEqual(Buffer.from(grantDigest));
     expect((await verifySignedPayload("hail.grant",migratedGrant.cose,
       createWebCryptoVerifier(()=>ed25519PublicKeyFromDidKey(offer.destination_identity_key)))).payload).toMatchObject({revision:2,key_id:`${did}#hail-identity`});
+    expect(Buffer.from((await target.sql`SELECT bytes FROM attachment_blobs WHERE digest=${attachmentDigest}`)[0]!.bytes)).toEqual(Buffer.from(attachmentBytes));
+    expect(await target.sql`SELECT 1 FROM body_attachment_refs WHERE sender_account_id=${accountId} AND digest=${attachmentDigest}`).toHaveLength(1);
     expect(await target.sql`SELECT 1 FROM detached_bodies WHERE sender_account_id=${accountId} AND digest=${bodyHash}`).toHaveLength(1);
     expect((await target.sql<{state:string}[]>`SELECT state FROM delivery_work WHERE sender_did=${grantee} AND message_id=${incomingId}`)[0]?.state).toBe("accepted");
     expect(await target.sql`SELECT 1 FROM account_api_credentials WHERE account_id=${accountId}`).toHaveLength(0);

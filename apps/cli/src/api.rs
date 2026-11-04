@@ -204,6 +204,11 @@ impl Client {
         } else {
             self.http.get(url)
         };
+        let request = if path == "/attachments" {
+            request.timeout(Duration::from_secs(60))
+        } else {
+            request
+        };
         self.send(request, maximum).await
     }
     pub async fn post_limit(&self, path: &str, body: &Value, maximum: u64) -> Result<Value, Error> {

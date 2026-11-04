@@ -1,3 +1,4 @@
+import {publishAttachmentBody} from '../bodies/attachments.js';
 import {consumeDraft,validateDraftRevision} from "./drafts.js";
 import { BODY_CONTAINER_LIMITS } from "../bodies/service.js";
 import {createHash} from "node:crypto";
@@ -64,6 +65,7 @@ export class AccountPublications {
         AND a.did=${session.did} AND a.onboarding_state='active' AND a.activation_verification_mode='public' AND g.generation=${session.serving_generation??1}`).length)throw new UserGrantError(409,"Current serving account is required");
       const prior=(await tx<Publication[]>`SELECT * FROM connection_message_batches WHERE account_id=${session.account_id} AND id=${id}`)[0];
       if(prior){if(Number(prior.serving_generation)!==(session.serving_generation??1)||!Buffer.from(prior.request_digest).equals(Buffer.from(requestDigest)))throw new UserGrantError(409,"Message batch ID already has another intent");return;}
+      await publishAttachmentBody(tx as SQL,session.account_id,body);
       await consumeDraft(tx as SQL,session,id,input.draftRevision);
       const active=await tx`SELECT publication_id,'category' AS kind FROM publication_targets WHERE account_id=${session.account_id} AND state='pending'
         UNION SELECT publication_id,'connections' FROM connection_message_targets WHERE account_id=${session.account_id} AND state='pending' LIMIT 5`;
@@ -108,6 +110,7 @@ export class AccountPublications {
         AND a.onboarding_state='active' AND g.generation=${session.serving_generation??1}`).length)throw new UserGrantError(409,'Current account required');
       const prior=(await tx<Publication[]>`SELECT * FROM connection_message_batches WHERE account_id=${session.account_id} AND id=${id}`)[0];
       if(prior){if(!Buffer.from(prior.request_digest).equals(Buffer.from(requestDigest)))throw new UserGrantError(409,'Message batch ID already has another intent');return;}
+      await publishAttachmentBody(tx as SQL,session.account_id,body);
       await consumeDraft(tx as SQL,session,id,draftRevision);
       const active=await tx<{publication_id:string}[]>`SELECT publication_id FROM publication_targets WHERE account_id=${session.account_id} AND state='pending'
         UNION ALL SELECT publication_id FROM connection_message_targets WHERE account_id=${session.account_id} AND state='pending'`;
@@ -169,6 +172,7 @@ export class AccountPublications {
       const prior=(await tx<Publication[]>`SELECT * FROM account_publications WHERE account_id=${session.account_id} AND id=${id}`)[0];
       if(prior){if(Number(prior.serving_generation)!==(session.serving_generation??1)||!Buffer.from(prior.request_digest).equals(Buffer.from(requestDigest)))
         throw new UserGrantError(409,"Publication ID already has another intent");return;}
+      await publishAttachmentBody(tx as SQL,session.account_id,body);
       await consumeDraft(tx as SQL,session,id,input.draftRevision);
       // ponytail: five open publications and 100 recipients each; qualify a higher-throughput queue before expanding the alpha.
       const active=await tx`SELECT publication_id,'category' AS kind FROM publication_targets WHERE account_id=${session.account_id} AND state='pending'

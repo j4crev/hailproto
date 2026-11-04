@@ -86,6 +86,26 @@ export class AccountApiClient {
     return new AccountApiClient(record.provider, record.token, record.accountId,undefined,transport);
   }
 
+  async attachment(path:string):Promise<Response>{
+    if(!/^\/attachments\/[^/]+\/[^/]+\/[A-Za-z0-9_-]{43}(?:\?index=(?:[0-9]|1[0-9]))?$/.test(path))throw new Error('Invalid attachment path');
+    const response=await fetch(`${this.transport}/api/v1/account${path}`,{redirect:'error',signal:AbortSignal.timeout(60_000),headers:{
+      ...(this.sessionOrigin?{Cookie:`hail_session=${this.token}`,Origin:this.sessionOrigin}:{Authorization:`Bearer ${this.token}`}),
+      'Accept-Encoding':'identity'}});
+    if(!response.ok){await response.body?.cancel();throw new AccountApiError(response.status);}
+    const length=Number(response.headers.get('Content-Length'));
+    if(!Number.isSafeInteger(length)||length<1||length>25*1024*1024||response.headers.has('Content-Encoding')){await response.body?.cancel();throw new Error('Invalid attachment response');}
+    if(!['application/pdf','text/plain','image/png','image/jpeg','image/webp'].includes(response.headers.get('Content-Type')??'')||!response.headers.get('Content-Disposition')?.startsWith('attachment;')){
+      await response.body?.cancel();throw new Error('Invalid attachment download headers');
+    }
+    let received=0;
+    const bounded=response.body?.pipeThrough(new TransformStream<Uint8Array,Uint8Array>({
+      transform(chunk,controller){received+=chunk.length;if(received>length)throw new Error('Attachment response exceeds declared length');controller.enqueue(chunk);},
+      flush(){if(received!==length)throw new Error('Attachment response interrupted');}
+    }));
+    if(!bounded)throw new Error('Missing attachment bytes');
+    return new Response(bounded,{headers:response.headers});
+  }
+
   async request(path: string, bytes?: Uint8Array | JsonObject, namespace = "/api/v1/account",maxResponse=namespace==="/api/v1/account"&&path.startsWith("/connection-threads/")?192*1024*1024:namespace==="/api/v1/account"&&/^\/(?:inbox|sent|conversations)(?:\/|$)/.test(path)?40*1024*1024:MAX_RESPONSE, signal?: AbortSignal): Promise<JsonObject> {
     const headers: Record<string, string> = { ...(this.sessionOrigin?{Cookie:`hail_session=${this.token}`,Origin:this.sessionOrigin}:this.token?{Authorization:`Bearer ${this.token}`}:{}),
       Accept: "application/json", "Accept-Encoding": "identity", "Cache-Control": "no-store" };
@@ -94,7 +114,7 @@ export class AccountApiClient {
     try {
       response = await fetch(`${this.transport}${namespace}${path}`, {
         method: bytes ? bytes instanceof Uint8Array ? "PUT" : "POST" : "GET", headers, redirect: "error", credentials: "omit",
-        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000), ...(bytes ? { body: bytes instanceof Uint8Array ? Uint8Array.from(bytes) : JSON.stringify(bytes) } : {}),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(path==="/attachments"?60_000:20_000)]) : AbortSignal.timeout(path==="/attachments"?60_000:20_000), ...(bytes ? { body: bytes instanceof Uint8Array ? Uint8Array.from(bytes) : JSON.stringify(bytes) } : {}),
       });
     } catch { throw new ClientError("TRANSPORT_ERROR", "Provider API transport failed; check connectivity/HTTPS trust and retain exact retry artifacts"); }
     if (!response.ok) {

@@ -51,6 +51,7 @@ export interface StoredBody {
 }
 
 export interface BodyStore {
+  retrieveAttachment?(bodyDigest: Uint8Array, digest: Uint8Array, tokenHash: Uint8Array, now: number): Promise<StoredBody | "missing-body" | null>;
   publish(senderDid: string, bytes: Uint8Array): Promise<StoredBody>;
   authorize(input: BodyAuthorizationInput): Promise<void>;
   // "missing-body" means unavailable after successful token/digest authorization.

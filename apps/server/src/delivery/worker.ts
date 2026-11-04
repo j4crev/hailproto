@@ -11,7 +11,7 @@ export class DeliveryWorker {
   ) {}
 
   async processOne(): Promise<"idle" | "delivered" | "failed" | "on-hold"> {
-    const claim = await this.store.claimDue(60);
+    const claim = await this.store.claimDue(180);
     if (!claim) return "idle";
     const deadline = deliveryDeadline(claim.envelope);
     if (this.now().getTime() / 1000 > deadline) {
@@ -29,7 +29,7 @@ export class DeliveryWorker {
     catch { result = { kind: "retry", reason: "receiver-resource-constrained", retryAfter: null }; }
     if (result.kind === "success") {
       try {
-        const outcome = await this.store.deliver(claim, result.bytes);
+        const outcome = await this.store.deliver(claim, result.bytes, result.attachments);
         return outcome === "delivered" ? "delivered" : "failed";
       } catch {
         result = { kind: "retry", reason: "receiver-resource-constrained", retryAfter: null };

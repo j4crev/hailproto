@@ -180,7 +180,8 @@ failure, treat alerting itself as failed and use the Cloudflare Worker logs.
 | Envelope submission | 120 requests/minute/client; 16 KiB request | `429` or `413` |
 | Grant publication | 120 requests/minute/client; 256 KiB request | `429` or `413` |
 | Delivery status | 120 requests/minute/client; 16 KiB request | `429` or `413` |
-| Body storage/retrieval | 256 KiB body | `413` at bounded request surfaces |
+| Body storage/retrieval | 1 MiB body | `413` at bounded request surfaces |
+| Attachments | 25 MiB total/message; 20 files; 35 MiB upload JSON; 250 MiB editable uploads/account | `413` request limit, validation failure, or `409` upload allowance |
 | Sender Profile retrieval | 64 KiB response | Verification failure |
 
 Recalibrate after host, database, runtime or traffic-shape changes. Stop and

@@ -4,7 +4,7 @@ import type { Hono } from "hono";
 import { BODY_MEDIA_TYPE, type BodyStore } from "./service.js";
 import {clientAddress,FixedWindowRateLimit} from "../http/rate-limit.js";
 
-const PATH = /^\/hail\/bodies\/([A-Za-z0-9_-]{43})$/;
+const PATH = /^\/hail\/bodies\/([A-Za-z0-9_-]{43})(?:\/attachments\/([A-Za-z0-9_-]{43}))?$/;
 const BEARER = /^Bearer ([A-Za-z0-9_-]{43})$/i;
 const WAIT_MS = 150;
 
@@ -53,19 +53,21 @@ export function registerBodyRoutes(app: Hono, store: BodyStore): void {
     const digest = match?.[1] ? canonical32(match[1]) : null;
     const token = credential ? canonical32(credential) : null;
     if (url.search || !digest || !token) return notFound();
-    if (!acceptsBody(context.req.header("Accept"))) return problem(406, "Not Acceptable");
+    if (!match?.[2] && !acceptsBody(context.req.header("Accept"))) return problem(406, "Not Acceptable");
     try {
       const tokenHash = createHash("sha256").update(token).digest();
-      const body = await store.retrieve(digest, tokenHash, Math.floor(Date.now() / 1000));
+      const attachmentDigest=match?.[2]?canonical32(match[2]):null;
+      const body = attachmentDigest ? await store.retrieveAttachment?.(digest,attachmentDigest,tokenHash,Math.floor(Date.now()/1000))??null : await store.retrieve(digest, tokenHash, Math.floor(Date.now() / 1000));
       if (body === null) return notFound();
       if (body === "missing-body") return problem(503, "Service Unavailable", { "Retry-After": "30" });
       return new Response(Uint8Array.from(body.bytes), {
         status: 200,
         headers: {
-          "Content-Type": BODY_MEDIA_TYPE,
+          "Content-Type": attachmentDigest?"application/octet-stream":BODY_MEDIA_TYPE,
+          "X-Content-Type-Options":"nosniff",
           "Content-Length": String(body.bytes.length),
           "Cache-Control": "private, no-store",
-          "Content-Digest": `sha-256=:${Buffer.from(digest).toString("base64")}:`,
+          "Content-Digest": `sha-256=:${Buffer.from(attachmentDigest??digest).toString("base64")}:`,
         },
       });
     } catch {

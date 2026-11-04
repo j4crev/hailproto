@@ -270,10 +270,18 @@ type SPTTextBlock struct {
 	MarkDefs []any     `cbor:"markDefs"`
 }
 
+type Attachment struct {
+	Filename  string `json:"filename" cbor:"filename"`
+	MediaType string `json:"media_type" cbor:"media_type"`
+	Size      int64  `json:"size" cbor:"size"`
+	Digest    Digest `json:"digest" cbor:"digest"`
+}
+
 type SPTBody struct {
-	Version int64          `cbor:"version"`
-	Profile string         `cbor:"profile"`
-	Blocks  []SPTTextBlock `cbor:"blocks"`
+	Attachments []Attachment   `json:"attachments,omitempty" cbor:"attachments,omitempty"`
+	Version     int64          `cbor:"version"`
+	Profile     string         `cbor:"profile"`
+	Blocks      []SPTTextBlock `cbor:"blocks"`
 }
 
 func (SPTBody) PayloadType() string { return BodySPT1Type }
@@ -292,9 +300,10 @@ type SPT2TextBlock struct {
 	Level    int64      `cbor:"level,omitempty"`
 }
 type SPT2Body struct {
-	Version int64           `cbor:"version"`
-	Profile string          `cbor:"profile"`
-	Blocks  []SPT2TextBlock `cbor:"blocks"`
+	Attachments []Attachment    `json:"attachments,omitempty" cbor:"attachments,omitempty"`
+	Version     int64           `cbor:"version"`
+	Profile     string          `cbor:"profile"`
+	Blocks      []SPT2TextBlock `cbor:"blocks"`
 }
 
 func (SPT2Body) PayloadType() string { return BodySPT2Type }
@@ -312,10 +321,11 @@ type SPT3Block struct {
 }
 
 type SPT3Body struct {
-	Version int64         `cbor:"version"`
-	Profile string        `cbor:"profile"`
-	Assets  AssetManifest `cbor:"assets"`
-	Blocks  []SPT3Block   `cbor:"blocks"`
+	Attachments []Attachment  `json:"attachments,omitempty" cbor:"attachments,omitempty"`
+	Version     int64         `cbor:"version"`
+	Profile     string        `cbor:"profile"`
+	Assets      AssetManifest `cbor:"assets"`
+	Blocks      []SPT3Block   `cbor:"blocks"`
 }
 
 func (SPT3Body) PayloadType() string { return BodySPT3Type }
@@ -429,6 +439,7 @@ func clonePayload(payload Payload) Payload {
 		return &cloned
 	case *SPTBody:
 		cloned := *value
+		cloned.Attachments = cloneAttachments(value.Attachments)
 		cloned.Blocks = make([]SPTTextBlock, len(value.Blocks))
 		for i, block := range value.Blocks {
 			cloned.Blocks[i] = block
@@ -442,6 +453,7 @@ func clonePayload(payload Payload) Payload {
 		return &cloned
 	case *SPT2Body:
 		cloned := *value
+		cloned.Attachments = cloneAttachments(value.Attachments)
 		cloned.Blocks = make([]SPT2TextBlock, len(value.Blocks))
 		for i, block := range value.Blocks {
 			cloned.Blocks[i] = block
@@ -454,6 +466,7 @@ func clonePayload(payload Payload) Payload {
 		return &cloned
 	case *SPT3Body:
 		cloned := *value
+		cloned.Attachments = cloneAttachments(value.Attachments)
 		cloned.Assets.Assets = append([]BundledImageAsset(nil), value.Assets.Assets...)
 		for i := range cloned.Assets.Assets {
 			cloned.Assets.Assets[i].Digest.Value = bytes.Clone(value.Assets.Assets[i].Digest.Value)
@@ -471,4 +484,15 @@ func clonePayload(payload Payload) Payload {
 	default:
 		return nil
 	}
+}
+
+func cloneAttachments(files []Attachment) []Attachment {
+	if files == nil {
+		return nil
+	}
+	out := append([]Attachment{}, files...)
+	for i := range out {
+		out[i].Digest.Value = bytes.Clone(files[i].Digest.Value)
+	}
+	return out
 }

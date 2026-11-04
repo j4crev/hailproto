@@ -1,3 +1,4 @@
+import {importAttachmentBlobs} from './attachment-history.js';
 import { createHash, randomUUID } from "node:crypto";
 import { signPayload, inspectSignedPayload, toDiagnosticJson, type HailSenderProfile } from "@racrproto/codec";
 import { createWebCryptoSigner } from "@racrproto/codec";
@@ -287,11 +288,13 @@ export class PortableMigrationActivation {
       for (const table of ["detached_bodies", "body_authorizations"] as const) {
         for (const row of manifest.tables[table]) await insertRow(tx, table, row);
       }
+      await importAttachmentBlobs(tx as SQL,manifest.tables);
+      for(const table of ["attachment_uploads","body_attachment_refs"] as const)for(const row of manifest.tables[table])await insertRow(tx,table,row);
       await this.importEnvelopes(tx, manifest);
       if(manifest.connections)await reconstructConnections(tx as SQL,manifest,materializedGeneration);
       await tx`UPDATE connection_invitations SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE account_id=${manifest.accountId} AND serving_generation<>${materializedGeneration} AND revoked_at IS NULL`;
       for (const table of ["reply_capabilities", "delivery_work", "verified_body_provenance",
-        "delivered_messages", "delivery_status_payloads", "delivery_status_wrappers",
+        "received_attachment_refs", "delivered_messages", "delivery_status_payloads", "delivery_status_wrappers",
         "terminal_status_publications", "sent_delivery_status"] as const) {
         for (const row of manifest.tables[table]) {
           const resumed = ["delivery_work", "terminal_status_publications"].includes(table) &&

@@ -38,7 +38,7 @@ and increments it. Delete and restore also increment the revision when changing
 state. Saving a trashed draft is forbidden. A stale or ambiguously acknowledged
 save requires refetching the draft; clients must retain local edits on failure.
 
-`DraftContent` has exactly these required fields (see the accompanying
+`DraftContent` has these required fields (see the accompanying
 [schema](schemas/provider-draft.json)):
 
 - `audience`: `category` or `connections`.
@@ -96,3 +96,12 @@ No new envelope, body, or account-history version is implied.
 Content conformance examples are in [provider-drafts vectors](vectors/provider-drafts.json).
 Database and route tests additionally cover account isolation, concurrent saves,
 atomic consume/rollback, Trash retention and authorization.
+
+Optional `attachments` is an array of at most 20 metadata entries using the
+[attachment declaration](attachments.md), in diagnostic JSON (base64url digest).
+An empty draft array is permitted; omit it in a published body. The 25 MiB
+aggregate limit applies to drafts too. File bytes are separately uploaded by the
+owning account; draft metadata protects those editable upload references from
+expiry until the draft is deleted. Full ownership and file validation is required
+before send acceptance. Drafts themselves remain provider-local; migration
+exports carry retained upload bytes but do not promise draft-editor migration.

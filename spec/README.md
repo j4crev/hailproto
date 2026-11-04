@@ -39,7 +39,7 @@ Historical implementation/rollout notes do not override the current profile belo
 | Identity and address discovery | `did:plc`, Address Binding v2; [DID profile](did-profile.md), [address binding](address-binding.md), [PLC evidence](plc-read-evidence.md) |
 | Sender discovery and consent | Sender Profile v2, Grant v1; [sender profile](sender-profile.md), [grants](grants.md) |
 | Message delivery | Envelope v1 for Grant delivery; v2 for unthreaded connection delivery; v3 for threaded direct/reply-capability delivery; v4 for shared conversations; [envelopes](envelopes.md) |
-| Bodies and assets | All providers support `spt-1` plain text, `spt-2` rich text, and `spt-3` rich text with bundled header image; asset manifest v1; [bodies](bodies.md), [assets](assets.md) |
+| Bodies and assets | All providers support `spt-1` plain text, `spt-2` rich text, and `spt-3` rich text with bundled header image; asset manifest v1; optional PNG/JPEG/WebP/PDF/TXT/LOG attachment declarations (25 MiB/message); [bodies](bodies.md), [assets](assets.md), [attachments](attachments.md) |
 | Delivery results | Delivery Status v1; [delivery state](delivery-state.md), [HTTP binding](http-binding.md) |
 | Connections | Invitation, confirmation and control v1; [consent](connection-auth.md), [federation](connection-federation.md), [wire binding](connection-wire.md) |
 | Shared conversations | Descriptor/revival v1, Envelope v4; [shared conversations](shared-conversations.md) |
@@ -134,8 +134,8 @@ Resolved audit findings:
 
 - **Body capacity:** current bodies permit 1 MiB of deterministic CBOR, with a
   separate 2 MiB compressed-transfer ceiling. Image, signed-object and structural
-  limits remain independent. Publisher layouts and attachments still require
-  explicit profiles and separate resource budgets; see [bodies](bodies.md#separate-content-budgets).
+  limits remain independent. Publisher layouts still require explicit profiles. Detached attachments have
+  a separate 25 MiB budget; see [bodies](bodies.md#separate-content-budgets).
 
 - **Resource-budget interoperability:** [encoding](encoding.md#current-cbor-budgets)
   now specifies numeric limits, counting rules and independent COSE domains.
@@ -157,7 +157,7 @@ Remaining issues, not resolved by these fixes or passing conformance vectors:
   connection-history verification exist, but general recovery/nullified-branch
   reconciliation and unacknowledged Grant rotation still need a reviewed procedure.
 - **Publication and extensions:** media-type registration remains pending. Future
-  optional SPT profiles need support negotiation; attachments need explicit wire,
+  optional SPT profiles need support negotiation; additional attachment formats need explicit wire,
   availability and delivery rules. These are not implied by existing header assets.
 
 This audit checks specification consistency against repository source and selected

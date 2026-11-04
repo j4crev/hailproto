@@ -1,3 +1,4 @@
+import {ATTACHMENT_TABLES,collectAttachmentHistory,validateAttachmentHistory} from './attachment-history.js';
 import {collectConversationHistory,conversationHistoryDigest,type ConversationHistory} from './conversation-history.js';
 import { createHash } from "node:crypto";
 import { def } from "@did-plc/lib";
@@ -20,6 +21,7 @@ const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 const DID = /^did:plc:[a-z2-7]{24}$/;
 
 export const MANAGED_TRANSFER_TABLES = [
+  ...ATTACHMENT_TABLES,
   "provider_accounts", "account_keys", "managed_custody_evidence", "plc_operation_evidence", "address_bindings",
   "sender_profiles", "grant_lineages", "grant_revisions", "grant_consent_evidence", "grant_publications",
   "detached_bodies", "body_authorizations", "sent_envelopes", "received_envelopes", "reply_capabilities",
@@ -359,6 +361,7 @@ export function validateManagedTransferManifest(bytes: Uint8Array): ManagedTrans
   if (encodeBase64Url(expectedCheckpoint) !== manifest.historyCheckpointDigest) {
     throw new Error("Managed history checkpoint does not match the transported history");
   }
+  validateAttachmentHistory(manifest);
   return manifest;
 }
 
@@ -507,7 +510,7 @@ async function collectManagedTables(tx: SQL, did: string, accountId: string): Pr
     SELECT evidence_digest FROM public_envelope_authority_evidence WHERE local_account_id=${accountId}
     UNION SELECT evidence_digest FROM public_grant_authority_evidence WHERE local_account_id=${accountId}
     UNION SELECT evidence_digest FROM public_signing_authority_evidence WHERE local_account_id=${accountId}) ORDER BY evidence_digest`);
-  return { provider_accounts, account_keys, managed_custody_evidence, plc_operation_evidence, address_bindings,
+  return { ...await collectAttachmentHistory(tx as SQL,accountId,did), provider_accounts, account_keys, managed_custody_evidence, plc_operation_evidence, address_bindings,
     sender_profiles, grant_lineages: [...ownedGrants, ...collocatedGrants],
     grant_revisions: [...ownedRevisions, ...collocatedRevisions],
     grant_consent_evidence: [...ownedConsent, ...collocatedConsent], grant_publications, detached_bodies,

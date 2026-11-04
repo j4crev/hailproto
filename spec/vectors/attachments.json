@@ -1,0 +1,22 @@
+{
+  "id": "detached-log-attachment",
+  "body": {
+    "version": 1,
+    "profile": "spt-2",
+    "blocks": [],
+    "attachments": [
+      {
+        "filename": "example.log",
+        "media_type": "text/plain",
+        "size": 18,
+        "digest": {
+          "algorithm": "sha-256",
+          "value": "mPzEekj2Ckxc1rY5BJjQ1es6CaCnekomXKQGjTcqx7E"
+        }
+      }
+    ]
+  },
+  "bodyHex": "a466626c6f636b73806770726f66696c65657370742d326776657273696f6e016b6174746163686d656e747381a46473697a651266646967657374a26576616c7565582098fcc47a48f60a4c5cd6b6390498d0d5eb3a09a0a77a4a265ca4068d372ac7b169616c676f726974686d677368612d3235366866696c656e616d656b6578616d706c652e6c6f676a6d656469615f747970656a746578742f706c61696e",
+  "bodyDigestHex": "624c3187d658940bb96d767c34c7b03701fde9bf6a7c1a80cfd106db2efd2ac3",
+  "fileHex": "4578616d706c65206c6f6720656e7472790a"
+}

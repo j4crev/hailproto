@@ -291,7 +291,15 @@ export interface HailSptTextBlock {
   markDefs: [];
 }
 
+export interface HailAttachment {
+  filename: string;
+  media_type: "application/pdf" | "text/plain" | "image/png" | "image/jpeg" | "image/webp";
+  size: number;
+  digest: { algorithm: "sha-256"; value: Uint8Array };
+}
+
 export interface HailSptBody {
+  attachments?: HailAttachment[];
   version: 1;
   profile: "spt-1";
   blocks: HailSptTextBlock[];
@@ -320,6 +328,7 @@ export interface HailSpt2TextBlock {
 }
 
 export interface HailSpt2Body {
+  attachments?: HailAttachment[];
   version: 1;
   profile: "spt-2";
   blocks: HailSpt2TextBlock[];
@@ -333,6 +342,7 @@ export interface HailSptImageBlock {
 }
 
 export interface HailSpt3Body {
+  attachments?: HailAttachment[];
   version: 1;
   profile: "spt-3";
   assets: HailAssetManifest;

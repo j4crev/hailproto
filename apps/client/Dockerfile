@@ -39,7 +39,7 @@ RUN bun install --production --frozen-lockfile --filter hail-client --filter @ra
 
 FROM oven/bun:1.4.0
 WORKDIR /workspace/hail/apps/client
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 BODY_SIZE_LIMIT=28M
 COPY --from=dependencies /workspace/hail/node_modules /workspace/hail/node_modules
 COPY --from=dependencies /workspace/hail/packages /workspace/hail/packages
 COPY --from=dependencies /workspace/hail/vendor /workspace/hail/vendor

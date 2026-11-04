@@ -396,6 +396,7 @@ console.info(
 );
 
 export default {
+  maxRequestBodySize: 36*1024*1024,
   port: config.port,
   fetch: app.fetch,
 };

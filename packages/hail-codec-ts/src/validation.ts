@@ -602,8 +602,27 @@ function validateDeliveryStatus(payload: HailRecord): void {
   }
 }
 
+function validateAttachments(value: unknown): void {
+  const entries = array(value, "$.attachments");
+  if (!entries.length || entries.length > 20) fail("must contain 1 to 20 files", "$.attachments");
+  let total = 0;
+  entries.forEach((entry, i) => {
+    const path = `$.attachments[${i}]`, a = record(entry, path);
+    exactKeys(a, ["filename", "media_type", "size", "digest"], [], path);
+    const name = text(a.filename, `${path}.filename`);
+    if (name.normalize("NFC") !== name || new TextEncoder().encode(name).length > 255 || /[\\/\x00-\x1f\x7f]/.test(name) || !/^[^.].*\.(pdf|txt|log|png|jpg|jpeg|webp)$/i.test(name)) fail("invalid attachment filename", path);
+    if (a.media_type !== (/\.pdf$/i.test(name) ? "application/pdf" : /\.png$/i.test(name) ? "image/png" : /\.jpe?g$/i.test(name) ? "image/jpeg" : /\.webp$/i.test(name) ? "image/webp" : "text/plain")) fail("unsupported attachment type", path);
+    total += integer(a.size, `${path}.size`, 1);
+    const digest = record(a.digest, `${path}.digest`);
+    exactKeys(digest, ["algorithm", "value"], [], `${path}.digest`);
+    if (digest.algorithm !== "sha-256" || !(digest.value instanceof Uint8Array) || digest.value.length !== 32) fail("invalid attachment digest", path);
+  });
+  if (total > 25 * 1024 * 1024) fail("attachments exceed 25 MiB per message", "$.attachments");
+}
+
 function validateSpt1Body(payload: HailRecord): void {
-  exactKeys(payload, ["version", "profile", "blocks"], [], "$");
+  exactKeys(payload, ["version", "profile", "blocks"], ["attachments"], "$");
+  if (payload.attachments !== undefined) validateAttachments(payload.attachments);
   if (payload.version !== 1) fail("must equal integer 1", "$.version");
   if (payload.profile !== "spt-1") fail("must equal spt-1", "$.profile");
   array(payload.blocks, "$.blocks").forEach((entry, blockIndex) => {
@@ -624,7 +643,8 @@ function validateSpt1Body(payload: HailRecord): void {
 }
 
 function validateSpt2Body(payload: HailRecord): void {
-  exactKeys(payload, ["version", "profile", "blocks"], [], "$");
+  exactKeys(payload, ["version", "profile", "blocks"], ["attachments"], "$");
+  if (payload.attachments !== undefined) validateAttachments(payload.attachments);
   if (payload.version !== 1) fail("must equal integer 1", "$.version");
   if (payload.profile !== "spt-2") fail("must equal spt-2", "$.profile");
   const blocks = array(payload.blocks, "$.blocks");
@@ -665,7 +685,7 @@ function validateSpt2Body(payload: HailRecord): void {
   });
 }
 
-function pngDimensions(data: Uint8Array, path: string): { width: number; height: number } {
+export function validatePngStructure(data: Uint8Array, path = "$"): { width: number; height: number } {
   const signature = [137, 80, 78, 71, 13, 10, 26, 10];
   if (data.length < 45 || signature.some((byte, index) => data[index] !== byte)) fail("must be a PNG image", path);
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
@@ -731,7 +751,7 @@ export function validateAssetManifest(value: unknown): asserts value is HailAsse
     const expected = bytes(record(asset.digest, `${path}.digest`).value, 32, `${path}.digest.value`);
     const actual = createHash("sha256").update(asset.data).digest();
     if (!actual.every((byte, byteIndex) => byte === expected[byteIndex])) fail("does not match the asset bytes", `${path}.digest.value`);
-    const dimensions = pngDimensions(asset.data, `${path}.data`);
+    const dimensions = validatePngStructure(asset.data, `${path}.data`);
     const width = integer(asset.width, `${path}.width`, 1), height = integer(asset.height, `${path}.height`, 1);
     if (width !== dimensions.width || height !== dimensions.height || width > maximum.width || height > maximum.height || width * height > maximum.pixels) {
       fail("does not match bounded PNG dimensions", `${path}.width`);
@@ -740,7 +760,8 @@ export function validateAssetManifest(value: unknown): asserts value is HailAsse
 }
 
 function validateSpt3Body(payload: HailRecord): void {
-  exactKeys(payload, ["version", "profile", "assets", "blocks"], [], "$");
+  exactKeys(payload, ["version", "profile", "assets", "blocks"], ["attachments"], "$");
+  if (payload.attachments !== undefined) validateAttachments(payload.attachments);
   if (payload.version !== 1) fail("must equal integer 1", "$.version");
   if (payload.profile !== "spt-3") fail("must equal spt-3", "$.profile");
   validateAssetManifest(payload.assets);

@@ -72,6 +72,10 @@ pub async fn send(client: &Client, args: &Args) -> Result<Value, Error> {
         ),
     };
     let mut request = json!({"text":text});
+    if !args.attachments.is_empty() {
+        let attachments = upload_attachments(client, &args.attachments).await?;
+        request = json!({"body":{"version":1,"profile":"spt-2","blocks":[{"_type":"block","style":"normal","children":[{"_type":"span","text":text,"marks":[]}],"markDefs":[]}],"attachments":attachments}});
+    }
     if args.command == "connection send" {
         let id = &args.positionals[0];
         let (epoch, did) = if let Some(s) = &state {
@@ -193,9 +197,89 @@ pub fn new_id() -> Result<String, Error> {
     Ok(id)
 }
 
+pub async fn upload_attachments(client: &Client, paths: &[String]) -> Result<Vec<Value>, Error> {
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    if paths.len() > 20 {
+        return Err(Error::client("Attach at most 20 files"));
+    }
+    let mut total = 0u64;
+    let mut files = Vec::new();
+    for path in paths {
+        let file =
+            std::fs::File::open(path).map_err(|_| Error::client("Cannot open attachment"))?;
+        let meta = file
+            .metadata()
+            .map_err(|_| Error::client("Cannot inspect attachment"))?;
+        total = total
+            .checked_add(meta.len())
+            .ok_or_else(|| Error::client("Attachments too large"))?;
+        if !meta.is_file() || meta.len() == 0 || total > 25 * 1024 * 1024 {
+            return Err(Error::client("Attachments must total at most 25 MiB"));
+        }
+        let name = std::path::Path::new(path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| Error::client("Attachment filename must be UTF-8"))?
+            .to_owned();
+        let lower = name.to_lowercase();
+        if ![".pdf", ".txt", ".log", ".png", ".jpg", ".jpeg", ".webp"]
+            .iter()
+            .any(|ext| lower.ends_with(ext))
+        {
+            return Err(Error::client(
+                "Use PNG, JPEG, WebP, PDF, TXT, or LOG attachments",
+            ));
+        }
+        files.push((file, name, meta.len()));
+    }
+    let mut result = Vec::new();
+    for (file, name, size) in files {
+        let mut bytes = Vec::new();
+        file.take(size + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|_| Error::client("Cannot read attachment"))?;
+        if bytes.len() as u64 != size {
+            return Err(Error::client("Attachment changed while reading"));
+        }
+        result.push(
+            client
+                .post(
+                    "/attachments",
+                    &json!({"filename":name,"data":URL_SAFE_NO_PAD.encode(bytes)}),
+                )
+                .await?,
+        );
+    }
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn repeated_attachment_flags_preserve_order() {
+        let args = crate::cli::parse(
+            [
+                "send",
+                "--grant",
+                "01900000-0000-7000-8000-000000000001",
+                "--file",
+                "message.txt",
+                "--state",
+                "retry.json",
+                "--category",
+                "general",
+                "--attachment",
+                "report.pdf",
+                "--attachment",
+                "screen.png",
+            ]
+            .into_iter()
+            .map(str::to_owned),
+        )
+        .unwrap();
+        assert_eq!(args.attachments, vec!["report.pdf", "screen.png"]);
+    }
     #[test]
     fn encoded_body_boundary_and_utf8() {
         // Reference TypeScript bodyFromText encoding adds 107 bytes at this size.

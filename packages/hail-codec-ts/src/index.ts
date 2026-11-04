@@ -47,6 +47,7 @@ export type {
   HailReplyPermission,
   HailSenderCategory,
   HailSenderProfile,
+  HailAttachment,
   HailSptBody,
   HailSpt2Body,
   HailSpt2Span,
@@ -75,7 +76,7 @@ export type {
   InspectedHailObject,
   VerifiedHailObject,
 } from "./types.js";
-export { expectedKeyId, validateAssetManifest, validatePayload } from "./validation.js";
+export { expectedKeyId, validatePngStructure, validateAssetManifest, validatePayload } from "./validation.js";
 export {
   createWebCryptoSigner,
   createWebCryptoVerifier,

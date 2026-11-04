@@ -1,4 +1,4 @@
-# Shared content storage and future attachments
+# Shared content storage and attachments
 
 ## Ownership, accounting, and collection
 
@@ -39,52 +39,85 @@ Existing 192 KiB header-image and pixel limits remain unchanged. The 2 MiB gzip
 wire cap and local JSON API budgets are separate from stored body size. These
 are body limits, not attachment support or an aggregate detached-resource budget.
 
-## Attachment design direction (not implemented)
+## Implemented attachment lifecycle
 
-Attachments are deferred. The existing body/asset profiles and their limits
-remain unchanged. The following decisions should guide the future protocol and
-implementation work; they are not new wire requirements today.
+See [the attachment specification](../spec/attachments.md). Migration 102 stores
+file bytes separately in `attachment_blobs`, with `attachment_uploads`,
+`body_attachment_refs`, and `received_attachment_refs` as authoritative owners.
+Uploads are account-scoped; outgoing refs follow detached bodies; received refs
+cascade with received provenance. Drafts protect uploaded files from the 24-hour
+editable-upload cleanup. Trash uses normal message provenance retention. The
+periodic cleanup collects only blobs without any remaining owners under row
+locks; restrictive foreign keys prevent deletion while another owner retains bytes.
 
-- Represent each attachment as a declared resource whose digest, byte length,
-  and media type are bound by the authenticated message body. Keep filenames,
-  roles, and display metadata on message-to-attachment references, so different
-  filenames do not force duplicate file bytes. Do not use arbitrary external
-  URLs as attachment authority.
-- Store attachment bytes separately from the deterministic message body. Reuse
-  content addressing and explicit ownership, with recipient/sender retrieval
-  provenance appropriate to the attachment profile. Body storage and attachment
-  storage can share a blob mechanism without sharing authorization semantics.
-- Put storage behind a small byte-store interface when adding a second backend.
-  PostgreSQL is the current backend; filesystem or object storage is a future
-  choice, not a protocol requirement. Persist opaque storage keys, not public
-  paths. Preserve integrity verification regardless of backend.
-- Specify authorized attachment retrieval, expiry and sender availability,
-  retry/resume behavior, and whether all required attachment bytes must be
-  durably retained before a message becomes `delivered`. An optional download
-  after delivery needs explicitly different retention and failure semantics.
-  Retrieval must not become sender-visible evidence of a user opening a message.
-- Define per-file and per-message limits, bounded streaming, timeouts, and
-  decompression policy. Avoid loading whole attachments into memory. Reserve
-  logical quota and physical capacity for concurrent transfers; release failed
-  reservations. Keep user quotas independent of other users' deduplication.
-- Maintain separate owner references for received messages, drafts, outgoing
-  availability commitments, Trash, and any migration pins. One user's permanent
-  deletion releases that user's access; shared bytes remain while another owner
-  retains them. Define backup and historical-snapshot retention separately.
-- For an external byte store, publish verified durable bytes before committing
-  a visible message/reference. Handle crashes between blob publication and
-  database commit with staging and orphan collection. Never mark delivery
-  complete when a required blob is only temporary. Coordinate database/blob
-  backups, restore verification, corruption detection, and migration exports.
-- Serve downloads through account/message authorization. A digest is not a
-  capability. Use safe download headers and filenames; never render arbitrary
-  uploaded HTML or other active content in the trusted application origin.
-  Specify content-policy/quarantine behavior before enabling general uploads.
-- Revisit deduplication scope if adding end-to-end encryption or per-account
-  encryption keys. Different ciphertext generally cannot share bytes. Do not
-  introduce convergent encryption merely to preserve storage savings.
+Received usage includes file bytes once per digest per recipient; physical
+operator accounting includes the attachment tables. Migration exports include
+owned file bytes and references, validate completeness and integrity, and import
+shared bytes before owner references. Database backups retain both metadata and
+files. Matching current-alpha software is required; older exports must be
+regenerated. Rollback refuses while message references remain.
 
-Before attachment launch, verify shared-file deletion across users, quota
-reservation races, interrupted upload/retrieval, missing or corrupt blobs,
-backup restore, account migration, and authorization isolation. Storage
-optimization must not decide any of these protocol questions implicitly.
+The first implementation uses bounded in-memory buffers and PostgreSQL bytea,
+not an external streaming store. The 35 MiB upload JSON cap includes base64
+expansion; file payloads still total at most 25 MiB per message, regardless of
+recipient count. Editable uploads have a 250 MiB per-account allowance protected
+by the account lock. This is not a retained-user-storage quota. Capacity/load
+testing, malware scanning, external object storage, chunk/resume, and additional
+file formats remain separate operational/design work.
+
+## Deduplication audit (2026-11-03)
+
+The live attachment byte store is provider-wide: `attachment_blobs.digest` is the
+primary key, and PostgreSQL checks SHA-256 against `bytes`. `storeAttachment`
+compares the complete existing bytes on a digest conflict and rejects a mismatch.
+Concurrent uploads, different filenames, different senders, outgoing bodies,
+and received messages all reuse this table. Names and media types belong to the
+authenticated body entries; account and body references carry ownership. Deleting
+one owner's references leaves other owners intact. Global existence does not
+bypass independent upload/retrieval verification or message authorization.
+
+The regression in `apps/server/test/attachments.integration.test.ts` exercises
+concurrent cross-account uploads with different filenames, separate bodies,
+one live file row, loss of one owner's access, and collection after the last
+owner releases the bytes. The maximum-size case also covers shared outgoing and
+received references and migration import of already-present bytes.
+
+Current image storage has different sharing boundaries:
+
+| Content | Current sharing | Remaining duplicate bytes |
+| --- | --- | --- |
+| Received message bodies | `shared_content_blobs` stores one complete body per digest across recipients and senders. | Different bodies remain distinct. |
+| Outgoing bodies | `detached_bodies` deduplicates a complete body within a sender account. | Other senders, publication/batch records, received storage, and retained history can hold copies. |
+| Header images | Bundled inside SPT-3; identical complete received bodies share their embedded image. | Reusing a PNG in a different message or alongside different attachment metadata repeats its bytes. No independent PNG store exists. |
+| Profile pictures | Bundled inside signed Sender Profile representations; revision/representation constraints prevent duplicate profile records within their existing scope. | The image repeats across changed revisions and accounts, and also appears in the diagnostic `profile_payload` JSON cache alongside the retained COSE representation. Local and verified-remote profile tables are separate. |
+
+Sources: migrations 6, 8, 79 and 102; `src/onboarding/repository.ts` profile
+writes; `src/bodies/attachments.ts` immutable upserts. Whole-object deduplication
+is not image-level deduplication. A digest stored on an image is an integrity
+binding and does not itself imply physical sharing.
+
+Storage optimization need not change the wire format. A useful first candidate
+is deriving profile JSON from the retained signed representation instead of
+persisting the bundled image in both. Independent header/avatar sharing requires
+a lossless internal representation that reconstructs the exact authenticated body
+or signed profile, including representation-digest checks, retained history,
+migration, and owner references. Merely adding an image cache would keep the
+existing bundled copies and add storage. Such a representation migration merits
+its own change and round-trip proof; it is not part of attachment delivery.
+
+“One live attachment blob” does not mean one copy across database backups,
+retained migration snapshot manifests, WAL, or temporary PostgreSQL MVCC versions.
+Those have separate durability/retention lifecycles. Logical recipient usage also
+counts independently of whether another account shares the physical blob.
+
+## Core Internet-Draft audit (2026-11-03)
+
+Attachment work did not change the core body/envelope representation ceilings,
+COSE/signature domains, PNG limits, bearer authorization, core delivery states,
+or recipient-scoped provenance rules described by
+`drafts/draft-creviston-racr-00.xml`. All 13 definitions in its body/asset CDDL
+excerpt match the current specification after removing the attachment extension's
+optional body members. The XML remains the pinned core draft; its historical
+feature inventory describes that pinned snapshot. Attachment declarations,
+retrieval, and the expanded migration record collections belong to companion
+extensions, so this audit does not add them to the core draft or repin its source.

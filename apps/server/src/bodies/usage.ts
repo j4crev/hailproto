@@ -7,9 +7,13 @@ import type { SQL } from "bun";
  */
 export async function receivedContentUsage(sql: SQL, recipientDid: string): Promise<{ bytes: number; blobs: number }> {
   const [row] = await sql<{ bytes: number; blobs: number }[]>`
-    SELECT coalesce(sum(b.byte_size), 0)::float8 AS bytes, count(*)::float8 AS blobs
-    FROM shared_content_blobs b
-    JOIN (SELECT DISTINCT digest FROM verified_body_provenance WHERE recipient_did = ${recipientDid}) p USING (digest)
+    SELECT coalesce(sum(byte_size),0)::float8 AS bytes,count(*)::float8 AS blobs FROM (
+      SELECT b.digest,b.byte_size FROM shared_content_blobs b
+        JOIN (SELECT DISTINCT digest FROM verified_body_provenance WHERE recipient_did=${recipientDid}) p USING(digest)
+      UNION
+      SELECT b.digest,octet_length(b.bytes) AS byte_size FROM attachment_blobs b
+        JOIN (SELECT DISTINCT digest FROM received_attachment_refs WHERE recipient_did=${recipientDid}) p USING(digest)
+    ) content
   `;
   return row!;
 }
