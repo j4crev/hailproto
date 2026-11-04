@@ -89,6 +89,7 @@
     padding: 10px 14px;
   }
   button, select, input:not([type=checkbox]):not([type=radio]) { min-height: 44px; }
+  input::placeholder, textarea::placeholder { color:var(--color-muted); opacity:.8; font-weight:400; }
   input[type=checkbox], input[type=radio] { accent-color: var(--color-brand); }
   button { cursor: pointer; }
   button:disabled { cursor: not-allowed; opacity: .6; }
@@ -184,3 +185,5 @@
   .mobile-floating-action { position:fixed; z-index:11; left:50%; transform:translateX(-50%); bottom:calc(40px + env(safe-area-inset-bottom)); display:grid; place-items:center; width:56px; height:56px; padding:0; border:0; border-radius:18px; background:var(--color-brand); color:var(--color-on-brand); box-shadow:0 4px 16px #0003; text-decoration:none; cursor:pointer; }
   .mobile-floating-action:hover { background:var(--color-brand-strong); }
 }
+
+.hail-success-toast { position:fixed; z-index:30; bottom:calc(90px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:12px; width:max-content; max-width:calc(100vw - 32px); padding:16px 24px; border:1px solid var(--color-brand); border-radius:14px; background:var(--color-brand-soft); color:var(--color-brand-strong); box-shadow:0 8px 28px #0003; font-size:15px; font-weight:600; pointer-events:none; }

@@ -69,7 +69,7 @@ const fixtureGroups=()=>groupConnectionMessages([
 ]);
 const grants = await Promise.all(senders.slice(0,3).map(async sender => {
   const payload: HailGrant = {type:'hail.grant',version:1,grant_id:uuidV7(),revision:1,previous:null,grantor:did,grantee:sender.did,
-    scope:[{type:'categories',values:['general']}],status:'active',issued_at:Math.floor(started/1000),updated_at:Math.floor(started/1000),expires_at:null,
+    scope:[{type:'categories',values:sender===senders[0]?['general','offers','product-updates']:['general']}],status:'active',issued_at:Math.floor(started/1000),updated_at:Math.floor(started/1000),expires_at:null,
     consent_context:{grantee_address:sender.address,address_binding_hash:{algorithm:'sha-256',value:new Uint8Array(32)},sender_profile_hash:{algorithm:'sha-256',value:new Uint8Array(32)}},key_id:did+'#hail-identity'};
   const bytes = await signPayload('hail.grant',payload,signer);
   return {payload,representation:{type:'racr.grant',version:1,cose:encodeBase64Url(bytes),digest:await digest(bytes),localRole:'grantor'}};
@@ -81,6 +81,7 @@ const profileResponse = {type:'racr.sender-profile',version:1,revision:1,cose:en
 const drafts = new Map<string,Draft>();
 const trash = new Map<string,string>();
 const deleted = new Set<string>();
+let allowIntroductions=true,conversationsConfigured=false;
 const preferences = {theme:'system',showHeaderImages:true,trashEnabled:true};
 const json = (data: unknown, status = 200) => Response.json(data,{status,headers:{'Cache-Control':'no-store','Content-Type':'application/json'}});
 const reserve = Bun.serve({hostname:'127.0.0.1',port:0,fetch:()=>new Response()});
@@ -184,6 +185,10 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
   if(path.startsWith('/api/v1/account/grants/')){const grant=grants.find(g=>g.payload.grant_id===path.split('/').at(-1));return grant?json(grant.representation):json({},404);}
   if(path==='/api/v1/account/profile')return json(profileResponse);
   if(path==='/api/v1/account/custom-domains')return json({provider:origin,domains:[]});
+  if(path==='/api/v1/account/connections/conversation-preferences'){
+    if(request.method==='POST'){allowIntroductions=input.allowIntroductions;conversationsConfigured=true;}
+    return json({allowIntroductions,configured:conversationsConfigured,truncated:false,connections:[]});
+  }
   if(path==='/api/v1/account/connections')return json({preview:true,codes:[],connections:[{id:connectionId,did:senders[3].did,address:senders[3].address,connectedAt:date(240),remote:true}],pendingConnections:[]});
   if(path==='/api/v1/account/publications/audiences')return json({maxRecipients:100,categories:[{category:'general',subscribers:12},{category:'essays',subscribers:8}]});
   if(path==='/api/v1/account/connection-messages/targets')return json({maxRecipients:100,connections:[{connectionId,recipientDid:senders[3].did,epoch:1,address:senders[3].address},...(sharedMode?[{connectionId:sharedConversation.conversationId,recipientDid:maya.did,epoch:1,address:maya.address}]:[])]});

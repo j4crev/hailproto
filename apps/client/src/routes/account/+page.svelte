@@ -89,11 +89,11 @@
   </section>
   <section class="hail-card mt-6 grid gap-4 p-6 sm:p-8" aria-label="Delete account">
     <h2 class="m-0 text-lg">Delete account</h2>
-    <p class="m-0">Permanently erase this account’s provider inbox, including Trash, and revoke its passkeys and credentials. Its address can be reused after a one-hour delay. Other people’s copies and private protocol audit records are retained.</p>
-    <p class="m-0 text-sm text-muted">Withdraw any domains you administer first. Sign in with your passkey within the last ten minutes. Deletion cannot be undone.</p>
+    <p class="m-0 text-sm text-muted">First, remove any custom domains you administer.</p>
+    <p class="m-0">This action removes your account and revokes its passkeys and credentials. Other people’s copies and private protocol audit records are retained. The Hail address can be reused after a one-hour delay.</p>
     <form class="grid gap-3" onsubmit={event=>{event.preventDefault();void deleteAccount();}}>
       <label class="hail-field"><span>Type {data.account.address} to confirm deletion</span><input bind:value={deletionAddress} disabled={deleting} autocomplete="off" /></label>
-      <button class="hail-button-secondary" disabled={deleting||deletionAddress!==data.account.address}>Delete account and erase inbox</button>
+      <button class="hail-button-secondary" disabled={deleting||deletionAddress!==data.account.address}>Delete account</button>
     </form>
     {#if deletionError}<p role="alert" class="m-0">{deletionError}</p>{/if}
   </section>

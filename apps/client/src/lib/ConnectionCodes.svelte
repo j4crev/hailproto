@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$lib/Icon.svelte";
   import CopyButton from "$lib/CopyButton.svelte";
   import DateTime from "$lib/DateTime.svelte";
   import ContactAddress from "$lib/ContactAddress.svelte";
@@ -17,6 +18,12 @@
     await tick();confirmation?.scrollIntoView({block:"center"});
   }
   let list=$state<ConnectionList|null>(null),prepared=$state<ConnectApproval|null>(null),busy=$state(false),message=$state(""),label=$state(""),expiry=$state("");
+  let success=$state(""),immediateRequestId=$state<string|null>(null);
+  $effect(()=>{
+    if(!success)return;
+    const timer=setTimeout(()=>{success="";},5000);
+    return()=>clearTimeout(timer);
+  });
   let selectedConnections=$derived((list?.connections??[]).filter(connection=>selected.includes(connection.id)));
   let pendingId=$state<string|null>(null),recoveryNeeded=$state(false);
   let shown=$state<string|null>(null),draft=$state<Record<string,unknown>|null>(null);
@@ -29,10 +36,11 @@
     const timer=setInterval(()=>{if(!busy&&!prepared&&!recoveryNeeded&&list?.pendingConnections?.some(p=>!["expired","conflict"].includes(p.state)))void load().catch(()=>{message="Synchronization status is unavailable. Your saved request will keep retrying.";});},3000);
     return()=>clearInterval(timer);
   });
-  async function run(action:()=>Promise<void>){if(busy)return;busy=true;message="";try{await action();}catch(error){message=error instanceof Error?error.message:"Connection request failed.";}finally{busy=false;}}
-  async function prepare(input:Record<string,unknown>){
+  async function run(action:()=>Promise<void>){if(busy)return;busy=true;message="";success="";try{await action();}catch(error){message=error instanceof Error?error.message:"Connection request failed.";}finally{busy=false;}}
+  async function prepare(input:Record<string,unknown>,immediate=false){
     if(!draft)draft={requestId:crypto.randomUUID(),...input};
     prepared=connectApproval(await connectionRequest("prepare",draft));remember(prepared.requestId);
+    immediateRequestId=immediate?prepared.requestId:null;
   }
   function remember(id:string|null){pendingId=id;try{if(id)sessionStorage.setItem(CONNECTION_APPROVAL,id);else sessionStorage.removeItem(CONNECTION_APPROVAL);}catch{/* Keep in-page recovery available. */}}
   async function initialize(){
@@ -57,8 +65,11 @@
     selected=selected.filter(id=>list?.connections.some(connection=>connection.id===id));
     await invalidateAll();
     if(result?.state!=="connecting")remember(null);
-    prepared=null;draft=null;shown=null;recoveryNeeded=false;
-    message=result?.connectionIds?`Removed ${result.connectionIds.length} ${result.connectionIds.length===1?"connection":"connections"}. Existing subscriptions are unchanged.`:result?.state==="connecting"?"Connection saved. Synchronizing with the other provider.":result?.state==="expired"||result?.state==="conflict"?"The connection attempt expired or its reviewed state changed. Review a current code before trying again.":"Saved. Existing subscriptions are unchanged.";
+    const createdLink=prepared?.action==="create"&&prepared.review.personal===false;
+    prepared=null;draft=null;shown=null;recoveryNeeded=false;immediateRequestId=null;
+    const notice=result?.connectionIds?`Removed ${result.connectionIds.length} ${result.connectionIds.length===1?"connection":"connections"}. Existing subscriptions are unchanged.`:result?.state==="connecting"?"Connection saved. Synchronizing with the other provider.":result?.state==="expired"||result?.state==="conflict"?"The connection attempt expired or its reviewed state changed. Review a current code before trying again.":"Saved. Existing subscriptions are unchanged.";
+    if(result?.state==="expired"||result?.state==="conflict")message=notice;
+    else {message="";success=createdLink?"Connection link created.":notice;}
   }
   function cancel(reason=""){prepared=null;draft=null;remember(null);recoveryNeeded=false;message=reason;}
 
@@ -66,13 +77,14 @@
 {#snippet shareCode(link:string,id:string)}
   {#if qr}<div id={`connection-code-${id}`} class="grid min-w-0 gap-4" aria-label="Share connection code"><svg class="w-full max-w-72 bg-white" viewBox={`0 0 ${qr.size} ${qr.size}`} role="img" aria-label="Connection QR code"><path d={qr.path} fill="black" /></svg><div class="flex min-w-0 items-end gap-1"><label class="hail-field min-w-0 flex-1">Connection link<input readonly value={link} onclick={event=>event.currentTarget.select()} /></label><CopyButton value={link} label="Copy connection link" /></div></div>{/if}
 {/snippet}
+<div role="status" aria-atomic="true">{#if success}<div class="hail-success-toast"><Icon name="check"/><span>{success}</span></div>{/if}</div>
 {#if list}
   <section class="connection-content mt-8 grid gap-5" class:has-selection={selectedConnections.length>0} aria-label="Connection codes">
     {#if message}<p class="hail-error" role="status">{message}</p>{/if}
     {#if recoveryNeeded}
       {#if busy}<p class="text-sm text-muted" role="status">Checking your connection change…</p>
       {:else}<button class="hail-button-secondary justify-self-start" onclick={()=>run(check)}>Try again</button>{/if}
-    {:else if prepared}<div bind:this={confirmation}><ConnectionApproval {owner} approval={prepared} oncomplete={done} oncancel={cancel} /></div>
+    {:else if prepared}<div bind:this={confirmation}><ConnectionApproval {owner} approval={prepared} autoConfirm={prepared.requestId===immediateRequestId} oncomplete={done} oncancel={cancel} /></div>
     {:else}
       <section class="grid min-w-0 gap-4" aria-label="Your personal code">
         {#if personal}
@@ -88,16 +100,16 @@
           {/if}
         {:else}<button class="hail-button justify-self-start" disabled={busy} onclick={()=>run(()=>prepare({action:"create",personal:true,label:"Personal code",expiresAt:null}))}>Create my QR code</button>{/if}
       </section>
-      <form class="hail-card grid gap-4 p-5" onsubmit={event=>{event.preventDefault();void run(()=>prepare({action:"create",personal:false,label:label.trim(),expiresAt:Math.floor(new Date(expiry).getTime()/1000)}));}}>
+      <form class="hail-card grid gap-4 p-5" onsubmit={event=>{event.preventDefault();void run(()=>prepare({action:"create",personal:false,label:label.trim(),expiresAt:Math.floor(new Date(expiry).getTime()/1000)},true));}}>
         <h3 class="m-0 text-xl">Create an expiring connect link</h3><p class="m-0 text-sm text-muted">Separate from your QR code. Expiry stops new connections; established connections remain.</p>
         <label class="hail-field">Purpose<input bind:value={label} maxlength="80" required placeholder="Conference, website, or friend" disabled={busy||draft!==null} /></label>
         <label class="hail-field">Expires<input type="datetime-local" bind:value={expiry} required disabled={busy||draft!==null} /></label>
         <button class="hail-button justify-self-start" disabled={busy}>Create</button>
       </form>
-      {#each list.codes.filter(code=>!code.personal) as code}<article class="hail-card grid min-w-0 gap-3 p-5"><strong>{code.label}</strong><p class="m-0 text-sm text-muted">Expires <DateTime value={code.expiresAt!*1000} /></p><div class="flex flex-wrap gap-2"><button class="hail-button-secondary" aria-expanded={shown===code.link} aria-controls={`connection-code-${code.id}`} onclick={()=>shown=shown===code.link?null:code.link}>{shown===code.link?"Hide QR & link":"Show QR & link"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"revoke",id:code.id}))}>Revoke</button></div>{#if shown===code.link}{@render shareCode(code.link,code.id)}{/if}</article>{/each}
+      {#each list.codes.filter(code=>!code.personal) as code}<article class="hail-card grid min-w-0 gap-3 p-5"><strong>{code.label}</strong><p class="m-0 text-sm text-muted">Expires <DateTime value={code.expiresAt!*1000} /></p><div class="flex flex-wrap gap-2"><button class="hail-button-secondary" aria-expanded={shown===code.link} aria-controls={`connection-code-${code.id}`} onclick={()=>shown=shown===code.link?null:code.link}>{shown===code.link?"Hide QR":"Show QR"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"revoke",id:code.id}))}>Revoke</button></div>{#if shown===code.link}{@render shareCode(code.link,code.id)}{/if}</article>{/each}
       {#if draft&&!prepared}<button class="hail-button-secondary justify-self-start" onclick={()=>cancel()}>Discard unsaved review</button>{/if}
     {/if}
-    <section class="grid gap-4" aria-label="Your connections"><h3 class="m-0 text-xl">Your connections</h3>{#if !list.connections.length}<p class="m-0 text-sm text-muted">No connections yet. Share a code or scan someone else's.</p>{/if}
+    <section class="grid gap-4" aria-label="Your connections">{#if !list.connections.length}<p class="m-0 text-sm text-muted">No connections yet. Share a code or scan someone else's.</p>{/if}
       {#if selectedConnections.length}
         <SelectionActions label="Connection actions" count={selectedConnections.length} locked={busy||prepared!==null||recoveryNeeded||draft!==null} onclear={()=>selected=[]}>
           {#snippet actions()}<button class="hail-button-secondary" disabled={busy||prepared!==null||recoveryNeeded||draft!==null} onclick={()=>run(removeSelected)}>{selectedConnections.length===1?'Remove connection':'Remove connections'}</button>{/snippet}

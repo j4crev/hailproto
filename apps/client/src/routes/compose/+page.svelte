@@ -140,7 +140,7 @@
   <header class="workspace-heading">
     {#if !data.forward}<nav class="audience-switch" aria-label="Compose audience"><a href="/compose?audience=connections" aria-current={isConnection?'page':undefined}><Icon name="chat" size={17}/>Connections</a><a href="/compose" aria-current={!isConnection?'page':undefined}><Icon name="feed" size={17}/>Subscribers</a></nav>{/if}
   </header>
-  <div role="status" aria-atomic="true">{#if sentToast}<div class="sent-toast"><Icon name="check"/><span>Message sent.</span></div>{/if}</div>
+  <div role="status" aria-atomic="true">{#if sentToast}<div class="hail-success-toast"><Icon name="check"/><span>Message sent.</span></div>{/if}</div>
   {#if form?.error}<div class="mb-5"><p class="hail-error" role="alert">{form.error}</p>{#if retryPublication}<a class="hail-back mt-2" href={batchUrl(retryPublication)}>Check original {isConnection?'message batch':'publication'} status →</a>{/if}</div>{/if}
   {#if form && 'savedDraft' in form && form.savedDraft}<p role="status">Draft saved. <a href="/drafts">View drafts</a></p>{/if}
   <form class="compose-layout" method="POST" use:enhance={({submitter})=>{
@@ -284,7 +284,6 @@
   .forward-notice { display:flex; gap:12px; font-size:12px; line-height:1.6; color:var(--color-muted); margin-bottom:24px; }
   .forward-notice p { margin:0; }
   .forward-notice :global(svg) { flex-shrink:0; }
-  .sent-toast { position:fixed; z-index:30; bottom:calc(90px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:12px; width:max-content; max-width:calc(100vw - 32px); padding:16px 24px; border:1px solid var(--color-brand); border-radius:14px; background:var(--color-brand-soft); color:var(--color-brand-strong); box-shadow:0 8px 28px #0003; font-size:15px; font-weight:600; pointer-events:none; }
   @media(max-width:900px) { .editor-topline { display:none; } .compose-workspace { padding-bottom:112px; } }
   @media(max-width:760px) { .workspace-heading { margin-bottom:24px; } .audience-switch { width:100%; } .audience-switch a { flex:1; } .editor-content,.compose-preview { padding:20px; } .sender-line,.to-line,.reply-setting { padding:16px 20px; } .send-bar { padding:18px 20px; flex-wrap:wrap; } .send-bar button { margin-left:auto; } }
   @media(prefers-reduced-motion:no-preference) { .recipient-option,.audience-switch a { transition:background .15s ease; } }
