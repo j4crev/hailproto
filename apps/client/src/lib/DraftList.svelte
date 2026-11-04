@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {draftTitle,draftText} from '@racrproto/client-support/drafts';
   import type {Draft} from '@racrproto/client-support/drafts';
   import {invalidateAll,afterNavigate} from '$app/navigation';
   import {onMount} from 'svelte';
@@ -26,8 +27,8 @@
 {/if}
 <section class="compact-list" aria-label={trash?'Trashed drafts':'Draft messages'}>
   {#each drafts as draft (draft.id)}
-    <MessageListRow inline isRead muted={trash} href={trash?undefined:`/compose?draft=${draft.id}`} timestamp={draft.updatedAt} title={draft.content.title|| (draft.content.forward?'Forwarded message':'Untitled draft')} preview={draft.content.text} selected={selected.includes(draft.id)}>
-      {#snippet leading()}<SelectionAvatar name={address} selected={selected.includes(draft.id)} disabled={busy||!ready} label={`Select draft ${draft.content.title||'Untitled draft'}`} ontoggle={()=>selected=selected.includes(draft.id)?selected.filter(id=>id!==draft.id):[...selected,draft.id]}/>{/snippet}
+    <MessageListRow inline isRead muted={trash} href={trash?undefined:`/compose?draft=${draft.id}`} timestamp={draft.updatedAt} title={draftTitle(draft.content)|| (draft.content.forward?'Forwarded message':'Untitled draft')} preview={draftText(draft.content)} selected={selected.includes(draft.id)}>
+      {#snippet leading()}<SelectionAvatar name={address} selected={selected.includes(draft.id)} disabled={busy||!ready} label={`Select draft ${draftTitle(draft.content)||'Untitled draft'}`} ontoggle={()=>selected=selected.includes(draft.id)?selected.filter(id=>id!==draft.id):[...selected,draft.id]}/>{/snippet}
       {#snippet sender()}{name(draft)}{/snippet}
       {#snippet details()}{trash?'Restore to continue editing':'Draft'}{/snippet}
     </MessageListRow>

@@ -26,6 +26,10 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(self.selected("apps/plc-monitor/src/monitor.ts"),
                          {"monitor", "database-monitor", "database-server", "monitor-image"})
 
+    def test_builder_ownership(self):
+        self.assertEqual(self.selected("apps/content-builder/src/main.ts"), {"web"})
+        self.assertEqual(self.selected("packages/hail-content-builder/src/core.ts"), set(JOBS))
+
     def test_go_is_independent(self):
         self.assertEqual(self.selected("packages/hail-codec-go/codec.go"), {"codec-go"})
 
@@ -133,6 +137,7 @@ class GateTests(unittest.TestCase):
                      for path in (root / group).glob("*/package.json")}
         self.assertEqual(manifests, {
             "apps/client/package.json", "apps/server/package.json",
+            "apps/content-builder/package.json", "packages/hail-content-builder/package.json",
             "apps/cli/package.json", "apps/plc-monitor/package.json",
             "packages/hail-codec-ts/package.json", "packages/hail-client-support/package.json",
         }, "Assign new workspaces to CI jobs and update the selection map")

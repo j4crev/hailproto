@@ -190,4 +190,29 @@ for(const width of [1440,390]){
   assert.equal(await evaluate(`document.querySelector('textarea').value`),'My unsaved changes');
   console.log('PASS: draft save, reload, image persistence, update, avatar deletion, restore and stale-edit protection at '+width);
 }
+
+// Exercise the same reusable package inside the authenticated publication form.
+for(const width of [1440,390]){
+  await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<500});
+  await navigate('/compose');
+  await evaluate(`(()=>{const e=document.querySelector('textarea');e.value='Literal text with **bold**';e.dispatchEvent(new Event('input',{bubbles:true}));Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Open content builder').click();})()`);
+  await wait(()=>evaluate(`!!document.querySelector('[contenteditable=true]')`));
+  assert(await evaluate(`document.querySelector('.content-builder .preview').textContent.includes('Literal text with bold')`));
+  assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'Embedded builder fits '+width);
+  const draftId=await evaluate(`document.querySelector('input[name=publicationId]').value`);
+  await evaluate(`document.querySelector('button[formaction="?/save"]').click()`);
+  await wait(()=>evaluate(`document.querySelector('input[name=draftRevision]').value==='1'`));
+  assert(await evaluate(`JSON.parse(document.querySelector('input[name=builder]').value).body.blocks[0].children.some(s=>s.marks.includes('strong'))`));
+  await navigate('/compose?draft='+draftId);
+  await wait(()=>evaluate(`!!document.querySelector('[contenteditable=true]')`));
+  assert(await evaluate(`document.querySelector('.content-builder .preview').textContent.includes('Literal text with bold')`));
+  assert(await evaluate(`!document.querySelector('textarea[name=text]')`),'Rich draft never returns through the simple parser');
+  // Existing fixture intentionally rejects publication, so the user's editor survives it.
+  await evaluate(`(()=>{const e=document.querySelector('#category-search');e.focus();e.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));e.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));})()`);
+  await wait(()=>evaluate(`!document.querySelector('.send-bar .hail-button').disabled`));
+  await evaluate(`document.querySelector('.send-bar .hail-button').click()`);
+  await wait(()=>evaluate(`document.querySelector('[role=alert]')?.textContent.includes('not confirmed')`));
+  assert(await evaluate(`document.querySelector('.content-builder .preview').textContent.includes('Literal text with bold')`));
+  console.log('PASS: reusable builder conversion, save, reload, publication handoff and preserved edits at '+width);
+}
 }finally{socket?.close();chrome.kill();fixture.kill();await Promise.all([chrome.exited,fixture.exited]);await rm(work,{recursive:true,force:true});}

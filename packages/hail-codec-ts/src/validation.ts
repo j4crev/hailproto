@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { sha256 } from "@noble/hashes/sha2.js";
 import { HailCodecError } from "./errors.js";
 import { assertHailValue } from "./cbor.js";
 import { SIGNED_PROFILES, type HailKeyRole } from "./profiles.js";
@@ -501,7 +501,7 @@ function validateEnvelope(payload: HailRecord): void {
       if(!(intro.descriptor instanceof Uint8Array)||intro.descriptor.length<1||intro.descriptor.length>16384)fail("invalid signed descriptor bytes","$.conversation_introduction.descriptor");
       if(payload.from!==authorization.creator||payload.in_reply_to!==undefined||payload.conversation_message_id!==authorization.conversation_id)fail("only the creator can introduce the root message","$.conversation_introduction");
       const expected=record(authorization.descriptor_hash,"$.authorization.descriptor_hash");
-      if(!Buffer.from(createHash("sha256").update(intro.descriptor).digest()).equals(Buffer.from(expected.value as Uint8Array)))fail("descriptor hash mismatch","$.authorization.descriptor_hash");
+      if(!sha256(intro.descriptor).every((byte, index) => byte === (expected.value as Uint8Array)[index]))fail("descriptor hash mismatch","$.authorization.descriptor_hash");
     }
   } else {
     fail("unknown authorization type", "$.authorization.type");
@@ -749,7 +749,7 @@ export function validateAssetManifest(value: unknown): asserts value is HailAsse
     if (size !== asset.data.length || size > maximum.bytes) fail("does not match the bounded asset bytes", `${path}.size`);
     digest(asset.digest, `${path}.digest`);
     const expected = bytes(record(asset.digest, `${path}.digest`).value, 32, `${path}.digest.value`);
-    const actual = createHash("sha256").update(asset.data).digest();
+    const actual = sha256(asset.data);
     if (!actual.every((byte, byteIndex) => byte === expected[byteIndex])) fail("does not match the asset bytes", `${path}.digest.value`);
     const dimensions = validatePngStructure(asset.data, `${path}.data`);
     const width = integer(asset.width, `${path}.width`, 1), height = integer(asset.height, `${path}.height`, 1);

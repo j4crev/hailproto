@@ -79,3 +79,16 @@ it('limits new header uploads to subscribers while retaining rich connection tex
   await publish();
   expect(request.mock.calls[0]).toMatchObject(['/connection-messages',{body:{profile:'spt-2'}}]);
 });
+
+it('hands validated builder content to the existing publication flow without Markdown conversion',async()=>{
+  const body={version:1,profile:'spt-2',blocks:[{_type:'block',style:'h2',children:[{_type:'span',text:'Literal **asterisks**',marks:['strong','em']}],markDefs:[]}]};
+  const form=new FormData();
+  for(const [key,value] of Object.entries({publicationId:id,draftRevision:'4',audience:'category',category:'general',builder:JSON.stringify({version:1,body})}))form.set(key,value);
+  request.mockReset();request.mockRejectedValueOnce(new Error('Response lost'));
+  const publish=()=>actions.publish({request:new Request('https://example.com/compose',{method:'POST',body:form}),cookies:{},url:new URL('https://example.com/compose')} as never);
+  expect(await publish()).toMatchObject({status:502,data:{publicationId:id}});
+  expect(request).toHaveBeenCalledWith('/publications',expect.objectContaining({draftRevision:4,body}));
+  request.mockReset();form.set('text','Competing text');expect(await publish()).toMatchObject({status:400});expect(request).not.toHaveBeenCalled();
+  form.delete('text');form.set('builder',JSON.stringify({version:1,body:{...body,blocks:[{...body.blocks[0],html:'<img src="https://tracker.invalid">'}]}}));
+  expect(await publish()).toMatchObject({status:400});expect(request).not.toHaveBeenCalled();
+});

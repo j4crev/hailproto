@@ -1,3 +1,6 @@
+import {AccountDrafts} from '../src/accounts/drafts.js';
+import {validateBody,pngAsset,semantics} from '@racrproto/content-builder/core';
+import builderFixture from '../../../packages/hail-content-builder/fixtures/text.json';
 import {createHash,randomBytes,randomUUID} from "node:crypto";
 import {SQL} from "bun";
 import {Hono} from "hono";
@@ -153,6 +156,24 @@ it.skipIf(!process.env.DATABASE_URL)("snapshots category audiences, resumes exac
     expect(history.some(item=>item.messageId===cancel.publicationId||item.messageId===expired.publicationId)).toBe(false);
     expect(secondPage.next).toBeNull();
     await expect(messaging.sentSends(session,"invalid")).rejects.toMatchObject({status:400});
+    // The reusable builder's validated body goes through real draft CAS, acceptance,
+    // deterministic body storage, signing and recipient-specific publication work.
+    const richSession={...session,passkey_credential_id:'fixture'},drafts=new AccountDrafts(db.sql),richId=uuidV7();
+    const asset=await pngAsset(new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64')));
+    const richBody=validateBody({version:1,profile:'spt-3',assets:{version:1,assets:[asset]},blocks:[{_type:'spt.image',asset:asset.id,alt:'One pixel',caption:'Bundled header'},...builderFixture.blocks]});
+    const richContent={audience:'category',category:'general',connections:[],title:'',text:'',alt:'',caption:'',header:null,forward:null,allowReply:false,builder:{version:1,body:richBody}};
+    await drafts.mutate(richSession,richId,'save',{revision:0,content:richContent});
+    expect(await drafts.read(richSession,richId)).toMatchObject({revision:1,content:richContent});
+    await db.sql.unsafe("ALTER TABLE account_publications ALTER COLUMN expires_at SET DEFAULT clock_timestamp()+interval '24 hours'");
+    const richInput={publicationId:richId,category:'general',body:richBody,draftRevision:1,allowReplies:false};
+    await expect(publications.create(richSession,{...richInput,draftRevision:2})).rejects.toThrow('changed');
+    expect(await drafts.read(richSession,richId)).not.toBeNull();
+    expect(await publications.create(richSession,richInput)).toMatchObject({publicationId:richId,total:2});
+    expect(await drafts.read(richSession,richId)).toBeNull();
+    await publications.workOne();await publications.workOne();
+    const richSent=(await messaging.sentSends(richSession,null,{id:richId,kind:'category'})).messages[0]!;
+    expect(semantics(validateBody(richSent.body))).toEqual(semantics(richBody));
+    expect((await publications.status(richSession,richId))?.counts.submitted).toBe(2);
     // Remote subscribers need no local account; exercise the admission ceiling against the full query, not a GUI count.
     for(let i=0;i<100;i++){
       const grantor="did:plc:"+"z".repeat(22)+"abcdefghijklmnopqrstuvwxyz234567"[Math.floor(i/32)]+"abcdefghijklmnopqrstuvwxyz234567"[i%32];

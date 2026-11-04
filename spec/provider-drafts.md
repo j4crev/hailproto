@@ -105,3 +105,33 @@ owning account; draft metadata protects those editable upload references from
 expiry until the draft is deleted. Full ownership and file validation is required
 before send acceptance. Drafts themselves remain provider-local; migration
 exports carry retained upload bytes but do not promise draft-editor migration.
+
+## Structured builder drafts (current alpha)
+
+Optional `builder` is exactly `{version: 1, body: Body}`; its draft version is
+independent of `body.version` and its `spt-2`/`spt-3` profile. See the
+[builder draft schema](schemas/content-builder-draft.json). `Body` MUST pass the
+current body codec, including resource and bundled asset checks, and its diagnostic
+JSON encoding MUST be at most 360,000 UTF-8 bytes. Attachments MUST remain in the
+host's `attachments` field, not inside the builder body. An empty text block array
+is permitted for an unfinished draft; sending still requires meaningful text under
+reference-provider/client policy.
+
+When `builder` is present, `title`, `text`, `alt`, and `caption` MUST be empty;
+`header` and `forward` MUST be null. This prevents competing representations or
+accidental Markdown conversion. Connection drafts permit only `spt-2` builder
+bodies; category drafts permit `spt-2` and `spt-3`. Titles and image descriptions
+live within the structured body. Unknown builder versions or fields are rejected.
+Block/span editor keys are absent from the stored body; annotation keys remain
+required and block-local under the body profile. Publication uses the validated
+body directly with the existing audience, attachment, authorization and atomic
+draft-consumption flow. No new signed body version or federation format is added.
+
+The reusable builder additionally autosaves a device-local recovery copy, including
+editor keys and unfinished image descriptions. This is client storage policy,
+not an account API object: it cannot be sent or saved to the provider without
+passing validation. Local writes use Web Locks and revision comparison; unavailable
+storage or quota failures must be visible. Existing recovery is offered explicitly,
+not silently substituted for the host draft. A recovery copy based on a different
+provider revision may be exported but cannot replace the current provider draft.
+The original simple compose path continues to save explicitly as described above.

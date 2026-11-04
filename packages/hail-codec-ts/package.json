@@ -19,6 +19,10 @@
     "./base64url": {
       "types": "./dist/base64url.d.ts",
       "import": "./dist/base64url.js"
+    },
+    "./content": {
+      "types": "./dist/content.d.ts",
+      "import": "./dist/content.js"
     }
   },
   "bin": {
@@ -37,6 +41,7 @@
     "vectors:generate": "bun run scripts/generate-vectors.ts"
   },
   "dependencies": {
+    "@noble/hashes": "2.4.0",
     "cborg": "^6.1.2",
     "tldts": "^7.4.12",
     "tr46": "^6.0.0"

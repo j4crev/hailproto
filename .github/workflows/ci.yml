@@ -99,9 +99,18 @@ jobs:
       - uses: ./.github/actions/setup-ts
       - name: Verify web client and build once
         run: |
+          bun run --cwd packages/hail-content-builder typecheck
+          bun run --cwd packages/hail-content-builder test
+          bun run --cwd apps/content-builder typecheck
+          bun run --cwd apps/content-builder build
           bun run --cwd apps/client typecheck
           bun run --cwd apps/client test
           bun run --cwd apps/client build
+      - name: Verify standalone content builder
+        working-directory: apps/content-builder
+        env:
+          CHROMIUM: google-chrome
+        run: bun scripts/check-browser.ts
       - name: Verify browser recovery, wizard, compose and conversations
         working-directory: apps/client
         env:
