@@ -299,7 +299,7 @@ integration("private PLC transfer between disposable POC providers", () => {
           sourceMessagingPublicKey: signedSnapshot.sourceMessagingPublicKey }), { mode: 0o600 }),
       ]);
       const runClient = async (operation=paths.operation) => {
-        const child = Bun.spawn(["./target/debug/racr","account","transfer","sign-cutover",
+        const child = Bun.spawn(["./target/debug/racr", "--json","account","transfer","sign-cutover",
           "--vault",paths.vault,"--state",paths.state,"--snapshot",paths.snapshot,
           "--consent",paths.consent,"--operation",operation,"--binding",paths.binding],
         { cwd: new URL("../../cli/", import.meta.url).pathname,
