@@ -281,9 +281,13 @@
   {#if busy}<p class="mt-5! text-sm text-muted" role="status">Updating your subscriptions…</p>{/if}
 </div>
 
-<style>
-  .subscription-details { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:3px 10px; margin:6px 0 0; font-size:12px; }
-  .subscription-details dt { color:var(--color-muted); }
-  .subscription-details dd { margin:0; overflow-wrap:anywhere; }
-  @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
+<style lang="postcss">
+  @reference "../../app.css";
+
+  .subscription-details { @apply grid [grid-template-columns:max-content_minmax(0,1fr)] [gap:3px_10px] [margin:6px_0_0] text-[12px]; }
+  .subscription-details dt { @apply text-muted; }
+  .subscription-details dd { @apply m-0 [overflow-wrap:anywhere]; }
+  @media (max-width:900px) {
+    .has-selection { @apply pb-[180px]; }
+  }
 </style>

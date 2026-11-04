@@ -242,7 +242,7 @@
 </script>
 
 <svelte:head><title>Create your account · {page.data.branding?.name ?? "Hail"}</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
-<div class="signup-shell">
+<div class="signup-shell max-w-[600px] [margin:0_auto]">
   {#if screen!=="done"}
     <p class="signup-progress" aria-live="polite">Step {phase+1} of {phases.length} · {phases[phase]}</p>
     <ol aria-label="Signup steps" class="signup-dots">{#each phases as name,index}<li aria-current={index===phase?"step":undefined} class:current={index===phase} class:past={index<phase}><span class="sr-only">{name}</span></li>{/each}</ol>
@@ -333,9 +333,59 @@
     {#if message}<p class="signup-message" role="status">{message}</p>{/if}
   </section>
 </div>
-<style>
-  .signup-shell{max-width:600px;margin:0 auto}.signup-progress{font-size:.875rem;color:var(--color-muted);margin:0 0 12px}.signup-dots{display:flex;gap:8px;list-style:none;margin:0 0 24px;padding:0}.signup-dots li{height:5px;flex:1;border-radius:8px;background:var(--color-line)}.signup-dots li.current,.signup-dots li.past{background:var(--color-brand)}
-  .signup-card{padding:32px;display:grid;gap:20px}.signup-card h1,.signup-card p{margin:0}.signup-page,.signup-page form{display:grid;gap:20px}.signup-page{animation:arrive .18s ease-out}.signup-page p,.signup-page li{font-size:.9375rem;line-height:1.6}.signup-page ul{margin:0;padding-left:20px}.signup-page li+li{margin-top:10px}.signup-page label{display:grid;gap:8px;font-size:.875rem}.signup-page input:not([type=checkbox]){width:100%;min-width:0;box-sizing:border-box;padding:12px;border:1px solid var(--color-line);border-radius:8px;font:inherit}.signup-page .check{display:flex;align-items:flex-start;line-height:1.5}.check input{margin-top:4px}.address-input{display:flex;align-items:end;gap:8px}.address-input>span{padding-bottom:12px}.username-field{flex:1;min-width:0}.domain-choice{max-width:55%}.domain-choice select{width:100%;padding:12px 8px;border:1px solid var(--color-line);border-radius:8px;background:var(--color-surface);color:var(--color-ink);font:inherit}.domain-actions{flex-wrap:wrap}.address-input span{white-space:nowrap}.actions{display:flex;justify-content:space-between;gap:12px}.signup-page button,.signup-page a{justify-self:start}.signup-page button:disabled{opacity:.55;cursor:not-allowed}.signup-page code{display:block;overflow-wrap:anywhere;padding:16px;background:var(--color-canvas);border-radius:8px;user-select:all}.signup-page pre{font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}.signup-page summary{cursor:pointer;font-size:.875rem}.signup-page details p{margin-top:12px}.account-address{font-weight:600;overflow-wrap:anywhere}.text-link{background:none;border:0;padding:0;color:var(--color-brand-strong);font:inherit;text-decoration:underline;cursor:pointer}.signup-message{padding:14px;border:1px solid var(--color-line);border-radius:8px;line-height:1.6;font-size:.875rem}
-  .address-field{display:grid;gap:6px}.signup-page .resume-link{font-size:.8125rem;color:var(--color-muted)}.resume-link:hover,.resume-link:focus-visible{color:var(--color-ink)}
-  @keyframes arrive{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:translateX(0)}}@media(prefers-reduced-motion:reduce){.signup-page{animation:none}}@media(max-width:540px){.signup-card{padding:20px}.address-input{flex-wrap:wrap}.address-input .username-field{min-width:130px}.address-input input{flex:1;min-width:0}}
+<style lang="postcss">
+  @reference "../../app.css";
+
+  .signup-progress { @apply text-[.875rem] text-muted [margin:0_0_12px]; }
+  .signup-dots { @apply flex gap-[8px] [list-style:none] [margin:0_0_24px] p-0; }
+  .signup-dots li { @apply h-[5px] flex-1 rounded-[8px] [background:var(--color-line)]; }
+  .signup-dots li.current,.signup-dots li.past { @apply [background:var(--color-brand)]; }
+  .signup-card { @apply p-[32px] grid gap-[20px]; }
+  .signup-card h1,.signup-card p { @apply m-0; }
+  .signup-page,.signup-page form { @apply grid gap-[20px]; }
+  .signup-page { animation: arrive .18s ease-out; }
+  .signup-page p,.signup-page li { @apply text-[.9375rem] leading-[1.6]; }
+  .signup-page ul { @apply m-0 pl-[20px]; }
+  .signup-page li+li { @apply mt-[10px]; }
+  .signup-page label { @apply grid gap-[8px] text-[.875rem]; }
+  .signup-page input:not([type=checkbox]) { @apply w-full min-w-0 box-border p-[12px] [border:1px_solid_var(--color-line)] rounded-[8px]; font: inherit; }
+  .signup-page .check { @apply flex items-start leading-[1.5]; }
+  .check input { @apply mt-[4px]; }
+  .address-input { @apply flex [align-items:end] gap-[8px]; }
+  .address-input>span { @apply pb-[12px]; }
+  .username-field { @apply flex-1 min-w-0; }
+  .domain-choice { @apply max-w-[55%]; }
+  .domain-choice select {
+    @apply w-full [padding:12px_8px] [border:1px_solid_var(--color-line)] rounded-[8px] [background:var(--color-surface)]
+      text-ink;
+    font: inherit;
+  }
+  .domain-actions { @apply flex-wrap; }
+  .address-input span { @apply whitespace-nowrap; }
+  .actions { @apply flex justify-between gap-[12px]; }
+  .signup-page button,.signup-page a { @apply [justify-self:start]; }
+  .signup-page button:disabled { @apply opacity-[.55] cursor-not-allowed; }
+  .signup-page code { @apply block [overflow-wrap:anywhere] p-[16px] [background:var(--color-canvas)] rounded-[8px] [user-select:all]; }
+  .signup-page pre { @apply text-[12px] whitespace-pre-wrap [overflow-wrap:anywhere]; }
+  .signup-page summary { @apply cursor-pointer text-[.875rem]; }
+  .signup-page details p { @apply mt-[12px]; }
+  .account-address { @apply font-[600] [overflow-wrap:anywhere]; }
+  .text-link { @apply [background:none] [border:0] p-0 text-brand-strong; font: inherit; @apply [text-decoration:underline] cursor-pointer; }
+  .signup-message { @apply p-[14px] [border:1px_solid_var(--color-line)] rounded-[8px] leading-[1.6] text-[.875rem]; }
+  .address-field { @apply grid gap-[6px]; }
+  .signup-page .resume-link { @apply text-[.8125rem] text-muted; }
+  .resume-link:hover,.resume-link:focus-visible { @apply text-ink; }
+  @keyframes arrive {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @media (prefers-reduced-motion:reduce) {
+    .signup-page { animation: none; }
+  }
+  @media (max-width:540px) {
+    .signup-card { @apply p-[20px]; }
+    .address-input { @apply flex-wrap; }
+    .address-input .username-field { @apply min-w-[130px]; }
+    .address-input input { @apply flex-1 min-w-0; }
+  }
 </style>

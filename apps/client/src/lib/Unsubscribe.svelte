@@ -60,11 +60,7 @@
     {#if now >= Date.parse(prepared.expiresAt)}<p class="m-0 text-sm text-muted">This approval expired. Check its status, then reload the message before starting again.</p>{/if}
   </section>
 {:else}
-  {#if !hideTrigger}<button class="hail-button-secondary" class:compact disabled={busy || !ready} onclick={() => run(prepare)}>{busy ? 'Checking subscription…' : 'Unsubscribe'}</button>{:else if busy}<p class="text-sm text-muted" role="status">Checking subscription…</p>{/if}
+  {#if !hideTrigger}<button class="hail-button-secondary [&.compact]:text-[12px] [&.compact]:[padding:4px_6px] [&.compact]:min-h-[36px]" class:compact disabled={busy || !ready} onclick={() => run(prepare)}>{busy ? 'Checking subscription…' : 'Unsubscribe'}</button>{:else if busy}<p class="text-sm text-muted" role="status">Checking subscription…</p>{/if}
   {#if requestId}<button class="hail-button-secondary ml-2" disabled={busy} onclick={() => run(check)}>Check unsubscribe status</button>{/if}
 {/if}
 {#if error}<p class="hail-error mt-4" role="alert">{error}</p>{/if}
-
-<style>
-  button.compact { font-size:12px; padding:4px 6px; min-height:36px; }
-</style>

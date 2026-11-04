@@ -59,7 +59,7 @@
   </footer>
 {:else}
   <header class="feed-heading">
-    <div><h1 class="hail-title">{data.view === 'connections' ? 'Inbox' : 'Feed'}</h1><p class="feed-description">{data.view === 'connections' ? 'The latest from your connections' : 'The latest from your subscriptions'}</p></div>
+    <div><h1 class="hail-title">{data.view === 'connections' ? 'Inbox' : 'Feed'}</h1><p class="feed-description [margin:6px_0_0] text-[14px] text-muted">{data.view === 'connections' ? 'The latest from your connections' : 'The latest from your subscriptions'}</p></div>
   </header>
   <div class="feed-layout" class:has-selection={selectedMessages.length > 0}>
   {#if selectedMessages.length}
@@ -86,38 +86,57 @@
   {/if}
 {/if}
 
-<style>
-  @media(max-width:900px) {
-    .feed-layout { padding-bottom:88px; }
-    .has-selection { padding-bottom:180px; }
-  }
+<style lang="postcss">
+  @reference "../app.css";
 
-  .welcome { display:grid; grid-template-columns:1.1fr 1fr; align-items:center; gap:48px; padding:28px 0 48px; }
-  .welcome-copy h1 { margin:0 0 22px; font-size:clamp(42px,5.3vw,66px); line-height:1.08; letter-spacing:-.055em; font-weight:650; }
-  .welcome-copy h1 span { color:var(--color-brand); }
-  .welcome-description { font-size:16px; color:var(--color-muted); line-height:1.9; margin:0; }
-  .welcome-invitation { margin-top:16px; }
-  .welcome-signin { margin-top:32px; max-width:340px; }
-  .welcome-signin > p { font-size:11px; color:var(--color-muted); margin:13px 0 0; }
-  .subscription-example { min-width:0; padding:28px; border:1px solid var(--color-line); border-radius:18px; background:var(--color-surface); box-shadow:0 8px 25px #172b2d06; }
-  .subscription-example h2 { margin:0 0 10px; font-size:26px; line-height:1.25; letter-spacing:-.035em; font-weight:600; }
-  .subscription-example p { font-size:14px; color:var(--color-muted); line-height:1.7; margin:0 0 20px; }
-  .example-topics { list-style:none; margin:0; padding:0; }
-  .example-topics li { display:flex; justify-content:space-between; align-items:center; gap:12px; border-top:1px solid var(--color-line); padding:17px 0; font-size:14px; }
-  .topic-status { flex-shrink:0; padding:5px 10px; border-radius:99px; font-size:11px; background:var(--color-brand-soft); color:var(--color-brand-strong); }
-  .topic-off { background:var(--color-canvas); color:var(--color-muted); }
-  .subscription-example .example-caption { border-top:1px solid var(--color-line); padding-top:16px; margin:0; font-size:11px; }
-  .welcome-benefits { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:32px; padding-top:32px; border-top:1px solid var(--color-line); }
-  .welcome-benefits h2 { font-size:19px; line-height:1.4; letter-spacing:-.025em; font-weight:600; margin:0 0 12px; }
-  .welcome-benefits p { margin:0; font-size:14px; line-height:1.8; color:var(--color-muted); }
-  .welcome-footer { display:flex; align-items:center; justify-content:space-between; gap:20px; margin:32px 0 0; padding-top:20px; border-top:1px solid var(--color-line); color:var(--color-muted); font-size:12px; line-height:1.7; }
-  .welcome-footer p { margin:0; }
-  .welcome-github { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:44px; height:44px; border-radius:8px; color:inherit; }
-  .welcome-github:hover { color:var(--color-brand); }
-  .welcome-github:focus-visible { outline:2px solid var(--color-brand); outline-offset:2px; }
-  .feed-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px; margin-bottom:24px; }
-  .feed-description { margin:6px 0 0; font-size:14px; color:var(--color-muted); }
-  .feed-layout { min-width:0; }
-  @media(max-width:800px) { .welcome { gap:28px; } .subscription-example { padding:20px; } .welcome-benefits { gap:22px; } }
-  @media(max-width:640px) { .welcome { grid-template-columns:1fr; padding:10px 0 32px; gap:32px; } .welcome-copy h1 { font-size:clamp(38px, 12vw, 48px); } .welcome-description { font-size:14px; } .welcome-signin { max-width:none; margin-top:26px; } .welcome-benefits { grid-template-columns:1fr; gap:24px; } .example-topics li { font-size:12px; gap:8px; } .topic-status { font-size:10px; padding:5px 8px; } .feed-heading { gap:16px; margin-bottom:20px; } }
+  @media (max-width:900px) {
+    .feed-layout { @apply pb-[88px]; }
+    .has-selection { @apply pb-[180px]; }
+  }
+  .welcome { @apply grid [grid-template-columns:1.1fr_1fr] items-center gap-[48px] [padding:28px_0_48px]; }
+  .welcome-copy h1 { @apply [margin:0_0_22px] text-[clamp(42px,5.3vw,66px)] leading-[1.08] tracking-[-.055em] font-[650]; }
+  .welcome-copy h1 span { @apply text-brand; }
+  .welcome-description { @apply text-[16px] text-muted leading-[1.9] m-0; }
+  .welcome-invitation { @apply mt-[16px]; }
+  .welcome-signin { @apply mt-[32px] max-w-[340px]; }
+  .welcome-signin > p { @apply text-[11px] text-muted [margin:13px_0_0]; }
+  .subscription-example {
+    @apply min-w-0 p-[28px] [border:1px_solid_var(--color-line)] rounded-[18px] [background:var(--color-surface)]
+      [box-shadow:0_8px_25px_#172b2d06];
+  }
+  .subscription-example h2 { @apply [margin:0_0_10px] text-[26px] leading-[1.25] tracking-[-.035em] font-[600]; }
+  .subscription-example p { @apply text-[14px] text-muted leading-[1.7] [margin:0_0_20px]; }
+  .example-topics { @apply [list-style:none] m-0 p-0; }
+  .example-topics li { @apply flex justify-between items-center gap-[12px] [border-top:1px_solid_var(--color-line)] [padding:17px_0] text-[14px]; }
+  .topic-status { @apply shrink-0 [padding:5px_10px] rounded-[99px] text-[11px] [background:var(--color-brand-soft)] text-brand-strong; }
+  .topic-off { @apply [background:var(--color-canvas)] text-muted; }
+  .subscription-example .example-caption { @apply [border-top:1px_solid_var(--color-line)] pt-[16px] m-0 text-[11px]; }
+  .welcome-benefits { @apply grid grid-cols-[repeat(3,minmax(0,1fr))] gap-[32px] pt-[32px] [border-top:1px_solid_var(--color-line)]; }
+  .welcome-benefits h2 { @apply text-[19px] leading-[1.4] tracking-[-.025em] font-[600] [margin:0_0_12px]; }
+  .welcome-benefits p { @apply m-0 text-[14px] leading-[1.8] text-muted; }
+  .welcome-footer {
+    @apply flex items-center justify-between gap-[20px] [margin:32px_0_0] pt-[20px]
+      [border-top:1px_solid_var(--color-line)] text-muted text-[12px] leading-[1.7];
+  }
+  .welcome-footer p { @apply m-0; }
+  .welcome-github { @apply inline-flex items-center justify-center shrink-0 w-[44px] h-[44px] rounded-[8px] text-inherit; }
+  .welcome-github:hover { @apply text-brand; }
+  .welcome-github:focus-visible { @apply [outline:2px_solid_var(--color-brand)]; @apply [outline-offset:2px]; }
+  .feed-heading { @apply flex items-center justify-between flex-wrap gap-[20px] mb-[24px]; }
+  .feed-layout { @apply min-w-0; }
+  @media (max-width:800px) {
+    .welcome { @apply gap-[28px]; }
+    .subscription-example { @apply p-[20px]; }
+    .welcome-benefits { @apply gap-[22px]; }
+  }
+  @media (max-width:640px) {
+    .welcome { @apply grid-cols-[1fr] [padding:10px_0_32px] gap-[32px]; }
+    .welcome-copy h1 { @apply text-[clamp(38px,_12vw,_48px)]; }
+    .welcome-description { @apply text-[14px]; }
+    .welcome-signin { @apply [max-width:none] mt-[26px]; }
+    .welcome-benefits { @apply grid-cols-[1fr] gap-[24px]; }
+    .example-topics li { @apply text-[12px] gap-[8px]; }
+    .topic-status { @apply text-[10px] [padding:5px_8px]; }
+    .feed-heading { @apply gap-[16px] mb-[20px]; }
+  }
 </style>

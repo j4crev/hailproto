@@ -79,7 +79,7 @@
 {/snippet}
 <div role="status" aria-atomic="true">{#if success}<div class="hail-success-toast"><Icon name="check"/><span>{success}</span></div>{/if}</div>
 {#if list}
-  <section class="connection-content mt-8 grid gap-5" class:has-selection={selectedConnections.length>0} aria-label="Connection codes">
+  <section class="connection-content mt-8 grid gap-5 [@media(max-width:900px)]:[&.has-selection]:pb-[180px]" class:has-selection={selectedConnections.length>0} aria-label="Connection codes">
     {#if message}<p class="hail-error" role="status">{message}</p>{/if}
     {#if recoveryNeeded}
       {#if busy}<p class="text-sm text-muted" role="status">Checking your connection change…</p>
@@ -127,7 +127,3 @@
     {#if list.pendingConnections?.length}<section class="grid gap-3" aria-label="Connection synchronization"><h3 class="m-0 text-xl">Synchronizing with other providers</h3>{#each list.pendingConnections as pending}<article class="hail-card grid min-w-0 gap-2 p-5"><strong class="[overflow-wrap:anywhere]">{pending.address}</strong><p class="m-0 text-sm text-muted">{pending.state==="expired"?"This connection attempt expired. Open a current code to review and try again.":pending.state==="conflict"?"This attempt could not be confirmed because the reviewed identity or relationship changed. Review a current code before trying again.":pending.kind==="disconnect"?"Disconnected here. Notifying the other provider; automatic retries continue if it is offline.":pending.state==="active"?"Connected here. Updating the other provider's view; automatic retries continue if it is offline.":"Your connection approval is saved. Awaiting verified confirmation from both providers; no additional acceptance is needed."}</p></article>{/each}</section>{/if}
   </section>
 {:else if message}<section class="mt-8 grid gap-4" aria-label="Connection codes unavailable"><p class="hail-error" role="status">{message}</p><button class="hail-button-secondary justify-self-start" disabled={busy} onclick={()=>run(initialize)}>Retry loading connection codes</button></section>{:else}<p class="text-sm text-muted" role="status">Loading connections…</p>{/if}
-
-<style>
-  @media(max-width:900px) { .has-selection { padding-bottom:180px; } }
-</style>

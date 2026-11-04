@@ -23,20 +23,25 @@
     } finally {busy = false;}
   }
 </script>
-<span class="copy-control">
+<span class="copy-control relative inline-flex items-center shrink-0">
   <button class="hail-icon-button" class:copied type="button" aria-label={label} disabled={busy || !value} onclick={copy}>
     <Icon name={copied ? 'check' : 'copy'} size={18} />
   </button>
   <span class="copy-tooltip" aria-hidden="true">{copied ? 'Copied' : label}</span>
   <span class="sr-only" role="status">{copied ? 'Copied to clipboard.' : ''}</span>
-  {#if error}<span class="copy-error" role="status">{error}</span>{/if}
+  {#if error}<span class="copy-error absolute z-[20] right-0 top-[100%] w-[220px] max-w-[70vw] p-[8px] [border:1px_solid_var(--color-line)] rounded-[6px] [background:var(--color-surface)] text-danger text-[12px]" role="status">{error}</span>{/if}
 </span>
-<style>
-  .copy-control { position:relative; display:inline-flex; align-items:center; flex-shrink:0; }
-  button { color:var(--color-muted); }
-  button.copied { color:var(--color-brand-strong); }
-  .copy-tooltip { position:absolute; z-index:20; right:0; bottom:100%; padding:5px 8px; border:1px solid var(--color-line); border-radius:6px; background:var(--color-surface); color:var(--color-ink); font-size:12px; white-space:nowrap; pointer-events:none; visibility:hidden; }
-  button:focus-visible + .copy-tooltip { visibility:visible; }
-  @media(hover:hover) { button:hover + .copy-tooltip { visibility:visible; } }
-  .copy-error { position:absolute; z-index:20; right:0; top:100%; width:220px; max-width:70vw; padding:8px; border:1px solid var(--color-line); border-radius:6px; background:var(--color-surface); color:var(--color-danger); font-size:12px; }
+<style lang="postcss">
+  @reference "../app.css";
+
+  button { @apply text-muted; }
+  button.copied { @apply text-brand-strong; }
+  .copy-tooltip {
+    @apply absolute z-[20] right-0 bottom-[100%] [padding:5px_8px] [border:1px_solid_var(--color-line)] rounded-[6px]
+      [background:var(--color-surface)] text-ink text-[12px] whitespace-nowrap pointer-events-none invisible;
+  }
+  button:focus-visible + .copy-tooltip { @apply visible; }
+  @media (hover:hover) {
+    button:hover + .copy-tooltip { @apply visible; }
+  }
 </style>

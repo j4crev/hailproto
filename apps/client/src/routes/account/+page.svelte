@@ -98,8 +98,18 @@
     {#if deletionError}<p role="alert" class="m-0">{deletionError}</p>{/if}
   </section>
 </div>
-<style>
-  .account-banner { height:140px; padding:24px 32px; display:flex; align-items:center; justify-content:space-between; gap:16px; background:var(--color-brand-soft); background-image:radial-gradient(circle at 85% 140%, transparent 80px, #0f766e0b 81px, #0f766e0b 120px, transparent 121px); }
-  .account-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
-  .account-avatar { overflow:hidden; display:grid; place-items:center; width:72px; height:72px; flex-shrink:0; border:5px solid var(--color-surface); border-radius:50%; background:var(--color-brand); color:var(--color-on-brand); font-size:24px; font-weight:650; }
+<style lang="postcss">
+  @reference "../../app.css";
+
+  .account-banner {
+    @apply h-[140px] [padding:24px_32px] flex items-center justify-between gap-[16px]
+      [background:var(--color-brand-soft)];
+    @apply
+      [background-image:radial-gradient(circle_at_85%_140%,_transparent_80px,_#0f766e0b_81px,_#0f766e0b_120px,_transparent_121px)];
+  }
+  .account-avatar img { @apply w-full h-full object-cover rounded-[50%]; }
+  .account-avatar {
+    @apply overflow-hidden grid place-items-center w-[72px] h-[72px] shrink-0 [border:5px_solid_var(--color-surface)]
+      rounded-[50%] [background:var(--color-brand)] text-on-brand text-[24px] font-[650];
+  }
 </style>

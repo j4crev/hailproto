@@ -56,7 +56,7 @@
     <section aria-label="Trashed sent messages" class="mt-6">
       <h2 class="text-sm text-muted">Sent messages</h2>
       {#each data.sent.messages as message (message.kind+'/'+message.messageId)}
-        <div class="trashed-send">
+        <div class="trashed-send grid [grid-template-columns:minmax(0,1fr)_auto] items-center">
           <MessageListRow inline muted href={`/sent/send/${message.kind}/${message.messageId}?trash=true`} timestamp={message.createdAt} title={message.title} preview={message.preview}>
             {#snippet sender()}{message.recipientSummary?.address??message.recipientSummary?.did??(message.kind==='category'?message.category:'Multiple recipients')}{/snippet}
           </MessageListRow>
@@ -71,7 +71,11 @@
   {#if data.paged||data.next}<nav class="mt-6 flex gap-3" aria-label="Trash pages">{#if data.paged}<a class="hail-button-secondary" href="/trash">Newest messages</a>{/if}{#if data.next}<a class="hail-button-secondary" href={`/trash?after=${encodeURIComponent(data.next)}`}>Older messages</a>{/if}</nav>{/if}
 </div>
 
-<style>
-  .trashed-send { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; }
-  @media(max-width:900px) { .trash-list:has(:global(.selection-actions)) :global(.mobile-cleanup) { display:none; } .trash-list:has(:global(.selection-actions)) { padding-bottom:180px; } }
+<style lang="postcss">
+  @reference "../../app.css";
+
+  @media (max-width:900px) {
+    .trash-list:has(:global(.selection-actions)) :global(.mobile-cleanup) { @apply hidden; }
+    .trash-list:has(:global(.selection-actions)) { @apply pb-[180px]; }
+  }
 </style>

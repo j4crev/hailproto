@@ -41,7 +41,7 @@
   }
 </script>
 <svelte:head><title>Provider administration · {page.data.branding?.name ?? "Hail"}</title><meta name="referrer" content="no-referrer" /></svelte:head>
-<div class="dashboard">
+<div class="dashboard max-w-[980px] m-auto">
   <header class="page-heading"><h1 class="hail-title">Your Hail server</h1><p>Activity and signup invitations for {data.account.provider}.</p></header>
   <section class="hail-card panel" aria-labelledby="registration-heading">
     <h2 id="registration-heading">Registration</h2>
@@ -74,21 +74,45 @@
   <section class="hail-card panel" aria-labelledby="recent-invitations">
     <h2 id="recent-invitations">Recent invitations</h2><p class="hint">Latest 100 invitations created through this dashboard. “Accepted” means signup has started.</p>
     {#if !data.invitations.length}<p>No invitations yet.</p>{:else}
-      <div class="table-scroll"><table><thead><tr><th>Recipient</th><th>Signup</th><th>Delivery</th><th>Expires</th></tr></thead><tbody>
+      <div class="table-scroll overflow-auto"><table><thead><tr><th>Recipient</th><th>Signup</th><th>Delivery</th><th>Expires</th></tr></thead><tbody>
         {#each data.invitations as invitation (invitation.id)}<tr><td>{invitation.email??"Private link"}</td><td>{invitation.status}</td><td>{invitation.delivery==="accepted-by-email-service"?"Email service accepted":invitation.delivery==="unconfirmed"?"Unconfirmed":"Link"}</td><td>{new Date(invitation.expires_at).toISOString().slice(0,10)}</td></tr>{/each}
       </tbody></table></div>
     {/if}
   </section>
 </div>
-<style>
-  .dashboard{max-width:980px;margin:auto}.panel{padding:28px;margin-bottom:24px}h2{margin-top:0;font-size:20px}p{line-height:1.6}form{display:grid;gap:12px;max-width:540px}label{display:block;font-weight:600;margin-bottom:8px}label span,.hint{color:var(--color-muted);font-size:13px}input,textarea{width:100%;padding:12px;border:1px solid var(--color-line);border-radius:10px;background:var(--color-canvas);color:var(--color-ink)}textarea{margin-bottom:12px;overflow-wrap:anywhere}.table-scroll{overflow:auto}table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}th,td{padding:14px 12px;border-bottom:1px solid var(--color-line)}td:first-child{overflow-wrap:anywhere}th{color:var(--color-muted)}
-  .registration-setting{display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:44px}
-  .registration-setting label{margin:0;cursor:pointer;flex:1;padding:12px 0}
-  .preference-switch{appearance:none;position:relative;flex-shrink:0;width:46px;height:28px;padding:0;margin:0;border:1px solid var(--color-muted);border-radius:20px;background:var(--color-line);cursor:pointer;transition:background .15s}
-  .preference-switch::before{content:'';position:absolute;width:20px;height:20px;top:3px;left:3px;border-radius:50%;background:var(--color-surface);box-shadow:0 1px 3px #172b2d30;transition:transform .15s}
-  .preference-switch:checked{background:var(--color-brand);border-color:var(--color-brand)}
-  .preference-switch:checked::before{transform:translateX(18px)}
-  .preference-switch:focus-visible{outline:2px solid var(--color-brand);outline-offset:4px}
-  .preference-switch:disabled{opacity:.5;cursor:wait}
-  @media(prefers-reduced-motion:reduce){.preference-switch,.preference-switch::before{transition:none}}
+<style lang="postcss">
+  @reference "../../app.css";
+
+  .panel { @apply p-[28px] mb-[24px]; }
+  h2 { @apply mt-0 text-[20px]; }
+  p { @apply leading-[1.6]; }
+  form { @apply grid gap-[12px] max-w-[540px]; }
+  label { @apply block font-[600] mb-[8px]; }
+  label span,.hint { @apply text-muted text-[13px]; }
+  input,textarea { @apply w-full p-[12px] [border:1px_solid_var(--color-line)] rounded-[10px] [background:var(--color-canvas)] text-ink; }
+  textarea { @apply mb-[12px] [overflow-wrap:anywhere]; }
+  table { @apply w-full border-collapse text-left text-[13px]; }
+  th,td { @apply [padding:14px_12px] [border-bottom:1px_solid_var(--color-line)]; }
+  td:first-child { @apply [overflow-wrap:anywhere]; }
+  th { @apply text-muted; }
+  .registration-setting { @apply flex items-center justify-between gap-[24px] min-h-[44px]; }
+  .registration-setting label { @apply m-0 cursor-pointer flex-1 [padding:12px_0]; }
+  .preference-switch {
+    @apply appearance-none relative shrink-0 w-[46px] h-[28px] p-0 m-0 [border:1px_solid_var(--color-muted)]
+      rounded-[20px] [background:var(--color-line)] cursor-pointer;
+    transition: background .15s;
+  }
+  .preference-switch::before {
+    content: '';
+    @apply absolute w-[20px] h-[20px] top-[3px] left-[3px] rounded-[50%] [background:var(--color-surface)]
+      [box-shadow:0_1px_3px_#172b2d30];
+    transition: transform .15s;
+  }
+  .preference-switch:checked { @apply [background:var(--color-brand)] [border-color:var(--color-brand)]; }
+  .preference-switch:checked::before { @apply [transform:translateX(18px)]; }
+  .preference-switch:focus-visible { @apply [outline:2px_solid_var(--color-brand)]; @apply [outline-offset:4px]; }
+  .preference-switch:disabled { @apply opacity-[.5] cursor-wait; }
+  @media (prefers-reduced-motion:reduce) {
+    .preference-switch,.preference-switch::before { transition: none; }
+  }
 </style>

@@ -38,25 +38,27 @@
   });
   onMount(()=>{mounted=true;const timer=setInterval(()=>now=Date.now(),60_000);return()=>clearInterval(timer);});
 </script>
-<span class="contact-address">
+<span class="contact-address inline-flex items-center gap-[6px] max-w-full min-w-0 align-middle">
   <span class="address" title={`Hail identity: ${did}`}>{displayAddress??did}</span>
   {#if notice}
-    <span class="indicator" class:conflict={notice.kind==='conflict'}>
+    <span class="indicator relative shrink-0 z-[2] text-brand-strong font-[400]" class:conflict={notice.kind==='conflict'}>
       <button type="button" aria-label={notice.kind==='conflict'?'Address used by different identities':'Address changed'} aria-describedby={open?explanationId:undefined} aria-expanded={open}
         onmouseenter={show} onmouseleave={()=>open=false} onfocus={show} onblur={()=>open=false}
         onclick={show} onkeydown={event=>{if(event.key==='Escape')open=false;}}>{notice.kind==='conflict'?'!':'↔'}</button>
-      {#if open}<span class="explanation" id={explanationId} role="tooltip" style:left={`${left}px`} style:top={`${top}px`}>{notice.text}{#if notice.kind==='conflict'}<span class="identity">Identity: {did}</span>{/if}</span>{/if}
+      {#if open}<span class="explanation block fixed z-[50] w-[min(300px,calc(100vw_-_32px))] box-border p-[12px] [border:1px_solid_var(--color-line)] rounded-[10px] [background:var(--color-surface)] [box-shadow:0_4px_16px_#0002] text-ink text-[12px] leading-[1.6] whitespace-normal" id={explanationId} role="tooltip" style:left={`${left}px`} style:top={`${top}px`}>{notice.text}{#if notice.kind==='conflict'}<span class="identity block mt-[8px] [overflow-wrap:anywhere] text-[11px]">Identity: {did}</span>{/if}</span>{/if}
     </span>
   {/if}
 </span>
-<style>
-  .contact-address { display:inline-flex; align-items:center; gap:6px; max-width:100%; min-width:0; vertical-align:middle; }
-  .address { overflow-wrap:anywhere; min-width:0; }
-   .indicator { position:relative; flex-shrink:0; z-index:2; color:var(--color-brand-strong); font-weight:400; }
-  button { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; cursor:pointer; border:0; color:inherit; font:inherit; background:var(--color-brand-soft); font-weight:700; list-style:none; }
-  button:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
-  .conflict { color:var(--color-warning); }
-  .conflict button { background:var(--color-warning-soft); }
-  .explanation { display:block; position:fixed; z-index:50; width:min(300px,calc(100vw - 32px)); box-sizing:border-box; padding:12px; border:1px solid var(--color-line); border-radius:10px; background:var(--color-surface); box-shadow:0 4px 16px #0002; color:var(--color-ink); font-size:12px; line-height:1.6; white-space:normal; }
-  .identity { display:block; margin-top:8px; overflow-wrap:anywhere; font-size:11px; }
+<style lang="postcss">
+  @reference "../app.css";
+
+  .address { @apply [overflow-wrap:anywhere] min-w-0; }
+  button {
+    @apply grid place-items-center w-[28px] h-[28px] rounded-[50%] cursor-pointer [border:0] text-inherit;
+    font: inherit;
+    @apply [background:var(--color-brand-soft)] font-[700] [list-style:none];
+  }
+  button:focus-visible { @apply [outline:2px_solid_currentColor]; @apply [outline-offset:2px]; }
+  .conflict { @apply text-warning; }
+  .conflict button { @apply [background:var(--color-warning-soft)]; }
 </style>

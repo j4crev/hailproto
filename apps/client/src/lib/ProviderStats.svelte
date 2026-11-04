@@ -7,7 +7,7 @@
   let peak=$derived(Math.max(1,...(stats?.activity.map(bucket=>bucket.sent+bucket.received)??[])));
 </script>
 <section class="hail-card panel" aria-labelledby="statistics">
-  <div class="heading"><h2 id="statistics">Provider statistics</h2><a class="hail-button-secondary" href={`/admin?range=${range}`} data-sveltekit-reload>Refresh</a></div>
+  <div class="heading flex items-center justify-between gap-[16px] flex-wrap"><h2 id="statistics">Provider statistics</h2><a class="hail-button-secondary" href={`/admin?range=${range}`} data-sveltekit-reload>Refresh</a></div>
   {#if stats}
     <p class="hint">Snapshot: {stats.generatedAt.replace("T"," ").slice(0,19)} UTC. Totals cover retained records, including imported history; they are not lifetime traffic counters.</p>
     <dl class="metrics">
@@ -20,14 +20,14 @@
     <p class="hint">Delivery success excludes outstanding messages and measures confirmed delivery, not reads. “Sent” does not confirm network acceptance; “received” does not confirm body delivery.</p>
   {/if}
   {#if stats}<ProviderStorage storage={stats.storage} />{/if}
-  <div class="heading"><h3>Message activity</h3><nav aria-label="Activity period">
+  <div class="heading flex items-center justify-between gap-[16px] flex-wrap"><h3>Message activity</h3><nav aria-label="Activity period">
     {#each [["day","24 hours"],["week","7 days"],["month","30 days"]] as [value,title]}
       <a href={`/admin?range=${value}`} aria-current={range===value?"page":undefined}>{title}</a>
     {/each}
   </nav></div>
   {#if stats}
-    <p class="legend"><span><i class="sent"></i> Sent</span><span><i class="received"></i> Received</span></p>
-    <div class="chart-scroll">
+    <p class="legend"><span><i class="sent [fill:var(--color-chart-sent)] [background:var(--color-chart-sent)]"></i> Sent</span><span><i class="received [fill:var(--color-chart-received)] [background:var(--color-chart-received)]"></i> Received</span></p>
+    <div class="chart-scroll overflow-x-auto">
       <svg viewBox="0 0 900 240" role="img" aria-labelledby="activity-title activity-description">
         <title id="activity-title">Sent and received messages, {range==="day"?"hourly":"daily"}</title>
         <desc id="activity-description">Stacked counts in UTC. Peak scale {number(peak)} messages. Exact counts are available in the activity table below.</desc>
@@ -40,8 +40,8 @@
           {@const sentHeight=bucket.sent/peak*175}
           {@const receivedHeight=bucket.received/peak*175}
           <g><title>{label(bucket.start)}: {number(bucket.sent)} sent, {number(bucket.received)} received</title>
-            <rect class="sent" x={60+index*step} y={200-sentHeight} width={step-5} height={sentHeight} />
-            <rect class="received" x={60+index*step} y={200-sentHeight-receivedHeight} width={step-5} height={receivedHeight} />
+            <rect class="sent [fill:var(--color-chart-sent)] [background:var(--color-chart-sent)]" x={60+index*step} y={200-sentHeight} width={step-5} height={sentHeight} />
+            <rect class="received [fill:var(--color-chart-received)] [background:var(--color-chart-received)]" x={60+index*step} y={200-sentHeight-receivedHeight} width={step-5} height={receivedHeight} />
           </g>
           {#if index===0||index===stats.activity.length-1||index===Math.floor(stats.activity.length/2)}
             <text x={60+index*step} y="225" text-anchor={index===stats.activity.length-1?"end":"start"}>{label(bucket.start)}</text>
@@ -56,6 +56,31 @@
     </tbody></table></details>
   {:else}<p role="status">Statistics are temporarily unavailable. Refresh to try again; invitations are still available below.</p>{/if}
 </section>
-<style>
-  .panel{padding:28px;margin-bottom:24px}.heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}h2{font-size:20px;margin:0}h3{font-size:16px}p{line-height:1.6}.hint,small{color:var(--color-muted);font-size:13px}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;margin:28px 0}dt{font-size:13px}dd{font-size:32px;font-weight:650;margin:8px 0}small{display:block}nav{display:flex;gap:8px}nav a{padding:8px;border-radius:8px;font-size:13px}nav a[aria-current]{background:var(--color-ink);color:var(--color-canvas)}.legend,.legend span{display:flex;align-items:center;gap:8px}.legend{gap:20px;font-size:13px}.legend i{width:12px;height:12px;border-radius:3px}.sent{fill:var(--color-chart-sent);background:var(--color-chart-sent)}.received{fill:var(--color-chart-received);background:var(--color-chart-received)}.chart-scroll{overflow-x:auto}svg{display:block;width:100%;min-width:560px;color:var(--color-muted)}svg text{fill:currentColor;font-size:11px}summary{cursor:pointer;font-size:13px}table{width:100%;border-collapse:collapse;font-size:13px;text-align:left}th,td{padding:10px;border-bottom:1px solid var(--color-line)}@media(max-width:650px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.panel{padding:20px}}
+<style lang="postcss">
+  @reference "../app.css";
+
+  .panel { @apply p-[28px] mb-[24px]; }
+  h2 { @apply text-[20px] m-0; }
+  h3 { @apply text-[16px]; }
+  p { @apply leading-[1.6]; }
+  .hint,small { @apply text-muted text-[13px]; }
+  .metrics { @apply grid grid-cols-[repeat(4,minmax(0,1fr))] gap-[20px] [margin:28px_0]; }
+  dt { @apply text-[13px]; }
+  dd { @apply text-[32px] font-[650] [margin:8px_0]; }
+  small { @apply block; }
+  nav { @apply flex gap-[8px]; }
+  nav a { @apply p-[8px] rounded-[8px] text-[13px]; }
+  nav a[aria-current] { @apply [background:var(--color-ink)] text-canvas; }
+  .legend,.legend span { @apply flex items-center gap-[8px]; }
+  .legend { @apply gap-[20px] text-[13px]; }
+  .legend i { @apply w-[12px] h-[12px] rounded-[3px]; }
+  svg { @apply block w-full min-w-[560px] text-muted; }
+  svg text { @apply [fill:currentColor] text-[11px]; }
+  summary { @apply cursor-pointer text-[13px]; }
+  table { @apply w-full border-collapse text-[13px] text-left; }
+  th,td { @apply p-[10px] [border-bottom:1px_solid_var(--color-line)]; }
+  @media (max-width:650px) {
+    .metrics { @apply grid-cols-[repeat(2,minmax(0,1fr))]; }
+    .panel { @apply p-[20px]; }
+  }
 </style>

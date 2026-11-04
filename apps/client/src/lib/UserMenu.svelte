@@ -34,7 +34,7 @@
 </script>
 <button class:compact class:drawer-account={drawerAccount} class="account-trigger" popovertarget={id} aria-label="Open account menu" aria-expanded={open} aria-controls={id}>
   <span class="avatar">{#if avatar && failedAvatar !== avatar}<img bind:this={avatarImage} src={avatar} alt="" />{:else if initials}{initials}{:else}<Icon name="user" />{/if}</span>
-  {#if !compact}<span class="account-label"><strong>{address}</strong><small>Personal account</small></span><span class="account-dots" aria-hidden="true">···</span>{/if}
+  {#if !compact}<span class="account-label"><strong>{address}</strong><small>Personal account</small></span><span class="account-dots ml-auto font-[800]" aria-hidden="true">···</span>{/if}
 </button>
 <div id={id} bind:this={panel} popover="auto" class="account-popover" ontoggle={event => {open = event.newState === "open";}}>
   <div class="menu-heading"><span class="hail-eyebrow">Signed in as</span><strong>{address}</strong></div>
@@ -45,27 +45,38 @@
   <form method="POST" action="/auth/logout" onsubmit={signOut}><button disabled={signingOut}><Icon name="logout" />{signingOut ? "Signing out…" : "Sign out"}</button></form>
   {#if error}<p class="hail-error" role="alert">{error}</p>{/if}
 </div>
-<style>
-  .account-trigger { display:flex; align-items:center; gap:10px; width:100%; padding:12px 8px; border:0; background:transparent; text-align:left; border-radius:14px; }
-  .account-trigger:hover, .account-trigger[aria-expanded=true] { background:var(--color-brand-soft); }
-  .avatar { display:grid; place-items:center; width:40px; height:40px; flex-shrink:0; border:0; border-radius:50%; background:var(--color-brand-soft); color:var(--color-brand-strong); font-size:13px; font-weight:750; }
-  .avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
-  .account-label { display:grid; min-width:0; gap:3px; }
-  .account-label strong { overflow:hidden; text-overflow:ellipsis; font-size:13px; }
-  .account-label small { font-size:11px; color:var(--color-muted); }
-  .account-dots { margin-left:auto; font-weight:800; }
-  .compact { width:44px; padding:2px; }
-  .account-popover { position:fixed; inset:auto auto 96px max(20px, calc((100vw - 1600px) / 2 + 20px)); margin:0; width:286px; max-width:calc(100vw - 32px); padding:8px; border:1px solid var(--color-line); border-radius:14px; background:var(--color-surface); color:var(--color-ink); box-shadow:0 16px 60px #172b2d20; }
-  .menu-heading { display:grid; gap:7px; padding:14px 12px 18px; border-bottom:1px solid var(--color-line); }
-  .menu-heading .hail-eyebrow { font-size:10px; }
-  .menu-heading strong { overflow-wrap:anywhere; font-size:13px; }
-  nav { padding:6px 0; }
-  nav a, form button { display:flex; width:100%; align-items:center; gap:12px; padding:12px; border:0; border-radius:10px; font-size:13px; font-weight:600; text-decoration:none; background:transparent; }
-  nav a:hover, form button:hover { background:var(--color-brand-soft); }
-  form { border-top:1px solid var(--color-line); padding-top:6px; }
-  form button { color:var(--color-danger); }
-  @media(max-width:900px) {
-    .account-popover { inset:74px 16px auto auto; }
-    .drawer-account + .account-popover { inset:auto auto calc(82px + env(safe-area-inset-bottom)) 16px; }
+<style lang="postcss">
+  @reference "../app.css";
+
+  .account-trigger { @apply flex items-center gap-[10px] w-full [padding:12px_8px] [border:0] [background:transparent] text-left rounded-[14px]; }
+  .account-trigger:hover, .account-trigger[aria-expanded=true] { @apply [background:var(--color-brand-soft)]; }
+  .avatar {
+    @apply grid place-items-center w-[40px] h-[40px] shrink-0 [border:0] rounded-[50%]
+      [background:var(--color-brand-soft)] text-brand-strong text-[13px] font-[750];
+  }
+  .avatar img { @apply w-full h-full object-cover rounded-[50%]; }
+  .account-label { @apply grid min-w-0 gap-[3px]; }
+  .account-label strong { @apply overflow-hidden text-ellipsis text-[13px]; }
+  .account-label small { @apply text-[11px] text-muted; }
+  .compact { @apply w-[44px] p-[2px]; }
+  .account-popover {
+    @apply fixed [inset:auto_auto_96px_max(20px,_calc((100vw_-_1600px)_/_2_+_20px))] m-0 w-[286px]
+      max-w-[calc(100vw_-_32px)] p-[8px] [border:1px_solid_var(--color-line)] rounded-[14px]
+      [background:var(--color-surface)] text-ink [box-shadow:0_16px_60px_#172b2d20];
+  }
+  .menu-heading { @apply grid gap-[7px] [padding:14px_12px_18px] [border-bottom:1px_solid_var(--color-line)]; }
+  .menu-heading .hail-eyebrow { @apply text-[10px]; }
+  .menu-heading strong { @apply [overflow-wrap:anywhere] text-[13px]; }
+  nav { @apply [padding:6px_0]; }
+  nav a, form button {
+    @apply flex w-full items-center gap-[12px] p-[12px] [border:0] rounded-[10px] text-[13px] font-[600]
+      [text-decoration:none] [background:transparent];
+  }
+  nav a:hover, form button:hover { @apply [background:var(--color-brand-soft)]; }
+  form { @apply [border-top:1px_solid_var(--color-line)] pt-[6px]; }
+  form button { @apply text-danger; }
+  @media (max-width:900px) {
+    .account-popover { @apply [inset:74px_16px_auto_auto]; }
+    .drawer-account + .account-popover { @apply [inset:auto_auto_calc(82px_+_env(safe-area-inset-bottom))_16px]; }
   }
 </style>

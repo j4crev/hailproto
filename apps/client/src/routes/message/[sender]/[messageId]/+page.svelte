@@ -137,7 +137,9 @@
 <MessageThread peer={{did:data.message.sender,address:data.message.senderAddress}} thread={data.thread} unavailable={data.threadUnavailable} selected={data.message}/>
 </div>
 
-<style>
-  .feed-reader { max-width:none; margin-inline:0; }
-  .feed-reader .reading-body { max-width:min(800px,72ch); }
+<style lang="postcss">
+  @reference "../../../../app.css";
+
+  .feed-reader { @apply [max-width:none] mx-0; }
+  .feed-reader .reading-body { @apply max-w-[min(800px,72ch)]; }
 </style>
