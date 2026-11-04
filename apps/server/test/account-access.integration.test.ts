@@ -56,7 +56,7 @@ integration("post-expiry owner account access", () => {
     await (await unlockUserIdentity(fixture.vault.vault,fixture.vault.recoverySecret)).signAccountAccess(challenge) :
     await (await unlockUserVault(fixture.vault.vault,fixture.vault.recoverySecret)).signAccountRecovery(challenge));
   const login = async (fixture:typeof fixtures[number], name:string, signer:"identity"|"owner-recovery", vaultFile?:string, scopes=["account:read"]) => {
-    const child = Bun.spawn(["./target/debug/racr","account","login","--provider",origin,"--did",fixture.vault.vault.did!,
+    const child = Bun.spawn(["./target/debug/racr", "--json","account","login","--provider",origin,"--did",fixture.vault.vault.did!,
       "--signer",signer,"--vault",vaultFile ?? join(directory,`${fixture.mode}.vault.json`),"--state",join(directory,`${name}.state.json`),
       "--credentials",join(directory,`${name}.credential.json`),...scopes.flatMap(scope=>["--scope",scope])], {
       cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost"},
@@ -69,7 +69,7 @@ integration("post-expiry owner account access", () => {
   };
   const recoverPasskey=async(fixture:typeof fixtures[number],name:string,signer:"identity"|"owner-recovery")=>{
     const statePath=join(directory,`${name}.passkey-recovery.json`),output=join(directory,`${name}.passkey-enrollment.json`),
-      child=Bun.spawn(["./target/debug/racr","account","passkey-recover",
+      child=Bun.spawn(["./target/debug/racr", "--json","account","passkey-recover",
       "--provider",origin,"--did",fixture.vault.vault.did!,"--signer",signer,"--vault",join(directory,`${fixture.mode}.vault.json`),"--state",statePath,"--output",output],{
       cwd:new URL("../../cli/",import.meta.url).pathname,env:{...Bun.env,SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost"},stdin:"pipe",stdout:"pipe",stderr:"pipe"});
     child.stdin.write(`${encodeBase64Url(fixture.vault.recoverySecret)}\n`);child.stdin.end();

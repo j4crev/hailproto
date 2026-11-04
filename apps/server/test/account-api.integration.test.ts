@@ -80,7 +80,7 @@ integration("authenticated account API and real racr HTTPS CLI", () => {
     ({ type: "racr.api-credential", version: 1, provider: origin, ...value });
 
   async function cli(args: string[], filename = "owner.credential.json", secret = false) {
-    const child = Bun.spawn(["./target/debug/racr", ...args, "--credentials", join(directory, filename)], {
+    const child = Bun.spawn(["./target/debug/racr", "--json", ...args, "--credentials", join(directory, filename)], {
       cwd: new URL("../../cli/", import.meta.url).pathname,
       env: { ...Bun.env, SSL_CERT_FILE:join(directory,"ca.pem"), NO_PROXY:"localhost", no_proxy:"localhost" },
       stdin: "pipe", stdout: "pipe", stderr: "pipe",
