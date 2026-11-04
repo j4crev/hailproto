@@ -1,16 +1,21 @@
 <script lang="ts">
   import DateTime from "$lib/DateTime.svelte";
   import IdentityWarning from "./IdentityWarning.svelte";
-  import {onMount} from "svelte";
+  import {onMount,untrack} from "svelte";
   import {identityMemory} from "./identity-memory.js";
   import {identityAcknowledgmentKey,conflictingIdentities,type IdentityHistory} from "./identity-history.js";
   import {startAuthentication} from "@simplewebauthn/browser";
   import {connectApproval,connectionRequest,recoverConnection,ConnectionRequestError,signedConnectionFile,type ConnectApproval} from "$lib/connections.js";
-  let {owner,approval,oncomplete,oncancel}:{owner:string;approval:ConnectApproval;oncomplete:(result:NonNullable<ConnectApproval["result"]>)=>void|Promise<void>;oncancel:(message?:string)=>void}=$props();
+  let {owner,approval,oncomplete,oncancel,autoConfirm=false}:{autoConfirm?:boolean;owner:string;approval:ConnectApproval;oncomplete:(result:NonNullable<ConnectApproval["result"]>)=>void|Promise<void>;oncancel:(message?:string)=>void}=$props();
   let acknowledgedIdentity=$state("");
   let knownIdentities=$state<IdentityHistory>([]);
   let identityMounted=$state(false);
-  onMount(()=>{identityMounted=true;});
+  // Only a freshly submitted expiring-link form can skip the extra review screen.
+  let autoStarting=$state(untrack(()=>autoConfirm&&approval.action==="create"&&approval.review.personal===false&&!approval.ownerSigning));
+  onMount(()=>{
+    identityMounted=true;
+    if(autoStarting)void run(true).finally(()=>{autoStarting=false;});
+  });
   $effect(()=>{if(identityMounted)return identityMemory(owner).subscribe(value=>knownIdentities=value);});
   const conflicts=(value:ConnectApproval)=>value.action==="connect"?conflictingIdentities(knownIdentities,value.review.did,value.review.address,value.review.previousDids??[]):[];
   const conflictKey=(value:ConnectApproval)=>identityAcknowledgmentKey(value.requestId,value.review.did,value.review.address,conflicts(value));
@@ -66,6 +71,9 @@
   }
 
 </script>
+{#if autoStarting}
+  <p class="text-sm text-muted" role="status">Creating your connection link…</p>
+{:else}
 <section class="hail-card grid gap-4 border-2 border-brand p-5" aria-label="Connection action confirmation">
   <h2 class="m-0 text-xl">Confirm {approval.action==="create"?"new connection link":approval.action==="replace"?"personal code replacement":approval.action==="revoke"?"code revocation":approval.action.startsWith("disconnect")?"connection removal":"connection"}</h2>
   {#if approval.action==="disconnect-batch"}<p class="m-0 text-sm">Remove {approval.review.connections.length} {approval.review.connections.length===1?"connection":"connections"}? One passkey confirmation applies to the whole selection.</p>
@@ -92,3 +100,4 @@
     {:else}<button class="hail-button" disabled={busy||!identityReady} onclick={()=>run(true)}>{approval.action==="disconnect-batch"?(approval.review.connections.length===1?"Remove connection":"Remove connections"):approval.action==="connect"?"Add connection":"Confirm"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>oncancel()}>Cancel</button>{/if}
   </div>
 </section>
+{/if}

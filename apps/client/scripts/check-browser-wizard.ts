@@ -28,6 +28,7 @@ const permissionSigner=await crypto.subtle.generateKey("Ed25519",true,["sign","v
 let allowed:HailGrant|null=null,allowedCose="",allowedDigest="",generalAvailable=false;
 const approvals=new Map<string,{action:string;payload:HailGrant;challenge:string;approved:boolean;result:unknown}>();
 const connectionCodes:{id:string;personal:boolean;label:string;expiresAt:number|null;link:string}[]=[],connectionApprovals=new Map<string,any>();
+let allowIntroductions=true,conversationsConfigured=false,failConversationSave=false;
 let connectionCommitLost=false,connectionStatusUnavailable=false;
 let personalConnection=false,ownerConnectionSigning=false,federatedConnecting=false,federationPolls=0;
 const fixtureConnectionId=uuidV7(),fixtureInvitationId=uuidV7(),fixtureAdmissionToken="K".repeat(43);
@@ -138,6 +139,14 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     const advanceFederation=()=>{if(federatedConnecting&&[...connectionApprovals.values()].some(row=>row.result?.state==='connecting')&&++federationPolls>=6){personalConnection=true;for(const row of connectionApprovals.values())if(row.result?.state==='connecting')row.result={connectionId:fixtureConnectionId,attemptId:row.requestId,state:'active'};}};
     if(!step){advanceFederation();return json({preview:true,codes:connectionCodes,connections:personalConnection?[{id:fixtureConnectionId,did:peerDid,address:peerAddress,connectedAt:new Date().toISOString(),remote:federatedConnecting}]:[],
       pendingConnections:federatedConnecting&&!personalConnection&&[...connectionApprovals.values()].some(row=>row.result?.state==='connecting')?[{id:fixtureConnectionId,did:peerDid,address:peerAddress,kind:'connect',state:'pending'}]:[]});}
+    if(step==="conversation-preferences"){
+      if(request.method==='POST'){
+        assert.deepEqual(Object.keys(input),['allowIntroductions']);assert.equal(typeof input.allowIntroductions,'boolean');
+        if(failConversationSave){failConversationSave=false;return json({error:'Conversation preference save failed.'},503);}
+        allowIntroductions=input.allowIntroductions;conversationsConfigured=true;
+      }
+      return json({allowIntroductions,configured:conversationsConfigured,truncated:false,connections:[]});
+    }
     if(step==="review"){assert.equal(input.id,fixtureInvitationId);assert.equal(input.did,peerDid);assert.equal(input.token,fixtureAdmissionToken);
       return json({id:input.id,did:peerDid,address:peerAddress,expiresAt:null,preview:true});}
     if(step==="prepare"){
@@ -719,7 +728,24 @@ try{
   await screenshot("feed");
   const settings=async()=>{await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/settings"]').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"reading settings ready");};
   const feed=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/';document.body.append(a);a.click();a.remove();})()`);await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Feed'`),"feed navigation");};
-  await settings();await accountNavigation();assert(await evaluate(`!document.querySelector('section[aria-label="Delete account"]')`),'Settings has no account deletion controls');assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll("main a"),a=>a.getAttribute("href"))`),["/settings/domains","/settings/conversations"],"Settings links to domain management and conversation preferences");await narrowLayouts();await screenshot("settings");
+  await settings();await accountNavigation();assert(await evaluate(`!document.querySelector('section[aria-label="Delete account"]')`),'Settings has no account deletion controls');assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll("main a"),a=>a.getAttribute("href"))`),["/settings/domains"],"Settings keeps domain management and embeds conversation preferences");await narrowLayouts();await screenshot("settings");
+  assert(await evaluate(`document.querySelector('#shared-conversations')?.checked===true && document.querySelector('#shared-conversations').getAttribute('role')==='switch'`),'Shared conversations default to enabled');
+  assert(await has("Connections can add me to conversations with people I'm not connected with."));
+  assert(!await has('Per-connection choices'));
+  await evaluate(`document.querySelector('#shared-conversations').click()`);
+  await wait(()=>evaluate(`document.querySelector('#shared-conversations')?.disabled===false && !document.querySelector('#shared-conversations').checked`),'shared conversations disabled');
+  assert.equal(allowIntroductions,false);
+  await evaluate(`document.documentElement.dataset.beforeConversationReload='true'`);
+  await cdp('Page.reload');await wait(()=>evaluate(`!document.documentElement.dataset.beforeConversationReload && document.querySelector('#shared-conversations')?.disabled===false && !document.querySelector('#shared-conversations').checked`),'shared conversation preference persists');
+  failConversationSave=true;
+  await evaluate(`document.querySelector('#shared-conversations').click()`);await wait(()=>has('Conversation preference save failed.'),'failed preference save is visible');
+  assert.equal(allowIntroductions,false);
+  assert(await evaluate(`!document.querySelector('#shared-conversations').checked`),'failed save retains the saved switch state');
+  await evaluate(`document.querySelector('#shared-conversations').click()`);
+  await wait(()=>evaluate(`document.querySelector('#shared-conversations')?.disabled===false && document.querySelector('#shared-conversations').checked`),'shared conversations re-enabled');
+  assert.equal(allowIntroductions,true);
+  await cdp('Page.navigate',{url:origin+'/settings/conversations'});
+  await wait(()=>evaluate(`location.pathname==='/settings' && document.querySelector('#show-headers')?.disabled===false`),'old conversation settings URL redirects to main settings');
   await evaluate(`document.querySelector('#show-headers').click()`);await wait(async()=>evaluate(`localStorage.getItem('hail.gui.showInboxHeaders')==='false' && document.querySelector('#show-headers')?.disabled===false`),"preference saved");
   await feed();await wait(async()=>evaluate(`!document.querySelector(${JSON.stringify(feedImage)})`),"hide feed headers through settings");
   await evaluate("document.documentElement.dataset.beforePreferenceReload='true'");
@@ -749,8 +775,23 @@ try{
   await click("Allow sender with my passkey");await wait(async()=>evaluate(`document.querySelector('button[aria-label^="Select subscription to"]')?.disabled===false`),"passkey-approved permission saved");
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),"","Completed subscription clears the sender address");
   await evaluate(`document.querySelector('button[aria-label^="Select subscription to"]').click()`);
-  assert.equal(allowed!.status,"active");await click("Unsubscribe");await wait(()=>has("Confirm unsubscribe"),"subscription unsubscribe review");
-  await click("Cancel");assert.equal(allowed!.status,"active","Cancel leaves subscription active");
+  // The list goes straight to passkey consent; cancellation must leave the grant active.
+  const unsubscribeCommitsBefore=requests.filter(r=>r.path==="/api/v1/account/permissions/commit").length;
+  await evaluate(`(()=>{const get=navigator.credentials.get.bind(navigator.credentials);navigator.credentials.get=async()=>{navigator.credentials.get=get;throw new DOMException('Cancelled by user','NotAllowedError');};})()`);
+  await click("Unsubscribe");await wait(()=>has("Passkey confirmation wasn’t completed."),"subscription passkey cancellation");
+  await wait(()=>evaluate(`document.querySelector('button[aria-label^="Select subscription to"]')?.disabled===false`),"cancelled unsubscribe unlocks selection");
+  assert.equal(allowed!.status,"active","Cancelling passkey consent leaves the subscription active");
+  assert.equal(requests.filter(r=>r.path==="/api/v1/account/permissions/commit").length,unsubscribeCommitsBefore,"Cancelled consent must not submit a commit");
+  assert.equal(await evaluate(`sessionStorage.getItem('hail.pending-grant-approval.v1')`),null,"Cancelled unsubscribe clears the pending review");
+  assert(!await has("Confirm unsubscribe"));
+  await click("Unsubscribe");await wait(()=>has("No subscriptions yet"),"list unsubscribe commits directly after passkey consent");
+  assert.equal(allowed!.status,"revoked");
+  assert.equal(requests.filter(r=>r.path==="/api/v1/account/permissions/commit").length,unsubscribeCommitsBefore+1,"Retry submits exactly one authorized commit");
+  // Restore a subscription through the UI for the separate reader confirmation checks.
+  await fill("Sender’s Hail address",peerAddress);await click("Continue");await wait(()=>has("Test sender"),"resubscribe sender review");
+  await evaluate(`document.querySelector('fieldset input[value=updates]').click()`);
+  await click("Review permission");await wait(()=>has("Confirm allowed sender"),"resubscribe permission review");
+  await click("Allow sender with my passkey");await wait(()=>evaluate(`document.querySelector('button[aria-label^="Select subscription to"]')?.disabled===false`),"subscription restored for reader checks");
   await cdp("Page.navigate",{url:origin+messagePath});
   await wait(async()=>evaluate(`document.querySelector('.action-menu button')?.disabled===false`),'reader actions ready');
   await evaluate(`document.querySelector('summary[aria-label="More message actions"]').click()`);
@@ -771,15 +812,15 @@ try{
   assert(await evaluate(`![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Unsubscribe')`));
   await cdp("Page.navigate",{url:origin+"/permissions"});await wait(()=>has("No subscriptions yet"),"Revoked subscription is absent from active subscriptions");
   assert(!await has("Share your sender QR"),"Subscription page does not show publishing tools");
-  await cdp("Page.navigate",{url:origin+"/categories"});await wait(()=>has("Create sender profile with passkey"),"first sender profile setup");
+  await cdp("Page.navigate",{url:origin+"/categories"});await wait(()=>has("Create sender profile"),"first sender profile setup");
   await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"profile editor ready");
   assert(!await has("Show QR"),"QR is offered only after publishing a profile");
   assert(await evaluate(`!!document.querySelector('[aria-label="General category"]') && !document.querySelector('[aria-label="General category"] input, [aria-label="General category"] button')`),"General is built-in with no edit or remove controls");
   await fill("Sender name","Alice's updates");
-  profileVerificationMismatch=true;await click("Create sender profile with passkey");
+  profileVerificationMismatch=true;await click("Create sender profile");
   await wait(()=>has("You verified a different account."),"profile draft cannot be saved to a different passkey account");
   assert.equal(profileWrites,0);profileVerificationMismatch=false;
-  await click("Create sender profile with passkey");
+  await click("Create sender profile");
   await wait(()=>has("Save changes with passkey"),"profile created through passkey-authenticated save");
   assert.equal(profileWrites,1);assert.deepEqual(ownProfile.profile.categories.map((c:any)=>({id:c.id,label:c.label})),[{id:"general",label:"General"}]);
   await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"saved profile editor ready");
@@ -925,11 +966,15 @@ try{
   await click("Hide QR");await wait(async()=>evaluate(`!document.querySelector('svg[aria-label="Connection QR code"]')`),"same button hides personal QR");
   await click("Show QR");await wait(()=>has("Hide QR"),"same button reopens personal QR");await click("Hide QR");
   await fill("Purpose","Conference");
-  await fill("Expires","2027-01-15T18:00");await click("Create");await wait(()=>has("Confirm new connection link"),"expiring code review");
-  await click("Confirm");await wait(async()=>connectionCodes.length===2&&await has("Saved. Existing subscriptions are unchanged."),"expiring code saved");
+  await fill("Expires","2027-01-15T18:00");await click("Create");
+  await wait(async()=>connectionCodes.length===2&&await has("Connection link created."),"Create saves the expiring link without another confirmation button");
+  assert(await evaluate(`document.querySelector('.hail-success-toast')?.textContent.includes('Connection link created.')&&!document.querySelector('.hail-error')`),"Link creation uses the shared success toast");
+  assert(!await has("Confirm new connection link"));
+  assert(await evaluate(`!document.querySelector('a[href="/settings/conversations"]')&&![...document.querySelectorAll('h3')].some(h=>h.textContent==='Your connections')`),"Connections omits the preferences link and redundant heading");
+  assert(await evaluate(`getComputedStyle(document.querySelector('input[placeholder="Conference, website, or friend"]'),'::placeholder').fontWeight==='400'`),"Purpose placeholder uses regular weight");
   assert.equal(connectionCodes.length,2);assert.equal(connectionCodes.filter(code=>code.personal).length,1);
   assert(connectionCodes.find(code=>!code.personal)!.expiresAt!>0);assert.equal(connectionCodes.find(code=>code.personal)!.expiresAt,null);
-  await evaluate(`[...document.querySelectorAll("article button")].find(b=>b.textContent==="Show QR & link").click()`);await wait(async()=>evaluate(`!!document.querySelector('article svg[aria-label="Connection QR code"]')`),"expiring QR stays in its own card");
+  await evaluate(`[...document.querySelectorAll("article button")].find(b=>b.textContent==="Show QR").click()`);await wait(async()=>evaluate(`!!document.querySelector('article svg[aria-label="Connection QR code"]')`),"expiring QR stays in its own card");
   await click("Show QR");await wait(async()=>evaluate(`!!document.querySelector('[aria-label="Your personal code"] svg')&&!document.querySelector('article svg[aria-label="Connection QR code"]')`),"switching codes moves the inline panel to the selected card");
   await click("Replace");await wait(()=>has("Confirm personal code replacement"),"personal replacement review");
   await click("Confirm");await wait(()=>has("Saved. Existing subscriptions are unchanged."),"replacement committed");
@@ -1013,7 +1058,7 @@ try{
   const ownerCose=await signPayload("hail.connection-invitation",ownerPayload,createWebCryptoSigner(ownerPayload.key_id,permissionSigner.privateKey));
   const ownerPath=join(work,"owner-consent.cose");await writeFile(ownerPath,ownerCose);
   await upload("Signed consent file",ownerPath);await wait(()=>has("Signed file ready."),"browser accepts exact signed consent file");
-  const originalCodes=connectionCodes.length;await click("Confirm");await wait(async()=>connectionCodes.length===originalCodes+1&&await has("Saved. Existing subscriptions are unchanged."),"owner signed file and passkey submission");
+  const originalCodes=connectionCodes.length;await click("Confirm");await wait(async()=>connectionCodes.length===originalCodes+1&&await has("Connection link created."),"owner signed file and passkey submission");
   assert.equal(JSON.parse(requests.filter(r=>r.path==="/api/v1/account/connections/commit").at(-1)!.body).cose,encodeBase64Url(ownerCose));
   assert.equal(composePosts,1);assert.equal(replyPosts,1);
   for(const req of requests){assert(!req.body.includes(secret),"Recovery secret uploaded");assert(!req.body.includes('"ciphertext"'),"Recovery vault uploaded");}

@@ -95,7 +95,7 @@
         </div>
         <button class="hail-button-secondary justify-self-start" type="button" disabled={categories.length >= 99} onclick={() => {categories = [...categories, {id: '', label: ''}];}}>Add category</button>
       </section>
-      <button class="hail-button justify-self-start" disabled={conflict}>{busy ? 'Saving…' : data.revision ? 'Save changes with passkey' : 'Create sender profile with passkey'}</button>
+      <button class="hail-button justify-self-start" disabled={conflict}>{busy ? 'Saving…' : data.revision ? 'Save changes with passkey' : 'Create sender profile'}</button>
     </fieldset>
     {#if data.account.migrationState}<p class="hail-error mt-4">Profile editing is paused while your account moves.</p>{/if}
     {#if message}<p class="hail-error mt-4" role="alert">{message}</p>{/if}
