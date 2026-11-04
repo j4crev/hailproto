@@ -1,3 +1,4 @@
+import {redirect} from "@sveltejs/kit";
 import {registration} from "$lib/server/registration.js";
 import {returnPath} from "$lib/auth-routing.js";
 import { canaryAccount, isConfigured, senderAvatars } from "$lib/server/canary.js";
@@ -9,6 +10,15 @@ export async function load({url,cookies,fetch,setHeaders,depends=(_key:string)=>
   const view=url.searchParams.get("view")==="connections"?"connections":"subscriptions";
   if (!isConfigured(cookies)&&view!=="connections") {setHeaders({"cache-control":"no-store"});return { configured: false as const,returnTo:"/",registration:await registration(fetch) };}
   const { account, client } = await canaryAccount(cookies,url);
+  if (!url.searchParams.has("view")) {
+    setHeaders({"cache-control":"no-store"});
+    const preferences = await client.request("/message-preferences");
+    if (preferences.startScreen === "inbox") {
+      const destination = new URL(url);
+      destination.searchParams.set("view", "connections");
+      redirect(307, destination.pathname + destination.search);
+    }
+  }
   const after=url.searchParams.get("after"),page=parseInboxFeed(await client.request(view==="connections"?`/connection-inbox${after?`?after=${encodeURIComponent(after)}`:""}`:`/inbox?include=body&kind=${view}${after?`&after=${encodeURIComponent(after)}`:""}`,undefined,"/api/v1/account",2_000_000));
   const avatars=await senderAvatars(client,new Set(page.messages.map(message=>message.sender)));
   return {configured:true as const,account,view,paged:after!==null,next:page.next,messages:page.messages.map(message=>({...message,

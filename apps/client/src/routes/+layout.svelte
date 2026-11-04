@@ -21,7 +21,7 @@
   let drawerOpen = $state(false);
   let viewingMessage = $derived(page.route.id === '/message/[sender]/[messageId]' || page.route.id === '/conversation/[sender]/[messageId]' || page.route.id === '/sent/[messageId]' || page.route.id === '/sent/send/[kind]/[messageId]');
   const navigation = [
-    {href: "/", label: "Feed", icon: "feed"},
+    {href: "/?view=subscriptions", label: "Feed", icon: "feed"},
     {href: "/?view=connections", label: "Inbox", icon: "chat"},
     {href: "/drafts", label: "Drafts", icon: "compose"},
     {href: "/sent", label: "Sent", icon: "sent"},
@@ -33,7 +33,7 @@
   let focused = $derived(!page.data.hasAccountSession || (page.url.pathname === "/" && page.url.searchParams.has("next")) || page.url.pathname.startsWith("/auth/") || page.url.pathname.startsWith("/signup"));
   let address = $derived(page.data.account?.address ?? "Your account");
   const avatar = $derived(page.data.accountAvatar?.did === page.data.account?.did ? page.data.accountAvatar?.src : null);
-  const active = (href: string) => href === "/" || href === "/?view=connections"
+  const active = (href: string) => href === "/?view=subscriptions" || href === "/?view=connections"
     ? page.url.pathname.startsWith("/conversation/") ? href === "/?view=connections" : (page.url.pathname === "/" || page.url.pathname.startsWith("/message/")) &&
       (page.url.searchParams.get("view") === "connections") === (href === "/?view=connections")
     : page.url.pathname === href || page.url.pathname.startsWith(href + "/");
@@ -73,7 +73,7 @@
 <div class:focused class:viewing-message={viewingMessage} class="app-shell" data-sveltekit-reload={!page.data.hasAccountSession || page.url.pathname === "/signup" || page.url.pathname === "/signup/recovery"}>
   <a class="skip-link" href="#main-content">Skip to content</a>
   {#if focused}
-    <header class="public-header">{@render brand()}{#if page.url.pathname !== "/"}<a class="hail-button-secondary" href="/">{page.data.hasAccountSession ? "Back to feed" : "Home"}</a>{:else if page.data.registration?.mode === "invite"}<span class="alpha-badge">Invitation-only alpha</span>{/if}</header>
+    <header class="public-header">{@render brand()}{#if page.url.pathname !== "/"}<a class="hail-button-secondary" href="/">{page.data.hasAccountSession ? "Back to home" : "Home"}</a>{:else if page.data.registration?.mode === "invite"}<span class="alpha-badge">Invitation-only alpha</span>{/if}</header>
   {:else}
     <aside class="sidebar">{@render brand()}{@render links()}<div class="sidebar-account"><UserMenu {address} {avatar} /></div></aside>
     <header class="mobile-header"><button class="icon-button" onclick={openDrawer} aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="mobile-navigation"><Icon name="menu" /></button>{@render brand()}</header>

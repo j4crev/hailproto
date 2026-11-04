@@ -169,3 +169,21 @@ defines Sent/Trash cleanup, restore, retention and its separation from protocol 
 [Saved drafts](provider-drafts.md) defines the current provider-local draft JSON
 format, device synchronization, revision checks and atomic publication consumption;
 it introduces no signed protocol version.
+
+## Reference-client start screen
+
+The reference provider stores the account's `startScreen` preference through its
+passkey-session-authenticated `/api/v1/account/message-preferences` API. GET returns
+`"feed"` (the default, including accounts with no saved preference) or `"inbox"`.
+POST accepts either value as a partial display-preference update, returns the
+confirmed display preferences, and preserves omitted fields and Trash policy.
+Other values, including null, are rejected with HTTP 400. As with other display
+preferences, writes require `messages:write`; reads require `messages:read`.
+`initialize: true` preserves an existing row's start screen.
+
+The reference GUI's **Start screen** dropdown lists Feed first and Inbox second.
+An authenticated visit to `/` without an explicit `view` uses this preference;
+Inbox redirects to `/?view=connections`. Explicit Feed (`/?view=subscriptions`)
+and Inbox links, including pagination, override the preference. Sign-in return
+paths retain their existing behavior. This is reference-provider/client behavior,
+not a federation requirement or a change to the portable account-history format.

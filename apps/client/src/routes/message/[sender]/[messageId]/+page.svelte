@@ -72,7 +72,7 @@
 
 <svelte:head><title>Message · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="message-detail mx-auto max-w-[800px]" class:feed-reader={data.message.kind!=='connection'}>
-<MessageBack href={data.message.trashedAt?'/trash':data.message.kind==='connection'?'/?view=connections':'/'} label={data.message.trashedAt?'Trash':data.message.kind==='connection'?'Inbox':'Feed'} />
+<MessageBack href={data.message.trashedAt?'/trash':data.message.kind==='connection'?'/?view=connections':'/?view=subscriptions'} label={data.message.trashedAt?'Trash':data.message.kind==='connection'?'Inbox':'Feed'} />
 {#if content.title}<h1 class="reader-title">{content.title}</h1>{:else}<h1 class="sr-only">Received message</h1>{/if}
 {#if restoreError}<p class="hail-error" role="alert">{restoreError}</p>{/if}
 {#if readError}<p class="hail-error" role="alert">{readError}</p>{/if}
@@ -96,7 +96,7 @@
         {:else}
         <button disabled={!data.canReply} bind:this={replyButton} class="hail-icon-button compact" type="button" aria-label="Reply" title="Reply" aria-expanded={replyOpen} aria-controls="message-reply" onclick={openReply}><Icon name="reply" /></button>
         <a class="hail-icon-button compact" aria-label="Forward" title="Forward" href={forwardHref(data.message)}><Icon name="forward" /></a>
-        <MessageActions compact menu onunsubscribe={canUnsubscribe ? () => { void unsubscribe?.open(); } : undefined} disabled={readPending} messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/'} />
+        <MessageActions compact menu onunsubscribe={canUnsubscribe ? () => { void unsubscribe?.open(); } : undefined} disabled={readPending} messages={[data.message]} returnTo={data.message.kind==='connection'?'/?view=connections':'/?view=subscriptions'} />
         {/if}
       </div>
       {#if !data.message.trashedAt && data.message.kind !== 'connection' && data.account.custodyProfile === 'managed' && data.subscription}
