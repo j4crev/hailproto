@@ -25,7 +25,7 @@ RUN bun install --frozen-lockfile --filter hailproto --filter hail-client --filt
 RUN bun run --cwd packages/hail-codec-ts build
 COPY apps/client ./apps/client
 # This limits V8 old space only. CI also caps the entire BuildKit container.
-RUN NODE_OPTIONS=--max-old-space-size=512 bun run --cwd apps/client build
+RUN NODE_OPTIONS=--max-old-space-size=1024 bun run --cwd apps/client build
 
 FROM oven/bun:1.4.0 AS dependencies
 WORKDIR /workspace/hail
