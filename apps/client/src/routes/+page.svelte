@@ -79,7 +79,7 @@
       {/each}
     {/if}
   </section>
-  {#if data.paged||data.next}<nav aria-label={data.view === 'connections' ? 'Inbox pages' : 'Feed pages'} class="mt-6 flex flex-wrap justify-center gap-3">{#if data.paged}<a class="hail-button-secondary" href={data.view==='connections'?'/?view=connections':'/'}>← Newest messages</a>{/if}{#if data.next}<a class="hail-button-secondary" href={`/?${data.view==='connections'?'view=connections&':''}after=${encodeURIComponent(data.next)}`}>Older messages →</a>{/if}</nav>{/if}
+  {#if data.paged||data.next}<nav aria-label={data.view === 'connections' ? 'Inbox pages' : 'Feed pages'} class="mt-6 flex flex-wrap justify-center gap-3">{#if data.paged}<a class="hail-button-secondary" href={data.view==='connections'?'/?view=connections':'/?view=subscriptions'}>← Newest messages</a>{/if}{#if data.next}<a class="hail-button-secondary" href={`/?${data.view==='connections'?'view=connections&':'view=subscriptions&'}after=${encodeURIComponent(data.next)}`}>Older messages →</a>{/if}</nav>{/if}
   </div>
   {#if !selectedMessages.length}
     <a class="mobile-compose mobile-floating-action" href={data.view==='connections'?'/compose?audience=connections':'/compose'} aria-label={data.view==='connections'?'Message connections':'Publish to subscribers'} title={data.view==='connections'?'Message connections':'Publish to subscribers'}><Icon name="compose" size={24} /></a>

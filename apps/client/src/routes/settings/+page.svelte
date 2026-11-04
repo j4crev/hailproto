@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$lib/Icon.svelte";
   import {page} from "$app/state";
   import {invalidateAll} from "$app/navigation";
   import {connectionRequest} from "$lib/connections.js";
@@ -18,16 +19,22 @@
     catch(e){trashError=e instanceof Error?e.message:"Unable to save Trash preference.";}finally{saving=false;}
   }
   import {onMount} from "svelte";
-  import {showInboxHeaders, themePreference, syncAccountPreferences, saveAccountPreferences, type ThemePreference} from "$lib/preferences.js";
+  import {showInboxHeaders, themePreference, startScreenPreference, type StartScreen, syncAccountPreferences, saveAccountPreferences, type ThemePreference} from "$lib/preferences.js";
   let ready = $state(false), displaySaving = $state(false), displayError = $state("");
   onMount(() => {
     void syncAccountPreferences(data.account.did).catch(e => {displayError = e.message;}).finally(() => {ready = true;});
   });
-  async function saveDisplay(patch: {theme?: ThemePreference; showHeaderImages?: boolean}) {
+  async function saveDisplay(patch: {startScreen?: StartScreen; theme?: ThemePreference; showHeaderImages?: boolean}) {
     displaySaving = true; displayError = "";
     try { await saveAccountPreferences(patch); }
     catch(e) { displayError = e instanceof Error ? e.message : "Unable to save preferences. Try again."; }
     finally { displaySaving = false; }
+  }
+  function changeStartScreen(event: Event) {
+    const select = event.currentTarget as HTMLSelectElement;
+    const startScreen = select.value as StartScreen;
+    select.value = $startScreenPreference;
+    void saveDisplay({startScreen});
   }
   function changeTheme(event: Event) {
     const select = event.currentTarget as HTMLSelectElement;
@@ -49,17 +56,31 @@
   <section class="hail-card grid gap-6 p-6 sm:p-8" aria-label="Preferences">
     <div class="grid gap-3">
       <label class="hail-field" for="theme"><span>Appearance</span>
-        <select id="theme" value={$themePreference} onchange={changeTheme} disabled={!ready||displaySaving}>
-          <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
-        </select>
+        <span class="settings-select">
+          <select id="theme" value={$themePreference} onchange={changeTheme} disabled={!ready||displaySaving}>
+            <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
+          </select>
+          <span class="select-arrow"><Icon name="chevron" size={16} /></span>
+        </span>
       </label>
       <p class="m-0 text-sm text-muted">System follows your device’s appearance.</p>
     </div>
-    <div class="border-0 border-t border-solid border-line pt-6">
-      <label class="flex cursor-pointer items-center justify-between gap-6" for="show-headers"><span class="grid gap-2"><strong class="text-sm">Show header images</strong><span class="text-sm text-muted">Display bundled images in your feed and conversations.</span></span><input id="show-headers" class="preference-switch" type="checkbox" role="switch" checked={$showInboxHeaders} onchange={change} disabled={!ready||displaySaving} /></label>
+    <div class="grid gap-3 border-0 border-t border-solid border-line pt-6">
+      <label class="hail-field" for="start-screen"><span>Start screen</span>
+        <span class="settings-select">
+          <select id="start-screen" value={$startScreenPreference} onchange={changeStartScreen} disabled={!ready||displaySaving} aria-describedby="start-screen-description">
+            <option value="feed">Feed</option><option value="inbox">Inbox</option>
+          </select>
+          <span class="select-arrow"><Icon name="chevron" size={16} /></span>
+        </span>
+      </label>
+      <p id="start-screen-description" class="m-0 text-sm text-muted">Choose where you land when you open {page.data.branding?.name ?? "Hail"}.</p>
     </div>
     <div class="border-0 border-t border-solid border-line pt-6">
-      <label class="flex cursor-pointer items-center justify-between gap-6" for="use-trash"><span class="grid gap-2"><strong class="text-sm">Use Trash</strong><span class="text-sm text-muted">Keep deleted messages for 30 days so you can restore them.</span></span><input id="use-trash" class="preference-switch" type="checkbox" role="switch" checked={data.trashEnabled} disabled={saving||!ready} onchange={event=>{const enabled=event.currentTarget.checked;event.currentTarget.checked=data.trashEnabled;if(enabled)void saveTrash(true);else confirmDisable=true;}} /></label>
+      <label class="flex cursor-pointer items-center justify-between gap-6" for="show-headers"><span class="grid gap-2"><strong class="text-sm">Header images</strong><span class="text-sm text-muted">Show header images in Feed.</span></span><input id="show-headers" class="preference-switch" type="checkbox" role="switch" checked={$showInboxHeaders} onchange={change} disabled={!ready||displaySaving} /></label>
+    </div>
+    <div class="border-0 border-t border-solid border-line pt-6">
+      <label class="flex cursor-pointer items-center justify-between gap-6" for="use-trash"><span class="grid gap-2"><strong class="text-sm">Trash</strong><span class="text-sm text-muted">Keep deleted messages for 30 days so you can restore them.</span></span><input id="use-trash" class="preference-switch" type="checkbox" role="switch" checked={data.trashEnabled} disabled={saving||!ready} onchange={event=>{const enabled=event.currentTarget.checked;event.currentTarget.checked=data.trashEnabled;if(enabled)void saveTrash(true);else confirmDisable=true;}} /></label>
     </div>
     <div class="border-0 border-t border-solid border-line pt-6">
       <label class="flex cursor-pointer items-center justify-between gap-6" for="shared-conversations"><span class="grid gap-2"><strong class="text-sm">Shared conversations</strong><span class="text-sm text-muted">Connections can add me to conversations with people I'm not connected with.</span></span><input id="shared-conversations" class="preference-switch" type="checkbox" role="switch" checked={data.allowIntroductions} disabled={conversationSaving||!ready} onchange={event=>{const allowed=event.currentTarget.checked;event.currentTarget.checked=data.allowIntroductions;void saveConversations(allowed);}} /></label>
@@ -80,6 +101,10 @@
   </section>
 </div>
 <style>
+  .settings-select { position:relative; display:block; }
+  .settings-select select { appearance:none; padding-inline-end:44px; }
+  .select-arrow { position:absolute; inset-inline-end:14px; top:50%; display:flex; transform:translateY(-50%) rotate(90deg); pointer-events:none; }
+
   .trash-confirmation { display:grid; gap:12px; padding:16px; border:1px solid var(--color-danger); border-radius:12px; background:var(--color-danger-soft); }
   .confirmation-actions { display:flex; justify-content:flex-end; gap:8px; }
   .confirmation-actions button { min-height:44px; }

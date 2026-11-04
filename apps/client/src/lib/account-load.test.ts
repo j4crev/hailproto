@@ -17,10 +17,10 @@ it("loads a new alpha account's empty inbox through the real session account cli
   vi.stubGlobal("fetch",request);
   const cookies={get:()=>token,delete:vi.fn()};
   try{
-    const result=await load({url:new URL(provider+"/"),cookies} as never);
+    const result=await load({url:new URL(provider+"/"),cookies,setHeaders:vi.fn()} as never);
     expect(result).toMatchObject({configured:true,account:{monitorVerificationMode:"reduced-assurance-alpha-v1",custodyProfile:"managed"},messages:[],next:null});
     expect(cookies.delete).not.toHaveBeenCalled();
-    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenCalledTimes(3);
     expect(request).toHaveBeenLastCalledWith(provider+"/api/v1/account/inbox?include=body&kind=subscriptions",expect.objectContaining({headers:expect.objectContaining({Cookie:`hail_session=${token}`})}));
   }finally{vi.unstubAllGlobals();}
 });

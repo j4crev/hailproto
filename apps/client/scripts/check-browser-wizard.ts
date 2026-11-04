@@ -51,7 +51,7 @@ const publicationResult=()=>({publicationId:publicationIntent.publicationId,cate
   createdAt:new Date(publicationCreated).toISOString(),expiresAt:new Date(publicationCreated+86400000).toISOString()});
 const readMessages=new Set<string>();
 let avatarGate=Promise.resolve(),releaseAvatars=()=>{},missingAvatars=false;
-let displayPreferences: {theme:string|null;showHeaderImages:boolean|null}={theme:null,showHeaderImages:null};
+let displayPreferences: {theme:string|null;showHeaderImages:boolean|null;startScreen:'feed'|'inbox'}={theme:null,showHeaderImages:null,startScreen:'feed'};
 let trashEnabled=true;const trashed=new Map<string,string>(),deleted=new Set<string>();
 let connectionReplied:any=null;
 let incoming=false,replyPosts=0,replied:any=null,recentlyVerified=false,guiProxy:ReturnType<typeof createApp>;
@@ -111,7 +111,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
   if(path==='/api/v1/account/message-preferences'){
     if(request.method==='POST'){
       if('trashEnabled' in input){trashEnabled=input.trashEnabled;if(!trashEnabled){for(const id of trashed.keys())deleted.add(id);trashed.clear();}}
-      for(const key of ['theme','showHeaderImages'] as const)if(key in input&&(!input.initialize||displayPreferences[key]===null))Object.assign(displayPreferences,{[key]:input[key]});
+      for(const key of ['theme','showHeaderImages','startScreen'] as const)if(key in input&&(!input.initialize||displayPreferences[key]===null))Object.assign(displayPreferences,{[key]:input[key]});
     }
     return json({trashEnabled,...displayPreferences});
   }
@@ -562,7 +562,7 @@ try{
     await wait(async()=>evaluate(`!document.querySelector('dialog').open`),"Outside click closes drawer");
     await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click();document.querySelector('dialog a[href="/sent"]').click()`);
     await wait(async()=>evaluate(`location.pathname==='/sent'&&!document.querySelector('dialog').open`),"Drawer closes after navigation");
-    await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click();document.querySelector('dialog nav a[href="/"]').click()`);
+    await evaluate(`document.querySelector('[aria-label="Open navigation"]').focus();document.querySelector('[aria-label="Open navigation"]').click();document.querySelector('dialog nav a[href="/?view=subscriptions"]').click()`);
     await wait(()=>has("Lonely in here"),"return through mobile drawer");
   }
   await accountNavigation();
@@ -585,8 +585,8 @@ try{
     assert(await evaluate(`!document.querySelector('.mobile-compose')`));
     await navigateInboxView('/?view=connections');await wait(async()=>evaluate(`document.querySelector('main h1')?.textContent==='Inbox'`),'back to Inbox');
   }
-  await navigateInboxView('/');
-  await wait(async()=>evaluate(`location.search==='' && document.querySelector('h1').textContent==='Feed'`),"open Inbox from navigation");
+  await navigateInboxView('/?view=subscriptions');
+  await wait(async()=>evaluate(`location.search==='?view=subscriptions' && document.querySelector('h1').textContent==='Feed'`),"open Inbox from navigation");
   assert.equal(await evaluate(`document.title`),"Feed · Fixture Mail");
   assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current="page"]').textContent.trim()`),"Feed");
   assert(await evaluate(`!document.querySelector('[aria-label="Inbox views"]') && !document.querySelector('main a[href="/compose?audience=connections"]')`),"Inbox has no tabs or connection-message action");
@@ -596,9 +596,13 @@ try{
     await evaluate(`document.querySelector('.mobile-compose').click()`);
     await wait(()=>evaluate("!!document.querySelector('#category-search')"),'Feed FAB opens subscriber composer');
     assert(await evaluate(`!document.querySelector('.mobile-compose')`));
-    await navigateInboxView('/');await wait(async()=>evaluate(`document.querySelector('main h1')?.textContent==='Feed'`),'back to Feed');
+    await navigateInboxView('/?view=subscriptions');await wait(async()=>evaluate(`document.querySelector('main h1')?.textContent==='Feed'`),'back to Feed');
   }
-  await openAccount();await screenshot("account-menu");await escape();
+  await openAccount();
+  if(process.env.HAIL_WIZARD_MOBILE==='true'){
+    assert(await evaluate(`(()=>{const button=document.querySelector('.drawer-footer .account-trigger').getBoundingClientRect(),avatar=document.querySelector('.drawer-footer .account-trigger .avatar').getBoundingClientRect();return button.width===48&&button.height===48&&Math.abs((avatar.left+avatar.right)-(button.left+button.right))<1&&Math.abs((avatar.top+avatar.bottom)-(button.top+button.bottom))<1;})()`),'Mobile account avatar is centered in its square expanded button');
+  }
+  await screenshot("account-menu");await escape();
   await wait(async()=>evaluate(`!document.querySelector('[popover]:popover-open')`),"Escape closes account menu");
   assert(await evaluate(`document.activeElement?.getAttribute('aria-label')==='Open account menu'`),"Account menu restores focus");
   await openAccount();await pointer(process.env.HAIL_WIZARD_MOBILE==='true'?20:600,200);
@@ -660,7 +664,7 @@ try{
   await evaluate(`localStorage.clear()`);
   await cdp("Page.navigate",{url:origin+"/settings"});
   await wait(async()=>evaluate(`document.querySelector('#theme')?.disabled===false && document.querySelector('#theme')?.value==='light' && document.querySelector('#show-headers')?.checked===false`),"both preferences restored without a local cache");
-  displayPreferences={theme:'dark',showHeaderImages:true};
+  displayPreferences={theme:'dark',showHeaderImages:true,startScreen:'feed'};
   await evaluate(`window.dispatchEvent(new Event('focus'))`);
   await wait(async()=>evaluate(`document.querySelector('#theme')?.value==='dark' && document.querySelector('#show-headers')?.checked===true`),"another device's preferences synchronize on focus");
   assert(!browserErrors.some(error=>/Content Security Policy|Refused to execute|hydration/i.test(error)),"Theme has no CSP or hydration errors");
@@ -729,6 +733,22 @@ try{
   const settings=async()=>{await openAccount();await evaluate(`document.querySelector('[popover]:popover-open a[href="/settings"]').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),"reading settings ready");};
   const feed=async()=>{await evaluate(`(()=>{const a=document.createElement('a');a.href='/';document.body.append(a);a.click();a.remove();})()`);await wait(async()=>evaluate(`location.pathname==='/' && document.querySelector('main h1')?.textContent==='Feed'`),"feed navigation");};
   await settings();await accountNavigation();assert(await evaluate(`!document.querySelector('section[aria-label="Delete account"]')`),'Settings has no account deletion controls');assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll("main a"),a=>a.getAttribute("href"))`),["/settings/domains"],"Settings keeps domain management and embeds conversation preferences");await narrowLayouts();await screenshot("settings");
+  assert.deepEqual(await evaluate(`Array.from(document.querySelector('#start-screen').options,o=>({value:o.value,label:o.textContent}))`),[{value:'feed',label:'Feed'},{value:'inbox',label:'Inbox'}]);
+  assert.equal(await evaluate(`document.querySelector('#start-screen').value`),'feed');
+  const startScreen=async(value:string)=>{
+    await evaluate(`(()=>{const select=document.querySelector('#start-screen');select.value=${JSON.stringify(value)};select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await wait(()=>evaluate(`document.querySelector('#start-screen')?.disabled===false && document.querySelector('#start-screen').value===${JSON.stringify(value)}`),'start screen saved');
+    assert.equal(displayPreferences.startScreen,value);
+  };
+  await startScreen('inbox');
+  await cdp('Page.navigate',{url:origin+'/'});
+  await wait(()=>evaluate(`location.search==='?view=connections' && document.querySelector('main h1')?.textContent==='Inbox'`),'home opens saved Inbox');
+  await cdp('Page.navigate',{url:origin+'/?view=subscriptions'});
+  await wait(()=>evaluate(`document.querySelector('main h1')?.textContent==='Feed' && document.querySelector('.selection-avatar')?.disabled===false`),'explicit Feed overrides start screen');
+  await cdp('Page.navigate',{url:origin+'/settings'});
+  await wait(()=>evaluate(`document.querySelector('#start-screen')?.disabled===false`),'saved start screen ready');
+  assert.equal(await evaluate(`document.querySelector('#start-screen').value`),'inbox','start screen survives full navigation');
+  await startScreen('feed');
   assert(await evaluate(`document.querySelector('#shared-conversations')?.checked===true && document.querySelector('#shared-conversations').getAttribute('role')==='switch'`),'Shared conversations default to enabled');
   assert(await has("Connections can add me to conversations with people I'm not connected with."));
   assert(!await has('Per-connection choices'));
@@ -751,9 +771,9 @@ try{
   await evaluate("document.documentElement.dataset.beforePreferenceReload='true'");
   await cdp("Page.reload");await wait(async()=>evaluate(`!document.documentElement.dataset.beforePreferenceReload && !!document.querySelector('[aria-label="Messages"]') && !document.querySelector(${JSON.stringify(feedImage)})`),"persist hidden header preference");
   await evaluate(`document.querySelector('[aria-label="Feed pages"] a').click()`);
-  await wait(async()=>evaluate("new URL(location.href).searchParams.get('after')==='older-page' && !!document.querySelector('[aria-label=\"Feed pages\"] a[href=\"/\"]')"),"older feed page");
-  await evaluate(`document.querySelector('[aria-label="Feed pages"] a[href="/"]').click()`);
-  await wait(async()=>evaluate("location.search==='' && !!document.querySelector('[aria-label=\"Feed pages\"] a[href*=after]')"),"newest feed page");
+  await wait(async()=>evaluate("new URL(location.href).searchParams.get('after')==='older-page' && !!document.querySelector('[aria-label=\"Feed pages\"] a[href=\"/?view=subscriptions\"]')"),"older feed page");
+  await evaluate(`document.querySelector('[aria-label="Feed pages"] a[href="/?view=subscriptions"]').click()`);
+  await wait(async()=>evaluate("location.search==='?view=subscriptions' && !!document.querySelector('[aria-label=\"Feed pages\"] a[href*=after]')"),"newest feed page");
   await settings();assert.equal(await evaluate(`document.querySelector('#show-headers').checked`),false);
   await evaluate(`document.querySelector('#show-headers').click()`);await wait(async()=>evaluate(`document.querySelector('#show-headers')?.disabled===false`),'header preference saved');await feed();
   await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"show feed headers again");

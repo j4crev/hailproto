@@ -325,7 +325,7 @@
         <a href="/?next=%2F">Already finished? Sign in</a>
         {#if !cached}<button class="text-link" onclick={()=>go("address")}>Back</button>{/if}
       {:else if screen==="done"}
-        <a class="hail-button" href="/">Open your feed</a>
+        <a class="hail-button" href="/?view=subscriptions">Open your feed</a>
       {/if}
     </div>{/key}
     {#if busy&&screen!=="activating"}<p role="status">Working…</p>{/if}

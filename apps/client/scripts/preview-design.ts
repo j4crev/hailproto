@@ -82,7 +82,7 @@ const drafts = new Map<string,Draft>();
 const trash = new Map<string,string>();
 const deleted = new Set<string>();
 let allowIntroductions=true,conversationsConfigured=false;
-const preferences = {theme:'system',showHeaderImages:true,trashEnabled:true};
+const preferences = {theme:'system',showHeaderImages:true,trashEnabled:true,startScreen:'feed'};
 const json = (data: unknown, status = 200) => Response.json(data,{status,headers:{'Cache-Control':'no-store','Content-Type':'application/json'}});
 const reserve = Bun.serve({hostname:'127.0.0.1',port:0,fetch:()=>new Response()});
 const guiPort = reserve.port!;reserve.stop(true);
@@ -115,6 +115,7 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
   }
   if(path==='/api/v1/account/message-preferences') {
     if(request.method==='POST') {
+      if(['feed','inbox'].includes(input.startScreen)&&!input.initialize)preferences.startScreen=input.startScreen;
       if(['system','light','dark'].includes(input.theme))preferences.theme=input.theme;
       if(typeof input.showHeaderImages==='boolean')preferences.showHeaderImages=input.showHeaderImages;
       if(typeof input.trashEnabled==='boolean'){preferences.trashEnabled=input.trashEnabled;if(!input.trashEnabled){for(const id of trash.keys())deleted.add(id);trash.clear();for(const [id,draft] of drafts)if(draft.trashedAt)drafts.delete(id);}}

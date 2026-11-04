@@ -47,15 +47,18 @@ export function saveThemePreference(value: ThemePreference): boolean {
 }
 
 const CACHE_OWNER = "hail.gui.preferencesAccount";
-type DisplayPreferences = {theme: ThemePreference; showHeaderImages: boolean};
+export type StartScreen = "feed" | "inbox";
+export const startScreenPreference = writable<StartScreen>("feed");
+type DisplayPreferences = {startScreen: StartScreen; theme: ThemePreference; showHeaderImages: boolean};
 function applyAccountPreferences(value: DisplayPreferences) {
+  startScreenPreference.set(value.startScreen);
   saveThemePreference(value.theme);
   saveHeaderPreference(value.showHeaderImages);
   try { localStorage.setItem(CACHE_OWNER, accountDid!); } catch { /* Cache is optional. */ }
 }
 function validDisplayPreferences(value: unknown): value is DisplayPreferences {
   const p = value as DisplayPreferences | null;
-  return !!p && ["system", "light", "dark"].includes(p.theme) && typeof p.showHeaderImages === "boolean";
+  return !!p && ["feed", "inbox"].includes(p.startScreen) && ["system", "light", "dark"].includes(p.theme) && typeof p.showHeaderImages === "boolean";
 }
 export function clearPreferenceAccount() { accountDid = null; revision++; }
 export function syncAccountPreferences(did: string): Promise<void> {
