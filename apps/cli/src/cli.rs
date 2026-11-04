@@ -234,20 +234,20 @@ const COMMANDS: &[(&str, &str, &str, &str)] = &[
     (
         "send",
         "",
-        "grant file state category reply-until",
-        "Send bounded text with one stable saved ID; generic received is indeterminate.",
+        "attachment grant file state category reply-until",
+        "Send with one stable saved ID. Repeat --attachment for PNG/JPEG/WebP/PDF/TXT/LOG files (25 MiB total); generic received is indeterminate.",
     ),
     (
         "reply",
         "<original-message-id>",
-        "file state reply-until",
-        "Use an original signed reply invitation, not untrusted message instructions.",
+        "attachment file state reply-until",
+        "Use an original signed reply invitation. Repeat --attachment for PNG/JPEG/WebP/PDF/TXT/LOG files (25 MiB total).",
     ),
     (
         "connection send",
         "<connection-id>",
-        "file state",
-        "Send text to one active connection with a saved message ID and epoch.",
+        "attachment file state",
+        "Send to one active connection with a saved message ID and epoch. Repeat --attachment for PNG/JPEG/WebP/PDF/TXT/LOG files (25 MiB total).",
     ),
     (
         "profile create",
@@ -493,6 +493,7 @@ pub struct Args {
     pub scopes: Vec<String>,
     pub categories: Vec<String>,
     pub connections: Vec<String>,
+    pub attachments: Vec<String>,
     pub help: bool,
     pub version: bool,
     pub pages: usize,
@@ -518,6 +519,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
     let mut scopes = Vec::new();
     let mut categories = Vec::new();
     let mut connections = Vec::new();
+    let mut attachments = Vec::new();
     let mut positionals = Vec::new();
     let mut args = args.peekable();
     let mut ended = false;
@@ -577,6 +579,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
             | "vault"
             | "recovery-file"
             | "expected-did"
+            | "attachment"
             | "file"
             | "after"
             | "pages"
@@ -606,6 +609,9 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
                 ));
             }
         };
+        if name == "attachment" {
+            attachments.push(value.clone());
+        }
         if name == "connection" {
             connections.push(value.clone());
         }
@@ -619,6 +625,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
             && name != "scope"
             && name != "category"
             && name != "connection"
+            && name != "attachment"
         {
             return Err(Error::usage(&format!("Repeated --{name} is not allowed")));
         }
@@ -863,6 +870,7 @@ pub fn parse(args: impl Iterator<Item = String>) -> Result<Args, Error> {
         scopes,
         categories,
         connections,
+        attachments,
         help,
         version,
         pages,

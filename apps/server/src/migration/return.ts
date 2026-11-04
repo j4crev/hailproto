@@ -174,6 +174,7 @@ export async function replaceRetiredProjection(tx:SQL,manifest:TransferManifest)
   await tx`DELETE FROM sent_delivery_status WHERE sender_did=${did}`;
   await tx`DELETE FROM body_authorizations WHERE sender_account_id=${account}`;
   await tx`DELETE FROM sent_envelopes WHERE sender_account_id=${account}`;
+  await tx`DELETE FROM attachment_uploads WHERE account_id=${account}`;
   await tx`DELETE FROM detached_bodies WHERE sender_account_id=${account}`;
   await tx`DELETE FROM collocated_grant_receivers WHERE grantee_account_id=${account}`;
   await tx`DELETE FROM grant_publications WHERE grant_id IN (SELECT grant_id FROM grant_lineages WHERE local_account_id=${account})`;
@@ -213,6 +214,7 @@ export async function replaceRetiredManagedProjection(tx:SQL,manifest:ManagedTra
   await tx`DELETE FROM sent_delivery_status WHERE sender_did=${did}`;
   await tx`DELETE FROM body_authorizations WHERE sender_account_id=${account}`;
   await tx`DELETE FROM sent_envelopes WHERE sender_account_id=${account}`;
+  await tx`DELETE FROM attachment_uploads WHERE account_id=${account}`;
   await tx`DELETE FROM detached_bodies WHERE sender_account_id=${account}`;
   await tx`DELETE FROM collocated_grant_receivers WHERE grantee_account_id=${account}`;
   await tx`DELETE FROM grant_publications WHERE grant_id IN (SELECT grant_id FROM grant_lineages WHERE local_account_id=${account})`;

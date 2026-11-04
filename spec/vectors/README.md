@@ -102,3 +102,19 @@ operational conformance tests.
 incomplete input, forwarding references, audience constraints and UTF-8 budgets.
 It is not signed federation evidence. `apps/client/src/lib/drafts.test.ts` executes
 these examples against the shared parser.
+
+`attachments.json` freezes one SPT-2 detached LOG declaration, its CBOR and body
+digest, and exact file bytes. TypeScript and Go both verify the encoded body.
+The portable/managed history vectors were recaptured for migration 102's current
+alpha schema expansion and contain a received/outgoing attachment respectively,
+including verified file bytes and owner references, from actual round-trip tests.
+
+`attachment-png.json` freezes a non-animated PNG attachment, including exact file
+bytes, the authenticated SPT-2 declaration, body CBOR, and body/file digests.
+TypeScript and Go verify the same declaration bytes; provider tests verify PNG
+structure separately from the message-body and bundled-header budgets.
+
+`attachment-images.json` freezes small baseline/progressive JPEG and static
+lossy/lossless/transparent WebP files generated with ImageMagick, plus their
+authenticated metadata and deterministic body encodings. Tests use these committed
+bytes without requiring an image encoder or pixel decoder.

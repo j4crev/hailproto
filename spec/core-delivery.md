@@ -276,7 +276,7 @@ does not mean a feature is unimplemented.
 | Group messages | Implemented as fixed-roster shared conversations, per-recipient v4 envelopes, Reply all, leave, expiry and creator revival; see [shared conversations](shared-conversations.md). Multiple recipients inside a single envelope are not supported. |
 | Bulk submission | Local private/shared send batches fan out to individual envelopes. A bulk provider-to-provider envelope endpoint and campaign-level federation objects remain undefined. |
 | Connection/conversation portability | Implemented through authenticated handover and current snapshot/checkpoint formats, with fencing and pending-work constraints; see [connection portability](connection-portability.md). Arbitrary export/import does not grant live authority. |
-| Attachments | Bundled bounded PNG header assets exist. General file attachments, detached attachment retrieval, and their delivery/retention rules remain deferred; see [assets](assets.md). |
+| Attachments | Bundled PNG headers and detached PNG/JPEG/WebP/PDF/TXT/LOG files are supported. Files total at most 25 MiB per message and are retained before delivery; see [attachments](attachments.md). |
 | End-to-end encryption | Not defined. HTTPS, COSE signatures and local key encryption do not provide end-to-end message confidentiality. |
 | Read/open receipts | Not defined as federation operations. Local read state and server delivery receipts are distinct. |
 | Aggregate analytics | No campaign/analytics federation protocol. Local reporting is provider/client policy and cannot bypass activity-disclosure rules. |

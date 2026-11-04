@@ -250,3 +250,17 @@ connection/revival HTTP bodies. TypeScript exercises the real server validators;
 Go independently decodes, hashes, verifies signatures and validates record shapes
 without importing the server implementation. This establishes cross-language
 format evidence, not a claim of a second independently deployed Hail provider.
+
+## Detached attachment records (current alpha)
+
+The current v7/v8 manifests additionally require `attachment_blobs`,
+`attachment_uploads`, `body_attachment_refs`, and `received_attachment_refs`.
+Empty collections are explicit. See the regenerated closed JSON schema for
+fields. Blob bytes and digests use the existing PostgreSQL hex-byte diagnostic
+representation. Logical records do not prescribe a physical deduplication backend.
+Import verifies every body's required file reference and bytes, not merely that
+some matching digest exists globally. Owner fields must match the migrating
+account/DID; received references also match sender, media type, and body profile.
+Foreign or unowned blobs and incomplete references are rejected. This is a
+breaking pre-launch format expansion: regenerate older snapshots with matching
+source software. Do not drop files to fit the existing bounded snapshot budget.

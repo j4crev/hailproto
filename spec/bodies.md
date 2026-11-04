@@ -354,8 +354,8 @@ signed length and digest before decoding or delivery.
 
 ## Current Alpha Resource Limits
 
-The current alpha supports only the bundled `spt-3` header asset, no attachments,
-and a maximum uncompressed body size of 1 MiB (1048576 octets). Conforming
+The current alpha supports the bundled `spt-3` header asset, detached
+[PNG/JPEG/WebP/PDF/TXT/LOG attachments](attachments.md), and a maximum uncompressed body size of 1 MiB (1048576 octets). Conforming
 providers MUST support valid bodies through that size, subject to authorization,
 schema validation, and explicit resource/policy failures; they MUST NOT advertise
 conformance with a smaller format ceiling. The header itself is limited to 192
@@ -371,7 +371,7 @@ The receiver enforces:
 - request and response timeouts
 
 This is the current interoperable body ceiling, not a promise of unlimited storage
-or delivery capacity. Larger publisher layouts or detached attachments require an
+or delivery capacity. Larger publisher layouts or attachment formats require an
 explicit specification change; a provider-local increase does not create peer
 support. Receivers MUST support identity and gzip HTTP content coding. Serving
 uncompressed bytes is sufficient; gzip emission is optional. Gzip-coded responses
@@ -386,10 +386,9 @@ independent depth, item and collection budgets in [encoding](encoding.md).
 The existing header asset retains its own 192 KiB, dimension and pixel limits;
 increasing the body ceiling does not increase any image limit.
 
-Future detached images and file attachments require separate per-resource and
-aggregate per-message byte/count limits, retrieval authorization and availability
-rules. Their raw bytes should not be embedded merely to evade these budgets.
-No detached-resource allowance or general attachment support is defined today.
+Detached [attachments](attachments.md) have a separate 25 MiB aggregate budget
+and 20-file limit. Their metadata is authenticated inside the body; their bytes
+are retrieved separately before delivery. Remote image resources remain deferred.
 Provider quotas and concurrent-transfer budgets remain separate from wire limits.
 
 Publisher layouts are intended to express safe HTML-like content through explicit
@@ -498,7 +497,7 @@ Deferred:
 - RFC 9421 recipient proof of possession
 - end-to-end encryption
 - assets beyond the single bundled PNG header
-- attachments
+- attachment formats beyond PNG/JPEG/WebP/PDF/TXT/LOG
 - remote asset profiles
 - content negotiation beyond the POC profile
 - larger body profiles and their interoperable limits
@@ -510,6 +509,6 @@ Deferred:
   they do not choose substitute strings locally.
 - Define support discovery before introducing optional body profiles. The current
   three profiles are mandatory and need no such negotiation.
-- Specify future layout and attachment profiles, including their size and delivery
+- Specify future layout and additional attachment profiles, including their size and delivery
   semantics. Bearer authorization per envelope and identity/gzip coding are settled
   for the current alpha; proof of possession remains a separate future extension.

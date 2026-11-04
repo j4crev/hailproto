@@ -1,3 +1,4 @@
+import {bodyAttachments,validateAttachmentBytes,retainBodyAttachments} from './attachments.js';
 import type { SQL } from "bun";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { bodyDigest, checkAuthorization, validateBodyBytes, type BodyAuthorizationInput, type BodyStore, type StoredBody } from "./service.js";
@@ -16,14 +17,17 @@ export class BodyRepository implements BodyStore {
         AND activation_verification_mode = 'public'
     `;
     if (!account[0]) throw new Error("Sender account is not active on this provider");
-    await this.sql`
+    await this.sql.begin(async tx=>{
+    await tx`
       INSERT INTO detached_bodies (digest, sender_account_id, body_bytes)
-      VALUES (${digest}, ${account[0].id}, ${bytes})
+      VALUES (${digest}, ${account[0]!.id}, ${bytes})
       ON CONFLICT (digest, sender_account_id) DO NOTHING
     `;
+    await retainBodyAttachments(tx as SQL,account[0]!.id,digest,bytes);
+    });
     const rows = await this.sql<BodyRow[]>`
       SELECT digest, body_bytes, sender_account_id FROM detached_bodies
-      WHERE digest = ${digest} AND sender_account_id = ${account[0].id}
+      WHERE digest = ${digest} AND sender_account_id = ${account[0]!.id}
     `;
     const stored = rows[0];
     if (!stored || stored.sender_account_id !== account[0].id || !stored.body_bytes ||
@@ -56,6 +60,19 @@ export class BodyRepository implements BodyStore {
         await tx`UPDATE detached_bodies SET available_until = ${input.availableUntil} WHERE digest = ${input.digest} AND sender_account_id = ${body.sender_account_id}`;
       }
     });
+  }
+
+  async retrieveAttachment(bodyDigest:Uint8Array,digest:Uint8Array,tokenHash:Uint8Array,now:number):Promise<StoredBody|"missing-body"|null>{
+    const body=await this.retrieve(bodyDigest,tokenHash,now);
+    if(body===null||body==='missing-body')return body;
+    const file=bodyAttachments(body.bytes).find(f=>Buffer.from(f.digest.value).equals(Buffer.from(digest)));
+    if(!file)return null;
+    try{
+      const rows=await this.sql<{bytes:Uint8Array}[]>`SELECT bytes FROM attachment_blobs WHERE digest=${digest}`;
+      if(!rows[0])return 'missing-body';
+      validateAttachmentBytes(file,rows[0].bytes);
+      return {bytes:rows[0].bytes,digest};
+    }catch{return 'missing-body';}
   }
 
   async retrieve(digest: Uint8Array, tokenHash: Uint8Array, now: number): Promise<StoredBody | "missing-body" | null> {

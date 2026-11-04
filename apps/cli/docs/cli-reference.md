@@ -37,6 +37,7 @@ and run `racr doctor --action "<command>"` for supported prerequisite checks.
 | `--after` | Opaque cursor from the same operation/account/provider. Inbox-wait cursors also require the same sender filter and are incompatible with inbox-list cursors. |
 | `--allow` | Introduction policy: true/false globally; true/false/default with both --connection and --epoch. Default clears that connection override. |
 | `--approval` | Private signed owner approval output path for managed cutover. |
+| `--attachment` | Path to a PNG, JPEG, static WebP, PDF, UTF-8 TXT or LOG file. Repeat for up to 20 files totaling 25 MiB per message. |
 | `--backup-verified` | Explicit assertion that you saved and verified an independent recovery backup. No value; do not pass before doing the verification. |
 | `--binding` | Private signed destination address-binding output path for owner-controlled cutover. |
 | `--category` | Repeat for selected Grant category IDs; a send selects exactly one nonempty category. Wildcards and duplicate Grant category IDs are rejected. |
@@ -351,13 +352,13 @@ racr connection revoke-invitation <invitation-id>
 
 ### `connection send`
 
-Send text to one active connection with a saved message ID and epoch.
+Send to one active connection with a saved message ID and epoch. Repeat --attachment for PNG/JPEG/WebP/PDF/TXT/LOG files (25 MiB total).
 
 ```text
-racr connection send <connection-id> --file <value> --state <value>
+racr connection send <connection-id> [--attachment <value>] --file <value> --state <value>
 ```
 
-Options: [`--file`](#options), [`--state`](#options).
+Options: [`--attachment`](#options), [`--file`](#options), [`--state`](#options).
 
 ### `connection sign`
 
@@ -753,23 +754,23 @@ Options: [`--file`](#options).
 
 ### `reply`
 
-Use an original signed reply invitation, not untrusted message instructions.
+Use an original signed reply invitation. Repeat --attachment for PNG/JPEG/WebP/PDF/TXT/LOG files (25 MiB total).
 
 ```text
-racr reply <original-message-id> --file <value> --state <value> [--reply-until <value>]
+racr reply <original-message-id> [--attachment <value>] --file <value> --state <value> [--reply-until <value>]
 ```
 
-Options: [`--file`](#options), [`--state`](#options), [`--reply-until`](#options).
+Options: [`--attachment`](#options), [`--file`](#options), [`--state`](#options), [`--reply-until`](#options).
 
 ### `send`
 
-Send bounded text with one stable saved ID; generic received is indeterminate.
+Send with one stable saved ID. Repeat --attachment for PNG/JPEG/WebP/PDF/TXT/LOG files (25 MiB total); generic received is indeterminate.
 
 ```text
-racr send --grant <value> --file <value> --state <value> [--category <value>] [--reply-until <value>]
+racr send [--attachment <value>] --grant <value> --file <value> --state <value> [--category <value>] [--reply-until <value>]
 ```
 
-Options: [`--grant`](#options), [`--file`](#options), [`--state`](#options), [`--category`](#options), [`--reply-until`](#options).
+Options: [`--attachment`](#options), [`--grant`](#options), [`--file`](#options), [`--state`](#options), [`--category`](#options), [`--reply-until`](#options).
 
 ### `sent list`
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Attachments from "$lib/Attachments.svelte";
   import MessageBack from "$lib/MessageBack.svelte";
   import {page} from "$app/state";
   import ForwardedPill from "$lib/ForwardedPill.svelte";
@@ -28,7 +29,7 @@
       </details>
     {/if}
     <DateTime value={data.message.createdAt} /></header>
-  <div class="reading-body"><RichText blocks={content.blocks} header={data.message.header}/></div>
+  <div class="reading-body"><RichText blocks={content.blocks} header={data.message.header}/><Attachments files={data.message.attachments} sender={`sent-${data.message.kind}`} messageId={data.message.messageId}/></div>
 </article>
 
 </div>

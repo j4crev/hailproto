@@ -129,7 +129,10 @@ export class MessageTrash {
       JOIN account_serving_generations g ON g.account_id=a.id WHERE a.onboarding_state='active'
       AND NOT EXISTS(SELECT 1 FROM provider_migration_fences f WHERE f.account_id=a.id)
       AND (EXISTS(SELECT 1 FROM delivered_messages m WHERE m.recipient_did=a.did AND m.trashed_at<=clock_timestamp()-interval '30 days')
-        OR EXISTS(SELECT 1 FROM account_message_drafts d WHERE d.account_id=a.id AND d.trashed_at<=clock_timestamp()-interval '30 days'))
+        OR EXISTS(SELECT 1 FROM account_message_drafts d WHERE d.account_id=a.id AND d.trashed_at<=clock_timestamp()-interval '30 days')
+        OR EXISTS(SELECT 1 FROM attachment_uploads u WHERE u.account_id=a.id AND u.created_at<clock_timestamp()-interval '24 hours'
+          AND NOT EXISTS(SELECT 1 FROM account_message_drafts d,jsonb_array_elements(COALESCE(d.content->'attachments','[]'::jsonb)) f
+            WHERE d.account_id=u.account_id AND f->'digest'->>'value'=rtrim(translate(encode(u.digest,'base64'),'+/','-_'),'='))))
       ORDER BY a.id LIMIT 100`;
     let deleted=0;
     for(const account of accounts)await withServingGeneration(account.id,Number(account.generation),()=>this.sql.begin(async tx=>{
@@ -139,9 +142,20 @@ export class MessageTrash {
         (SELECT sender_did,message_id FROM delivered_messages WHERE recipient_did=${account.did}
           AND trashed_at<=clock_timestamp()-interval '30 days' ORDER BY trashed_at LIMIT 500) RETURNING sender_did,body_digest,media_type,profile`;
       const drafts=await tx`DELETE FROM account_message_drafts WHERE account_id=${account.id} AND trashed_at<=clock_timestamp()-interval '30 days' RETURNING id`;
+      await tx`DELETE FROM attachment_uploads u WHERE u.account_id=${account.id} AND u.created_at<clock_timestamp()-interval '24 hours'
+        AND NOT EXISTS(SELECT 1 FROM account_message_drafts d,jsonb_array_elements(COALESCE(d.content->'attachments','[]'::jsonb)) f
+          WHERE d.account_id=u.account_id AND f->'digest'->>'value'=rtrim(translate(encode(u.digest,'base64'),'+/','-_'),'='))`;
       await this.cleanBodies(tx as SQL,account.did,rows);deleted+=rows.length+drafts.length;
     }));
     await this.sql`SELECT hail_collect_received_blobs(500)`;
+    await this.sql`DELETE FROM attachment_blobs b WHERE digest IN(SELECT digest FROM attachment_blobs a
+      WHERE NOT EXISTS(SELECT 1 FROM attachment_uploads u WHERE u.digest=a.digest)
+      AND NOT EXISTS(SELECT 1 FROM body_attachment_refs r WHERE r.digest=a.digest)
+      AND NOT EXISTS(SELECT 1 FROM received_attachment_refs r WHERE r.digest=a.digest)
+      LIMIT 500 FOR UPDATE SKIP LOCKED)
+      AND NOT EXISTS(SELECT 1 FROM attachment_uploads u WHERE u.digest=b.digest)
+      AND NOT EXISTS(SELECT 1 FROM body_attachment_refs r WHERE r.digest=b.digest)
+      AND NOT EXISTS(SELECT 1 FROM received_attachment_refs r WHERE r.digest=b.digest)`;
     return {deleted};
   }
 }

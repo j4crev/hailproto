@@ -1,3 +1,4 @@
+import {bodyAttachments,storeAttachment,validateAttachmentBytes} from '../bodies/attachments.js';
 import { randomUUID } from "node:crypto";
 import { inspectSignedPayload, type HailCancellationReason, type HailEnvelope, type HailFailureReason, type HailHoldReason } from "@racrproto/codec";
 import type { SQL } from "bun";
@@ -68,13 +69,16 @@ export class DeliveryRepository {
     });
   }
 
-  async deliver(claim: DeliveryClaim, bytes: Uint8Array): Promise<"delivered" | "expired" | "lost-lease"|"unauthorized"> {
+  async deliver(claim: DeliveryClaim, bytes: Uint8Array, attachments:Uint8Array[] = []): Promise<"delivered" | "expired" | "lost-lease"|"unauthorized"> {
     const envelope = claim.envelope;
     if (bytes.length !== envelope.body.size ||
       !Buffer.from(bodyDigest(bytes)).equals(Buffer.from(envelope.body.digest.value))) {
       throw new Error("Body does not match the accepted envelope");
     }
     validateBodyBytes(bytes,envelope.body.profile);
+    const files=bodyAttachments(bytes);
+    if(files.length!==attachments.length)throw new Error('Required attachments missing');
+    files.forEach((file,i)=>validateAttachmentBytes(file,attachments[i]!));
     const authorized=await this.authorizeConnection(claim);
     return this.sql.begin(async (tx) => {
       const current = await this.lockClaim(tx, claim);
@@ -101,6 +105,12 @@ export class DeliveryRepository {
         ON CONFLICT (recipient_did, sender_did, digest, media_type, profile)
         DO NOTHING
       `;
+      for(let i=0;i<files.length;i++){
+        const file=files[i]!;
+        await storeAttachment(tx as SQL,file.digest.value,attachments[i]!);
+        await tx`INSERT INTO received_attachment_refs(recipient_did,sender_did,body_digest,media_type,profile,digest)
+          VALUES(${envelope.to},${envelope.from},${envelope.body.digest.value},${envelope.body.media_type},${envelope.body.profile},${file.digest.value}) ON CONFLICT DO NOTHING`;
+      }
       const existing = await tx<{ body_bytes: Uint8Array }[]>`
         SELECT body_bytes FROM verified_body_contents
         WHERE recipient_did = ${envelope.to} AND sender_did = ${envelope.from}

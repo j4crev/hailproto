@@ -1,3 +1,4 @@
+import {importAttachmentBlobs} from './attachment-history.js';
 import {createHash,randomUUID} from "node:crypto";
 import * as dagCbor from "@ipld/dag-cbor";
 import {cidForCbor} from "@atproto/common";
@@ -216,10 +217,12 @@ export class ManagedMigrationActivation {
         representation:pending.destination_binding_cose,evidence:resolved.evidence});
       await this.importGrants(tx,manifest,identityKey,resolved.evidence,activatedAt,returning);
       for(const table of ["detached_bodies","body_authorizations"] as const)for(const row of manifest.tables[table])await insert(tx,table,row);
+      await importAttachmentBlobs(tx as SQL,manifest.tables);
+      for(const table of ["attachment_uploads","body_attachment_refs"] as const)for(const row of manifest.tables[table])await insert(tx,table,row);
       await this.importEnvelopes(tx,manifest);
       if(manifest.connections)await reconstructConnections(tx as SQL,manifest,generation);
       await tx`UPDATE connection_invitations SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE account_id=${manifest.accountId} AND serving_generation<>${generation} AND revoked_at IS NULL`;
-      for(const table of ["reply_capabilities","delivery_work","verified_body_provenance","delivered_messages",
+      for(const table of ["reply_capabilities","delivery_work","verified_body_provenance","received_attachment_refs","delivered_messages",
         "delivery_status_payloads","delivery_status_wrappers","terminal_status_publications","sent_delivery_status"] as const)
         for(const row of manifest.tables[table])await insert(tx,table,row);
       for(const table of ["public_envelope_authority_evidence","public_grant_authority_evidence","public_signing_authority_evidence"] as const)

@@ -341,7 +341,7 @@ func bodyValue(value *SPTBody) map[any]any {
 		}
 		blocks[i] = map[any]any{"_type": block.Type, "style": block.Style, "children": children, "markDefs": []any{}}
 	}
-	return map[any]any{"version": value.Version, "profile": value.Profile, "blocks": blocks}
+	return withAttachments(value.Attachments, map[any]any{"version": value.Version, "profile": value.Profile, "blocks": blocks})
 }
 
 func body2Value(value *SPT2Body) map[any]any {
@@ -372,7 +372,7 @@ func body2Value(value *SPT2Body) map[any]any {
 		}
 		blocks[i] = item
 	}
-	return map[any]any{"version": value.Version, "profile": value.Profile, "blocks": blocks}
+	return withAttachments(value.Attachments, map[any]any{"version": value.Version, "profile": value.Profile, "blocks": blocks})
 }
 
 func assetManifestValue(value AssetManifest) map[any]any {
@@ -421,7 +421,7 @@ func body3Value(value *SPT3Body) map[any]any {
 		}
 		blocks[i] = item
 	}
-	return map[any]any{"version": value.Version, "profile": value.Profile, "assets": assetManifestValue(value.Assets), "blocks": blocks}
+	return withAttachments(value.Attachments, map[any]any{"version": value.Version, "profile": value.Profile, "assets": assetManifestValue(value.Assets), "blocks": blocks})
 }
 
 func mapValue(v any, path string) (map[any]any, error) {
@@ -1101,7 +1101,10 @@ func validateDelivery(m map[any]any) error {
 }
 
 func validateSpt1Body(m map[any]any) error {
-	if e := exact(m, []string{"version", "profile", "blocks"}, nil, "$"); e != nil {
+	if err := validateAttachments(m); err != nil {
+		return err
+	}
+	if e := exact(m, []string{"version", "profile", "blocks"}, []string{"attachments"}, "$"); e != nil {
 		return e
 	}
 	v, e := intValue(m["version"], "$.version", 0)
@@ -1163,7 +1166,10 @@ func validateSpt1Body(m map[any]any) error {
 }
 
 func validateSpt2Body(m map[any]any) error {
-	if e := exact(m, []string{"version", "profile", "blocks"}, nil, "$"); e != nil {
+	if err := validateAttachments(m); err != nil {
+		return err
+	}
+	if e := exact(m, []string{"version", "profile", "blocks"}, []string{"attachments"}, "$"); e != nil {
 		return e
 	}
 	v, e := intValue(m["version"], "$.version", 0)
@@ -1353,7 +1359,10 @@ func assetManifestFromMap(value any) (*AssetManifest, error) {
 }
 
 func validateSpt3Body(m map[any]any) error {
-	if err := exact(m, []string{"version", "profile", "assets", "blocks"}, nil, "$"); err != nil {
+	if err := validateAttachments(m); err != nil {
+		return err
+	}
+	if err := exact(m, []string{"version", "profile", "assets", "blocks"}, []string{"attachments"}, "$"); err != nil {
 		return err
 	}
 	version, err := intValue(m["version"], "$.version", 0)
@@ -1397,4 +1406,72 @@ func validateSpt3Body(m map[any]any) error {
 		}
 	}
 	return validateSpt2Body(map[any]any{"version": int64(1), "profile": "spt-2", "blocks": blocks[1:]})
+}
+
+func withAttachments(files []Attachment, m map[any]any) map[any]any {
+	if files != nil {
+		entries := make([]any, len(files))
+		for i, f := range files {
+			entries[i] = map[any]any{"filename": f.Filename, "media_type": f.MediaType, "size": f.Size, "digest": digestValue(f.Digest)}
+		}
+		m["attachments"] = entries
+	}
+	return m
+}
+func validateAttachments(m map[any]any) error {
+	value, ok := m["attachments"]
+	if !ok {
+		return nil
+	}
+	entries, ok := value.([]any)
+	if !ok || len(entries) < 1 || len(entries) > 20 {
+		return errors.New("attachments require 1 to 20 files")
+	}
+	var total int64
+	for _, entry := range entries {
+		a, err := mapValue(entry, "attachment")
+		if err != nil {
+			return err
+		}
+		if err = exact(a, []string{"filename", "media_type", "size", "digest"}, nil, "attachment"); err != nil {
+			return err
+		}
+		name, err := textValue(a["filename"], "filename")
+		if err != nil {
+			return err
+		}
+		if !norm.NFC.IsNormalString(name) || len(name) > 255 || !regexp.MustCompile(`(?i)^[^.].*\.(pdf|txt|log|png|jpg|jpeg|webp)$`).MatchString(name) || strings.ContainsAny(name, "/\\") {
+			return errors.New("invalid attachment filename")
+		}
+		for _, r := range name {
+			if r < 32 || r == 127 {
+				return errors.New("invalid attachment filename")
+			}
+		}
+		media := "text/plain"
+		if strings.HasSuffix(strings.ToLower(name), ".pdf") {
+			media = "application/pdf"
+		} else if strings.HasSuffix(strings.ToLower(name), ".png") {
+			media = "image/png"
+		} else if strings.HasSuffix(strings.ToLower(name), ".jpg") || strings.HasSuffix(strings.ToLower(name), ".jpeg") {
+			media = "image/jpeg"
+		} else if strings.HasSuffix(strings.ToLower(name), ".webp") {
+			media = "image/webp"
+		}
+		if a["media_type"] != media {
+			return errors.New("invalid attachment media type")
+		}
+		size, err := intValue(a["size"], "size", 1)
+		if err != nil || size > 26214400 {
+			return errors.New("attachment too large")
+		}
+		total += size
+		if err = digest(a["digest"], "digest"); err != nil {
+			return err
+		}
+	}
+	if total > 26214400 {
+		return errors.New("attachments exceed 25 MiB")
+	}
+	return nil
 }

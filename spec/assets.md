@@ -4,7 +4,8 @@ Status: Draft
 
 This document defines the first bounded asset primitive shared by message bodies
 and Sender Profile v2. Version 1 supports bundled PNG images only. It does
-not fetch arbitrary URLs, expose user opens to senders, or define attachments.
+not fetch arbitrary URLs or expose user opens to senders. Detached file
+[attachments](attachments.md) use a separate authenticated list.
 
 ## Manifest
 
@@ -47,10 +48,10 @@ images require alt text at the referencing block. Clients serve verified bytes
 from local storage with `Content-Type: image/png` and `X-Content-Type-Options:
 nosniff`; they never convert manifest data into a sender-controlled URL.
 
-Deferred: JPEG/WebP, animation, remote loading, attachments, responsive
+Deferred: JPEG/WebP, animation, remote loading, responsive
 variants, and manifests containing more than one asset per role.
 
 These asset limits are independent of the 1 MiB message-body ceiling. Bundled
 bytes count toward both their per-asset limit and the complete body limit.
-Future detached resources need their own byte/count budgets and an aggregate
-message-resource budget; a larger body ceiling does not authorize larger images.
+Detached attachments have their own 25 MiB aggregate byte and 20-file count
+budgets; a larger body ceiling does not authorize larger images.

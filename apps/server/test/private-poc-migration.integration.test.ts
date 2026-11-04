@@ -1,3 +1,4 @@
+import {encodePayload,decodePayload} from '@racrproto/codec';
 import {assertExportConformance} from "./support/account-history-conformance.js";
 import { createHash,randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -174,7 +175,9 @@ integration("private PLC transfer between disposable POC providers", () => {
       consent:{address:{address:peerBinding.address,did:peerDid,serviceBase:oldBase,identityDidKey:peerKeys.identityDidKey,messagingDidKey:peerKeys.messagingDidKey,plcEvidence:peerEvidence,verifiedAt:new Date(),binding:peerBinding,representation:bindingCose,digest:hash(bindingCose)},
         senderProfile:{did:peerDid,serviceBase:oldBase,messagingDidKey:peerKeys.messagingDidKey,plcEvidence:peerEvidence,verifiedAt:new Date(),profile,representation:profileCose,digest:hash(profileCose),etag:'"peer-profile"'}}});
     await source.sql`INSERT INTO collocated_grant_receivers (grant_id,grantee_account_id) VALUES (${grant.grant_id},${peerAccount})`;
-    const messageBody=bodyFromText("State survives A to B to A");
+    const attachmentBytes=new TextEncoder().encode('portable attachment survives A to B to A');
+    const messageBody=encodePayload('hail.body.spt-1',{...decodePayload('hail.body.spt-1',bodyFromText('State survives A to B to A')),
+      attachments:[{filename:'portable.txt',media_type:'text/plain',size:attachmentBytes.length,digest:{algorithm:'sha-256',value:hash(attachmentBytes)}}]});
     const seedMessage=async(db:ProviderDatabase)=>{
       const timestamp=Math.floor(Date.now()/1000),payload:HailEnvelope={type:"hail.envelope",version:1,message_id:Bun.randomUUIDv7(),from:peerDid,to:genesis.did,authorization:{type:"grant",grant_id:grant.grant_id},category:"updates",created_at:timestamp,expires_at:timestamp+3600,
         body:{digest:{algorithm:"sha-256",value:hash(messageBody)},size:messageBody.length,media_type:"application/hail-body+cbor",profile:"spt-1",available_until:timestamp+31*86400,access:{type:"bearer",token:randomBytes(32),expires_at:timestamp+31*86400}},reply:{allowed:false}};
@@ -184,7 +187,7 @@ integration("private PLC transfer between disposable POC providers", () => {
     };
     // Retained delivered history must survive provider-local cursor reassignment.
     const archivedMessage=await seedMessage(source),archivedDelivery=new DeliveryRepository(source.sql);
-    expect(await archivedDelivery.deliver((await archivedDelivery.claimDue())!,messageBody)).toBe("delivered");
+    expect(await archivedDelivery.deliver((await archivedDelivery.claimDue())!,messageBody,[attachmentBytes])).toBe("delivered");
     const archivedSigner=new DeliveryStatusSigner(source.sql,sourceRepo,sourceEncryptor,resolver,oldBase);
     await archivedSigner.signCurrent(peerDid,archivedMessage.message_id);
     expect(await new TerminalStatusPublisher(source.sql,archivedSigner,resolver,async()=>new Response(null,{status:204}),()=>{}).publishOne()).toBe("acknowledged");
@@ -435,7 +438,7 @@ integration("private PLC transfer between disposable POC providers", () => {
     // New accepted/delivered work and a publication acknowledgement while B owns the DID.
     const betaDelivery=new DeliveryRepository(target.sql),betaClaim=(await withFreshServingGenerations(target.sql,()=>betaDelivery.claimDue()))!;
     expect(betaClaim.messageId).toBe(firstMessage.message_id);
-    expect(await withFreshServingGenerations(target.sql,()=>betaDelivery.deliver(betaClaim,messageBody))).toBe("delivered");
+    expect(await withFreshServingGenerations(target.sql,()=>betaDelivery.deliver(betaClaim,messageBody,[attachmentBytes]))).toBe("delivered");
     const betaStatus=await withFreshServingGenerations(target.sql,()=>new DeliveryStatusSigner(target.sql,targetRepo,targetEncryptor,resolver,newBase).signCurrent(peerDid,firstMessage.message_id));
     const secondMessage=await withFreshServingGenerations(target.sql,()=>seedMessage(target));
     const betaPending=(await withFreshServingGenerations(target.sql,()=>betaDelivery.claimDue()))!;expect(betaPending.messageId).toBe(secondMessage.message_id);
@@ -532,9 +535,9 @@ integration("private PLC transfer between disposable POC providers", () => {
       expect(await sourceRepo.findPublishedByAddress(sourceAddress)).toBeNull();
       await expect(withFreshServingGenerations(source.sql,()=>oldAccess.complete(oldChallenge.challengeId,oldLoginToken,oldLoginSignature))).rejects.toThrow("expired");
       await expect(withServingGeneration(prepared.accountId,1,async()=>{await source.sql`UPDATE provider_accounts SET updated_at=clock_timestamp() WHERE id=${prepared.accountId}`;})).rejects.toThrow("stale");
-      await expect(withServingGeneration(prepared.accountId,1,()=>new DeliveryRepository(source.sql).deliver(oldDeliveryClaim,messageBody))).rejects.toThrow("stale");
+      await expect(withServingGeneration(prepared.accountId,1,()=>new DeliveryRepository(source.sql).deliver(oldDeliveryClaim,messageBody,[attachmentBytes]))).rejects.toThrow("stale");
       await expect(withFreshServingGenerations(source.sql,()=>new GrantRepository(source.sql).acknowledgePublication({grantId:grant.grant_id,revision:1,leaseToken:oldPublication.leaseToken,etag:acknowledgedEtag}))).rejects.toThrow("lease");
-      await expect(withFreshServingGenerations(target.sql,()=>betaDelivery.deliver(betaPending,messageBody))).rejects.toThrow("fenced");
+      await expect(withFreshServingGenerations(target.sql,()=>betaDelivery.deliver(betaPending,messageBody,[attachmentBytes]))).rejects.toThrow("fenced");
       const outbox=(await source.sql<{state:string;attempt_count:number;acknowledged_etag:string}[]>`SELECT state,attempt_count,acknowledged_etag FROM grant_publications WHERE grant_id=${grant.grant_id}`)[0]!;
       expect(outbox).toMatchObject({state:"acknowledged",attempt_count:2,acknowledged_etag:acknowledgedEtag});
       expect((await new GrantRepository(source.sql).findReceivedForSender(grant.grant_id,peerDid))?.localAccountId).toBe(peerAccount);
@@ -544,7 +547,7 @@ integration("private PLC transfer between disposable POC providers", () => {
       const alphaDelivery=new DeliveryRepository(source.sql),resumed=(await withFreshServingGenerations(source.sql,()=>alphaDelivery.claimDue()))!;
       expect(resumed.messageId).toBe(secondMessage.message_id);expect(resumed.attemptCount).toBe(2);
       const leased=(await source.sql<{generation:string}[]>`SELECT generation FROM serving_worker_leases WHERE lease_token=${resumed.leaseToken}`)[0]!;expect(Number(leased.generation)).toBe(2);
-      expect(await withFreshServingGenerations(source.sql,()=>alphaDelivery.deliver(resumed,messageBody))).toBe("delivered");
+      expect(await withFreshServingGenerations(source.sql,()=>alphaDelivery.deliver(resumed,messageBody,[attachmentBytes]))).toBe("delivered");
       const alphaSigner=new DeliveryStatusSigner(source.sql,sourceRepo,sourceEncryptor,resolver,oldBase);
       const alphaStatus=await withFreshServingGenerations(source.sql,()=>alphaSigner.signCurrent(peerDid,firstMessage.message_id));
       expect(inspectSignedPayload("hail.delivery-status",alphaStatus!).payloadBytes).toEqual(inspectSignedPayload("hail.delivery-status",betaStatus!).payloadBytes);

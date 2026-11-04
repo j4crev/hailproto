@@ -1,3 +1,4 @@
+import {AccountAttachments} from './attachments.js';
 import {participantAddresses} from "./participant-addresses.js";
 import {connectionInbox,connectionThread} from "./connection-threads.js";
 import {inboxUpdates} from "./inbox-updates.js";
@@ -5,7 +6,7 @@ import {conversations} from "./conversations.js";
 import {messageThread} from "./message-threads.js";
 import {sentSends} from "./sent-sends.js";
 import { createHash } from "node:crypto";
-import { decodePayload,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,toDiagnosticJson,type DiagnosticJson } from "@racrproto/codec";
+import { decodePayload,encodePayload,encodeBase64Url,fromDiagnosticJson,inspectSignedPayload,toDiagnosticJson,type DiagnosticJson } from "@racrproto/codec";
 import type { SQL } from "bun";
 import { BODY_MAX_BYTES,bodyFromDocument,bodyFromText,validateBodyBytes } from "../bodies/service.js";
 import type { BodyRepository } from "../bodies/repository.js";
@@ -52,10 +53,21 @@ function statusDetails(bytes:Uint8Array|null) {
     retryAt:"retry_at" in status?status.retry_at:null};
 }
 export class AccountMessaging {
+  readonly attachments:AccountAttachments;
   readonly trash:MessageTrash;
   readonly drafts:AccountDrafts;
   constructor(private readonly sql:SQL,private readonly bodies:BodyRepository,private readonly envelopes:EnvelopeRepository,
-    private readonly service:EnvelopeService,private readonly submitEnvelope:(sender:string,id:string)=>Promise<object>){this.trash=new MessageTrash(sql);this.drafts=new AccountDrafts(sql);}
+    private readonly service:EnvelopeService,private readonly submitEnvelope:(sender:string,id:string)=>Promise<object>){this.attachments=new AccountAttachments(sql);this.trash=new MessageTrash(sql);this.drafts=new AccountDrafts(sql);}
+  async attachment(session:AccountApiSession,sender:string,id:string,digest:string,index?:number){
+    const kind=sender.startsWith('sent-')?sender.slice(5):null;
+    const message=kind?(await this.sentSends(session,null,{id,kind})).messages[0]??(await this.sentSends(session,null,{id,kind},true)).messages[0]:
+      sender===session.did?await this.sentMessage(session,id):await this.read(session,sender,id);
+    if(!message)return null;
+    const body=message.body as Record<string,unknown>;
+    // The message lookup is the authorization boundary, including Trash retention.
+    const payload=fromDiagnosticJson(`hail.body.${body.profile}` as 'hail.body.spt-1',message.body);
+    return this.attachments.download(encodePayload(`hail.body.${body.profile}` as 'hail.body.spt-1',payload),digest,index);
+  }
   async submit(sender:string,id:string){
     try{return await this.submitEnvelope(sender,id);}catch(error){if(error instanceof EnvelopeAuthorizationError)throw new UserGrantError(409,error.message);throw error;}
   }

@@ -1,9 +1,10 @@
+import {formAttachments} from '$lib/server/attachments.js';
 import {parseDraft,draftIdPattern} from "@racrproto/client-support/drafts";
 import {draftForm} from "$lib/server/draft-form.js";
 import {forwardSource, forwardBody} from "$lib/forward.js";
 import { createHash } from "node:crypto";
 import { error,fail,isRedirect,redirect } from "@sveltejs/kit";
-import { encodeBase64Url, encodePayload, type HailSpt2Body, type HailSpt3Body } from "@racrproto/codec";
+import { fromDiagnosticJson,type DiagnosticJson,encodeBase64Url, encodePayload, type HailSpt2Body, type HailSpt3Body } from "@racrproto/codec";
 import { composeBlocks } from "$lib/compose.js";
 import { canaryAccount } from "$lib/server/canary.js";
 import { messageId } from "$lib/server/message-id.js";
@@ -51,6 +52,7 @@ export const actions={save:async({request,cookies,url})=>{
   if(typeof id!=="string"||!draftIdPattern.test(id)||!Number.isSafeInteger(revision)||revision<0)return fail(400,{error:"Invalid draft identity."});
   try{
     const content=await draftForm(form);
+    const attachments=await formAttachments(form,client);if(attachments.length)content.attachments=attachments;
     const savedDraft=parseDraft(await client.request(`/drafts/${id}/save`,{revision,content}));
     return {savedDraft};
   }catch(cause){return fail(cause instanceof AccountApiError&&cause.status===409?409:400,{error:cause instanceof AccountApiError?"Draft could not be saved. It may have changed on another device; reopen it from Drafts before trying again.":cause instanceof Error?cause.message:"Unable to save draft."});}
@@ -62,8 +64,8 @@ export const actions={save:async({request,cookies,url})=>{
     const forwardSender=field("forwardSender"),forwardMessage=field("forwardMessage"),forwarding=form.has("forwardSender")||form.has("forwardMessage");
     if(forwarding&&(kind!=="connections"||!forwardSender||!UUID7.test(forwardMessage)))return fail(400,{error:"Forwards can only be sent to connections."});
     const keys=[...form.keys()];
-    if(keys.some(key=>!["draftRevision","savedHeader","forwardSender","forwardMessage","publicationId","category","title","text","alt","caption","header","allowReply","audience","connection"].includes(key))||
-      new Set(keys.filter(k=>k!=="connection")).size!==keys.filter(k=>k!=="connection").length||
+    if(keys.some(key=>!["attachment","savedAttachments","draftRevision","savedHeader","forwardSender","forwardMessage","publicationId","category","title","text","alt","caption","header","allowReply","audience","connection"].includes(key))||
+      new Set(keys.filter(k=>k!=="connection"&&k!=="attachment")).size!==keys.filter(k=>k!=="connection"&&k!=="attachment").length||
       !["","category","connections"].includes(field("audience"))||!UUID7.test(id)||(kind==="category"?!CATEGORY.test(category)||connections.length>0:connections.length<1||connections.length>100||connections.some(v=>typeof v!=="string"||!UUID7.test(v))||new Set(connections).size!==connections.length||form.has("category")||form.has("allowReply"))||
       (!forwarding&&!text.trim())||Buffer.byteLength(text)>65536||Buffer.byteLength(title)>128||
       Buffer.byteLength(alt)>1024||Buffer.byteLength(caption)>1024)
@@ -88,10 +90,18 @@ export const actions={save:async({request,cookies,url})=>{
         body=forwardBody(source,text.trim());
       } catch {return fail(400,{error:"The original message is unavailable for forwarding. Return to your inbox and try again."});}
       try {
-        const bytes=body.profile==="spt-3"?encodePayload("hail.body.spt-3",body as unknown as HailSpt3Body):encodePayload("hail.body.spt-2",body as unknown as HailSpt2Body);
+        const bytes=body.profile==="spt-3"?encodePayload("hail.body.spt-3",fromDiagnosticJson("hail.body.spt-3",body as DiagnosticJson)):encodePayload("hail.body.spt-2",fromDiagnosticJson("hail.body.spt-2",body as DiagnosticJson));
         if(bytes.length>1048576)throw new Error("Body too large");
       } catch {return fail(400,{error:"This forward exceeds the supported message limits. Shorten your note; if it still fails, the original message is too large to forward."});}
     }
+    const attachments=await formAttachments(form,client);
+    const forwardedFiles=forwarding?(body.attachments??[]) as {filename:string;size:number;digest:{value:string}}[]:[];
+    if(attachments.length+forwardedFiles.length>20||[...attachments,...forwardedFiles].reduce((n,f)=>n+f.size,0)>25*1024*1024)return fail(400,{error:'Attachments must total at most 25 MiB across 20 files.'});
+    for(const file of forwardedFiles){
+      const response=await client.attachment(`/attachments/${encodeURIComponent(forwardSender)}/${encodeURIComponent(forwardMessage)}/${file.digest.value}`);
+      attachments.push(await client.request('/attachments',{filename:file.filename,data:Buffer.from(await response.arrayBuffer()).toString('base64url')}) as typeof attachments[number]);
+    }
+    if(attachments.length)body.attachments=attachments;
     try{
       const result=publicationStatus(await client.request(kind==="connections"?"/connection-messages":"/publications",{publicationId:id,...(Number(field("draftRevision"))>0?{draftRevision:Number(field("draftRevision"))}:{}),
         ...(kind==="connections"?{connections,delivery:connections.length>1?"shared":"private"}:{category,allowReplies:allowReply}),body}),kind);

@@ -1,3 +1,4 @@
+import {bodyAttachments,validateAttachmentBytes} from '../bodies/attachments.js';
 import { createHash } from "node:crypto";
 import { gunzip } from "node:zlib";
 import { promisify } from "node:util";
@@ -7,7 +8,7 @@ import type { DiscoveryFetch, NetworkTargetValidator } from "../discovery/verifi
 import type { HailDidResolver } from "../plc/resolver.js";
 
 export type RetrievalResult =
-  | { kind: "success"; bytes: Uint8Array }
+  | { kind: "success"; bytes: Uint8Array; attachments?: Uint8Array[] }
   | { kind: "retry"; reason: HailHoldReason; retryAfter: Date | null }
   | { kind: "fail"; reason: HailFailureReason };
 
@@ -69,24 +70,25 @@ export class BodyRetriever {
       return { kind: "fail", reason: "body-integrity-failed" };
     }
     try {
+      const attemptSignal=AbortSignal.timeout(120_000);
       const sender = await this.resolver.resolve(envelope.from);
-      const first = await this.at(sender.serviceBase, envelope);
+      const first = await this.at(sender.serviceBase, envelope,attemptSignal);
       if (first.kind !== "not-found") return first;
       // A uniform 404 is not permanent until current sender PLC service is refreshed.
       const refreshed = await this.resolver.resolve(envelope.from);
       if (refreshed.serviceBase === sender.serviceBase) return { kind: "fail", reason: "body-authorization-failed" };
-      const second = await this.at(refreshed.serviceBase, envelope);
+      const second = await this.at(refreshed.serviceBase, envelope,attemptSignal);
       return second.kind === "not-found" ? { kind: "fail", reason: "body-authorization-failed" } : second;
     } catch {
       return { kind: "retry", reason: "sender-unreachable", retryAfter: null };
     }
   }
 
-  private async at(base: string, envelope: HailEnvelope): Promise<RetrievalResult | { kind: "not-found" }> {
+  private async at(base: string, envelope: HailEnvelope,attemptSignal:AbortSignal): Promise<RetrievalResult | { kind: "not-found" }> {
     const url = new URL(`${base}/bodies/${encodeBase64Url(envelope.body.digest.value)}`);
     await this.validateTarget(url);
     const response = await this.fetchBody(new Request(url, {
-      method: "GET", redirect: "manual", signal: AbortSignal.timeout(15_000),
+      method: "GET", redirect: "manual", signal: AbortSignal.any([attemptSignal,AbortSignal.timeout(15_000)]),
       headers: {
         Authorization: `Bearer ${encodeBase64Url(envelope.body.access.token)}`,
         Accept: "application/hail-body+cbor", "Accept-Encoding": "gzip, identity",
@@ -142,6 +144,26 @@ export class BodyRetriever {
     }
     try { validateBodyBytes(bytes,envelope.body.profile); }
     catch { return { kind: "fail", reason: "body-invalid" }; }
-    return { kind: "success", bytes };
+    const attachments:Uint8Array[]=[];
+    for(const file of bodyAttachments(bytes)){
+      const attachmentUrl=new URL(`${base}/bodies/${encodeBase64Url(envelope.body.digest.value)}/attachments/${encodeBase64Url(file.digest.value)}`);
+      await this.validateTarget(attachmentUrl);
+      const response=await this.fetchBody(new Request(attachmentUrl,{redirect:'manual',signal:AbortSignal.any([attemptSignal,AbortSignal.timeout(60_000)]),headers:{
+        Authorization:`Bearer ${encodeBase64Url(envelope.body.access.token)}`,Accept:'application/octet-stream','Accept-Encoding':'identity'}}));
+      if(response.status!==200){
+        await response.body?.cancel();
+        if(response.status===404)return {kind:'not-found'};
+        return {kind:'retry',reason:response.status===429?'sender-rate-limited':'body-temporarily-unavailable',retryAfter:retryAfter(response,this.now())};
+      }
+      if(response.headers.get('content-type')!=='application/octet-stream'||!['identity',null].includes(response.headers.get('content-encoding'))){
+        await response.body?.cancel();return {kind:'fail',reason:'body-integrity-failed'};
+      }
+      let data:Uint8Array;
+      try{data=await boundedResponse(response,file.size);}catch(error){return error instanceof OversizedTransfer?{kind:'fail',reason:'body-integrity-failed'}:{kind:'retry',reason:'body-transfer-interrupted',retryAfter:null};}
+      if(!validateContentDigest(response.headers.get('content-digest'),data))return {kind:'fail',reason:'body-integrity-failed'};
+      try{validateAttachmentBytes(file,data);}catch{return {kind:'fail',reason:'body-integrity-failed'};}
+      attachments.push(data);
+    }
+    return { kind: "success", bytes, ...(attachments.length?{attachments}:{}) };
   }
 }

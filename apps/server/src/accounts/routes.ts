@@ -25,13 +25,15 @@ const MAX_BYTES = 262_144;
 const MESSAGE_JSON_MAX_BYTES = 8 * 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 
-export async function accountRequestBytes(request: Request,limit=MAX_BYTES): Promise<Uint8Array | null> {
+export class RequestBodyTimeout extends Error {}
+export async function accountRequestBytes(request: Request,limit=MAX_BYTES,timeoutMs=0): Promise<Uint8Array | null> {
   const declared = request.headers.get("content-length");
   if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > limit)) return null;
   const reader = request.body?.getReader();
   if (!reader) return new Uint8Array();
   const chunks: Uint8Array[] = [];
-  let length = 0;
+  let length = 0,timedOut=false;
+  const timer=timeoutMs?setTimeout(()=>{timedOut=true;void reader.cancel().catch(()=>{});},timeoutMs):undefined;
   try {
     while (true) {
       const next = await reader.read();
@@ -41,6 +43,8 @@ export async function accountRequestBytes(request: Request,limit=MAX_BYTES): Pro
       chunks.push(next.value);
     }
   } catch (error) { await reader.cancel().catch(() => {}); throw error; }
+  finally{if(timer)clearTimeout(timer);}
+  if(timedOut)throw new RequestBodyTimeout();
   const bytes = new Uint8Array(length);
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
@@ -52,6 +56,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   transfer?:AccountTransfer,custodyTransition?:SameProviderCustodyTransition,managedTransfer?:ManagedAccountTransfer,
   profiles?:SenderProfileService,profileVerifier?:Pick<SenderProfileVerifier,"verify">,sessionOrigin?:string,publications?:AccountPublications,
   avatarProfiles?:SenderProfileStore & VerifiedSenderProfileStore): void {
+  let attachmentUploadsInFlight=0;
   const ingress=new FixedWindowRateLimit(),anonymous=new FixedWindowRateLimit(),authenticated=new FixedWindowRateLimit();
   const handle = async (context: Context, grantId: string | null, action?: string):Promise<Response> => {
     let batchRequestId:string|undefined;
@@ -76,6 +81,30 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         context.req.header("Origin")!==sessionOrigin)return problem(403);
       return await withServingGeneration<Response>(session.account_id,session.serving_generation??1,async():Promise<Response>=>{
       const query = new URL(context.req.url).searchParams;
+      if(action==='attachment-upload'||action==='attachment-download'){
+        const upload=action==='attachment-upload';
+        if(!session.scopes.includes(upload?'messages:write':'messages:read'))return problem(403,'MISSING_SCOPE');
+        if(!messaging)return problem(503);
+        if(upload?query.size:[...query.keys()].some(k=>k!=='index'||query.getAll(k).length!==1)||query.has('index')&&!/^(?:[0-9]|1[0-9])$/.test(query.get('index')!))return problem(400);
+        if(context.req.method!==(upload?'POST':'GET'))return problem(405);
+        if(upload){
+          if(session.migration_state)return problem(409);
+          if(context.req.header('Content-Type')!=='application/json'||context.req.header('Content-Encoding'))return problem(415);
+          if(attachmentUploadsInFlight>=2){context.header('Retry-After','5');return problem(429);}
+          attachmentUploadsInFlight++;
+          try{
+          const bytes=await accountRequestBytes(context.req.raw,35*1024*1024,60_000);if(!bytes)return problem(413);
+          let input:unknown;try{input=parseJsonWithoutDuplicateKeys(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}catch{return problem(400);}
+          if(!input||typeof input!=='object'||Array.isArray(input))return problem(400);
+          return context.json(await messaging.attachments.upload(session,input as Record<string,unknown>));
+          }finally{attachmentUploadsInFlight--;}
+        }
+        const found=await messaging.attachment(session,context.req.param('sender')!,context.req.param('messageId')!,context.req.param('digest')!,query.has('index')?Number(query.get('index')):undefined);
+        if(!found)return problem(404);
+        return new Response(Uint8Array.from(found.bytes),{headers:{'Content-Type':found.file.media_type,'Content-Length':String(found.bytes.length),
+          'Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(found.file.filename).replace(/'/g,'%27')}`,
+          'X-Content-Type-Options':'nosniff','Content-Security-Policy':"sandbox; default-src 'none'",'Cache-Control':'private, no-store'}});
+      }
       if(action==="drafts"){
         const operation=context.req.param("operation"),id=context.req.param("id")??null,reading=context.req.method==="GET";
         if(!session.scopes.includes(reading?"messages:read":"messages:write"))return problem(403,"MISSING_SCOPE");
@@ -526,6 +555,7 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           ...(error instanceof HailCodecError?{code:error.code}:{}),
           frames:error instanceof Error?error.stack?.split('\n').filter(line=>/^\s+at /.test(line)).slice(0,6):undefined}));
       }
+      if(error instanceof RequestBodyTimeout)return new Response(null,{status:408,headers:{'Cache-Control':'no-store'}});
       if (error instanceof UserGrantError) return problem(error.status);
       if (error instanceof BindingError || error instanceof CustomDomainAuthorityError) return problem(error.status);
       if (error instanceof AccountTransferError) return problem(error.status);
@@ -562,6 +592,8 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
   app.all("/api/v1/account/publications",context=>handle(context,null,"publication-create"));
   app.all("/api/v1/account/publications/:publicationId/cancel",context=>handle(context,context.req.param("publicationId"),"publication-cancel"));
   app.all("/api/v1/account/publications/:publicationId",context=>handle(context,context.req.param("publicationId"),"publication-status"));
+  app.all('/api/v1/account/attachments',context=>handle(context,null,'attachment-upload'));
+  app.all('/api/v1/account/attachments/:sender/:messageId/:digest',context=>handle(context,null,'attachment-download'));
   app.all("/api/v1/account/connection-messages/targets",context=>handle(context,null,"connection-message-targets"));
   app.all('/api/v1/account/connection-messages/reply-all',context=>handle(context,null,'connection-message-reply-all'));
   app.all("/api/v1/account/connection-messages",context=>handle(context,null,"connection-message-create"));

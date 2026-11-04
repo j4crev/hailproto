@@ -1,3 +1,4 @@
+import {formAttachments} from '$lib/server/attachments.js';
 import {encodePayload} from "@racrproto/codec";
 import {replyBody} from "$lib/reply.js";
 import {parseThread} from "$lib/threads.js";
@@ -41,17 +42,19 @@ const respond=(all:boolean)=>async({params,request,cookies,url}:import("./$types
     const body=replyBody(source,{sender:params.sender,messageId:params.messageId},text);
     if(encodePayload("hail.body.spt-2",body).length>1048576)
       return fail(400,{error:"This reply exceeds the message limit.",messageId:id,text,replyUntil,allowReply});
+    const attachments=await formAttachments(form,client);
+    const outbound=attachments.length?{...body,attachments}:body;
     if(all){
       const shared=original.sharedConversation;
       if(!shared||shared.state!=='active')return fail(409,{error:'Rejoin this conversation before replying to everyone.',messageId:id,text,replyUntil,allowReply});
       const result=await client.request('/connection-messages/reply-all',{publicationId:id,creator:shared.creator,conversationId:shared.conversationId,
-        sender:original.sender,messageId:original.messageId,body});
+        sender:original.sender,messageId:original.messageId,body:outbound});
       if(result.publicationId!==id)throw new Error('Provider acknowledged another reply');
       redirect(303,`/compose?audience=connections&publication=${id}`);
     }
     if(original.kind==="connection"&&!original.connection?.active)
       return fail(409,{error:"This connection is no longer active.",messageId:id,text,replyUntil,allowReply});
-    const result=await client.request("/messages",{messageId:id,body,inReplyTo:{sender:original.sender,messageId:original.messageId},
+    const result=await client.request("/messages",{messageId:id,body:outbound,inReplyTo:{sender:original.sender,messageId:original.messageId},
       ...(original.kind==="connection"?{connectionId:original.connection!.id,connectionEpoch:original.connection!.epoch,recipientDid:original.sender}:
         {replyTo:original.messageId,...(allowReply?{replyUntil}:{})})});
     if(result.messageId!==id)throw new Error("Provider acknowledged another message");

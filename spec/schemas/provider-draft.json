@@ -94,6 +94,58 @@
           }
         }
       ]
+    },
+    "attachments": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "filename",
+          "media_type",
+          "size",
+          "digest"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 255,
+            "pattern": "^[^.].*\\.([pP][dD][fF]|[tT][xX][tT]|[lL][oO][gG]|[pP][nN][gG]|[jJ][pP][eE]?[gG]|[wW][eE][bB][pP])$"
+          },
+          "media_type": {
+            "enum": [
+              "application/pdf",
+              "text/plain",
+              "image/png",
+              "image/jpeg",
+              "image/webp"
+            ]
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 26214400
+          },
+          "digest": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "algorithm",
+              "value"
+            ],
+            "properties": {
+              "algorithm": {
+                "const": "sha-256"
+              },
+              "value": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{43}$"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "allOf": [

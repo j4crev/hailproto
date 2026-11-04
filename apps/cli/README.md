@@ -87,3 +87,11 @@ its checksum, extracts it, and exercises help/errors and vault creation/verifica
 with an empty `PATH`. Registry access or a populated Cargo cache is required.
 This proves filesystem isolation and no Bun/Node runtime dependency, not reproducible
 builds or portability to every Linux distribution.
+
+Message file attachments: `send`, `reply`, and `connection send` accept repeated
+`--attachment PATH` flags alongside `--file` and `--state`. Use PNG, JPEG (`.jpg`/`.jpeg`), WebP, PDF, or UTF-8
+TXT/LOG files, at most 20 files totaling 25 MiB per message. The stable retry
+state binds filenames and content digests; retry with the same files and state.
+Attachment bytes upload once per account/digest and the message carries only
+metadata. Read responses include attachment metadata; authenticated downloads
+use the account attachment endpoint described in `spec/attachments.md`.

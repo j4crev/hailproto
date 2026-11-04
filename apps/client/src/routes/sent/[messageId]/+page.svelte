@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Attachments from "$lib/Attachments.svelte";
   import MessageBack from "$lib/MessageBack.svelte";
   import {page} from "$app/state";
   import QuotedMessage from "$lib/QuotedMessage.svelte";
@@ -21,7 +22,7 @@
 <article class="reader-panel overflow-hidden">
   <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line pb-5"><div class="grid min-w-0 gap-1"><span class="text-xs text-muted">To</span><strong class="[overflow-wrap:anywhere]"><ContactAddress owner={data.message.sender} did={data.message.recipient} address={data.message.recipientAddress} /></strong><span class="text-xs text-muted"><DateTime value={data.message.createdAt} /></span>{#if data.message.recipientAddress}<IdentityDetails did={data.message.recipient} />{/if}</div><span class="rounded-full bg-canvas px-3 py-1.5 text-xs font-semibold capitalize" aria-label={`Status: ${data.message.state}`}><DeliveryIcon state={data.message.state} /> {data.message.state}</span>{#if forwardedAttribution(data.message.blocks)}<div class="w-full"><ForwardedPill /></div>{/if}</header>
   <section class="grid gap-3 bg-canvas p-5 text-sm text-muted sm:px-7" aria-label="Delivery details"><p class="m-0">{deliveryDescription(data.message)}</p>{#if data.message.state==='indeterminate'}<form method="POST" action="?/retry"><button class="hail-button">Retry submission</button></form>{/if}{#if form?.error}<p class="hail-error" role="alert">{form.error}</p>{/if}</section>
-  <div class="reading-body"><QuotedMessage blocks={content.blocks} header={data.message.header}/></div>
+  <div class="reading-body"><QuotedMessage blocks={content.blocks} header={data.message.header}/><Attachments files={data.message.attachments} sender={data.message.sender} messageId={data.message.messageId} /></div>
 </article>
 
 <MessageThread peer={{did:data.message.recipient,address:data.message.recipientAddress}} thread={data.thread} unavailable={data.threadUnavailable} selected={data.message}/>

@@ -25,6 +25,7 @@ if required_pattern.sub('', required_source).strip() or not required or not set(
 boolean_source = source.split('let value: String = match name {', 1)[1].split('if inline.is_none()', 1)[0]
 boolean = set(re.findall(r'"([a-z-]+)"', boolean_source)) - {'help', 'version'}
 options = {
+    'attachment': 'Path to a PNG, JPEG, static WebP, PDF, UTF-8 TXT or LOG file. Repeat for up to 20 files totaling 25 MiB per message.',
     'credentials': 'Private API credential file. Reads select this before `RACR_CREDENTIAL_FILE`; signup/login write a new credential here.',
     'provider': 'Canonical HTTPS provider origin. Required for signup/login and offline connection signing; on authenticated commands this asserts the credential origin, never redirects it.',
     'account-id': 'Account UUID assertion checked against the selected credential.',

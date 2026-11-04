@@ -29,6 +29,9 @@
   });
   let title=$state(""),text=$state(""),alt=$state(""),caption=$state(""),preview=$state<string|null>(null);
   let previewOpen=$state(false);
+  let savedAttachments=$state<import("@racrproto/client-support/drafts").DraftContent["attachments"]>([]);
+  let attachmentInput=$state<HTMLInputElement>();
+  $effect(()=>{savedAttachments=data.draft?.content.attachments??[];});
   let headerInput=$state<HTMLInputElement>();
   let coverSummary=$state<HTMLElement>();
   let search=$state("");
@@ -146,7 +149,7 @@
   <form class="compose-layout" method="POST" use:enhance={({submitter})=>{
     saving=submitter?.getAttribute('formaction')==='?/save';sending=true;
     return async({update,result})=>{try{
-      if(result.type==='success'&&result.data?.savedDraft){const saved=parseDraft(result.data.savedDraft);draftRevision=saved.revision;draftIdentity=saved.id;}
+      if(result.type==='success'&&result.data?.savedDraft){const saved=parseDraft(result.data.savedDraft);draftRevision=saved.revision;draftIdentity=saved.id;savedAttachments=saved.content.attachments??[];if(attachmentInput)attachmentInput.value="";}
       await update({reset:false,invalidateAll:false});
     }finally{sending=false;saving=false;}};
   }} action={isConnection?'?/publish&audience=connections':'?/publish'} enctype="multipart/form-data" aria-busy={sending}>
@@ -211,6 +214,12 @@
         </div>
         <section id="compose-preview" hidden={!previewOpen} class="compose-preview" aria-label="Message preview"><div class="preview-byline"><span class="avatar">{data.account.address.slice(0,1).toUpperCase()}</span><span><strong>{data.account.address}</strong><small>{isConnection?"Message preview":"Publication preview"}</small></span></div><div class="mt-5 text-[17px] leading-[1.8] [overflow-wrap:anywhere]">{#if forwarded}<RichText blocks={forwarded.blocks} header={forwarded.header}/>{:else}{#if data.kind==='category'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-contain" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}<RichText {blocks}/>{#if !text&&!title&&!preview}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}{/if}</div></section>
         {#if !isConnection}<label class="reply-setting"><input name="allowReply" type="checkbox" value="yes" bind:checked={allowReply}/>Allow one reply per subscriber, within 7 days</label>{/if}
+        <section aria-label="Attachments">
+          <label for="attachments">Attachments (PNG, JPEG, WebP, PDF, TXT, LOG · 25 MiB total · up to 20 files)</label>
+          <input id="attachments" name="attachment" type="file" accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.log" multiple bind:this={attachmentInput} />
+          <input type="hidden" name="savedAttachments" value={JSON.stringify(savedAttachments)} />
+          {#each savedAttachments??[] as file,i}<p>{file.filename} ({file.size.toLocaleString()} bytes) <button type="button" onclick={()=>savedAttachments=savedAttachments?.filter((_,index)=>index!==i)}>Remove</button></p>{/each}
+        </section>
         <footer class="send-bar"><div><strong>{selected.length>1&&isConnection?'Shared conversation':'Ready when you are'}</strong><span>{isConnection&&search.trim()?'Select a matching connection':canPublish?`To ${destination}`:isConnection?'Choose at least one recipient':'Choose a category with subscribers'}</span></div><button class="hail-button-secondary" type="submit" formaction="?/save" formnovalidate disabled={sending}>{saving?'Saving…':'Save as Draft'}</button><button class="hail-button" disabled={sending||!canPublish||(isConnection&&!!search.trim())||(!data.forward&&!text.trim())}>{sending&&!saving?'Sending…':data.forward?'Forward message':'Send message'}</button></footer>
       </div>
     </div>

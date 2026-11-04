@@ -32,6 +32,32 @@
           "messageId": "019a0000-0000-7000-8000-000000000001"
         }
       }
+    },
+    {
+      "name": "draft-with-log",
+      "content": {
+        "audience": "category",
+        "category": "",
+        "connections": [],
+        "title": "",
+        "text": "",
+        "alt": "",
+        "caption": "",
+        "allowReply": false,
+        "header": null,
+        "forward": null,
+        "attachments": [
+          {
+            "filename": "example.log",
+            "media_type": "text/plain",
+            "size": 18,
+            "digest": {
+              "algorithm": "sha-256",
+              "value": "mPzEekj2Ckxc1rY5BJjQ1es6CaCnekomXKQGjTcqx7E"
+            }
+          }
+        ]
+      }
     }
   ],
   "invalid": [

@@ -1,3 +1,4 @@
+import {parseAttachments} from '@racrproto/client-support/attachments';
 type JsonObject = Record<string, unknown>;
 
 function object(value: unknown, label: string): JsonObject {
@@ -68,6 +69,7 @@ export interface MessageView extends InboxItem {
   category: string | null;
   blocks: MessageBlock[];
   header: MessageImage | null;
+  attachments?: {filename:string;size:number;digest:{value:string}}[];
   paragraphs: string[];
   replyUntil:number|null;
   replyAvailable:boolean;
@@ -131,7 +133,7 @@ export function messageListSummary(message: Pick<MessageView,"blocks"|"paragraph
   return {title, preview: messagePreview({paragraphs: title ? message.paragraphs.slice(1) : message.paragraphs})};
 }
 
-export function parseBody(value: unknown): Pick<MessageView,"blocks"|"header"|"paragraphs"> {
+export function parseBody(value: unknown): Pick<MessageView,"blocks"|"header"|"paragraphs"|"attachments"> {
   const body = object(value, "message body");
   if (body.version !== 1 || !["spt-1","spt-2","spt-3"].includes(body.profile as string) || !Array.isArray(body.blocks)) {
     throw new Error("Unsupported message body");
@@ -184,7 +186,7 @@ export function parseBody(value: unknown): Pick<MessageView,"blocks"|"header"|"p
     if(body.profile==="spt-1"&&(block.style!=="normal"||listItem!==null||block.level!==undefined||block.markDefs.length||spans.some(span=>span.strong||span.emphasis||span.code||span.link)))throw new Error("Unsupported spt-1 extension");
     return { style: block.style as MessageBlock["style"], listItem, level, spans };
   });
-  return {blocks,header,paragraphs:blocks.map(block=>block.spans.map(span=>span.text).join(""))};
+  return {...(body.attachments===undefined?{}:{attachments:parseAttachments(body.attachments)}),blocks,header,paragraphs:blocks.map(block=>block.spans.map(span=>span.text).join(""))};
 }
 
 export function parseMessage(value: unknown): MessageView {
@@ -248,6 +250,7 @@ export function parseMessage(value: unknown): MessageView {
     category: message.category === null ? null : text(message.category, "category"),
     blocks:content.blocks,
     header:content.header,
+    attachments:content.attachments,
     paragraphs:content.paragraphs,
     replyUntil,
     replyAvailable:message.trashedAt == null && message.replyAvailable===true,
