@@ -15,7 +15,7 @@ export async function conversationCases(binary:string,directory:string,provider:
   return json({publicationId:scenario==='wrong-id'?second:body.publicationId,kind:'connections',state:'finished',total:2,targets:[{recipient:did,messageId:id,state:'submitted',delivery:'indeterminate'},{recipient:peer,messageId:second,state:'blocked',delivery:null}],counts:{submitted:1,blocked:1},delivery:{indeterminate:1}});
  });
  let count=0;
- const run=async(args:string[],code=0)=>{const child=Bun.spawn([binary,...args],{env,stdout:'pipe',stderr:'pipe'});const [exit,out,err]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);assert.equal(exit,code,err);count++;return JSON.parse(code?err:out);};
+ const run=async(args:string[],code=0)=>{const child=Bun.spawn([binary,"--json",...args],{env,stdout:'pipe',stderr:'pipe'});const [exit,out,err]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);assert.equal(exit,code,err);count++;return JSON.parse(code?err:out);};
  const file=join(directory,'conversation.txt'),state=join(directory,'conversation.state');await writeFile(file,'Hello group');
  const args=['conversation','reply-all',peer,id,'--file',file,'--state',state];
  scenario='private';assert.equal((await run(args,1)).error.code,'CLIENT_ERROR');assert.equal(writes.length,0);

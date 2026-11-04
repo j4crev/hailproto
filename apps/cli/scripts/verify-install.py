@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix="racr-install-") as directory:
     version = run("--version").stdout.strip()
     assert f'version = "{version}"' in (source / "Cargo.toml").read_text()
     assert "racr" in run("account", "transfer", "--help").stdout
-    error = run("--unknown", expected=1)
+    error = run("--json", "--unknown", expected=1)
     assert json.loads(error.stderr)["error"]["code"] == "USAGE_ERROR"
     vault, recovery = root / "vault.json", root / "secret.txt"
     run("vault", "create", "--vault", str(vault), "--recovery-file", str(recovery))

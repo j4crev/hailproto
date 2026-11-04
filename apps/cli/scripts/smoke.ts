@@ -25,12 +25,12 @@ for (const name of [[], ["account"], ["account", "transfer"], ["message", "statu
 for (const args of [["--unknown"], ["account", "show", "--category", "irrelevant"],
   ["vault", "create", "--grant", "not-authority"], ["inbox", "list", "--pages", "101"],
   ["message", "status", "--interval", "1"], ["--version", "--help"]]) {
-  const result = await run(args);
+  const result = await run(["--json", ...args]);
   assert.equal(result.exit, 1); assert.equal(result.stdout, "");
   const error = JSON.parse(result.stderr);
   assert.equal(error.cliContractVersion, 2); assert.equal(error.error.code, "USAGE_ERROR");
 }
-const missing = await run(["account", "show"]);
+const missing = await run(["--json", "account", "show"]);
 assert.equal(missing.exit, 1); assert.equal(missing.stdout, "");
 assert.equal(JSON.parse(missing.stderr).error.code, "CLIENT_ERROR");
 const directory = await mkdtemp(join(tmpdir(), "racr-smoke-"));

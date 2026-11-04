@@ -36,8 +36,9 @@ must reuse the same arguments and artifacts. The TypeScript CLI has been retired
 its read/output contracts are retained as fixed regression fixtures. Browser vault
 interoperability is checked against independent shared cryptographic helpers.
 
-Results use JSON stdout with `cliContractVersion: 2`; errors use JSON stderr and
-exit status 1. Tokens are redacted. Help/error prose may differ. Private files must
+`doctor` defaults to aligned columns; use `doctor --json` for scripting.
+Other results use JSON stdout with `cliContractVersion: 2`; errors use readable stderr and
+exit status 1. Add `--json` to any command for structured JSON errors. Tokens are redacted. Help/error prose may differ. Private files must
 be regular files without group/other permissions. Non-Unix credential access fails
 closed. Credential expiry metadata requires RFC 3339, the provider's emitted
 format. Browser login launches the system browser with `xdg-open` on Linux.

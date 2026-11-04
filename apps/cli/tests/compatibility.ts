@@ -120,7 +120,7 @@ try {
       args = args.map(a=>a==="$OUTPUT"?output:a);
     }
     const started = performance.now();
-    const child = Bun.spawn([...command, ...args], { env: {...env, ...(publicCheck ? {RACR_CREDENTIAL_FILE:""} : {})}, stdout: "pipe", stderr: "pipe" });
+    const child = Bun.spawn([...command, "--json", ...args], { env: {...env, ...(publicCheck ? {RACR_CREDENTIAL_FILE:""} : {})}, stdout: "pipe", stderr: "pipe" });
     let signalTimer: ReturnType<typeof setTimeout> | undefined;
     const watchdog = setTimeout(() => child.kill("SIGKILL"), 8000);
     requestObserver = () => {

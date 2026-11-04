@@ -14,11 +14,22 @@ of the `hail.*` federation objects or the `hail.user-vault` encrypted key format
 
 ## Output and compatibility
 
-- Successful operations emit one JSON object and newline on stdout, adding
+- Except for the default human-readable `doctor` report, successful operations emit one JSON object and newline on stdout, adding
   `cliContractVersion: 2` to the existing command-specific fields. No wrapper
   moves existing fields. Help is human-readable text; `--version` prints only
   the package version and newline. These commands need no credentials/network.
-- Failures emit one JSON object on stderr with `cliContractVersion: 2` and
+- `doctor` defaults to aligned columns with Provider, Account and Blockers sections.
+  Use `doctor --json` for the contract-v2 JSON report (including in scripts that
+  previously parsed the default output). Headings are bold only on a terminal
+  with a non-dumb `TERM` and no `NO_COLOR` environment variable. Report generation
+  still exits 0 even when blockers are present. This is client presentation only;
+  provider APIs and protocol formats are unchanged.
+- Failures default to readable stderr: an error heading, code, message, and any
+  HTTP status/retry metadata. Styling uses stderr terminal detection with the same
+  `NO_COLOR`/`TERM` rules as doctor. Add `--json` to any command (before `--`)
+  for structured errors, including argument parsing failures. Scripts that parse
+  stderr must now opt in with `--json`.
+- With `--json`, failures emit one JSON object on stderr with `cliContractVersion: 2` and
   `error: {code, message}`; stdout is empty. Exit status is 0 on success and 1
   on failure. Hidden secret prompts use stderr, never stdout. Protected stdin
   remains supported for automation; secret input never changes signing role.
