@@ -6,7 +6,6 @@
   "exports": {
     "./core": "./src/core.ts",
     "./schema": "./src/schema.ts",
-    "./storage": "./src/storage.ts",
     "./renderer": "./src/Renderer.svelte",
     "./rendering": "./src/rendering.ts",
     "./svelte": "./src/Builder.svelte",

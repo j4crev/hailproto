@@ -38,7 +38,7 @@ API for this pinned release.
 | Decorators | strong, em, code | Same configured names; combinations preserved |
 | Annotation | `spt.link`, block-local key, href, optional title | Conventional `link`, same key/href/title; strict HTTPS/credential rules on import/export |
 | Lists | bullet/number, optional level 1–3 | Same names and levels; omitted level equivalent to 1 |
-| Block/span identity | Wire schemas forbid `_key` | Generated stable editor keys; retained during editing/local recovery, regenerated on a fresh body load |
+| Block/span identity | Wire schemas forbid `_key` | Generated stable editor keys; retained during editing, regenerated on a fresh body load |
 | Annotation identity | Required `_key`, referenced by marks | Preserved; changing both key and references is semantically equivalent |
 | Image | First `spt.image`, local asset ID, alt/caption | Custom `hailImage` object, local asset ID, alt/caption plus paired bundle |
 | Asset | Bundled digest-verified PNG manifest | Asset metadata **and bytes** travel in the bundle; not a CDN URL or fabricated Sanity asset reference |
@@ -72,9 +72,9 @@ unknown/custom types, invalid links, keys/levels/marks, excessive content, damag
 PNG chunks and digest mismatch. Unsupported constructs are rejected with field
 paths, not silently stripped or downgraded.
 
-The independent browser harness imports this fixture plus an asset, loads it into
+The independent browser harness loads this fixture plus an asset, loads it into
 the official editor, edits/saves/reloads it, checks semantic equality, undo/redo,
-reordering, local recovery, conflicting host revisions, narrow layouts and image
+reordering, explicit saves of unfinished headers, conflicting host revisions, narrow layouts and image
 fallback. It records all network requests and rejects sender-controlled origins.
 The web client's acceptance tests separately prove direct publication handoff and
 rich draft save/resume. The shared renderer is used for both preview and received
@@ -92,10 +92,10 @@ No backend asset acquisition is performed automatically.
 ## Remaining validation and limits
 
 Automated Chromium tests exercise focusable buttons, actual text entry, undo/redo,
-recovery and responsive layout. Human screen-reader, touch, IME and cross-browser
+save/reload and responsive layout. Human screen-reader, touch, IME and cross-browser
 usability evaluation remains necessary before making broader accessibility claims.
 Header operations use separate form state, not the text editor's history.
-Local recovery is device-local and can fail due to storage availability/quota;
-failures remain visible and export stays available. Host CAS remains mandatory.
+Saving is explicit; there is no recovery copy or unsaved-change warning.
+Host save failures remain visible and host CAS remains mandatory.
 No protocol vocabulary expansion, HTML newsletter conversion, remote asset import,
 collaboration or production rollout is included.

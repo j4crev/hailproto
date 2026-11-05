@@ -7,25 +7,21 @@
   import { composeBlocks,formatLines } from "$lib/compose.js";
   import {parseBody} from "$lib/messages.js";
   import Builder from '@racrproto/content-builder/svelte';
-  import {emptyBody,validateBody,plainText,type BuilderDraft} from '@racrproto/content-builder/core';
-  let rich=$state(false),richDraft=$state<BuilderDraft|null>(null),richInitial=$state<BuilderDraft>({version:1,body:emptyBody()});
-  function startBuilder(){
-    richInitial={version:1,body:validateBody({version:1,profile:'spt-2',blocks:composeBlocks(title,text)})};
-    richDraft=richInitial;rich=true;title='';text='';
-  }
+  import {emptyBody,plainText,type BuilderDraft} from '@racrproto/content-builder/core';
+  let {data,form}=$props();
+  let rich=$state(untrack(()=>!!data.builderInitial)),richInvalid=$state(false),richDraft=$state<BuilderDraft|null>(untrack(()=>data.builderInitial)),richInitial=$state<BuilderDraft>(untrack(()=>data.builderInitial??{version:1,body:emptyBody()}));
   import RichText from "$lib/RichText.svelte";
   import Icon from "$lib/Icon.svelte";
-  let {data,form}=$props();
   let draftRevision=$state(untrack(()=>data.draft?.revision??0)),draftIdentity=$state(untrack(()=>data.newPublicationId)),savedHeader=$state<string|null>(null);
   let saving=$state(false);
   $effect(()=>{
     const draft=data.draft;
-    rich=!!draft?.content.builder;richInitial=draft?.content.builder??{version:1,body:emptyBody()};richDraft=draft?.content.builder??null;
+    rich=!!data.builderInitial;richInitial=data.builderInitial??{version:1,body:emptyBody()};richDraft=data.builderInitial;richInvalid=false;
     draftIdentity=data.newPublicationId;draftRevision=draft?.revision??0;
     title=draft?.content.title??'';text=draft?.content.text??'';alt=draft?.content.alt??'';caption=draft?.content.caption??'';
     allowReply=draft?.content.allowReply??false;category=draft?.content.category??'';categoryQuery=categoryLabel(draft?.content.category??'');
     selected=draft?.content.connections??(data.defaultConnection?[data.defaultConnection]:[]);
-    savedHeader=draft?.content.header??null;preview=draft?.content.header?'data:image/png;base64,'+draft.content.header.replace(/-/g,'+').replace(/_/g,'/'):null;
+    savedHeader=data.builderInitial?null:draft?.content.header??null;preview=draft?.content.header?'data:image/png;base64,'+draft.content.header.replace(/-/g,'+').replace(/_/g,'/'):null;
   });
   let sentToast=$state(false);
   const sentPublication=$derived(!form?.error ? data.status?.publicationId : null);
@@ -84,6 +80,7 @@
   let retryPublication=$derived(form&&"publicationId" in form&&typeof form.publicationId==="string"?form.publicationId:null);
   const batchUrl=(id:string)=>`/compose?${data.kind==='connections'?'audience=connections&':''}publication=${id}`;
   let forwarded=$derived(data.forward?parseBody(forwardBody(data.forward,text)):null);
+  const richPreview=$derived(richDraft&&!richInvalid?parseBody(richDraft.body):null);
   let blocks=$derived(parseBody({version:1,profile:"spt-2",blocks:composeBlocks(title,text)}).blocks);
   $effect(()=>{
     if(data.kind==='connections'){
@@ -152,6 +149,7 @@
     {#if !data.forward}<nav class="audience-switch" aria-label="Compose audience"><a href="/compose?audience=connections" aria-current={isConnection?'page':undefined}><Icon name="chat" size={17}/>Connections</a><a href="/compose" aria-current={!isConnection?'page':undefined}><Icon name="feed" size={17}/>Subscribers</a></nav>{/if}
   </header>
   <div role="status" aria-atomic="true">{#if sentToast}<div class="hail-success-toast"><Icon name="check"/><span>Message sent.</span></div>{/if}</div>
+  {#if data.builderFallback}<p role="status">This draft could not be opened in the new editor. You can continue editing it here; its original content has been preserved.</p>{/if}
   {#if form?.error}<div class="mb-5"><p class="hail-error" role="alert">{form.error}</p>{#if retryPublication}<a class="hail-back mt-2" href={batchUrl(retryPublication)}>Check original {isConnection?'message batch':'publication'} status →</a>{/if}</div>{/if}
   {#if form && 'savedDraft' in form && form.savedDraft}<p role="status">Draft saved. <a href="/drafts">View drafts</a></p>{/if}
   <form class="compose-layout grid grid-cols-[minmax(0,1fr)] max-w-[900px] mx-auto" method="POST" use:enhance={({submitter})=>{
@@ -168,7 +166,7 @@
     <input type="hidden" name="audience" value={data.kind}/>
     {#if data.forward}<input type="hidden" name="forwardSender" value={data.forward.message.sender}/><input type="hidden" name="forwardMessage" value={data.forward.message.messageId}/>{/if}
     <div class="writing-workspace min-w-0">
-      <div class="builder-entry">{#if !data.forward&&!rich}<button type="button" class="hail-button-secondary" disabled={!!preview} onclick={startBuilder}>Open content builder</button>{/if}</div><div class="editor-topline">{#if !rich}<button class="preview-toggle flex gap-[7px] items-center [background:none] [border:0] text-brand-strong p-[8px] cursor-pointer text-[12px] font-[600]" type="button" aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={16}/>{previewOpen?'Back to writing':'Preview'}</button>{/if}</div>
+      <div class="editor-topline"><button class="preview-toggle flex gap-[7px] items-center [background:none] [border:0] text-brand-strong p-[8px] cursor-pointer text-[12px] font-[600]" type="button" aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={16}/>{previewOpen?'Back to writing':'Preview'}</button></div>
       <div class="writing-card [border:1px_solid_var(--color-line)] rounded-[18px] [box-shadow:0_12px_40px_#00000004] overflow-hidden [background:var(--color-surface)]">
         {#if isConnection}
           {#each selected as id}<input type="hidden" name="connection" value={id}/>{/each}
@@ -212,7 +210,7 @@
         {/if}
         <div class="sender-line"><span>From</span><strong>{data.account.address}</strong></div>
         {#if rich}
-          {#key draftIdentity}<div class="p-5"><Builder initial={richInitial} profiles={isConnection?['spt-2']:['spt-2','spt-3']} storageKey={`${data.account.did}:${data.kind}:${data.draft?.id??'new'}`} revision={draftRevision} onchange={value=>richDraft=value}/></div>{/key}
+          {#key draftIdentity}<div class="builder-editor p-5" hidden={previewOpen}><Builder showPreview={false} initial={richInitial} profiles={isConnection?['spt-2']:['spt-2','spt-3']} onchange={(value,issues)=>{richDraft=value;richInvalid=issues.length>0;}}/></div>{/key}
         {:else}
         <div class="editor-content" hidden={previewOpen}>
           {#if data.forward}<div class="forward-notice"><Icon name="forward"/><p>The original message and sender details will appear below your note.</p></div>{:else}
@@ -225,7 +223,7 @@
           <div class="editor-meta"><span>{wordCount} word{wordCount===1?'':'s'}</span></div>
         </div>
         {/if}
-        <section id="compose-preview" hidden={!previewOpen||rich} class="compose-preview" aria-label="Message preview"><div class="preview-byline"><span class="avatar">{data.account.address.slice(0,1).toUpperCase()}</span><span><strong>{data.account.address}</strong><small>{isConnection?"Message preview":"Publication preview"}</small></span></div><div class="mt-5 text-[17px] leading-[1.8] [overflow-wrap:anywhere]">{#if forwarded}<RichText blocks={forwarded.blocks} header={forwarded.header}/>{:else}{#if data.kind==='category'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-contain" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}<RichText {blocks}/>{#if !text&&!title&&!preview}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}{/if}</div></section>
+        <section id="compose-preview" hidden={!previewOpen} class="compose-preview" aria-label="Message preview"><div class="preview-byline"><span class="avatar">{data.account.address.slice(0,1).toUpperCase()}</span><span><strong>{data.account.address}</strong><small>{isConnection?"Message preview":"Publication preview"}</small></span></div><div class="mt-5 text-[17px] leading-[1.8] [overflow-wrap:anywhere]">{#if rich}{#if richPreview}<RichText blocks={richPreview.blocks} header={richPreview.header}/>{:else}<p>Complete the image description and fix any validation errors to preview your message.</p>{/if}{:else if forwarded}<RichText blocks={forwarded.blocks} header={forwarded.header}/>{:else}{#if data.kind==='category'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-contain" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}<RichText {blocks}/>{#if !text&&!title&&!preview}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}{/if}</div></section>
         {#if !isConnection}<label class="reply-setting"><input name="allowReply" type="checkbox" value="yes" bind:checked={allowReply}/>Allow one reply per subscriber, within 7 days</label>{/if}
         <section aria-label="Attachments" class="grid min-w-0 justify-items-start gap-2 px-[28px] py-[20px] [@media(max-width:760px)]:px-[20px]">
           <label for="attachments">Attachments</label>
@@ -238,13 +236,13 @@
           <div class="grid min-w-0 flex-[1_1_220px] gap-[5px] [overflow-wrap:anywhere]"><strong>{selected.length>1&&isConnection?'Shared conversation':'Ready when you are'}</strong><span>{isConnection&&search.trim()?'Select a matching connection':canPublish?`To ${destination}`:isConnection?'Choose at least one recipient':'Choose a category with subscribers'}</span></div>
           <div class="grid min-w-0 flex-[1_1_300px] grid-cols-2 gap-[12px]">
             <button class="hail-button-secondary min-w-0" type="submit" formaction="?/save" formnovalidate disabled={sending||(rich&&!richDraft)}>{saving?'Saving…':'Save as Draft'}</button>
-            <button class="hail-button min-w-0" disabled={sending||!canPublish||(isConnection&&!!search.trim())||(rich?(!richDraft||!plainText(richDraft.body).trim()):(!data.forward&&!text.trim()))}>{sending&&!saving?'Sending…':data.forward?'Forward message':'Send message'}</button>
+            <button class="hail-button min-w-0" disabled={sending||!canPublish||(isConnection&&!!search.trim())||(rich?(richInvalid||!richDraft||!plainText(richDraft.body).trim()):(!data.forward&&!text.trim()))}>{sending&&!saving?'Sending…':data.forward?'Forward message':'Send message'}</button>
           </div>
         </footer>
       </div>
     </div>
   </form>
-  {#if !rich}<button class="mobile-floating-action" type="button" aria-label={previewOpen?'Back to writing':'Preview'} title={previewOpen?'Back to writing':'Preview'} aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={24}/></button>{/if}
+  <button class="mobile-floating-action" type="button" aria-label={previewOpen?'Back to writing':'Preview'} title={previewOpen?'Back to writing':'Preview'} aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={24}/></button>
 </div>
 
 <style lang="postcss">
@@ -285,7 +283,7 @@
   }
   .recipient-chip :global(svg) { @apply shrink-0; }
   .editor-content { @apply p-[28px]; }
-  .editor-content[hidden],.compose-preview[hidden] { @apply hidden; }
+  .builder-editor[hidden],.editor-content[hidden],.compose-preview[hidden] { @apply hidden; }
   .title-field input {
     @apply w-full [border:0] rounded-none [padding:16px_0_24px] [background:transparent];
     font: 400 clamp(25px,2.7vw,36px)/1.25 Georgia,serif;
@@ -297,7 +295,7 @@
   .cover-control summary { @apply flex items-center gap-[9px] p-[13px] cursor-pointer text-[12px] text-muted; }
   .cover-control summary>span { @apply ml-auto text-[10px]; }
   .format-toolbar { @apply flex items-center flex-wrap gap-[2px] p-[5px] [border-block:1px_solid_var(--color-line)] [background:var(--color-canvas)]; }
-  .format-toolbar button { @apply [border:0] [background:transparent] p-[8px] text-[11px] min-h-[36px]; }
+  .format-toolbar button { @apply [border:0] [background:transparent] p-[8px] text-[13px] min-h-[36px]; }
   .format-toolbar button:hover { @apply [background:var(--color-brand-soft)]; }
   textarea { @apply block w-full min-h-[300px] [border:0] rounded-none [padding:22px_0] resize-y [background:transparent] text-[16px] leading-[1.85]; }
   #message-text:focus-visible { @apply [outline:none]; }

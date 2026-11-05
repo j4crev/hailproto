@@ -3,7 +3,6 @@ import {Schema} from '@sanity/schema';
 import {toHTML} from '@portabletext/to-html';
 import {contentSchema} from '../src/schema.js';
 import {fromPortable,toPortable,validateBody,semantics,pngAsset,parseBuilderDraft,assertCapabilities} from '../src/core.js';
-import {BuilderStorage} from '../src/storage.js';
 import fixture from '../fixtures/text.json';
 const text=validateBody(fixture);
 const png=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));
@@ -48,16 +47,6 @@ it('rejects damaged PNGs, digest mismatch, remote references and decomposed imag
   expect(()=>validateBody(body)).not.toThrow();body.blocks[0].alt='e\u0301';expect(()=>validateBody(body)).toThrow();body.blocks[0].alt='One pixel';
   body.assets.assets[0].digest.value='A'.repeat(43);expect(()=>validateBody(body)).toThrow();
 });
-it('serializes local writes, rejects stale revisions and preserves storage on failure',async()=>{
-  let raw:string|null=null,fail=false,tail=Promise.resolve();
-  const storage={getItem:()=>raw,setItem:(_k:string,value:string)=>{if(fail)throw Error('Quota exceeded');raw=value;}};
-  const locks={request:(_key:string,fn:()=>unknown)=>{const next=tail.then(fn);tail=next.then(()=>{},()=>{});return next;}} as unknown as Pick<LockManager,'request'>;
-  const a=new BuilderStorage(storage,locks,'same'),b=new BuilderStorage(storage,locks,'same');
-  const result=await Promise.allSettled([a.save(toPortable(text),0,0),b.save(toPortable(text),0,0)]);
-  expect(result.map(v=>v.status)).toEqual(['fulfilled','rejected']);expect(a.read()?.revision).toBe(1);
-  fail=true;await expect(a.save(toPortable(text),0,1)).rejects.toThrow('Quota');expect(a.read()?.revision).toBe(1);
-});
-
 it('reimports near-limit bodies even when Portable Text editor keys exceed the body JSON budget',()=>{
   const body=validateBody({version:1,profile:'spt-2',blocks:[{_type:'block',style:'normal',markDefs:[],children:Array.from({length:1000},()=>({_type:'span',text:'x'.repeat(315),marks:[]}))}]});
   const bundle=toPortable(body);
@@ -70,4 +59,14 @@ it('defines semantic equivalence for consistent annotation renaming, mark order 
   block.markDefs[0]._key='editor_link';block.children[1].marks=['code','editor_link'];
   const original=block.children[0];block.children.splice(0,1,{...original,text:'Café ',marks:['em','strong']},{...original,_key:'split',text:'日本語\n'});
   expect(semantics(fromPortable(bundle))).toEqual(semantics(text));
+});
+
+it('saves unfinished header descriptions without weakening publication or asset validation',async()=>{
+  const body:any={version:1,profile:'spt-3',assets:{version:1,assets:[await pngAsset(png)]},blocks:[{_type:'spt.image',asset:'header',alt:''},...text.blocks]};
+  expect(parseBuilderDraft({version:1,body}).body).toEqual(body);
+  expect(fromPortable(toPortable(body),{draft:true})).toEqual(body);
+  expect(()=>validateBody(body)).toThrow();
+  expect(()=>fromPortable(toPortable(body))).toThrow();
+  body.assets.assets[0].digest.value='A'.repeat(43);
+  expect(()=>parseBuilderDraft({version:1,body})).toThrow();
 });

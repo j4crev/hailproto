@@ -101,7 +101,7 @@ is a provisional design target, not a protocol requirement or fixed release gate
   panels as needed rather than requiring all three to remain open.
 - Include insertion, duplication, deletion, and reordering with keyboard controls
   as well as pointer interactions. Drag-and-drop must not be the only method.
-- Provide undo/redo, autosave status, recovery after reload, clear validation
+- Provide undo/redo, explicit Save as Draft, clear validation
   errors, and an explicit handoff to the host's publication flow.
 - Preview narrow and wide recipient layouts, light/dark themes, and images
   unavailable. Preview uses the recipient renderer, not an unrelated template.
@@ -263,7 +263,7 @@ Do not add a new primitive merely to reproduce an email's rendering workaround.
   type, with pinned upstream test versions and intentional upgrade review.
 - Test malicious links, escaped text, unsupported fields, excessive nesting,
   oversized images, malformed assets, and zero rendering-time remote fetches.
-- Test draft revision conflicts, failed saves, reload recovery, undo/reorder,
+- Test draft revision conflicts, failed saves, saved draft reload, undo/reorder,
   narrow preview, keyboard use, and actual host publication acceptance.
 - Test preview/recipient semantic parity and body verification independently.
   Rendering can adapt to client preferences; signed bytes cannot be rewritten.

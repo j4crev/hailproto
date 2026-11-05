@@ -249,6 +249,54 @@
           }
         }
       }
+    },
+    {
+      "name": "builder-unfinished-header-description",
+      "content": {
+        "audience": "category",
+        "category": "",
+        "connections": [],
+        "title": "",
+        "text": "",
+        "alt": "",
+        "caption": "",
+        "allowReply": false,
+        "header": null,
+        "forward": null,
+        "builder": {
+          "version": 1,
+          "body": {
+            "version": 1,
+            "profile": "spt-3",
+            "blocks": [
+              {
+                "_type": "spt.image",
+                "asset": "header",
+                "alt": ""
+              }
+            ],
+            "assets": {
+              "version": 1,
+              "assets": [
+                {
+                  "id": "header",
+                  "role": "header",
+                  "media_type": "image/png",
+                  "loading": "bundled",
+                  "size": 68,
+                  "digest": {
+                    "algorithm": "sha-256",
+                    "value": "QxztaRaiohoVbjhwGv5Vu9f4iWn7v8Vtf-CZ1H8mVGA"
+                  },
+                  "width": 1,
+                  "height": 1,
+                  "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk-A8AAQUBAScY42YAAAAASUVORK5CYII"
+                }
+              ]
+            }
+          }
+        }
+      }
     }
   ],
   "invalid": [
