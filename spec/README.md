@@ -191,5 +191,9 @@ not a federation requirement or a change to the portable account-history format.
 The reference-provider draft inventory also includes optional **builder draft v1**
 (`{version:1, body}`), documented in [provider drafts](provider-drafts.md) and its
 [schema](schemas/content-builder-draft.json). This is editable provider-local state,
-not a new SPT profile. Portable Text interchange and editor integration are client
+not a new SPT profile. Builder drafts permit unfinished header descriptions; sending
+still requires a complete body. New messages use the builder by default; supported
+older drafts convert on load without a storage write. Explicit Save as Draft persists
+the edited representation.
+Portable Text interchange and editor integration are client
 contracts documented in the [builder compatibility inventory](../packages/hail-content-builder/COMPATIBILITY.md).

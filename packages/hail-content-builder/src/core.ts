@@ -27,10 +27,24 @@ export function validateBody(value:unknown):BuilderBody {
   encodePayload(type,fromDiagnosticJson(type,v as DiagnosticJson));
   return JSON.parse(JSON.stringify(v)) as BuilderBody;
 }
+/** Drafts may retain an empty header description; published bodies may not. */
+export function validateDraftBody(value:unknown):BuilderBody {
+  budget(value);
+  const candidate=JSON.parse(JSON.stringify(object(value,'body')));
+  const first=Array.isArray(candidate.blocks)?candidate.blocks[0]:undefined;
+  if(candidate.profile==='spt-3'&&first?._type==='spt.image'&&first.alt===''){
+    // Validate every other field through the codec, then preserve the unfinished value.
+    first.alt='x';
+    const body=validateBody(candidate);
+    if(body.profile==='spt-3')body.blocks[0].alt='';
+    return body;
+  }
+  return validateBody(value);
+}
 export function parseBuilderDraft(value:unknown):BuilderDraft {
   const v=object(value,'builder');fields(v,['version','body'],'builder');
   if(v.version!==1)throw new Error('builder.version: unsupported draft version');
-  return {version:1,body:validateBody(v.body)};
+  return {version:1,body:validateDraftBody(v.body)};
 }
 export function diagnostics(error:unknown):Diagnostic[] {
   const e=error as {path?:string;code?:string;message?:string};
@@ -42,13 +56,13 @@ export function assertCapabilities(body:BuilderBody,profiles:readonly string[]){
   if(!profiles.includes(body.profile))throw new Error(`Host does not support ${body.profile}. Remove the header or choose a supporting host.`);
 }
 export function toPortable(body:BuilderBody):PortableBundle {
-  const valid=validateBody(body);
+  const valid=validateDraftBody(body);
   return {version:1,assets:valid.profile==='spt-3'?structuredClone(valid.assets.assets):[],blocks:valid.blocks.map((block,index)=>{
     if(block._type==='spt.image')return {...block,_type:'hailImage',_key:`b${index}`};
     return {...block,_key:`b${index}`,children:block.children.map((span,i)=>({...span,_key:`s${i}`})),markDefs:block.markDefs.map(def=>({...def,_type:'link'}))};
   })};
 }
-export function fromPortable(value:unknown):BuilderBody {
+export function fromPortable(value:unknown,options:{draft?:boolean}={}):BuilderBody {
   budget(value,1000000);
   const bundle=object(value,'bundle');fields(bundle,['version','blocks','assets'],'bundle');
   if(bundle.version!==1||!Array.isArray(bundle.blocks)||!Array.isArray(bundle.assets))throw new Error('Expected a version 1 Portable Text bundle with blocks and bundled assets');
@@ -75,7 +89,7 @@ export function fromPortable(value:unknown):BuilderBody {
     });
     const {_key,...block}=v;return {...block,children,markDefs};
   });
-  return validateBody(bundle.assets.length?{version:1,profile:'spt-3',blocks,assets:{version:1,assets:bundle.assets}}:{version:1,profile:'spt-2',blocks});
+  return (options.draft?validateDraftBody:validateBody)(bundle.assets.length?{version:1,profile:'spt-3',blocks,assets:{version:1,assets:bundle.assets}}:{version:1,profile:'spt-2',blocks});
 }
 export async function pngAsset(data:Uint8Array):Promise<HeaderAsset> {
   if(data.length>196608)throw new Error('Choose a PNG up to 192 KiB.');

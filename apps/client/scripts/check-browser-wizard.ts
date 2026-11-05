@@ -418,6 +418,17 @@ try{
   const noPrematureSignIn=async()=>assert(await evaluate(`![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Sign in and finish')`),"Sign-in offered before confirmed passkey enrollment");
   const click=async(text:string)=>{await wait(async()=>evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')??b.textContent.trim())===${JSON.stringify(text)}&&!b.disabled)`),"button: "+text);
     await evaluate(`[...document.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')??b.textContent.trim())===${JSON.stringify(text)}&&!b.disabled).click()`);};
+  const writeMessage=async(text:string)=>{
+    await wait(()=>evaluate(`!!document.querySelector('[contenteditable=true]')`),'default content editor');
+    await evaluate(`(()=>{const e=document.querySelector('[contenteditable=true]');e.focus();const r=document.createRange();r.selectNodeContents(e);const s=getSelection();s.removeAllRanges();s.addRange(r);})()`);
+    await cdp('Input.insertText',{text});
+  };
+  const blockStyle=async(value:string)=>evaluate(`(()=>{const e=document.querySelector('select[aria-label="Block style"]');e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  const addBlock=async(text:string,style='normal',list?:'Bullets'|'Numbered',bold=false)=>{
+    await evaluate(`document.querySelector('.builder-more summary').click()`);await click('Add paragraph');
+    await blockStyle(style);if(list)await click(list);if(bold)await click('Bold');
+    await cdp('Input.insertText',{text});if(bold)await click('Bold');
+  };
   const fill=async(label:string,value:string)=>evaluate(`(()=>{const e=[...document.querySelectorAll('label')].find(l=>l.textContent.startsWith(${JSON.stringify(label)})).querySelector('input');e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   async function file(label:string,path:string){const {root}=await cdp("DOM.getDocument"),{nodeId}=await cdp("DOM.querySelector",{nodeId:root.nodeId,selector:`input[type=file][data-proof="${label}"]`});assert(nodeId);await cdp("DOM.setFileInputFiles",{nodeId,files:[path]});}
   const upload=async(label:string,path:string)=>{await evaluate(`(()=>{const e=[...document.querySelectorAll('label')].find(l=>l.textContent.startsWith(${JSON.stringify(label)})).querySelector('input');e.dataset.proof='upload';})()`);await file("upload",path);};
@@ -866,20 +877,22 @@ try{
   await click("Continue");await wait(()=>has("Test sender"),"QR and typed address share the same review");
   await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>evaluate("!!document.querySelector('#category-search')"),"publisher styling");
   await selectedAudience("Subscribers");
-  assert.deepEqual(await styles('[aria-label="Bold"]',["backgroundColor","paddingTop","borderTopWidth"]),["rgba(0, 0, 0, 0)","8px","0px"]);
+  await wait(()=>evaluate(`!!document.querySelector('[aria-label="Bold"]')`),'editor toolbar ready');
+  assert.deepEqual(await styles('[aria-label="Bold"]',["backgroundColor","paddingTop","borderTopWidth"]),["rgba(0, 0, 0, 0)","6px","0px"]);
   assert(await evaluate(`document.querySelector('#compose-preview').hidden`),'Composer starts with full writing space');
   await click('Preview');
   assert(await evaluate(`!document.querySelector('#compose-preview').hidden`),'Preview toggle exposes the safe renderer');
   assert(await evaluate("document.documentElement.scrollWidth<=innerWidth"),"Composer overflows viewport");
   await click('Back to writing');
-  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='A clear message';e.dispatchEvent(new Event('input',{bubbles:true}));e.setSelectionRange(2,7);})()`);
-  await evaluate(`document.querySelector('[aria-label="Bold"]').click()`);
+  await writeMessage('A ');await click('Bold');
+  await cdp('Input.insertText',{text:'clear'});await click('Bold');
+  await cdp('Input.insertText',{text:' message'});
   await click('Preview');
   await wait(async()=>evaluate(`Array.from(document.querySelectorAll('[aria-label="Message preview"] span')).some(span=>span.textContent==='clear'&&Number(getComputedStyle(span).fontWeight)>=700)`),"formatting stays visible in preview");
-  for(const [button,selector] of [["Heading","h2"],["Quote","blockquote"],["Bullets","ul li"],["Numbered list","ol li"]]){
-    await click('Back to writing');await click(button);await click('Preview');await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] ${selector}')?.textContent==='A clear message'`),"block toolbar: "+button);
+  for(const [button,selector] of [["h2","h2"],["blockquote","blockquote"],["Bullets","ul li"],["Numbered","ol li"]]){
+    await click('Back to writing');if(button==='h2'||button==='blockquote')await blockStyle(button);else await click(button);await click('Preview');await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] ${selector}')?.textContent==='A clear message'`),"block toolbar: "+button);
   }
-  assert(await evaluate(`!document.querySelector('input[name=mode]') && !!document.querySelector('[aria-label="Text formatting"]')`),'Rich formatting is always available');
+  assert(await evaluate(`!document.querySelector('input[name=mode]') && !!document.querySelector('[aria-label="Rich text formatting"]')`),'Rich formatting is always available');
   // Publish a local-fixture incoming Grant, then submit the real native composer form.
   const payload:HailGrant={...permissionPayload(sendingGrantId),grantor:peerDid,grantee:did!,key_id:peerDid+"#hail-identity",
     consent_context:{...permissionPayload(sendingGrantId).consent_context,grantee_address:prepared.address}};
@@ -895,12 +908,14 @@ try{
   await pointer(optionPoint.x,optionPoint.y);
   await wait(async()=>evaluate(`document.querySelector('input[name=category]').value==='general'`),'explicit category selection');
   assert(await evaluate(`!document.querySelector('select[name=target]') && !document.querySelector('input[name=grantId]')`),"Publisher must not select individual subscription recipients");
-  const richText="## Highlights\n- **First**\n- Second\n1. Number one\n2. Number two\n> A quote\n\n<img src=x onerror=alert(1)>";
-  await fill("Title","Release notes");
-  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value=${JSON.stringify(richText)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await writeMessage('Release notes');await blockStyle('h1');
+  await addBlock('Highlights','h2');
+  await addBlock('First','normal','Bullets',true);await addBlock('Second','normal','Bullets');
+  await addBlock('Number one','normal','Numbered');await addBlock('Number two','normal','Numbered');
+  await addBlock('A quote','blockquote');await addBlock('<img src=x onerror=alert(1)>');
   await click("Preview");
   await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] h1')?.textContent==='Release notes' && document.querySelectorAll('[aria-label="Message preview"] ul li').length===2 && document.querySelectorAll('[aria-label="Message preview"] ol li').length===2`),"rich message preview");
-  assert(await evaluate(`!!document.querySelector('input[name="header"]')`),"Subscriber composer retains header images");
+  assert(await evaluate(`!!document.querySelector('input[aria-label="Header PNG"]')`),"Subscriber composer retains header images");
   const rendered=async(selector:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});return {headings:[...e.querySelectorAll('h1,h2,h3')].map(n=>n.textContent),bullets:[...e.querySelectorAll('ul li')].map(n=>n.textContent),numbered:[...e.querySelectorAll('ol li')].map(n=>n.textContent),quote:e.querySelector('blockquote')?.textContent,images:e.querySelectorAll('img').length,text:e.innerText.includes('<img src=x onerror=alert(1)>')};})()`);
   const previewContent=await rendered('[aria-label="Message preview"]');
   assert.deepEqual(previewContent,{headings:["Release notes","Highlights"],bullets:["First","Second"],numbered:["Number one","Number two"],quote:"A quote",images:0,text:true});
@@ -1014,7 +1029,7 @@ try{
   assert(!personalConnection);await click("Add connection");await wait(()=>has("Connection saved"),"one click confirms mutual connection");
   await cdp('Page.navigate',{url:origin+'/compose?audience=connections'});await wait(()=>evaluate("!!document.querySelector('#recipient-search')"),'connection composer uses existing editor');
   await selectedAudience("Connections");
-  assert(await evaluate(`!document.querySelector('input[name="header"]') && !document.querySelector('input[name="alt"]')`),"Connection composer has no new header-image controls");
+  assert(await evaluate(`!document.querySelector('input[aria-label="Header PNG"]') && !document.querySelector('input[name="alt"]')`),"Connection composer has no new header-image controls");
   await evaluate(`document.querySelector('#recipient-search').focus()`);
   await wait(async()=>evaluate(`document.querySelectorAll('.recipient-option').length===2`),'connection recipient picker');
   assert(!await evaluate(`!!document.querySelector('select[name="category"]')||!!document.querySelector('input[name="allowReply"]')`));
@@ -1023,9 +1038,9 @@ try{
   await evaluate(`document.querySelector('.recipient-option').click()`);
   await wait(async()=>evaluate(`document.querySelectorAll('.recipient-chip').length===2`),'multiple recipients selected');
   assert(await evaluate(`!document.querySelector('input[name=delivery]')`));
-  await evaluate(`(()=>{const e=document.querySelector('textarea[name=text]');e.value='Personal message to chosen connections';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);await click('Send message');
+  await writeMessage('Personal message to chosen connections');await click('Send message');
   await wait(()=>has('Message batch not confirmed'),'ambiguous connection acceptance retains the original intent');
-  assert(await evaluate(`document.querySelector('textarea[name=text]').value==='Personal message to chosen connections'&&document.querySelectorAll('.recipient-chip').length===2`),'Connection retry must retain body and recipients');
+  assert(await evaluate(`document.querySelector('[contenteditable=true]').textContent==='Personal message to chosen connections'&&document.querySelectorAll('.recipient-chip').length===2`),'Connection retry must retain body and recipients');
   assert(await evaluate(`!document.querySelector('input[name=delivery]')`));
   assert(!await has('Message sent.'),'Lost acceptance response must not show success');
   await click('Send message');await wait(()=>has('Message sent.'),'provider accepted connection message before delivery');

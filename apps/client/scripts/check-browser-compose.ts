@@ -7,7 +7,7 @@ const fixturePort=reserve.port!;reserve.stop(true);
 const fixture=Bun.spawn(['bun','scripts/preview-design.ts'],{cwd:new URL('..',import.meta.url).pathname,env:{...process.env,HAIL_DESIGN_PORT:String(fixturePort),HAIL_DESIGN_SENT_AUDIENCES:"1",HAIL_DESIGN_EXTRA_REPLIES:sharedMode?"0":"35",HAIL_DESIGN_SHARED_CONVERSATIONS:sharedMode?"1":"0"},stdout:'ignore',stderr:'inherit'});
 const chrome=Bun.spawn([process.env.CHROMIUM??'chromium','--headless','--disable-gpu','--disable-background-networking','--no-first-run','--no-default-browser-check','--remote-debugging-port=0',`--user-data-dir=${work}`,'about:blank'],{stdout:'ignore',stderr:'ignore'});
 let socket:WebSocket|undefined;
-const wait=async(fn:()=>Promise<any>)=>{for(let n=0;n<150;n++){if(await fn())return;await Bun.sleep(100);}throw new Error('Timed out');};
+const wait=async(fn:()=>Promise<any>)=>{for(let n=0;n<150;n++){if(await fn())return;await Bun.sleep(100);}throw new Error('Timed out: '+String(fn));};
 try{
 let port='';await wait(async()=>{try{port=(await readFile(work+'/DevToolsActivePort','utf8')).split('\n')[0];return port;}catch{return false;}});
 const targets=await(await fetch(`http://127.0.0.1:${port}/json/list`)).json();socket=new WebSocket(targets.find((t:any)=>t.type==='page').webSocketDebuggerUrl);
@@ -25,6 +25,13 @@ async function navigate(path:string){
  await wait(async()=>evaluate(`!!document.querySelector('form.compose-layout') && document.readyState==='complete' && getComputedStyle(document.body).fontFamily.includes('Inter')`));
  await evaluate('document.fonts.ready');
 }
+
+async function writeMessage(text:string){
+  await wait(()=>evaluate(`!!document.querySelector('[contenteditable=true]')`));
+  await evaluate(`(()=>{const e=document.querySelector('[contenteditable=true]');e.focus();const r=document.createRange();r.selectNodeContents(e);const s=getSelection();s.removeAllRanges();s.addRange(r);})()`);
+  await cdp('Input.insertText',{text});
+}
+const messageText=()=>evaluate(`document.querySelector('[contenteditable=true]').textContent`);
 
 for(const width of [1440,900,390,320]){
   await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<500});
@@ -75,32 +82,29 @@ for(const width of [1440,900,390,320]){
   assert.equal(await evaluate(`new FormData(document.querySelector('form[enctype]')).get('category')`),'general');
   await evaluate(`document.querySelector('input[name=allowReply]').click()`);
   assert.equal(await evaluate(`new FormData(document.querySelector('form[enctype]')).get('allowReply')`),'yes');
-  await input('input[name=title]','A fresh perspective');
-  await input('textarea','Hello **everyone**.');
+  await writeMessage('A fresh perspective');
+  assert.equal(await evaluate(`!!document.querySelector('textarea[name=text]')||document.body.textContent.includes('Open content builder')`),false);
+  await evaluate(`(()=>{const e=document.querySelector('select[aria-label="Block style"]');e.value='h1';e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await toggle();
   await wait(async()=>evaluate(`!document.querySelector('#compose-preview').hidden`));
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(toggleSelector)}).getAttribute('aria-expanded')`),'true');
   assert(await evaluate(`document.querySelector('#compose-preview h1')?.textContent==='A fresh perspective'`));
   assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'Subscriber preview fits '+width);
   await toggle();
-  assert.equal(await evaluate(`document.querySelector('textarea').value`),'Hello **everyone**.');
+  assert.equal(await messageText(),'A fresh perspective');
   assert(await evaluate(`!document.querySelector('input[name=mode]')`));
   assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'Subscriber editor fits '+width);
-  await evaluate(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ6kAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'cover.png',{type:'image/png'}));const e=document.querySelector('input[name=header]');e.files=transfer.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
-  await wait(async()=>evaluate(`!!document.querySelector('.cover-thumbnail')`));
+  await evaluate(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'cover.png',{type:'image/png'}));const e=document.querySelector('input[aria-label="Header PNG"]');e.files=transfer.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await wait(async()=>evaluate(`!!document.querySelector('input[aria-label="Image description"]')`));
   assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'Cover controls fit '+width);
   await toggle();
-  await evaluate(`document.querySelector('.send-bar .hail-button').click()`);
-  await wait(async()=>evaluate(`document.querySelector('#compose-preview').hidden && document.activeElement.name==='alt'`));
-  assert(await evaluate(`!document.querySelector('[role=alert]')`),'Missing image description blocks sending and returns to editing');
-  await input('input[name=alt]','A cover description');
-  await input('input[name=caption]','A cover caption');
-  await evaluate(`Array.from(document.querySelectorAll('button')).find(button=>button.textContent==='Remove image').click()`);
-  await wait(async()=>evaluate(`!document.querySelector('.cover-thumbnail')`));
-  assert(await evaluate(`document.querySelector('input[name=header]').files.length===0`),'Removal clears the actual upload');
-  assert(await evaluate(`(()=>{const form=new FormData(document.querySelector('form[enctype]'));return form.get('header').size===0&&form.get('alt')===''&&form.get('caption')==='';})()`),'Removed image and metadata are absent from submission');
-  assert(await evaluate(`!document.querySelector('input[name=alt]').required && document.querySelector('form[enctype]').checkValidity()`));
-  assert(await evaluate(`document.activeElement===document.querySelector('.cover-control summary')`),'Removal returns focus to the cover control');
+  assert(await evaluate(`document.querySelector('.send-bar .hail-button').disabled`),'Missing image description blocks sending');
+  await toggle();
+  await input('input[aria-label="Image description"]','A cover description');
+  await input('input[aria-label="Image caption"]','A cover caption');
+  await evaluate(`Array.from(document.querySelectorAll('button')).find(button=>button.textContent==='Remove header').click()`);
+  await wait(async()=>evaluate(`!document.querySelector('input[aria-label="Image description"]')`));
+  assert(await evaluate(`JSON.parse(document.querySelector('input[name=builder]').value).body.profile==='spt-2'`),'Removed image and metadata are absent from submission');
   await toggle();
   assert(await evaluate(`!document.querySelector('#compose-preview img')`),'Preview has no removed image');
   await navigate('/compose?audience=connections');
@@ -126,7 +130,7 @@ for(const width of [1440,900,390,320]){
   assert.equal(await evaluate(`new FormData(document.querySelector('form[enctype]')).getAll('connection').length`),2,'Typing keeps selected recipients');
   assert.equal(await evaluate(`document.querySelectorAll('.recipient-option').length`),0);
   assert(await evaluate(`!document.querySelector('input[name=delivery]')`));
-  await input('textarea','A personal hello');
+  await writeMessage('A personal hello');
   assert(await evaluate(`document.querySelector('.send-bar .hail-button').disabled`),'Unresolved address cannot be silently omitted');
   await key('Enter');
   assert(await evaluate(`!document.querySelector('[role=alert]')`),'Enter with no match does not submit');
@@ -149,7 +153,7 @@ for(const width of [1440,900,390,320]){
   // The fixture intentionally rejects sends; the draft and recipients must survive.
   await evaluate(`document.querySelector('.send-bar .hail-button').click()`);
   await wait(async()=>evaluate(`document.querySelector('[role=alert]')?.textContent.includes('not confirmed')`));
-  assert.equal(await evaluate(`document.querySelector('textarea').value`),'A personal hello');
+  assert.equal(await messageText(),'A personal hello');
   assert.equal(await evaluate(`document.querySelectorAll('.recipient-chip').length`),2);
   assert(await evaluate(`!document.querySelector('input[name=delivery]')`));
   assert(await evaluate(`!document.querySelector('.send-bar .hail-button').disabled`));
@@ -161,17 +165,17 @@ for(const width of [1440,390]){
   await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<500});
   await navigate('/compose');
   const input=async(selector:string,value:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-  await input('input[name=title]','Saved draft '+width);await input('textarea','Unfinished message');
-  await evaluate(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ6kAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'cover.png',{type:'image/png'}));const e=document.querySelector('input[name=header]');e.files=transfer.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await writeMessage('Unfinished message');
+  await evaluate(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'cover.png',{type:'image/png'}));const e=document.querySelector('input[aria-label="Header PNG"]');e.files=transfer.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   const draftId=await evaluate(`document.querySelector('input[name=publicationId]').value`);
   await evaluate(`document.querySelector('button[formaction="?/save"]').click()`);
   await wait(async()=>evaluate(`document.querySelector('input[name=draftRevision]').value==='1'`));
   assert(await evaluate(`document.body.textContent.includes('Draft saved.')`),'Incomplete message and missing alt text can be saved');
   await navigate('/compose?draft='+draftId);
-  assert.equal(await evaluate(`document.querySelector('input[name=title]').value`),'Saved draft '+width);
-  assert.equal(await evaluate(`document.querySelector('textarea').value`),'Unfinished message');
-  assert(await evaluate(`document.querySelector('.cover-thumbnail').src.startsWith('data:image/png;base64,')`),'Cover survives a fresh page load');
-  await input('textarea','Edited draft');await evaluate(`document.querySelector('button[formaction="?/save"]').click()`);
+  await wait(()=>evaluate(`!!document.querySelector('[contenteditable=true]')`));
+  assert.equal(await messageText(),'Unfinished message');
+  assert(await evaluate(`JSON.parse(document.querySelector('input[name=builder]').value).body.assets.assets[0].data.length>0`),'Cover survives a fresh page load');
+  await writeMessage('Edited draft');await evaluate(`document.querySelector('button[formaction="?/save"]').click()`);
   await wait(async()=>evaluate(`document.querySelector('input[name=draftRevision]').value==='2'`));
   await cdp('Page.navigate',{url:origin+'/drafts'});
   await wait(async()=>evaluate(`!!document.querySelector('a[href="/compose?draft=${draftId}"]') && document.readyState==='complete'`));
@@ -187,37 +191,77 @@ for(const width of [1440,390]){
   await evaluate(`document.querySelector('button[aria-label="Restore selected drafts"]').click()`);
   await wait(async()=>evaluate(`!document.querySelector('section[aria-label="Trashed drafts"]')`));
   await navigate('/compose?draft='+draftId);
-  assert.equal(await evaluate(`document.querySelector('textarea').value`),'Edited draft');
+  await wait(()=>evaluate(`!!document.querySelector('[contenteditable=true]')`));
+  assert.equal(await messageText(),'Edited draft');
   // Another signed-in client saves a newer revision. The stale editor retains its text.
-  await evaluate(`(async()=>{const draft=await(await fetch('/api/v1/account/drafts/${draftId}')).json();await fetch('/api/v1/account/drafts/${draftId}/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:draft.revision,content:{...draft.content,text:'Other device'}})});})()`);
-  await input('textarea','My unsaved changes');await evaluate(`document.querySelector('button[formaction="?/save"]').click()`);
+  await evaluate(`(async()=>{const draft=await(await fetch('/api/v1/account/drafts/${draftId}')).json();await fetch('/api/v1/account/drafts/${draftId}/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:draft.revision,content:draft.content})});})()`);
+  await writeMessage('My unsaved changes');await evaluate(`document.querySelector('button[formaction="?/save"]').click()`);
   await wait(async()=>evaluate(`document.querySelector('[role=alert]')?.textContent.includes('another device')`));
-  assert.equal(await evaluate(`document.querySelector('textarea').value`),'My unsaved changes');
+  assert.equal(await messageText(),'My unsaved changes');
   console.log('PASS: draft save, reload, image persistence, update, avatar deletion, restore and stale-edit protection at '+width);
 }
+
+// Legacy draft conversion is read-only until an explicit save and retains its cover.
+await navigate('/compose');
+const legacyId=await evaluate(`document.querySelector('input[name=publicationId]').value`);
+await evaluate(`(async()=>{const content={audience:'category',category:'general',connections:[],title:'Legacy headline',text:'Hello **world**',alt:'',caption:'Original caption',allowReply:true,header:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk-A8AAQUBAScY42YAAAAASUVORK5CYII',forward:null};const r=await fetch('/api/v1/account/drafts/${legacyId}/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:0,content})});if(!r.ok)throw Error('Legacy fixture save failed');})()`);
+await navigate('/compose?draft='+legacyId);
+await wait(()=>evaluate(`!!document.querySelector('[contenteditable=true]')`));
+assert(await evaluate(`!document.querySelector('textarea')&&document.querySelector('input[name=savedHeader]').value===''`));
+assert(await evaluate(`JSON.parse(document.querySelector('input[name=builder]').value).body.blocks.some(b=>b.style==='h1'&&b.children[0].text==='Legacy headline')`));
+assert(await evaluate(`(async()=>{const d=await(await fetch('/api/v1/account/drafts/${legacyId}')).json();return d.revision===1&&!d.content.builder&&d.content.text==='Hello **world**';})()`),'Opening never rewrites the saved draft');
+await evaluate(`document.querySelector('button[formaction="?/save"]').click()`);
+await wait(()=>evaluate(`document.querySelector('input[name=draftRevision]').value==='2'`));
+assert(await evaluate(`(async()=>{const d=await(await fetch('/api/v1/account/drafts/${legacyId}')).json();return !!d.content.builder&&d.content.header===null&&d.content.title===''&&d.content.text===''&&d.content.builder.body.blocks[0].alt==='';})()`),'Explicit save writes exactly one content representation');
 
 // Exercise the same reusable package inside the authenticated publication form.
 for(const width of [1440,390]){
   await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<500});
   await navigate('/compose');
-  await evaluate(`(()=>{const e=document.querySelector('textarea');e.value='Literal text with **bold**';e.dispatchEvent(new Event('input',{bubbles:true}));Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Open content builder').click();})()`);
+  await writeMessage('Literal text with ');
+  await evaluate(`document.querySelector('button[aria-label="Bold"]').click()`);
+  await cdp('Input.insertText',{text:'bold'});
+  await evaluate(`document.querySelector('button[aria-label="Bold"]').click()`);
   await wait(()=>evaluate(`!!document.querySelector('[contenteditable=true]')`));
-  assert(await evaluate(`document.querySelector('.content-builder .preview').textContent.includes('Literal text with bold')`));
+  const toggleSelector=width<=900?'.mobile-floating-action':'.preview-toggle';
+  const toggle=async()=>{await evaluate(`document.querySelector(${JSON.stringify(toggleSelector)}).click()`);};
+  assert.equal(await evaluate(`!!document.querySelector('.content-builder .preview-controls')`),false);
+  await evaluate(`void(window.builderEditor=document.querySelector('[contenteditable=true]'))`);
+  await toggle();
+  assert(await evaluate(`!document.querySelector('#compose-preview').hidden&&document.querySelector('.builder-editor').hidden`));
+  assert(await evaluate(`document.querySelector('#compose-preview .strong').textContent==='bold'`));
+  assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'Builder preview fits '+width);
+  await toggle();
+  assert(await evaluate(`document.querySelector('#compose-preview').hidden&&!document.querySelector('.builder-editor').hidden&&window.builderEditor===document.querySelector('[contenteditable=true]')`),'Preview keeps the editor mounted');
+  await evaluate(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'cover.png',{type:'image/png'}));const e=document.querySelector('input[aria-label="Header PNG"]');e.files=transfer.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await wait(()=>evaluate(`!!document.querySelector('input[aria-label="Image description"]')`));
+  await toggle();
+  assert(await evaluate(`document.querySelector('#compose-preview').textContent.includes('Complete the image description')`));
+  assert.equal(await evaluate(`document.querySelectorAll('#compose-preview img').length`),0,'Invalid content has no stale preview');
+  await toggle();
+  await evaluate(`(()=>{const e=document.querySelector('input[aria-label="Image description"]');e.value='Builder cover';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await toggle();
+  await wait(()=>evaluate(`document.querySelector('#compose-preview img')?.complete`));
+  assert.equal(await evaluate(`document.querySelector('#compose-preview img').alt`),'Builder cover');
+  await toggle();
+  assert(await evaluate(`document.querySelector('#compose-preview').textContent.includes('Literal text with bold')`));
   assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'Embedded builder fits '+width);
+  assert.equal(await evaluate(`!!document.querySelector('.content-builder input[accept="application/json,.json"],aside[aria-label="Draft recovery"]')`),false);
+  assert.equal(await evaluate(`Array.from(document.querySelectorAll('button')).filter(b=>b.textContent==='Save as Draft').length`),1);
   const draftId=await evaluate(`document.querySelector('input[name=publicationId]').value`);
   await evaluate(`document.querySelector('button[formaction="?/save"]').click()`);
   await wait(()=>evaluate(`document.querySelector('input[name=draftRevision]').value==='1'`));
-  assert(await evaluate(`JSON.parse(document.querySelector('input[name=builder]').value).body.blocks[0].children.some(s=>s.marks.includes('strong'))`));
+  assert(await evaluate(`JSON.parse(document.querySelector('input[name=builder]').value).body.blocks.some(b=>b.children?.some(s=>s.marks.includes('strong')))`));
   await navigate('/compose?draft='+draftId);
   await wait(()=>evaluate(`!!document.querySelector('[contenteditable=true]')`));
-  assert(await evaluate(`document.querySelector('.content-builder .preview').textContent.includes('Literal text with bold')`));
+  assert(await evaluate(`document.querySelector('#compose-preview').textContent.includes('Literal text with bold')`));
   assert(await evaluate(`!document.querySelector('textarea[name=text]')`),'Rich draft never returns through the simple parser');
   // Existing fixture intentionally rejects publication, so the user's editor survives it.
   await evaluate(`(()=>{const e=document.querySelector('#category-search');e.focus();e.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));e.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));})()`);
   await wait(()=>evaluate(`!document.querySelector('.send-bar .hail-button').disabled`));
   await evaluate(`document.querySelector('.send-bar .hail-button').click()`);
   await wait(()=>evaluate(`document.querySelector('[role=alert]')?.textContent.includes('not confirmed')`));
-  assert(await evaluate(`document.querySelector('.content-builder .preview').textContent.includes('Literal text with bold')`));
+  assert(await evaluate(`document.querySelector('#compose-preview').textContent.includes('Literal text with bold')`));
   console.log('PASS: reusable builder conversion, save, reload, publication handoff and preserved edits at '+width);
 }
 }finally{socket?.close();chrome.kill();fixture.kill();await Promise.all([chrome.exited,fixture.exited]);await rm(work,{recursive:true,force:true});}

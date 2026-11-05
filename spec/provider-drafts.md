@@ -111,7 +111,10 @@ exports carry retained upload bytes but do not promise draft-editor migration.
 Optional `builder` is exactly `{version: 1, body: Body}`; its draft version is
 independent of `body.version` and its `spt-2`/`spt-3` profile. See the
 [builder draft schema](schemas/content-builder-draft.json). `Body` MUST pass the
-current body codec, including resource and bundled asset checks, and its diagnostic
+current body codec, including resource and bundled asset checks, with one draft-only
+exception: the first `spt.image` block MAY have an empty `alt` string. All other
+image description constraints remain unchanged. Publication MUST validate the
+complete body, including a nonempty image description. Its diagnostic
 JSON encoding MUST be at most 360,000 UTF-8 bytes. Attachments MUST remain in the
 host's `attachments` field, not inside the builder body. An empty text block array
 is permitted for an unfinished draft; sending still requires meaningful text under
@@ -127,11 +130,16 @@ required and block-local under the body profile. Publication uses the validated
 body directly with the existing audience, attachment, authorization and atomic
 draft-consumption flow. No new signed body version or federation format is added.
 
-The reusable builder additionally autosaves a device-local recovery copy, including
-editor keys and unfinished image descriptions. This is client storage policy,
-not an account API object: it cannot be sent or saved to the provider without
-passing validation. Local writes use Web Locks and revision comparison; unavailable
-storage or quota failures must be visible. Existing recovery is offered explicitly,
-not silently substituted for the host draft. A recovery copy based on a different
-provider revision may be exported but cannot replace the current provider draft.
-The original simple compose path continues to save explicitly as described above.
+Both compose editors save explicitly through **Save as Draft** into the account's
+Drafts folder. The reusable builder does not autosave, read or write recovery
+copies, offer bundle file import/export, or warn on navigation with unsaved edits.
+New subscriber and connection messages use the structured builder. The client
+converts supported simple-compose drafts on load using the existing formatting
+semantics and retains their title, image bytes, caption and unfinished alt text.
+Loading MUST NOT write a new revision. Only an explicit save replaces the simple
+fields with `builder`, retaining the draft identity, audience and attachments.
+Content that cannot pass draft validation remains in the original editor rather
+than being silently dropped. Inline replies and forwards keep their existing flows.
+These are client UI choices, not changes to the signed message formats. Existing
+browser recovery records are ignored. The standalone demo's explicit save uses
+its host's device-local store; it has no account Drafts folder.

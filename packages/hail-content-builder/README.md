@@ -15,10 +15,11 @@ bun run --cwd apps/content-builder dev
 
 `bun run --cwd apps/content-builder build` produces a static `dist/` application.
 Serve it on localhost or HTTPS (Web Locks and image hashing need a secure context).
-It saves on the current device, recovers interrupted work, exports a self-contained
-Portable Text bundle, and exports a validated Hail body on **Use this content**.
+It saves explicitly on the current device with **Save as Draft**, and exports a
+validated Hail body on **Use this content**. There is no automatic recovery, bundle
+file import/export, or unsaved-change warning.
 It does not publish or contact Hail/Sanity services. Clearing browser storage removes
-local drafts; export for durable backup or transfer to another device.
+local drafts. Hail uses the account Drafts folder instead of this demo storage.
 
 ## Integrate into any web client
 
@@ -44,10 +45,10 @@ const instance = mountBuilder(document.getElementById('editor')!, {
     return myDraftStore.save(draft, expectedRevision);
   },
   change: (draft, diagnostics) => {
-    // draft is null when current input is not valid for this host.
+    // draft is null when input cannot be saved; diagnostics also report send errors.
   },
   handoff: draft => myPublicationFlow(draft.body),
-}, {recoveryKey: 'my-app:account:document'});
+});
 
 // Before removing the container:
 await instance.dispose();
@@ -55,24 +56,30 @@ await instance.dispose();
 
 `BuilderHost` in `src/core.ts` is the v1 host contract. Initial document and bundled
 assets are carried in the validated draft body; supported profiles are explicit.
-Change events contain a validated snapshot or structured diagnostics. Saves carry
+Change events contain a draft snapshot and publication diagnostics. An empty header
+description is allowed in a draft, but prevents preview/handoff until completed. Saves carry
 an expected revision and must acknowledge a newer revision. A rejected save retains
 editor input. Handoff does not confer authorization or bypass host validation.
 `toPortable` exports JSON blocks plus verified bundled assets; `fromPortable`
-imports them strictly. Disposal removes editor listeners and pending timers.
-Choose a stable recovery key scoped to the host account/document; use a distinct
-key for independent drafts. Do not put credentials in keys or content.
+imports them strictly; `{draft:true}` permits an unfinished header description.
+These are programmatic adapters, not file controls. Disposal removes editor listeners.
 
 The `./svelte` entry exposes the same component for Svelte hosts; `./core`,
-`./schema`, `./storage` and `./rendering` do not import editor UI or host services.
+`./schema` and `./rendering` do not import editor UI or host services.
 `./renderer` is shared by builder preview and Hail's received-message view.
 All buttons are non-submitting so embedding inside a host form is supported.
+Svelte hosts can set `showPreview={false}` and render change snapshots in their
+existing preview. Hail uses its shared Preview / Back to writing toggle, keeping
+the editor mounted so previewing preserves editing history.
 
 ## Included authoring behavior
 
 Paragraphs, H1–H3, quotes, captions, bullet/number lists with levels 1–3, bold,
 italic, code, HTTPS links, block insertion/duplication/deletion/reordering and
-text undo/redo are available without drag-and-drop. Native keyboard editing and
+text undo/redo are available without drag-and-drop. A compact icon toolbar groups
+formatting actions, names paragraph styles, and exposes block operations through
+a keyboard-accessible disclosure menu. List-only indent/outdent controls enforce
+levels 1–3. Icon buttons have accessible names and native title tooltips. Native keyboard editing and
 IME handling belong to the upstream editor. Header selection accepts one bounded
 static PNG, with required alternative text and an optional caption. Preview has
 narrow/wide, light/dark and images-unavailable settings and uses the recipient
@@ -81,18 +88,20 @@ at wide widths. Plain-text paste preserves text and explicitly reports dropping
 HTML formatting. Arbitrary HTML import is intentionally absent.
 
 Text undo/redo includes block operations. Header controls are separate form state;
-text undo does not reverse header replacement/removal. Export includes incomplete
-input for recovery, but import/handoff/provider save requires valid supported
-content (an empty text document is a valid draft). Local recovery accepts an empty
-unfinished image description and never substitutes it into publishable content.
+text undo does not reverse header replacement/removal. Explicit saves permit an
+empty unfinished image description. Handoff and publication require a complete,
+validated body; empty text documents can be saved as drafts.
 
-In Hail, choose **Open content builder** in Compose. Existing simple content is
-parsed once at that explicit transition. Rich documents never pass back through
-the simple parser. Remove an existing simple-compose cover before transitioning;
-the builder supplies its own validated header picker. Rich drafts resume in the
-builder; **Save as Draft** and **Send message** remain the existing host flow.
+In Hail, new subscriber and connection messages open directly in the builder.
+Existing simple-compose drafts are converted on load using their existing text
+formatting semantics, including title and bundled header. Loading is read-only;
+only **Save as Draft** writes the structured representation, using the same draft
+ID, revision, audience and attachments. Unsupported legacy content stays in the
+original composer with a visible explanation, so it remains editable without
+silently dropping fields. Rich drafts are never converted back to Markdown.
+**Save as Draft**, **Send message**, and the shared preview remain the host flow.
 Connections permit rich text only, reflecting current reference-provider policy.
-Replies/forwards retain their existing compose behavior and authority handling.
+Inline replies and forwards retain their existing editors and authority handling.
 
 ## Verification
 

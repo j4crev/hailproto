@@ -45,3 +45,26 @@ it('saves and resumes rich drafts without converting them to simple compose text
   request.mockReset();request.mockResolvedValueOnce(saved).mockResolvedValueOnce({maxRecipients:100,categories:[]});
   expect(await load({cookies:{},url:new URL(`https://example.com/compose?draft=${id}`)} as never)).toMatchObject({draft:saved});
 });
+
+it('saves and resumes an unfinished builder header but rejects publishing it',async()=>{
+  const incomplete=vectors.valid.find(v=>v.name==='builder-unfinished-header-description')!.content;
+  const saved={id,revision:1,content:incomplete,updatedAt:'2026-11-05T00:00:00Z',trashedAt:null};
+  const form=new FormData();for(const [key,value] of Object.entries({publicationId:id,draftRevision:'0',audience:'category',category:'general',builder:JSON.stringify(incomplete.builder)}))form.set(key,value);
+  request.mockReset();request.mockResolvedValueOnce(saved);
+  expect(await actions.save({request:new Request('https://example.com/compose',{method:'POST',body:form}),cookies:{},url:new URL('https://example.com/compose')} as never)).toEqual({savedDraft:saved});
+  expect(request).toHaveBeenCalledWith(`/drafts/${id}/save`,{revision:0,content:{...incomplete,category:'general'}});
+  request.mockReset();request.mockResolvedValueOnce(saved).mockResolvedValueOnce({maxRecipients:100,categories:[]});
+  expect(await load({cookies:{},url:new URL(`https://example.com/compose?draft=${id}`)} as never)).toMatchObject({draft:saved});
+  request.mockReset();
+  expect(await actions.publish({request:new Request('https://example.com/compose',{method:'POST',body:form}),cookies:{},url:new URL('https://example.com/compose')} as never)).toMatchObject({status:400});
+  expect(request).not.toHaveBeenCalled();
+});
+
+it('loads the builder by default and falls back without writing an unconvertible legacy draft',async()=>{
+  request.mockReset();request.mockResolvedValueOnce({maxRecipients:100,categories:[]});
+  expect(await load({cookies:{},url:new URL('https://example.com/compose')} as never)).toMatchObject({builderInitial:{version:1,body:{version:1,profile:'spt-2',blocks:[]}},builderFallback:false});
+  const saved={id,revision:3,content:{...content,header:'iVBORw0KGgo',text:'Keep this'},updatedAt:'2026-11-05T00:00:00Z',trashedAt:null};
+  request.mockReset();request.mockResolvedValueOnce(saved).mockResolvedValueOnce({maxRecipients:100,categories:[]});
+  expect(await load({cookies:{},url:new URL(`https://example.com/compose?draft=${id}`)} as never)).toMatchObject({draft:saved,builderInitial:null,builderFallback:true});
+  expect(request.mock.calls).toEqual([[`/drafts/${id}`],['/publications/audiences']]);
+});

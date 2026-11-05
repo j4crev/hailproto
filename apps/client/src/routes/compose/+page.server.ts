@@ -1,6 +1,7 @@
-import {parseBuilderDraft,plainText} from '@racrproto/content-builder/core';
+import {parseBuilderDraft,validateBody,plainText} from '@racrproto/content-builder/core';
 import {formAttachments} from '$lib/server/attachments.js';
 import {parseDraft,draftIdPattern} from "@racrproto/client-support/drafts";
+import {builderDraft} from '$lib/server/builder-draft.js';
 import {draftForm} from "$lib/server/draft-form.js";
 import {forwardSource, forwardBody} from "$lib/forward.js";
 import { createHash } from "node:crypto";
@@ -43,7 +44,13 @@ export async function load({url,cookies}) {
     try {forward=forwardSource(await client.request(`/inbox/${encodeURIComponent(forwardSender)}/${encodeURIComponent(forwardMessage)}`),{sender:forwardSender,messageId:forwardMessage});}
     catch {error(404,"Original message unavailable for forwarding");}
   }
-  return {draft,forward,account,...audiences,connections:targets.connections,maxRecipients:kind==="connections"?targets.maxRecipients:audiences.maxRecipients,kind,status,newPublicationId:draft?.id??messageId(),
+  let builderInitial:Awaited<ReturnType<typeof builderDraft>>|null=null;
+  let builderFallback=false;
+  if(!forward){
+    try{builderInitial=await builderDraft(draft?.content);}
+    catch{builderFallback=true;}
+  }
+  return {draft,forward,builderInitial,builderFallback,account,...audiences,connections:targets.connections,maxRecipients:kind==="connections"?targets.maxRecipients:audiences.maxRecipients,kind,status,newPublicationId:draft?.id??messageId(),
     defaultConnection:targets.connections.some(t=>t.connectionId===preferred)?preferred:null};
 }
 
@@ -66,7 +73,7 @@ export const actions={save:async({request,cookies,url})=>{
     if(forwarding&&(kind!=="connections"||!forwardSender||!UUID7.test(forwardMessage)))return fail(400,{error:"Forwards can only be sent to connections."});
     let builder:ReturnType<typeof parseBuilderDraft>|null=null;
     if(form.has('builder')){
-      try{builder=parseBuilderDraft(JSON.parse(field('builder')));}
+      try{builder=parseBuilderDraft(JSON.parse(field('builder')));validateBody(builder.body);}
       catch(cause){return fail(400,{error:cause instanceof Error?cause.message:'Invalid builder content.'});}
       if(forwarding||title||text||alt||caption||field('savedHeader')||header instanceof File&&header.size>0)return fail(400,{error:'Builder content cannot be combined with simple-compose fields.'});
       if(kind==='connections'&&builder.body.profile==='spt-3')return fail(400,{error:'Header images are available for subscriber publications only.'});
