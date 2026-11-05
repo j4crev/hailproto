@@ -29,13 +29,18 @@ async function navigate(path:string){
 for(const width of [1440,900,390,320]){
   await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<500});
   await cdp('Page.navigate',{url:origin+'/sent'});
-  await wait(async()=>evaluate(`document.querySelectorAll('.sent-avatar').length===4 && document.readyState==='complete'`));
+  await wait(async()=>evaluate(`document.querySelectorAll('.sent-list .selection-avatar:not(:disabled)').length===4 && document.readyState==='complete'`));
   assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.message-sender'),e=>e.textContent)`),['alex@connections.example.com','Multiple recipients','essays','General']);
   for(const theme of ['light','dark']){
     await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`);
-    assert(await evaluate(`Array.from(document.querySelectorAll('.sent-avatar')).every(e=>e.textContent==='J' && getComputedStyle(e).backgroundColor===${JSON.stringify(theme==='light'?'rgb(18, 115, 101)':'rgb(94, 214, 195)')})`),'Sender initials and theme colors');
+    assert(await evaluate(`Array.from(document.querySelectorAll('.sent-list .selection-avatar')).every(e=>e.textContent==='J' && e.getAttribute('aria-pressed')==='false' && getComputedStyle(e).backgroundColor===${JSON.stringify(theme==='light'?'rgb(228, 242, 236)':'rgb(41, 45, 44)')})`),'Sender initials and theme colors');
     assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'Sent fits '+width);
   }
+  await evaluate(`document.querySelector('.sent-list .selection-avatar').click()`);
+  await wait(async()=>evaluate(`document.querySelector('.sent-list .selection-avatar').getAttribute('aria-pressed')==='true'`));
+  assert(await evaluate(`Boolean(document.querySelector('button[aria-label="Delete selected messages"]'))`),'Sent selection exposes deletion');
+  await evaluate(`document.querySelector('button[aria-label="Clear selection"]').click()`);
+  await wait(async()=>evaluate(`!document.querySelector('.selection-actions')`));
   await navigate('/compose');
   const toggleSelector=width<=900?'.mobile-floating-action':'.preview-toggle';
   const toggle=async()=>evaluate(`document.querySelector(${JSON.stringify(toggleSelector)}).click()`);
