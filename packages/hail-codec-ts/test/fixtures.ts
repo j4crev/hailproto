@@ -169,3 +169,15 @@ export const imageBody: HailSpt3Body = {
     { _type: "block", style: "h1", children: [{ _type: "span", text: "Image from Hail", marks: ["strong"] }], markDefs: [] },
   ],
 };
+
+export const inlineImageBody: HailSpt3Body = {
+  version:1,profile:'spt-3',
+  assets:{version:1,assets:[{...imageBody.assets.assets[0],id:'image-a',role:'image'},{...imageBody.assets.assets[0],id:'image-b',role:'image'}]},
+  blocks:[richBody.blocks[0]!,{_type:'spt.image',asset:'image-a',alt:'First inline image'},richBody.blocks[1]!,{_type:'spt.image',asset:'image-b',alt:'Second inline image',caption:'Uncropped artwork'}],
+};
+
+export const ctaBody: HailSpt2Body = {version:1,profile:'spt-2',blocks:[
+  {...richBody.blocks[0]!,alignment:'center'},
+  {_type:'block',style:'cta',alignment:'right',children:[{_type:'span',text:'Register now',marks:['action']}],markDefs:[{_type:'spt.link',_key:'action',href:'https://example.invalid/register'}]},
+  {...richBody.blocks[1]!,alignment:'left'},
+]};

@@ -15,7 +15,7 @@ export function replyExcerpt(message:Pick<MessageView,'blocks'|'header'>) {
   const text=blocks.map(plain).join('\n\n');
   const chars=Array.from(text);
   return chars.slice(0,4096).join('')+(chars.length>4096?'\n[Excerpt shortened]':'')+
-    (message.header?'\n[Image in original message]':'');
+    (message.header||message.blocks.some(block=>block.image)?'\n[Image in original message]':'');
 }
 export function replyBody(value:unknown,reference:{sender:string;messageId:string},text:string):HailSpt2Body {
   const source=parseMessage(value);

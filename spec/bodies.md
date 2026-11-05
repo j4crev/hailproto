@@ -42,12 +42,55 @@ An envelope must never refer to a body that the sender intends to generate later
 
 In the current alpha, a plain Hail Body is a Safe Portable Text `spt-1` map in the Hail Data Model defined by [encoding.md](encoding.md). The additive `spt-2` profile permits headings, blockquotes, captions, lists, the `strong`/`em`/`code` decorators, and declared HTTPS link annotations. Conforming providers MUST support validation, retrieval, and storage of all three current profiles: `spt-1`, `spt-2`, and `spt-3`. Plain-text-only body support is insufficient for provider conformance.
 
-The additive `spt-3` profile retains `spt-2` text and adds exactly one bundled
-PNG `header` asset and a leading `spt.image` block that references it. The asset
-manifest, digest verification, image limits, and no-remote-loading rule are
-defined in [assets.md](assets.md). The image block requires NFC plain-text `alt`
-text and permits an optional NFC plain-text caption, each at most 1024 UTF-8
-bytes. Other image positions, formats, roles, and loading modes are rejected.
+### Text alignment and calls to action
+
+In the current alpha, each `spt-2` text block (including those in `spt-3`) MAY
+include `alignment` equal to `left`, `center`, or `right`. Absence means `left`;
+explicit left and absent alignment have equivalent presentation. This is a
+physical alignment hint for the block, including list item text; it does not
+change document order, text direction, or list levels. Readers MAY adapt it for
+accessibility. Arbitrary CSS values and alignment on image blocks are prohibited.
+
+The `cta` text style represents a prominent navigation link. It uses the existing
+`block`, `span`, and `spt.link` annotation structures, not executable controls.
+A CTA MUST have exactly one link annotation, no `listItem` or `level`, and every
+span MUST carry exactly that annotation key with no decorators. Concatenated span
+text is its label: at most 128 UTF-8 bytes, containing at least one character other
+than ASCII space/tab/CR/LF, with CR and LF prohibited. Span segmentation and
+consistent annotation-key renaming do not change meaning. The destination uses
+the existing absolute HTTPS/no-credentials rules and is at most 2048 UTF-8 bytes.
+The annotation's optional title retains its existing meaning. A CTA supports the
+same bounded alignment field, and all normal body/node/depth limits still apply.
+
+Readers render the CTA as an accessible link with client-selected button styling
+and adequate contrast, preserving label and destination. Its destination is loaded
+only upon explicit navigation; rendering MUST NOT fetch it or create link previews.
+A client without button styling can render the same labeled link; unknown or
+invalid fields MUST NOT be silently discarded. Provider support for these current
+`spt-2`/`spt-3` definitions is mandatory, without negotiation or silent downgrade.
+Upgrade codecs, provider and clients together before publishing the expanded alpha
+vocabulary. `spt-1` remains unchanged and rejects alignment or CTA styling.
+
+The `spt-3` alpha profile retains `spt-2` text and interleaves one to eight
+`spt.image` blocks with text in document order. Each image references a verified
+bundled static PNG asset by ID. The manifest contains one to eight `image` or
+`header` assets, all referenced; a `header` reference is permitted only at block
+zero. The same asset may be referenced again, but each image occurrence counts
+against the eight-block and eight-million-pixel display budgets. Each image is at
+most 192 KiB, 2400 × 2400 and two million pixels (`header` height remains 1200).
+The complete deterministic body remains at most 1 MiB, with the standard encoding
+node/depth/array limits; no new nesting is introduced. See [assets.md](assets.md).
+Image blocks require meaningful, nonempty NFC plain-text `alt` and permit a
+nonempty `caption`, each at most 1024 UTF-8 bytes under the profile text rules.
+Empty decorative alternatives, image links, other formats, and remote loading
+remain unsupported. Readers preserve image order and aspect ratio without
+cropping. Unknown nodes/fields are rejected, never silently dropped.
+
+All conforming providers MUST support this current `spt-3` definition; no optional
+negotiation or downgrade is introduced. Upgrade providers and clients together
+before publishing inline-image bodies: previous alpha implementations reject them.
+Existing single leading headers remain a valid distinct presentation. Never
+rewrite stored signed body bytes to upgrade their representation.
 
 The sender encodes the document using deterministic Hail CBOR. Those bytes are the deterministic body bytes.
 
@@ -75,7 +118,7 @@ Diagnostic JSON for an example source document:
 ```
 
 An `spt-2` text block has `_type: "block"`, one of the styles `normal`, `h1`,
-`h2`, `h3`, `blockquote`, or `caption`, at least one span, and an array of link
+`h2`, `h3`, `blockquote`, `caption`, or `cta`, at least one span, and an array of link
 definitions. A list block additionally has `listItem: "bullet"` or `"number"`
 and may have `level` from 1 through 3. A level is prohibited without
 `listItem`.
@@ -163,7 +206,7 @@ The POC value is `application/hail-body+cbor`. This media type is provisional un
 ### `profile`
 
 The plain POC value is `spt-1`, rich text is `spt-2`, and rich text with a
-bundled header is `spt-3`.
+bundled images use `spt-3`.
 
 ### `available_until`
 
@@ -354,7 +397,7 @@ signed length and digest before decoding or delivery.
 
 ## Current Alpha Resource Limits
 
-The current alpha supports the bundled `spt-3` header asset, detached
+The current alpha supports the bundled `spt-3` image assets, detached
 [PNG/JPEG/WebP/PDF/TXT/LOG attachments](attachments.md), and a maximum uncompressed body size of 1 MiB (1048576 octets). Conforming
 providers MUST support valid bodies through that size, subject to authorization,
 schema validation, and explicit resource/policy failures; they MUST NOT advertise
@@ -496,7 +539,7 @@ Deferred:
 
 - RFC 9421 recipient proof of possession
 - end-to-end encryption
-- assets beyond the single bundled PNG header
+- asset formats beyond bundled static PNG images
 - attachment formats beyond PNG/JPEG/WebP/PDF/TXT/LOG
 - remote asset profiles
 - content negotiation beyond the POC profile

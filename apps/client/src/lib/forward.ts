@@ -21,7 +21,8 @@ export function forwardBody(source: {message: MessageView; body: Record<string, 
   const {message, body} = source;
   // Keep bundled assets and their required first image block intact.
   const original = structuredClone(body.blocks as Record<string, unknown>[]);
-  const image = body.profile === 'spt-3' ? original.shift() : null;
+  const assets = (body.assets as {assets?:{id:string;role:string}[]}|undefined)?.assets;
+  const image = original[0]?._type === 'spt.image' && assets?.some(asset=>asset.id===original[0].asset&&asset.role==='header') ? original.shift() : null;
   const subject = original[0]?.style === 'h1' ? original.shift() : null;
   const result = {...body, profile: body.profile === 'spt-1' ? 'spt-2' : body.profile,
     blocks: [...(image ? [image] : []), ...(subject ? [subject] : []), ...composeBlocks('', note),

@@ -651,8 +651,9 @@ function validateSpt2Body(payload: HailRecord): void {
   blocks.forEach((entry, blockIndex) => {
     const path = `$.blocks[${blockIndex}]`;
     const block = record(entry, path);
-    exactKeys(block, ["_type", "style", "children", "markDefs"], ["listItem", "level"], path);
-    if (block._type !== "block" || !["normal", "h1", "h2", "h3", "blockquote", "caption"].includes(block.style as string)) fail("unsupported text block", path);
+    exactKeys(block, ["_type", "style", "children", "markDefs"], ["listItem", "level", "alignment"], path);
+    if (block._type !== "block" || !["normal", "h1", "h2", "h3", "blockquote", "caption", "cta"].includes(block.style as string)) fail("unsupported text block", path);
+    if (block.alignment !== undefined && !["left", "center", "right"].includes(block.alignment as string)) fail("unsupported text alignment", `${path}.alignment`);
     if (block.listItem !== undefined && !["bullet", "number"].includes(block.listItem as string)) fail("unsupported list type", `${path}.listItem`);
     if (block.level !== undefined && (block.listItem === undefined || ![1, 2, 3].includes(integer(block.level, `${path}.level`, 1)))) fail("invalid list level", `${path}.level`);
     const definitionKeys = new Set<string>();
@@ -682,6 +683,15 @@ function validateSpt2Body(payload: HailRecord): void {
       if (new Set(marks).size !== marks.length || marks.some(mark => !["strong", "em", "code"].includes(mark) && !definitionKeys.has(mark)) ||
         marks.filter(mark => definitionKeys.has(mark)).length > 1) fail("invalid, duplicate, or conflicting span mark", `${childPath}.marks`);
     });
+    if(block.style === "cta") {
+      const defs = array(block.markDefs, `${path}.markDefs`);
+      if(block.listItem !== undefined || block.level !== undefined || defs.length !== 1) fail("call to action requires one link and cannot be a list", path);
+      const key = record(defs[0], path)._key;
+      const label = children.map(entry => record(entry,path).text as string).join("");
+      if(!label.replace(/[ \t\r\n]/g,"") || /[\r\n]/.test(label) || new TextEncoder().encode(label).length > 128) fail("call-to-action label must be one line of 1–128 UTF-8 bytes", path);
+      if(children.some(entry=>{const marks=record(entry,path).marks as unknown[];return marks.length!==1||marks[0]!==key;})) fail("every call-to-action span must use its single link, without decorators", path);
+      if(new TextEncoder().encode(record(defs[0],path).href as string).length>2048) fail("call-to-action URL exceeds 2048 UTF-8 bytes", path);
+    }
   });
 }
 
@@ -731,20 +741,20 @@ export function validateAssetManifest(value: unknown): asserts value is HailAsse
   exactKeys(manifest, ["version", "assets"], [], "$");
   if (manifest.version !== 1) fail("must equal integer 1", "$.version");
   const assets = array(manifest.assets, "$.assets");
-  if (assets.length < 1 || assets.length > 2) fail("must contain one or two assets", "$.assets");
+  if (assets.length < 1 || assets.length > 8) fail("must contain one to eight assets", "$.assets");
   const ids = new Set<string>(), roles = new Set<string>();
   assets.forEach((entry, index) => {
     const path = `$.assets[${index}]`, asset = record(entry, path);
     exactKeys(asset, ["id", "role", "media_type", "loading", "size", "digest", "width", "height", "data"], [], path);
     const id = text(asset.id, `${path}.id`), role = text(asset.role, `${path}.role`);
     if (!/^[a-z][a-z0-9-]{0,63}$/.test(id) || ids.has(id)) fail("must be a unique canonical asset ID", `${path}.id`);
-    if (!["avatar", "header"].includes(role) || roles.has(role)) fail("must be a unique supported asset role", `${path}.role`);
+    if (!["avatar", "header", "image"].includes(role) || role !== "image" && roles.has(role)) fail("must be a unique supported asset role", `${path}.role`);
     ids.add(id); roles.add(role);
     if (asset.media_type !== "image/png") fail("must equal image/png", `${path}.media_type`);
     if (asset.loading !== "bundled") fail("must equal bundled", `${path}.loading`);
     if (!(asset.data instanceof Uint8Array)) fail("must be a byte string", `${path}.data`);
     const maximum = role === "avatar" ? { bytes: 32_768, width: 512, height: 512, pixels: 262_144 } :
-      { bytes: 196_608, width: 2_400, height: 1_200, pixels: 2_000_000 };
+      { bytes: 196_608, width: 2_400, height: role === "image" ? 2_400 : 1_200, pixels: 2_000_000 };
     const size = integer(asset.size, `${path}.size`, 1);
     if (size !== asset.data.length || size > maximum.bytes) fail("does not match the bounded asset bytes", `${path}.size`);
     digest(asset.digest, `${path}.digest`);
@@ -766,16 +776,26 @@ function validateSpt3Body(payload: HailRecord): void {
   if (payload.profile !== "spt-3") fail("must equal spt-3", "$.profile");
   validateAssetManifest(payload.assets);
   const assets = (record(payload.assets, "$.assets").assets as HailRecord[]);
-  if (assets.length !== 1 || assets[0]?.role !== "header") fail("must contain exactly one header asset", "$.assets");
+  if (assets.some(asset => !["header", "image"].includes(asset.role as string))) fail("message assets must have header or image role", "$.assets");
   const blocks = array(payload.blocks, "$.blocks");
-  if (blocks.length === 0) fail("must begin with an image block", "$.blocks");
-  const image = record(blocks[0], "$.blocks[0]");
-  exactKeys(image, ["_type", "asset", "alt"], ["caption"], "$.blocks[0]");
-  if (image._type !== "spt.image") fail("must equal spt.image", "$.blocks[0]._type");
-  if (text(image.asset, "$.blocks[0].asset") !== assets[0]!.id) fail("must reference the header asset", "$.blocks[0].asset");
-  profileText(image.alt, 1, 1024, "$.blocks[0].alt");
-  if (image.caption !== undefined) profileText(image.caption, 1, 1024, "$.blocks[0].caption");
-  validateSpt2Body({ version: 1, profile: "spt-2", blocks: blocks.slice(1) });
+  const used = new Set<string>();
+  let imageCount = 0, pixels = 0;
+  const textBlocks = blocks.filter((entry, index) => {
+    const path = `$.blocks[${index}]`, block = record(entry, path);
+    if (block._type !== "spt.image") return true;
+    if (++imageCount > 8) fail("at most eight image blocks are allowed", path);
+    exactKeys(block, ["_type", "asset", "alt"], ["caption"], path);
+    const id = text(block.asset, `${path}.asset`), asset = assets.find(asset => asset.id === id);
+    if (!asset || asset.role === "header" && index !== 0) fail("image must reference a bundled image, or a leading header", `${path}.asset`);
+    used.add(id);
+    pixels += (asset.width as number) * (asset.height as number);
+    profileText(block.alt, 1, 1024, `${path}.alt`);
+    if (block.caption !== undefined) profileText(block.caption, 1, 1024, `${path}.caption`);
+    return false;
+  });
+  if (!imageCount || used.size !== assets.length) fail("all assets must be referenced by image blocks", "$.assets");
+  if (pixels > 8_000_000) fail("image blocks exceed eight million decoded pixels", "$.blocks");
+  validateSpt2Body({ version: 1, profile: "spt-2", blocks: textBlocks });
 }
 
 export function validatePayload<T extends HailPayloadType>(

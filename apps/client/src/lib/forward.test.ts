@@ -47,3 +47,13 @@ it('recognizes complete forwarded attribution, including already-sent messages',
   expect(forwardedAttribution(blocks.slice(1))).not.toBeNull();
   expect(forwardedAttribution(parseBody({version:1,profile:'spt-2',blocks:composeBlocks('','Forwarded message\n\nJust discussing the feature')}).blocks)).toBeNull();
 });
+
+it('preserves interleaved images and text when forwarding',()=>{
+  const asset={id:'image-a',role:'image',media_type:'image/png',loading:'bundled',size:1,width:1,height:1,data:'AA'};
+  const image={_type:'spt.image',asset:asset.id,alt:'Inline image'};
+  const blocks=[...composeBlocks('','Before'),image,...composeBlocks('','After'),image];
+  const input={...source,body:{version:1,profile:'spt-3',assets:{version:1,assets:[asset]},blocks}};
+  const body=forwardBody(forwardSource(input,input),'Note');
+  expect(body.blocks.slice(-blocks.length)).toEqual(blocks);
+  expect(parseBody(body).blocks.filter(block=>block.image).map(block=>block.image!.alt)).toEqual(['Inline image','Inline image']);
+});

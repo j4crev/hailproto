@@ -185,7 +185,8 @@ type ExpectedLink = { _key: string; _type: "spt.link"; href: string; title?: str
 type ExpectedSpt2Span = { _type: "span"; text: string; marks: string[] };
 type ExpectedSpt2Block = {
   _type: "block";
-  style: "normal" | "h1" | "h2" | "h3" | "blockquote" | "caption";
+  style: "normal" | "h1" | "h2" | "h3" | "blockquote" | "caption" | "cta";
+  alignment?: "left" | "center" | "right";
   children: [ExpectedSpt2Span, ...ExpectedSpt2Span[]];
   markDefs: ExpectedLink[];
   listItem?: "bullet" | "number";
@@ -193,13 +194,13 @@ type ExpectedSpt2Block = {
 };
 type ExpectedBody = { version: 1; profile: "spt-1"; blocks: ExpectedBlock[] };
 type ExpectedSpt2Body = { version: 1; profile: "spt-2"; blocks: ExpectedSpt2Block[] };
-type ExpectedAsset = { id:string;role:"avatar"|"header";media_type:"image/png";loading:"bundled";size:number;
+type ExpectedAsset = { id:string;role:"avatar"|"header"|"image";media_type:"image/png";loading:"bundled";size:number;
   digest:ExpectedDigest;width:number;height:number;data:Uint8Array };
 type ExpectedAssetManifest = { version:1;assets:[ExpectedAsset,...ExpectedAsset[]] };
 type ExpectedSenderProfile = ExpectedSenderProfileBase & ({version:1}|{version:2;assets?:ExpectedAssetManifest});
 type ExpectedImageBlock = {_type:"spt.image";asset:string;alt:string;caption?:string};
 type ExpectedSpt3Body = {version:1;profile:"spt-3";assets:ExpectedAssetManifest;
-  blocks:[ExpectedImageBlock,...ExpectedSpt2Block[]]};
+  blocks:(ExpectedImageBlock|ExpectedSpt2Block)[]};
 
 type ModelAssertions = [
   Assert<Equivalent<HailDigest, ExpectedDigest>>,
@@ -295,6 +296,7 @@ interface PositiveVector {
 }
 
 interface NegativePayloadVector {
+  readonly cddl_valid?:boolean;
   readonly id: string;
   readonly type: HailPayloadType;
   readonly hex: string;
@@ -504,8 +506,8 @@ describe("CDDL and TypeScript structural consistency", () => {
   }
 
   for (const vector of manifest.negative_payload) {
-    it(`rejects structural payload vector: ${vector.id}`, () => {
-      expect(cddlAccepts(vector.type, bytes(vector.hex))).toBe(false);
+    it(`rejects invalid payload vector: ${vector.id}`, () => {
+      expect(cddlAccepts(vector.type, bytes(vector.hex))).toBe(vector.cddl_valid??false);
       expect(codecAccepts(vector.type, bytes(vector.hex))).toBe(false);
     });
   }

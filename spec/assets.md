@@ -28,9 +28,9 @@ not fetch arbitrary URLs or expose user opens to senders. Detached file
 }
 ```
 
-The manifest and every entry are closed Hail maps. A manifest contains one or
-two entries, with unique `id` and `role` values. IDs match
-`[a-z][a-z0-9-]{0,63}`. Version 1 roles are `avatar` and `header`.
+The manifest and every entry are closed Hail maps. A manifest contains one to
+eight entries, with unique `id` values. The `avatar` and `header` roles occur at most once; `image` may repeat. IDs match
+`[a-z][a-z0-9-]{0,63}`. Version 1 roles are `avatar`, `header`, and `image`.
 
 Each entry uses `image/png` and `bundled`; `size` equals the byte-string length,
 and `digest` is SHA-256 over those exact bytes. The bytes must be a structurally
@@ -41,6 +41,7 @@ Decoders still treat image bytes as untrusted input.
 | --- | ---: | ---: | ---: | ---: |
 | `avatar` | 32 KiB | 512 | 512 | 262,144 |
 | `header` | 192 KiB | 2,400 | 1,200 | 2,000,000 |
+| `image` | 192 KiB | 2,400 | 2,400 | 2,000,000 |
 
 Message and profile schemas decide which roles they permit and reference assets
 by `id`; the manifest alone grants no rendering position. Meaningful message
@@ -49,7 +50,13 @@ from local storage with `Content-Type: image/png` and `X-Content-Type-Options:
 nosniff`; they never convert manifest data into a sender-controlled URL.
 
 Deferred: JPEG/WebP, animation, remote loading, responsive
-variants, and manifests containing more than one asset per role.
+variants.
+
+SPT-3 permits only `image` and `header` assets, with at most eight image blocks
+and eight million decoded pixels summed over image-block occurrences. Every asset
+MUST be referenced. Repeated references count against both display limits. A
+`header` asset is reserved for a leading image block; `image` assets can appear
+anywhere. Sender Profile v2 continues to permit exactly one `avatar` asset only.
 
 These asset limits are independent of the 1 MiB message-body ceiling. Bundled
 bytes count toward both their per-asset limit and the complete body limit.

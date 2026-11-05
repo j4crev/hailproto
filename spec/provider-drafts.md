@@ -111,10 +111,15 @@ exports carry retained upload bytes but do not promise draft-editor migration.
 Optional `builder` is exactly `{version: 1, body: Body}`; its draft version is
 independent of `body.version` and its `spt-2`/`spt-3` profile. See the
 [builder draft schema](schemas/content-builder-draft.json). `Body` MUST pass the
-current body codec, including resource and bundled asset checks, with one draft-only
-exception: the first `spt.image` block MAY have an empty `alt` string. All other
+current body codec, including resource and bundled asset checks, with draft-only
+exceptions: each `spt.image` block MAY have an empty `alt` string. All other
 image description constraints remain unchanged. Publication MUST validate the
-complete body, including a nonempty image description. Its diagnostic
+complete body, including a nonempty description for every image. A `cta` block
+MAY retain a blank label (empty or ASCII whitespace) and a destination string of
+up to 2048 UTF-8 bytes that is not yet a valid HTTPS URL. Every other CTA structural
+and resource constraint still applies. These draft-only allowances MUST NOT
+permit preview links, handoff or publication until the normal body validator
+accepts them. Its diagnostic
 JSON encoding MUST be at most 360,000 UTF-8 bytes. Attachments MUST remain in the
 host's `attachments` field, not inside the builder body. An empty text block array
 is permitted for an unfinished draft; sending still requires meaningful text under

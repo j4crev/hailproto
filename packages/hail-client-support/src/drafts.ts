@@ -21,7 +21,7 @@ export function parseDraftContent(value:unknown):DraftContent {
   if(v.builder!==undefined){
     const builder=parseBuilderDraft(v.builder);
     if(v.forward||v.title||v.text||v.header||v.alt||v.caption)throw new Error('Builder drafts cannot contain simple-compose fields or a forward');
-    if(v.audience==='connections'&&builder.body.profile==='spt-3')throw new Error('Connection drafts cannot contain a header');
+    if(v.audience==='connections'&&builder.body.profile==='spt-3')throw new Error('Connection drafts cannot contain images');
   }
   if(v.attachments!==undefined)parseAttachments(v.attachments);
   return v;

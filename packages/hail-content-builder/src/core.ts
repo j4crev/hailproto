@@ -1,9 +1,9 @@
 import {encodePayload, fromDiagnosticJson, encodeBase64Url, validatePngStructure, type DiagnosticJson, type HailSpt2TextBlock} from '@racrproto/codec/content';
 
 export type TextBlock = HailSpt2TextBlock;
-export type HeaderAsset = {id:string;role:'header';media_type:'image/png';loading:'bundled';size:number;digest:{algorithm:'sha-256';value:string};width:number;height:number;data:string};
+export type HeaderAsset = {id:string;role:'header'|'image';media_type:'image/png';loading:'bundled';size:number;digest:{algorithm:'sha-256';value:string};width:number;height:number;data:string};
 export type ImageBlock = {_type:'spt.image';asset:string;alt:string;caption?:string};
-export type BuilderBody = {version:1;profile:'spt-2';blocks:TextBlock[]} | {version:1;profile:'spt-3';blocks:[ImageBlock,...TextBlock[]];assets:{version:1;assets:[HeaderAsset]}};
+export type BuilderBody = {version:1;profile:'spt-2';blocks:TextBlock[]} | {version:1;profile:'spt-3';blocks:(ImageBlock|TextBlock)[];assets:{version:1;assets:HeaderAsset[]}};
 export type BuilderDraft = {version:1;body:BuilderBody};
 export type PortableBlock = Record<string,unknown> & {_type:string;_key:string};
 export type PortableBundle = {version:1;blocks:PortableBlock[];assets:HeaderAsset[]};
@@ -27,19 +27,47 @@ export function validateBody(value:unknown):BuilderBody {
   encodePayload(type,fromDiagnosticJson(type,v as DiagnosticJson));
   return JSON.parse(JSON.stringify(v)) as BuilderBody;
 }
-/** Drafts may retain an empty header description; published bodies may not. */
+/** Editable drafts retain unfinished image descriptions and CTA fields. */
 export function validateDraftBody(value:unknown):BuilderBody {
   budget(value);
   const candidate=JSON.parse(JSON.stringify(object(value,'body')));
-  const first=Array.isArray(candidate.blocks)?candidate.blocks[0]:undefined;
-  if(candidate.profile==='spt-3'&&first?._type==='spt.image'&&first.alt===''){
-    // Validate every other field through the codec, then preserve the unfinished value.
-    first.alt='x';
-    const body=validateBody(candidate);
-    if(body.profile==='spt-3')body.blocks[0].alt='';
-    return body;
-  }
-  return validateBody(value);
+  const restore:((body:BuilderBody)=>void)[]=[];
+  if(Array.isArray(candidate.blocks))candidate.blocks.forEach((block:Record<string,any>,index:number)=>{
+    if(candidate.profile==='spt-3'&&block?._type==='spt.image'&&block.alt===''){
+      block.alt='x';restore.push(body=>{(body.blocks[index] as ImageBlock).alt='';});
+    }
+    if(block?._type==='block'&&block.style==='cta'){
+      if(Array.isArray(block.markDefs)&&block.markDefs.length===1&&typeof block.markDefs[0]?.href==='string'&&new TextEncoder().encode(block.markDefs[0].href).length<=2048){
+        const href=block.markDefs[0].href;block.markDefs[0].href='https://example.invalid/';
+        restore.push(body=>{(body.blocks[index] as TextBlock).markDefs[0]!.href=href;});
+      }
+      if(Array.isArray(block.children)&&block.children.length&&block.children.every((span:any)=>typeof span?.text==='string')&&!block.children.map((span:any)=>span.text).join('').replace(/[ \t\r\n]/g,'')){
+        const label=block.children.map((span:any)=>span.text).join('');
+        if(new TextEncoder().encode(label).length>128||/[\r\n]/.test(label))throw new Error('Use a single-line button label up to 128 UTF-8 bytes.');
+        const text=block.children[0].text;block.children[0].text='x';
+        restore.push(body=>{(body.blocks[index] as TextBlock).children[0].text=text;});
+      }
+    }
+  });
+  const body=validateBody(candidate);restore.forEach(apply=>apply(body));return body;
+}
+export function ctaProblem(label:string,href:string):string|null {
+  if(!label.replace(/[ \t\r\n]/g,''))return 'Add a button label before sending.';
+  if(/[\r\n]/.test(label)||new TextEncoder().encode(label).length>128)return 'Use a single-line button label up to 128 UTF-8 bytes.';
+  if(!href.trim())return 'Add a destination URL.';
+  try{const url=new URL(href);if(!href.startsWith('https://')||url.protocol!=='https:'||url.username||url.password||new TextEncoder().encode(href).length>2048)throw Error();}
+  catch{return 'Enter an HTTPS destination without login credentials before sending.';}
+  return null;
+}
+export function publicationIssues(body:BuilderBody):Diagnostic[] {
+  return body.blocks.flatMap((block,index)=>{
+    if(block._type==='spt.image'&&block.alt==='')return [{path:`blocks[${index}].alt`,code:'unfinished-field',message:`Image (block ${index+1}): Add an image description.`}];
+    if(block._type==='block'&&block.style==='cta'){
+      const message=ctaProblem(block.children.map(span=>span.text).join(''),block.markDefs[0]?.href??'');
+      if(message){const label=block.children.map(span=>span.text).join('').trim();return [{path:`blocks[${index}]`,code:'unfinished-field',message:`Button${label?` “${label}”`:''} (block ${index+1}): ${message}`}];}
+    }
+    return [];
+  });
 }
 export function parseBuilderDraft(value:unknown):BuilderDraft {
   const v=object(value,'builder');fields(v,['version','body'],'builder');
@@ -50,10 +78,10 @@ export function diagnostics(error:unknown):Diagnostic[] {
   const e=error as {path?:string;code?:string;message?:string};
   return [{path:e?.path??'document',code:e?.code??'unsupported-content',message:e?.message??'Invalid content'}];
 }
-export function textBlocks(body:BuilderBody):TextBlock[] {return (body.profile==='spt-3'?body.blocks.slice(1):body.blocks) as TextBlock[];}
+export function textBlocks(body:BuilderBody):TextBlock[] {return (body.blocks as (TextBlock|ImageBlock)[]).filter((block):block is TextBlock=>block._type==='block');}
 export function plainText(body:BuilderBody){return textBlocks(body).map(b=>b.children.map(s=>s.text).join('')).join('\n');}
 export function assertCapabilities(body:BuilderBody,profiles:readonly string[]){
-  if(!profiles.includes(body.profile))throw new Error(`Host does not support ${body.profile}. Remove the header or choose a supporting host.`);
+  if(!profiles.includes(body.profile))throw new Error(`Host does not support ${body.profile}. Remove the images or choose a supporting host.`);
 }
 export function toPortable(body:BuilderBody):PortableBundle {
   const valid=validateDraftBody(body);
@@ -74,8 +102,8 @@ export function fromPortable(value:unknown,options:{draft?:boolean}={}):BuilderB
       fields(v,['_type','_key','asset','alt','caption'],path);
       const {_key,...image}=v;return {...image,_type:'spt.image'};
     }
-    if(v._type!=='block')throw new Error(`${path}._type: unsupported ${String(v._type)}; only text and the bundled header are supported`);
-    fields(v,['_type','_key','style','listItem','level','children','markDefs'],path);
+    if(v._type!=='block')throw new Error(`${path}._type: unsupported ${String(v._type)}; only text and bundled images are supported`);
+    fields(v,['_type','_key','style','listItem','level','alignment','children','markDefs'],path);
     if(!Array.isArray(v.children)||!Array.isArray(v.markDefs))throw new Error(`${path}: children and markDefs must be arrays`);
     const childKeys=new Set<string>();
     const children=v.children.map((entry,i)=>{
@@ -91,12 +119,12 @@ export function fromPortable(value:unknown,options:{draft?:boolean}={}):BuilderB
   });
   return (options.draft?validateDraftBody:validateBody)(bundle.assets.length?{version:1,profile:'spt-3',blocks,assets:{version:1,assets:bundle.assets}}:{version:1,profile:'spt-2',blocks});
 }
-export async function pngAsset(data:Uint8Array):Promise<HeaderAsset> {
+export async function pngAsset(data:Uint8Array,inline=false):Promise<HeaderAsset> {
   if(data.length>196608)throw new Error('Choose a PNG up to 192 KiB.');
   const {width,height}=validatePngStructure(data);
-  if(width>2400||height>1200||width*height>2000000)throw new Error('Header must fit 2400 × 1200 and 2,000,000 pixels.');
+  if(width>2400||height>(inline?2400:1200)||width*height>2000000)throw new Error(`Image must fit 2400 × ${inline?2400:1200} and 2,000,000 pixels.`);
   const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',new Uint8Array(data)));
-  return {id:'header',role:'header',media_type:'image/png',loading:'bundled',size:data.length,digest:{algorithm:'sha-256',value:encodeBase64Url(digest)},width,height,data:encodeBase64Url(data)};
+  return {id:inline?'image-'+crypto.randomUUID():'header',role:inline?'image':'header',media_type:'image/png',loading:'bundled',size:data.length,digest:{algorithm:'sha-256',value:encodeBase64Url(digest)},width,height,data:encodeBase64Url(data)};
 }
 /** Semantic equality ignores editor identity, annotation keys, span segmentation and mark order.
  * Text itself is exact (including Unicode and line breaks); assets remain byte-identical. */
@@ -108,7 +136,7 @@ export function semantics(body:BuilderBody):unknown {
       const marks=span.marks.map(mark=>{const def=block.markDefs.find(d=>d._key===mark);return def?JSON.stringify({href:def.href,title:def.title??null}):mark;}).sort();
       const last=runs.at(-1);if(last&&JSON.stringify(last.marks)===JSON.stringify(marks))last.text+=span.text;else if(span.text)runs.push({text:span.text,marks});
     }
-    return {style:block.style,listItem:block.listItem??null,level:block.listItem?(block.level??1):null,runs};
+    return {style:block.style,alignment:block.alignment??'left',listItem:block.listItem??null,level:block.listItem?(block.level??1):null,runs};
   })};
 }
 

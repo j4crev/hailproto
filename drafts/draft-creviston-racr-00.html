@@ -21,7 +21,7 @@
     Jinja2 3.1.6
     lxml 6.1.3
     natsort 8.4.0
-    platformdirs 4.14.3
+    platformdirs 4.14.5
     pycountry 26.2.16
     PyYAML 6.0.3
     requests 2.34.2
@@ -1606,10 +1606,11 @@ li > p:last-of-type:only-child {
       <h2 id="name-body-content-and-retrieval">
 <a href="#section-8" class="section-number selfRef">8. </a><a href="#name-body-content-and-retrieval" class="section-name selfRef">Body Content and Retrieval</a>
       </h2>
-<p id="section-8-1">A body is a closed Safe Portable Text document, not arbitrary HTML. Every provider MUST validate, retrieve, and store spt-1, spt-2, and spt-3. Plain-text-only support is insufficient. spt-1 contains normal text blocks and unmarked spans. spt-2 adds specified headings, blockquotes, captions, lists, strong/em/code decorators, and declared HTTPS links. spt-3 adds exactly one leading image block referencing one bundled PNG header.<a href="#section-8-1" class="pilcrow">¶</a></p>
+<p id="section-8-1">A body is a closed Safe Portable Text document, not arbitrary HTML. Every provider MUST validate, retrieve, and store spt-1, spt-2, and spt-3. Plain-text-only support is insufficient. spt-1 contains normal text blocks and unmarked spans. spt-2 adds specified headings, blockquotes, captions, lists, strong/em/code decorators, and declared HTTPS links, plus optional left/center/right text alignment and a cta style for prominent navigation links. spt-3 interleaves one to eight image blocks referencing bundled static PNG assets with rich text. All assets must be referenced. Image-role assets may appear anywhere; a header-role asset is reserved for a leading image.<a href="#section-8-1" class="pilcrow">¶</a></p>
 <p id="section-8-2">Clients MUST treat text as text, validate link schemes and attributes, and not interpret unknown nodes as executable markup. The current profiles define neither arbitrary HTML/CSS/scripts nor sender-controlled remote image loading. Advanced publisher layouts require new explicit nodes, validation, and presentation rules. A profile is not extensible merely because its data is represented as a map.<a href="#section-8-2" class="pilcrow">¶</a></p>
-<p id="section-8-3">The header is limited to 196608 bytes, width 2400, height 1200, and 2000000 pixels. Asset size, digest, and PNG dimensions must agree with the bytes; animated PNG is prohibited. A message image requires plain-text alt text and may carry a caption, each at most 1024 UTF-8 bytes under the specified NFC and character rules. The complete body, including bundled bytes, still fits within 1 MiB. Sender Profile avatar limits are separately 32768 bytes, 512 by 512, and 262144 pixels.<a href="#section-8-3" class="pilcrow">¶</a></p>
-<p id="section-8-4">These independent byte, pixel, and structural budgets do not allocate a future attachment allowance. General attachments, detached resources, and their per-resource and aggregate limits remain undefined.<a href="#section-8-4" class="pilcrow">¶</a></p>
+<p id="section-8-3">A cta text block has exactly one spt.link annotation, with every span carrying only that annotation key, no list fields, and a concatenated single-line label of at most 128 UTF-8 bytes containing a character other than ASCII whitespace. CR and LF are prohibited. Its absolute HTTPS destination has no credentials and is at most 2048 UTF-8 bytes. It renders as an accessible navigation link with client-controlled button styling, never fetching its destination until explicit navigation. Optional text-block alignment is left, center, or right; absent means left. This hint changes neither reading order nor directionality and may be adapted for accessibility. These fields are supported by the current spt-2 and spt-3 alpha definitions, not spt-1.<a href="#section-8-3" class="pilcrow">¶</a></p>
+<p id="section-8-4">Each image is limited to 196608 bytes, width and height 2400, and 2000000 pixels; header-role height remains 1200. Image occurrences total at most eight and 8000000 decoded pixels, including repeated references. Readers preserve document order and aspect ratio. Asset size, digest, and PNG dimensions must agree with the bytes; animated PNG is prohibited. A message image requires plain-text alt text and may carry a caption, each at most 1024 UTF-8 bytes under the specified NFC and character rules. The complete body, including bundled bytes, still fits within 1 MiB. Sender Profile avatar limits are separately 32768 bytes, 512 by 512, and 262144 pixels.<a href="#section-8-4" class="pilcrow">¶</a></p>
+<p id="section-8-5">These independent byte, pixel, and structural budgets do not allocate a future attachment allowance. General attachments, detached resources, and their per-resource and aggregate limits remain undefined.<a href="#section-8-5" class="pilcrow">¶</a></p>
 <div id="body-auth">
 <section id="section-8.1">
         <h3 id="name-bearer-authorization">
@@ -1843,7 +1844,7 @@ li > p:last-of-type:only-child {
       <h2 id="name-body-structural-schema-exce">
 <a href="#appendix-C" class="section-number selfRef">Appendix C. </a><a href="#name-body-structural-schema-exce" class="section-name selfRef">Body Structural Schema Excerpt</a>
       </h2>
-<p id="appendix-C-1">The following CDDL (<span>[<a href="#RFC8610" class="cite xref">RFC8610</a>]</span>) is copied from the pinned hail.cddl body and asset definitions, with the digest dependency included. It defines structure only: the prose and source specification impose additional mark-reference, role, PNG, text, and cross-field validation. In particular, spt-3 permits exactly one header asset despite the reusable manifest allowing one or two entries. Unknown fields are not permitted.<a href="#appendix-C-1" class="pilcrow">¶</a></p>
+<p id="appendix-C-1">The following CDDL (<span>[<a href="#RFC8610" class="cite xref">RFC8610</a>]</span>) is copied from the pinned hail.cddl body and asset definitions, with the digest dependency included. It defines structure only: the prose and source specification impose additional mark-reference, role, PNG, text, and cross-field validation. In particular, spt-3 permits one to eight image or header assets, all referenced, and at most eight image blocks with eight million total displayed pixels; only the first block may reference a header asset. Unknown fields are not permitted.<a href="#appendix-C-1" class="pilcrow">¶</a></p>
 <div class="breakable lang-cddl sourcecode" id="appendix-C-2">
 <pre>sha256 = bstr .size 32
 
@@ -1882,11 +1883,13 @@ hail-body-spt-2 = {
 
 spt-2-text-block = {
   "_type": "block",
-  "style": "normal" / "h1" / "h2" / "h3" / "blockquote" / "caption",
+  "style": "normal" / "h1" / "h2" / "h3" /
+           "blockquote" / "caption" / "cta",
   "children": [1* spt-2-span],
   "markDefs": [* spt-link],
   ? "listItem": "bullet" / "number",
-  ? "level": 1..3
+  ? "level": 1..3,
+  ? "alignment": "left" / "center" / "right"
 }
 
 spt-2-span = {
@@ -1902,12 +1905,12 @@ spt-link = {
   ? "title": tstr
 }
 
-; spt-3 adds one bundled, digest-bound header image before rich text.
+; spt-3 interleaves bounded, digest-bound PNG images and rich text.
 hail-body-spt-3 = {
   "version": 1,
   "profile": "spt-3",
   "assets": asset-manifest-v1,
-  "blocks": [spt-image-block, * spt-2-text-block]
+  "blocks": [1* (spt-image-block / spt-2-text-block)]
 }
 
 spt-image-block = {
@@ -1921,18 +1924,18 @@ spt-image-block = {
 ; and profile versions.
 asset-manifest-v1 = {
   "version": 1,
-  "assets": [1*2 bundled-image-asset-v1]
+  "assets": [1*8 bundled-image-asset-v1]
 }
 
 bundled-image-asset-v1 = {
   "id": tstr,
-  "role": "avatar" / "header",
+  "role": "avatar" / "header" / "image",
   "media_type": "image/png",
   "loading": "bundled",
   "size": 1..196608,
   "digest": digest,
   "width": 1..2400,
-  "height": 1..1200,
+  "height": 1..2400,
   "data": bstr
 }
 </pre><a href="#appendix-C-2" class="pilcrow">¶</a>
