@@ -52,7 +52,10 @@ it('requires authenticated scoped same-origin web access for Trash mutations',as
     expect((await post(url,{...body,extra:true})).status).toBe(400);
     expect((await post(url,body)).status).toBe(200);
   }
-  expect(empty).toHaveBeenCalledTimes(1);expect(clearSent).toHaveBeenCalledWith(session,true);
+  expect(empty).toHaveBeenCalledTimes(1);expect(clearSent).toHaveBeenCalledWith(session,true,undefined);
+  const selected=[{kind:'message',messageId:'019a0000-0000-7000-8000-000000000001'}];
+  expect((await post('/api/v1/account/sent/clear',{trashEnabled:true,messages:selected})).status).toBe(200);
+  expect(clearSent).toHaveBeenLastCalledWith(session,true,selected);
   session.passkey_credential_id=null;
   session.scopes=['messages:read'];expect((await post(path.replace('/delete','/permanent-delete'))).status).toBe(403);
   session.scopes=['messages:write'];expect((await post(path.replace('/delete','/permanent-delete'))).status).toBe(200);

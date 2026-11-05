@@ -190,7 +190,7 @@
             <div class="grid gap-1.5">
               <p class="text-sm text-muted">Enter a Hail address to subscribe to</p>
               <form class="flex flex-wrap items-end gap-3" onsubmit={event=>{event.preventDefault();if(sender.trim())void run(inspect);}}>
-                <label class="hail-field min-w-0 flex-1"><span class="sr-only">Sender’s Hail address</span><input bind:value={sender} maxlength="254" autocomplete="off" placeholder="sender@business.example" oninput={()=>{pinnedDid=undefined;review=null;draft=null;}} /></label>
+                <label class="hail-field min-w-0 flex-1"><span class="sr-only">Sender’s Hail address</span><input bind:value={sender} maxlength="254" autocomplete="off" placeholder="sender@example.com" oninput={()=>{pinnedDid=undefined;review=null;draft=null;}} /></label>
                 <button class="hail-button" type="submit" disabled={busy||!sender.trim()}>Continue</button>
               </form>
             </div>

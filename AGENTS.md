@@ -1,5 +1,27 @@
 # Repository agent guidance
 
+## Local UI previews
+
+For a local appearance review, use `bun run --cwd apps/client preview:design`
+from the repository root and open `http://localhost:4173`. This builds the current
+client and starts the loopback-only fictional provider/account fixture, with no
+login or production credentials. Set `HAIL_DESIGN_PORT` for a different port.
+See [appearance review instructions](apps/client/README.md#appearance-review-with-fictional-data).
+
+Do not use bare `bun run --cwd apps/client dev --port 4173` for this workflow.
+Vite can report ready while every page fails with
+`Set HAIL_WEB_CLIENT_PROVIDER to the provider HTTPS origin`. Normal dev mode
+requires a deliberately configured provider and matching origin/auth settings;
+setting a placeholder provider alone does not create a usable mailbox preview.
+
+Before reporting a preview ready, wait for the build and app startup, then verify
+an HTTP request to the requested page succeeds and renders the expected UI, not
+an error page. Stop only the previous preview process you own if the port is
+occupied. Keep the fixture loopback-only. Its in-memory changes reset on restart;
+rerun `preview:design` after code changes because it serves a built client without
+hot reload. Reading, selection and Trash/restore work; sending and account/passkey
+changes are intentionally unavailable.
+
 ## Keep the protocol specification current
 
 Prioritize keeping `spec/` synchronized with protocol additions, removals and

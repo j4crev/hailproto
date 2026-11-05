@@ -222,6 +222,7 @@ export function parseSentSend(value:unknown) {
   const paragraphs=title?content.paragraphs.slice(1):content.paragraphs;
   return {...content,messageId:text(item.messageId,"send ID"),kind:item.kind as "category"|"connections"|"message",
     category:item.category===null?null:text(item.category,"category"),createdAt:text(item.createdAt,"creation time"),
+    trashedAt:item.trashedAt==null?null:text(item.trashedAt,"trash time"),
     title:title||"Untitled message",preview:messagePreview({paragraphs}),recipients,recipientSummary};
 }
 

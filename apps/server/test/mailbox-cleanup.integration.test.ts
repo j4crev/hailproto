@@ -26,8 +26,13 @@ it.skipIf(!process.env.DATABASE_URL)('cleans all completed sends, preserves acti
     }
     const completed=[];for(let i=0;i<8;i++)completed.push(await send(i%2?'delivered':'failed'));
     const active=[await send('accepted'),await send('on-hold'),await send(null)];
-    await send('delivered',otherId,otherDid);
+    const otherSend=await send('delivered',otherId,otherDid);
     expect((await sentSends(db.sql,session,null)).next).not.toBeNull();
+    const selection=[completed[0],completed[0],active[0],otherSend,uuidV7()].map(messageId=>({kind:'message',messageId}));
+    expect(await trash.clearSent(session,true,selection)).toEqual({affected:1,state:'trashed'});
+    expect(await trash.clearSent(session,true,selection)).toEqual({affected:0,state:'trashed'});
+    expect((await sentSends(db.sql,session,null,{kind:'message',id:completed[1]!})).messages).toHaveLength(1);
+    expect(await trash.restoreSent(session,'message',completed[0])).toEqual({restored:1});
     expect(await trash.clearSent(session,true)).toEqual({affected:8,state:'trashed'});
     expect(await trash.clearSent(session,true)).toEqual({affected:0,state:'trashed'});
     expect((await sentSends(db.sql,session,null)).messages.map(m=>m.messageId).sort()).toEqual(active.sort());
@@ -49,7 +54,7 @@ it.skipIf(!process.env.DATABASE_URL)('cleans all completed sends, preserves acti
     const later=await send('cancelled');
     await trash.saveSettings(session,false);
     await expect(trash.clearSent(session,true)).rejects.toThrow('Trash settings changed');
-    expect(await trash.clearSent(session,false)).toEqual({affected:1,state:'deleted'});
+    expect(await trash.clearSent(session,false,[{kind:'message',messageId:later}])).toEqual({affected:1,state:'deleted'});
     expect(await trash.restoreSent(session,'message',later)).toEqual({restored:0});
     await trash.saveSettings(session,true);
     const last=await send('delivered');await trash.clearSent(session,true);await trash.saveSettings(session,false);
@@ -76,4 +81,12 @@ it.skipIf(!process.env.DATABASE_URL)('cleans all completed sends, preserves acti
     // Rollback refuses to resurrect removed mail.
     await expect(db.sql.begin(async tx=>{await tx.unsafe(await Bun.file(new URL('../migrations/rollback/0100_sent_mailbox.sql',import.meta.url)).text());})).rejects.toThrow('Sent disposition');
   }finally{await db.close();}
+});
+
+it('rejects malformed Sent selections before any database work',async()=>{
+  const trash=new MessageTrash({} as never),session={} as AccountApiSession;
+  const valid={kind:'message',messageId:uuidV7()};
+  for(const messages of [null,[],{},[null],[{...valid,kind:'inbox'}],[{...valid,messageId:'invalid'}],[{...valid,extra:true}],Array(101).fill(valid)]){
+    await expect(trash.clearSent(session,true,messages)).rejects.toThrow(/Invalid sent/);
+  }
 });

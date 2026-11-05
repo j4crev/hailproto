@@ -16,7 +16,7 @@ owning account and never affect another account's mail.
 | POST path under `/api/v1/account` | Body | Result |
 | --- | --- | --- |
 | `/trash/empty` | `{}` | `{deleted: number}`; permanently removes all received copies and saved drafts in Trash, and makes all sent Trash copies non-restorable |
-| `/sent/clear` | `{trashEnabled: boolean}` | `{affected: number, state: "trashed" \| "deleted"}`; clears all eligible Sent items across every page |
+| `/sent/clear` | `{trashEnabled: boolean, messages?: [{kind: "category" \| "connections" \| "message", messageId: UUIDv7}]}` | `{affected: number, state: "trashed" \| "deleted"}`; clears eligible selected Sent items, or all eligible Sent items across every page when `messages` is omitted |
 | `/sent/restore` | `{kind: "category" \| "connections" \| "message", messageId: UUIDv7}` | `{restored: number}`; restores one live sent Trash item to Sent |
 
 `trashEnabled` is the setting the user saw, not permission to override it. A
@@ -24,6 +24,13 @@ mismatch with the transaction's current account preference returns `409` without
 changing mail. Invalid bodies return `400`; ordinary authentication, scope,
 method, media-type and migration errors follow the other mailbox mutations.
 Emptying or clearing an already-cleared folder succeeds with a zero count.
+
+When supplied, `messages` must contain 1–100 objects with exactly `kind` and
+`messageId`; invalid identities or extra members return `400`. Duplicate identities
+count once. Unknown, other-account, already removed and active sends are skipped;
+only newly removed items contribute to `affected`. An empty or null selection is
+invalid and must never fall back to clearing the folder. The same preference check,
+transaction and eligibility rules apply to selected and whole-folder cleanup.
 
 A send is a sealed category publication, a sealed connection/shared-conversation
 batch, or a standalone envelope, using the existing `(kind, messageId)` Sent

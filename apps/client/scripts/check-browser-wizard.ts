@@ -793,7 +793,7 @@ try{
   assert.deepEqual(await styles('[aria-label="Permission confirmation"]',["borderTopWidth","borderTopColor"]),["2px","rgb(18, 115, 101)"]);
   assert.equal(allowed,null);assert(await has("alice@provider.example.com"));
   await click("Allow sender with my passkey");await wait(async()=>evaluate(`document.querySelector('button[aria-label^="Select subscription to"]')?.disabled===false`),"passkey-approved permission saved");
-  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),"","Completed subscription clears the sender address");
+  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@example.com"]').value`),"","Completed subscription clears the sender address");
   await evaluate(`document.querySelector('button[aria-label^="Select subscription to"]').click()`);
   // The list goes straight to passkey consent; cancellation must leave the grant active.
   const unsubscribeCommitsBefore=requests.filter(r=>r.path==="/api/v1/account/permissions/commit").length;
@@ -861,7 +861,7 @@ try{
   const qrRequests=requests.filter(r=>r.path.endsWith("/permissions/prepare")).length;
   await cdp("Page.navigate",{url:origin+"/permissions#"+new URLSearchParams({sender:peerAddress,did:peerDid})});
   await wait(()=>has("QR identity pin:"),"scanned sender QR prefill");
-  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
+  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@example.com"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Opening a QR must not prepare or approve a permission");
   await click("Continue");await wait(()=>has("Test sender"),"QR and typed address share the same review");
   await cdp("Page.navigate",{url:origin+"/compose"});await wait(()=>evaluate("!!document.querySelector('#category-search')"),"publisher styling");
@@ -922,7 +922,7 @@ try{
   await wait(async()=>evaluate(`location.pathname==='/' && new URL(location.href).searchParams.get('next')==='/permissions' && location.hash===${JSON.stringify("#"+qrFragment)}`),"expired-session login preserves QR identity pin");
   const cookies=await cdp("Network.getCookies",{urls:[origin]});assert(!cookies.cookies.some((cookie:any)=>cookie.name==="hail_session"),"Expired cookie must be cleared");
   await click("Sign in with a passkey");await wait(()=>has("QR identity pin:"),"shared passkey login returns to QR review");
-  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
+  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@example.com"]').value`),peerAddress);
   assert.equal(requests.filter(r=>r.path.endsWith("/permissions/prepare")).length,qrRequests,"Signing in through a QR must not approve or prepare it");
   // Verify each ordinary folder resumes after login, including its query string.
   for(const [path,text] of [["/sent?after=older","Sent"],["/compose","New publication"],["/account","Sign-in & security"]]){
@@ -953,7 +953,7 @@ try{
   await click("Verify to manage");await wait(async()=>evaluate(`location.search==='?fresh=1' && [...document.querySelectorAll('button')].find(b=>b.textContent==='Add passkey')?.disabled===false`),"fresh passkey verification unlocks management");
   generalAvailable=true;
   await cdp("Page.navigate",{url:origin+"/permissions?general-proof=1#"+new URLSearchParams({sender:peerAddress,did:peerDid})});await wait(()=>has("QR identity pin:"),"General subscription screen from sender QR");
-  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),peerAddress);
+  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@example.com"]').value`),peerAddress);
   await click("Continue");
   await wait(async()=>evaluate(`!!document.querySelector('input[value=general]')`),"General is an ordinary offered category");
   assert(!await has("Allow uncategorized messages instead"));
@@ -961,7 +961,7 @@ try{
   await click("Review permission");await wait(()=>has("Confirm allowed sender"),"review General subscription");
   assert(await has("Scope: General"));await click("Allow sender with my passkey");
   await wait(async()=>evaluate(`[...document.querySelectorAll('[aria-label="Subscriptions"] article dd')].some(p=>p.textContent==='General')`),"new General subscription saved");
-  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@business.example"]').value`),"");
+  assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@example.com"]').value`),"");
   assert.equal(await evaluate(`location.hash`),"");
   assert.equal(allowed!.revision,1);assert.deepEqual(allowed!.scope,[{type:"categories",values:["general"]}]);
   // Separate permanent/expiring codes and real browser passkey confirmation (API fixtures).
