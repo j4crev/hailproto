@@ -76,7 +76,7 @@ export const actions={save:async({request,cookies,url})=>{
       try{builder=parseBuilderDraft(JSON.parse(field('builder')));validateBody(builder.body);}
       catch(cause){return fail(400,{error:cause instanceof Error?cause.message:'Invalid builder content.'});}
       if(forwarding||title||text||alt||caption||field('savedHeader')||header instanceof File&&header.size>0)return fail(400,{error:'Builder content cannot be combined with simple-compose fields.'});
-      if(kind==='connections'&&builder.body.profile==='spt-3')return fail(400,{error:'Header images are available for subscriber publications only.'});
+      if(kind==='connections'&&builder.body.profile==='spt-3')return fail(400,{error:'Images are available for subscriber publications only.'});
       if(!plainText(builder.body).trim())return fail(400,{error:'Write some message text before publishing.'});
     }
     const keys=[...form.keys()];
@@ -88,7 +88,7 @@ export const actions={save:async({request,cookies,url})=>{
       return fail(400,{error:"Check the audience, title, and message text."});
     const savedHeader=field("savedHeader");
     const hasHeader=header instanceof File&&header.size>0||!!savedHeader;
-    if(kind==="connections"&&hasHeader)return fail(400,{error:"Header images are available for subscriber publications only."});
+    if(kind==="connections"&&hasHeader)return fail(400,{error:"Images are available for subscriber publications only."});
     const blocks=composeBlocks(title.trim(),text.trim());
     let body:Record<string,unknown>=builder?builder.body:{version:1,profile:"spt-2",blocks};
     if(!forwarding&&hasHeader){

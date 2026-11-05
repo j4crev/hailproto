@@ -102,9 +102,9 @@ Table of Contents
    8.  Body Content and Retrieval  . . . . . . . . . . . . . . . . .  12
      8.1.  Bearer Authorization  . . . . . . . . . . . . . . . . . .  13
      8.2.  Content Verification and Compression  . . . . . . . . . .  14
-   9.  Delivery State and Status Reporting . . . . . . . . . . . . .  14
+   9.  Delivery State and Status Reporting . . . . . . . . . . . . .  15
    10. Implemented Extensions and Deferred Features  . . . . . . . .  16
-   11. Security Considerations . . . . . . . . . . . . . . . . . . .  16
+   11. Security Considerations . . . . . . . . . . . . . . . . . . .  17
    12. Privacy Considerations  . . . . . . . . . . . . . . . . . . .  18
 
 
@@ -114,11 +114,11 @@ Creviston                  Expires 6 May 2027                   [Page 2]
 Internet-Draft                    RACR                     November 2026
 
 
-   13. IANA Considerations . . . . . . . . . . . . . . . . . . . . .  18
+   13. IANA Considerations . . . . . . . . . . . . . . . . . . . . .  19
    14. Implementation and Evaluation Status  . . . . . . . . . . . .  19
-   15. Normative References  . . . . . . . . . . . . . . . . . . . .  19
+   15. Normative References  . . . . . . . . . . . . . . . . . . . .  20
    Appendix A.  Open Issues and Publication Work . . . . . . . . . .  21
-   Appendix B.  Source Map and Review Boundary . . . . . . . . . . .  22
+   Appendix B.  Source Map and Review Boundary . . . . . . . . . . .  23
    Appendix C.  Body Structural Schema Excerpt . . . . . . . . . . .  23
    Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  25
 
@@ -658,11 +658,11 @@ Internet-Draft                    RACR                     November 2026
    spt-3.  Plain-text-only support is insufficient. spt-1 contains
    normal text blocks and unmarked spans. spt-2 adds specified headings,
    blockquotes, captions, lists, strong/em/code decorators, and declared
-   HTTPS links. spt-3 adds exactly one leading image block referencing
-   one bundled PNG header.
-
-
-
+   HTTPS links, plus optional left/center/right text alignment and a cta
+   style for prominent navigation links. spt-3 interleaves one to eight
+   image blocks referencing bundled static PNG assets with rich text.
+   All assets must be referenced.  Image-role assets may appear
+   anywhere; a header-role asset is reserved for a leading image.
 
 
 
@@ -682,14 +682,29 @@ Internet-Draft                    RACR                     November 2026
    profile is not extensible merely because its data is represented as a
    map.
 
-   The header is limited to 196608 bytes, width 2400, height 1200, and
-   2000000 pixels.  Asset size, digest, and PNG dimensions must agree
-   with the bytes; animated PNG is prohibited.  A message image requires
-   plain-text alt text and may carry a caption, each at most 1024 UTF-8
-   bytes under the specified NFC and character rules.  The complete
-   body, including bundled bytes, still fits within 1 MiB.  Sender
-   Profile avatar limits are separately 32768 bytes, 512 by 512, and
-   262144 pixels.
+   A cta text block has exactly one spt.link annotation, with every span
+   carrying only that annotation key, no list fields, and a concatenated
+   single-line label of at most 128 UTF-8 bytes containing a character
+   other than ASCII whitespace.  CR and LF are prohibited.  Its absolute
+   HTTPS destination has no credentials and is at most 2048 UTF-8 bytes.
+   It renders as an accessible navigation link with client-controlled
+   button styling, never fetching its destination until explicit
+   navigation.  Optional text-block alignment is left, center, or right;
+   absent means left.  This hint changes neither reading order nor
+   directionality and may be adapted for accessibility.  These fields
+   are supported by the current spt-2 and spt-3 alpha definitions, not
+   spt-1.
+
+   Each image is limited to 196608 bytes, width and height 2400, and
+   2000000 pixels; header-role height remains 1200.  Image occurrences
+   total at most eight and 8000000 decoded pixels, including repeated
+   references.  Readers preserve document order and aspect ratio.  Asset
+   size, digest, and PNG dimensions must agree with the bytes; animated
+   PNG is prohibited.  A message image requires plain-text alt text and
+   may carry a caption, each at most 1024 UTF-8 bytes under the
+   specified NFC and character rules.  The complete body, including
+   bundled bytes, still fits within 1 MiB.  Sender Profile avatar limits
+   are separately 32768 bytes, 512 by 512, and 262144 pixels.
 
    These independent byte, pixel, and structural budgets do not allocate
    a future attachment allowance.  General attachments, detached
@@ -706,6 +721,15 @@ Internet-Draft                    RACR                     November 2026
    associated with body digest, recipient, message, expiry, and active
    state.
 
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 13]
+
+Internet-Draft                    RACR                     November 2026
+
+
    GET bodies/{digest} sends Authorization: Bearer followed by the
    canonical unpadded base64url token, using the scheme syntax of
    [RFC6750] without adopting OAuth issuance flows.  Tokens MUST NOT
@@ -719,16 +743,6 @@ Internet-Draft                    RACR                     November 2026
    token, digest, and expiry authorization has been established.  After
    a 404 the recipient performs the required authenticated endpoint
    refresh before classifying failure.
-
-
-
-
-
-
-Creviston                  Expires 6 May 2027                  [Page 13]
-
-Internet-Draft                    RACR                     November 2026
-
 
    Hashing token lookup records does not remove secrets from retained
    signed envelopes, outboxes, backups, or transfer history.  Those
@@ -762,6 +776,16 @@ Internet-Draft                    RACR                     November 2026
    already exist.  This prevents probing cross-tenant content possession
    with deliberately unusable authorizations.
 
+
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 14]
+
+Internet-Draft                    RACR                     November 2026
+
+
    Retrieval is a provider delivery operation, not an open or read
    signal.  Clients render verified local content rather than contact
    the sender when the user opens a message.
@@ -777,14 +801,6 @@ Internet-Draft                    RACR                     November 2026
    concurrent retry from publishing a message after failure or
    cancellation.  Later Grant revocation affects future acceptance, not
    already accepted Grant delivery.
-
-
-
-
-Creviston                  Expires 6 May 2027                  [Page 14]
-
-Internet-Draft                    RACR                     November 2026
-
 
    Retryable reasons are sender-unreachable, body-temporarily-
    unavailable, body-transfer-interrupted, sender-rate-limited, and
@@ -817,6 +833,15 @@ Internet-Draft                    RACR                     November 2026
    generic 202 and do not acknowledge delivery status.  No federation
    status-query endpoint is defined.
 
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 15]
+
+Internet-Draft                    RACR                     November 2026
+
+
    Terminal status is attempted immediately.  Nominal retry delays are
    30 seconds, 2 minutes, 10 minutes, 1 hour, 6 hours, and then 24
    hours.  Each delay uses independent uniform integer jitter from
@@ -833,14 +858,6 @@ Internet-Draft                    RACR                     November 2026
    deterministic payload bytes without changing its revision.  A
    delivery receipt does not attest client synchronization, display,
    opening, or reading.
-
-
-
-
-Creviston                  Expires 6 May 2027                  [Page 15]
-
-Internet-Draft                    RACR                     November 2026
-
 
 10.  Implemented Extensions and Deferred Features
 
@@ -873,6 +890,14 @@ Internet-Draft                    RACR                     November 2026
    Local account APIs, CLI commands, passkey flows, database tables, and
    deployment topology are not federation requirements.
 
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 16]
+
+Internet-Draft                    RACR                     November 2026
+
+
    End-to-end encryption, general file attachments, additional publisher
    layouts, optional-profile capability discovery, bulk federation
    submission, and federated read/open receipts remain deferred.  A
@@ -887,16 +912,6 @@ Internet-Draft                    RACR                     November 2026
    content and metadata; a sender provider can inspect outgoing content
    and tokens.  Neither provider authentication nor local disk/key
    encryption provides end-to-end confidentiality.
-
-
-
-
-
-
-Creviston                  Expires 6 May 2027                  [Page 16]
-
-Internet-Draft                    RACR                     November 2026
-
 
    Identity and messaging keys have distinct authority.  Compromise of a
    messaging key can impersonate its sender within available
@@ -926,21 +941,6 @@ Internet-Draft                    RACR                     November 2026
    scratch allocation separately.  Grants authorize delivery categories,
    not unlimited resource consumption.
 
-   Bearer tokens are transferable secrets.  Store lookup digests and
-   redact secrets from logs, but also protect signed representations and
-   backups that necessarily retain raw tokens.  Network redirects,
-   ambient cookies, arbitrary URLs, and unsafe DNS resolution can
-   exfiltrate tokens or reach private services; endpoint derivation does
-   not remove the need for safe-fetch validation.
-
-   Retention and migration must preserve immutable bodies through their
-   commitments, replay state through its deadline, and status evidence
-   through retry/correlation windows.  Storage deduplication cannot
-   erase recipient-specific ownership and authorization.  Operator
-   recovery procedures require review beyond these wire requirements.
-
-
-
 
 
 
@@ -953,6 +953,19 @@ Creviston                  Expires 6 May 2027                  [Page 17]
 
 Internet-Draft                    RACR                     November 2026
 
+
+   Bearer tokens are transferable secrets.  Store lookup digests and
+   redact secrets from logs, but also protect signed representations and
+   backups that necessarily retain raw tokens.  Network redirects,
+   ambient cookies, arbitrary URLs, and unsafe DNS resolution can
+   exfiltrate tokens or reach private services; endpoint derivation does
+   not remove the need for safe-fetch validation.
+
+   Retention and migration must preserve immutable bodies through their
+   commitments, replay state through its deadline, and status evidence
+   through retry/correlation windows.  Storage deduplication cannot
+   erase recipient-specific ownership and authorization.  Operator
+   recovery procedures require review beyond these wire requirements.
 
 12.  Privacy Considerations
 
@@ -984,6 +997,19 @@ Internet-Draft                    RACR                     November 2026
    retention policies should minimize unnecessary copies without
    violating protocol continuity requirements.
 
+
+
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 18]
+
+Internet-Draft                    RACR                     November 2026
+
+
 13.  IANA Considerations
 
    This revision makes no registration request.  The application/
@@ -1001,14 +1027,6 @@ Internet-Draft                    RACR                     November 2026
    grant+cbor, application/hail-envelope+cbor, application/hail-
    delivery-status+cbor, and application/hail-body+cbor.  The extension
    types need coordinated registration in their companion documents.
-
-
-
-
-Creviston                  Expires 6 May 2027                  [Page 18]
-
-Internet-Draft                    RACR                     November 2026
-
 
    The existing application/cose media type, COSE_Sign1 tag, and COSE
    Ed25519 algorithm are reused without a new allocation.  The address-
@@ -1040,6 +1058,14 @@ Internet-Draft                    RACR                     November 2026
    multilingual and structured publisher content, bounded decompression,
    privacy timing tests, competing revocation/acceptance operations,
    replay after restart, endpoint migration, and storage failure after
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 19]
+
+Internet-Draft                    RACR                     November 2026
+
+
    authorization.  A client can preflight an encoded draft against size
    and structural limits; doing so cannot promise acceptance under
    dynamic authorization or quota policy.
@@ -1056,15 +1082,6 @@ Internet-Draft                    RACR                     November 2026
               Requirement Levels", BCP 14, RFC 2119,
               DOI 10.17487/RFC2119, March 1997,
               <https://www.rfc-editor.org/info/rfc2119>.
-
-
-
-
-
-Creviston                  Expires 6 May 2027                  [Page 19]
-
-Internet-Draft                    RACR                     November 2026
-
 
    [RFC4648]  Josefsson, S., "The Base16, Base32, and Base64 Data
               Encodings", RFC 4648, DOI 10.17487/RFC4648, October 2006,
@@ -1097,6 +1114,14 @@ Internet-Draft                    RACR                     November 2026
               2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
               May 2017, <https://www.rfc-editor.org/info/rfc8174>.
 
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 20]
+
+Internet-Draft                    RACR                     November 2026
+
+
    [RFC8288]  Nottingham, M., "Web Linking", RFC 8288,
               DOI 10.17487/RFC8288, October 2017,
               <https://www.rfc-editor.org/info/rfc8288>.
@@ -1111,16 +1136,6 @@ Internet-Draft                    RACR                     November 2026
               Representation (CBOR)", STD 94, RFC 8949,
               DOI 10.17487/RFC8949, December 2020,
               <https://www.rfc-editor.org/info/rfc8949>.
-
-
-
-
-
-
-Creviston                  Expires 6 May 2027                  [Page 20]
-
-Internet-Draft                    RACR                     November 2026
-
 
    [RFC9052]  Schaad, J., "CBOR Object Signing and Encryption (COSE):
               Structures and Process", STD 96, RFC 9052,
@@ -1156,6 +1171,13 @@ Appendix A.  Open Issues and Publication Work
    implementers to choose incompatible behavior.  The current snapshot
    remains the implementation target while these questions are reviewed.
 
+
+
+Creviston                  Expires 6 May 2027                  [Page 21]
+
+Internet-Draft                    RACR                     November 2026
+
+
    *  Historical authority: define acceptable evidence and
       reconciliation after PLC recovery or nullified branches, including
       unacknowledged Grant identity-key rotation.  Retention of signed
@@ -1167,16 +1189,6 @@ Appendix A.  Open Issues and Publication Work
       endpoint error matrices.  Replace the monolithic repository
       reference with suitable standalone normative documents before
       seeking stable publication.
-
-
-
-
-
-
-Creviston                  Expires 6 May 2027                  [Page 21]
-
-Internet-Draft                    RACR                     November 2026
-
 
    *  Resolver policy: distinguish the strict-public reference fresh-
       read/evidence policy from deployment choices, and establish the
@@ -1207,6 +1219,21 @@ Internet-Draft                    RACR                     November 2026
       unresolved editorial notes; run xml2rfc and idnits; then use the
       Datatracker submission tool.  This draft has not been submitted.
 
+
+
+
+
+
+
+
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 22]
+
+Internet-Draft                    RACR                     November 2026
+
+
 Appendix B.  Source Map and Review Boundary
 
    The initial source snapshot is
@@ -1226,14 +1253,6 @@ Appendix B.  Source Map and Review Boundary
    encryption, and read receipts are not presented as existing
    capabilities.
 
-
-
-
-Creviston                  Expires 6 May 2027                  [Page 22]
-
-Internet-Draft                    RACR                     November 2026
-
-
    Open issues distinguish editorial incorporation work from genuinely
    unresolved protocol decisions.  In particular, current body size,
    mandatory SPT support, bearer body retrieval, Address Binding non-
@@ -1246,9 +1265,10 @@ Appendix C.  Body Structural Schema Excerpt
    body and asset definitions, with the digest dependency included.  It
    defines structure only: the prose and source specification impose
    additional mark-reference, role, PNG, text, and cross-field
-   validation.  In particular, spt-3 permits exactly one header asset
-   despite the reusable manifest allowing one or two entries.  Unknown
-   fields are not permitted.
+   validation.  In particular, spt-3 permits one to eight image or
+   header assets, all referenced, and at most eight image blocks with
+   eight million total displayed pixels; only the first block may
+   reference a header asset.  Unknown fields are not permitted.
 
    sha256 = bstr .size 32
 
@@ -1262,6 +1282,14 @@ Appendix C.  Body Structural Schema Excerpt
      "version": 1,
      "profile": "spt-1",
      "blocks": [* spt-1-text-block]
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 23]
+
+Internet-Draft                    RACR                     November 2026
+
+
    }
 
    spt-1-text-block = {
@@ -1282,24 +1310,18 @@ Appendix C.  Body Structural Schema Excerpt
    hail-body-spt-2 = {
      "version": 1,
      "profile": "spt-2",
-
-
-
-Creviston                  Expires 6 May 2027                  [Page 23]
-
-Internet-Draft                    RACR                     November 2026
-
-
      "blocks": [* spt-2-text-block]
    }
 
    spt-2-text-block = {
      "_type": "block",
-     "style": "normal" / "h1" / "h2" / "h3" / "blockquote" / "caption",
+     "style": "normal" / "h1" / "h2" / "h3" /
+              "blockquote" / "caption" / "cta",
      "children": [1* spt-2-span],
      "markDefs": [* spt-link],
      ? "listItem": "bullet" / "number",
-     ? "level": 1..3
+     ? "level": 1..3,
+     ? "alignment": "left" / "center" / "right"
    }
 
    spt-2-span = {
@@ -1315,12 +1337,20 @@ Internet-Draft                    RACR                     November 2026
      ? "title": tstr
    }
 
-   ; spt-3 adds one bundled, digest-bound header image before rich text.
+   ; spt-3 interleaves bounded, digest-bound PNG images and rich text.
+
+
+
+Creviston                  Expires 6 May 2027                  [Page 24]
+
+Internet-Draft                    RACR                     November 2026
+
+
    hail-body-spt-3 = {
      "version": 1,
      "profile": "spt-3",
      "assets": asset-manifest-v1,
-     "blocks": [spt-image-block, * spt-2-text-block]
+     "blocks": [1* (spt-image-block / spt-2-text-block)]
    }
 
    spt-image-block = {
@@ -1334,26 +1364,18 @@ Internet-Draft                    RACR                     November 2026
    ; and profile versions.
    asset-manifest-v1 = {
      "version": 1,
-     "assets": [1*2 bundled-image-asset-v1]
+     "assets": [1*8 bundled-image-asset-v1]
    }
 
    bundled-image-asset-v1 = {
-
-
-
-Creviston                  Expires 6 May 2027                  [Page 24]
-
-Internet-Draft                    RACR                     November 2026
-
-
      "id": tstr,
-     "role": "avatar" / "header",
+     "role": "avatar" / "header" / "image",
      "media_type": "image/png",
      "loading": "bundled",
      "size": 1..196608,
      "digest": digest,
      "width": 1..2400,
-     "height": 1..1200,
+     "height": 1..2400,
      "data": bstr
    }
 
@@ -1361,28 +1383,6 @@ Author's Address
 
    Jason Creviston
    Email: j4@j4crev.com
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

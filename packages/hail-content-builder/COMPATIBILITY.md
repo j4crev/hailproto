@@ -2,8 +2,8 @@
 
 This is a client integration contract and evidence record, not a new protocol
 profile. The authoritative wire vocabulary remains in `spec/bodies.md`,
-`spec/assets.md`, the codecs, and the conformance vectors. Phase 1 stops at the
-current text vocabulary plus one bundled PNG header.
+`spec/assets.md`, the codecs, and the conformance vectors. The current slice extends the original Phase 1 text/header vocabulary with
+up to eight inline PNG image blocks.
 
 ## Tested toolchain
 
@@ -34,13 +34,13 @@ API for this pinned release.
 | Concern | Current SPT | Portable Text / supported Sanity integration |
 | --- | --- | --- |
 | Text blocks/spans | `block`, `span`, children and marks | Same standard structures; no flattened/Markdown intermediate |
-| Styles | normal, h1–h3, blockquote, caption | Same names; caption is an explicitly configured custom style |
+| Styles | normal, h1–h3, blockquote, caption, cta | Same names; caption and cta are explicitly configured custom styles |
 | Decorators | strong, em, code | Same configured names; combinations preserved |
 | Annotation | `spt.link`, block-local key, href, optional title | Conventional `link`, same key/href/title; strict HTTPS/credential rules on import/export |
 | Lists | bullet/number, optional level 1–3 | Same names and levels; omitted level equivalent to 1 |
 | Block/span identity | Wire schemas forbid `_key` | Generated stable editor keys; retained during editing, regenerated on a fresh body load |
 | Annotation identity | Required `_key`, referenced by marks | Preserved; changing both key and references is semantically equivalent |
-| Image | First `spt.image`, local asset ID, alt/caption | Custom `hailImage` object, local asset ID, alt/caption plus paired bundle |
+| Image | Ordered `spt.image` blocks, local asset IDs, alt/caption | Custom `hailImage` object, local asset ID, alt/caption plus paired bundle |
 | Asset | Bundled digest-verified PNG manifest | Asset metadata **and bytes** travel in the bundle; not a CDN URL or fabricated Sanity asset reference |
 | Wrapper | version/profile/assets/blocks, deterministic CBOR for transport | Not itself a Portable Text array; exported bundle explicitly separates blocks from assets |
 
@@ -94,8 +94,38 @@ No backend asset acquisition is performed automatically.
 Automated Chromium tests exercise focusable buttons, actual text entry, undo/redo,
 save/reload and responsive layout. Human screen-reader, touch, IME and cross-browser
 usability evaluation remains necessary before making broader accessibility claims.
-Header operations use separate form state, not the text editor's history.
+Image operations and metadata use the same editor history as text.
 Saving is explicit; there is no recovery copy or unsaved-change warning.
 Host save failures remain visible and host CAS remains mandatory.
-No protocol vocabulary expansion, HTML newsletter conversion, remote asset import,
+No HTML newsletter conversion, remote asset import,
 collaboration or production rollout is included.
+
+The mixed-image browser gate inserts an image through the palette, saves/reloads
+both images, drags an image between text blocks, moves it with keyboard-accessible
+controls and undoes reordering/removal. Portable Text adapters retain image order,
+asset identity, alternatives and captions; both codecs consume the same positive
+and adversarial inline-image vectors. `hailImage` remains a custom bundle-backed
+Sanity object, not a built-in CDN image.
+
+Feed headers retain their distinct `header` asset role and leading position.
+The editor explicitly designates one image with **Use as Feed header**; other
+images remain inline. Changing the header preserves the former header as an
+inline asset. This changes editable asset references through editor history,
+without extending the Portable Text node schema or changing received bytes.
+
+## CTA and alignment
+
+The custom `cta` text style uses ordinary Portable Text spans and one conventional
+`link` annotation. `alignment` is an explicitly declared custom block field with
+left/center/right values, not standard Portable Text presentation semantics.
+The published Sanity schema declares both; custom renderers must implement their
+presentation. Default Portable Text renderers do not promise aligned/button output.
+The shared Hail renderer supplies both and preserves click-only HTTPS navigation.
+
+Inside the official editor only, a `hailCta` block object supplies label and URL
+form controls. Mount/change adapters project it to and from the supported standard
+text/link block; no `hailCta` node is exported or stored in Hail drafts. The
+projection preserves text, link target/title and alignment, while applying the
+existing semantic equivalence rules for keys and span segmentation. Browser tests
+exercise save/reload, alignment, incomplete destinations, undo and recipient parity.
+Absent and explicit left alignment are semantically equivalent.

@@ -70,3 +70,46 @@ it('saves unfinished header descriptions without weakening publication or asset 
   body.assets.assets[0].digest.value='A'.repeat(43);
   expect(()=>parseBuilderDraft({version:1,body})).toThrow();
 });
+
+it('round trips interleaved images, preserves reading order and validates every description',async()=>{
+  const assets=[await pngAsset(png,true),await pngAsset(png,true)];
+  const body=validateBody({version:1,profile:'spt-3',assets:{version:1,assets},blocks:[text.blocks[0],{_type:'spt.image',asset:assets[0].id,alt:'First image'},text.blocks[1],{_type:'spt.image',asset:assets[1].id,alt:'Second image',caption:'Second caption'}]});
+  expect(semantics(fromPortable(toPortable(body)))).toEqual(semantics(body));
+  const {renderBody}=await import('../src/rendering.js');
+  const rendered=renderBody(body);
+  expect(rendered.header).toBeNull();
+  expect(rendered.blocks.map(block=>block.image?.alt??'text')).toEqual(['text','First image','text','Second image']);
+  const unfinished=structuredClone(body) as any;unfinished.blocks[1].alt='';unfinished.blocks[3].alt='';
+  expect(parseBuilderDraft({version:1,body:unfinished}).body).toEqual(unfinished);
+  expect(()=>validateBody(unfinished)).toThrow();
+  unfinished.blocks[3].alt='e\u0301';expect(()=>parseBuilderDraft({version:1,body:unfinished})).toThrow();
+});
+
+it('round trips aligned text and a CTA through Portable Text and the recipient model',async()=>{
+  const body=validateBody({version:1,profile:'spt-2',blocks:[{...text.blocks[0],alignment:'center'},{_type:'block',style:'cta',alignment:'right',children:[{_type:'span',text:'Register now',marks:['register']}],markDefs:[{_type:'spt.link',_key:'register',href:'https://example.invalid/register',title:'Event registration'}]}]});
+  expect(semantics(fromPortable(toPortable(body)))).toEqual(semantics(body));
+  const {renderBody}=await import('../src/rendering.js');
+  expect(renderBody(body).blocks[1]).toMatchObject({style:'cta',alignment:'right',spans:[{text:'Register now',link:{href:'https://example.invalid/register'}}]});
+  expect(semantics(validateBody({...fixture,blocks:[{...text.blocks[0],alignment:'left'}]}))).toEqual(semantics(validateBody({...fixture,blocks:[text.blocks[0]]})));
+  const html=toHTML(toPortable(body).blocks,{components:{block:{cta:({children})=>`<p class="cta">${children}</p>`}}});
+  expect(html).toContain('https://example.invalid/register');expect(html).toContain('Register now');
+});
+
+it('retains unfinished CTA fields only in drafts and never permits unsafe publication',()=>{
+  const body:any={version:1,profile:'spt-2',blocks:[{_type:'block',style:'cta',children:[{_type:'span',text:'',marks:['action']}],markDefs:[{_type:'spt.link',_key:'action',href:''}]}]};
+  expect(fromPortable(toPortable(body),{draft:true})).toEqual(body);
+  expect(()=>validateBody(body)).toThrow();
+  for(const label of [' '.repeat(129),'\n','\r',' '.repeat(64)+'\t'.repeat(65)]){
+    const invalid=structuredClone(body);invalid.blocks[0].children[0].text=label;
+    expect(()=>parseBuilderDraft({version:1,body:invalid})).toThrow();
+  }
+  body.blocks[0].children[0].text='Register';
+  for(const href of ['','http://example.invalid','javascript:alert(1)','https://user:password@example.invalid']){
+    body.blocks[0].markDefs[0].href=href;expect(parseBuilderDraft({version:1,body}).body).toEqual(body);expect(()=>validateBody(body)).toThrow();
+  }
+  body.blocks[0].markDefs[0].href='https://example.invalid';
+  expect(()=>validateBody(body)).not.toThrow();
+  for(const mutate of [(b:any)=>b.alignment='justify',(b:any)=>b.listItem='bullet',(b:any)=>b.children[0].marks.push('strong'),(b:any)=>b.children[0].text='x'.repeat(129),(b:any)=>b.children[0].text='Two\nlines']){
+    const invalid=structuredClone(body);mutate(invalid.blocks[0]);expect(()=>validateBody(invalid)).toThrow();
+  }
+});

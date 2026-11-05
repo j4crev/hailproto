@@ -1,6 +1,19 @@
 # SPT content builder roadmap
 
-Status: proposed, nonnormative roadmap. Created 2026-11-04.
+Status: nonnormative roadmap. Created 2026-11-04.
+
+Implementation update 2026-11-05: Phases 0–1 are implemented, with human
+accessibility/cross-browser evaluation still outstanding. The first Phase 2 slice
+adds up to eight bundled inline PNG images, a text/image insertion palette, drag
+handles, keyboard reordering and shared image/text undo history. Current `spt-3`
+is expanded under the pre-launch policy; no new profile identifier is allocated.
+See the builder README and compatibility inventory for limits and evidence.
+Recovery, autosave and unsaved-change warnings are intentionally excluded.
+CTA blocks and left/center/right text alignment are now implemented. Selected
+image/button settings use a separate sticky sidebar on wide workspaces and a
+modal bottom sheet on narrow screens, keeping form fields off the canvas.
+Next: image preparation and editable templates; notices, image links, JPEG and
+controlled import remain separate work.
 
 This document plans a reusable content builder for haili.app and future Hail
 clients. It does not introduce a new protocol profile or authorize deployment.
@@ -179,7 +192,7 @@ single bundled PNG header. Add save/reload, undo/redo, shared previews, asset
 validation, and host handoff. Integrate with haili.app and exercise the standalone
 harness using the same core. Publish through the existing host flow only.
 
-**Exit gate:** a sender can create, recover, edit, preview, and publish supported
+**Exit gate:** a sender can create, save/reload, edit, preview, and publish supported
 content; a recipient reads the same semantics. Existing compose, drafts,
 reply/forward, and asset handling remain correct. The standalone harness works
 without haili.app account state. Network assertions show no sender-controlled

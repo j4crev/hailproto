@@ -7,8 +7,12 @@
   import { composeBlocks,formatLines } from "$lib/compose.js";
   import {parseBody} from "$lib/messages.js";
   import Builder from '@racrproto/content-builder/svelte';
-  import {emptyBody,plainText,type BuilderDraft} from '@racrproto/content-builder/core';
+  import {emptyBody,plainText,type BuilderDraft,type Diagnostic} from '@racrproto/content-builder/core';
   let {data,form}=$props();
+  let builderInstance=$state<{editIssue:(issue:Diagnostic)=>void}>();
+  let richIssues=$state<Diagnostic[]>([]);
+  async function editRichIssue(issue:Diagnostic){previewOpen=false;await tick();builderInstance?.editIssue(issue);}
+  let blockSettings=$state<HTMLDivElement>();
   let rich=$state(untrack(()=>!!data.builderInitial)),richInvalid=$state(false),richDraft=$state<BuilderDraft|null>(untrack(()=>data.builderInitial)),richInitial=$state<BuilderDraft>(untrack(()=>data.builderInitial??{version:1,body:emptyBody()}));
   import RichText from "$lib/RichText.svelte";
   import Icon from "$lib/Icon.svelte";
@@ -16,7 +20,7 @@
   let saving=$state(false);
   $effect(()=>{
     const draft=data.draft;
-    rich=!!data.builderInitial;richInitial=data.builderInitial??{version:1,body:emptyBody()};richDraft=data.builderInitial;richInvalid=false;
+    rich=!!data.builderInitial;richInitial=data.builderInitial??{version:1,body:emptyBody()};richDraft=data.builderInitial;richInvalid=false;richIssues=[];
     draftIdentity=data.newPublicationId;draftRevision=draft?.revision??0;
     title=draft?.content.title??'';text=draft?.content.text??'';alt=draft?.content.alt??'';caption=draft?.content.caption??'';
     allowReply=draft?.content.allowReply??false;category=draft?.content.category??'';categoryQuery=categoryLabel(draft?.content.category??'');
@@ -152,7 +156,7 @@
   {#if data.builderFallback}<p role="status">This draft could not be opened in the new editor. You can continue editing it here; its original content has been preserved.</p>{/if}
   {#if form?.error}<div class="mb-5"><p class="hail-error" role="alert">{form.error}</p>{#if retryPublication}<a class="hail-back mt-2" href={batchUrl(retryPublication)}>Check original {isConnection?'message batch':'publication'} status →</a>{/if}</div>{/if}
   {#if form && 'savedDraft' in form && form.savedDraft}<p role="status">Draft saved. <a href="/drafts">View drafts</a></p>{/if}
-  <form class="compose-layout grid grid-cols-[minmax(0,1fr)] max-w-[900px] mx-auto" method="POST" use:enhance={({submitter})=>{
+  <div class="compose-studio" class:rich-studio={rich}><form class="compose-layout grid grid-cols-[minmax(0,1fr)] max-w-[900px] mx-auto" method="POST" use:enhance={({submitter})=>{
     saving=submitter?.getAttribute('formaction')==='?/save';sending=true;
     return async({update,result})=>{try{
       if(result.type==='success'&&result.data?.savedDraft){const saved=parseDraft(result.data.savedDraft);draftRevision=saved.revision;draftIdentity=saved.id;savedAttachments=saved.content.attachments??[];if(attachmentInput)attachmentInput.value="";}
@@ -210,7 +214,7 @@
         {/if}
         <div class="sender-line"><span>From</span><strong>{data.account.address}</strong></div>
         {#if rich}
-          {#key draftIdentity}<div class="builder-editor p-5" hidden={previewOpen}><Builder showPreview={false} initial={richInitial} profiles={isConnection?['spt-2']:['spt-2','spt-3']} onchange={(value,issues)=>{richDraft=value;richInvalid=issues.length>0;}}/></div>{/key}
+          {#key draftIdentity}<div class="builder-editor p-5" hidden={previewOpen}><Builder bind:this={builderInstance} inspectorTarget={blockSettings} showPreview={false} initial={richInitial} profiles={isConnection?['spt-2']:['spt-2','spt-3']} onchange={(value,issues)=>{richDraft=value;richIssues=issues;richInvalid=issues.length>0;}}/></div>{/key}
         {:else}
         <div class="editor-content" hidden={previewOpen}>
           {#if data.forward}<div class="forward-notice"><Icon name="forward"/><p>The original message and sender details will appear below your note.</p></div>{:else}
@@ -223,7 +227,7 @@
           <div class="editor-meta"><span>{wordCount} word{wordCount===1?'':'s'}</span></div>
         </div>
         {/if}
-        <section id="compose-preview" hidden={!previewOpen} class="compose-preview" aria-label="Message preview"><div class="preview-byline"><span class="avatar">{data.account.address.slice(0,1).toUpperCase()}</span><span><strong>{data.account.address}</strong><small>{isConnection?"Message preview":"Publication preview"}</small></span></div><div class="mt-5 text-[17px] leading-[1.8] [overflow-wrap:anywhere]">{#if rich}{#if richPreview}<RichText blocks={richPreview.blocks} header={richPreview.header}/>{:else}<p>Complete the image description and fix any validation errors to preview your message.</p>{/if}{:else if forwarded}<RichText blocks={forwarded.blocks} header={forwarded.header}/>{:else}{#if data.kind==='category'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-contain" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}<RichText {blocks}/>{#if !text&&!title&&!preview}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}{/if}</div></section>
+        <section id="compose-preview" hidden={!previewOpen} class="compose-preview" aria-label="Message preview"><div class="preview-byline"><span class="avatar">{data.account.address.slice(0,1).toUpperCase()}</span><span><strong>{data.account.address}</strong><small>{isConnection?"Message preview":"Publication preview"}</small></span></div><div class="mt-5 text-[17px] leading-[1.8] [overflow-wrap:anywhere]">{#if rich}{#if richPreview}<RichText blocks={richPreview.blocks} header={richPreview.header}/>{:else}<div class="preview-issues" role="alert"><p>Complete these fields to preview your message:</p><ul>{#each richIssues as issue}<li><span>{issue.message}</span>{#if /blocks\[\d+\]/.test(issue.path)}<button class="hail-button-secondary" type="button" onclick={()=>editRichIssue(issue)}>Edit block</button>{/if}</li>{/each}</ul></div>{/if}{:else if forwarded}<RichText blocks={forwarded.blocks} header={forwarded.header}/>{:else}{#if data.kind==='category'&&preview}<figure class="m-0 mb-5"><img class="block max-h-[260px] w-full rounded-xl object-contain" src={preview} alt={alt}/>{#if caption}<figcaption class="mt-2 text-xs text-muted">{caption}</figcaption>{/if}</figure>{/if}<RichText {blocks}/>{#if !text&&!title&&!preview}<p class="py-12 text-center font-sans text-sm text-muted">Your message preview appears here.</p>{/if}{/if}</div></section>
         {#if !isConnection}<label class="reply-setting"><input name="allowReply" type="checkbox" value="yes" bind:checked={allowReply}/>Allow one reply per subscriber, within 7 days</label>{/if}
         <section aria-label="Attachments" class="grid min-w-0 justify-items-start gap-2 px-[28px] py-[20px] [@media(max-width:760px)]:px-[20px]">
           <label for="attachments">Attachments</label>
@@ -241,13 +245,22 @@
         </footer>
       </div>
     </div>
-  </form>
+  </form><div class="compose-block-settings" hidden={!rich||previewOpen} bind:this={blockSettings}></div></div>
   <button class="mobile-floating-action" type="button" aria-label={previewOpen?'Back to writing':'Preview'} title={previewOpen?'Back to writing':'Preview'} aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={24}/></button>
 </div>
 
 <style lang="postcss">
   @reference "../../app.css";
 
+  .preview-issues{font:14px/1.6 var(--font-sans)}
+  .preview-issues ul{padding-left:20px}
+  .preview-issues li{margin:12px 0}
+  .preview-issues button{margin-left:12px}
+  .compose-studio{display:grid;align-items:start;gap:20px;max-width:1200px;margin-inline:auto}
+  .compose-studio.rich-studio:global([data-builder-wide=true]){grid-template-columns:minmax(0,1fr) 280px}
+  .compose-studio :global(.compose-layout){width:100%;min-width:0}
+  .compose-block-settings{position:sticky;top:20px;min-width:0}
+  .compose-block-settings:empty,.compose-block-settings[hidden]{display:none}
   .workspace-heading { @apply flex justify-between items-center gap-[24px] [margin:8px_0_36px]; }
   .audience-switch { @apply flex p-[5px] [border:1px_solid_var(--color-line)] rounded-[12px] [background:var(--color-canvas)] shrink-0; }
   .audience-switch a {
@@ -318,7 +331,16 @@
     .compose-workspace { @apply pb-[112px]; }
   }
   @media (max-width:760px) {
-    .workspace-heading { @apply mb-[24px]; }
+    .preview-issues{font:14px/1.6 var(--font-sans)}
+  .preview-issues ul{padding-left:20px}
+  .preview-issues li{margin:12px 0}
+  .preview-issues button{margin-left:12px}
+  .compose-studio{display:grid;align-items:start;gap:20px;max-width:1200px;margin-inline:auto}
+  .compose-studio.rich-studio:global([data-builder-wide=true]){grid-template-columns:minmax(0,1fr) 280px}
+  .compose-studio :global(.compose-layout){width:100%;min-width:0}
+  .compose-block-settings{position:sticky;top:20px;min-width:0}
+  .compose-block-settings:empty,.compose-block-settings[hidden]{display:none}
+  .workspace-heading { @apply mb-[24px]; }
     .audience-switch { @apply w-full; }
     .audience-switch a { @apply flex-1; }
     .editor-content,.compose-preview { @apply p-[20px]; }

@@ -364,6 +364,9 @@ func body2Value(value *SPT2Body) map[any]any {
 			markDefs[j] = item
 		}
 		item := map[any]any{"_type": block.Type, "style": block.Style, "children": children, "markDefs": markDefs}
+		if block.Alignment != "" {
+			item["alignment"] = block.Alignment
+		}
 		if block.ListItem != "" {
 			item["listItem"] = block.ListItem
 		}
@@ -413,6 +416,9 @@ func body3Value(value *SPT3Body) map[any]any {
 			defs[j] = item
 		}
 		item := map[any]any{"_type": block.Type, "style": block.Style, "children": children, "markDefs": defs}
+		if block.Alignment != "" {
+			item["alignment"] = block.Alignment
+		}
 		if block.ListItem != "" {
 			item["listItem"] = block.ListItem
 		}
@@ -1189,15 +1195,21 @@ func validateSpt2Body(m map[any]any) error {
 		if e != nil {
 			return e
 		}
-		if e = exact(b, []string{"_type", "style", "children", "markDefs"}, []string{"listItem", "level"}, p); e != nil {
+		if e = exact(b, []string{"_type", "style", "children", "markDefs"}, []string{"listItem", "level", "alignment"}, p); e != nil {
 			return e
 		}
 		if e = expectText(b, "_type", "block", p+"._type"); e != nil {
 			return e
 		}
 		style, e := textValue(b["style"], p+".style")
-		if e != nil || style != "normal" && style != "h1" && style != "h2" && style != "h3" && style != "blockquote" && style != "caption" {
+		if e != nil || style != "normal" && style != "h1" && style != "h2" && style != "h3" && style != "blockquote" && style != "caption" && style != "cta" {
 			return errors.New("unsupported text block style")
+		}
+		if has(b, "alignment") {
+			alignment, err := textValue(b["alignment"], p+".alignment")
+			if err != nil || alignment != "left" && alignment != "center" && alignment != "right" {
+				return errors.New("unsupported text alignment")
+			}
 		}
 		defs, e := arrayValue(b["markDefs"], p+".markDefs")
 		if e != nil {
@@ -1280,6 +1292,29 @@ func validateSpt2Body(m map[any]any) error {
 			}
 			if annotations > 1 {
 				return errors.New("span has conflicting annotations")
+			}
+		}
+		if style == "cta" {
+			if has(b, "listItem") || has(b, "level") || len(defs) != 1 {
+				return errors.New("call to action requires one link and cannot be a list")
+			}
+			def, _ := mapValue(defs[0], p)
+			label := ""
+			for _, child := range children {
+				span, _ := mapValue(child, p)
+				value, _ := textValue(span["text"], p)
+				label += value
+				marks, _ := arrayValue(span["marks"], p)
+				if len(marks) != 1 || marks[0] != def["_key"] {
+					return errors.New("every call-to-action span must use its single link, without decorators")
+				}
+			}
+			href, _ := textValue(def["href"], p)
+			if strings.Trim(label, " \t\r\n") == "" || strings.ContainsAny(label, "\r\n") || len(label) > 128 {
+				return errors.New("invalid call-to-action label")
+			}
+			if len(href) > 2048 {
+				return errors.New("call-to-action URL exceeds 2048 UTF-8 bytes")
 			}
 		}
 	}
@@ -1376,36 +1411,60 @@ func validateSpt3Body(m map[any]any) error {
 	if err != nil {
 		return err
 	}
-	if len(manifest.Assets) != 1 || manifest.Assets[0].Role != "header" {
-		return errors.New("spt-3 must contain exactly one header asset")
+	assets := map[string]BundledImageAsset{}
+	for _, asset := range manifest.Assets {
+		if asset.Role != "header" && asset.Role != "image" {
+			return errors.New("invalid message asset role")
+		}
+		assets[asset.ID] = asset
 	}
 	blocks, err := arrayValue(m["blocks"], "$.blocks")
-	if err != nil || len(blocks) == 0 {
-		return errors.New("spt-3 must begin with an image block")
-	}
-	image, err := mapValue(blocks[0], "$.blocks[0]")
 	if err != nil {
 		return err
 	}
-	if err = exact(image, []string{"_type", "asset", "alt"}, []string{"caption"}, "$.blocks[0]"); err != nil {
-		return err
-	}
-	if err = expectText(image, "_type", "spt.image", "$.blocks[0]._type"); err != nil {
-		return err
-	}
-	asset, err := textValue(image["asset"], "$.blocks[0].asset")
-	if err != nil || asset != manifest.Assets[0].ID {
-		return errors.New("image block must reference header asset")
-	}
-	if err = profileText(image["alt"], 1, 1024, "$.blocks[0].alt"); err != nil {
-		return err
-	}
-	if has(image, "caption") {
-		if err = profileText(image["caption"], 1, 1024, "$.blocks[0].caption"); err != nil {
+	used := map[string]bool{}
+	textBlocks := []any{}
+	imageCount, pixels := 0, int64(0)
+	for index, entry := range blocks {
+		path := fmt.Sprintf("$.blocks[%d]", index)
+		block, err := mapValue(entry, path)
+		if err != nil {
 			return err
 		}
+		if block["_type"] != "spt.image" {
+			textBlocks = append(textBlocks, entry)
+			continue
+		}
+		imageCount++
+		if imageCount > 8 {
+			return errors.New("at most eight image blocks are allowed")
+		}
+		if err = exact(block, []string{"_type", "asset", "alt"}, []string{"caption"}, path); err != nil {
+			return err
+		}
+		id, err := textValue(block["asset"], path+".asset")
+		asset, ok := assets[id]
+		if err != nil || !ok || asset.Role == "header" && index != 0 {
+			return errors.New("image must reference a bundled image, or a leading header")
+		}
+		used[id] = true
+		pixels += asset.Width * asset.Height
+		if err = profileText(block["alt"], 1, 1024, path+".alt"); err != nil {
+			return err
+		}
+		if has(block, "caption") {
+			if err = profileText(block["caption"], 1, 1024, path+".caption"); err != nil {
+				return err
+			}
+		}
 	}
-	return validateSpt2Body(map[any]any{"version": int64(1), "profile": "spt-2", "blocks": blocks[1:]})
+	if imageCount == 0 || len(used) != len(assets) {
+		return errors.New("all assets must be referenced by image blocks")
+	}
+	if pixels > 8000000 {
+		return errors.New("image blocks exceed eight million decoded pixels")
+	}
+	return validateSpt2Body(map[any]any{"version": int64(1), "profile": "spt-2", "blocks": textBlocks})
 }
 
 func withAttachments(files []Attachment, m map[any]any) map[any]any {

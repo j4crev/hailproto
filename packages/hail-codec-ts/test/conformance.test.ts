@@ -156,7 +156,7 @@ function valueAtPath(value: DiagnosticJson, path: string): DiagnosticJson {
 describe("v0 conformance vectors", () => {
   it("uses the recognized manifest format", () => {
     expect(manifest.format).toBe("hail-conformance-vectors-1");
-    expect(manifest.positive).toHaveLength(10);
+    expect(manifest.positive).toHaveLength(13);
   });
 
   for (const vector of manifest.positive) {

@@ -292,12 +292,13 @@ type SPT2Span struct {
 	Marks []string `cbor:"marks"`
 }
 type SPT2TextBlock struct {
-	Type     string     `cbor:"_type"`
-	Style    string     `cbor:"style"`
-	Children []SPT2Span `cbor:"children"`
-	MarkDefs []SPT2Link `cbor:"markDefs"`
-	ListItem string     `cbor:"listItem,omitempty"`
-	Level    int64      `cbor:"level,omitempty"`
+	Type      string     `cbor:"_type"`
+	Style     string     `cbor:"style"`
+	Children  []SPT2Span `cbor:"children"`
+	MarkDefs  []SPT2Link `cbor:"markDefs"`
+	ListItem  string     `cbor:"listItem,omitempty"`
+	Level     int64      `cbor:"level,omitempty"`
+	Alignment string     `cbor:"alignment,omitempty"`
 }
 type SPT2Body struct {
 	Attachments []Attachment    `json:"attachments,omitempty" cbor:"attachments,omitempty"`
@@ -309,15 +310,16 @@ type SPT2Body struct {
 func (SPT2Body) PayloadType() string { return BodySPT2Type }
 
 type SPT3Block struct {
-	Type     string     `cbor:"_type"`
-	Asset    string     `cbor:"asset,omitempty"`
-	Alt      string     `cbor:"alt,omitempty"`
-	Caption  string     `cbor:"caption,omitempty"`
-	Style    string     `cbor:"style,omitempty"`
-	Children []SPT2Span `cbor:"children,omitempty"`
-	MarkDefs []SPT2Link `cbor:"markDefs,omitempty"`
-	ListItem string     `cbor:"listItem,omitempty"`
-	Level    int64      `cbor:"level,omitempty"`
+	Type      string     `cbor:"_type"`
+	Asset     string     `cbor:"asset,omitempty"`
+	Alt       string     `cbor:"alt,omitempty"`
+	Caption   string     `cbor:"caption,omitempty"`
+	Style     string     `cbor:"style,omitempty"`
+	Children  []SPT2Span `cbor:"children,omitempty"`
+	MarkDefs  []SPT2Link `cbor:"markDefs,omitempty"`
+	ListItem  string     `cbor:"listItem,omitempty"`
+	Level     int64      `cbor:"level,omitempty"`
+	Alignment string     `cbor:"alignment,omitempty"`
 }
 
 type SPT3Body struct {

@@ -4,6 +4,7 @@ import {
   createPublicKey,
   sign as nodeSign,
 } from "node:crypto";
+import {deflateSync} from "node:zlib";
 import { mkdir, writeFile } from "node:fs/promises";
 
 import { decode, encode, rfc8949EncodeOptions, Tagged } from "cborg";
@@ -24,6 +25,8 @@ import {
   envelope,
   grant,
   imageBody,
+  inlineImageBody,
+  ctaBody,
   richBody,
   senderProfile,
   senderProfileV2,
@@ -219,6 +222,24 @@ await addPositive(
 );
 await addPositive("body-spt-2-rich","hail.body.spt-2",richBody);
 await addPositive("body-spt-3-header","hail.body.spt-3",imageBody);
+await addPositive("body-spt-3-inline-images","hail.body.spt-3",inlineImageBody);
+
+// Complete static RGBA PNGs exercise portrait and aggregate decoded-pixel limits.
+function dimensionAsset(width:number,height:number){
+  const chunk=(name:string,data:Uint8Array)=>{
+    const type=Buffer.from(name),content=Buffer.concat([type,data]);let crc=0xffffffff;
+    for(const byte of content){crc^=byte;for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}
+    const size=Buffer.alloc(4),checksum=Buffer.alloc(4);size.writeUInt32BE(data.length);checksum.writeUInt32BE((crc^0xffffffff)>>>0);
+    return Buffer.concat([size,content,checksum]);
+  };
+  const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(width);ihdr.writeUInt32BE(height,4);ihdr[8]=8;ihdr[9]=6;
+  const data=new Uint8Array(Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',deflateSync(new Uint8Array((width*4+1)*height))),chunk('IEND',new Uint8Array())]));
+  return {...inlineImageBody.assets.assets[0],width,height,size:data.length,data,digest:{algorithm:'sha-256' as const,value:sha256(data)}};
+}
+const portraitBody=structuredClone(inlineImageBody);
+portraitBody.assets.assets[0]=dimensionAsset(1,1800);
+await addPositive('body-spt-3-portrait','hail.body.spt-3',portraitBody);
+await addPositive('body-spt-2-cta-alignment','hail.body.spt-2',ctaBody);
 
 const addressSigned = signedByType.get("hail.address-binding");
 if (addressSigned === undefined) throw new Error("address-binding vector missing");
@@ -475,7 +496,7 @@ const unknownAddressMember = {
   ...addressBinding,
   unknown: true,
 };
-const negativePayload = [
+const negativePayload: Array<{id:string;type:string;hex:string;expected_error:string;cddl_valid?:boolean}> = [
   {
     id: "grant-previous-absent",
     type: "hail.grant",
@@ -495,6 +516,35 @@ const negativePayload = [
     expected_error: "schema-violation",
   },
 ];
+
+const inlineInvalid: Array<[string, (body: any) => void]> = [
+  ['inline-image-missing-asset',body=>body.blocks[1].asset='missing'],
+  ['inline-image-unused-asset',body=>body.blocks.splice(1,1)],
+  ['inline-image-empty-alt',body=>body.blocks[3].alt=''],
+  ['inline-image-nonleading-header',body=>body.assets.assets[0].role='header'],
+  ['inline-image-too-many-blocks',body=>body.blocks.push(...Array.from({length:7},()=>({...body.blocks[1]})))],
+  ['inline-image-remote-url',body=>body.blocks[1].src='https://example.invalid/tracker.png'],
+  ['inline-image-duplicate-id',body=>body.assets.assets[1].id=body.assets.assets[0].id],
+];
+for(const [id,mutate] of inlineInvalid){const body=structuredClone(inlineImageBody);mutate(body);negativePayload.push({id,type:'hail.body.spt-3',hex:hex(encode(body,rfc8949EncodeOptions)),expected_error:'schema-violation',cddl_valid:id!=='inline-image-remote-url'});}
+
+const pixelBody=structuredClone(inlineImageBody);
+pixelBody.assets.assets=[dimensionAsset(1000,2000)];
+pixelBody.blocks=Array.from({length:5},()=>({_type:'spt.image' as const,asset:'image-a',alt:'Two million pixels'}));
+negativePayload.push({cddl_valid:true,id:'inline-image-total-pixels',type:'hail.body.spt-3',hex:hex(encode(pixelBody,rfc8949EncodeOptions)),expected_error:'schema-violation'});
+
+const ctaInvalid: Array<[string,(body:any)=>void,boolean]> = [
+  ['cta-unsafe-url',body=>body.blocks[1].markDefs[0].href='javascript:alert(1)',true],
+  ['cta-empty-label',body=>body.blocks[1].children[0].text='',true],
+  ['cta-multiline-label',body=>body.blocks[1].children[0].text='Two\nlines',true],
+  ['cta-label-too-long',body=>body.blocks[1].children[0].text='x'.repeat(129),true],
+  ['cta-url-too-long',body=>body.blocks[1].markDefs[0].href='https://example.invalid/'+ 'x'.repeat(2048),true],
+  ['cta-decoration',body=>body.blocks[1].children[0].marks.push('strong'),true],
+  ['cta-list',body=>body.blocks[1].listItem='bullet',true],
+  ['alignment-unknown',body=>body.blocks[0].alignment='justify',false],
+  ['alignment-css',body=>body.blocks[0].alignment='center; background:url(https://example.invalid)',false],
+];
+for(const [id,mutate,cddl_valid] of ctaInvalid){const body=structuredClone(ctaBody);mutate(body);negativePayload.push({id,type:'hail.body.spt-2',hex:hex(encode(body,rfc8949EncodeOptions)),expected_error:'schema-violation',cddl_valid});}
 
 const token = envelope.body.access?.token;
 if (token === undefined) throw new Error("envelope token missing");

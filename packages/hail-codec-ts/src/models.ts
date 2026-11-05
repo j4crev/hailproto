@@ -5,7 +5,7 @@ export interface HailDigest {
 
 export interface HailBundledImageAsset {
   id: string;
-  role: "avatar" | "header";
+  role: "avatar" | "header" | "image";
   media_type: "image/png";
   loading: "bundled";
   size: number;
@@ -320,7 +320,8 @@ export interface HailSptLink {
 
 export interface HailSpt2TextBlock {
   _type: "block";
-  style: "normal" | "h1" | "h2" | "h3" | "blockquote" | "caption";
+  style: "normal" | "h1" | "h2" | "h3" | "blockquote" | "caption" | "cta";
+  alignment?: "left" | "center" | "right";
   children: [HailSpt2Span, ...HailSpt2Span[]];
   markDefs: HailSptLink[];
   listItem?: "bullet" | "number";
@@ -346,7 +347,7 @@ export interface HailSpt3Body {
   version: 1;
   profile: "spt-3";
   assets: HailAssetManifest;
-  blocks: [HailSptImageBlock, ...HailSpt2TextBlock[]];
+  blocks: (HailSptImageBlock | HailSpt2TextBlock)[];
 }
 
 export interface HailPayloadByType {

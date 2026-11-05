@@ -84,7 +84,7 @@ func pngDimensions(data []byte) (int64, int64, error) {
 }
 
 func ValidateAssetManifest(manifest *AssetManifest) error {
-	if manifest == nil || manifest.Version != 1 || len(manifest.Assets) < 1 || len(manifest.Assets) > 2 {
+	if manifest == nil || manifest.Version != 1 || len(manifest.Assets) < 1 || len(manifest.Assets) > 8 {
 		return errors.New("invalid asset manifest header or count")
 	}
 	ids, roles := map[string]bool{}, map[string]bool{}
@@ -93,7 +93,7 @@ func ValidateAssetManifest(manifest *AssetManifest) error {
 		if !assetIDPattern.MatchString(asset.ID) || ids[asset.ID] {
 			return fmt.Errorf("%s has invalid or duplicate id", path)
 		}
-		if asset.Role != "avatar" && asset.Role != "header" || roles[asset.Role] {
+		if asset.Role != "avatar" && asset.Role != "header" && asset.Role != "image" || asset.Role != "image" && roles[asset.Role] {
 			return fmt.Errorf("%s has invalid or duplicate role", path)
 		}
 		ids[asset.ID], roles[asset.Role] = true, true
@@ -101,6 +101,9 @@ func ValidateAssetManifest(manifest *AssetManifest) error {
 			return fmt.Errorf("%s uses an unsupported image profile", path)
 		}
 		maxBytes, maxWidth, maxHeight, maxPixels := int64(196608), int64(2400), int64(1200), int64(2000000)
+		if asset.Role == "image" {
+			maxHeight = 2400
+		}
 		if asset.Role == "avatar" {
 			maxBytes, maxWidth, maxHeight, maxPixels = 32768, 512, 512, 262144
 		}

@@ -19,12 +19,19 @@ socket.onmessage=event=>{const v=JSON.parse(String(event.data));if(pending.has(v
 const cdp=(method:string,params:unknown={})=>new Promise<any>((resolve,reject)=>{const n=++id;pending.set(n,{resolve,reject});socket!.send(JSON.stringify({id:n,method,params}));});
 const evaluate=async(expression:string)=>{const r=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
 await cdp('Page.enable');await cdp('Runtime.enable');await cdp('Network.enable');
+await cdp('Emulation.setDeviceMetricsOverride',{width:1200,height:900,deviceScaleFactor:1,mobile:false});
 const navigate=async()=>{await cdp('Page.navigate',{url:origin});await wait(()=>evaluate(`!!document.querySelector('[contenteditable=true]')`));};
 const click=async(label:string)=>{assert(await evaluate(`(()=>{const b=Array.from(document.querySelectorAll('button')).find(b=>(b.getAttribute('aria-label')??b.textContent)===${JSON.stringify(label)});if(!b||b.disabled)return false;b.click();return true;})()`),'enabled '+label);};
+const selectBlock=async(kind:string,last=false)=>{await evaluate(`Array.from(document.querySelectorAll('[data-block-key]')).filter(block=>block.querySelector(${JSON.stringify(kind)})).at(${last?-1:0}).querySelector('.builder-drag').click()`);await wait(()=>evaluate(`!!document.querySelector('.builder-inspector input')`));};
 const saved=()=>evaluate(`JSON.parse(localStorage.getItem('standalone-content:v1'))`);
 const png=new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64'));
 const body=validateBody({version:1,profile:'spt-3',assets:{version:1,assets:[await pngAsset(png)]},blocks:[{_type:'spt.image',asset:'header',alt:'One pixel',caption:'Bundled caption'},...fixture.blocks]});
 await navigate();
+// Rejected uploads must be announced visibly, with the attempted size and an action.
+await evaluate(`(()=>{const transfer=new DataTransfer();transfer.items.add(new File([new Uint8Array(200*1024)],'too-large.png',{type:'image/png'}));const input=document.querySelector('input[aria-label="Add image"]');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+await wait(()=>evaluate(`document.querySelector('.builder-toast[role=alert]')?.textContent.includes('200 KiB')`));
+assert(await evaluate(`(()=>{const toast=document.querySelector('.builder-toast');const rect=toast.getBoundingClientRect();return getComputedStyle(toast).position==='fixed'&&getComputedStyle(toast).color==='rgb(152, 27, 27)'&&rect.top>=0&&rect.bottom<=innerHeight&&toast.textContent.includes('192 KiB');})()`),'red error toast stays in the viewport');
+await click('Dismiss notification');assert.equal(await evaluate(`!!document.querySelector('.builder-toast')`),false);
 await evaluate(`localStorage.setItem('standalone-content:v1',JSON.stringify(${JSON.stringify({revision:1,draft:{version:1,body}})}))`);
 await navigate();
 assert.equal(await evaluate(`!!document.querySelector('input[accept="application/json,.json"],aside[aria-label="Draft recovery"]')`),false);
@@ -44,12 +51,13 @@ assert.equal(await evaluate(`localStorage.getItem('hail-builder:v1:standalone')`
 await navigate();
 assert.equal(await evaluate(`document.querySelector('.preview').textContent.includes('Save this text')`),false,'unsaved edits are not recovered');
 // An unfinished header saves and reloads, but cannot be handed off.
-await evaluate(`(()=>{const input=document.querySelector('input[aria-label="Image description"]');input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+await selectBlock('.builder-image');
+await evaluate(`(()=>{const input=document.querySelector('input[aria-label="Image description"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
 await click('Save as Draft');await wait(async()=>(await saved()).revision===3);
-await navigate();
+await navigate();await selectBlock('.builder-image');
 assert.equal(await evaluate(`document.querySelector('input[aria-label="Image description"]').value`),'');
 assert(await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Use this content').disabled`));
-await evaluate(`(()=>{const input=document.querySelector('input[aria-label="Image description"]');input.value='One pixel';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+await evaluate(`(()=>{const input=document.querySelector('input[aria-label="Image description"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'One pixel');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
 await click('Save as Draft');await wait(async()=>(await saved()).revision===4);
 const beforeReorder=(await saved()).draft.body;
 // Reordering is a native editor transaction and undo restores the block order.
@@ -83,16 +91,142 @@ await click('Outdent');await click('Outdent');
 assert(await evaluate(`document.querySelector('button[aria-label="Outdent"]').disabled`));
 await click('Bullets');
 assert.equal(await evaluate(`!!document.querySelector('button[aria-label="Indent"]')`),false);
+// Insert a second image through the palette; drag, undo and keyboard movement share history.
+await navigate();
+await evaluate(`(()=>{const e=document.querySelector('[contenteditable=true]');e.focus();const r=document.createRange();r.selectNodeContents(e);r.collapse(false);getSelection().removeAllRanges();getSelection().addRange(r);})()`);
+await evaluate(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'inline.png',{type:'image/png'}));const input=document.querySelector('input[aria-label="Add image"]');input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+await wait(()=>evaluate(`document.querySelectorAll('.builder-canvas .builder-image').length===2&&document.querySelectorAll('.builder-inspector input[aria-label="Image description"]').length===1`));
+assert(await evaluate(`!document.querySelector('.builder-errors')&&!document.body.textContent.includes('NFC plain text')`),'new image is unfinished input, not a schema error');
+assert(await evaluate(`Array.from(document.querySelectorAll('.builder-image-help')).some(p=>p.textContent==='Add a description of the image before sending.')`),'description guidance is beside the field');
+assert(await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Use this content').disabled`),'unfinished descriptions still block handoff');
+assert(await evaluate(`!document.querySelector('.editor').textContent.includes('PNG up to 192 KiB each')`),'upload guidance is not in the canvas');
+await evaluate(`(()=>{const input=Array.from(document.querySelectorAll('input[aria-label="Image description"]')).at(-1);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Second image');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+await wait(()=>evaluate(`document.querySelectorAll('.preview img').length===2`));
+await click('Save as Draft');await wait(async()=>(await saved()).revision===8);
+const twoImages=(await saved()).draft.body;
+assert.equal(twoImages.blocks.at(-1)._type,'spt.image');
+await evaluate(`(()=>{const blocks=document.querySelectorAll('[data-block-key]'),source=blocks[blocks.length-1],target=blocks[2],transfer=new DataTransfer();source.querySelector('.builder-drag').dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:transfer}));target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:transfer}));target.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:transfer}));})()`);
+await click('Save as Draft');await wait(async()=>(await saved()).revision===9);
+assert.equal((await saved()).draft.body.blocks[2].alt,'Second image','drag places image between text blocks');
+await click('Undo');await click('Save as Draft');await wait(async()=>(await saved()).revision===10);
+assert.deepEqual(semantics((await saved()).draft.body),semantics(twoImages),'undo restores image and text order');
+await evaluate(`Array.from(document.querySelectorAll('.builder-drag')).at(-1).click()`);
+await evaluate(`document.querySelector('.builder-more summary').click()`);
+await click('Move up');await click('Save as Draft');await wait(async()=>(await saved()).revision===11);
+assert.equal((await saved()).draft.body.blocks.at(-2).alt,'Second image','keyboard alternative moves image');
+await navigate();
+assert.equal(await evaluate(`document.querySelectorAll('.preview img').length`),2,'both bundled images survive reload');
+await selectBlock('.builder-image',true);
+await evaluate(`Array.from(document.querySelectorAll('.builder-image-fields button')).at(-1).click()`);
+await wait(()=>evaluate(`document.querySelectorAll('.preview img').length===1`));
+await click('Undo');await wait(()=>evaluate(`document.querySelectorAll('.preview img').length===2`));
+const beforeDown=await evaluate(`Array.from(document.querySelectorAll('[data-block-key]')).map(b=>b.dataset.blockKey)`);
+await evaluate(`(()=>{const blocks=document.querySelectorAll('[data-block-key]'),source=blocks[1],target=blocks[3],transfer=new DataTransfer();source.querySelector('.builder-drag').dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:transfer}));target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:transfer}));window.downDrop={target,transfer};})()`);
+await wait(()=>evaluate(`document.querySelectorAll('[data-block-key]')[3].classList.contains('drop-after')`));
+await evaluate(`window.downDrop.target.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:window.downDrop.transfer}))`);
+const expectedDown=[...beforeDown];expectedDown.splice(3,0,...expectedDown.splice(1,1));
+assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('[data-block-key]')).map(b=>b.dataset.blockKey)`),expectedDown,'downward drop follows the bottom-edge indicator');
+await click('Undo');
+assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('[data-block-key]')).map(b=>b.dataset.blockKey)`),beforeDown);
+assert(await evaluate(`Array.from(document.querySelectorAll('.builder-image img,.preview img')).every(img=>img.getBoundingClientRect().width<=img.naturalWidth)`),'small images are not stretched');
 // Narrow/light/dark/no-image previews, real focusable controls, and reflow.
 for(const width of [1200,390,320]){
  await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<500});
  assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'fits viewport '+width);
 }
+await cdp('Emulation.setDeviceMetricsOverride',{width:1200,height:900,deviceScaleFactor:1,mobile:false});
 for(const label of ['Narrow','Dark','Images unavailable'])await evaluate(`Array.from(document.querySelectorAll('label')).find(e=>e.textContent.trim()===${JSON.stringify(label)}).querySelector('input').click()`);
 assert.equal(await evaluate(`document.querySelectorAll('.preview img').length`),0);
 assert(await evaluate(`document.querySelector('.preview [role=img]').getAttribute('aria-label')==='One pixel'`));
 assert(await evaluate(`Array.from(document.querySelectorAll('button')).every(b=>b.type==='button')`),'embeddable controls cannot submit host forms');
+// Feed header and inline images coexist; changing the choice preserves both assets.
+for(const label of ['Narrow','Dark','Images unavailable'])await evaluate(`Array.from(document.querySelectorAll('label')).find(e=>e.textContent.trim()===${JSON.stringify(label)}).querySelector('input').click()`);
+await selectBlock('.builder-image',true);
+await evaluate(`Array.from(document.querySelectorAll('.builder-header-option input')).find(input=>!input.checked).click()`);
+await wait(()=>evaluate(`document.querySelector('.builder-header-label')?.closest('.builder-inspector').querySelector('input[aria-label="Image description"]').value==='Second image'`));
+await click('Save as Draft');await wait(async()=>(await saved()).revision===12);
+const withHeader=(await saved()).draft.body;
+assert.equal(withHeader.blocks[0].alt,'Second image');
+assert.equal(withHeader.assets.assets.filter((asset:any)=>asset.role==='header').length,1);
+assert.equal(withHeader.assets.assets.filter((asset:any)=>asset.role==='image').length,1);
+assert.equal(withHeader.blocks.filter((block:any)=>block._type==='spt.image').length,2);
+const {renderBody}=await import('../../../packages/hail-content-builder/src/rendering.ts');
+assert.equal(renderBody(withHeader).header?.alt,'Second image','Feed receives the designated header');
+assert.equal(renderBody(withHeader).blocks.filter(block=>block.image).length,1,'other image stays inline');
+await navigate();
+assert.equal(await evaluate(`document.querySelector('button[aria-label="Select Feed header"]').draggable`),false);
+await evaluate(`document.querySelector('button[aria-label="Select Feed header"]').click()`);
+await evaluate(`document.querySelector('.builder-more summary').click()`);
+assert(await evaluate(`Array.from(document.querySelectorAll('button')).filter(b=>['Move up','Move down'].includes(b.textContent)).every(b=>b.disabled)`),'Feed header stays at the top');
+await evaluate(`document.querySelector('.builder-header-option input:checked').click()`);await click('Save as Draft');await wait(async()=>(await saved()).revision===13);
+assert.equal(renderBody((await saved()).draft.body).header,null);
+await click('Undo');await click('Save as Draft');await wait(async()=>(await saved()).revision===14);
+assert.equal(renderBody((await saved()).draft.body).header?.alt,'Second image','undo restores Feed designation');
+// Alignment is editable, persists, and applies to the exact text/CTA block.
+const saveNext=async()=>{const revision=(await saved()).revision+1;await click('Save as Draft');await wait(async()=>(await saved()).revision===revision);return (await saved()).draft.body;};
+const focusLastText=()=>evaluate(`Array.from(document.querySelectorAll('[data-block-key]')).filter(block=>!block.querySelector('.builder-image,.builder-cta')).at(-1).querySelector('.builder-drag').click()`);
+await focusLastText();await click('Align center');
+let aligned=await saveNext();
+assert.equal(aligned.blocks.filter((block:any)=>block._type==='block').at(-1).alignment,'center');
+await navigate();await focusLastText();
+assert(await evaluate(`document.querySelector('button[aria-label="Align center"]').getAttribute('aria-pressed')==='true'`));
+await click('Align right');aligned=await saveNext();
+assert.equal(aligned.blocks.filter((block:any)=>block._type==='block').at(-1).alignment,'right');
+await click('Align left');aligned=await saveNext();
+assert.equal(aligned.blocks.filter((block:any)=>block._type==='block').at(-1).alignment,undefined);
+await click('Add call to action');
+await wait(()=>evaluate(`!!document.querySelector('input[aria-label="Button label"]')`));
+assert(await evaluate(`!document.querySelector('.builder-errors')&&!document.querySelector('.builder-inspector').textContent.includes('Enter an HTTPS destination')`));
+assert(await evaluate(`document.querySelector('.preview').textContent.includes('Add a destination URL.')`),'preview identifies the incomplete button');
+aligned=await saveNext();assert.equal(aligned.blocks.find((block:any)=>block.style==='cta').markDefs[0].href,'','unfinished CTA saves');
+await navigate();await selectBlock('.builder-cta');
+const fillCta=async(label:string,value:string)=>evaluate(`(()=>{const input=document.querySelector('input[aria-label='+JSON.stringify(${JSON.stringify(label)})+']');input.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+await fillCta('Button label','Register now');await fillCta('Call-to-action destination','https://example.invalid/register');
+await click('Align center');
+await wait(()=>evaluate(`document.querySelector('.preview a.spt-cta')?.textContent==='Register now'`));
+assert(await evaluate(`getComputedStyle(document.querySelector('.preview a.spt-cta').parentElement).textAlign==='center'`));
+aligned=await saveNext();
+assert.equal(aligned.blocks.find((block:any)=>block.style==='cta').alignment,'center');
+assert.equal(aligned.blocks.some((block:any)=>block._type==='hailCta'),false,'editor projection never reaches the saved wire model');
+assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'CTA controls fit the narrow viewport');
+await navigate();await selectBlock('.builder-cta');
+assert.equal(await evaluate(`document.querySelector('input[aria-label="Call-to-action destination"]').value`),'https://example.invalid/register');
+assert.equal(await evaluate(`document.querySelector('input[aria-label="Button label"]').value`),'Register now');
+await fillCta('Call-to-action destination','javascript:alert(1)');
+assert(await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='Use this content').disabled`),'unsafe CTA destination cannot be handed off');
+await click('Undo');
+await wait(()=>evaluate(`document.querySelector('.preview a.spt-cta')?.getAttribute('href')==='https://example.invalid/register'`));
+// The canvas contains content only; settings follow selection without changing other blocks.
+assert(await evaluate(`!document.querySelector('.builder-canvas input,.builder-canvas .builder-image-fields')`),'settings are outside the canvas');
+await selectBlock('.builder-image');
+assert(await evaluate(`!!document.querySelector('.builder-inspector input[aria-label="Image description"]')&&!document.querySelector('input[aria-label="Button label"]')`),'selection swaps the inspector');
+const point=await evaluate(`(()=>{const block=document.querySelector('.builder-cta');block.scrollIntoView({block:'center'});const r=block.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+await cdp('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1});
+await cdp('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',clickCount:1});
+await wait(()=>evaluate(`!!document.querySelector('input[aria-label="Button label"]')`));
+assert.equal(await evaluate(`document.querySelector('input[aria-label="Button label"]').value`),'Register now','clicking the canvas selects the CTA and preserves edits');
+for(const width of [1200,390,320]){
+ await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<500});
+ assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'inspector fits '+width);
+ await wait(()=>evaluate(`document.querySelector('.builder-shell').dataset.builderWide===${JSON.stringify(String(width>=1000))}`));
+ if(width>=1000){
+  assert(await evaluate(`(()=>{const canvas=document.querySelector('.editor').getBoundingClientRect(),panel=document.querySelector('.builder-inspector').getBoundingClientRect();return panel.left>=canvas.right;})()`),'inspector is outside entire editor');
+ }else{
+  await evaluate(`document.querySelector('.builder-canvas').style.minHeight='2000px';document.querySelector('.editor').scrollIntoView()`);
+  assert(await evaluate(`(()=>{const r=document.querySelector('.builder-settings-launch').getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;})()`),'settings button is reachable in long mobile content');
+  await click('Block settings');
+  assert(await evaluate(`document.querySelector('dialog').open&&document.querySelector('dialog').matches(':modal')`),'settings is a modal sheet');
+  await fillCta('Button label','Mobile edit');
+  await click('Done');
+  assert(await evaluate(`!document.querySelector('dialog').open&&document.activeElement.matches('.builder-drag')`),'closing returns focus to selected block');
+  assert.equal(await evaluate(`document.querySelector('.builder-cta-preview span').textContent`),'Mobile edit');
+  await click('Block settings');
+  await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  await wait(()=>evaluate(`!document.querySelector('dialog').open`));
+  await evaluate(`document.querySelector('.builder-canvas').style.minHeight=''`);
+ }
+}
 assert.deepEqual(requests.filter(url=>!url.startsWith(origin)&&!url.startsWith('data:')&&!url.startsWith('blob:')),[],'no sender-controlled network requests');
 assert.deepEqual(exceptions,[],'no browser exceptions');
-console.log('PASS: actual Portable Text editing, semantic asset round trip, undo/redo, reorder, explicit save/reload/unfinished headers, stale save, responsive previews and zero remote requests');
+console.log('PASS: Portable Text/asset/CTA round trips, alignment, undo/reorder, unfinished drafts, header choice, error toast, responsive previews and zero remote requests');
 }finally{socket?.close();chrome.kill();await chrome.exited;server.stop(true);await rm(work,{recursive:true,force:true});}

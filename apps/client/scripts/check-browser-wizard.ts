@@ -915,7 +915,7 @@ try{
   await addBlock('A quote','blockquote');await addBlock('<img src=x onerror=alert(1)>');
   await click("Preview");
   await wait(async()=>evaluate(`document.querySelector('[aria-label="Message preview"] h1')?.textContent==='Release notes' && document.querySelectorAll('[aria-label="Message preview"] ul li').length===2 && document.querySelectorAll('[aria-label="Message preview"] ol li').length===2`),"rich message preview");
-  assert(await evaluate(`!!document.querySelector('input[aria-label="Header PNG"]')`),"Subscriber composer retains header images");
+  assert(await evaluate(`!!document.querySelector('input[aria-label="Add image"]')`),"Subscriber composer exposes image uploads");
   const rendered=async(selector:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});return {headings:[...e.querySelectorAll('h1,h2,h3')].map(n=>n.textContent),bullets:[...e.querySelectorAll('ul li')].map(n=>n.textContent),numbered:[...e.querySelectorAll('ol li')].map(n=>n.textContent),quote:e.querySelector('blockquote')?.textContent,images:e.querySelectorAll('img').length,text:e.innerText.includes('<img src=x onerror=alert(1)>')};})()`);
   const previewContent=await rendered('[aria-label="Message preview"]');
   assert.deepEqual(previewContent,{headings:["Release notes","Highlights"],bullets:["First","Second"],numbered:["Number one","Number two"],quote:"A quote",images:0,text:true});
@@ -1029,7 +1029,7 @@ try{
   assert(!personalConnection);await click("Add connection");await wait(()=>has("Connection saved"),"one click confirms mutual connection");
   await cdp('Page.navigate',{url:origin+'/compose?audience=connections'});await wait(()=>evaluate("!!document.querySelector('#recipient-search')"),'connection composer uses existing editor');
   await selectedAudience("Connections");
-  assert(await evaluate(`!document.querySelector('input[aria-label="Header PNG"]') && !document.querySelector('input[name="alt"]')`),"Connection composer has no new header-image controls");
+  assert(await evaluate(`!document.querySelector('input[aria-label="Add image"]') && !document.querySelector('input[name="alt"]')`),"Connection composer has no image-upload controls");
   await evaluate(`document.querySelector('#recipient-search').focus()`);
   await wait(async()=>evaluate(`document.querySelectorAll('.recipient-option').length===2`),'connection recipient picker');
   assert(!await evaluate(`!!document.querySelector('select[name="category"]')||!!document.querySelector('input[name="allowReply"]')`));

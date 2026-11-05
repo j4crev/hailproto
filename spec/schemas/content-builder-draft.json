@@ -50,7 +50,8 @@
                       "h2",
                       "h3",
                       "blockquote",
-                      "caption"
+                      "caption",
+                      "cta"
                     ]
                   },
                   "children": {
@@ -100,8 +101,7 @@
                           "pattern": "^[A-Za-z0-9_-]{1,64}$"
                         },
                         "href": {
-                          "type": "string",
-                          "pattern": "^https://"
+                          "type": "string"
                         },
                         "title": {
                           "type": "string"
@@ -121,13 +121,73 @@
                       2,
                       3
                     ]
+                  },
+                  "alignment": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ]
                   }
                 },
                 "dependencies": {
                   "level": [
                     "listItem"
                   ]
-                }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "style": {
+                          "const": "cta"
+                        }
+                      }
+                    },
+                    "then": {
+                      "properties": {
+                        "markDefs": {
+                          "minItems": 1,
+                          "maxItems": 1,
+                          "items": {
+                            "properties": {
+                              "href": {
+                                "maxLength": 2048
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "not": {
+                        "anyOf": [
+                          {
+                            "required": [
+                              "listItem"
+                            ]
+                          },
+                          {
+                            "required": [
+                              "level"
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "else": {
+                      "properties": {
+                        "markDefs": {
+                          "items": {
+                            "properties": {
+                              "href": {
+                                "pattern": "^https://"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
               }
             }
           }
@@ -151,132 +211,194 @@
             "blocks": {
               "type": "array",
               "minItems": 1,
-              "items": [
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "_type",
-                    "asset",
-                    "alt"
-                  ],
-                  "properties": {
-                    "_type": {
-                      "const": "spt.image"
-                    },
-                    "asset": {
-                      "type": "string"
-                    },
-                    "alt": {
-                      "type": "string",
-                      "maxLength": 1024
-                    },
-                    "caption": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 1024
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "_type",
+                      "asset",
+                      "alt"
+                    ],
+                    "properties": {
+                      "_type": {
+                        "const": "spt.image"
+                      },
+                      "asset": {
+                        "type": "string"
+                      },
+                      "alt": {
+                        "type": "string",
+                        "maxLength": 1024
+                      },
+                      "caption": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      }
                     }
-                  }
-                }
-              ],
-              "additionalItems": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "_type",
-                  "style",
-                  "children",
-                  "markDefs"
-                ],
-                "properties": {
-                  "_type": {
-                    "const": "block"
                   },
-                  "style": {
-                    "enum": [
-                      "normal",
-                      "h1",
-                      "h2",
-                      "h3",
-                      "blockquote",
-                      "caption"
-                    ]
-                  },
-                  "children": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": [
-                        "_type",
-                        "text",
-                        "marks"
-                      ],
-                      "properties": {
-                        "_type": {
-                          "const": "span"
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "_type",
+                      "style",
+                      "children",
+                      "markDefs"
+                    ],
+                    "properties": {
+                      "_type": {
+                        "const": "block"
+                      },
+                      "style": {
+                        "enum": [
+                          "normal",
+                          "h1",
+                          "h2",
+                          "h3",
+                          "blockquote",
+                          "caption",
+                          "cta"
+                        ]
+                      },
+                      "children": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "_type",
+                            "text",
+                            "marks"
+                          ],
+                          "properties": {
+                            "_type": {
+                              "const": "span"
+                            },
+                            "text": {
+                              "type": "string"
+                            },
+                            "marks": {
+                              "type": "array",
+                              "uniqueItems": true,
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "markDefs": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "_type",
+                            "_key",
+                            "href"
+                          ],
+                          "properties": {
+                            "_type": {
+                              "const": "spt.link"
+                            },
+                            "_key": {
+                              "type": "string",
+                              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                            },
+                            "href": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      },
+                      "listItem": {
+                        "enum": [
+                          "bullet",
+                          "number"
+                        ]
+                      },
+                      "level": {
+                        "enum": [
+                          1,
+                          2,
+                          3
+                        ]
+                      },
+                      "alignment": {
+                        "enum": [
+                          "left",
+                          "center",
+                          "right"
+                        ]
+                      }
+                    },
+                    "dependencies": {
+                      "level": [
+                        "listItem"
+                      ]
+                    },
+                    "allOf": [
+                      {
+                        "if": {
+                          "properties": {
+                            "style": {
+                              "const": "cta"
+                            }
+                          }
                         },
-                        "text": {
-                          "type": "string"
+                        "then": {
+                          "properties": {
+                            "markDefs": {
+                              "minItems": 1,
+                              "maxItems": 1,
+                              "items": {
+                                "properties": {
+                                  "href": {
+                                    "maxLength": 2048
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "listItem"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "level"
+                                ]
+                              }
+                            ]
+                          }
                         },
-                        "marks": {
-                          "type": "array",
-                          "uniqueItems": true,
-                          "items": {
-                            "type": "string"
+                        "else": {
+                          "properties": {
+                            "markDefs": {
+                              "items": {
+                                "properties": {
+                                  "href": {
+                                    "pattern": "^https://"
+                                  }
+                                }
+                              }
+                            }
                           }
                         }
                       }
-                    }
-                  },
-                  "markDefs": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": [
-                        "_type",
-                        "_key",
-                        "href"
-                      ],
-                      "properties": {
-                        "_type": {
-                          "const": "spt.link"
-                        },
-                        "_key": {
-                          "type": "string",
-                          "pattern": "^[A-Za-z0-9_-]{1,64}$"
-                        },
-                        "href": {
-                          "type": "string",
-                          "pattern": "^https://"
-                        },
-                        "title": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  },
-                  "listItem": {
-                    "enum": [
-                      "bullet",
-                      "number"
-                    ]
-                  },
-                  "level": {
-                    "enum": [
-                      1,
-                      2,
-                      3
                     ]
                   }
-                },
-                "dependencies": {
-                  "level": [
-                    "listItem"
-                  ]
-                }
+                ]
               }
             },
             "assets": {
@@ -293,7 +415,7 @@
                 "assets": {
                   "type": "array",
                   "minItems": 1,
-                  "maxItems": 1,
+                  "maxItems": 8,
                   "items": {
                     "type": "object",
                     "additionalProperties": false,
@@ -314,7 +436,10 @@
                         "pattern": "^[a-z][a-z0-9-]{0,63}$"
                       },
                       "role": {
-                        "const": "header"
+                        "enum": [
+                          "header",
+                          "image"
+                        ]
                       },
                       "media_type": {
                         "const": "image/png"
@@ -352,7 +477,7 @@
                       "height": {
                         "type": "integer",
                         "minimum": 1,
-                        "maximum": 1200
+                        "maximum": 2400
                       },
                       "data": {
                         "type": "string",
@@ -369,5 +494,5 @@
       ]
     }
   },
-  "description": "Maximum 360,000 UTF-8 JSON bytes for body. Codec validation is additionally required: canonical base64url, link rules and annotation scope, resource budgets, PNG structure, digest, dimensions and pixels, asset binding, and NFC/control-free alt/caption. Block/span editor keys are not stored here."
+  "description": "Maximum 360,000 UTF-8 JSON bytes for body. Codec validation is additionally required: canonical base64url, link rules and annotation scope, resource budgets, PNG structure, digest, dimensions and pixels, asset binding, and NFC/control-free alt/caption. Block/span editor keys are not stored here. Up to eight image blocks and eight million displayed pixels. Every bundled asset must be referenced; header-role references must lead. Image alt may be empty only in drafts. CTA drafts may retain a blank label and any destination string up to 2048 UTF-8 bytes, but publishing requires a valid label and HTTPS link. Alignment is limited to left, center or right."
 }

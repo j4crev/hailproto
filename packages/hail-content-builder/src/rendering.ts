@@ -14,7 +14,9 @@ export interface MessageLink { href: string; title: string | null; hostname: str
 export interface MessageImage { src: string; alt: string; caption: string | null; width: number; height: number }
 export interface MessageSpan { text: string; strong: boolean; emphasis: boolean; code: boolean; link: MessageLink | null }
 export interface MessageBlock {
-  style: "normal" | "h1" | "h2" | "h3" | "blockquote" | "caption";
+  image?: MessageImage;
+  style: "normal" | "h1" | "h2" | "h3" | "blockquote" | "caption" | "cta";
+  alignment?: "left" | "center" | "right";
   listItem: "bullet" | "number" | null;
   level: number;
   spans: MessageSpan[];
@@ -56,22 +58,27 @@ export function renderBody(value: unknown): {blocks:MessageBlock[];header:Messag
     throw new Error("Unsupported message body");
   }
   let header:MessageImage|null=null,entries=body.blocks;
-  if(body.profile==="spt-3"){
-    const manifest=object(body.assets,"asset manifest"),image=object(entries[0],"image block");
-    if(manifest.version!==1||!Array.isArray(manifest.assets)||manifest.assets.length!==1||image._type!=="spt.image")throw new Error("Unsupported image body");
-    const asset=object(manifest.assets[0],"header asset"),data=text(asset.data,"asset data"),id=text(asset.id,"asset ID");
-    if(asset.role!=="header"||asset.media_type!=="image/png"||asset.loading!=="bundled"||image.asset!==id||
+  const imageFor=(entry:unknown):MessageImage=>{
+    const image=object(entry,"image block"),manifest=object(body.assets,"asset manifest");
+    if(body.profile!=="spt-3"||manifest.version!==1||!Array.isArray(manifest.assets)||manifest.assets.length>8)throw new Error("Unsupported image body");
+    const asset=object(manifest.assets.find((a:unknown)=>object(a,"asset").id===image.asset),"image asset"),data=text(asset.data,"asset data");
+    if(!["header","image"].includes(String(asset.role))||asset.media_type!=="image/png"||asset.loading!=="bundled"||
       !/^[A-Za-z0-9_-]+$/.test(data)||typeof asset.size!=="number"||asset.size<1||asset.size>196608||Math.floor(data.length*6/8)!==asset.size||
-      typeof asset.width!=="number"||!Number.isInteger(asset.width)||asset.width<1||asset.width>2400||typeof asset.height!=="number"||!Number.isInteger(asset.height)||asset.height<1||asset.height>1200||asset.width*asset.height>2000000){
-      throw new Error("Unsupported header asset");
-    }
+      typeof asset.width!=="number"||!Number.isInteger(asset.width)||asset.width<1||asset.width>2400||typeof asset.height!=="number"||!Number.isInteger(asset.height)||asset.height<1||asset.height>(asset.role==='image'?2400:1200)||asset.width*asset.height>2000000)throw new Error("Unsupported image asset");
     const base64=data.replaceAll("-","+").replaceAll("_","/").padEnd(Math.ceil(data.length/4)*4,"=");
-    header={src:`data:image/png;base64,${base64}`,alt:text(image.alt,"image alt"),caption:image.caption===undefined?null:text(image.caption,"image caption"),width:asset.width,height:asset.height};
-    entries=entries.slice(1);
+    return {src:`data:image/png;base64,${base64}`,alt:text(image.alt,"image alt"),caption:image.caption===undefined?null:text(image.caption,"image caption"),width:asset.width,height:asset.height};
+  };
+  // Preserve the separate leading-header presentation used by simple compose.
+  if(body.profile==='spt-3'&&entries[0]?._type==='spt.image'){
+    const manifest=object(body.assets,'asset manifest');
+    if(Array.isArray(manifest.assets)&&manifest.assets.some((a:unknown)=>{const asset=object(a,'asset');return asset.id===entries[0].asset&&asset.role==='header';})){
+      header=imageFor(entries[0]);entries=entries.slice(1);
+    }
   }
   const blocks: MessageBlock[] = entries.map((entry) => {
     const block = object(entry, "body block");
-    if (block._type !== "block" || !["normal", "h1", "h2", "h3", "blockquote", "caption"].includes(block.style as string) ||
+    if(block._type==='spt.image')return {style:'normal',listItem:null,level:1,spans:[],image:imageFor(block)};
+    if (block._type !== "block" || !["normal", "h1", "h2", "h3", "blockquote", "caption", "cta"].includes(block.style as string) ||
       !Array.isArray(block.children) || !Array.isArray(block.markDefs)) {
       throw new Error("Unsupported message block");
     }
@@ -100,9 +107,11 @@ export function renderBody(value: unknown): {blocks:MessageBlock[];header:Messag
     if (listItem !== null && listItem !== "bullet" && listItem !== "number") throw new Error("Unsupported list type");
     const level = block.level === undefined ? 1 : block.level;
     if (typeof level !== "number" || !Number.isInteger(level) || level < 1 || level > 3 || block.level !== undefined && listItem === null) throw new Error("Unsupported list level");
-    if(body.profile==="spt-1"&&(block.style!=="normal"||listItem!==null||block.level!==undefined||block.markDefs.length||spans.some(span=>span.strong||span.emphasis||span.code||span.link)))throw new Error("Unsupported spt-1 extension");
-    return { style: block.style as MessageBlock["style"], listItem, level, spans };
+    if(block.alignment!==undefined&&!['left','center','right'].includes(String(block.alignment)))throw Error('Unsupported text alignment');
+    if(block.style==='cta'&&(listItem!==null||definitions.size!==1||spans.some(span=>!span.link||span.strong||span.emphasis||span.code)||!spans.map(span=>span.text).join('').replace(/[ \t\r\n]/g,'')||/[\r\n]/.test(spans.map(span=>span.text).join(''))||new TextEncoder().encode(spans.map(span=>span.text).join('')).length>128||new TextEncoder().encode(spans[0]?.link?.href??'').length>2048))throw Error('Unsupported call to action');
+    if(body.profile==="spt-1"&&(block.style!=="normal"||listItem!==null||block.level!==undefined||block.alignment!==undefined||block.markDefs.length||spans.some(span=>span.strong||span.emphasis||span.code||span.link)))throw new Error("Unsupported spt-1 extension");
+    return { style: block.style as MessageBlock["style"], listItem, level, spans, ...(block.alignment===undefined?{}:{alignment:block.alignment as MessageBlock["alignment"]}) };
   });
-  return {blocks,header,paragraphs:blocks.map(block=>block.spans.map(span=>span.text).join(""))};
+  return {blocks,header,paragraphs:blocks.filter(block=>!block.image).map(block=>block.spans.map(span=>span.text).join(""))};
 }
 

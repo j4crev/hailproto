@@ -426,11 +426,12 @@ hail-body-spt-2 = {
 
 spt-2-text-block = {
   "_type": "block",
-  "style": "normal" / "h1" / "h2" / "h3" / "blockquote" / "caption",
+  "style": "normal" / "h1" / "h2" / "h3" / "blockquote" / "caption" / "cta",
   "children": [1* spt-2-span],
   "markDefs": [* spt-link],
   ? "listItem": "bullet" / "number",
-  ? "level": 1..3
+  ? "level": 1..3,
+  ? "alignment": "left" / "center" / "right"
 }
 
 spt-2-span = {
@@ -446,12 +447,12 @@ spt-link = {
   ? "title": tstr
 }
 
-; spt-3 adds one bundled, digest-bound header image before rich text.
+; spt-3 interleaves bounded, digest-bound PNG images and rich text.
 hail-body-spt-3 = {
   "version": 1,
   "profile": "spt-3",
   "assets": asset-manifest-v1,
-  "blocks": [spt-image-block, * spt-2-text-block],
+  "blocks": [1* (spt-image-block / spt-2-text-block)],
   ? "attachments": [1*20 hail-attachment]
 }
 
@@ -465,18 +466,18 @@ spt-image-block = {
 ; Reusable bundled-image manifest for future body and profile versions.
 asset-manifest-v1 = {
   "version": 1,
-  "assets": [1*2 bundled-image-asset-v1]
+  "assets": [1*8 bundled-image-asset-v1]
 }
 
 bundled-image-asset-v1 = {
   "id": tstr,
-  "role": "avatar" / "header",
+  "role": "avatar" / "header" / "image",
   "media_type": "image/png",
   "loading": "bundled",
   "size": 1..196608,
   "digest": digest,
   "width": 1..2400,
-  "height": 1..1200,
+  "height": 1..2400,
   "data": bstr
 }
 

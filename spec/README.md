@@ -39,7 +39,7 @@ Historical implementation/rollout notes do not override the current profile belo
 | Identity and address discovery | `did:plc`, Address Binding v2; [DID profile](did-profile.md), [address binding](address-binding.md), [PLC evidence](plc-read-evidence.md) |
 | Sender discovery and consent | Sender Profile v2, Grant v1; [sender profile](sender-profile.md), [grants](grants.md) |
 | Message delivery | Envelope v1 for Grant delivery; v2 for unthreaded connection delivery; v3 for threaded direct/reply-capability delivery; v4 for shared conversations; [envelopes](envelopes.md) |
-| Bodies and assets | All providers support `spt-1` plain text, `spt-2` rich text, and `spt-3` rich text with bundled header image; asset manifest v1; optional PNG/JPEG/WebP/PDF/TXT/LOG attachment declarations (25 MiB/message); [bodies](bodies.md), [assets](assets.md), [attachments](attachments.md) |
+| Bodies and assets | All providers support `spt-1` plain text, `spt-2` rich text with bounded alignment and CTA links, and `spt-3` rich text with up to eight bundled PNG images; asset manifest v1; optional PNG/JPEG/WebP/PDF/TXT/LOG attachment declarations (25 MiB/message); [bodies](bodies.md), [assets](assets.md), [attachments](attachments.md) |
 | Delivery results | Delivery Status v1; [delivery state](delivery-state.md), [HTTP binding](http-binding.md) |
 | Connections | Invitation, confirmation and control v1; [consent](connection-auth.md), [federation](connection-federation.md), [wire binding](connection-wire.md) |
 | Shared conversations | Descriptor/revival v1, Envelope v4; [shared conversations](shared-conversations.md) |
@@ -191,7 +191,7 @@ not a federation requirement or a change to the portable account-history format.
 The reference-provider draft inventory also includes optional **builder draft v1**
 (`{version:1, body}`), documented in [provider drafts](provider-drafts.md) and its
 [schema](schemas/content-builder-draft.json). This is editable provider-local state,
-not a new SPT profile. Builder drafts permit unfinished header descriptions; sending
+not a new SPT profile. Builder drafts permit unfinished image descriptions; sending
 still requires a complete body. New messages use the builder by default; supported
 older drafts convert on load without a storage write. Explicit Save as Draft persists
 the edited representation.

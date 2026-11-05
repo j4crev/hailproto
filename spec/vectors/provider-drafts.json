@@ -96,7 +96,7 @@
                 "children": [
                   {
                     "_type": "span",
-                    "text": "Café 日本語\n",
+                    "text": "Caf\u00e9 \u65e5\u672c\u8a9e\n",
                     "marks": [
                       "strong",
                       "em"
@@ -297,6 +297,130 @@
           }
         }
       }
+    },
+    {
+      "name": "unfinished-inline-images",
+      "content": {
+        "audience": "category",
+        "category": "",
+        "connections": [],
+        "title": "",
+        "text": "",
+        "alt": "",
+        "caption": "",
+        "allowReply": false,
+        "header": null,
+        "forward": null,
+        "builder": {
+          "version": 1,
+          "body": {
+            "version": 1,
+            "profile": "spt-3",
+            "blocks": [
+              {
+                "_type": "block",
+                "style": "normal",
+                "children": [
+                  {
+                    "_type": "span",
+                    "text": "Between images",
+                    "marks": []
+                  }
+                ],
+                "markDefs": []
+              },
+              {
+                "_type": "spt.image",
+                "asset": "image-a",
+                "alt": ""
+              },
+              {
+                "_type": "spt.image",
+                "asset": "image-b",
+                "alt": ""
+              }
+            ],
+            "assets": {
+              "version": 1,
+              "assets": [
+                {
+                  "id": "image-a",
+                  "role": "image",
+                  "media_type": "image/png",
+                  "loading": "bundled",
+                  "size": 68,
+                  "digest": {
+                    "algorithm": "sha-256",
+                    "value": "QxztaRaiohoVbjhwGv5Vu9f4iWn7v8Vtf-CZ1H8mVGA"
+                  },
+                  "width": 1,
+                  "height": 1,
+                  "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk-A8AAQUBAScY42YAAAAASUVORK5CYII"
+                },
+                {
+                  "id": "image-b",
+                  "role": "image",
+                  "media_type": "image/png",
+                  "loading": "bundled",
+                  "size": 68,
+                  "digest": {
+                    "algorithm": "sha-256",
+                    "value": "QxztaRaiohoVbjhwGv5Vu9f4iWn7v8Vtf-CZ1H8mVGA"
+                  },
+                  "width": 1,
+                  "height": 1,
+                  "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk-A8AAQUBAScY42YAAAAASUVORK5CYII"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "unfinished-cta-destination",
+      "content": {
+        "audience": "category",
+        "category": "",
+        "connections": [],
+        "title": "",
+        "text": "",
+        "alt": "",
+        "caption": "",
+        "allowReply": false,
+        "header": null,
+        "forward": null,
+        "builder": {
+          "version": 1,
+          "body": {
+            "version": 1,
+            "profile": "spt-2",
+            "blocks": [
+              {
+                "_type": "block",
+                "style": "cta",
+                "alignment": "center",
+                "children": [
+                  {
+                    "_type": "span",
+                    "text": "",
+                    "marks": [
+                      "action"
+                    ]
+                  }
+                ],
+                "markDefs": [
+                  {
+                    "_type": "spt.link",
+                    "_key": "action",
+                    "href": "https:"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
     }
   ],
   "invalid": [
@@ -337,7 +461,7 @@
         "audience": "category",
         "category": "",
         "connections": [],
-        "title": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+        "title": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
         "text": "",
         "alt": "",
         "caption": "",
@@ -400,7 +524,7 @@
                 "children": [
                   {
                     "_type": "span",
-                    "text": "Café 日本語\n",
+                    "text": "Caf\u00e9 \u65e5\u672c\u8a9e\n",
                     "marks": [
                       "strong",
                       "em"
@@ -568,7 +692,7 @@
                 "children": [
                   {
                     "_type": "span",
-                    "text": "Café 日本語\n",
+                    "text": "Caf\u00e9 \u65e5\u672c\u8a9e\n",
                     "marks": [
                       "strong",
                       "em"

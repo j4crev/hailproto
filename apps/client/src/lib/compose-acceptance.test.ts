@@ -68,7 +68,7 @@ it('limits new header uploads to subscribers while retaining rich connection tex
   body.set('header',new File([Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ6kAAAAASUVORK5CYII=','base64'))],'header.png',{type:'image/png'}));
   const publish=()=>actions.publish({request:new Request('https://example.com/compose',{method:'POST',body}),cookies:{},url:new URL('https://example.com/compose')} as unknown as Parameters<typeof actions.publish>[0]);
   request.mockReset();
-  expect(await publish()).toMatchObject({status:400,data:{error:'Header images are available for subscriber publications only.'}});
+  expect(await publish()).toMatchObject({status:400,data:{error:'Images are available for subscriber publications only.'}});
   expect(request).not.toHaveBeenCalled();
   body.set('audience','category');body.set('category','general');body.delete('connection');
   request.mockRejectedValueOnce(new Error('Response lost'));
@@ -91,4 +91,34 @@ it('hands validated builder content to the existing publication flow without Mar
   request.mockReset();form.set('text','Competing text');expect(await publish()).toMatchObject({status:400});expect(request).not.toHaveBeenCalled();
   form.delete('text');form.set('builder',JSON.stringify({version:1,body:{...body,blocks:[{...body.blocks[0],html:'<img src="https://tracker.invalid">'}]}}));
   expect(await publish()).toMatchObject({status:400});expect(request).not.toHaveBeenCalled();
+});
+
+it('publishes ordered inline images and rejects any unfinished image description',async()=>{
+  const {pngAsset}=await import('@racrproto/content-builder/core');
+  const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64'));
+  const assets=[await pngAsset(png,true),await pngAsset(png,true)];
+  const text={_type:'block',style:'normal',children:[{_type:'span',text:'Newsletter',marks:[]}],markDefs:[]};
+  const body={version:1,profile:'spt-3',assets:{version:1,assets},blocks:[text,{_type:'spt.image',asset:assets[0].id,alt:'First'},text,{_type:'spt.image',asset:assets[1].id,alt:'Second'}]};
+  const form=new FormData();
+  for(const [key,value] of Object.entries({publicationId:id,audience:'category',category:'general',builder:JSON.stringify({version:1,body})}))form.set(key,value);
+  const publish=()=>actions.publish({request:new Request('https://example.com/compose',{method:'POST',body:form}),cookies:{},url:new URL('https://example.com/compose')} as never);
+  request.mockReset();request.mockRejectedValueOnce(new Error('Response lost'));
+  expect(await publish()).toMatchObject({status:502});
+  expect(request).toHaveBeenCalledWith('/publications',expect.objectContaining({body}));
+  const last=body.blocks[3]!;if(!('alt' in last))throw Error('Expected image');last.alt='';form.set('builder',JSON.stringify({version:1,body}));request.mockReset();
+  expect(await publish()).toMatchObject({status:400});expect(request).not.toHaveBeenCalled();
+});
+
+it('hands off aligned CTA content unchanged and keeps unfinished destinations in drafts only',async()=>{
+  const body={version:1,profile:'spt-2',blocks:[{_type:'block',style:'cta',alignment:'center',children:[{_type:'span',text:'Register now',marks:['action']}],markDefs:[{_type:'spt.link',_key:'action',href:'https://example.invalid/register'}]}]};
+  const form=new FormData();
+  for(const [key,value] of Object.entries({publicationId:id,audience:'category',category:'general',builder:JSON.stringify({version:1,body})}))form.set(key,value);
+  const publish=()=>actions.publish({request:new Request('https://example.com/compose',{method:'POST',body:form}),cookies:{},url:new URL('https://example.com/compose')} as never);
+  request.mockReset();request.mockRejectedValueOnce(new Error('Response lost'));
+  expect(await publish()).toMatchObject({status:502});
+  expect(request).toHaveBeenCalledWith('/publications',expect.objectContaining({body}));
+  for(const href of ['','http://example.invalid','javascript:alert(1)']){
+    body.blocks[0].markDefs[0].href=href;form.set('builder',JSON.stringify({version:1,body}));request.mockReset();
+    expect(await publish()).toMatchObject({status:400});expect(request).not.toHaveBeenCalled();
+  }
 });

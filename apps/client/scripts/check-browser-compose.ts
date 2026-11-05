@@ -31,7 +31,7 @@ async function writeMessage(text:string){
   await evaluate(`(()=>{const e=document.querySelector('[contenteditable=true]');e.focus();const r=document.createRange();r.selectNodeContents(e);const s=getSelection();s.removeAllRanges();s.addRange(r);})()`);
   await cdp('Input.insertText',{text});
 }
-const messageText=()=>evaluate(`document.querySelector('[contenteditable=true]').textContent`);
+const messageText=()=>evaluate(`Array.from(document.querySelectorAll('[contenteditable=true] [data-block-key]')).filter(node=>!node.querySelector('.builder-image')).map(node=>node.textContent).join('')`);
 
 for(const width of [1440,900,390,320]){
   await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<500});
@@ -56,7 +56,7 @@ for(const width of [1440,900,390,320]){
   if(width<=900){
     assert(await evaluate(`(()=>{const r=document.querySelector('.mobile-floating-action').getBoundingClientRect();return r.width===56&&r.height===56&&Math.abs(r.x+r.width/2-document.documentElement.clientWidth/2)<1&&Math.abs(innerHeight-r.bottom-40)<1;})()`),'Mobile action matches compose placement');
   }
-  const input=async(selector:string,value:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  const input=async(selector:string,value:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(e instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   assert(await evaluate(`!document.querySelector('.compose-settings')`),'No Publication sidebar');
   assert.equal(await evaluate(`new FormData(document.querySelector('form[enctype]')).get('category')`),'');
   assert.equal(await evaluate(`document.querySelector('#category-search').value`),'');
@@ -94,7 +94,7 @@ for(const width of [1440,900,390,320]){
   assert.equal(await messageText(),'A fresh perspective');
   assert(await evaluate(`!document.querySelector('input[name=mode]')`));
   assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'Subscriber editor fits '+width);
-  await evaluate(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'cover.png',{type:'image/png'}));const e=document.querySelector('input[aria-label="Header PNG"]');e.files=transfer.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await evaluate(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'cover.png',{type:'image/png'}));const e=document.querySelector('input[aria-label="Add image"]');e.files=transfer.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await wait(async()=>evaluate(`!!document.querySelector('input[aria-label="Image description"]')`));
   assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'Cover controls fit '+width);
   await toggle();
@@ -102,7 +102,7 @@ for(const width of [1440,900,390,320]){
   await toggle();
   await input('input[aria-label="Image description"]','A cover description');
   await input('input[aria-label="Image caption"]','A cover caption');
-  await evaluate(`Array.from(document.querySelectorAll('button')).find(button=>button.textContent==='Remove header').click()`);
+  await evaluate(`Array.from(document.querySelectorAll('button')).find(button=>button.textContent==='Remove image').click()`);
   await wait(async()=>evaluate(`!document.querySelector('input[aria-label="Image description"]')`));
   assert(await evaluate(`JSON.parse(document.querySelector('input[name=builder]').value).body.profile==='spt-2'`),'Removed image and metadata are absent from submission');
   await toggle();
@@ -164,9 +164,10 @@ for(const width of [1440,900,390,320]){
 for(const width of [1440,390]){
   await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<500});
   await navigate('/compose');
-  const input=async(selector:string,value:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});e.value=${JSON.stringify(value)};e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  const input=async(selector:string,value:string)=>evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(e instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await writeMessage('Unfinished message');
-  await evaluate(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'cover.png',{type:'image/png'}));const e=document.querySelector('input[aria-label="Header PNG"]');e.files=transfer.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await evaluate(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'cover.png',{type:'image/png'}));const e=document.querySelector('input[aria-label="Add image"]');e.files=transfer.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await wait(()=>evaluate(`!!document.querySelector('input[aria-label="Image description"]')`));
   const draftId=await evaluate(`document.querySelector('input[name=publicationId]').value`);
   await evaluate(`document.querySelector('button[formaction="?/save"]').click()`);
   await wait(async()=>evaluate(`document.querySelector('input[name=draftRevision]').value==='1'`));
@@ -227,19 +228,45 @@ for(const width of [1440,390]){
   const toggle=async()=>{await evaluate(`document.querySelector(${JSON.stringify(toggleSelector)}).click()`);};
   assert.equal(await evaluate(`!!document.querySelector('.content-builder .preview-controls')`),false);
   await evaluate(`void(window.builderEditor=document.querySelector('[contenteditable=true]'))`);
+  await wait(()=>evaluate(`!!document.querySelector('.compose-studio').dataset.builderWide`));
+  await evaluate(`window.composeCanvasWidth=document.querySelector('.compose-layout').getBoundingClientRect().width`);
+  if(width===1440){
+    assert(await evaluate(`document.querySelector('.compose-block-settings .builder-inspector')!==null`),'settings live outside the compose form');
+    assert(await evaluate(`(()=>{const form=document.querySelector('.compose-layout').getBoundingClientRect(),panel=document.querySelector('.compose-block-settings').getBoundingClientRect();return panel.left>=form.right;})()`),'desktop sidebar does not occupy editor width');
+    await evaluate(`(()=>{const canvas=document.querySelector('.builder-canvas');canvas.style.minHeight='2000px';document.querySelector('.compose-studio').scrollIntoView();window.scrollBy(0,300);})()`);
+    assert(await evaluate(`Math.abs(document.querySelector('.compose-block-settings').getBoundingClientRect().top-20)<2`),'sidebar stays visible while scrolling a long document');
+    await evaluate(`document.querySelector('.builder-canvas').style.minHeight='';window.scrollTo(0,0)`);
+  }
+
   await toggle();
   assert(await evaluate(`!document.querySelector('#compose-preview').hidden&&document.querySelector('.builder-editor').hidden`));
+  assert(await evaluate(`document.querySelector('.compose-layout').getBoundingClientRect().width===window.composeCanvasWidth`),'preview preserves compose width');
   assert(await evaluate(`document.querySelector('#compose-preview .strong').textContent==='bold'`));
   assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'Builder preview fits '+width);
   await toggle();
   assert(await evaluate(`document.querySelector('#compose-preview').hidden&&!document.querySelector('.builder-editor').hidden&&window.builderEditor===document.querySelector('[contenteditable=true]')`),'Preview keeps the editor mounted');
-  await evaluate(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'cover.png',{type:'image/png'}));const e=document.querySelector('input[aria-label="Header PNG"]');e.files=transfer.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await evaluate(`document.querySelector('button[aria-label="Add call to action"]').click()`);
+  await evaluate(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const transfer=new DataTransfer();transfer.items.add(new File([bytes],'cover.png',{type:'image/png'}));const e=document.querySelector('input[aria-label="Add image"]');e.files=transfer.files;e.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await wait(()=>evaluate(`!!document.querySelector('input[aria-label="Image description"]')`));
   await toggle();
-  assert(await evaluate(`document.querySelector('#compose-preview').textContent.includes('Complete the image description')`));
+  assert(await evaluate(`document.querySelector('#compose-preview').textContent.includes('Add an image description.')`));
   assert.equal(await evaluate(`document.querySelectorAll('#compose-preview img').length`),0,'Invalid content has no stale preview');
   await toggle();
-  await evaluate(`(()=>{const e=document.querySelector('input[aria-label="Image description"]');e.value='Builder cover';e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  if(width===390){
+    await evaluate(`document.querySelector('.builder-settings-launch').click()`);
+    assert(await evaluate(`document.querySelector('.builder-sheet').matches(':modal')`),'mobile settings open as a sheet');
+  }
+  await evaluate(`(()=>{const e=document.querySelector('input[aria-label="Image description"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'Builder cover');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  if(width===390)await evaluate(`document.querySelector('.builder-sheet-close').click()`);
+  await toggle();
+  await wait(()=>evaluate(`document.querySelector('#compose-preview .preview-issues')?.textContent.includes('Add a destination URL.')`));
+  assert(await evaluate(`document.querySelector('#compose-preview .preview-issues').textContent.includes('Learn more')&&!document.querySelector('#compose-preview .preview-issues').textContent.includes('Add an image description.')`),'preview names the unfinished button rather than the completed image');
+  await evaluate(`document.querySelector('#compose-preview .preview-issues button').click()`);
+  await wait(()=>evaluate(`document.activeElement?.getAttribute('aria-label')==='Button label'`));
+  assert(await evaluate(`document.querySelector('#compose-preview').hidden`),'Edit block returns to editing');
+  if(width===390)assert(await evaluate(`document.querySelector('.builder-sheet').matches(':modal')`),'Edit block opens mobile settings');
+  await evaluate(`(()=>{const e=document.querySelector('input[aria-label="Call-to-action destination"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'https://example.invalid/action');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  if(width===390)await evaluate(`document.querySelector('.builder-sheet-close').click()`);
   await toggle();
   await wait(()=>evaluate(`document.querySelector('#compose-preview img')?.complete`));
   assert.equal(await evaluate(`document.querySelector('#compose-preview img').alt`),'Builder cover');
