@@ -101,6 +101,10 @@ it("shows send titles separately from previews and retains untitled content",asy
   expect(parseSentSend({...send,body:{...send.body,blocks:[block("normal","Keep this opening")]}}))
     .toMatchObject({title:"Untitled message",preview:"Keep this opening"});
   expect(parseSentSends({messages:[send,{...send,messageId:"another"}],next:"cursor"}).messages).toHaveLength(2);
+  expect(parseSentSend(send).trashedAt).toBeNull();
+  expect(parseSentSend({...send,trashedAt:null}).trashedAt).toBeNull();
+  expect(parseSentSend({...send,trashedAt:"2026-11-04T15:30:00Z"}).trashedAt).toBe("2026-11-04T15:30:00Z");
+  expect(()=>parseSentSend({...send,trashedAt:123})).toThrow("Invalid trash time");
   expect(parseSentSend(send).recipients).toBeNull();
   expect(parseSentSend(send).recipientSummary).toBeNull();
   for(const summary of [{count:1,address:"friend@example.test",did:"did:plc:friend"},{count:2,address:null,did:null}])

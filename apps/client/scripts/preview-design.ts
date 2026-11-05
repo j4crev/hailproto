@@ -143,7 +143,7 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
   }
   if(path==='/api/v1/account/sent/clear'&&request.method==='POST'){
     if(input.trashEnabled!==preferences.trashEnabled)return json({},409);
-    let affected=0;for(const m of sent){if(trash.has(m.messageId)||deleted.has(m.messageId)||!['delivered','failed','cancelled'].includes(m.state))continue;
+    let affected=0;for(const m of sent){if(input.messages&&!input.messages.some((item:{kind:string;messageId:string})=>item.kind===m.kind&&item.messageId===m.messageId))continue;if(trash.has(m.messageId)||deleted.has(m.messageId)||!['delivered','failed','cancelled'].includes(m.state))continue;
       if(preferences.trashEnabled)trash.set(m.messageId,new Date().toISOString());else deleted.add(m.messageId);affected++;}
     return json({affected,state:preferences.trashEnabled?'trashed':'deleted'});
   }
@@ -180,8 +180,8 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
     {...sent[0],messageId:uuidV7(),kind:'connections',recipientSummary:{count:2,address:null,did:null}},
     {...sent[0],messageId:uuidV7(),kind:'category',category:'essays',recipientSummary:undefined},
     {...sent[0],messageId:uuidV7(),kind:'category',category:'general',recipientSummary:undefined}],next:null});
-  if(path==='/api/v1/account/sent')return json({messages:sent.filter(m=>!deleted.has(m.messageId)&&(url.searchParams.get('trash')==='true'?trash.has(m.messageId):!trash.has(m.messageId))),next:null});
-  if(path.startsWith('/api/v1/account/sent/')){const m=sent.find(m=>m.messageId===path.split('/').at(-1)&&!deleted.has(m.messageId)&&(url.searchParams.get('trash')==='true'?trash.has(m.messageId):!trash.has(m.messageId)));return m && (!url.searchParams.has('kind')||url.searchParams.get('kind')===m.kind)?json(url.searchParams.has('kind')?m:{...m,kind:"connection"}):json({},404);}
+  if(path==='/api/v1/account/sent')return json({messages:sent.filter(m=>!deleted.has(m.messageId)&&(url.searchParams.get('trash')==='true'?trash.has(m.messageId):!trash.has(m.messageId))).map(m=>({...m,trashedAt:trash.get(m.messageId)??null})),next:null});
+  if(path.startsWith('/api/v1/account/sent/')){const m=sent.find(m=>m.messageId===path.split('/').at(-1)&&!deleted.has(m.messageId)&&(url.searchParams.get('trash')==='true'?trash.has(m.messageId):!trash.has(m.messageId)));return m && (!url.searchParams.has('kind')||url.searchParams.get('kind')===m.kind)?json({...m,trashedAt:trash.get(m.messageId)??null,...(!url.searchParams.has('kind')?{kind:"connection"}:{})}):json({},404);}
   if(path==='/api/v1/account/grants')return json({grants:grants.filter(g=>!url.searchParams.has('sender')||g.payload.grantee===url.searchParams.get('sender')).map(g=>({grantId:g.payload.grant_id,localRole:'grantor',grantee:g.payload.grantee,status:'active'})),next:null});
   if(path.startsWith('/api/v1/account/grants/')){const grant=grants.find(g=>g.payload.grant_id===path.split('/').at(-1));return grant?json(grant.representation):json({},404);}
   if(path==='/api/v1/account/profile')return json(profileResponse);

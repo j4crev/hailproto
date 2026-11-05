@@ -371,8 +371,8 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
           return context.json(await messaging.trash.saveDisplaySettings(session,input));
         }
         if(action==="sent-clear"){
-          if(Object.keys(input).length!==1||!("trashEnabled" in input))return problem(400);
-          return context.json(await messaging.trash.clearSent(session,input.trashEnabled));
+          if(!("trashEnabled" in input)||Object.keys(input).some(key=>key!=="trashEnabled"&&key!=="messages"))return problem(400);
+          return context.json(await messaging.trash.clearSent(session,input.trashEnabled,input.messages));
         }
         if(action==="sent-restore"){
           if(Object.keys(input).length!==2||!("kind" in input)||!("messageId" in input))return problem(400);

@@ -102,7 +102,16 @@ export class MessageTrash {
       return {deleted:removed.length+sent.length+drafts.length};
     });
   }
-  async clearSent(session:AccountApiSession,expectedTrashEnabled:unknown){
+  async clearSent(session:AccountApiSession,expectedTrashEnabled:unknown,messages?:unknown){
+    let selection:string[]|null=null;
+    if(messages!==undefined){
+      if(!Array.isArray(messages)||messages.length<1||messages.length>100)throw new UserGrantError(400,"Invalid sent selection");
+      selection=messages.map(item=>{
+        if(!item||typeof item!=="object"||Array.isArray(item)||Object.keys(item).length!==2||
+          !["category","connections","message"].includes(item.kind)||typeof item.messageId!=="string"||!ID.test(item.messageId))throw new UserGrantError(400,"Invalid sent message");
+        return item.kind+'/'+item.messageId;
+      });
+    }
     if(typeof expectedTrashEnabled!=="boolean")throw new UserGrantError(400,"Invalid Trash preference");
     return this.sql.begin(async tx=>{
       await this.lock(tx as SQL,session);
@@ -112,6 +121,7 @@ export class MessageTrash {
       const removed=await tx`INSERT INTO account_sent_dispositions(account_id,kind,send_id,deleted)
         SELECT item.account_id,item.kind,item.id,${!enabled} FROM account_sent_items item
         WHERE item.account_id=${session.account_id} AND item.sender_did=${session.did}
+          AND (${selection===null} OR item.kind || '/' || item.id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(selection??[])}::text::jsonb)))
           AND EXISTS(SELECT 1 FROM account_sent_members m WHERE m.account_id=item.account_id AND m.kind=item.kind AND m.send_id=item.id AND m.submitted)
           AND NOT EXISTS(SELECT 1 FROM account_sent_members m WHERE m.account_id=item.account_id AND m.kind=item.kind AND m.send_id=item.id AND m.completed IS NOT TRUE)
         ON CONFLICT DO NOTHING RETURNING send_id`;
