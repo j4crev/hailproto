@@ -1,15 +1,16 @@
 import {beforeEach, expect, it, vi} from "vitest";
-const mocks = vi.hoisted(() => ({isConfigured: vi.fn(), canaryAccount: vi.fn(), profile: vi.fn()}));
+const mocks = vi.hoisted(() => ({isConfigured: vi.fn(), canaryAccount: vi.fn(), profile: vi.fn(), request: vi.fn()}));
 vi.mock("$lib/server/canary.js", () => mocks);
 import {load} from "../routes/+layout.server.js";
 const did = "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa";
 const payload = {did, version: 2, display_name: "Alice", offers_uncategorized: false, categories: [], assets: {assets: [{data: new Uint8Array([1, 2, 3])}]}};
-const run = (path = "/") => load({cookies: {}, url: new URL(path, "https://example.com")} as never);
+const run = (path = "/") => load({cookies: {}, depends: vi.fn(), url: new URL(path, "https://example.com")} as never);
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.isConfigured.mockReturnValue(true);
-  mocks.canaryAccount.mockResolvedValue({account: {did}, client: {profile: mocks.profile}});
+  mocks.canaryAccount.mockResolvedValue({account: {did}, client: {profile: mocks.profile, request: mocks.request}});
   mocks.profile.mockResolvedValue({payload});
+  mocks.request.mockResolvedValue({subscriptions:0,connections:0});
 });
 it("supplies a same-origin photo URL without waiting for the profile on navigation", async () => {
   mocks.profile.mockImplementation(()=>new Promise(()=>{}));
