@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {page} from "$app/state";
   import {onMount} from "svelte";
   import {startRegistration} from "@simplewebauthn/browser";
@@ -25,5 +26,5 @@
   {#if !complete}<label class="hail-field w-full">Passkey label<input bind:value={label} maxlength="80" /></label>
     <button class="hail-button max-w-full whitespace-normal" onclick={enroll} disabled={busy||!token||!label.trim()}>Create replacement passkey</button>
   {:else}<a class="hail-button" href="/?next=%2F">Sign in with the new passkey</a>{/if}
-  {#if message}<p class="m-0 rounded-xl bg-canvas p-4 text-sm text-muted" aria-live="polite">{message}</p>{/if}
+  {#if message}<Toast message={message} />{/if}
 </section>

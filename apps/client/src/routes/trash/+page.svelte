@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import DraftList from "$lib/DraftList.svelte";
   import MailboxCleanup from "$lib/MailboxCleanup.svelte";
   import {page} from "$app/state";
@@ -52,7 +53,7 @@
 <svelte:head><title>Trash · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="trash-list min-w-0 pb-28 min-[901px]:pb-0" class:has-selection={selectedMessages.length>0}>
   <MailboxCleanup folder="Trash" trashEnabled={data.trashEnabled} empty={!data.messages.length&&!data.sent.messages.length&&!data.paged&&!data.sentPaged&&!data.drafts.drafts.length&&!data.draftPaged} />
-  {#if status}<p role="status">{status}</p>{/if}
+  {#if status}<Toast message={status} />{/if}
   {#if messages.length}
     {#if selectedMessages.length}
       <SelectionActions label="Trash actions" count={selectedMessages.length} locked={busy} {busy} onclear={()=>selected=[]} onselectall={selectedMessages.length<messages.length?()=>selected=messages.map(item=>item.key):undefined}>

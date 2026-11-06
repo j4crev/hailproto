@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {page} from "$app/state";
   import {onMount,onDestroy} from "svelte";
   import SignupDomainRecords from "$lib/SignupDomainRecords.svelte";
@@ -330,7 +331,7 @@
     </div>{/key}
     {#if busy&&screen!=="activating"}<p role="status">Working…</p>{/if}
     {#if now<retryAt&&screen!=="activating"}<p>Try again in {Math.ceil((retryAt-now)/1000)} seconds.</p>{/if}
-    {#if message}<p class="signup-message" role="status">{message}</p>{/if}
+    {#if message}<Toast message={message} />{/if}
   </section>
 </div>
 <style lang="postcss">

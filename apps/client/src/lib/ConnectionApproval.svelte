@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import DateTime from "$lib/DateTime.svelte";
   import IdentityWarning from "./IdentityWarning.svelte";
   import {onMount,untrack} from "svelte";
@@ -93,7 +94,7 @@
     <label class="hail-field">Signed consent file (COSE only, not a vault)<input type="file" accept=".cose,application/cbor" onchange={upload} disabled={busy} /></label>
     {#if signedConsent}<p class="m-0 text-sm text-muted">Signed file ready. The provider will verify it against this exact review and your current identity key before saving.</p>{/if}
   </div>{/if}
-  {#if message}<p class="hail-error" role="status">{message}</p>{/if}
+  {#if message}<Toast message={message} error />{/if}
   {#if busy}<p class="m-0 text-sm text-muted" role="status">Updating your connections…</p>{/if}
   <div class="flex flex-wrap gap-2">
     {#if recoveryNeeded}<button class="hail-button" disabled={busy} onclick={()=>run(false)}>Try again</button>

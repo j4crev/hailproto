@@ -1,4 +1,8 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
+  import MobileSheet from "$lib/MobileSheet.svelte";
+  import MailboxEmptyState from "$lib/MailboxEmptyState.svelte";
+  let addOpen=$state(false);
   import Icon from "$lib/Icon.svelte";
   import CopyButton from "$lib/CopyButton.svelte";
   import DateTime from "$lib/DateTime.svelte";
@@ -14,6 +18,7 @@
   let selected=$state<string[]>([]),confirmation=$state<HTMLDivElement>();
   function toggle(id:string){selected=selected.includes(id)?selected.filter(value=>value!==id):[...selected,id];}
   async function removeSelected(){
+    addOpen=true;
     await prepare({action:"disconnect",connectionIds:selectedConnections.map(connection=>connection.id)});
     await tick();confirmation?.scrollIntoView({block:"center"});
   }
@@ -45,7 +50,7 @@
   function remember(id:string|null){pendingId=id;try{if(id)sessionStorage.setItem(CONNECTION_APPROVAL,id);else sessionStorage.removeItem(CONNECTION_APPROVAL);}catch{/* Keep in-page recovery available. */}}
   async function initialize(){
     if(initialList)list=initialList;else await load();
-    if(pendingId)await check();
+    if(pendingId){addOpen=true;await check();}
   }
   async function check(){
     if(!pendingId)return;
@@ -66,7 +71,7 @@
     await invalidateAll();
     if(result?.state!=="connecting")remember(null);
     const createdLink=prepared?.action==="create"&&prepared.review.personal===false;
-    prepared=null;draft=null;shown=null;recoveryNeeded=false;immediateRequestId=null;
+    addOpen=false;prepared=null;draft=null;shown=null;recoveryNeeded=false;immediateRequestId=null;
     const notice=result?.connectionIds?`Removed ${result.connectionIds.length} ${result.connectionIds.length===1?"connection":"connections"}. Existing subscriptions are unchanged.`:result?.state==="connecting"?"Connection saved. Synchronizing with the other provider.":result?.state==="expired"||result?.state==="conflict"?"The connection attempt expired or its reviewed state changed. Review a current code before trying again.":"Saved. Existing subscriptions are unchanged.";
     if(result?.state==="expired"||result?.state==="conflict")message=notice;
     else {message="";success=createdLink?"Connection link created.":notice;}
@@ -77,10 +82,11 @@
 {#snippet shareCode(link:string,id:string)}
   {#if qr}<div id={`connection-code-${id}`} class="grid min-w-0 gap-4" aria-label="Share connection code"><svg class="w-full max-w-72 bg-white" viewBox={`0 0 ${qr.size} ${qr.size}`} role="img" aria-label="Connection QR code"><path d={qr.path} fill="black" /></svg><div class="flex min-w-0 items-end gap-1"><label class="hail-field min-w-0 flex-1">Connection link<input readonly value={link} onclick={event=>event.currentTarget.select()} /></label><CopyButton value={link} label="Copy connection link" /></div></div>{/if}
 {/snippet}
-<div role="status" aria-atomic="true">{#if success}<div class="hail-success-toast"><Icon name="check"/><span>{success}</span></div>{/if}</div>
+<Toast message={success} />
 {#if list}
-  <section class="connection-content mt-8 grid gap-5 [@media(max-width:900px)]:[&.has-selection]:pb-[180px]" class:has-selection={selectedConnections.length>0} aria-label="Connection codes">
-    {#if message}<p class="hail-error" role="status">{message}</p>{/if}
+  <section class="connection-content pb-28 min-[901px]:pb-0 grid gap-5 [@media(max-width:900px)]:[&.has-selection]:pb-[180px]" class:has-selection={selectedConnections.length>0} aria-label="Connection codes">
+    {#if message}<Toast message={message} error />{/if}
+    <MobileSheet bind:open={addOpen} title="Add a connection" disabled={busy}>
     {#if recoveryNeeded}
       {#if busy}<p class="text-sm text-muted" role="status">Checking your connection change…</p>
       {:else}<button class="hail-button-secondary justify-self-start" onclick={()=>run(check)}>Try again</button>{/if}
@@ -109,7 +115,9 @@
       {#each list.codes.filter(code=>!code.personal) as code}<article class="hail-card grid min-w-0 gap-3 p-5"><strong>{code.label}</strong><p class="m-0 text-sm text-muted">Expires <DateTime value={code.expiresAt!*1000} /></p><div class="flex flex-wrap gap-2"><button class="hail-button-secondary" aria-expanded={shown===code.link} aria-controls={`connection-code-${code.id}`} onclick={()=>shown=shown===code.link?null:code.link}>{shown===code.link?"Hide QR":"Show QR"}</button><button class="hail-button-secondary" disabled={busy} onclick={()=>run(()=>prepare({action:"revoke",id:code.id}))}>Revoke</button></div>{#if shown===code.link}{@render shareCode(code.link,code.id)}{/if}</article>{/each}
       {#if draft&&!prepared}<button class="hail-button-secondary justify-self-start" onclick={()=>cancel()}>Discard unsaved review</button>{/if}
     {/if}
-    <section class="grid gap-4" aria-label="Your connections">{#if !list.connections.length}<p class="m-0 text-sm text-muted">No connections yet. Share a code or scan someone else's.</p>{/if}
+    </MobileSheet>
+    {#if !selectedConnections.length||prepared||recoveryNeeded}<button class="mobile-floating-action" type="button" aria-label="Add a connection" onclick={()=>addOpen=true}><Icon name="plus" size={24}/></button>{/if}
+    <section class="grid gap-4" aria-label="Your connections">{#if !list.connections.length}<MailboxEmptyState icon="user" title="No connections yet." />{/if}
       {#if selectedConnections.length}
         <SelectionActions label="Connection actions" count={selectedConnections.length} locked={busy||prepared!==null||recoveryNeeded||draft!==null} onclear={()=>selected=[]}>
           {#snippet actions()}<button class="hail-button-secondary" disabled={busy||prepared!==null||recoveryNeeded||draft!==null} onclick={()=>run(removeSelected)}>{selectedConnections.length===1?'Remove connection':'Remove connections'}</button>{/snippet}
@@ -126,4 +134,4 @@
     </section>
     {#if list.pendingConnections?.length}<section class="grid gap-3" aria-label="Connection synchronization"><h3 class="m-0 text-xl">Synchronizing with other providers</h3>{#each list.pendingConnections as pending}<article class="hail-card grid min-w-0 gap-2 p-5"><strong class="[overflow-wrap:anywhere]">{pending.address}</strong><p class="m-0 text-sm text-muted">{pending.state==="expired"?"This connection attempt expired. Open a current code to review and try again.":pending.state==="conflict"?"This attempt could not be confirmed because the reviewed identity or relationship changed. Review a current code before trying again.":pending.kind==="disconnect"?"Disconnected here. Notifying the other provider; automatic retries continue if it is offline.":pending.state==="active"?"Connected here. Updating the other provider's view; automatic retries continue if it is offline.":"Your connection approval is saved. Awaiting verified confirmation from both providers; no additional acceptance is needed."}</p></article>{/each}</section>{/if}
   </section>
-{:else if message}<section class="mt-8 grid gap-4" aria-label="Connection codes unavailable"><p class="hail-error" role="status">{message}</p><button class="hail-button-secondary justify-self-start" disabled={busy} onclick={()=>run(initialize)}>Retry loading connection codes</button></section>{:else}<p class="text-sm text-muted" role="status">Loading connections…</p>{/if}
+{:else if message}<section class="mt-8 grid gap-4" aria-label="Connection codes unavailable"><Toast message={message} error /><button class="hail-button-secondary justify-self-start" disabled={busy} onclick={()=>run(initialize)}>Retry loading connection codes</button></section>{:else}<p class="text-sm text-muted" role="status">Loading connections…</p>{/if}

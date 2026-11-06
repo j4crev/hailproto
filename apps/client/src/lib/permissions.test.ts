@@ -1,5 +1,5 @@
 import {expect,it,vi} from "vitest";
-import {recoverPermission,senderLink,senderRequest,senderQr,permissionRequest,subscriptionScopeLabel} from "./permissions.js";
+import {validateSenderAddress,recoverPermission,senderLink,senderRequest,senderQr,permissionRequest,subscriptionScopeLabel} from "./permissions.js";
 
 it("makes public identity-pinned QR links and rejects malformed or credential-bearing requests",()=>{
   const did="did:plc:"+"a".repeat(24),link=senderLink("https://haili.app","canary-prov@haili.app",did),url=new URL(link);
@@ -123,4 +123,11 @@ it("preserves identity-conflict warnings when restoring an unfinished approval",
   vi.stubGlobal("fetch",async()=>Response.json({...pending(),action:"allow",previousDids:[previous]}));
   try{expect((await recoverPermission(requestId,grantor)).previousDids).toEqual([previous]);}
   finally{vi.unstubAllGlobals();}
+});
+
+it("validates Hail addresses locally and normalizes case and surrounding whitespace",()=>{
+  expect(validateSenderAddress("  J4crev@Example.COM  ")).toBe("j4crev@example.com");
+  expect(validateSenderAddress("a.b-c@sub.example.com")).toBe("a.b-c@sub.example.com");
+  for(const address of ["j4crev.com","","a@localhost","a@@example.com","a..b@example.com","a.-b@example.com","a_1@example.com","a@example..com","a@-example.com","a@example.com-","a b@example.com","a".repeat(64)+"@example.com","a@"+"b".repeat(64)+".com"])
+    expect(()=>validateSenderAddress(address)).toThrow("Enter a valid Hail address");
 });

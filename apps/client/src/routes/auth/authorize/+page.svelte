@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {page} from "$app/state";
   import DateTime from "$lib/DateTime.svelte";
   import {onMount} from "svelte";
@@ -36,5 +37,5 @@
     <div class="w-full rounded-xl bg-brand-soft p-4"><h2 class="m-0 mb-2 text-sm">Requested permissions</h2><ul class="m-0 pl-5 text-sm text-brand-strong">{#each details.scopes as scope}<li class="[overflow-wrap:anywhere]">{scope}</li>{/each}</ul><p class="m-0 mt-3 text-xs text-muted">Request expires <DateTime value={details.expiresAt} />.</p></div>
     <button class="hail-button max-w-full whitespace-normal" onclick={authorize} disabled={busy}>Verify with a passkey and authorize</button>
   {:else if !message}<p class="m-0 text-sm text-muted">Loading authorization request…</p>{/if}
-  {#if message}<p class="hail-error" role="alert">{message}</p>{/if}
+  {#if message}<Toast message={message} error />{/if}
 </section>

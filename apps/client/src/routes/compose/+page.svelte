@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {parseDraft} from "@racrproto/client-support/drafts";
   import {page} from "$app/state";
   import {forwardBody} from "$lib/forward.js";
@@ -154,10 +155,10 @@
   <header class="workspace-heading">
     {#if !data.forward}<nav class="audience-switch" aria-label="Compose audience"><a href="/compose?audience=connections" aria-current={isConnection?'page':undefined}><Icon name="chat" size={17}/>Connections</a><a href="/compose" aria-current={!isConnection?'page':undefined}><Icon name="feed" size={17}/>Subscribers</a></nav>{/if}
   </header>
-  <div role="status" aria-atomic="true">{#if sentToast}<div class="hail-success-toast"><Icon name="check"/><span>Message sent.</span></div>{/if}</div>
+  <Toast message={sentToast?"Message sent.":""} />
   {#if data.builderFallback}<p role="status">This draft could not be opened in the new editor. You can continue editing it here; its original content has been preserved.</p>{/if}
-  {#if form?.error}<div class="mb-5"><p class="hail-error" role="alert">{form.error}</p>{#if retryPublication}<a class="hail-back mt-2" href={batchUrl(retryPublication)}>Check original {isConnection?'message batch':'publication'} status →</a>{/if}</div>{/if}
-  {#if form && 'savedDraft' in form && form.savedDraft}<p role="status">Draft saved. <a href="/drafts">View drafts</a></p>{/if}
+  {#if form?.error}<Toast message={form.error} error>{form.error} {#if retryPublication}<a class="underline" href={batchUrl(retryPublication)}>Check original {isConnection?'message batch':'publication'} status →</a>{/if}</Toast>{/if}
+  {#if form && 'savedDraft' in form && form.savedDraft}<Toast message="Draft saved.">Draft saved. <a href="/drafts">View drafts</a></Toast>{/if}
   {#if existingConnectionBuilder}
     <section class="hail-card p-5" aria-label="Saved message">
       <p>This draft was created with the block builder, which is now available only for subscribers. Your original content is preserved below. Start a new Connections message to edit and send it.</p>

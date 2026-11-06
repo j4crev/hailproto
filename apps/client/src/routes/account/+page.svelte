@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {page} from "$app/state";
   import CopyButton from "$lib/CopyButton.svelte";
   import AccountSecurity from "$lib/AccountSecurity.svelte";
@@ -78,7 +79,7 @@
         </fieldset>
         <p class="m-0 mt-3 text-sm text-muted" role="status">{processing ? 'Preparing photo…' : busy ? 'Verifying and saving…' : changed ? 'Preview only. Save to apply your change.' : ''}</p>
         {#if data.account.migrationState}<p class="hail-error">Photo editing is paused while your account moves.</p>{/if}
-        {#if message}<p class="hail-error" role="alert">{message}</p>{/if}
+        {#if message}<Toast message={message} error />{/if}
         {#if conflict}<button class="hail-button-secondary" type="button" onclick={() => {if (confirm("Discard your preview and reload the latest profile?")) location.reload();}}>Reload latest profile</button>{/if}
       </form>
       <dl class="m-0 grid gap-6 border-0 border-t border-solid border-line pt-6"><div><dt class="text-sm font-semibold">Identity</dt><dd class="m-0 mt-2 font-mono text-xs text-muted [overflow-wrap:anywhere]">{data.account.did}</dd></div><div><dt class="text-sm font-semibold">Key custody</dt><dd class="m-0 mt-2 text-sm text-muted">{data.account.custodyProfile === 'managed' ? 'Provider managed' : data.account.custodyProfile === 'owner-controlled' ? 'Owner controlled' : data.account.custodyProfile}</dd></div></dl>
@@ -95,7 +96,7 @@
       <label class="hail-field"><span>Type {data.account.address} to confirm deletion</span><input bind:value={deletionAddress} disabled={deleting} autocomplete="off" /></label>
       <button class="hail-button-secondary" disabled={deleting||deletionAddress!==data.account.address}>Delete account</button>
     </form>
-    {#if deletionError}<p role="alert" class="m-0">{deletionError}</p>{/if}
+    {#if deletionError}<Toast message={deletionError} error />{/if}
   </section>
 </div>
 <style lang="postcss">

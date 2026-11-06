@@ -68,7 +68,7 @@
   <section class:compact-list={data.messages.length > 0} aria-label="Messages">
 
     {#if data.messages.length === 0}
-      <MailboxEmptyState icon={data.view === 'connections' ? 'chat' : 'feed'} title={data.view === 'connections' ? 'Delivery late?' : 'Lonely in here.'} />
+      <MailboxEmptyState icon={data.view === 'connections' ? 'chat' : 'feed'} title={data.view === 'connections' ? 'Delivery late?' : 'Horse eat it?'} />
     {:else}
       {#each data.messages as message (message.sender+message.messageId)}
         <MessageListRow unreadCount={message.conversation?.unreadCount} inline={data.view === "connections"} imageLayout={data.view === "connections" ? "thumbnail" : "feature"} isRead={message.isRead} timestamp={message.deliveredAt} title={message.title} preview={message.preview} header={$showInboxHeaders ? message.header : null} selected={selected.includes(messageKey(message))}

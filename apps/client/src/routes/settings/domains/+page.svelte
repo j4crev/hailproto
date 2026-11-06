@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {page} from "$app/state";
   import CopyButton from "$lib/CopyButton.svelte";
   import { PENDING_STORAGE } from "$lib/signup.js";
@@ -59,7 +60,7 @@
       <button class="hail-button" disabled={busy || !domain}>Add domain</button>
     </form>
     <p class="m-0 text-sm text-muted">Verification is checked on request, not monitored continuously.</p>
-    {#if message}<p role="status" class="m-0">{message}</p>{/if}
+    {#if message}<Toast message={message} />{/if}
   </section>
   {#each data.domains as item (item.id)}
     <section class="hail-card grid gap-4 p-6 sm:p-8" aria-label={item.domain}>

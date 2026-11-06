@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {onMount,tick} from 'svelte';
   import {goto} from '$app/navigation';
   import Icon from '$lib/Icon.svelte';
@@ -39,7 +40,7 @@
     <div class="confirmation-actions"><button class="hail-button-secondary" disabled={busy} onclick={()=>confirming=false}>Cancel</button><button class="hail-button-secondary" disabled={busy} onclick={clear}>Confirm</button></div>
   </section>
 {/if}
-{#if error}<p class="hail-error" role="alert">{error}</p>{/if}
+{#if error}<Toast message={error} error />{/if}
 <style lang="postcss">
   @reference "../app.css";
 

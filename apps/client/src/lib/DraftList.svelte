@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {draftTitle,draftText} from '@racrproto/client-support/drafts';
   import type {Draft} from '@racrproto/client-support/drafts';
   import {invalidateAll,afterNavigate} from '$app/navigation';
@@ -19,7 +20,7 @@
     catch(e){status=e instanceof Error?e.message:'Unable to update drafts.';}finally{busy=false;}
   }
 </script>
-{#if status}<p role="status">{status}</p>{/if}
+{#if status}<Toast message={status} />{/if}
 {#if selected.length}
   <SelectionActions label="Draft actions" count={selected.length} locked={busy} {busy} onclear={()=>selected=[]} onselectall={selected.length<drafts.length?()=>selected=drafts.map(d=>d.id):undefined}>
     {#snippet actions()}<button class="hail-icon-button" type="button" aria-label={trash?'Restore selected drafts':'Delete selected drafts'} title={trash?'Restore to Drafts':trashEnabled?'Move to Trash':'Delete permanently'} disabled={busy||!ready} onclick={act}><Icon name={trash?'restore':'trash'}/></button>{/snippet}

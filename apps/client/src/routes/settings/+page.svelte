@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import Icon from "$lib/Icon.svelte";
   import {page} from "$app/state";
   import {invalidateAll} from "$app/navigation";
@@ -84,9 +85,9 @@
     </div>
     <div class="border-0 border-t border-solid border-line pt-6">
       <label class="flex cursor-pointer items-center justify-between gap-6" for="shared-conversations"><span class="grid gap-2"><strong class="text-sm">Shared conversations</strong><span class="text-sm text-muted">Connections can add me to conversations with people I'm not connected with.</span></span><input id="shared-conversations" class="preference-switch" type="checkbox" role="switch" checked={data.allowIntroductions} disabled={conversationSaving||!ready} onchange={event=>{const allowed=event.currentTarget.checked;event.currentTarget.checked=data.allowIntroductions;void saveConversations(allowed);}} /></label>
-      {#if conversationError}<p role="alert" class="mt-3 text-sm">{conversationError}</p>{/if}
+      {#if conversationError}<Toast message={conversationError} error />{/if}
     </div>
-    {#if displayError}<p role="alert" class="m-0 text-sm">{displayError}</p>{/if}
+    {#if displayError}<Toast message={displayError} error />{/if}
     {#if confirmDisable}
       <section class="trash-confirmation grid gap-[12px] p-[16px] [border:1px_solid_var(--color-danger)] rounded-[12px] [background:var(--color-danger-soft)]" aria-labelledby="disable-trash-title">
         <h2 id="disable-trash-title" class="m-0 text-sm font-semibold">Disable Trash?</h2>
@@ -97,7 +98,7 @@
         </div>
       </section>
     {/if}
-    {#if trashError}<p role="alert" class="m-0 text-sm">{trashError}</p>{/if}
+    {#if trashError}<Toast message={trashError} error />{/if}
   </section>
 </div>
 <style lang="postcss">

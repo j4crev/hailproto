@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ToastHost from "$lib/ToastHost.svelte";
   import "../app.css";
   import {onMount} from "svelte";
   import {initializeThemePreference, syncAccountPreferences, clearPreferenceAccount} from "$lib/preferences.js";
@@ -167,3 +168,5 @@
     .mobile-header > .brand { @apply left-[16px]; }
   }
 </style>
+
+<ToastHost />

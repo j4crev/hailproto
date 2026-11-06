@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {onMount} from "svelte";
   import {startAuthentication} from "@simplewebauthn/browser";
   import {APPROVAL_STORAGE, approval, permissionRequest, subscriptionScopeLabel, type Approval} from "$lib/permissions.js";
@@ -45,7 +46,7 @@
   }
 </script>
 {#if done}
-  <p class="rounded-xl bg-brand-soft p-4 text-sm [overflow-wrap:anywhere]" role="status">Unsubscribed from {subscription.sender}. Your past messages are kept. Your connections are unchanged.</p>
+  <Toast message={`Unsubscribed from ${subscription.sender}. Your past messages are kept. Your connections are unchanged.`} />
 {:else if prepared}
   <section class="hail-card grid min-w-0 gap-4 border-brand p-5 [overflow-wrap:anywhere] sm:p-7" aria-label="Unsubscribe confirmation">
     <h2 class="m-0 text-xl">Unsubscribe from {prepared.permission.consent_context.grantee_address}?</h2>
@@ -63,4 +64,4 @@
   {#if !hideTrigger}<button class="hail-button-secondary [&.compact]:text-[12px] [&.compact]:[padding:4px_6px] [&.compact]:min-h-[36px]" class:compact disabled={busy || !ready} onclick={() => run(prepare)}>{busy ? 'Checking subscription…' : 'Unsubscribe'}</button>{:else if busy}<p class="text-sm text-muted" role="status">Checking subscription…</p>{/if}
   {#if requestId}<button class="hail-button-secondary ml-2" disabled={busy} onclick={() => run(check)}>Check unsubscribe status</button>{/if}
 {/if}
-{#if error}<p class="hail-error mt-4" role="alert">{error}</p>{/if}
+{#if error}<Toast message={error} error />{/if}

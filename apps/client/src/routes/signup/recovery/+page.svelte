@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {page} from "$app/state";
   import { onDestroy, onMount } from "svelte";
   import { createSignupBackup, encodeBase64Url, verifySignupBackup, type UserVaultFile } from "$lib/signup-recovery.js";
@@ -83,7 +84,7 @@
       {busy ? "Verifying…" : "Verify saved recovery kit"}</button>
     <button class="hail-button-secondary" onclick={() => { clear(); message = "Preview cleared. No account was created."; }} disabled={busy}>Cancel and clear</button>
   {/if}
-  {#if message}<p class="rounded-xl border border-solid border-line bg-canvas p-4" role="status">{message}</p>{/if}
+  {#if message}<Toast message={message} />{/if}
   {#if verified}<p>Preview complete. Automatic monitored account creation is not enabled here yet.
     This unbound kit alone is not an active Hail account.</p>{/if}
 </section>

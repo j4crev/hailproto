@@ -1,4 +1,9 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
+  import MobileSheet from "$lib/MobileSheet.svelte";
+  import Icon from "$lib/Icon.svelte";
+  import MailboxEmptyState from "$lib/MailboxEmptyState.svelte";
+  import {validateSenderAddress} from "$lib/permissions.js";
   import {page} from "$app/state";
   import DateTime from "$lib/DateTime.svelte";
   import IdentityWarning from "$lib/IdentityWarning.svelte";
@@ -12,6 +17,7 @@
   import SelectionAvatar from "$lib/SelectionAvatar.svelte";
   import SelectionActions from "$lib/SelectionActions.svelte";
   let {data}=$props();
+  let addOpen=$state(false);
   let selectedSubscriptions=$state<string[]>([]);
   let categoryEditor=$state<string|null>(null),categoriesToRemove=$state<Record<string,string[]>>({});
   let unsubscribing=$state(false);
@@ -57,7 +63,7 @@
     await approveUnsubscribe();
   }
   async function approveUnsubscribe(){
-    unsubscribing=true;
+    addOpen=true;unsubscribing=true;
     try{
       prepared=approval(await permissionRequest("prepare",draft));remember(prepared.requestId);
       await confirmPermission();
@@ -84,13 +90,13 @@
   onMount(()=>{
     const readRequest=()=>{
       if(prepared||busy||recoveryNeeded){message="Finish or cancel the current review before opening another sender request.";return;}
-      try{const request=senderRequest(location.hash);if(request){sender=request.sender;pinnedDid=request.did;review=null;draft=null;}}
+      try{const request=senderRequest(location.hash);if(request){addOpen=true;sender=request.sender;pinnedDid=request.did;review=null;draft=null;}}
       catch(error){message=String(error instanceof Error?error.message:"Invalid sender link");}
     };
     readRequest();
     if(data.account.custodyProfile==="managed"){
       try{pendingId=sessionStorage.getItem(APPROVAL_STORAGE);}catch{/* Storage may be unavailable. */}
-      if(pendingId)void run(recover);
+      if(pendingId){addOpen=true;void run(recover);}
     }
     window.addEventListener("hashchange",readRequest);
     const timer=setInterval(()=>{now=Date.now();},1000);
@@ -99,9 +105,9 @@
   async function run(action:()=>Promise<void>){if(busy)return;busy=true;message="";try{await action();}
     catch(error){message=error instanceof Error?error.message:"Unable to update your subscriptions. Please try again.";}finally{busy=false;}}
   async function inspect(){
+    sender=validateSenderAddress(sender);
     prepared=null;draft=null;selected=[];
     review=await permissionRequest("review",{sender:sender.trim(),...(pinnedDid?{senderDid:pinnedDid}:{})});
-    message="Sender address and signed profile checked. Review what this sender may send to you; this does not verify their real-world identity.";
   }
   async function prepareAllow(){
     if(!review||!selected.length)return;
@@ -109,6 +115,7 @@
       profileDigest:review.profileDigest,scope:{type:"categories",values:[...selected].sort()},expiresAt:days===null?null:Math.floor(Date.now()/1000)+Number(days)*86400};
     prepared=approval(await permissionRequest("prepare",draft));
     remember(prepared.requestId);
+    await confirmPermission();
   }
   function remember(id:string|null){
     pendingId=id;
@@ -116,7 +123,7 @@
   }
   async function complete(){
     const completed=prepared!;
-    remember(null);prepared=null;draft=null;review=null;recoveryNeeded=false;
+    addOpen=false;remember(null);prepared=null;draft=null;review=null;recoveryNeeded=false;
     if(completed.result&&"items" in completed.result){
       const succeeded=completed.result.items.filter(item=>item.result).map(item=>item.grantId);
       const failed=completed.result.items.filter(item=>!item.result);
@@ -125,7 +132,7 @@
       if(failed.length)message+=` ${failed.length} ${failed.length===1?"subscription changed":"subscriptions changed"} since review. Review the remaining selection to try again.`;
     }else{
       if(completed.action==="allow"){
-        sender="";pinnedDid=undefined;selected=[];acknowledgedIdentity="";
+        addOpen=false;sender="";pinnedDid=undefined;selected=[];acknowledgedIdentity="";
         if(location.hash)history.replaceState(history.state,"",location.pathname+location.search);
       }
       if(completed.action==="revoke")selectedSubscriptions=selectedSubscriptions.filter(id=>id!==completed.permission.grant_id);
@@ -133,7 +140,7 @@
         selectedSubscriptions=selectedSubscriptions.filter(id=>id!==completed.permission.grant_id);
         categoriesToRemove={...categoriesToRemove,[completed.permission.grant_id]:[]};
         message="Subscription categories updated.";
-      }else message=completed.action==="revoke"?"Unsubscribed.":"Sender allowed.";
+      }else message=completed.action==="revoke"?"Unsubscribed.":"Subscribed.";
     }
     try{await invalidateAll();}catch{message+=" Refresh the page to update your subscription list.";}
   }
@@ -144,7 +151,7 @@
       prepared=await recoverPermission(id,data.account.did);
       recoveryNeeded=false;
       if(prepared.result)await complete();
-      else message="Review the details and confirm with your passkey to finish.";
+      else message="Confirm with your passkey to finish.";
     }catch(error){
       if(error instanceof PermissionRequestError&&(error.status===404||error.status===410)){
         remember(null);prepared=null;draft=null;review=null;recoveryNeeded=false;
@@ -179,30 +186,34 @@
 </script>
 
 <svelte:head><title>Subscriptions · {page.data.branding?.name ?? "Hail"}</title><meta name="robots" content="noindex, nofollow" /></svelte:head>
-<div class:has-selection={selectedPermissions.length>0} class="[&_h2]:m-0 [&_h2]:text-xl [&_h3]:m-0 [&_p]:m-0 [&_code]:text-xs [&_code]:[overflow-wrap:anywhere] [&_button]:self-start [&_button]:max-w-full [&_button]:whitespace-normal">
+<div class:has-selection={selectedPermissions.length>0} class="pb-28 min-[901px]:pb-0 [&_h2]:m-0 [&_h2]:text-xl [&_h3]:m-0 [&_p]:m-0 [&_code]:text-xs [&_code]:[overflow-wrap:anywhere] [&_button]:self-start [&_button]:max-w-full [&_button]:whitespace-normal">
   <header class="mb-8"><h1 class="hail-title">Subscriptions</h1></header>
-  {#if message}<p class="mb-5! rounded-xl border border-solid border-line bg-brand-soft p-4 text-sm" role="status">{message}</p>{/if}
+  {#if message}<Toast message={message} />{/if}
   <div class="grid min-w-0 items-start gap-6">
     <div class="grid min-w-0 gap-6">
       {#if data.account.custodyProfile==="managed"}
-        {#if !prepared&&!recoveryNeeded}
+        <MobileSheet bind:open={addOpen} title="Add a subscription" disabled={busy}>
+        {#if !recoveryNeeded&&(!prepared||prepared.action==="allow"&&review)}
           <section class="grid min-w-0 gap-4" aria-label="Add a subscription">
             <div class="grid gap-1.5">
               <p class="text-sm text-muted">Enter a Hail address to subscribe to</p>
               <form class="flex flex-wrap items-end gap-3" onsubmit={event=>{event.preventDefault();if(sender.trim())void run(inspect);}}>
-                <label class="hail-field min-w-0 flex-1"><span class="sr-only">Sender’s Hail address</span><input bind:value={sender} maxlength="254" autocomplete="off" placeholder="sender@example.com" oninput={()=>{pinnedDid=undefined;review=null;draft=null;}} /></label>
-                <button class="hail-button" type="submit" disabled={busy||!sender.trim()}>Continue</button>
+                <label class="hail-field min-w-0 flex-1"><span class="sr-only">Sender’s Hail address</span><input bind:value={sender} disabled={busy||!!prepared} maxlength="254" autocomplete="off" placeholder="sender@example.com" oninput={()=>{pinnedDid=undefined;review=null;draft=null;}} /></label>
+                <button class="hail-button" type="submit" disabled={busy||!!prepared||!sender.trim()}>Continue</button>
               </form>
             </div>
             {#if pinnedDid}<p class="text-xs text-muted">QR identity pin: <code>{pinnedDid}</code></p>{/if}
             {#if review}
-              <div class="grid gap-2 border-0 border-t border-solid border-line pt-5"><h3>{review.displayName}</h3><p class="text-sm [overflow-wrap:anywhere]">{review.address}</p><code class="text-muted">{review.did}</code><p class="text-sm text-muted">Check the address and identity. A sender chooses their own profile name.</p></div>
-              <IdentityWarning address={review.address} did={review.did} previousDids={conflictingIdentities(knownIdentities,review.did,review.address,review.previousDids??[])} />
+              <div class="grid gap-0.5 border-0 border-t border-solid border-line pt-5"><h3>{review.displayName}</h3><p class="text-sm [overflow-wrap:anywhere]">{review.address}</p><code class="text-muted">{review.did}</code></div>
+              {#if !prepared}<IdentityWarning address={review.address} did={review.did} previousDids={conflictingIdentities(knownIdentities,review.did,review.address,review.previousDids??[])} />{/if}
               {#if review.categories.length}<fieldset class="m-0 grid min-w-0 gap-2 rounded-xl border border-solid border-line p-4"><legend class="px-1 text-sm font-semibold">Categories this sender may send you</legend>{#each review.categories as category}
-                <label class="flex min-h-11 flex-wrap items-center gap-2 text-sm"><input type="checkbox" bind:group={selected} value={category.id} disabled={busy} />{category.label} <small class="text-muted">({category.id})</small></label>{#if category.description}<small class="text-muted">{category.description}</small>{/if}{/each}</fieldset>{/if}
+                <label class="flex min-h-11 flex-wrap items-center gap-2 text-sm"><input type="checkbox" bind:group={selected} value={category.id} disabled={busy||!!prepared} />{category.label} <small class="text-muted">({category.id})</small></label>{#if category.description}<small class="text-muted">{category.description}</small>{/if}{/each}</fieldset>{/if}
               {#if review.offersUncategorized}<p class="text-sm text-muted">This publisher still offers legacy uncategorized delivery. New subscriptions use explicit categories; ask the publisher to enable General if you need it.</p>{/if}
-              <label class="hail-field">Subscription duration<select bind:value={days}><option value={null}>Until I unsubscribe</option><option value={7}>7 days</option><option value={30}>30 days</option><option value={90}>90 days</option><option value={365}>1 year</option></select></label>
-              <button class="hail-button justify-self-start" disabled={busy||!selected.length} onclick={()=>run(prepareAllow)}>Review permission</button>
+              <label class="hail-field">Subscription duration<select bind:value={days} disabled={busy||!!prepared}><option value={null}>Until I unsubscribe</option><option value={7}>7 days</option><option value={30}>30 days</option><option value={90}>90 days</option><option value={365}>1 year</option></select></label>
+              {#if prepared&&identityConflicts.length}<IdentityWarning address={prepared.permission.consent_context.grantee_address} did={prepared.permission.grantee} previousDids={identityConflicts} /><label class="flex min-h-11 items-start gap-3 text-sm"><input type="checkbox" checked={acknowledgedIdentity===identityKey} onchange={event=>acknowledgedIdentity=event.currentTarget.checked?identityKey:""} />I checked this different identity through a trusted channel and want to allow it.</label>{/if}
+              <button class="hail-button justify-self-start" disabled={busy||!selected.length||!!prepared&&(!identityReady||now>=Date.parse(prepared.expiresAt))} onclick={()=>run(prepared?confirmPermission:prepareAllow)}>Subscribe</button>
+              {#if prepared&&now>=Date.parse(prepared.expiresAt)}<Toast message="This subscription request expired. Cancel and start again." error />{/if}
+              {#if prepared}<button class="hail-button-secondary" disabled={busy||prepared.approved} onclick={cancel}>Cancel</button>{/if}
             {/if}
           </section>
         {:else if prepared&&!unsubscribing}
@@ -234,9 +245,11 @@
           </section>
         {/if}
         {#if recoveryNeeded&&!busy}<button class="hail-button-secondary justify-self-start" onclick={()=>run(recover)}>Try again</button>{/if}
+        </MobileSheet>
+        {#if !selectedPermissions.length||prepared||recoveryNeeded}<button class="mobile-floating-action" type="button" aria-label="Add a subscription" onclick={()=>addOpen=true}><Icon name="plus" size={24}/></button>{/if}
       {/if}
       <section class="grid min-w-0 gap-4" aria-label="Subscriptions">
-        {#if !activePermissions.length}<p class="text-sm text-muted">{data.next?"No active subscriptions on this page.":"No subscriptions yet"}</p>{/if}
+        {#if !activePermissions.length}<MailboxEmptyState icon="people" title={data.next?"No active subscriptions on this page.":"No subscriptions yet."} />{/if}
         {#if selectedPermissions.length}
           <SelectionActions label="Subscription actions" count={selectedPermissions.length} locked={selectionLocked} {busy} onclear={()=>selectedSubscriptions=[]} onselectall={selectedPermissions.length<activePermissions.length?()=>selectedSubscriptions=activePermissions.map(permission=>permission.grantId):undefined}>
             {#snippet actions()}<button class="hail-button-secondary" disabled={selectionLocked} aria-expanded={categoryEditor!==null} aria-controls={categoryEditor?"subscription-category-removal":undefined} onclick={()=>run(unsubscribeSelected)}>Unsubscribe</button>{/snippet}

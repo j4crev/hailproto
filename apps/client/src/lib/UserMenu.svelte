@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {afterNavigate} from "$app/navigation";
   import Icon from "$lib/Icon.svelte";
   let {address = "Your account", compact = false, avatar = null, drawerAccount = false}: {address?: string; compact?: boolean; avatar?: string | null; drawerAccount?: boolean} = $props();
@@ -43,7 +44,7 @@
     <a href="/settings"><Icon name="settings" />Settings</a>
   </nav>
   <form method="POST" action="/auth/logout" onsubmit={signOut}><button disabled={signingOut}><Icon name="logout" />{signingOut ? "Signing out…" : "Sign out"}</button></form>
-  {#if error}<p class="hail-error" role="alert">{error}</p>{/if}
+  {#if error}<Toast message={error} error />{/if}
 </div>
 <style lang="postcss">
   @reference "../app.css";

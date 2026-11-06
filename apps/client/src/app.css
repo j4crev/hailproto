@@ -174,5 +174,3 @@
   .mobile-floating-action { @apply fixed z-[11] left-[50%] [transform:translateX(-50%)] bottom-[calc(40px_+_env(safe-area-inset-bottom))] grid place-items-center w-[56px] h-[56px] p-0 [border:0] rounded-[18px] [background:var(--color-brand)] text-on-brand [box-shadow:0_4px_16px_#0003] [text-decoration:none] cursor-pointer; }
   .mobile-floating-action:hover { @apply [background:var(--color-brand-strong)]; }
 }
-
-.hail-success-toast { @apply fixed z-[30] bottom-[calc(90px_+_env(safe-area-inset-bottom,0px))] left-[50%] [transform:translateX(-50%)] flex items-center gap-[12px] w-[max-content] max-w-[calc(100vw_-_32px)] [padding:16px_24px] [border:1px_solid_var(--color-brand)] rounded-[14px] [background:var(--color-brand-soft)] text-brand-strong [box-shadow:0_8px_28px_#0003] text-[15px] font-[600] pointer-events-none; }

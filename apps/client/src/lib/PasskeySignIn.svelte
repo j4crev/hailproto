@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {startAuthentication} from "@simplewebauthn/browser";
   import {onMount} from "svelte";
   import {returnPath} from "$lib/auth-routing.js";
@@ -31,5 +32,5 @@
 <div class="grid gap-4">
   <button class="hail-button" onclick={login} disabled={busy || !ready} aria-busy={busy}>{busy ? "Waiting for your passkey…" : "Sign in with a passkey"}<Icon name="arrow" size={18} /></button>
   <noscript><p class="hail-error">Enable JavaScript to sign in with a passkey.</p></noscript>
-  {#if message}<p class="hail-error" role="alert">{message}</p>{/if}
+  {#if message}<Toast message={message} error />{/if}
 </div>
