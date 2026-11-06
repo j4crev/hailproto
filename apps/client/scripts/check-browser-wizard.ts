@@ -394,6 +394,7 @@ try{
   const cdp=(method:string,params:unknown={})=>new Promise<any>((resolve,reject)=>{const id=++sequence;waiting.set(id,{resolve,reject});socket!.send(JSON.stringify({id,method,params}));});
   const evaluate=async(expression:string)=>{const result=await cdp("Runtime.evaluate",{expression,returnByValue:true,awaitPromise:true});if(result.exceptionDetails)throw new Error("Browser evaluation failed: "+(result.exceptionDetails.exception?.description??result.exceptionDetails.text));return result.result.value;};
   const has=async(text:string)=>evaluate(`document.body?.innerText.includes(${JSON.stringify(text)})??false`);
+  const emptyState=async(selector:string)=>evaluate(`!!document.querySelector(${JSON.stringify(selector+" .empty-symbol")})`);
   const emptyFeed=async()=>evaluate(`document.querySelector("main h1")?.textContent==='Feed' && !!document.querySelector('[aria-label="Messages"] .empty-symbol')`);
   const styles=async(selector:string,properties:string[])=>evaluate(`(()=>{const style=getComputedStyle(document.querySelector(${JSON.stringify(selector)}));return ${JSON.stringify(properties)}.map(property=>style[property]);})()`);
   const selectedAudience=async(label:string)=>{
@@ -808,7 +809,7 @@ try{
   await cdp("Page.removeScriptToEvaluateOnNewDocument",{identifier:blockedStorage.identifier});
   await cdp("Page.navigate",{url:origin+"/"});await wait(async()=>evaluate(`!!document.querySelector('[aria-label="Messages"]') && !document.querySelector(${JSON.stringify(feedImage)})`),"account preference survives blocked storage");
   await evaluate(`[...document.querySelectorAll('nav a')].find(a=>a.textContent.trim()==='Subscriptions').click()`);
-  await wait(()=>has("No subscriptions yet"),"allowed-sender list");
+  await wait(()=>emptyState('[aria-label="Subscriptions"]'),"allowed-sender list");
   assert.equal(await evaluate(`document.querySelector('nav[aria-label="Main navigation"] a[aria-current=page]').textContent.trim()`),"Subscriptions");
   await fill("Sender’s Hail address",peerAddress);await click("Continue");await wait(()=>has("Test sender"),"verified sender review");
   await evaluate(`document.querySelector('fieldset input[value=updates]').click()`);
@@ -826,7 +827,7 @@ try{
   assert.equal(requests.filter(r=>r.path==="/api/v1/account/permissions/commit").length,unsubscribeCommitsBefore,"Cancelled consent must not submit a commit");
   assert.equal(await evaluate(`sessionStorage.getItem('hail.pending-grant-approval.v1')`),null,"Cancelled unsubscribe clears the pending review");
   assert(!await has("Confirm unsubscribe"));
-  await click("Unsubscribe");await wait(()=>has("No subscriptions yet"),"list unsubscribe commits directly after passkey consent");
+  await click("Unsubscribe");await wait(()=>emptyState('[aria-label="Subscriptions"]'),"list unsubscribe commits directly after passkey consent");
   assert.equal(allowed!.status,"revoked");
   assert.equal(requests.filter(r=>r.path==="/api/v1/account/permissions/commit").length,unsubscribeCommitsBefore+1,"Retry submits exactly one authorized commit");
   // Restore a subscription through the UI for the separate reader confirmation checks.
@@ -851,7 +852,7 @@ try{
   assert.equal(allowed!.status,"revoked");assert(await has("One-time reply browser transport test"),"Unsubscribe retains message content");
   await cdp("Page.navigate",{url:origin+messagePath});await wait(()=>has("You have no active subscription to this sender."),"reader reflects unsubscribed sender on reload");
   assert(await evaluate(`![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Unsubscribe')`));
-  await cdp("Page.navigate",{url:origin+"/permissions"});await wait(()=>has("No subscriptions yet"),"Revoked subscription is absent from active subscriptions");
+  await cdp("Page.navigate",{url:origin+"/permissions"});await wait(()=>emptyState('[aria-label="Subscriptions"]'),"Revoked subscription is absent from active subscriptions");
   assert(!await has("Share your sender QR"),"Subscription page does not show publishing tools");
   await cdp("Page.navigate",{url:origin+"/categories"});await wait(()=>has("Create sender profile"),"first sender profile setup");
   await wait(async()=>evaluate(`document.querySelector('fieldset')?.disabled===false`),"profile editor ready");
@@ -1073,7 +1074,7 @@ try{
     await evaluate(`document.querySelector('[aria-label="Your connections"] button[aria-pressed]').click()`);
   };
   await cdp("Page.navigate",{url:origin+"/connections?connected=1"});await selectConnection();
-  await click("Remove connection");await wait(()=>has("Confirm connection removal"),"disconnect review");await click("Remove connection");await wait(()=>has("No connections yet."),"disconnect saved");
+  await click("Remove connection");await wait(()=>has("Confirm connection removal"),"disconnect review");await click("Remove connection");await wait(()=>emptyState('[aria-label="Your connections"]'),"disconnect saved");
   assert(!personalConnection);assert.equal(allowed!.status,"active");
   await cdp('Page.navigate',{url:origin+`/message/${encodeURIComponent(peerDid)}/${connectionIncomingId}`});await wait(()=>has('This connection is no longer active.'),'disconnected historical messages remain readable without a standing send action');
   assert(await evaluate(`document.querySelector('button[aria-label="Reply"]')?.disabled===true`),'Disconnected messages cannot be replied to');
@@ -1086,7 +1087,7 @@ try{
   await wait(()=>has("Connecting across providers."),"durable cross-provider pending state");assert(!personalConnection);
   await cdp("Page.navigate",{url:origin+"/connections?federation-pending=1"});await wait(()=>has("Synchronizing with other providers"),"pending work discoverable after closing scanner page");
   await selectConnection();assert(personalConnection);
-  await click("Remove connection");await wait(()=>has("Confirm connection removal"),"federated disconnect consent");await click("Remove connection");await wait(()=>has("No connections yet."),"federated disconnect visible");
+  await click("Remove connection");await wait(()=>has("Confirm connection removal"),"federated disconnect consent");await click("Remove connection");await wait(()=>emptyState('[aria-label="Your connections"]'),"federated disconnect visible");
   federatedConnecting=false;
   ownerConnectionSigning=true;
   await cdp("Page.navigate",{url:origin+"/connections?owner-signing=1"});await wait(()=>has("Create an expiring connect link"),"owner-signing code form");
@@ -1121,12 +1122,12 @@ try{
   await click('Delete message');await wait(emptyFeed,'inbox deletion moves directly to Trash');
   assert(trashed.has(incomingId));assert(!deleted.has(incomingId));
   await mailboxPage('/?view=connections','Inbox');await selectMessage();
-  await click('Delete message');await wait(()=>has('Delivery late?'),'connection deletion moves directly to Trash');
+  await click('Delete message');await wait(()=>emptyState('[aria-label="Messages"]'),'connection deletion moves directly to Trash');
   assert(trashed.has(connectionIncomingId),'Deleted connection message is in Trash');
   assert(!deleted.has(connectionIncomingId),'Trash deletion remains restorable');
   await mailboxPage('/trash','Trash');await selectMessage();await click('Select all');
   assert.equal(await evaluate(`document.querySelectorAll('[aria-label="Trashed messages"] button[aria-pressed="true"]').length`),2,'Both trashed messages selected');
-  await click('Restore selected messages');await wait(()=>has('Must be pickup day.'),'bulk restore');
+  await click('Restore selected messages');await wait(()=>emptyState('.trash-list'),'bulk restore');
   await mailboxPage('/?view=connections','Inbox');await wait(()=>has('A personal connection reply'),'restore returns to Messages');
   await mailboxPage('/','Feed');await selectMessage();
   await click('Delete message');await wait(emptyFeed,'second trash deletion');
@@ -1137,9 +1138,9 @@ try{
   await click('Delete message');await wait(()=>has('Delete permanently'),'disabled trash warning');
   assert(!deleted.has(connectionIncomingId),'Permanent deletion waits for confirmation');
   await click('Cancel');assert(!deleted.has(connectionIncomingId),'Cancel preserves the message');
-  await click('Delete message');await click('Delete permanently');await wait(()=>has('Delivery late?'),'confirmed permanent deletion');
+  await click('Delete message');await click('Delete permanently');await wait(()=>emptyState('[aria-label="Messages"]'),'confirmed permanent deletion');
   assert(deleted.has(connectionIncomingId));
-  await mailboxPage('/trash','Trash');await wait(()=>has('Must be pickup day.'),'disabled Trash has no deleted messages');
+  await mailboxPage('/trash','Trash');await wait(()=>emptyState('.trash-list'),'disabled Trash has no deleted messages');
   await mailboxPage('/admin','Your Hail server');
   await switchRegistration('public');
   assert.equal(signupMode,'public');

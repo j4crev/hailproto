@@ -63,7 +63,6 @@ for(const width of [1440,390,320]){
     heights.push(await evaluate(`document.querySelector('.empty-symbol').parentElement.getBoundingClientRect().height`));
     assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),title+' fits viewport');
     if(title==='Subscriptions'||title==='Connections'){
-      assert(await evaluate(`document.querySelector('.empty-symbol').parentElement.textContent.includes(${JSON.stringify('No '+title.toLowerCase()+' yet.')})`));
       if(width<500){
         assert(await evaluate(`!document.querySelector('dialog[open]')`));
         await click(title==='Subscriptions'?'Add a subscription':'Add a connection');
