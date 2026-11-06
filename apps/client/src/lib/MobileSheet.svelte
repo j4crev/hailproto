@@ -23,7 +23,7 @@
 {#if mobile}
   <dialog bind:this={dialog} class="mobile-sheet" aria-label={title}
     oncancel={event => {if (disabled) event.preventDefault(); else open = false;}}
-    onclose={() => {open = false;}}
+    onclose={() => {if (!dialog?.open) open = false;}}
     onclick={event => {if (event.target === dialog && !disabled) open = false;}}>
     <div class="grid min-w-0 gap-4">
       <header class="flex items-center justify-between gap-3"><h2 class="m-0 text-xl">{title}</h2><button type="button" class="hail-icon-button" aria-label="Close" {disabled} onclick={() => open = false}><Icon name="close" /></button></header>

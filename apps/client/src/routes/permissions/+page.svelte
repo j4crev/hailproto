@@ -29,6 +29,7 @@
   function toggleSubscription(id:string){selectedSubscriptions=selectedSubscriptions.includes(id)?selectedSubscriptions.filter(value=>value!==id):[...selectedSubscriptions,id];}
   async function unsubscribeSelected(){
     if(!selectedPermissions.length)return;
+    if(prepared||recoveryNeeded){addOpen=true;return;}
     const permission=selectedPermissions[0]!;
     if(selectedPermissions.length===1){
       if(permission.scope.type==="categories"&&permission.scope.values.length>1){
@@ -63,7 +64,7 @@
     await approveUnsubscribe();
   }
   async function approveUnsubscribe(){
-    addOpen=true;unsubscribing=true;
+    unsubscribing=true;
     try{
       prepared=approval(await permissionRequest("prepare",draft));remember(prepared.requestId);
       await confirmPermission();
@@ -71,6 +72,7 @@
       // A cancelled passkey can be retried from the selection. Keep uncertain
       // commits available to the existing recovery flow.
       if(!recoveryNeeded&&!prepared?.approved){prepared=null;draft=null;remember(null);}
+      addOpen=recoveryNeeded||!!prepared?.approved;
       unsubscribing=false;
     }
   }
@@ -181,7 +183,7 @@
     }catch{await recover();return;}
     await complete();
   }
-  function cancel(){if(busy||recoveryNeeded||prepared?.approved)return;prepared=null;draft=null;review=null;remember(null);message="";}
+  function cancel(){if(busy||recoveryNeeded||prepared?.approved)return;if(prepared?.action!=="allow")addOpen=false;prepared=null;draft=null;review=null;remember(null);message="";}
 
 </script>
 
@@ -192,7 +194,7 @@
   <div class="grid min-w-0 items-start gap-6">
     <div class="grid min-w-0 gap-6">
       {#if data.account.custodyProfile==="managed"}
-        <MobileSheet bind:open={addOpen} title="Add a subscription" disabled={busy}>
+        <MobileSheet bind:open={addOpen} title={prepared?.action==="restrict"?"Update subscription":prepared&&prepared.action!=="allow"?"Unsubscribe":recoveryNeeded?"Subscription change":"Add a subscription"} disabled={busy}>
         {#if !recoveryNeeded&&(!prepared||prepared.action==="allow"&&review)}
           <section class="grid min-w-0 gap-4" aria-label="Add a subscription">
             <div class="grid gap-1.5">
@@ -246,13 +248,13 @@
         {/if}
         {#if recoveryNeeded&&!busy}<button class="hail-button-secondary justify-self-start" onclick={()=>run(recover)}>Try again</button>{/if}
         </MobileSheet>
-        {#if !selectedPermissions.length||prepared||recoveryNeeded}<button class="mobile-floating-action" type="button" aria-label="Add a subscription" onclick={()=>addOpen=true}><Icon name="plus" size={24}/></button>{/if}
+        {#if !selectedPermissions.length&&!addOpen}<button class="mobile-floating-action" type="button" aria-label="Add a subscription" onclick={()=>addOpen=true}><Icon name="plus" size={24}/></button>{/if}
       {/if}
       <section class="grid min-w-0 gap-4" aria-label="Subscriptions">
         {#if !activePermissions.length}<MailboxEmptyState icon="people" title={data.next?"No active subscriptions on this page.":"No subscriptions yet."} />{/if}
         {#if selectedPermissions.length}
           <SelectionActions label="Subscription actions" count={selectedPermissions.length} locked={selectionLocked} {busy} onclear={()=>selectedSubscriptions=[]} onselectall={selectedPermissions.length<activePermissions.length?()=>selectedSubscriptions=activePermissions.map(permission=>permission.grantId):undefined}>
-            {#snippet actions()}<button class="hail-button-secondary" disabled={selectionLocked} aria-expanded={categoryEditor!==null} aria-controls={categoryEditor?"subscription-category-removal":undefined} onclick={()=>run(unsubscribeSelected)}>Unsubscribe</button>{/snippet}
+            {#snippet actions()}<button class="hail-button-secondary" disabled={busy} aria-expanded={categoryEditor!==null} aria-controls={categoryEditor?"subscription-category-removal":undefined} onclick={()=>run(unsubscribeSelected)}>Unsubscribe</button>{/snippet}
             {#if categoryEditor&&selectedPermissions.length===1}
               {@const permission=selectedPermissions[0]!}
               {#if permission.scope.type==="categories"}

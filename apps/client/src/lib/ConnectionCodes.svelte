@@ -18,8 +18,11 @@
   let selected=$state<string[]>([]),confirmation=$state<HTMLDivElement>();
   function toggle(id:string){selected=selected.includes(id)?selected.filter(value=>value!==id):[...selected,id];}
   async function removeSelected(){
+    if(!prepared&&!recoveryNeeded){
+      try{await prepare({action:"disconnect",connectionIds:selectedConnections.map(connection=>connection.id)});}
+      catch(error){draft=null;throw error;}
+    }
     addOpen=true;
-    await prepare({action:"disconnect",connectionIds:selectedConnections.map(connection=>connection.id)});
     await tick();confirmation?.scrollIntoView({block:"center"});
   }
   let list=$state<ConnectionList|null>(null),prepared=$state<ConnectApproval|null>(null),busy=$state(false),message=$state(""),label=$state(""),expiry=$state("");
@@ -76,7 +79,7 @@
     if(result?.state==="expired"||result?.state==="conflict")message=notice;
     else {message="";success=createdLink?"Connection link created.":notice;}
   }
-  function cancel(reason=""){prepared=null;draft=null;remember(null);recoveryNeeded=false;message=reason;}
+  function cancel(reason=""){addOpen=false;prepared=null;draft=null;remember(null);recoveryNeeded=false;message=reason;}
 
 </script>
 {#snippet shareCode(link:string,id:string)}
@@ -86,7 +89,7 @@
 {#if list}
   <section class="connection-content pb-28 min-[901px]:pb-0 grid gap-5 [@media(max-width:900px)]:[&.has-selection]:pb-[180px]" class:has-selection={selectedConnections.length>0} aria-label="Connection codes">
     {#if message}<Toast message={message} error />{/if}
-    <MobileSheet bind:open={addOpen} title="Add a connection" disabled={busy}>
+    <MobileSheet bind:open={addOpen} title={prepared?.action.startsWith("disconnect")?(prepared.review.connections?.length===1?"Remove connection":"Remove connections"):recoveryNeeded?"Connection change":"Add a connection"} disabled={busy}>
     {#if recoveryNeeded}
       {#if busy}<p class="text-sm text-muted" role="status">Checking your connection change…</p>
       {:else}<button class="hail-button-secondary justify-self-start" onclick={()=>run(check)}>Try again</button>{/if}
@@ -116,11 +119,11 @@
       {#if draft&&!prepared}<button class="hail-button-secondary justify-self-start" onclick={()=>cancel()}>Discard unsaved review</button>{/if}
     {/if}
     </MobileSheet>
-    {#if !selectedConnections.length||prepared||recoveryNeeded}<button class="mobile-floating-action" type="button" aria-label="Add a connection" onclick={()=>addOpen=true}><Icon name="plus" size={24}/></button>{/if}
+    {#if !selectedConnections.length&&!addOpen}<button class="mobile-floating-action" type="button" aria-label="Add a connection" onclick={()=>addOpen=true}><Icon name="plus" size={24}/></button>{/if}
     <section class="grid gap-4" aria-label="Your connections">{#if !list.connections.length}<MailboxEmptyState icon="user" title="No connections yet." />{/if}
       {#if selectedConnections.length}
         <SelectionActions label="Connection actions" count={selectedConnections.length} locked={busy||prepared!==null||recoveryNeeded||draft!==null} onclear={()=>selected=[]}>
-          {#snippet actions()}<button class="hail-button-secondary" disabled={busy||prepared!==null||recoveryNeeded||draft!==null} onclick={()=>run(removeSelected)}>{selectedConnections.length===1?'Remove connection':'Remove connections'}</button>{/snippet}
+          {#snippet actions()}<button class="hail-button-secondary" disabled={busy} onclick={()=>run(removeSelected)}>{selectedConnections.length===1?'Remove connection':'Remove connections'}</button>{/snippet}
         </SelectionActions>
       {/if}
       <div class="compact-list">
