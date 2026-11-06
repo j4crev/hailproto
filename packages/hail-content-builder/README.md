@@ -95,15 +95,20 @@ bodies include only referenced assets. Explicit saves permit unfinished image
 descriptions. Handoff and publication require a complete,
 validated body; empty text documents can be saved as drafts.
 
-In Hail, new subscriber and connection messages open directly in the builder.
-Existing simple-compose drafts are converted on load using their existing text
+In Hail, subscriber publications open directly in the builder. Connections use
+the simpler message composer with basic text formatting, links and lists; block
+insertion, CTA buttons, alignment controls and the inspector are subscriber-only.
+Existing simple-compose subscriber drafts are converted on load using their existing text
 formatting semantics, including title and bundled header. Loading is read-only;
 only **Save as Draft** writes the structured representation, using the same draft
 ID, revision, audience and attachments. Unsupported legacy content stays in the
 original composer with a visible explanation, so it remains editable without
 silently dropping fields. Rich drafts are never converted back to Markdown.
 **Save as Draft**, **Send message**, and the shared preview remain the host flow.
-Connections permit rich text only, reflecting current reference-provider policy.
+Existing block-based Connection drafts remain viewable without being flattened
+or overwritten; start a new message to edit and send their content. The web
+composer rejects builder payloads for Connection saves/sends. This is a client
+authoring restriction; the SPT profiles and received-message renderer are unchanged.
 Inline replies and forwards retain their existing editors and authority handling.
 
 ## Verification

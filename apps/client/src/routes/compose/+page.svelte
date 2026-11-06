@@ -50,6 +50,8 @@
   let allowReply=$state(false);
   let selected=$state<string[]>(untrack(()=>data.defaultConnection?[data.defaultConnection]:[]));
   const isConnection=$derived(data.kind==='connections');
+  const existingConnectionBuilder=$derived(isConnection?data.draft?.content.builder:null);
+  const existingConnectionPreview=$derived.by(()=>{try{return existingConnectionBuilder?parseBody(existingConnectionBuilder.body):null;}catch{return null;}});
   const recipients=$derived(selected.map(id=>data.connections.find(c=>c.connectionId===id)??{connectionId:id,address:"Unavailable connection",recipientDid:""}));
   const matches=$derived(data.connections.filter(c=>!selected.includes(c.connectionId)&&`${c.address} ${c.recipientDid}`.toLowerCase().includes(search.trim().toLowerCase())));
   const showSuggestions=$derived(suggestionsOpen&&(matches.length>0||!!search.trim()||!data.connections.length));
@@ -156,6 +158,13 @@
   {#if data.builderFallback}<p role="status">This draft could not be opened in the new editor. You can continue editing it here; its original content has been preserved.</p>{/if}
   {#if form?.error}<div class="mb-5"><p class="hail-error" role="alert">{form.error}</p>{#if retryPublication}<a class="hail-back mt-2" href={batchUrl(retryPublication)}>Check original {isConnection?'message batch':'publication'} status →</a>{/if}</div>{/if}
   {#if form && 'savedDraft' in form && form.savedDraft}<p role="status">Draft saved. <a href="/drafts">View drafts</a></p>{/if}
+  {#if existingConnectionBuilder}
+    <section class="hail-card p-5" aria-label="Saved message">
+      <p>This draft was created with the block builder, which is now available only for subscribers. Your original content is preserved below. Start a new Connections message to edit and send it.</p>
+      <a class="hail-button-secondary" href="/compose?audience=connections">New Connections message</a>
+      <div class="mt-5">{#if existingConnectionPreview}<RichText blocks={existingConnectionPreview.blocks} header={existingConnectionPreview.header}/>{:else}<p class="whitespace-pre-wrap">{plainText(existingConnectionBuilder.body)}</p>{/if}</div>
+    </section>
+  {:else}
   <div class="compose-studio" class:rich-studio={rich}><form class="compose-layout grid grid-cols-[minmax(0,1fr)] max-w-[900px] mx-auto" method="POST" use:enhance={({submitter})=>{
     saving=submitter?.getAttribute('formaction')==='?/save';sending=true;
     return async({update,result})=>{try{
@@ -247,6 +256,7 @@
     </div>
   </form><div class="compose-block-settings" hidden={!rich||previewOpen} bind:this={blockSettings}></div></div>
   <button class="mobile-floating-action" type="button" aria-label={previewOpen?'Back to writing':'Preview'} title={previewOpen?'Back to writing':'Preview'} aria-expanded={previewOpen} aria-controls="compose-preview" onclick={()=>previewOpen=!previewOpen}><Icon name={previewOpen?'compose':'preview'} size={24}/></button>
+  {/if}
 </div>
 
 <style lang="postcss">

@@ -27,11 +27,14 @@ async function navigate(path:string){
 }
 
 async function writeMessage(text:string){
+  if(await evaluate(`!!document.querySelector('#message-text')`)){
+    await evaluate(`(()=>{const e=document.querySelector('#message-text');e.focus();e.select();})()`);await cdp('Input.insertText',{text});return;
+  }
   await wait(()=>evaluate(`!!document.querySelector('[contenteditable=true]')`));
   await evaluate(`(()=>{const e=document.querySelector('[contenteditable=true]');e.focus();const r=document.createRange();r.selectNodeContents(e);const s=getSelection();s.removeAllRanges();s.addRange(r);})()`);
   await cdp('Input.insertText',{text});
 }
-const messageText=()=>evaluate(`Array.from(document.querySelectorAll('[contenteditable=true] [data-block-key]')).filter(node=>!node.querySelector('.builder-image')).map(node=>node.textContent).join('')`);
+const messageText=()=>evaluate(`document.querySelector('#message-text')?.value??Array.from(document.querySelectorAll('[contenteditable=true] [data-block-key]')).filter(node=>!node.querySelector('.builder-image')).map(node=>node.textContent).join('')`);
 
 for(const width of [1440,900,390,320]){
   await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<500});
@@ -108,6 +111,7 @@ for(const width of [1440,900,390,320]){
   await toggle();
   assert(await evaluate(`!document.querySelector('#compose-preview img')`),'Preview has no removed image');
   await navigate('/compose?audience=connections');
+  assert(await evaluate(`!!document.querySelector('#message-text')&&!!document.querySelector('[aria-label="Text formatting"]')&&!document.querySelector('.content-builder,input[name="builder"],.builder-inspector,button[aria-label="Add call to action"]')`),'Connections uses basic formatting without block builder');
   const key=async(key:string)=>evaluate(`document.querySelector('#recipient-search').dispatchEvent(new KeyboardEvent('keydown',{key:${JSON.stringify(key)},bubbles:true,cancelable:true}))`);
   await evaluate(`document.querySelector('#recipient-search').focus()`);
   await input('#recipient-search','alex');
@@ -290,5 +294,25 @@ for(const width of [1440,390]){
   await wait(()=>evaluate(`document.querySelector('[role=alert]')?.textContent.includes('not confirmed')`));
   assert(await evaluate(`document.querySelector('#compose-preview').textContent.includes('Literal text with bold')`));
   console.log('PASS: reusable builder conversion, save, reload, publication handoff and preserved edits at '+width);
+}
+for(const width of [1440,390]){
+  await cdp('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<500});
+  await navigate('/compose?audience=connections');
+  await writeMessage('Hello');
+  await evaluate(`document.querySelector('#message-text').select();document.querySelector('.format-toolbar button[aria-label="Bold"]').click()`);
+  await wait(()=>evaluate(`document.querySelector('#message-text').value==='**Hello**'`));
+  const text='**Hello** and *italic* [Site](https://example.invalid)\n\n- Item';
+  await writeMessage(text);
+  const toggle=()=>evaluate(`document.querySelector(${JSON.stringify(width<=900?'.mobile-floating-action':'.preview-toggle')}).click()`);
+  await toggle();
+  assert(await evaluate(`document.querySelector('#compose-preview .strong')?.textContent==='Hello'&&document.querySelector('#compose-preview a')?.getAttribute('href')==='https://example.invalid/'&&document.querySelector('#compose-preview li')?.textContent==='Item'`),'Connection preview keeps basic formatting');
+  await toggle();
+  const draftId=await evaluate(`document.querySelector('input[name=publicationId]').value`);
+  await evaluate(`document.querySelector('button[formaction="?/save"]').click()`);
+  await wait(()=>evaluate(`document.querySelector('input[name=draftRevision]').value==='1'`));
+  await navigate('/compose?draft='+draftId);
+  assert.equal(await messageText(),text,'Connection draft retains editable formatting');
+  assert(await evaluate(`!document.querySelector('.content-builder,input[name="builder"],.builder-inspector')`),'Reload does not enable block builder');
+  console.log('PASS: Connections basic formatting and draft save/reload at '+width);
 }
 }finally{socket?.close();chrome.kill();fixture.kill();await Promise.all([chrome.exited,fixture.exited]);await rm(work,{recursive:true,force:true});}

@@ -68,3 +68,29 @@ it('loads the builder by default and falls back without writing an unconvertible
   expect(await load({cookies:{},url:new URL(`https://example.com/compose?draft=${id}`)} as never)).toMatchObject({draft:saved,builderInitial:null,builderFallback:true});
   expect(request.mock.calls).toEqual([[`/drafts/${id}`],['/publications/audiences']]);
 });
+
+it('uses the simple composer for new and saved Connections messages',async()=>{
+  const connectionContent={...content,audience:'connections',text:'**Hello**\n\n- One'};
+  const saved={id,revision:1,content:connectionContent,updatedAt:'2026-11-06T00:00:00Z',trashedAt:null};
+  for(const draft of [null,saved]){
+    request.mockReset();if(draft)request.mockResolvedValueOnce(draft);
+    request.mockResolvedValueOnce({maxRecipients:100,categories:[]}).mockResolvedValueOnce({maxRecipients:100,connections:[]});
+    expect(await load({cookies:{},url:new URL(`https://example.com/compose?audience=connections${draft?`&draft=${id}`:''}`)} as never)).toMatchObject({kind:'connections',builderInitial:null,builderFallback:false,draft});
+  }
+  request.mockReset();request.mockResolvedValueOnce(saved);
+  const form=new FormData();for(const [key,value] of Object.entries({publicationId:id,draftRevision:'0',audience:'connections',text:connectionContent.text}))form.set(key,value);
+  expect(await actions.save({request:new Request('https://example.com/compose',{method:'POST',body:form}),cookies:{},url:new URL('https://example.com/compose')} as never)).toEqual({savedDraft:saved});
+  expect(request).toHaveBeenCalledWith(`/drafts/${id}/save`,{revision:0,content:{...connectionContent,text:connectionContent.text.replaceAll('\n','\r\n')}});
+});
+
+it('preserves existing block-based Connection drafts on load and refuses builder saves',async()=>{
+  const builder={version:1,body:{version:1,profile:'spt-2',blocks:[{_type:'block',style:'normal',children:[{_type:'span',text:'Keep **literal** text',marks:[]}],markDefs:[]}]}};
+  const saved={id,revision:3,content:{...content,audience:'connections',builder},updatedAt:'2026-11-06T00:00:00Z',trashedAt:null};
+  request.mockReset();request.mockResolvedValueOnce(saved).mockResolvedValueOnce({maxRecipients:100,categories:[]}).mockResolvedValueOnce({maxRecipients:100,connections:[]});
+  expect(await load({cookies:{},url:new URL(`https://example.com/compose?draft=${id}`)} as never)).toMatchObject({draft:saved,builderInitial:null,builderFallback:false});
+  expect(request.mock.calls.every(call=>call.length===1)).toBe(true);
+  request.mockReset();
+  const form=new FormData();for(const [key,value] of Object.entries({publicationId:id,draftRevision:'3',audience:'connections',builder:JSON.stringify(builder)}))form.set(key,value);
+  expect(await actions.save({request:new Request('https://example.com/compose',{method:'POST',body:form}),cookies:{},url:new URL('https://example.com/compose')} as never)).toMatchObject({status:400,data:{error:'The block builder is available for subscriber publications only.'}});
+  expect(request).not.toHaveBeenCalled();
+});
