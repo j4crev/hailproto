@@ -289,3 +289,28 @@ it("serializes manual image cleanup with deployments and rollbacks",async()=>fix
     expect(result.exit).toBe(1);expect(result.stderr).toContain("another provider deployment or rollback is running");expect(result.log).toBe("");
   }finally{holder.stdin.write("done\n");holder.stdin.end();await holder.exited;}
 }));
+
+it.each([false,true])("handles observed containerd digest references (digest in RepoTags: %s)",async digestAlias=>fixture(async({execute,directory})=>{
+  await writeFile(join(directory,"hail-provider-previous"),rollbackRecord);
+  const remote=`ghcr.io/j4crev/hail/provider@${staleDigest}`;
+  const data={Id:staleDigest,RepoTags:[staleTag,...digestAlias?[remote]:[]],RepoDigests:[`hail-server-ts@${staleDigest}`,...digestAlias?[remote]:[]]};
+  const result=await execute("image-retention --apply",{RETENTION_TAGS:staleTag,RETENTION_INVENTORY:JSON.stringify({[staleTag]:data,[remote]:data})});
+  expect(result.exit,result.stderr).toBe(0);
+  expect(result.log.split("\n").filter(line=>line.startsWith("docker image rm")))
+    .toEqual([`docker image rm --no-prune ${digestAlias?remote+" ":""}${staleTag}`]);
+}));
+
+it.each([`hail-server-ts@${digest}`,`ghcr.io/other/provider@${staleDigest}`,`ghcr.io/j4crev/hail/provider:manual`,`ghcr.io/j4crev/hail/provider@invalid`])("preserves unrecognized or mismatched aliases: %s",async alias=>fixture(async({execute,directory})=>{
+  await writeFile(join(directory,"hail-provider-previous"),rollbackRecord);
+  const data={...staleData,RepoTags:[staleTag,alias]};
+  const result=await execute("image-retention --apply",{RETENTION_TAGS:staleTag,RETENTION_INVENTORY:JSON.stringify({[staleTag]:data})});
+  expect(result.exit,result.stderr).toBe(0);expect(result.log).not.toContain("docker image rm");
+}));
+
+it("refuses cleanup if a registry digest alias resolves to another image",async()=>fixture(async({execute,directory})=>{
+  await writeFile(join(directory,"hail-provider-previous"),rollbackRecord);
+  const remote=`ghcr.io/j4crev/hail/provider@${staleDigest}`;
+  const data={...staleData,RepoTags:[staleTag,remote]};
+  const result=await execute("image-retention --apply",{RETENTION_TAGS:staleTag,RETENTION_INVENTORY:JSON.stringify({[staleTag]:data,[remote]:{Id:digest}})});
+  expect(result.exit).toBe(1);expect(result.stderr).toContain("digest alias identity mismatch");expect(result.log).not.toContain("docker image rm");
+}));

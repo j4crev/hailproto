@@ -231,7 +231,11 @@ cleanup. Only exact `hail-server-ts:rollback-<image-id>` and
 foreign registry references preserve the entire image. Current Hail and historical
 `hailproto` provider/client GHCR digest references are recognized. Removal uses
 explicit tags with `docker image rm --no-prune`, never force or global prune;
-Docker removes associated digest references with the final tag.
+Containerd may expose registry digests in `RepoTags`; these aliases are resolved
+to the same image ID and removed before rollback tags. Synthesized local
+`hail-server-ts@sha256:...` / `hail-web-client@sha256:...` references are recognized
+only when their digest equals that image ID. Other digest references are removed
+by Docker with the final tag.
 
 Normal deployments therefore retain the running release and one verified previous
 release, plus any explicitly kept images or images used by other containers.
