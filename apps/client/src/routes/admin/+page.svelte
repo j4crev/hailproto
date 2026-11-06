@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {page} from "$app/state";
   import CopyButton from "$lib/CopyButton.svelte";
   import {onMount} from "svelte";
@@ -53,7 +54,7 @@
     </div>
     <p id="registration-description">When on, anyone can create an account at this server’s domain. When off, signup requires an invitation.</p>
     <p class="hint">Setups already started can finish within their existing expiry.</p>
-    {#if modeMessage}<p role="status">{modeMessage}</p>{/if}
+    {#if modeMessage}<Toast message={modeMessage} />{/if}
     <p class="hint">Changing registration requires a passkey login within the last ten minutes.</p>
   </section>
   <ProviderStats stats={data.stats} range={data.range} />
@@ -67,7 +68,7 @@
       <button class="hail-button" disabled={busy}>{busy?"Creating invitation…":pending?"Check / retry invitation":email.trim()?"Send invitation":"Create invitation link"}</button>
     </form>
     {#if pending&&!busy}<button class="hail-button-secondary" onclick={()=>{pending=null;email="";message="The previous invitation may still be delivered. A new request creates a separate invitation.";}}>Start another invitation</button>{/if}
-    {#if message}<p role="status">{message}</p>{/if}
+    {#if message}<Toast message={message} />{/if}
     {#if inviteUrl}<label for="invite-link">Private invitation link</label><div class="flex min-w-0 items-start gap-1"><textarea class="min-w-0 flex-1" id="invite-link" readonly value={inviteUrl} rows="3"></textarea><CopyButton value={inviteUrl} label="Copy invitation link" /></div>{/if}
     <p class="hint">Creating invitations requires a passkey login within the last ten minutes. <a href="/?next=%2Fadmin">Sign in again</a></p>
   </section>

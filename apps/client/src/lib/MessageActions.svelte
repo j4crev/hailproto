@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {onMount} from 'svelte';
   import {goto, invalidateAll} from '$app/navigation';
   import {mailboxRequest} from '$lib/mailbox.js';
@@ -73,7 +74,7 @@
       <div class="flex flex-wrap gap-2"><button class="hail-button-secondary" disabled={busy} onclick={remove}>{trashEnabled ? 'Move to Trash' : 'Delete permanently'}</button><button class="hail-button-secondary" disabled={busy} onclick={() => confirming = false}>Cancel</button></div>
     </div>
   {/if}
-  {#if error}<p class="hail-error" role="alert">{error}</p>{/if}
+  {#if error}<Toast message={error} error />{/if}
 {/snippet}
 {#if compact}
   <div class="inline-actions" class:expanded={confirming || !!error}>

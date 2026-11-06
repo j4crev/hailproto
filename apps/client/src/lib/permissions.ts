@@ -119,3 +119,14 @@ export async function permissionRequest(step:string,body?:unknown){
   }
   return value;
 }
+
+/** Match the canonical ASCII Hail address rules before sender discovery. */
+export function validateSenderAddress(input:string):string {
+  const address=input.trim().toLowerCase(),parts=address.split('@');
+  const [local='',domain='']=parts;
+  if(parts.length!==2||address.length>254||local.length>63||
+    !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$/.test(local)||
+    !domain.includes('.')||domain.length>253||domain.split('.').some(label=>!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)))
+    throw new Error("Enter a valid Hail address, such as sender@example.com.");
+  return address;
+}

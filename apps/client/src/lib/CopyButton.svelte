@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import Icon from "$lib/Icon.svelte";
   let {value, label = "Copy link"}: {value: string; label?: string} = $props();
   let copied = $state(false), error = $state(""), busy = $state(false);
@@ -29,7 +30,7 @@
   </button>
   <span class="copy-tooltip" aria-hidden="true">{copied ? 'Copied' : label}</span>
   <span class="sr-only" role="status">{copied ? 'Copied to clipboard.' : ''}</span>
-  {#if error}<span class="copy-error absolute z-[20] right-0 top-[100%] w-[220px] max-w-[70vw] p-[8px] [border:1px_solid_var(--color-line)] rounded-[6px] [background:var(--color-surface)] text-danger text-[12px]" role="status">{error}</span>{/if}
+  <Toast message={error} error />
 </span>
 <style lang="postcss">
   @reference "../app.css";

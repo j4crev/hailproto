@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import DateTime from "$lib/DateTime.svelte";
   import {startAuthentication,startRegistration} from "@simplewebauthn/browser";
   import type {loadAccountSecurity} from "$lib/server/account-security.js";
@@ -49,7 +50,7 @@
 </script>
 
 <header class="mb-8 flex flex-wrap items-start justify-between gap-4"><div class="grid gap-3"><h2 id="security-title" class="m-0 text-2xl font-semibold tracking-tight">Sign-in &amp; security</h2><p class="m-0 max-w-xl text-sm text-muted">Manage sign-in and keep a backup passkey.</p></div><button class="hail-button-secondary" onclick={verify} disabled={busy}>Verify to manage</button></header>
-{#if message}<div class="mb-5"><p class="hail-error" role="alert">{message}</p></div>{/if}
+{#if message}<Toast message={message} error />{/if}
 {#if !data.recentlyVerified}<p class="mb-6 rounded-xl border border-solid border-line bg-brand-soft p-4 text-sm text-brand-strong">Verify with your current passkey before adding, renaming or revoking passkeys or signing out other devices.</p>{/if}
 <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
   <div class="grid min-w-0 gap-6">

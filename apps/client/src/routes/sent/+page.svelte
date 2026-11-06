@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import MailboxCleanup from "$lib/MailboxCleanup.svelte";
   import {page} from "$app/state";
   import {onMount} from "svelte";
@@ -38,8 +39,8 @@
 <svelte:head><title>Sent · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <div class="sent-list min-w-0 pb-28 min-[901px]:pb-0">
   <MailboxCleanup folder="Sent" trashEnabled={data.trashEnabled} empty={!data.messages.length&&!data.paged} />
-  {#if status}<p role="status">{status}</p>{/if}
-  {#if error}<p class="hail-error" role="alert">{error}</p>{/if}
+  {#if status}<Toast message={status} />{/if}
+  {#if error}<Toast message={error} error />{/if}
   {#if selectedMessages.length}
     <SelectionActions label="Sent actions" count={selectedMessages.length} locked={busy||confirming} {busy} onclear={()=>selected=[]} onselectall={selectedMessages.length<data.messages.length?()=>selected=data.messages.map(key):undefined}>
       {#snippet actions()}{#if !confirming}<button class="hail-icon-button" type="button" aria-label="Delete selected messages" title={data.trashEnabled?'Move to Trash':'Delete permanently'} disabled={busy||!ready} onclick={review}><Icon name="trash" /></button>{/if}{/snippet}

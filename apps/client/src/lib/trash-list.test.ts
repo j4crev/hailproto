@@ -30,5 +30,5 @@ it('keeps sent-only Trash selectable without showing the empty state',()=>{
   } as never}});
   expect(body).toContain('aria-label="Select sent message: Announcement"');
   expect(body).toContain('<span aria-hidden="true">B</span>');
-  expect(body).not.toContain('Must be pickup day.');
+  expect(body).not.toContain('empty-symbol');
 });

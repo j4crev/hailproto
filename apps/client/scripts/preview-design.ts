@@ -6,6 +6,7 @@ import {threadBodyPreview} from '../../server/src/accounts/message-threads.js';
 import {createWebCryptoSigner, signPayload, encodeBase64Url, type HailGrant, type HailSenderProfile} from '@racrproto/codec';
 import {uuidV7} from '../../server/src/identity/uuid-v7.js';
 
+const emptyRelationships=process.env.HAIL_DESIGN_EMPTY_RELATIONSHIPS==='1';
 const sharedMode=process.env.HAIL_DESIGN_SHARED_CONVERSATIONS==='1';
 const port = Number(process.env.HAIL_DESIGN_PORT || 4173);
 const origin = `http://localhost:${port}`;
@@ -186,7 +187,7 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
     {...sent[0],messageId:uuidV7(),kind:'category',category:'general',recipientSummary:undefined}],next:null});
   if(path==='/api/v1/account/sent')return json({messages:sent.filter(m=>!deleted.has(m.messageId)&&(url.searchParams.get('trash')==='true'?trash.has(m.messageId):!trash.has(m.messageId))).map(m=>({...m,trashedAt:trash.get(m.messageId)??null})),next:null});
   if(path.startsWith('/api/v1/account/sent/')){const m=sent.find(m=>m.messageId===path.split('/').at(-1)&&!deleted.has(m.messageId)&&(url.searchParams.get('trash')==='true'?trash.has(m.messageId):!trash.has(m.messageId)));return m && (!url.searchParams.has('kind')||url.searchParams.get('kind')===m.kind)?json({...m,trashedAt:trash.get(m.messageId)??null,...(!url.searchParams.has('kind')?{kind:"connection"}:{})}):json({},404);}
-  if(path==='/api/v1/account/grants')return json({grants:grants.filter(g=>!url.searchParams.has('sender')||g.payload.grantee===url.searchParams.get('sender')).map(g=>({grantId:g.payload.grant_id,localRole:'grantor',grantee:g.payload.grantee,status:'active'})),next:null});
+  if(path==='/api/v1/account/grants')return json({grants:(emptyRelationships?[]:grants).filter(g=>!url.searchParams.has('sender')||g.payload.grantee===url.searchParams.get('sender')).map(g=>({grantId:g.payload.grant_id,localRole:'grantor',grantee:g.payload.grantee,status:'active'})),next:null});
   if(path.startsWith('/api/v1/account/grants/')){const grant=grants.find(g=>g.payload.grant_id===path.split('/').at(-1));return grant?json(grant.representation):json({},404);}
   if(path==='/api/v1/account/profile')return json(profileResponse);
   if(path==='/api/v1/account/custom-domains')return json({provider:origin,domains:[]});
@@ -194,7 +195,7 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
     if(request.method==='POST'){allowIntroductions=input.allowIntroductions;conversationsConfigured=true;}
     return json({allowIntroductions,configured:conversationsConfigured,truncated:false,connections:[]});
   }
-  if(path==='/api/v1/account/connections')return json({preview:true,codes:[],connections:[{id:connectionId,did:senders[3].did,address:senders[3].address,connectedAt:date(240),remote:true}],pendingConnections:[]});
+  if(path==='/api/v1/account/connections')return json({preview:true,codes:[],connections:emptyRelationships?[]:[{id:connectionId,did:senders[3].did,address:senders[3].address,connectedAt:date(240),remote:true}],pendingConnections:[]});
   if(path==='/api/v1/account/publications/audiences')return json({maxRecipients:100,categories:[{category:'general',subscribers:12},{category:'essays',subscribers:8}]});
   if(path==='/api/v1/account/connection-messages/targets')return json({maxRecipients:100,connections:[{connectionId,recipientDid:senders[3].did,epoch:1,address:senders[3].address},...(sharedMode?[{connectionId:sharedConversation.conversationId,recipientDid:maya.did,epoch:1,address:maya.address}]:[])]});
   if(path==='/api/v1/auth/passkeys')return json({recentlyVerified:false,sessions:[],passkeys:[]});

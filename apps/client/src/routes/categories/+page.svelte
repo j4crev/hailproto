@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
   import {page} from "$app/state";
   import CopyButton from "$lib/CopyButton.svelte";
   import SelectionActions from "$lib/SelectionActions.svelte";
@@ -98,7 +99,7 @@
       <button class="hail-button justify-self-start" disabled={conflict}>{busy ? 'Saving…' : data.revision ? 'Save changes' : 'Create sender profile'}</button>
     </fieldset>
     {#if data.account.migrationState}<p class="hail-error mt-4">Profile editing is paused while your account moves.</p>{/if}
-    {#if message}<p class="hail-error mt-4" role="alert">{message}</p>{/if}
+    {#if message}<Toast message={message} error />{/if}
     {#if conflict}<button class="hail-button-secondary mt-4" type="button" onclick={reload}>Reload latest profile</button>{/if}
   </form>
   <aside class="hail-card grid min-w-0 gap-4 p-5 sm:p-7">

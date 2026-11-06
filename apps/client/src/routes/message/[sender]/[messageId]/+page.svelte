@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
+  import MobileSheet from "$lib/MobileSheet.svelte";
   import Attachments from "$lib/Attachments.svelte";
   import MessageBack from "$lib/MessageBack.svelte";
   import {page} from "$app/state";
@@ -74,8 +76,8 @@
 <div class="message-detail mx-auto max-w-[800px]" class:feed-reader={data.message.kind!=='connection'}>
 <MessageBack href={data.message.trashedAt?'/trash':data.message.kind==='connection'?'/?view=connections':'/?view=subscriptions'} label={data.message.trashedAt?'Trash':data.message.kind==='connection'?'Inbox':'Feed'} />
 {#if content.title}<h1 class="reader-title">{content.title}</h1>{:else}<h1 class="sr-only">Received message</h1>{/if}
-{#if restoreError}<p class="hail-error" role="alert">{restoreError}</p>{/if}
-{#if readError}<p class="hail-error" role="alert">{readError}</p>{/if}
+{#if restoreError}<Toast message={restoreError} error />{/if}
+{#if readError}<Toast message={readError} error />{/if}
 <article class="reader-panel overflow-hidden">
   <header class="flex flex-wrap items-center justify-between gap-4 border-0 border-b border-solid border-line pb-5">
     <div class="flex min-w-0 w-full items-start gap-3">
@@ -90,9 +92,9 @@
     <div class="flex w-full min-w-0 flex-wrap items-center gap-1">
       {#if forwardedAttribution(data.message.blocks)}<ForwardedPill />
       {:else if data.message.kind!=='connection' && data.message.category}<mark class="max-w-full rounded-full bg-brand-soft px-2 py-1.5 text-xs font-semibold text-brand-strong [overflow-wrap:anywhere]">{data.message.category==='general'?'General':data.message.category}</mark>{/if}
-      <div class="mobile-message-actions ml-auto flex min-w-0 flex-wrap items-center justify-end gap-0.5 [&>section]:w-full [&>p]:w-full" role="group" aria-label="Message actions">
+      <div class:mobile-message-actions={!data.message.trashedAt} class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-0.5 [&>section]:w-full [&>p]:w-full" role="group" aria-label="Message actions">
         {#if data.message.trashedAt}
-          <button class="hail-button-secondary" disabled={restoring} onclick={restore}>Restore</button>
+          <button class="restore-button hail-icon-button mobile-floating-action" type="button" aria-label="Restore message" title="Restore message" disabled={restoring} onclick={restore}><Icon name="restore" size={24} /></button>
         {:else}
         <button disabled={!data.canReply} bind:this={replyButton} class="hail-icon-button compact" type="button" aria-label="Reply" title="Reply" aria-expanded={replyOpen} aria-controls="message-reply" onclick={openReply}><Icon name="reply" /></button>
         <a class="hail-icon-button compact" aria-label="Forward" title="Forward" href={forwardHref(data.message)}><Icon name="forward" /></a>
@@ -116,6 +118,7 @@
 {#if data.message.kind==='connection' && !data.message.connection?.active}<p class="mt-5 rounded-xl bg-warning-soft p-4 text-sm text-warning">This connection is no longer active. Existing delivered messages remain readable.</p>
 {:else if data.canReply}
   {#if replyOpen}
+  <MobileSheet bind:open={replyOpen} title="Reply">
   <form id="message-reply" enctype="multipart/form-data" class="hail-card mt-6 grid gap-4 p-5 sm:p-7" method="POST" action="?/reply">
     <input type="hidden" name="messageId" value={form?.messageId??data.newReplyId}/>
     <input type="hidden" name="replyUntil" value={form?.replyUntil??data.newReplyUntil}/>
@@ -127,13 +130,14 @@
     <div class="flex flex-wrap gap-3"><button class="hail-button" type="submit">Send reply</button><button class="hail-button-secondary" type="button" onclick={cancelReply}>Cancel</button></div>
 
   </form>
+  </MobileSheet>
   {/if}
 {:else if data.message.replyUntil}
   <p class="mt-5 rounded-xl bg-warning-soft p-4 text-sm text-warning">This reply invitation has expired or was already used.</p>
 {/if}
 
 {/if}
-{#if form?.error}<p class="hail-error" role="alert">{form.error} {#if form.messageId}<a href={`/sent/${form.messageId}`}>Check sent status</a>{/if}</p>{/if}
+{#if form?.error}<Toast message={form.error} error>{form.error} {#if form.messageId}<a href={`/sent/${form.messageId}`}>Check sent status</a>{/if}</Toast>{/if}
 <MessageThread peer={{did:data.message.sender,address:data.message.senderAddress}} thread={data.thread} unavailable={data.threadUnavailable} selected={data.message}/>
 </div>
 
@@ -142,4 +146,7 @@
 
   .feed-reader { @apply [max-width:none] mx-0; }
   .feed-reader .reading-body { @apply max-w-[min(800px,72ch)]; }
+  @media (min-width:901px) {
+    .restore-button { display: inline-flex; }
+  }
 </style>

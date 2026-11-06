@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Toast from "$lib/Toast.svelte";
+  import MobileSheet from "$lib/MobileSheet.svelte";
   import Attachments from "$lib/Attachments.svelte";
   import MessageBack from "$lib/MessageBack.svelte";
   import {page} from "$app/state";
@@ -126,8 +128,8 @@
 <svelte:head><title>{conversationSubject || 'Messages'} · {page.data.branding?.name ?? "Hail"}</title></svelte:head>
 <MessageBack href="/?view=connections" label="Inbox" />
 <h1 class="hail-title conversation-subject" class:sr-only={!conversationSubject}>{conversationSubject || 'Messages'}</h1>
-{#if error}<p class="hail-error" role="alert">{error}</p>{/if}
-{#if replyFailure.error}<p class="hail-error" role="alert">{replyFailure.error}</p>{/if}
+{#if error}<Toast message={error} error />{/if}
+{#if replyFailure.error}<Toast message={replyFailure.error} error />{/if}
 {#if pending}<p class="text-sm text-muted" role="status">Opening message…</p>{/if}
 {#if start>0}<div class="newer-edge min-h-[32px] mb-[12px] text-[12px] text-muted" bind:this={newerEdge}>
   {#if pagingError}<button class="hail-button-secondary" disabled={paging} onclick={()=>more(true)}>Retry loading newer messages</button>
@@ -177,12 +179,14 @@
         <div class="reading-body"><QuotedMessage blocks={content.blocks} header={message.header} /><Attachments files={message.attachments} sender={message.sender} messageId={message.messageId} /></div>
         {#if !row.sent && !message.connection?.active}<p class="text-sm text-muted">{message.sharedConversation?'Private replies require a connection to this person.':'This connection is no longer active. Saved messages remain readable.'}</p>{/if}
         {#if replyOpen && (replyAll?message.sharedConversation?.state==='active':!row.sent&&message.connection?.active)}
+          <MobileSheet bind:open={replyOpen} title={replyAll?"Reply all":"Reply"} disabled={sending}>
           <form class="reply-form grid gap-[16px] mt-[24px]" enctype="multipart/form-data" method="POST" action={`/message/${encodeURIComponent(row.sender)}/${row.messageId}?/${replyAll?'replyAll':'reply'}`} use:enhance={()=>{sending=true;return async({result})=>{sending=false;if(result.type==='failure')replyFailure=result.data??{};else await applyAction(result);};}}>
             <input type="hidden" name="messageId" value={replyFailure.messageId??data.newReplyId} />
             <label class="hail-field">{replyAll?'Reply to everyone':'Reply to '+(row.senderAddress??row.sender)}<textarea bind:this={replyInput} name="text" rows="5" maxlength="65536" required value={replyFailure.text??''}></textarea></label>
     <label class="hail-field">Attachments (PNG, JPEG, WebP, PDF, TXT, LOG · 25 MiB total)<input type="file" name="attachment" accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.log" multiple /></label>
             <div class="flex gap-3"><button class="hail-button" disabled={sending}>Send reply</button><button class="hail-button-secondary" type="button" disabled={sending} onclick={()=>replyOpen=false}>Cancel</button></div>
           </form>
+          </MobileSheet>
         {/if}
       </div>
     {:else}
