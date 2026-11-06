@@ -2,6 +2,7 @@ import {encodeBase64Url} from '@racrproto/codec';
 import {parseDraftContent} from '@racrproto/client-support/drafts';
 export async function draftForm(form:FormData){
   const field=(name:string)=>{const v=form.get(name);return typeof v==='string'?v:'';};
+  if(field('audience')==='connections'&&form.has('builder'))throw new Error('The block builder is available for subscriber publications only.');
   const file=form.get('header');
   if(file instanceof File&&file.size>0&&(file.type!=='image/png'||file.size>196608))throw new Error('Choose a PNG up to 192 KiB.');
   const header=file instanceof File&&file.size>0?encodeBase64Url(new Uint8Array(await file.arrayBuffer())):field('savedHeader')||null;

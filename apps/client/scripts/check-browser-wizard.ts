@@ -423,6 +423,9 @@ try{
   const click=async(text:string)=>{await wait(async()=>evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')??b.textContent.trim())===${JSON.stringify(text)}&&!b.disabled)`),"button: "+text);
     await evaluate(`[...document.querySelectorAll('button')].find(b=>(b.getAttribute('aria-label')??b.textContent.trim())===${JSON.stringify(text)}&&!b.disabled).click()`);};
   const writeMessage=async(text:string)=>{
+    if(await evaluate(`!!document.querySelector('#message-text')`)){
+      await evaluate(`(()=>{const e=document.querySelector('#message-text');e.focus();e.select();})()`);await cdp('Input.insertText',{text});return;
+    }
     await wait(()=>evaluate(`!!document.querySelector('[contenteditable=true]')`),'default content editor');
     await evaluate(`(()=>{const e=document.querySelector('[contenteditable=true]');e.focus();const r=document.createRange();r.selectNodeContents(e);const s=getSelection();s.removeAllRanges();s.addRange(r);})()`);
     await cdp('Input.insertText',{text});
@@ -1049,7 +1052,7 @@ try{
   assert(await evaluate(`!document.querySelector('input[name=delivery]')`));
   await writeMessage('Personal message to chosen connections');await click('Send message');
   await wait(()=>has('Message batch not confirmed'),'ambiguous connection acceptance retains the original intent');
-  assert(await evaluate(`document.querySelector('[contenteditable=true]').textContent==='Personal message to chosen connections'&&document.querySelectorAll('.recipient-chip').length===2`),'Connection retry must retain body and recipients');
+  assert(await evaluate(`document.querySelector('#message-text').value==='Personal message to chosen connections'&&document.querySelectorAll('.recipient-chip').length===2`),'Connection retry must retain body and recipients');
   assert(await evaluate(`!document.querySelector('input[name=delivery]')`));
   assert(!await has('Message sent.'),'Lost acceptance response must not show success');
   await click('Send message');await wait(()=>has('Message sent.'),'provider accepted connection message before delivery');

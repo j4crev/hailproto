@@ -9,6 +9,8 @@ handles, keyboard reordering and shared image/text undo history. Current `spt-3`
 is expanded under the pre-launch policy; no new profile identifier is allocated.
 See the builder README and compatibility inventory for limits and evidence.
 Recovery, autosave and unsaved-change warnings are intentionally excluded.
+The Hail composer exposes the builder only for subscriber publications; Connections
+use the basic-formatting message composer.
 CTA blocks and left/center/right text alignment are now implemented. Selected
 image/button settings use a separate sticky sidebar on wide workspaces and a
 modal bottom sheet on narrow screens, keeping form fields off the canvas.

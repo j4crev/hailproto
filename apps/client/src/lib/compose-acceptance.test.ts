@@ -122,3 +122,17 @@ it('hands off aligned CTA content unchanged and keeps unfinished destinations in
     expect(await publish()).toMatchObject({status:400});expect(request).not.toHaveBeenCalled();
   }
 });
+
+it('rejects Connection builder payloads while keeping basic formatting on ordinary messages',async()=>{
+  const form=new FormData();
+  const body={version:1,profile:'spt-2',blocks:[{_type:'block',style:'normal',children:[{_type:'span',text:'Block content',marks:[]}],markDefs:[]}]};
+  for(const [key,value] of Object.entries({publicationId:id,audience:'connections',connection:targetId,builder:JSON.stringify({version:1,body})}))form.set(key,value);
+  const publish=()=>actions.publish({request:new Request('https://example.com/compose',{method:'POST',body:form}),cookies:{},url:new URL('https://example.com/compose')} as never);
+  request.mockReset();expect(await publish()).toMatchObject({status:400,data:{error:'The block builder is available for subscriber publications only.'}});expect(request).not.toHaveBeenCalled();
+  form.delete('builder');form.set('text','**Bold** and *italic* [Link](https://example.invalid)\n\n- Item');
+  request.mockRejectedValueOnce(new Error('Response lost'));await publish();
+  const submitted=request.mock.calls[0][1].body;
+  expect(submitted.blocks[0].children).toEqual(expect.arrayContaining([expect.objectContaining({text:'Bold',marks:['strong']}),expect.objectContaining({text:'italic',marks:['em']})]));
+  expect(submitted.blocks[0].markDefs[0].href).toBe('https://example.invalid/');
+  expect(submitted.blocks[1].listItem).toBe('bullet');
+});

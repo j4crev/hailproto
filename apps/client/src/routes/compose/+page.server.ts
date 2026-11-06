@@ -46,7 +46,7 @@ export async function load({url,cookies}) {
   }
   let builderInitial:Awaited<ReturnType<typeof builderDraft>>|null=null;
   let builderFallback=false;
-  if(!forward){
+  if(kind==='category'&&!forward){
     try{builderInitial=await builderDraft(draft?.content);}
     catch{builderFallback=true;}
   }
@@ -73,10 +73,10 @@ export const actions={save:async({request,cookies,url})=>{
     if(forwarding&&(kind!=="connections"||!forwardSender||!UUID7.test(forwardMessage)))return fail(400,{error:"Forwards can only be sent to connections."});
     let builder:ReturnType<typeof parseBuilderDraft>|null=null;
     if(form.has('builder')){
+      if(kind==='connections')return fail(400,{error:'The block builder is available for subscriber publications only.'});
       try{builder=parseBuilderDraft(JSON.parse(field('builder')));validateBody(builder.body);}
       catch(cause){return fail(400,{error:cause instanceof Error?cause.message:'Invalid builder content.'});}
       if(forwarding||title||text||alt||caption||field('savedHeader')||header instanceof File&&header.size>0)return fail(400,{error:'Builder content cannot be combined with simple-compose fields.'});
-      if(kind==='connections'&&builder.body.profile==='spt-3')return fail(400,{error:'Images are available for subscriber publications only.'});
       if(!plainText(builder.body).trim())return fail(400,{error:'Write some message text before publishing.'});
     }
     const keys=[...form.keys()];
