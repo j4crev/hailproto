@@ -97,6 +97,19 @@ def protected_images():
             raise ValueError("running service inventory changed")
     return protected
 
+def managed_digest(ref, identity):
+    repository, separator, digest = ref.partition("@")
+    if not separator or not DIGEST.fullmatch(digest):
+        return False
+    # containerd synthesizes these local digests from our rollback tags.
+    if repository in ("hail-server-ts", "hail-web-client"):
+        return digest == identity
+    return repository in REPOSITORIES
+
+def managed_alias(ref, identity):
+    tag = TAG.fullmatch(ref)
+    return tag[1] == identity[7:] if tag else managed_digest(ref, identity)
+
 def candidates(protected):
     tags = docker("image", "ls", "--format", "{{.Repository}}:{{.Tag}}").splitlines()
     found = {}
@@ -113,13 +126,17 @@ def candidates(protected):
         aliases = data.get("RepoTags") or []
         digests = data.get("RepoDigests") or []
         # Leave manually retained/foreign aliases alone, even on an old release.
-        if not aliases or any(not TAG.fullmatch(alias) or TAG.fullmatch(alias)[1] != identity[7:] for alias in aliases):
+        if tag not in aliases or any(not managed_alias(alias, identity) for alias in aliases):
             print("Keep (additional alias): " + identity)
             continue
-        if any(ref.split("@")[0] not in REPOSITORIES or not DIGEST.fullmatch(ref.split("@")[-1]) for ref in digests):
+        if any(not managed_digest(ref, identity) for ref in digests):
             print("Keep (other repository): " + identity)
             continue
-        found[identity] = sorted(aliases)
+        # A digest alias must resolve to this same image before it can be removed.
+        for alias in aliases:
+            if "@" in alias and inspect(alias)["Id"] != identity:
+                raise ValueError("digest alias identity mismatch: " + alias)
+        found[identity] = sorted(aliases, key=lambda ref: ("@" not in ref, ref))
     return found
 
 try:
@@ -132,7 +149,7 @@ try:
         if candidates(protected_images()) != plan:
             raise ValueError("image inventory changed; rerun the report")
         for aliases in plan.values():
-            # Digest references are removed by Docker with the final tag. Never
+            # Remove containerd digest aliases before the final rollback tag. Never
             # force deletion or prune parent images, containers, volumes or cache.
             subprocess.run(["docker", "image", "rm", "--no-prune", *aliases], check=True)
 except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
