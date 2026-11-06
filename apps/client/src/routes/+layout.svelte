@@ -20,16 +20,16 @@
   let drawer = $state<HTMLDialogElement>();
   let drawerOpen = $state(false);
   let viewingMessage = $derived(page.route.id === '/message/[sender]/[messageId]' || page.route.id === '/conversation/[sender]/[messageId]' || page.route.id === '/sent/[messageId]' || page.route.id === '/sent/send/[kind]/[messageId]');
-  const navigation = [
-    {href: "/?view=subscriptions", label: "Feed", icon: "feed"},
-    {href: "/?view=connections", label: "Inbox", icon: "chat"},
+  const navigation = $derived([
+    {href: "/?view=subscriptions", label: "Feed", icon: "feed", unread: page.data.unreadCounts?.subscriptions},
+    {href: "/?view=connections", label: "Inbox", icon: "chat", unread: page.data.unreadCounts?.connections},
     {href: "/drafts", label: "Drafts", icon: "compose"},
     {href: "/sent", label: "Sent", icon: "sent"},
     {href: "/trash", label: "Trash", icon: "trash"},
     {href: "/permissions", label: "Subscriptions", icon: "people"},
     {href: "/connections", label: "Connections", icon: "user"},
     {href: "/categories", label: "Categories", icon: "feed"}
-  ];
+  ]);
   let focused = $derived(!page.data.hasAccountSession || (page.url.pathname === "/" && page.url.searchParams.has("next")) || page.url.pathname.startsWith("/auth/") || page.url.pathname.startsWith("/signup"));
   let address = $derived(page.data.account?.address ?? "Your account");
   const avatar = $derived(page.data.accountAvatar?.did === page.data.account?.did ? page.data.accountAvatar?.src : null);
@@ -65,7 +65,7 @@
 {/snippet}
 {#snippet links()}
   <a class="hail-button compose-button" href="/compose" aria-current={page.url.pathname === "/compose" ? "page" : undefined}>Compose</a>
-  <div class="nav-group"><nav aria-label="Main navigation">{#each navigation as item, index}{#if index === 5}<p class="nav-label [margin:22px_14px_6px] text-muted text-[10px] font-[600] tracking-[.1em] uppercase">Your network</p>{/if}<a href={item.href} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} />{item.label}</a>{/each}</nav></div>
+  <div class="nav-group"><nav aria-label="Main navigation">{#each navigation as item, index}{#if index === 5}<p class="nav-label [margin:22px_14px_6px] text-muted text-[10px] font-[600] tracking-[.1em] uppercase">Your network</p>{/if}<a href={item.href} aria-current={active(item.href) ? "page" : undefined}><Icon name={item.icon} />{item.label}{#if item.unread !== undefined && item.unread > 0}<span class="ml-auto text-right tabular-nums" aria-label={`${item.unread} unread messages`}>{item.unread}</span>{/if}</a>{/each}</nav></div>
   {#if page.data.account?.providerOperator}<a class="hail-button-secondary" href="/admin">Provider administration</a>{/if}
   <div class="nav-bottom"></div>
 {/snippet}

@@ -68,11 +68,14 @@
     return actions;
   });
   let request=0;
+  // Layout-only mailbox refreshes replace data without reloading this thread.
+  // Keep those updates from resetting local selection/pagination or marking read again.
+  const loadedThread=$derived(data.thread),loadedMessage=$derived(data.message);
   $effect(()=>{
     request++;pagingError=false;
-    rows=data.thread.messages.map(m=>({...m}));start=data.thread.start;total=data.thread.total;newerUnread=data.thread.newerUnread;
-    selected=conversationKey(data.thread.selected);message=data.message;replyOpen=false;
-    void markRead(data.thread.selected,data.message);
+    rows=loadedThread.messages.map(m=>({...m}));start=loadedThread.start;total=loadedThread.total;newerUnread=loadedThread.newerUnread;
+    selected=conversationKey(loadedThread.selected);message=loadedMessage;replyOpen=false;
+    void markRead(loadedThread.selected,loadedMessage);
   });
   async function markRead(row:{sender:string;messageId:string;sent:boolean},value:MessageView|SentMessageView){
     if(row.sent||value.isRead)return;

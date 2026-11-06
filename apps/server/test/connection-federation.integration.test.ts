@@ -521,6 +521,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
     const grouped=await one.messaging.connectionInbox(a.session,null);
     expect(grouped.messages).toHaveLength(1);
     expect(grouped.messages[0]).toMatchObject({sender:b.did,messageId:threadedId,conversation:{unreadCount:2}});
+    expect(await one.messaging.unreadCounts(a.session)).toEqual({subscriptions:0,connections:2});
     const combined=await one.messaging.connectionThread(a.session,b.did,threadedId,null);
     expect(combined?.messages).toHaveLength(3);
     expect(combined?.messages.filter(m=>m.sent)).toHaveLength(1);
@@ -532,6 +533,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
     expect((await one.messaging.connectionInbox(a.session,null)).messages[0]).toMatchObject({messageId:localReply,conversation:{unreadCount:1}});
     await one.messaging.setRead(a.session,c.did,localReply,true);
     expect((await one.messaging.connectionInbox(a.session,null)).messages[0]).toMatchObject({messageId:localReply,conversation:{unreadCount:0}});
+    expect(await one.messaging.unreadCounts(a.session)).toEqual({subscriptions:0,connections:0});
     // Neither recipient can see the other recipient's private reply.
     const recipientThread=await two.messaging.connectionThread(b.session,a.did,sentToB.messageId,null);
     expect(recipientThread?.messages.map(m=>m.sender)).not.toContain(c.did);
@@ -541,6 +543,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
       await received();await withFreshServingGenerations(first.db.sql,()=>one.worker.processOne());
     }
     const firstPage=await one.messaging.connectionInbox(a.session,null),secondPage=await one.messaging.connectionInbox(a.session,firstPage.next);
+    expect(await one.messaging.unreadCounts(a.session)).toEqual({subscriptions:0,connections:6});
     expect(firstPage.messages).toHaveLength(5);expect(secondPage.messages).toHaveLength(2);expect(secondPage.next).toBeNull();
     expect(new Set([...firstPage.messages,...secondPage.messages].map(m=>m.messageId)).size).toBe(7);
     expect((await api(a,'connection-inbox?after=invalid')).status).toBe(400);

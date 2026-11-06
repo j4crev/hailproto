@@ -5,6 +5,23 @@ not a federation operation or a new envelope format. Deleting a mailbox copy
 never recalls a recipient's copy, revokes reply authority, cancels delivery, or
 changes signed protocol evidence.
 
+## Unread totals
+
+`GET /api/v1/account/unread-counts` requires the authenticated account's
+`messages:read` scope and accepts no query parameters. It returns JSON
+`{ "subscriptions": 0, "connections": 0 }`, with nonnegative integer counts
+across the entire mailbox, independent of pagination. Count only received,
+unread, non-trashed delivered messages belonging to that account. Connection-
+and shared-conversation-authorized messages contribute to `connections`; other
+authorization types contribute to `subscriptions`. Count messages, not threads;
+sent messages never contribute. Reading, marking unread, trashing, restoring,
+and deleting affect subsequent totals. Invalid queries return `400`, unsupported
+methods `405`, and missing scope `403`, using normal account authentication rules.
+
+The client displays positive totals beside Feed (`subscriptions`) and Inbox
+(`connections`), right-aligned, and hides zero or unavailable totals. This display
+is client behavior, not a federation requirement.
+
 ## Folder actions
 
 The passkey-authenticated account API requires `messages:write`, the existing

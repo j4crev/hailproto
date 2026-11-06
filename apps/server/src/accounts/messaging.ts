@@ -173,6 +173,16 @@ export class AccountMessaging {
     return connectionThread(this.sql,session,{sender,messageId},offset);
   }
 
+  async unreadCounts(session:AccountApiSession) {
+    const [counts]=await this.sql<{subscriptions:number;connections:number}[]>`
+      SELECT count(*) FILTER (WHERE envelope.authorization_type NOT IN ('connection','conversation'))::integer AS subscriptions,
+        count(*) FILTER (WHERE envelope.authorization_type IN ('connection','conversation'))::integer AS connections
+      FROM delivered_messages message JOIN received_envelopes envelope
+        ON envelope.sender_did=message.sender_did AND envelope.message_id=message.message_id AND envelope.recipient_did=message.recipient_did
+      WHERE message.recipient_did=${session.did} AND message.trashed_at IS NULL AND message.is_read=false`;
+    return counts!;
+  }
+
   async inbox(session:AccountApiSession,after:string|null) {
     let cursor:{id:string;sender:string}|null=null;
     if(after){try{cursor=JSON.parse(Buffer.from(after,"base64url").toString("utf8"));}catch{throw new UserGrantError(400,"Invalid cursor");}

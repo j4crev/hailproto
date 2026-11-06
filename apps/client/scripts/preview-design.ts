@@ -153,6 +153,10 @@ const server = Bun.serve({hostname:'127.0.0.1',port,async fetch(request) {
   if(request.method!=='GET')return json({error:'This local design preview supports reading, appearance preferences, and message selection/deletion/restoration only.'},501);
   if(path==='/api/v1/account')return json({type:'racr.account',version:1,provider:origin,accountId:'019a15fd-2bd0-7433-8afa-bd0355e0608d',address,did,migrationState:null,custodyProfile:'managed',
     monitorVerificationMode:'reduced-assurance-alpha-v1',managedProfileVersion:'hail-managed-custody-v1',identityPublicKey:null,ownerRecoveryPublicKey:null,scopes:['account:read','grants:read','messages:read','messages:write']});
+  if(path==='/api/v1/account/unread-counts'){
+    const unread=messages.filter(m=>!m.isRead&&!trash.has(m.messageId)&&!deleted.has(m.messageId));
+    return json({subscriptions:unread.filter(m=>m.kind!=='connection').length,connections:unread.filter(m=>m.kind==='connection').length});
+  }
   if(path==='/api/v1/account/connection-inbox')return json({messages:fixtureGroups().filter(g=>g.representative).sort((a,b)=>b.activity.localeCompare(a.activity)).map(g=>({...messages.find(m=>connectionKey(m)===connectionKey(g.representative!)),conversation:{unreadCount:g.unread,lastActivity:g.activity,messages:g.received.map(m=>({sender:m.sender,messageId:m.messageId,isRead:m.isRead}))}})),next:null});
   if(path.startsWith('/api/v1/account/connection-threads/')){
     const root=path.slice('/api/v1/account/connection-threads/'.length),g=fixtureGroups().find(g=>g.messages.some(m=>connectionKey(m)===root));if(!g)return json({},404);

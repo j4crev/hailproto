@@ -507,6 +507,11 @@ integration("authenticated account API and real racr HTTPS CLI", () => {
     expect(await db.sql`SELECT message_id FROM delivered_messages WHERE sender_did=${senderDid} AND message_id=${id}`).toHaveLength(1);
     const ownerSession=(await accounts.authenticate(`Bearer ${ownerMessageCredential.token}`))!;
     const senderSession=(await accounts.authenticate(`Bearer ${senderCredential.token}`))!;
+    const countsUrl=`${origin}/api/v1/account/unread-counts`;
+    const countsHeaders={Authorization:`Bearer ${ownerMessageCredential.token}`};
+    expect(await (await app.request(countsUrl,{headers:countsHeaders})).json()).toEqual({subscriptions:6,connections:0});
+    expect((await app.request(countsUrl+'?after=x',{headers:countsHeaders})).status).toBe(400);
+    expect((await app.request(countsUrl,{method:'POST',headers:countsHeaders})).status).toBe(405);
     expect((await messaging.read(ownerSession,senderDid,id))?.isRead).toBe(false);
     expect(await messaging.setRead(senderSession,senderDid,id,true)).toBeNull();
     await messaging.setRead(ownerSession,senderDid,id,true);
@@ -514,7 +519,9 @@ integration("authenticated account API and real racr HTTPS CLI", () => {
     expect((await messaging.read(ownerSession,senderDid,id))?.isRead).toBe(true);
     expect((await messaging.inbox(ownerSession,null)).messages.find(m=>m.messageId===id)?.isRead).toBe(true);
     expect((await messaging.inboxFeed(ownerSession,null)).messages.find(m=>m.messageId===id)?.isRead).toBe(true);
+    expect(await messaging.unreadCounts(ownerSession)).toEqual({subscriptions:5,connections:0});
     await messaging.setRead(ownerSession,senderDid,id,false);
+    expect(await messaging.unreadCounts(ownerSession)).toEqual({subscriptions:6,connections:0});
     expect((await messaging.read(ownerSession,senderDid,id))?.isRead).toBe(false);
     expect(await messaging.trash.settings(ownerSession)).toEqual({trashEnabled:true,theme:null,showHeaderImages:null,startScreen:'feed'});
     // Old message age does not shorten a newly started Trash retention window.
@@ -522,6 +529,7 @@ integration("authenticated account API and real racr HTTPS CLI", () => {
     await messaging.trash.remove(senderSession,senderDid,id);
     expect(await messaging.read(ownerSession,senderDid,id)).not.toBeNull();
     await messaging.trash.remove(ownerSession,senderDid,id);
+    expect(await messaging.unreadCounts(ownerSession)).toEqual({subscriptions:5,connections:0});
     const rollbackTrash=(await Bun.file(new URL('../migrations/rollback/0076_message_trash.sql',import.meta.url)).text()).replace(/^BEGIN;\n/,'').replace(/COMMIT;\n$/,'');
     await expect(db.sql.begin(tx=>tx.unsafe(rollbackTrash))).rejects.toThrow('Restore or purge Trash');
     const first=(await messaging.inboxFeed(ownerSession,null,"all",true)).messages[0]!;

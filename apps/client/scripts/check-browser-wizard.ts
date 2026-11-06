@@ -294,6 +294,10 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     }
     return ownProfile?json(ownProfile):json({},404);
   }
+  if(path==="/api/v1/account/unread-counts")return json({
+    subscriptions:Number(incoming&&!readMessages.has(incomingId)&&!trashed.has(incomingId)&&!deleted.has(incomingId)),
+    connections:Number(connectionIncoming&&!readMessages.has(connectionIncomingId)&&!trashed.has(connectionIncomingId)&&!deleted.has(connectionIncomingId))
+  });
   if(path==="/api/v1/account/connection-inbox")return json({messages:connectionIncoming&&!deleted.has(connectionIncomingId)&&!trashed.has(connectionIncomingId)?[{...connectionReply(),conversation:{unreadCount:readMessages.has(connectionIncomingId)?0:1,lastActivity:connectionReply().deliveredAt,messages:[{sender:peerDid,messageId:connectionIncomingId,isRead:readMessages.has(connectionIncomingId)}]}}]:[],next:null});
   if(path.startsWith("/api/v1/account/connection-threads/"))return json({selected:{sender:peerDid,messageId:connectionIncomingId,sent:false},total:1,start:0,newerUnread:0,messages:[{sender:peerDid,messageId:connectionIncomingId,sent:false,isRead:readMessages.has(connectionIncomingId),createdAt:connectionReply().deliveredAt,senderAddress:peerAddress,title:'',preview:'A personal connection reply',recipients:[]}]});
   if(path==="/api/v1/account"||path==="/api/v1/account/inbox"){
@@ -694,10 +698,14 @@ try{
   incoming=true;
   avatarGate=new Promise<void>(resolve=>{releaseAvatars=resolve;});
   const accountReadsBefore=requests.filter(r=>r.path==='/api/v1/account').length;
+  const unreadReadsBefore=requests.filter(r=>r.path==='/api/v1/account/unread-counts').length;
   const messagePath=`/message/${encodeURIComponent(peerDid)}/${incomingId}`;
   await evaluate(`(()=>{const a=document.createElement('a');a.href=${JSON.stringify(messagePath)};a.textContent='Open received test';document.body.append(a);a.click();})()`);
   await wait(async()=>evaluate(`document.querySelector('button[aria-label="Reply"]')?.disabled===false`),"incoming reply action ready");
-  assert.equal(requests.filter(r=>r.path==='/api/v1/account').length-accountReadsBefore,1,'Layout and reader share one account read; marking read does not reload them');
+  assert.equal(requests.filter(r=>r.path==='/api/v1/account').length-accountReadsBefore,2,'Layout and reader share the initial account read; marking read refreshes the sidebar once');
+  assert.equal(requests.filter(r=>r.path==='/api/v1/account/unread-counts').length-unreadReadsBefore,2,'Unread counts load on navigation and refresh after marking read');
+  assert.equal(requests.filter(r=>r.path===`/api/v1/account/inbox/${encodeURIComponent(peerDid)}/${incomingId}/mark-read`).length,1,'Message is marked read once');
+  assert(await evaluate(`!document.querySelector('nav[aria-label="Main navigation"] a[href="/?view=subscriptions"] [aria-label$="unread messages"]')`),'Feed count clears after reading the last unread message');
   assert.equal(requests.filter(r=>r.path===`/api/v1/account/inbox/${encodeURIComponent(peerDid)}/${incomingId}`).length,1,'Message body loads once');
   assert(await evaluate(`!!document.querySelector('article header img[src*="/avatar/image"]')`),'Reader renders while photo request is pending');
   releaseAvatars();
@@ -732,6 +740,7 @@ try{
   await click('Mark unread');
   await wait(async()=>evaluate(`location.pathname==='/' && !!document.querySelector('[aria-label="Messages"] .message-row:not(.is-read)')`),'Mark unread returns to Inbox with unread styling');
   assert(!readMessages.has(incomingId));
+  assert(await evaluate(`!!document.querySelector('nav[aria-label="Main navigation"] a[href="/?view=subscriptions"] [aria-label="1 unread messages"]')`),'Feed count returns after marking unread');
   const feedImage='[aria-label="Messages"] img[alt="Bundled test header"]';
   await wait(async()=>evaluate(`!!document.querySelector(${JSON.stringify(feedImage)})`),"feed header ready");
   assert(await evaluate(`document.querySelector(${JSON.stringify(feedImage)}).src.startsWith('data:image/png;base64,')`),"Feed header remains bundled");

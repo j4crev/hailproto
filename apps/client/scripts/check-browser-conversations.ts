@@ -26,6 +26,14 @@ async function navigate(path:string,title:string){
  await evaluate('document.fonts.ready');
 }
 
+async function assertReadSettled(){
+ await wait(async()=>evaluate(`document.querySelector('.expanded .action-menu button')?.disabled===false`));
+ const state=()=>evaluate(`({reads:performance.getEntriesByType('resource').filter(e=>e.name.includes('/mark-read')).length,selected:document.querySelector('.expanded')?.id,rows:document.querySelectorAll('.conversation-item').length})`);
+ const before=await state();
+ await Bun.sleep(500);
+ assert.deepEqual(await state(),before,'Sidebar count refresh must not repeat mark-read, reset the selected message, or reset loaded rows');
+}
+
 const api=async()=>await(await fetch(origin+'/api/v1/account/inbox?kind=connections')).json();
 const grouped=async()=>await(await fetch(origin+'/api/v1/account/connection-inbox')).json();
 if(!sharedMode)for(const width of [1440,390,320]){
@@ -44,6 +52,7 @@ if(!sharedMode)for(const width of [1440,390,320]){
  assert.equal(await evaluate(`document.querySelector('.expanded').id`),'row-'+oldest.messageId);
  await wait(async()=>evaluate(`document.querySelectorAll('.conversation-item').length===34`));
  assert(await evaluate(`Array.from(document.querySelectorAll('.conversation-item')).filter(e=>!e.classList.contains('expanded')&&e.getBoundingClientRect().bottom>80&&e.getBoundingClientRect().bottom<=document.querySelector('.expanded').getBoundingClientRect().top).length>=2`),'Newer rows remain visible above the opened message');
+ await assertReadSettled();
  assert.equal((await grouped()).messages[0].conversation.unreadCount,39);
  assert(await evaluate(`document.querySelector('.expanded').textContent.includes(${JSON.stringify(oldest.sender)})`));
  assert(await evaluate(`!Array.from(document.querySelectorAll('button')).some(b=>b.textContent.includes('unread above'))`),'Newer replies require no button');
@@ -73,6 +82,7 @@ if(!sharedMode)for(const width of [1440,390,320]){
  assert.equal((await grouped()).messages[0].conversation.unreadCount,39);
  await evaluate(`document.querySelector('.conversation-item button.row-button').click()`);
  await wait(async()=> (await grouped()).messages[0].conversation.unreadCount===38);
+ await assertReadSettled();
  assert(await evaluate(`document.querySelector('.expanded').textContent.includes('maya@')`));
  assert.equal(await evaluate(`document.querySelectorAll('.expanded-body').length`),1);
  assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`));
@@ -92,6 +102,7 @@ if(sharedMode){
   await navigate(`/conversation/${encodeURIComponent(maya.sender)}/${maya.messageId}`,'Saturday at the market?');
   const button=(name:string)=>`Array.from(document.querySelectorAll('button')).find(b=>(b.getAttribute('aria-label')??b.textContent.trim())===${JSON.stringify(name)})`;
   await wait(async()=>evaluate(`Boolean(${button('Reply all')})`));
+  await assertReadSettled();
   assert(await evaluate(`${button('Reply all')}.disabled===false`));
   await evaluate(`${button('Reply all')}.click()`);
   await wait(async()=>evaluate(`document.querySelector('form.reply-form')?.action.endsWith('?/replyAll')`));
