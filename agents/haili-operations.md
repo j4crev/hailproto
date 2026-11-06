@@ -210,7 +210,7 @@ replacement and records five fields: previous commit, provider reference/ID and
 client reference/ID. For recovery from a pre-split backup, it also accepts a
 verified three-field combined-image record and restores that image for both
 services; unverified two-field records remain refused. Both images are verified
-before rollback changes checkout or containers. Keep the record, retained images,
+before rollback changes checkout or containers. Keep the record, its retained images,
 release selection and database overlays. Application rollback is never database
 rollback.
 
@@ -219,6 +219,15 @@ Backups record both references. Haili keeps its existing `deploy/public` directo
 Compose project, `gui` service name and data volumes to preserve operational
 identity. The independent fresh-install profile is `deploy/standalone`; do not
 substitute it on the existing host.
+
+The updated wrapper bounds automatic retention to images used by any container
+and the verified previous release, while preserving manual/foreign aliases.
+`image-retention` reports obsolete wrapper-created images; `image-retention --apply`
+removes only those images under the deployment lock. It also runs after successful
+rollouts, never after failed rollouts or as a low-space emergency prune. Minimum
+free-space gates are 3 GiB before pulls and 1 GiB afterward; `status` reports free
+space. Installation of the reviewed wrapper is separate from application rollout;
+see the [retention procedure](release-process.md#bounded-local-image-retention).
 
 Follow the [rollout procedure](release-process.md#routine-production-rollout--operators-and-agents)
 for publication, deployment, recovery and future wrapper maintenance.
