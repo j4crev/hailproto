@@ -39,6 +39,35 @@ implementation notes constitute a complete standard. See [the spec index](spec/R
 Read [the routine rollout procedure](agents/release-process.md#routine-production-rollout--operators-and-agents)
 and [production operations](agents/haili-operations.md) before deployment work.
 
+### “Deploy app to production” shorthand
+
+When the user says **“deploy app to production”** (or equivalent), treat it as
+authorization to complete this entire provider/web-client rollout for the current
+task, without asking for confirmation again at each step:
+
+1. Review the task's changes, run relevant local checks, and commit them on a
+   feature branch. Preserve unrelated edits; include all current changes only
+   when the user explicitly requests that scope.
+2. Push the branch and create or update its PR targeting `main`.
+3. Watch PR CI to completion. Diagnose and fix failures, push the fixes, and
+   repeat until all applicable checks pass. Respect required reviews and branch
+   protection; do not skip checks or bypass protections to release.
+4. Merge the verified PR, then wait for successful main verification of the exact
+   merged revision. If the work is already merged, start from this verification.
+5. Manually dispatch `publish-provider.yml` on `main`, verify its exact `headSha`,
+   and wait for the whole run to succeed. If `main` advances, review the additional
+   changes rather than silently deploying a different revision.
+6. Download `provider-release`, verify its commit and both immutable image
+   digests, complete the production preflight, and deploy through the installed
+   `hail-provider-ops` wrapper as specified in the rollout procedure.
+7. Verify running image references, service health, public homepage/readiness,
+   registration policy, database/Caddy uptime and rollback retention. Report the
+   PR, publication run and deployed commit, or the precise blocker if unfinished.
+
+The shorthand covers the application only, not the separately deployed monitor
+or installation of privileged operations tooling. The constraints below and the
+linked rollout procedure still apply.
+
 - Never build Docker images, run Vite, or package adapter-node on the live provider.
   Publish with `.github/workflows/publish-provider.yml` on GitHub Actions.
 - Deploy only the exact commit and both image digests from a successful publication run,
