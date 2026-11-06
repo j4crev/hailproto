@@ -332,3 +332,12 @@ after the existing Compose/database files. Preserve this file during backup and
 restore. The wrapper never rebuilds and recreates only GUI/provider, leaving
 PostgreSQL and Caddy running. Brief application restart time is still possible;
 this is not a rolling, zero-downtime deployment system.
+
+After separately installing the updated wrapper, successful deployments clean up
+obsolete wrapper-owned rollback images while retaining every container's images,
+the verified rollback pair and manual/foreign aliases. Preview cleanup with
+`hail-provider-ops image-retention`; explicitly apply it with `--apply`.
+Deploy refuses insufficient storage (3 GiB before pulls, 1 GiB afterward).
+See [bounded retention and installation](../../../../agents/release-process.md#bounded-local-image-retention).
+These commands never prune volumes, backups or build cache. Publishing application
+images alone does not update the root-owned operations wrapper.

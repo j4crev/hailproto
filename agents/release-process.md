@@ -162,12 +162,22 @@ do not replace it with the new fresh-install profile.
    sudo -n /usr/local/sbin/hail-provider-ops deploy FULL_COMMIT_SHA ghcr.io/j4crev/hail/provider@sha256:PROVIDER_DIGEST ghcr.io/j4crev/hail/provider-web-client@sha256:CLIENT_DIGEST
    ```
 
+   The updated wrapper requires at least 3 GiB available before pulling and
+   1 GiB after pulling on the checked storage filesystems (root, `/var/lib`,
+   checkout, Docker data root, and `/var/lib/containerd` when present). These
+   are minimum headroom checks, not a prediction of pull/backup size. A failed
+   check leaves the running services unchanged; it does not prune automatically
+   to make space.
+
    Both candidates are pulled and checked against the commit before backup or
    service replacement. The wrapper retains and verifies both running image IDs,
    writes independent selections in `/etc/hail-provider-release/compose.json`,
    and recreates only `gui` and `provider` with builds/pulls disabled. PostgreSQL
    and Caddy are not recreated. Failed startup/readiness restores both retained
-   images and the old checkout, and still reports failure.
+   images and the old checkout, and still reports failure. Only after readiness
+   and publication of the new rollback record does the updated wrapper remove
+   obsolete wrapper-created rollback images. Cleanup failure prints a warning;
+   the successful deployment and its rollback record remain in place.
 6. Verify the two expected image references, healthy services, public homepage and
    readiness, unchanged database/Caddy uptime, and absence of new OOM/database
    recovery events. Preserve the operator's public registration policy. Do not
@@ -179,7 +189,8 @@ A successful split deployment records five fields in
 `/var/lib/hail-provider-previous`: commit, retained provider reference, provider
 image ID, retained client reference, client image ID. Tags retain images locally,
 so rollback does not depend on a registry pull. Both identities are verified
-before changing checkout/selection. Never prune retained recovery images.
+before changing checkout/selection. Never prune the images named by the current
+verified rollback record or images referenced by any container.
 
 The wrapper can read a verified three-field combined-image record from a pre-split
 deployment, restoring that image for both services. It rejects unverified two-field
@@ -194,6 +205,46 @@ also match the selected revision.
 Backups record both application references, database version/image, `.env`,
 `release-compose.json` and the database overlay. Restore these together on the
 recorded PostgreSQL major. Never select an older database volume as image rollback.
+
+### Bounded local image retention
+
+This policy requires the updated root-owned wrapper; publishing application
+images does not install it. Through existing privileged operator access, preserve
+the previous wrapper, review the source diff, retain the host's configured checkout
+path (`/opt/hailproto` on the current Haili host; the example source uses
+`/opt/hail`), install the reviewed executable root-owned, and verify its SHA-256.
+Python 3 is required. Do not broaden sudo/SSH policy. Review the report before
+applying the initial cleanup:
+
+```bash
+sudo -n /usr/local/sbin/hail-provider-ops image-retention
+sudo -n /usr/local/sbin/hail-provider-ops image-retention --apply
+sudo -n /usr/local/sbin/hail-provider-ops status
+```
+
+The report is read-only. Apply and automatic post-deploy cleanup take the same
+lock as deployment/rollback. They protect every running or stopped container's
+image and the verified three- or five-field rollback record. Missing images,
+invalid identities, failed inventory commands, or a changing candidate plan stop
+cleanup. Only exact `hail-server-ts:rollback-<image-id>` and
+`hail-web-client:rollback-<image-id>` tags are eligible. Additional manual tags or
+foreign registry references preserve the entire image. Current Hail and historical
+`hailproto` provider/client GHCR digest references are recognized. Removal uses
+explicit tags with `docker image rm --no-prune`, never force or global prune;
+Docker removes associated digest references with the final tag.
+
+Normal deployments therefore retain the running release and one verified previous
+release, plus any explicitly kept images or images used by other containers.
+Failed deployment candidates without rollback tags and old manually named builds
+are outside this cleanup policy and require separate review. No container, volume,
+build cache, backup, database overlay, or registry artifact is deleted. After a
+manual rollback, the record remains protected and the former release's untagged
+registry images are not automatically cleaned up.
+
+Production builds remain prohibited: CI builds images and the host only pulls
+those images. Legacy build cache needs a one-time, separately authorized cleanup;
+image retention is not build-cache pruning. `status` reports available storage,
+and the deploy headroom checks provide a last gate against disk exhaustion.
 
 ### Build limits and verification
 
