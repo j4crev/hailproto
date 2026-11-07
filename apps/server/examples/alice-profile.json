@@ -1,7 +1,6 @@
 {
   "display_name": "Alice",
   "description": "Messages from Alice's Hail POC identity.",
-  "offers_uncategorized": false,
   "categories": [
     {
       "id": "updates",

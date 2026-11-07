@@ -14,9 +14,8 @@ it("makes public identity-pinned QR links and rejects malformed or credential-be
   expect(()=>senderLink("javascript:alert(1)","a@b.com",did)).toThrow();
 });
 
-it("labels General and keeps historical uncategorized permissions distinguishable",()=>{
+it("labels General and handles unavailable permissions",()=>{
   expect(subscriptionScopeLabel({type:"categories",values:["general","updates"]})).toBe("General, updates");
-  expect(subscriptionScopeLabel({type:"uncategorized"})).toBe("Legacy uncategorized");
   expect(subscriptionScopeLabel(undefined)).toBe("Permission unavailable");
 });
 

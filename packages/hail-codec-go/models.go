@@ -61,17 +61,16 @@ type SenderCategory struct {
 }
 
 type SenderProfile struct {
-	Type                string           `cbor:"type"`
-	Version             int64            `cbor:"version"`
-	DID                 string           `cbor:"did"`
-	Revision            int64            `cbor:"revision"`
-	DisplayName         string           `cbor:"display_name"`
-	Description         string           `cbor:"description,omitempty"`
-	OffersUncategorized bool             `cbor:"offers_uncategorized"`
-	Categories          []SenderCategory `cbor:"categories"`
-	Assets              *AssetManifest   `cbor:"assets,omitempty"`
-	UpdatedAt           int64            `cbor:"updated_at"`
-	KeyID               string           `cbor:"key_id"`
+	Type        string           `cbor:"type"`
+	Version     int64            `cbor:"version"`
+	DID         string           `cbor:"did"`
+	Revision    int64            `cbor:"revision"`
+	DisplayName string           `cbor:"display_name"`
+	Description string           `cbor:"description,omitempty"`
+	Categories  []SenderCategory `cbor:"categories"`
+	Assets      *AssetManifest   `cbor:"assets,omitempty"`
+	UpdatedAt   int64            `cbor:"updated_at"`
+	KeyID       string           `cbor:"key_id"`
 }
 
 func (SenderProfile) PayloadType() string { return SenderProfileType }

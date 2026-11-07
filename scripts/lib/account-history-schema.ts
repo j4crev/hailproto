@@ -109,7 +109,7 @@ export async function accountHistorySchema(sql:SQL):Promise<Schema>{
       connections:ref('connection-history'),connectionCheckpointDigest:digest,conversations:ref('conversation-history'),conversationCheckpointDigest:digest,
       tables:records(domain,tables)});
   }
-  return {$schema:'http://json-schema.org/draft-07/schema#',$id:'https://hailproto.com/schemas/account-history-v7-v8.json',
+  return {$schema:'http://json-schema.org/draft-07/schema#',$id:'https://racrproto.com/schemas/account-history-v7-v8.json',
     title:'Hail current account history: portable v7 / managed v8',
     description:'Storage-independent logical record contract for the current wire manifests. All records and fields are closed. Cross-record authority and consistency requirements are normative in account-history.md. The x-reference-storage annotations are informative only.',
     oneOf:[ref('portable'),ref('managed')],definitions};

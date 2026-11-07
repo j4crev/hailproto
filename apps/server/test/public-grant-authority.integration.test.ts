@@ -25,8 +25,7 @@ it.skipIf(!process.env.DATABASE_URL)("public Grant revisions/imports retain exac
       VALUES(${id!},${randomUUID()},${address!},${did!},'active',now(),${zero},'public')`;
     const binding:HailAddressBinding={type:"hail.address-binding",version:2,address:"sender@peer.example.com",did:grantee.did,
       issued_at:now,key_id:`${grantee.did}#hail-identity`};
-    const profile:HailSenderProfile={type:"hail.sender-profile",version:1,did:grantee.did,revision:1,display_name:"Sender",offers_uncategorized:false,
-      categories:[{id:"updates",label:"Updates"}],updated_at:now,key_id:`${grantee.did}#hail-messaging`};
+    const profile:HailSenderProfile={type:"hail.sender-profile",version:1,did:grantee.did,revision:1,display_name:"Sender",categories:[{id:"updates",label:"Updates"}],updated_at:now,key_id:`${grantee.did}#hail-messaging`};
     const bindingBytes=await signPayload("hail.address-binding",binding,createWebCryptoSigner(binding.key_id,grantee.identity.pair.privateKey));
     const profileBytes=await signPayload("hail.sender-profile",profile,createWebCryptoSigner(profile.key_id,grantee.messaging.pair.privateKey));
     const peer=await resolver.resolve(grantee.did),owner=await resolver.resolve(grantor.did);

@@ -144,11 +144,10 @@ v0 category IDs contain 1 to 64 ASCII characters. The first character is a lower
 
 For grant-authorized delivery:
 
-- `category` is required when the referenced grant uses `categories` scope.
+- `category` is required for every Grant-authorized envelope.
 - `category` must exactly equal one value in that scope.
-- `category` must be omitted when the grant uses `uncategorized` scope.
 
-For reply-authorized delivery, `category` must be omitted. A reply capability authorizes continuation of a specific conversation, not delivery under a sender category.
+For connection-, conversation-, and reply-authorized delivery, `category` must be omitted. A reply capability authorizes continuation of a specific conversation, not delivery under a sender category.
 
 ### `message_type`
 

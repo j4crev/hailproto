@@ -106,7 +106,6 @@ integration("GrantRepository PostgreSQL integration", () => {
       did: granteeDid,
       revision: 1,
       display_name: "Integration Grantee",
-      offers_uncategorized: false,
       categories: [{ id: "receipts", label: "Receipts" }],
       updated_at: now,
       key_id: `${granteeDid}#hail-messaging`,

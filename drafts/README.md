@@ -25,8 +25,10 @@ The first draft covers architecture and core Grant-authorized delivery, includin
 discovery, encoding/signatures, permission ordering, body retrieval, mandatory SPT
 profiles, status reporting, security/privacy, and registration work. Implemented
 connections, threaded replies, shared conversations, and provider transfer are
-identified as extensions, not mistaken for missing functionality. General
-attachments and advanced publisher layouts remain future work.
+identified as extensions, not mistaken for missing functionality. Detached
+PNG/JPEG/WebP/PDF/TXT/LOG attachments are also implemented and specified separately,
+with up to 20 files totaling 25 MiB per message. Additional attachment formats and
+advanced publisher layouts remain future work.
 
 It is grounded in the immutable specification snapshot at
 `d286113cd82024d009fb07cc60041f290047f148`. Some detailed normative semantics still
@@ -34,7 +36,8 @@ depend on that snapshot; this draft is explicitly **not yet a self-contained
 implementation specification**. Appendix A distinguishes missing editorial
 incorporation from unresolved protocol decisions. Appendix B maps chapters to
 source files. Appendix C carries the body CDDL excerpt; its comments are wrapped
-for RFC text layout, while its definitions match the snapshot.
+for RFC text layout, with attachment fields drawn from the separately pinned
+attachment specification at `360a249397ff11bdda8c028048545ff169c4fcc6`.
 
 Review the architecture and trust boundaries first, then the permission and
 failure semantics, then the open issues. In particular, seek feedback on historical

@@ -41,7 +41,6 @@ interface HailSenderProfileBase {
   revision: number;
   display_name: string;
   description?: string;
-  offers_uncategorized: boolean;
   categories: HailSenderCategory[];
   updated_at: number;
   key_id: string;
@@ -58,9 +57,7 @@ export interface HailSenderProfileV2 extends HailSenderProfileBase {
 
 export type HailSenderProfile = HailSenderProfileV1 | HailSenderProfileV2;
 
-export type HailGrantScope =
-  | { type: "categories"; values: string[] }
-  | { type: "uncategorized" };
+export type HailGrantScope = { type: "categories"; values: string[] };
 
 export interface HailConsentContext {
   grantee_address: string;

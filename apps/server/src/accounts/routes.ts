@@ -494,17 +494,17 @@ export function registerAccountApiRoutes(app: Hono, accounts: AccountApiReposito
         const input = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
         if (!input || typeof input !== "object" || Array.isArray(input) ||
           Object.keys(input).some(key => !["sender", "category", "scope", "expiresAt"].includes(key)) ||
-          typeof input.sender !== "string" || (input.scope===undefined ? input.category!==null&&typeof input.category!=="string" :
+          typeof input.sender !== "string" || (input.scope===undefined ? typeof input.category!=="string" :
             input.category!==undefined||!input.scope||typeof input.scope!=="object"||Array.isArray(input.scope)) ||
           (input.expiresAt !== null && !Number.isSafeInteger(input.expiresAt))) return problem(400);
         if(action === "managed-create") {
           if(!await accounts.isManaged(session.account_id))return problem(403);
           const saved=await service.createOrReuse(session.did,input.sender,
-            {scope:input.scope ?? (input.category===null?{type:"uncategorized"}:{type:"categories",values:[input.category]}),expiresAt:input.expiresAt});
+            {scope:input.scope ?? {type:"categories",values:[input.category]},expiresAt:input.expiresAt});
           return context.json({grantId:saved.payload.grant_id,revision:saved.payload.revision,status:saved.payload.status,digest:encodeBase64Url(saved.digest),publication:"durable"});
         }
         const payload = await service.prepareUserSignedGrant(session.did, input.sender,
-          { scope: input.scope ?? (input.category === null ? { type: "uncategorized" } : { type: "categories", values: [input.category] }), expiresAt: input.expiresAt });
+          { scope: input.scope ?? { type: "categories", values: [input.category] }, expiresAt: input.expiresAt });
         return context.json({ type: "racr.grant-proposal", version: 1, grant: toDiagnosticJson("hail.grant", payload) });
       }
       if (action === "list") {

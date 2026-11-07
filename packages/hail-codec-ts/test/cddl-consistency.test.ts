@@ -64,14 +64,11 @@ type ExpectedSenderProfileBase = {
   revision: number;
   display_name: string;
   description?: string;
-  offers_uncategorized: boolean;
   categories: ExpectedSenderCategory[];
   updated_at: number;
   key_id: string;
 };
-type ExpectedGrantScope =
-  | { type: "categories"; values: string[] }
-  | { type: "uncategorized" };
+type ExpectedGrantScope = { type: "categories"; values: string[] };
 type ExpectedConsentContext = {
   grantee_address: string;
   address_binding_hash: ExpectedDigest;
@@ -345,7 +342,6 @@ const REQUIRED_KEYS = {
     "did",
     "revision",
     "display_name",
-    "offers_uncategorized",
     "categories",
     "updated_at",
     "key_id",
@@ -545,12 +541,6 @@ describe("CDDL and TypeScript structural consistency", () => {
   }
 
   it("accepts every structural union branch", () => {
-    const uncategorizedGrant = record(
-      structuredClone(validPayload("hail.grant")),
-    );
-    uncategorizedGrant.scope = [{ type: "uncategorized" }];
-    expectStructuralAcceptance("hail.grant", uncategorizedGrant);
-
     const replyEnvelope = record(
       structuredClone(validPayload("hail.envelope")),
     );
@@ -657,15 +647,6 @@ describe("CDDL and TypeScript structural consistency", () => {
       path: readonly (string | number)[];
       required: string;
     }> = [];
-
-    const uncategorized = record(structuredClone(validPayload("hail.grant")));
-    uncategorized.scope = [{ type: "uncategorized" }];
-    cases.push({
-      type: "hail.grant",
-      value: uncategorized,
-      path: ["scope", 0],
-      required: "type",
-    });
 
     const replyAuthorization = record(
       structuredClone(validPayload("hail.envelope")),

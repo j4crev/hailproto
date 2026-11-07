@@ -17,7 +17,6 @@ pub async fn save(client: &Client, path: &str, update: bool) -> Result<Value, Er
             "version",
             "display_name",
             "description",
-            "offers_uncategorized",
             "categories",
             "avatar",
         ]
@@ -27,7 +26,6 @@ pub async fn save(client: &Client, path: &str, update: bool) -> Result<Value, Er
         .is_some_and(|v| v.as_f64() != Some(1.0) && v.as_f64() != Some(2.0))
         || !definition["display_name"].is_string()
         || object.get("description").is_some_and(|v| !v.is_string())
-        || !definition["offers_uncategorized"].is_boolean()
         || object.get("avatar").is_some_and(|v| {
             definition["version"].as_f64() != Some(2.0) || !v.is_null() && !v.is_string()
         })

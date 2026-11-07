@@ -55,8 +55,7 @@ integration("active Grant updates and consent refresh through HTTPS racr",()=>{
     const binding:HailAddressBinding={type:"hail.address-binding",version:2,address:senderAddress,did:senderDid,issued_at:now,key_id:`${senderDid}#hail-identity`};
     const bindingBytes=await signPayload("hail.address-binding",binding,createWebCryptoSigner(binding.key_id,senderIdentity.privateKey));
     address={address:senderAddress,did:senderDid,serviceBase:senderBase,identityDidKey:identity,messagingDidKey:messaging,plcEvidence:evidence,verifiedAt:new Date(),binding,representation:bindingBytes,digest:hash(bindingBytes)};
-    const payload:HailSenderProfile={type:"hail.sender-profile",version:1,did:senderDid,revision:1,updated_at:now,display_name:"Sender",offers_uncategorized:false,
-      categories:[{id:"general",label:"General"},{id:"receipts",label:"Receipts"},{id:"security",label:"Security"},{id:"updates",label:"Updates"}],key_id:`${senderDid}#hail-messaging`};
+    const payload:HailSenderProfile={type:"hail.sender-profile",version:1,did:senderDid,revision:1,updated_at:now,display_name:"Sender",categories:[{id:"general",label:"General"},{id:"receipts",label:"Receipts"},{id:"security",label:"Security"},{id:"updates",label:"Updates"}],key_id:`${senderDid}#hail-messaging`};
     const bytes=await signPayload("hail.sender-profile",payload,createWebCryptoSigner(payload.key_id,senderMessaging.privateKey));
     profile={did:senderDid,serviceBase:senderBase,messagingDidKey:messaging,profile:payload,representation:bytes,digest:hash(bytes),plcEvidence:evidence,verifiedAt:new Date(),etag:"profile"};
     for(const managed of [false,true]) {

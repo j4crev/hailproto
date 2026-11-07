@@ -100,7 +100,7 @@ The intended resolution chain is:
 human address -> DID -> current Hail service endpoint and verification keys
 ```
 
-Address-to-DID resolution uses a nonexpiring Hail Address Binding discovered through authenticated HTTPS WebFinger at the address domain. The WebFinger response selects one binding using the exact `https://hailproto.com/rel/address-binding` relation, and the selected binding separately verifies under the DID's `#hail-identity` key. Discovery follows the bounded redirect, SSRF, media-type, issuance-time, and one-hour maximum-cache rules in [`../spec/address-binding.md`](../spec/address-binding.md). Hail addresses are not written to `alsoKnownAs`, avoiding permanent address history in the public PLC log.
+Address-to-DID resolution uses a nonexpiring Hail Address Binding discovered through authenticated HTTPS WebFinger at the address domain. The WebFinger response selects one binding using the exact `https://racrproto.com/rel/address-binding` relation, and the selected binding separately verifies under the DID's `#hail-identity` key. Discovery follows the bounded redirect, SSRF, media-type, issuance-time, and one-hour maximum-cache rules in [`../spec/address-binding.md`](../spec/address-binding.md). Hail addresses are not written to `alsoKnownAs`, avoiding permanent address history in the public PLC log.
 
 Continuity-preserving provider migration fences the old provider, transfers the complete grant, reply, replay, delivery, status, cache-provenance, and verification-evidence serialization domain, then updates both `#hail-messaging` and `#hail`. The new provider starts only after durable import and after the PLC update satisfies the [current read-evidence policy](../spec/plc-read-evidence.md). The DID and DID-bound relationships remain stable.
 
@@ -172,8 +172,7 @@ Hail address
 
 The profile is retrieved from `GET {hail-service-base}/profiles/{sender_did}`. It is DID-scoped so one signed profile works with multiple independently verified addresses for that DID. The client displays the separately verified address alongside the profile rather than allowing profile metadata to claim an address.
 
-Sender Profile v1 contains a display name, optional description, whether
-uncategorized subscription is offered, stable category IDs with labels and
+Sender Profile v1 contains a display name, optional description, stable category IDs with labels and
 descriptions, revision, update time, and signer key. V2 may add one bounded,
 digest-bound bundled PNG avatar; remote assets, subscriber data, and
 recipient-specific state remain excluded. Profiles form a monotonic DID-scoped
@@ -208,7 +207,7 @@ Possible later mitigations:
 
 A Hail Grant is a recipient-created, recipient-signed authorization from one DID to another. The recipient server is authoritative, and the sender cannot create or expand consent on the recipient's behalf.
 
-v0 permits at most one active grant for a grantor/grantee DID pair and supports exactly one categorized or uncategorized scope selector. Every revision carries consent context committing to the verified Address Binding and Sender Profile shown during consent. A revision that adds or replaces an authorized category, or switches scope mode, requires fresh evidence and explicit opt-in; merely adding a category to a Sender Profile grants nothing. Restrictions and revocation preserve prior evidence and never depend on sender availability. Unknown scope types fail closed. Revocation is terminal for that grant ID, while expiration is nonterminal and may be renewed by a higher valid revision. A `grant_id` is only a lookup hint, never a bearer capability.
+v0 permits at most one active grant for a grantor/grantee DID pair and supports exactly one nonempty categories scope selector. Every revision carries consent context committing to the verified Address Binding and Sender Profile shown during consent. A revision that adds or replaces an authorized category, requires fresh evidence and explicit opt-in; merely adding a category to a Sender Profile grants nothing. Restrictions and revocation preserve prior evidence and never depend on sender availability. Unknown scope types fail closed. Revocation is terminal for that grant ID, while expiration is nonterminal and may be renewed by a higher valid revision. A `grant_id` is only a lookup hint, never a bearer capability.
 
 The complete grant schema, scope semantics, lookup rules, revision lifecycle, and HTTP publication behavior are defined in [`../spec/grants.md`](../spec/grants.md).
 

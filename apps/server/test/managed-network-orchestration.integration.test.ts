@@ -86,7 +86,7 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
         ${new TextEncoder().encode(JSON.stringify(genesis))},${new Uint8Array(encodeDagCbor(genesis))},${JSON.stringify(currentState)}::jsonb,'verified',now())`;
     const grantId=uuidV7(),grantee=`did:plc:${"f".repeat(24)}`,grantNow=Math.floor(Date.now()/1000),grant:HailGrant={
       type:"hail.grant",version:1,grant_id:grantId,revision:1,previous:null,grantor:did,grantee,
-      scope:[{type:"uncategorized"}],status:"active",issued_at:grantNow,updated_at:grantNow,expires_at:null,
+      scope:[{type:"categories",values:["general"]}],status:"active",issued_at:grantNow,updated_at:grantNow,expires_at:null,
       consent_context:{grantee_address:"peer@peer.example.com",address_binding_hash:{algorithm:"sha-256",value:randomBytes(32)},
         sender_profile_hash:{algorithm:"sha-256",value:randomBytes(32)}},key_id:`${did}#hail-identity`};
     const terminalGrantId=uuidV7(),terminalGrant:HailGrant={...grant,grant_id:terminalGrantId,status:"revoked"},
@@ -128,7 +128,7 @@ integration.each(["poc-local","strict-public-v1"] as const)("materializes an exa
       expires_at,available_until) VALUES (${bodyTokenHash},${bodyHash},${accountId},${grantee},${uuidV7()},
         ${grantNow+7200},${grantNow+7200})`;
     const incomingId=uuidV7(),remotePair=await crypto.subtle.generateKey("Ed25519",true,["sign","verify"]),incoming:HailEnvelope={
-      type:"hail.envelope",version:1,message_id:incomingId,from:grantee,to:did,authorization:{type:"grant",grant_id:grantId},
+      type:"hail.envelope",version:1,message_id:incomingId,from:grantee,to:did,authorization:{type:"grant",grant_id:grantId},category:"general",
       created_at:grantNow,expires_at:grantNow+3600,body:{digest:{algorithm:"sha-256",value:bodyHash},size:bodyBytes.length,
         media_type:"application/hail-body+cbor",profile:"spt-1",available_until:grantNow+31*86400,
         access:{type:"bearer",token:randomBytes(32),expires_at:grantNow+31*86400}},reply:{allowed:false}};

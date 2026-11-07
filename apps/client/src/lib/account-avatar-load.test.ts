@@ -5,8 +5,7 @@ vi.mock("$lib/server/canary.js", () => ({canaryAccount: async () => ({account: {
 import {load} from "../routes/account/+page.server.js";
 afterEach(() => vi.resetAllMocks());
 it("loads the saved avatar and current revision for editing", async () => {
-  mocks.profile.mockResolvedValue({payload: {did: "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa", version: 2, revision: 7, display_name: "Alice", offers_uncategorized: false,
-    categories: [{id: "general", label: "General"}], assets: {assets: [{data: new Uint8Array([1, 2, 3])}]}}});
+  mocks.profile.mockResolvedValue({payload: {did: "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa", version: 2, revision: 7, display_name: "Alice", categories: [{id: "general", label: "General"}], assets: {assets: [{data: new Uint8Array([1, 2, 3])}]}}});
   expect(await load({cookies: {}, url: new URL("https://example.com/account")} as never)).toMatchObject({revision: 7, definition: {avatar: "AQID", display_name: "Alice"}});
 });
 it("only treats a missing profile as new, and refuses mismatched identity", async () => {

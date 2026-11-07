@@ -497,6 +497,9 @@ const unknownAddressMember = {
   unknown: true,
 };
 const negativePayload: Array<{id:string;type:string;hex:string;expected_error:string;cddl_valid?:boolean}> = [
+  {id: "grant-envelope-category-required", type: "hail.envelope",
+    hex: hex(encode(Object.fromEntries(Object.entries(envelope).filter(([key])=>key!=="category")),rfc8949EncodeOptions)), expected_error:"schema-violation",cddl_valid:true},
+
   {
     id: "grant-previous-absent",
     type: "hail.grant",

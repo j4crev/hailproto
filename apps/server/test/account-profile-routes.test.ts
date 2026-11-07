@@ -14,7 +14,7 @@ it("creates and reads an authenticated Sender Profile",async()=>{
     createOrReuse:vi.fn(async(_address:string,definition:Record<string,unknown>,expected:number)=>{
       const revision=(current?.revision??0)+1;expect(expected).toBe(revision-1);
       const common={type:"hail.sender-profile" as const,did,revision,display_name:definition.display_name as string,
-        offers_uncategorized:false,categories:[{id:"updates",label:"Updates"}],updated_at:revision,key_id:`${did}#hail-messaging`};
+        categories:[{id:"updates",label:"Updates"}],updated_at:revision,key_id:`${did}#hail-messaging`};
       current={id:crypto.randomUUID(),accountId:crypto.randomUUID(),did,revision,
         payload:definition.version===2?{...common,version:2,assets:{version:1,assets:[definition.avatar as never]}}:{...common,version:1},
         cose:new Uint8Array([revision]),digest:new Uint8Array(32),signingPublicKey:"did:key:zTest",updatedAt:revision,createdAt:new Date()};
@@ -31,20 +31,18 @@ it("creates and reads an authenticated Sender Profile",async()=>{
   const headers={Authorization:"Bearer test","Content-Type":"application/json"};
   expect((await app.request("/api/v1/account/profile",{headers:{Authorization:"Bearer test"}})).status).toBe(404);
   const created=await app.request("/api/v1/account/profile",{method:"POST",headers,
-    body:JSON.stringify({expectedRevision:0,definition:{display_name:"Alice",offers_uncategorized:false,
-      categories:[{id:"updates",label:"Updates"}]}})});
+    body:JSON.stringify({expectedRevision:0,definition:{display_name:"Alice",categories:[{id:"updates",label:"Updates"}]}})});
   expect(created.status).toBe(200);expect(await created.json()).toMatchObject({type:"racr.sender-profile",revision:1});
   const shown=await app.request("/api/v1/account/profile",{headers:{Authorization:"Bearer test"}});
   expect(shown.status).toBe(200);expect(await shown.json()).toMatchObject({profile:{display_name:"Alice"}});
   const avatar=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=","base64").toString("base64url");
   const updated=await app.request("/api/v1/account/profile",{method:"POST",headers,
-    body:JSON.stringify({expectedRevision:1,definition:{version:2,display_name:"Alice",offers_uncategorized:false,
-      categories:[{id:"updates",label:"Updates"}],avatar}})});
+    body:JSON.stringify({expectedRevision:1,definition:{version:2,display_name:"Alice",categories:[{id:"updates",label:"Updates"}],avatar}})});
   expect(updated.status).toBe(200);expect(await updated.json()).toMatchObject({revision:2,profile:{version:2}});
   const sender=await app.request(`/api/v1/account/senders/${did}/profile`,{headers:{Authorization:"Bearer test"}});
   expect(sender.status).toBe(200);expect(await sender.json()).toMatchObject({type:"racr.verified-sender-profile",did,revision:2});
   expect((await app.request("/api/v1/account/profile",{method:"POST",headers,
-    body:JSON.stringify({expectedRevision:0,definition:{display_name:"Alice",offers_uncategorized:false,categories:[],extra:true}})})).status).toBe(400);
+    body:JSON.stringify({expectedRevision:0,definition:{display_name:"Alice",categories:[],extra:true}})})).status).toBe(400);
 });
 
 it("limits browser profile writes to fresh same-origin passkey sessions without broadening account scopes",async()=>{
@@ -52,13 +50,12 @@ it("limits browser profile writes to fresh same-origin passkey sessions without 
     scopes:["account:read"],migration_state:null as string|null,serving_generation:1,
     passkey_credential_id:"passkey" as string|null,passkey_verified_at:new Date()};
   const profiles={getLatest:vi.fn(async()=>null),createOrReuse:vi.fn(async()=>({revision:1,digest:new Uint8Array(32),cose:new Uint8Array([1]),
-    payload:{type:"hail.sender-profile",version:1,did:session.did,revision:1,display_name:"Alice",offers_uncategorized:false,
-      categories:[{id:"general",label:"General"}],updated_at:1,key_id:session.did+"#hail-messaging"}}))};
+    payload:{type:"hail.sender-profile",version:1,did:session.did,revision:1,display_name:"Alice",categories:[{id:"general",label:"General"}],updated_at:1,key_id:session.did+"#hail-messaging"}}))};
   const accounts={authenticate:vi.fn(async()=>session)} as unknown as AccountApiRepository;
   const app=createApp({publicOrigin:"https://example.com",hailServiceBase:"https://example.com/hail",providerId:"test",passkeys:{origin:"https://example.com"}} as AppConfig,
     {accountApi:{accounts,grants:{} as GrantRepository,service:{} as GrantService,profiles:profiles as unknown as SenderProfileService},async checkReadiness(){return {ready:true};}});
   const headers={Cookie:"hail_session=test",Origin:"https://example.com","Content-Type":"application/json"};
-  const body=JSON.stringify({expectedRevision:0,definition:{display_name:"Alice",offers_uncategorized:false,categories:[{id:"general",label:"General"}]}});
+  const body=JSON.stringify({expectedRevision:0,definition:{display_name:"Alice",categories:[{id:"general",label:"General"}]}});
   const save=(h:Record<string,string>=headers)=>app.request("/api/v1/account/profile",{method:"POST",headers:h,body});
   expect((await save({...headers,Origin:"https://other.example"})).status).toBe(403);
   session.passkey_verified_at=new Date(Date.now()-11*60_000);
@@ -69,7 +66,7 @@ it("limits browser profile writes to fresh same-origin passkey sessions without 
   expect((await save({Authorization:"Bearer read-only","Content-Type":"application/json"})).status).toBe(403);
   for(const categories of [[],[{id:"general",label:"Renamed"}],[{id:"general",label:"General",description:"Changed"}],
     [{id:"general",label:"General"},{id:"general",label:"General"}]]){
-    const invalid={expectedRevision:0,definition:{display_name:"Alice",offers_uncategorized:false,categories}};
+    const invalid={expectedRevision:0,definition:{display_name:"Alice",categories}};
     expect((await app.request("/api/v1/account/profile",{method:"POST",headers,body:JSON.stringify(invalid)})).status).toBe(400);
   }
   expect(profiles.createOrReuse).not.toHaveBeenCalled();

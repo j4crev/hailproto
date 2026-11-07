@@ -68,8 +68,7 @@ authorize anything automatically. Connection codes and existing connections live
 passkey security. Organization semantics are not implemented.
 
 New subscriptions select explicit categories, including General when offered,
-through the normal passkey approval. Uncategorized subscription creation is no
-longer supported; no migration command or conversion UI is needed. See
+through the normal passkey approval. Category-free messages use connections or replies. See
 [the staged relationship changes](../../docs/subscriptions-and-connections.md).
 
 ## Account profile photo
@@ -286,7 +285,7 @@ General is built-in and fixed (ID `general`, label `General`, no description).
 Browser saves add or normalize it without changing existing subscriptions; up to
 99 custom categories remain editable. API clients retain optional General.
 Published category IDs stay fixed; category removal does not revoke old Grants.
-Existing profile versions, avatars, and legacy uncategorized settings are retained.
+Existing profile versions and avatars are retained.
 
 Every browser save verifies a passkey and sends the revision the editor loaded.
 Conflicts retain the draft and require loading the latest profile; uncertain saves

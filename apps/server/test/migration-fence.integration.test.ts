@@ -259,8 +259,7 @@ integration("fenced transfer and concurrent cutover", () => {
     destinationMessagingPublicKey = requestRecord.destination_messaging_key;
     const profile: HailSenderProfile = {
       type: "hail.sender-profile", version: 1, did, revision: 1,
-      display_name: "Transfer Fixture", offers_uncategorized: false,
-      categories: [{ id: "updates", label: "Updates" }], updated_at: now,
+      display_name: "Transfer Fixture", categories: [{ id: "updates", label: "Updates" }], updated_at: now,
       key_id: `${did}#hail-messaging`,
     };
     const profileCose = await signPayload("hail.sender-profile", profile,

@@ -51,6 +51,18 @@ Grant delivery. New direct replies use v3 rather than the historical unthreaded
 v1 reply representation. Historical Sender Profile v1 and connection-grant objects
 may remain in codecs or retained evidence, but are not required creation formats.
 
+## Subscription categories
+
+Subscription Grants contain exactly one `categories` selector with a nonempty
+set of explicitly offered category IDs. Grant-authorized envelopes MUST contain
+one of those categories. General (`general`) is the reference client's default
+category and follows the same consent rules as every other category; it is not
+a wildcard. Sender Profiles advertise subscription choices through `categories`.
+An empty list means no subscriptions are offered.
+
+Connection, reply-capability, and shared-conversation authorization are separate
+from subscription Grants. Their messages MUST NOT contain a category.
+
 ## Reference client namespace
 
 The reference provider's account API and client state use `racr.*` type names,

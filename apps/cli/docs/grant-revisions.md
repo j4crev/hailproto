@@ -26,9 +26,9 @@ Managed accounts omit `--vault`; a supplied owner vault is rejected. Owner
 signing unlocks only identity, never PLC recovery. Both profiles require an
 active authenticated `grants:write` credential; CLI review also reads account
 and Grant state. Categorized updates select one or more unique category IDs,
-sorted bytewise, with no wildcard. `--uncategorized` is mutually exclusive.
+sorted bytewise, with no wildcard.
 Use the existing signed `grant revoke` when removing the last selected choice;
-there is no implicit switch to uncategorized delivery.
+there is no implicit replacement category.
 For category unsubscription, pass the category IDs you want to keep to
 `grant update`; categories omitted from that complete selection are removed.
 Use `grant revoke` when none should remain.
@@ -43,7 +43,7 @@ Revocation remains terminal for that grant ID.
 
 ## Consent policy
 
-- Adding/replacing categories, switching categorized/uncategorized delivery,
+- Adding/replacing categories,
   extending expiry or removing an expiry requires current verified Address
   Binding and Sender Profile evidence. All selected choices must be offered.
   The provider rechecks exact evidence hashes at submission, not just proposal.

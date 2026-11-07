@@ -109,7 +109,7 @@ validation is not itself proof of when an old Hail object was accepted.
 
 ### 2. Preconditions And Discovery
 
-Before grant creation, the recipient verifies the sender's Address Binding and current signed Sender Profile, displays the verified address separately from profile metadata, and selects only offered categories or uncategorized delivery. Before initial delivery, a sender resolves a human-readable recipient address through its signed Address Binding when necessary, then resolves the recipient DID's current `#hail` service and keys. Routine federation between known DIDs resolves the DID directly and does not re-resolve a human-readable address on every operation.
+Before grant creation, the recipient verifies the sender's Address Binding and current signed Sender Profile, displays the verified address separately from profile metadata, and selects one or more offered categories. Before initial delivery, a sender resolves a human-readable recipient address through its signed Address Binding when necessary, then resolves the recipient DID's current `#hail` service and keys. Routine federation between known DIDs resolves the DID directly and does not re-resolve a human-readable address on every operation.
 
 The DID profile distinguishes the POC cache rules from the current strict-public
 fresh-read policy. Canonical service-base URLs, endpoint refresh, redirect

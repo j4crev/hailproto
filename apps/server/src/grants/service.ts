@@ -44,7 +44,6 @@ export class UserGrantError extends Error {
 
 function normalizeScope(scope: HailGrantScope): HailGrantScope {
   if(!scope||typeof scope!=="object"||Array.isArray(scope))throw new UserGrantError(400,"Invalid Grant scope");
-  if (scope.type === "uncategorized") throw new UserGrantError(400,"New subscriptions require named categories; use general for General");
   if(scope.type!=="categories"||Object.keys(scope).length!==2||!Array.isArray(scope.values)||!scope.values.length||
     new Set(scope.values).size!==scope.values.length||scope.values.some(value=>typeof value!=="string"||!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(value)))throw new UserGrantError(400,"Invalid selected categories");
   return {
@@ -57,12 +56,6 @@ function validateScopeAgainstProfile(
   scope: HailGrantScope,
   profile: Awaited<ReturnType<SenderProfileVerifier["verify"]>>["profile"],
 ): void {
-  if (scope.type === "uncategorized") {
-    if (!profile.offers_uncategorized) {
-      throw new Error("Grantee Sender Profile does not offer uncategorized messages");
-    }
-    return;
-  }
   const offered = new Set(profile.categories.map((category) => category.id));
   if (scope.values.length === 0 || scope.values.some((category) => !offered.has(category))) {
     throw new Error("Grant scope contains a category not offered by the grantee Sender Profile");
@@ -247,7 +240,6 @@ export class GrantService {
       }
       return { ...signed, receivedAt: this.now() };
     }
-    if(payload.scope[0]?.type==="uncategorized")throw new UserGrantError(400,"New subscriptions require named categories; use general for General");
     if(payload.revision>1) {
       if(!retained||retained.localRole!=="grantor"||retained.localAccountId!==grantor.id||retained.payload.status!=="active"||
         retained.signingPublicKey!==resolved.identityDidKey||payload.revision!==retained.payload.revision+1||!payload.previous||

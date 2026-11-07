@@ -75,8 +75,7 @@ const grants = await Promise.all(senders.slice(0,3).map(async sender => {
   const bytes = await signPayload('hail.grant',payload,signer);
   return {payload,representation:{type:'racr.grant',version:1,cose:encodeBase64Url(bytes),digest:await digest(bytes),localRole:'grantor'}};
 }));
-const profile: HailSenderProfile = {type:'hail.sender-profile',version:2,did,revision:1,display_name:'Jamie Davis',description:'Notes from the neighborhood.',offers_uncategorized:false,
-  categories:[{id:'essays',label:'Essays',description:'Occasional thoughts and discoveries.'},{id:'general',label:'General'}],updated_at:Math.floor(started/1000),key_id:did+'#hail-messaging'};
+const profile: HailSenderProfile = {type:'hail.sender-profile',version:2,did,revision:1,display_name:'Jamie Davis',description:'Notes from the neighborhood.',categories:[{id:'essays',label:'Essays',description:'Occasional thoughts and discoveries.'},{id:'general',label:'General'}],updated_at:Math.floor(started/1000),key_id:did+'#hail-messaging'};
 const profileBytes = await signPayload('hail.sender-profile',profile,createWebCryptoSigner(profile.key_id,keys.privateKey));
 const profileResponse = {type:'racr.sender-profile',version:1,revision:1,cose:encodeBase64Url(profileBytes),digest:await digest(profileBytes)};
 const drafts = new Map<string,Draft>();

@@ -111,8 +111,7 @@ integration("self-service custody profiles and credentials",()=>{
         peer=[...log.keys()].find(value=>value!==created.did)!;
         const peerAccount=(await repository.getAccountByDid(peer))!,key=await repository.getKey(peerAccount.id,"hail-messaging"),resolved=await resolver.resolve(peer);
         const secret=await encryptor.decrypt(peerAccount.id,key.role,key.algorithm,key.publicKey,key);
-        const profile:HailSenderProfile={type:"hail.sender-profile",version:1,did:peer,revision:1,display_name:"Peer",offers_uncategorized:false,
-          categories:[{id:"updates",label:"Updates"}],updated_at:Math.floor(Date.now()/1000),key_id:`${peer}#hail-messaging`};
+        const profile:HailSenderProfile={type:"hail.sender-profile",version:1,did:peer,revision:1,display_name:"Peer",categories:[{id:"updates",label:"Updates"}],updated_at:Math.floor(Date.now()/1000),key_id:`${peer}#hail-messaging`};
         const bytes=await signPayload("hail.sender-profile",profile,createWebCryptoSigner(profile.key_id,await importEd25519PrivateKey(secret)));secret.fill(0);
         verifiedProfile={did:peer,serviceBase:base,messagingDidKey:key.publicKey,profile,representation:bytes,
           digest:new Uint8Array(createHash("sha256").update(bytes).digest()),plcEvidence:resolved.evidence,verifiedAt:new Date(),etag:"fixture"};
@@ -198,7 +197,7 @@ integration("self-service custody profiles and credentials",()=>{
       const aged=await showBinding(client);
       expect(aged).toMatchObject({status:"active",issuedAt:agedPayload.issued_at});
       expect(aged).not.toHaveProperty("expiresAt");expect(aged).not.toHaveProperty("renewalDue");
-      const webfinger=`${origin}/.well-known/webfinger?resource=${encodeURIComponent(`acct:${address}`)}&rel=${encodeURIComponent("https://hailproto.com/rel/address-binding")}`;
+      const webfinger=`${origin}/.well-known/webfinger?resource=${encodeURIComponent(`acct:${address}`)}&rel=${encodeURIComponent("https://racrproto.com/rel/address-binding")}`;
       const artifact=(id:string)=>`${origin}/.well-known/hail/addresses/${id}`;
       expect((await app.request(webfinger)).status).toBe(200);
       expect((await app.request(artifact(agedId))).status).toBe(200);

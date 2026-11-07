@@ -68,7 +68,6 @@ export const senderProfile: HailSenderProfile = {
   revision: 1,
   display_name: "Example Store",
   description: "Receipts and account notifications",
-  offers_uncategorized: false,
   categories: [
     { id: "receipts", label: "Receipts" },
     { id: "security-alerts", label: "Security alerts" },

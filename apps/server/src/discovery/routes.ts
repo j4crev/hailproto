@@ -3,7 +3,7 @@ import type { Hono } from "hono";
 import { canonicalizeHailAddress } from "../identity/address.js";
 import type { DiscoveryStore } from "./store.js";
 
-export const ADDRESS_BINDING_REL = "https://hailproto.com/rel/address-binding";
+export const ADDRESS_BINDING_REL = "https://racrproto.com/rel/address-binding";
 export const COSE_SIGN1_MEDIA_TYPE = 'application/cose; cose-type="cose-sign1"';
 
 function notFound(): Response {

@@ -263,7 +263,7 @@ func preflightGrant(v *Grant) error {
 			}
 			previous = current
 		}
-	} else if selector.Type != "uncategorized" || len(selector.Values) != 0 {
+	} else {
 		return errors.New("invalid scope selector")
 	}
 	if v.Status != "active" && v.Status != "revoked" {
@@ -301,7 +301,7 @@ func preflightEnvelope(v *Envelope) error {
 		return err
 	}
 	if v.Authorization.Type == "grant" {
-		if v.Version != 1 || v.Authorization.ConnectionID != "" || v.Authorization.Epoch != 0 || v.Authorization.ReplyTo != "" || uuid(v.Authorization.GrantID, "$.authorization.grant_id") != nil {
+		if v.Version != 1 || v.Category == "" || v.Authorization.ConnectionID != "" || v.Authorization.Epoch != 0 || v.Authorization.ReplyTo != "" || uuid(v.Authorization.GrantID, "$.authorization.grant_id") != nil {
 			return errors.New("invalid grant authorization")
 		}
 	} else if v.Authorization.Type == "reply" {

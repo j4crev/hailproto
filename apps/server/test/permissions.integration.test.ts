@@ -67,8 +67,7 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
       await expect(emptyRollback.unsafe(await Bun.file(new URL("../migrations/rollback/0059_grant_approvals.sql",import.meta.url)).text())).rejects.toThrow("prevent rollback");
     }finally{await emptyRollback.unsafe("ROLLBACK");emptyRollback.release();}
     expect(await snapshot()).toBe(keysBefore);
-    const now=Math.floor(Date.now()/1000),profile={type:"hail.sender-profile" as const,version:1 as const,did:peerDid,revision:1,updated_at:now,display_name:"Peer",offers_uncategorized:true,
-      categories:[{id:"receipts",label:"Receipts"},{id:"updates",label:"Updates"}],key_id:peerDid+"#hail-messaging"};
+    const now=Math.floor(Date.now()/1000),profile={type:"hail.sender-profile" as const,version:1 as const,did:peerDid,revision:1,updated_at:now,display_name:"Peer",categories:[{id:"receipts",label:"Receipts"},{id:"updates",label:"Updates"}],key_id:peerDid+"#hail-messaging"};
     const binding={type:"hail.address-binding" as const,version:2 as const,address:"peer@peer.example.com",did:peerDid,issued_at:now,key_id:peerDid+"#hail-identity"};
     const signer=createWebCryptoSigner(peerDid+"#hail-identity",identity.privateKey),profileBytes=await signPayload("hail.sender-profile",profile,createWebCryptoSigner(peerDid+"#hail-messaging",identity.privateKey)),bindingBytes=await signPayload("hail.address-binding",binding,signer);
     const address:VerifiedAddress={address:binding.address,did:peerDid,serviceBase:"https://peer.example.com/hail",identityDidKey:didKey,messagingDidKey:didKey,
@@ -137,9 +136,7 @@ it.skipIf(!process.env.DATABASE_URL)("approves only exact managed permissions wi
     const expiry=vi.spyOn(Date,"now").mockReturnValue(Date.now()+7*60_000);
     try{await expect(permissions.commit(session,stale.requestId)).rejects.toMatchObject({status:410});expect((await permissions.status(session,revocation.requestId)).result).toEqual(done.result);}finally{expiry.mockRestore();}
     peerDown=false;
-    await expect(permissions.prepare(session,{...input,requestId:randomUUID(),scope:{type:"uncategorized"}})).rejects.toMatchObject({status:400});
-    await expect(service.prepareUserSignedGrant(session.canonical_address,binding.address,{scope:{type:"uncategorized"},expiresAt:null})).rejects.toMatchObject({status:400});
-    const generalProfile={...profile,revision:2,updated_at:now+1,offers_uncategorized:false,categories:[{id:"general",label:"General"},...profile.categories]};
+    const generalProfile={...profile,revision:2,updated_at:now+1,categories:[{id:"general",label:"General"},...profile.categories]};
     const generalBytes=await signPayload("hail.sender-profile",generalProfile,createWebCryptoSigner(peerDid+"#hail-messaging",identity.privateKey));
     senderProfile={...senderProfile,profile:generalProfile,representation:generalBytes,digest:digest(generalBytes),etag:encodeBase64Url(digest(generalBytes))};
     const generalReview=await permissions.review(session,{sender:binding.address});

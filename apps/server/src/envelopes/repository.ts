@@ -268,8 +268,7 @@ export class EnvelopeRepository {
       const selector = Array.isArray(scope) ? scope[0] : null;
       const permitted = lineage.current_status === "active" &&
         (lineage.expires_at === null || Number(lineage.expires_at) >= now) &&
-        ((selector?.type === "categories" && typeof payload.category === "string" && selector.values?.includes(payload.category)) ||
-         (selector?.type === "uncategorized" && payload.category === undefined));
+        (selector?.type === "categories" && typeof payload.category === "string" && selector.values?.includes(payload.category));
       const deadline = Math.min(payload.expires_at + 300, payload.body.available_until, payload.body.access.expires_at);
       const outcome = now > deadline ? "message-expired" : permitted ? "accepted" : "unauthorized";
       const inserted = await this.insertReceived(tx, input, grantId, null, outcome, now);

@@ -65,7 +65,6 @@ it.skipIf(!process.env.DATABASE_URL)(
       const profiles = new SenderProfileService(repository, encryptor, resolver, base);
       const profile = await profiles.createOrReuse("alice@local.example.com", {
         display_name: "Alice",
-        offers_uncategorized: false,
         categories: [],
       });
       expect(await db.sql`
@@ -83,7 +82,6 @@ it.skipIf(!process.env.DATABASE_URL)(
       const staleProfiles = new SenderProfileService(repository, encryptor, staleResolver, base);
       await expect(staleProfiles.createOrReuse("alice@local.example.com", {
         display_name: "Changed",
-        offers_uncategorized: false,
         categories: [],
       })).rejects.toThrow("stale");
       expect(await db.sql`SELECT revision FROM sender_profiles WHERE account_id = ${accountId}`).toHaveLength(1);
