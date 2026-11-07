@@ -451,12 +451,24 @@ The proof of concept must:
 1. Measure complete local validation paths on representative supported hardware.
 2. Select a minimum response bound above normal validation time instead of guessing a duration in the protocol specification.
 3. Return no protected generic response before that bound.
-4. Impose a processing deadline so network-dependent DID resolution cannot make preliminary misses distinguishable through unbounded latency.
+4. Impose a processing deadline to bound public-key work; protected relationship lookups occur only after signature verification.
 5. Return the scheduled generic receipt when authenticated detailed processing cannot finish within the bound; processing may continue asynchronously.
 6. Rate-limit abusive sources before expensive cryptographic or network work where this does not disclose protected state.
-7. Test repeated timing observations across unavailable local-account state, absent grants, absent reply records, unknown keys, invalid signatures, revoked grants, duplicates, and successful acceptance.
+7. Ensure that externally observable admission outcomes (including `429`) do not
+   depend on how long protected preliminary lookups or validation occupy work
+   slots. Fixed admission lifetimes and a separate concealed processing cap are
+   one possible implementation. Cancellation-ignoring operations must remain
+   counted against the processing cap until they actually settle.
+8. Test burst-and-probe observations of shared capacity, as well as repeated timing observations across unavailable local-account state, absent grants, absent reply records, unknown keys, invalid signatures, revoked grants, duplicates, and successful acceptance.
 
 Safe transport errors may be rejected before this schedule because their selection is independent of protected state.
+
+Grant publication MUST also bound aggregate concurrent body reading, key resolution,
+and verification before authentication; an IP rate limit alone is insufficient.
+Concurrent resolution of the same DID may share an observation, but a required
+subsequent refresh must perform a fresh read. Unauthenticated requests MUST NOT
+cause unbounded durable resolution-evidence growth. The reference provider uses
+read-only authentication observations and retains evidence for admitted writes.
 
 ## Synchronous And Asynchronous Results
 

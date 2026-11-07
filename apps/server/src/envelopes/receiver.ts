@@ -25,10 +25,8 @@ export class EnvelopeReceiver {
       const payload = inspected.payload;
       if (payload.from === payload.to ||
         payload.created_at > this.now() + 300 || representation.length > 16_384) return "ignored";
-      // The claimed fields are used only for a cheap preliminary lookup, never for a durable mutation.
-      if (!await this.store.candidate(payload.authorization, payload.from, payload.to,payload)) return "ignored";
       signal?.throwIfAborted();
-      const sender = await this.resolver.resolve(payload.from);
+      const sender = await (this.resolver.resolveForAuthentication?.(payload.from) ?? this.resolver.resolve(payload.from));
       signal?.throwIfAborted();
       const verified = await verifySignedPayload(
         "hail.envelope", representation,
@@ -37,6 +35,10 @@ export class EnvelopeReceiver {
           return ed25519PublicKeyFromDidKey(sender.messagingDidKey);
         }),
       );
+      signal?.throwIfAborted();
+      // Authenticate before consulting protected relationships. Invalid signatures
+      // must perform the same public-key work regardless of candidate existence.
+      if (!await this.store.candidate(payload.authorization, payload.from, payload.to,payload)) return "ignored";
       signal?.throwIfAborted();
       let conversationDescriptor;
       if(payload.authorization.type==='conversation'&&payload.conversation_introduction){
@@ -49,7 +51,7 @@ export class EnvelopeReceiver {
         if(d.from!==authorization.creator||d.conversation_id!==authorization.conversation_id||!d.participants.includes(payload.to)||
           d.created_at>payload.created_at+300||!this.connections||!await this.connections.live(payload.to,payload.from,{type:'connection',connection_id:intro.connection_id,epoch:intro.epoch}))return 'ignored';
       }
-      const recipient = await this.resolver.resolve(payload.to);
+      const recipient = await (this.resolver.resolveForAuthentication?.(payload.to) ?? this.resolver.resolve(payload.to));
       signal?.throwIfAborted();
       if (recipient.serviceBase !== this.serviceBase) return "ignored";
       const account = await this.accounts.getAccountByDid(payload.to);
@@ -57,6 +59,11 @@ export class EnvelopeReceiver {
       if (!account || account.state !== "active" || account.activationVerificationMode !== "public") return "ignored";
       return await this.store.accept({
         payload,
+        retainAuthority: async tx => {
+          // Stable order avoids cross-delivery DID lock inversion.
+          for (const resolved of [sender,recipient].sort((a,b)=>a.did.localeCompare(b.did)))
+            await this.resolver.retainAuthenticatedResolution?.(resolved,tx);
+        },
         representation,
         payloadDigest: new Uint8Array(createHash("sha256").update(verified.payloadBytes).digest()),
         envelopeDigest: new Uint8Array(createHash("sha256").update(verified.payloadBytes).digest()),

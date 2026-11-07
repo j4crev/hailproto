@@ -297,7 +297,8 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
       const service=new EnvelopeService(accounts,new GrantRepository(sql),envelopes,p.encryptor,resolver,p.origin+'/hail',undefined,authority);
       const messaging=new AccountMessaging(sql,bodies,envelopes,service,(sender,id)=>submitEnvelope(sender,id,envelopes,resolver,statuses,{fetch:network,validateTarget:validate},authority));
       const publications=new AccountPublications(sql,messaging,authority),delivery=new DeliveryRepository(sql,authority),retriever=new BodyRetriever(resolver,network,validate);
-      const schedule=new ProtectedResponseSchedule({minimumResponseMs:mode==='shared conversations'?100:1,processingDeadlineMs:10000,maxInFlight:32});
+      // Lifecycle tests wait for actual work, not the fixed admission lease; budget/privacy behavior has dedicated tests.
+      const schedule=new ProtectedResponseSchedule({minimumResponseMs:mode==='shared conversations'?750:1,processingDeadlineMs:10000,maxInFlight:128,maxPerSource:128});
       const grants=new GrantRepository(sql),grantService=new GrantService(accounts,grants,p.encryptor,resolver,{async verify(){throw new Error('No fixture subscription discovery');}},{async verify(){throw new Error('No fixture publisher profile');}},p.origin+'/hail');
       registerAccountApiRoutes(p.app,p.accounts,grants,grantService,p.origin,messaging,undefined,undefined,undefined,undefined,undefined,undefined,p.origin,publications);
       registerBodyRoutes(p.app,bodies);
@@ -305,7 +306,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
       return {accounts,bodies,envelopes,authority,service,messaging,publications,delivery,retriever,worker:new DeliveryWorker(delivery,retriever),statuses,signer,schedule};
     };
     const one=stack(first),two=stack(second);
-    const received=async()=>{for(let i=0;i<500&&(one.schedule.inFlight||two.schedule.inFlight);i++)await Bun.sleep(10);expect(one.schedule.inFlight+two.schedule.inFlight).toBe(0);};
+    const received=async()=>{for(let i=0;i<500&&(one.schedule.processingInFlight||two.schedule.processingInFlight);i++)await Bun.sleep(10);expect(one.schedule.processingInFlight+two.schedule.processingInFlight).toBe(0);};
     const api=(user:User,path:string,input?:unknown,headers:Record<string,string>={})=>user.provider.app.request(user.provider.origin+'/api/v1/account/'+path,{method:input===undefined?'GET':'POST',
       headers:{Cookie:'hail_session='+user.token,Origin:user.provider.origin,'Content-Type':'application/json',...headers},...(input===undefined?{}:{body:JSON.stringify(input)})});
     if(mode==="custom-domain loss"){
@@ -947,7 +948,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
     const afterMove={publicationId:uuidV7(),connections:[abAfterMove.id,cb.id,db.id],text:'New provider, standing permission and explicit reconnect'};
     await withFreshServingGenerations(third.db.sql,()=>movedStack.publications.createConnections(movedSession,afterMove));
     for(let i=0;i<3;i++)await withFreshServingGenerations(third.db.sql,()=>movedStack.publications.workOne());
-    for(let i=0;i<500&&(one.schedule.inFlight||two.schedule.inFlight);i++)await Bun.sleep(10);
+    for(let i=0;i<500&&(one.schedule.processingInFlight||two.schedule.processingInFlight);i++)await Bun.sleep(10);
     expect(await withFreshServingGenerations(first.db.sql,()=>one.worker.processOne())).toBe('delivered');
     expect(await withFreshServingGenerations(first.db.sql,()=>one.worker.processOne())).toBe('delivered');
     expect(await withFreshServingGenerations(second.db.sql,()=>two.worker.processOne())).toBe('delivered');
@@ -1077,7 +1078,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
     const resumedBatch={publicationId:uuidV7(),connections:[cb.id,formerlyLocal.connection_id],text:'Message after the complete account transfer'};
     await withFreshServingGenerations(second.db.sql,()=>finalTargetStack.publications.createConnections(enrolledSession,resumedBatch));
     for(let i=0;i<2;i++)await withFreshServingGenerations(second.db.sql,()=>finalTargetStack.publications.workOne());
-    for(let i=0;i<500&&(movedStack.schedule.inFlight||finalSourceStack.schedule.inFlight);i++)await Bun.sleep(10);
+    for(let i=0;i<500&&(movedStack.schedule.processingInFlight||finalSourceStack.schedule.processingInFlight);i++)await Bun.sleep(10);
     expect(await withFreshServingGenerations(third.db.sql,()=>movedStack.worker.processOne())).toBe('delivered');
     expect(await withFreshServingGenerations(first.db.sql,()=>finalSourceStack.worker.processOne())).toBe('delivered');
     const resumedId=(await finalTargetStack.publications.status(enrolledSession,resumedBatch.publicationId,'connections'))!.targets.find(t=>t.recipient===b.did)!.messageId;
@@ -1085,7 +1086,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
     const reverseAfterMove={publicationId:uuidV7(),connections:[formerlyLocal.connection_id],text:'Peer at the retired source still sends through the current provider'};
     await withFreshServingGenerations(first.db.sql,()=>finalSourceStack.publications.createConnections(a.session,reverseAfterMove));
     await withFreshServingGenerations(first.db.sql,()=>finalSourceStack.publications.workOne());
-    for(let i=0;i<500&&finalTargetStack.schedule.inFlight;i++)await Bun.sleep(10);
+    for(let i=0;i<500&&finalTargetStack.schedule.processingInFlight;i++)await Bun.sleep(10);
     expect(await withFreshServingGenerations(second.db.sql,()=>finalTargetStack.worker.processOne())).toBe('delivered');
     await expect(withFreshServingGenerations(first.db.sql,()=>one.publications.createConnections(c.session,{publicationId:uuidV7(),connections:[cb.id],text:'Old source must not sign'}))).rejects.toThrow();
     }
@@ -1163,7 +1164,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
         await withFreshServingGenerations(target.db.sql,()=>portableStack.publications.createConnections(returnedSession,batch));
         await withFreshServingGenerations(target.db.sql,()=>portableStack.publications.workOne());
         const peerStack=stacks.get(third)!;
-        for(let i=0;i<500&&peerStack.schedule.inFlight;i++)await Bun.sleep(10);
+        for(let i=0;i<500&&peerStack.schedule.processingInFlight;i++)await Bun.sleep(10);
         expect(await withFreshServingGenerations(third.db.sql,()=>peerStack.worker.processOne())).toBe('delivered');
         const messageId=(await portableStack.publications.status(returnedSession,batch.publicationId,'connections'))!.targets[0]!.messageId;
         expect(await peerStack.messaging.read(b.session,a.did,messageId)).toMatchObject({kind:'connection',senderAddress:a.address});
@@ -1211,7 +1212,7 @@ it.skipIf(!process.env.DATABASE_URL).each(["full lifecycle","custom-domain loss"
         const custodyBatch={publicationId:uuidV7(),connections:[paired.connection_id],text:'Connection survives both custody directions'},custodySession={...returnedSession,serving_generation:4};
         await withFreshServingGenerations(target.db.sql,()=>portableStack.publications.createConnections(custodySession,custodyBatch));
         await withFreshServingGenerations(target.db.sql,()=>portableStack.publications.workOne());
-        for(let i=0;i<500&&peerStack.schedule.inFlight;i++)await Bun.sleep(10);
+        for(let i=0;i<500&&peerStack.schedule.processingInFlight;i++)await Bun.sleep(10);
         expect(await withFreshServingGenerations(third.db.sql,()=>peerStack.worker.processOne())).toBe('delivered');
         const custodyMessage=(await portableStack.publications.status(custodySession,custodyBatch.publicationId,'connections'))!.targets[0]!.messageId;
         expect(await peerStack.messaging.read(b.session,a.did,custodyMessage)).toMatchObject({kind:'connection',senderAddress:a.address});

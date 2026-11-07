@@ -540,15 +540,16 @@ function validateEnvelope(payload: HailRecord): void {
   }
   if (!["spt-1", "spt-2", "spt-3"].includes(text(body.profile, "$.body.profile"))) fail("unsupported body profile", "$.body.profile");
   const availableUntil = integer(body.available_until, "$.body.available_until");
-  if (availableUntil < createdAt + 2_592_000 || availableUntil < expiresAt + 300) {
+  if (availableUntil < createdAt + 2_592_000 || availableUntil < expiresAt + 300 || availableUntil - createdAt > 2_678_400) {
     fail("does not satisfy the required availability window", "$.body.available_until");
   }
   const access = record(body.access, "$.body.access");
   exactKeys(access, ["type", "token", "expires_at"], [], "$.body.access");
   if (text(access.type, "$.body.access.type") !== "bearer") fail("must equal bearer", "$.body.access.type");
   bytes(access.token, 32, "$.body.access.token");
-  if (integer(access.expires_at, "$.body.access.expires_at") < availableUntil) {
-    fail("must not precede available_until", "$.body.access.expires_at");
+  if (integer(access.expires_at, "$.body.access.expires_at") < availableUntil ||
+      integer(access.expires_at, "$.body.access.expires_at") - createdAt > 2_678_400) {
+    fail("must be between available_until and created_at plus 31 days", "$.body.access.expires_at");
   }
   const reply = record(payload.reply, "$.reply");
   const allowed = boolean(reply.allowed, "$.reply.allowed");

@@ -348,6 +348,8 @@ v0 rules:
 - `media_type` is the exact provisional string `application/hail-body+cbor`.
 - `profile` is `spt-1` for plain text, `spt-2` for rich text, or `spt-3` for rich text with up to eight bundled PNG images.
 - `available_until` is a UTC Unix timestamp at least 2592000 seconds after `created_at` and at least 300 seconds after `expires_at`.
+- `available_until` MUST NOT exceed `created_at + 2678400` (31 days).
+- `access.expires_at` MUST NOT exceed `created_at + 2678400` either. Reject an overlong promise rather than silently truncating signed fields.
 - `access` is a closed object containing only `type`, `token`, and `expires_at`.
 - `access.type` is the exact string `bearer`.
 - `access.token` is exactly 32 cryptographically random bytes generated for this recipient envelope. The HTTP Bearer credential uses its unpadded base64url rendering.
@@ -424,21 +426,21 @@ A recipient should process an envelope in this order:
 3. Decode the protected header and payload; reject malformed, non-deterministic, unknown, or unsupported fields.
 4. Validate inexpensive payload syntax, types, timestamp relationships, and body limits.
 5. Require `to` to identify a recipient DID served by this endpoint. A server may return the public PLC-derived `421` routing mismatch defined by the HTTP binding; inability to establish that mismatch and unavailable local-account state follow the protected response path.
-6. Use the claimed authorization fields for a preliminary local grant or sent-message lookup.
-7. If no candidate authorization exists, follow the uniform unauthenticated rejection path without body retrieval or durable protocol-state mutation.
+6. Do not consult protected relationships before signature verification: their existence MUST NOT select whether expensive public-key work occurs.
+7. Enforce source-wide and provider-wide admission budgets selected independently of relationship state.
 8. Resolve or load the current `from` DID and exact protected `kid`, refreshing once if cached state lacks the key.
 9. Validate the key controller, Ed25519 algorithm, and `#hail-messaging` role, then verify the COSE signature.
-10. Require the authenticated signer DID to exactly equal `from`.
-11. Atomically check `(from, message_id)`. Return stored state for an identical authenticated retry, reject conflicting content, or reserve a new authenticated pending-validation record.
+10. Require the authenticated signer DID to exactly equal `from`, then perform the candidate authorization lookup. A miss follows the generic path without body retrieval or durable replay mutation.
+11. Atomically check `(from, message_id)`. Before reserving a new ID, apply bounded resource admission; this check MUST NOT prevent recovery of existing authenticated replay state. Return stored state for an identical authenticated retry, reject conflicting content, or reserve a new authenticated pending-validation record.
 12. Apply recipient policy, rate limits, and current timestamp checks. Store any rejection as the terminal result for the reserved message ID.
 13. Atomically re-check every authorization condition, claim any single-use reply capability, and durably create the `accepted` delivery record. If a grant change or competing reply claim committed first, store rejection instead.
 14. Retrieve or reuse the detached body.
 15. Perform all body verification and place the body and message data in durable staging.
 16. Using the serialized terminal transaction defined in [delivery-state.md](delivery-state.md), atomically re-check the effective deadline, publish the message, mark it delivered, and consume any claimed reply capability. A competing failure or cancellation may win instead.
 
-Claimed unauthenticated fields may be used only to make rejection cheaper and, after bounded structural decoding and syntax validation, to perform the public PLC routing check defined by the HTTP binding. Apart from that public `421` response, no successful authorization, detailed sender-facing error, replay-cache mutation, body fetch, or durable message state may rely on them before signature verification.
+Claimed unauthenticated fields may be used only for relationship-independent syntax/resource rejection and, after bounded structural decoding and syntax validation, to perform the public PLC routing check defined by the HTTP binding. Apart from that public `421` response, no successful authorization, detailed sender-facing error, replay-cache mutation, body fetch, or durable message state may rely on them before signature verification.
 
-The externally visible response for a preliminary lookup miss must not be distinguishable from other unauthenticated processing by status, body, headers, or timing. The HTTPS binding uses a synchronous generic `202` receipt under a common bounded response schedule; it exposes authenticated detailed state separately only after verification. The schedule is selected from measured validation behavior rather than a guessed delay, bounds network-dependent DID resolution, and is tested through repeated timing observations as defined in [http-binding.md](http-binding.md).
+The externally visible response for a candidate lookup miss must not be distinguishable from other unauthenticated processing by status, body, headers, or timing. The HTTPS binding uses a synchronous generic `202` receipt under a common bounded response schedule; it exposes authenticated detailed state separately only after verification. The schedule is selected from measured validation behavior rather than a guessed delay, bounds network-dependent DID resolution, and is tested through repeated timing observations as defined in [http-binding.md](http-binding.md).
 
 ## Idempotency And Replay Protection
 
@@ -448,7 +450,7 @@ The idempotency key is:
 (authenticated from DID, message_id)
 ```
 
-On first successful signature verification for a candidate authorization, the recipient stores at least:
+After signature verification for a candidate authorization and successful resource admission, the recipient stores at least:
 
 - the idempotency key
 - a SHA-256 digest of the exact deterministic payload bytes
@@ -463,7 +465,18 @@ Behavior:
 - Body digest equality has no effect on envelope identity; many messages may intentionally share one body.
 - A sender must not reuse a message ID after any result, including rejection or expiration.
 
-This authenticated record is created before final authorization and policy checks, so an authenticated rejection under an existing candidate authorization also reserves the message ID. An identical retry returns its stored state without requiring the old authorization to remain active. A preliminary lookup miss deliberately does not trigger DID resolution or create a tombstone; the sender's no-reuse rule still applies, but the recipient cannot enforce it until an envelope under that ID is authenticated.
+This authenticated record is created before final authorization and policy checks, so an authenticated rejection under an existing candidate authorization also reserves the message ID. An identical retry returns its stored state without requiring the old authorization to remain active. A candidate lookup miss does not create a tombstone; public-key resolution and signature verification have already occurred, but unauthenticated resolution observations do not allocate durable replay or authority evidence. The sender's no-reuse rule still applies, but the recipient cannot enforce it until an envelope under that ID is admitted to replay storage.
+
+Resource admission MAY refuse new work without a replay reservation when bounded
+provider, authenticated-sender, or recipient storage/work budgets are exhausted.
+Such refusal MUST NOT create a delivery, claim a reply capability, or retain new
+rejection evidence. An eligible authenticated sender receives `429` with bounded
+`Retry-After`; otherwise the protected generic response applies. Exact retries
+of existing records remain recoverable. A sender MAY retry the exact refused
+envelope but MUST NOT reuse its message ID for different content. The ordinary
+authenticated rejection reservation rules apply only after resource admission.
+Providers MUST bound both rejected-record count and retained evidence bytes;
+revocation does not grant an attacker an unlimited durable rejection budget.
 
 The recipient retains the replay record until at least `max(expires_at, body.available_until) + 300 seconds`. A replay after that minimum retention is already expired and cannot become a new delivery. Implementations may retain compact tombstones longer.
 

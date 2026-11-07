@@ -985,7 +985,7 @@ func validateEnvelope(m map[any]any) error {
 		return errors.New("unsupported body profile")
 	}
 	available, e := intValue(b["available_until"], "$.body.available_until", 0)
-	if e != nil || available < created+2592000 || available < expires+300 {
+	if e != nil || available < created+2592000 || available < expires+300 || available-created > 2678400 {
 		return errors.New("invalid body availability")
 	}
 	access, e := mapValue(b["access"], "$.body.access")
@@ -1002,7 +1002,7 @@ func validateEnvelope(m map[any]any) error {
 		return e
 	}
 	accessExpiry, e := intValue(access["expires_at"], "$.body.access.expires_at", 0)
-	if e != nil || accessExpiry < available {
+	if e != nil || accessExpiry < available || accessExpiry-created > 2678400 {
 		return errors.New("invalid access expiry")
 	}
 	r, e := mapValue(m["reply"], "$.reply")

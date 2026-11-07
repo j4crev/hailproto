@@ -75,8 +75,8 @@ describe("envelope submission HTTP binding", () => {
       to: `did:plc:${"b".repeat(24)}`, authorization: { type: "grant", grant_id: messageId },
       category: "updates", created_at: 1_790_000_000, expires_at: 1_790_086_400,
       body: { digest: { algorithm: "sha-256", value: new Uint8Array(32) }, size: 1,
-        media_type: "application/hail-body+cbor", profile: "spt-1", available_until: 1_793_000_000,
-        access: { type: "bearer", token: new Uint8Array(32), expires_at: 1_793_000_000 } },
+        media_type: "application/hail-body+cbor", profile: "spt-1", available_until: 1_792_678_400,
+        access: { type: "bearer", token: new Uint8Array(32), expires_at: 1_792_678_400 } },
       reply: { allowed: false },
     }, createWebCryptoSigner(`${sender}#hail-messaging`, key.privateKey));
     const responseApp = new Hono();
@@ -139,7 +139,7 @@ describe("terminal status PUT binding", () => {
     expect(busy.status).toBe(429);
     expect(busy.headers.get("retry-after")).toBe("1");
     release();
-    await new Promise((resolve) => setTimeout(resolve, 1));
+    await new Promise((resolve) => setTimeout(resolve, 85));
     expect(schedule.inFlight).toBe(0);
     expect((await app.request(path, { method: "PUT", headers, body: new Uint8Array([1]) })).status).toBe(204);
   });

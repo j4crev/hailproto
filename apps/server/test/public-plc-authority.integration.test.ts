@@ -50,6 +50,16 @@ it.skipIf(!process.env.DATABASE_URL)("fresh public reads bind exact accepted env
     const sign=(payload:HailEnvelope,key=sender.messaging.pair.privateKey)=>signPayload("hail.envelope",payload,createWebCryptoSigner(`${sender.did}#hail-messaging`,key));
     const store=new EnvelopeRepository(db.sql),receiver=new EnvelopeReceiver(new OnboardingRepository(db.sql),store,resolver,"https://local.example.com/hail");
     const first=envelope(),bytes=await sign(first);
+    const read=readers[0].audit;let reads=0;
+    readers[0].audit=async did=>{reads++;return read(did);};
+    const observations=await Promise.all(Array.from({length:16},()=>resolver.resolveForAuthentication(sender.did)));
+    expect(reads).toBe(1);expect(observations.every(value=>value===observations[0])).toBe(true);
+    expect(await db.sql`SELECT evidence_digest FROM public_plc_resolution_evidence`).toHaveLength(0);
+    const bad=bytes.slice();bad[bad.length-1]=bad[bad.length-1]!^1;
+    expect(await receiver.receive(bad)).toBe("ignored");
+    expect(await db.sql`SELECT evidence_digest FROM public_plc_resolution_evidence`).toHaveLength(0);
+    expect(await db.sql`SELECT digest FROM public_plc_shared_evidence`).toHaveLength(0);
+    readers[0].audit=read;
     expect(await receiver.receive(bytes)).toBe("accepted");
     const links=await db.sql<{authority_did:string;representation_digest:Uint8Array;evidence_digest:Uint8Array}[]>`
       SELECT authority_did,representation_digest,evidence_digest FROM public_envelope_authority_evidence WHERE sender_did=${sender.did} AND message_id=${first.message_id} ORDER BY authority_did`;

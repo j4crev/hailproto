@@ -79,6 +79,7 @@ export async function accountHistorySchema(sql:SQL):Promise<Schema>{
         const excluded=name==='provider_accounts'?['address_released_at','closed_at']:name==='account_keys'
           ?['encrypted_private_key','encryption_nonce','kek_id',...(domain==='managed'?['encryption_version']:[])]:
           domain==='managed'&&['grant_publications','delivery_work','terminal_status_publications'].includes(name)?['lease_token','lease_expires_at']:[];
+        if(name==='received_envelopes')excluded.push('admission_bytes');
         selected=selected.filter(c=>!excluded.includes(c.column_name));
       }
       if(!selected.length)throw Error('Missing record '+name);

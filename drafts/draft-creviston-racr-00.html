@@ -1227,7 +1227,7 @@ li > p:last-of-type:only-child {
 </tr></thead>
 <tfoot><tr>
 <td class="left">Creviston</td>
-<td class="center">Expires 6 May 2027</td>
+<td class="center">Expires 10 May 2027</td>
 <td class="right">[Page]</td>
 </tr></tfoot>
 </table>
@@ -1240,12 +1240,12 @@ li > p:last-of-type:only-child {
 <dd class="internet-draft">draft-creviston-racr-00</dd>
 <dt class="label-published">Published:</dt>
 <dd class="published">
-<time datetime="2026-11-02" class="published">2 November 2026</time>
+<time datetime="2026-11-06" class="published">6 November 2026</time>
     </dd>
 <dt class="label-intended-status">Intended Status:</dt>
 <dd class="intended-status">Experimental</dd>
 <dt class="label-expires">Expires:</dt>
-<dd class="expires"><time datetime="2027-05-06">6 May 2027</time></dd>
+<dd class="expires"><time datetime="2027-05-10">10 May 2027</time></dd>
 <dt class="label-authors">Author:</dt>
 <dd class="authors">
 <div class="author">
@@ -1286,7 +1286,7 @@ li > p:last-of-type:only-child {
         time. It is inappropriate to use Internet-Drafts as reference
         material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
 <p id="section-boilerplate.1-4">
-        This Internet-Draft will expire on 6 May 2027.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+        This Internet-Draft will expire on 10 May 2027.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="copyright">
@@ -1429,7 +1429,7 @@ li > p:last-of-type:only-child {
 <p id="section-2-1">Hail names the communication medium; a hail is an individual recipient-authorized message. RACR names the underlying protocol that providers implement to exchange hail. Hail identifiers such as hail.envelope, application/hail-body+cbor, #hail-messaging, and HailMessaging name the objects, formats, keys, and services used by that protocol. They remain current identifiers, not deprecated names awaiting replacement. This terminology does not change wire bytes, signature domains, or interoperability requirements.<a href="#section-2-1" class="pilcrow">¶</a></p>
 <p id="section-2-2">The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in BCP 14 <span>[<a href="#RFC2119" class="cite xref">RFC2119</a>]</span>
         <span>[<a href="#RFC8174" class="cite xref">RFC8174</a>]</span> when, and only when, they appear in all capitals, as shown here.<a href="#section-2-2" class="pilcrow">¶</a></p>
-<p id="section-2-3">This draft specifies the architecture and summarizes normative core requirements from <span>[<a href="#HAIL-SPEC" class="cite xref">HAIL-SPEC</a>]</span>. Where a complete wire or semantic definition has not yet been incorporated, the corresponding specification in that pinned snapshot is a normative dependency. Editorial omissions in this draft do not create alternative encodings, relaxed validation, or new authority. For subscription scopes and Sender Profile fields, the definitions in this draft take precedence over the pinned snapshot. Attachment definitions are supplied by <span>[<a href="#HAIL-ATTACHMENTS" class="cite xref">HAIL-ATTACHMENTS</a>]</span>. Any other inconsistency between the two documents is a defect to resolve before publication.<a href="#section-2-3" class="pilcrow">¶</a></p>
+<p id="section-2-3">This draft specifies the architecture and summarizes normative core requirements from <span>[<a href="#HAIL-SPEC" class="cite xref">HAIL-SPEC</a>]</span>. Where a complete wire or semantic definition has not yet been incorporated, the corresponding specification in that pinned snapshot is a normative dependency. Editorial omissions in this draft do not create alternative encodings, relaxed validation, or new authority. For subscription scopes, Sender Profile fields, and the authentication ordering, resource-admission, and retention bounds specified here, the definitions in this draft take precedence over the pinned snapshot. Attachment definitions are supplied by <span>[<a href="#HAIL-ATTACHMENTS" class="cite xref">HAIL-ATTACHMENTS</a>]</span>. Any other inconsistency between the two documents is a defect to resolve before publication.<a href="#section-2-3" class="pilcrow">¶</a></p>
 <p id="section-2-4">The core flow is delivery under a Grant using Envelope version 1. Envelope versions select distinct authorization profiles; higher-numbered versions do not supersede version 1 for Grant delivery. Connections, threaded replies, shared conversations, and provider transfer are implemented extensions, summarized in <a href="#extensions" class="auto internal xref">Section 10</a>. They are not deferred merely because their complete definitions are outside this document. Implementations claiming an extension MUST implement its complete authorization and lifecycle rules.<a href="#section-2-4" class="pilcrow">¶</a></p>
 <p id="section-2-5">A provider is infrastructure acting for one or more participant DIDs. A sender and recipient are protocol identities, not necessarily people. A Grant is a recipient-signed authorization lineage. An Envelope is a signed per-recipient delivery instruction. A Body is an immutable encoded content document. Acceptance is a durable authorization decision; delivery is durable storage of verified content and its recipient-specific message record.<a href="#section-2-5" class="pilcrow">¶</a></p>
 </section>
@@ -1521,7 +1521,7 @@ li > p:last-of-type:only-child {
 <p id="section-5.1-1">All providers MUST support otherwise valid bodies through 1048576 encoded uncompressed octets. The budget includes CBOR framing and bundled asset data. It does not promise unlimited account quota or delivery capacity. Envelopes and Delivery Status representations are bounded at 16384 octets; Address Bindings at 16384 octets; Grants at 262144 octets. Other object-specific constraints remain applicable.<a href="#section-5.1-1" class="pilcrow">¶</a></p>
 <p id="section-5.1-2">For independently decoded application CBOR domains, maximum depth is 32, total items 16384, array length 4096, map entries 256, and any text or byte string 1048576 bytes, subject to the overall encoded limit and stricter object limits. The root counts as one item at depth zero. Container elements, map keys, and map values count recursively; string contents do not. Map length counts pairs. Byte budgets include headers and use UTF-8 bytes rather than character counts.<a href="#section-5.1-2" class="pilcrow">¶</a></p>
 <p id="section-5.1-3">For the outer COSE domain, depth is at most 8, total items 256, array length 8, map entries 8, and text length 1024 bytes; encoded and byte-string limits equal the object representation limit. Tag 18 counts as a root item and its array has depth one. Protected headers restart counting at their map with a 1024-byte encoded and byte-string limit and no tag. Embedded payloads are checked separately. Transfer snapshots have distinct limits and are not authorized by these budgets.<a href="#section-5.1-3" class="pilcrow">¶</a></p>
-<p id="section-5.1-4">Implementations MUST bound allocation before trusting declared lengths. Wire-byte limits do not by themselves bound aggregate concurrent work or decoder scratch space.<a href="#section-5.1-4" class="pilcrow">¶</a></p>
+<p id="section-5.1-4">Implementations MUST bound allocation before trusting declared lengths. Wire-byte limits do not by themselves bound aggregate concurrent work or decoder scratch space. Providers MUST bound outstanding accepted and on-hold work, rejected replay records and their evidence bytes, and pre-authentication Grant verification and DID resolution. Resource admission MUST be atomic across concurrent requests. Fair scheduling and bounded per-sender retrieval concurrency MUST prevent one sender from monopolizing delivery. Include detached attachments in resource reservations. Exact quotas and concurrency values are provider policy, not wire constants. Unauthenticated requests MUST NOT cause unbounded durable resolution-evidence growth.<a href="#section-5.1-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -1554,7 +1554,7 @@ li > p:last-of-type:only-child {
 <a href="#section-7" class="section-number selfRef">7. </a><a href="#name-core-envelope-delivery" class="section-name selfRef">Core Envelope Delivery</a>
       </h2>
 <p id="section-7-1">A Grant-authorized Envelope version 1 contains type, version, message_id, from, to, authorization, created_at, expires_at, body, and reply; category and message_type have object-specific conditional semantics. authorization identifies type grant and the grant_id. The messaging signature authenticates from, which MUST equal the Grant grantee; to MUST equal the Grant grantor. A Grant-authorized Envelope MUST contain a category authorized by the Grant. The complete closed schema and conditional fields are defined by <span>[<a href="#HAIL-SPEC" class="cite xref">HAIL-SPEC</a>]</span>.<a href="#section-7-1" class="pilcrow">¶</a></p>
-<p id="section-7-2">A body descriptor contains a SHA-256 digest, size from 1 through 1048576, media_type application/hail-body+cbor, profile spt-1/spt-2/spt-3, available_until, and bearer access metadata. available_until is at least created_at plus 2592000 seconds and expires_at plus 300 seconds. The access expiration is no earlier than available_until. The immutable body and its authorization MUST exist before envelope submission and be retained through that availability commitment.<a href="#section-7-2" class="pilcrow">¶</a></p>
+<p id="section-7-2">A body descriptor contains a SHA-256 digest, size from 1 through 1048576, media_type application/hail-body+cbor, profile spt-1/spt-2/spt-3, available_until, and bearer access metadata. available_until is at least created_at plus 2592000 seconds and expires_at plus 300 seconds. The access expiration is no earlier than available_until. Both available_until and access.expires_at MUST be no later than created_at plus 2678400 seconds (31 days). Overlong commitments MUST be rejected rather than silently shortened. The immutable body and its authorization MUST exist before envelope submission and be retained through that availability commitment.<a href="#section-7-2" class="pilcrow">¶</a></p>
 <p id="section-7-3">POST envelopes submits one signed envelope. No additional federation authentication beyond HTTPS and COSE is required. Deployments may use private controls, but those controls do not replace protocol signature verification. Batch federation submission is not defined.<a href="#section-7-3" class="pilcrow">¶</a></p>
 <div id="acceptance">
 <section id="section-7.1">
@@ -1566,13 +1566,13 @@ li > p:last-of-type:only-child {
             <p id="section-7.1-1.1.1">Enforce transport and representation limits, then bounded deterministic COSE and payload decoding, closed-schema validation, and inexpensive field relationships.<a href="#section-7.1-1.1.1" class="pilcrow">¶</a></p>
 </li>
           <li class="normal" id="section-7.1-1.2">
-            <p id="section-7.1-1.2.1">Use claimed fields only for privacy-safe preliminary rejection and the narrowly defined public DID routing check. A preliminary authorization miss MUST NOT trigger a body fetch or durable replay mutation.<a href="#section-7.1-1.2.1" class="pilcrow">¶</a></p>
+            <p id="section-7.1-1.2.1">Use claimed fields only for relationship-independent syntax and resource rejection and the narrowly defined public DID routing check. Protected relationship lookups MUST NOT precede signature verification or select whether public key resolution occurs.<a href="#section-7.1-1.2.1" class="pilcrow">¶</a></p>
 </li>
           <li class="normal" id="section-7.1-1.3">
-            <p id="section-7.1-1.3.1">Resolve and verify the exact sender messaging key and COSE signature. Authentication MUST precede protected detail, authenticated replay-state mutation, or body retrieval.<a href="#section-7.1-1.3.1" class="pilcrow">¶</a></p>
+            <p id="section-7.1-1.3.1">Resolve and verify the exact sender messaging key and COSE signature. Authentication MUST precede protected relationship lookup, protected detail, authenticated replay-state mutation, or body retrieval. After authentication, a candidate authorization miss follows the generic path without body retrieval or a replay reservation.<a href="#section-7.1-1.3.1" class="pilcrow">¶</a></p>
 </li>
           <li class="normal" id="section-7.1-1.4">
-            <p id="section-7.1-1.4.1">Serialize the authenticated (from DID, message_id) record. Identical payload digests reuse stored state; different payload digests conflict. Reserve authenticated rejection results as specified by the replay rules.<a href="#section-7.1-1.4.1" class="pilcrow">¶</a></p>
+            <p id="section-7.1-1.4.1">Serialize the authenticated (from DID, message_id) record. Identical payload digests reuse stored state; different payload digests conflict. Before reserving a new ID, apply bounded resource admission. Exhausted budgets MAY refuse new work without a replay reservation or capability mutation; eligible authenticated callers receive 429 with Retry-After. Existing authenticated replay state remains recoverable. Reserve ordinary authenticated rejection results only after resource admission succeeds.<a href="#section-7.1-1.4.1" class="pilcrow">¶</a></p>
 </li>
           <li class="normal" id="section-7.1-1.5">
             <p id="section-7.1-1.5.1">Atomically recheck current recipient authorization and policy, then persist accepted delivery and required capability state. Grant changes and acceptance share an ordering: a revocation committed first rejects the new message; acceptance committed first allows its body processing to continue.<a href="#section-7.1-1.5.1" class="pilcrow">¶</a></p>
@@ -1596,7 +1596,7 @@ li > p:last-of-type:only-child {
 </div>
 <p id="section-7.2-3">An eligible authenticated accepted or duplicate submission returns HTTP 200 with the current signed Delivery Status. Explicit protected errors map message-id-conflict to 409, invalid-envelope to 400, unauthorized to 403, message-expired to 410, rate-limited to 429, and temporarily-unavailable to 503. Every explicit unsuccessful response uses Problem Details <span>[<a href="#RFC9457" class="cite xref">RFC9457</a>]</span> without disclosing more than the caller is entitled to learn.<a href="#section-7.2-3" class="pilcrow">¶</a></p>
 <p id="section-7.2-4">Relationship-independent method, media type, size, framing, and service-wide rate limits may return safe transport errors. A 421 is permitted only when sufficiently fresh authenticated public DID state proves an endpoint mismatch; local account or relationship absence does not justify it. Body retrieval has no public target DID and does not use this exception.<a href="#section-7.2-4" class="pilcrow">¶</a></p>
-<p id="section-7.2-5">Concealed outcomes MUST have common status, response shape, privacy-relevant headers, and a bounded response schedule based on measured validation behavior. Implementations must bound network-dependent resolution and test repeated timing observations. A guessed constant delay alone is not evidence that rejection paths are indistinguishable.<a href="#section-7.2-5" class="pilcrow">¶</a></p>
+<p id="section-7.2-5">Concealed outcomes MUST have common status, response shape, privacy-relevant headers, and a bounded response schedule based on measured validation behavior. Implementations must bound network-dependent resolution and test repeated timing observations. A guessed constant delay alone is not evidence that rejection paths are indistinguishable. Shared admission outcomes, including 429, MUST NOT depend on protected processing duration. Test burst-and-probe observations as well as individual response timing. Operations that ignore cancellation MUST remain bounded until they actually settle.<a href="#section-7.2-5" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>

@@ -86,19 +86,23 @@ export class GrantReceiver {
     pathGrantId: string,
     representation: Uint8Array,
     conditions: GrantConditions,
+    signal?: AbortSignal,
   ): Promise<GrantReceiveResult> {
     let authenticated: {
       payload: HailGrant;
       account: AccountRecord;
       identityDidKey: string;
       signingPlcEvidence: Awaited<ReturnType<HailDidResolver["resolve"]>>["evidence"];
+      retainAuthority: () => Promise<void>;
       recipientEvidence: Awaited<ReturnType<HailDidResolver["resolve"]>>["evidence"];
     };
     try {
+      signal?.throwIfAborted();
       const inspected = inspectSignedPayload("hail.grant", representation);
       const payload = inspected.payload;
       if (payload.grant_id !== pathGrantId) throw new Error("Grant path does not match payload");
-      const grantor = await this.resolver.resolve(payload.grantor);
+      const grantor = await (this.resolver.resolveForAuthentication?.(payload.grantor) ?? this.resolver.resolve(payload.grantor));
+      signal?.throwIfAborted();
       await verifySignedPayload(
         "hail.grant",
         representation,
@@ -109,7 +113,8 @@ export class GrantReceiver {
           return ed25519PublicKeyFromDidKey(grantor.identityDidKey);
         }),
       );
-      const grantee = await this.resolver.resolve(payload.grantee);
+      signal?.throwIfAborted();
+      const grantee = await (this.resolver.resolveForAuthentication?.(payload.grantee) ?? this.resolver.resolve(payload.grantee));
       if (grantee.serviceBase !== this.expectedServiceBase) {
         throw new GrantReceiveError(421, "Misdirected Request", false);
       }
@@ -122,6 +127,10 @@ export class GrantReceiver {
         throw new Error("Grantee is not locally authoritative");
       }
       authenticated = {
+        retainAuthority: async () => {
+          for (const resolved of [grantor,grantee].sort((a,b)=>a.did.localeCompare(b.did)))
+            await this.resolver.retainAuthenticatedResolution?.(resolved);
+        },
         payload,
         account,
         identityDidKey: grantor.identityDidKey,
@@ -133,6 +142,7 @@ export class GrantReceiver {
       throw new GrantReceiveError(400, "Bad Request", false);
     }
 
+    signal?.throwIfAborted();
     const { payload, account, identityDidKey, signingPlcEvidence,recipientEvidence } = authenticated;
     const wallClock = Math.floor(this.now().getTime() / 1_000);
     if (
@@ -198,6 +208,9 @@ export class GrantReceiver {
     }
 
     try {
+      signal?.throwIfAborted();
+      await authenticated.retainAuthority();
+      signal?.throwIfAborted();
       await this.grants.acceptReceivedRevision({
         localAccountId: account.id,
         payload,

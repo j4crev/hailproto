@@ -291,6 +291,8 @@ message-type =
   "package-update" /
   "calendar-event"
 
+; Semantic constraints: available_until and access.expires_at are at most
+; envelope.created_at + 2678400 (31 days); see envelopes.md for lower bounds.
 body-descriptor = {
   "digest": digest,
   "size": 1..1048576,

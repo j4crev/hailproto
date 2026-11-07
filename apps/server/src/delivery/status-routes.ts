@@ -51,7 +51,7 @@ export function registerDeliveryStatusRoutes(app: Hono, receiver: Pick<DeliveryS
       let offset = 0;
       for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
     } catch { return problem(400, "Bad Request"); }
-    const result = await schedule.run((signal) => receiver.receive(match[1]!, bytes, signal));
+    const result = await schedule.run((signal) => receiver.receive(match[1]!, bytes, signal), false, clientAddress(context.req.raw));
     if (result.kind === "busy") return problem(429, "Too Many Requests", { "Retry-After": "1" });
     if (result.kind === "detailed") {
       if (result.value === "acknowledged") return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });

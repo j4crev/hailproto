@@ -28,14 +28,17 @@ async function signedEnvelope(): Promise<{ bytes: Uint8Array; publicKey: string 
 }
 
 describe("bounded envelope validation", () => {
-  it("does not start DID resolution when a preliminary relationship is absent", async () => {
-    const { bytes } = await signedEnvelope();
-    const resolve = vi.fn<HailDidResolver["resolve"]>();
-    const accept = vi.fn<EnvelopeRepository["accept"]>();
-    const receiver = new EnvelopeReceiver({ getAccountByDid: vi.fn() },
-      { candidate: async () => false, accept }, { resolve }, "https://bob.example/hail");
-    expect(await receiver.receive(bytes)).toBe("ignored");
-    expect(resolve).not.toHaveBeenCalled();
+  it("authenticates before looking up relationships and never looks them up for invalid signatures", async () => {
+    const { bytes, publicKey } = await signedEnvelope();
+    const resolve = vi.fn(async()=>({did:alice,messagingDidKey:publicKey,identityDidKey:publicKey,
+      serviceBase:'https://alice.example/hail',evidence:{document:{},data:{},log:[]}}));
+    const candidate=vi.fn(async()=>false),accept=vi.fn<EnvelopeRepository['accept']>();
+    const receiver=new EnvelopeReceiver({getAccountByDid:vi.fn()},{candidate,accept},{resolve},'https://bob.example/hail');
+    const bad=bytes.slice();bad[bad.length-1]=bad[bad.length-1]!^1;
+    expect(await receiver.receive(bad)).toBe('ignored');
+    expect(resolve).toHaveBeenCalledOnce();expect(candidate).not.toHaveBeenCalled();
+    expect(await receiver.receive(bytes)).toBe('ignored');
+    expect(resolve).toHaveBeenCalledTimes(2);expect(candidate).toHaveBeenCalledOnce();
     expect(accept).not.toHaveBeenCalled();
   });
 
@@ -54,7 +57,7 @@ describe("bounded envelope validation", () => {
     release({ did: alice, messagingDidKey: publicKey, identityDidKey: publicKey,
       serviceBase: "https://alice.example/hail", evidence: { document: {}, data: {}, log: [] } });
     expect(await pending).toBe("ignored");
-    expect(candidate).toHaveBeenCalledOnce();
+    expect(candidate).not.toHaveBeenCalled();
     expect(accept).not.toHaveBeenCalled();
   });
 });

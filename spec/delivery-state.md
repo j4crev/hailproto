@@ -541,3 +541,15 @@ Deferred:
   receipts (reference account APIs and local read state already exist)
 - authenticated delivery-status query
 - emergency status recovery when provider state and backups are unavailable
+
+## Resource admission and scheduling
+
+Before acceptance, providers MUST bound aggregate outstanding work and isolate
+sender and recipient budgets. Counts must include both accepted and on-hold work;
+concurrent admission must not oversubscribe a budget. Detached attachments must be
+accounted for, for example by reserving the maximum allowed attachment allowance
+for each outstanding envelope. Queue scheduling MUST prevent one sender's slow
+retrievals or retries from monopolizing all delivery workers. Exact concurrency
+and quota values are reference-provider policy, not interoperable wire limits.
+The 31-day envelope availability/token ceiling bounds replay retention and
+terminal-status retry obligations; longer sender promises are invalid.

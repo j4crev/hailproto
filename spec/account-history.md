@@ -264,3 +264,9 @@ account/DID; received references also match sender, media type, and body profile
 Foreign or unowned blobs and incomplete references are rejected. This is a
 breaking pre-launch format expansion: regenerate older snapshots with matching
 source software. Do not drop files to fit the existing bounded snapshot budget.
+
+Provider-local resource accounting (`received_envelopes.admission_bytes`) and
+queue fairness history (`delivery_scheduling`) are excluded from both
+portable and managed snapshots. The target recomputes byte accounting and starts
+its own fair scheduling history; signed envelopes, replay decisions, attempts,
+and retry deadlines remain in the existing history representations.
