@@ -64,7 +64,6 @@ describe("SenderProfileService", () => {
     );
     const definition = {
       display_name: "Alice",
-      offers_uncategorized: false,
       categories: [
         { id: "security-alerts", label: "Security alerts" },
         { id: "receipts", label: "Receipts" },
@@ -101,15 +100,13 @@ describe("SenderProfileService", () => {
     );
     const first = await service.createOrReuse("alice@racrproto.app", {
       display_name: "Alice",
-      offers_uncategorized: false,
       categories: [],
     },0);
     await expect(service.createOrReuse("alice@racrproto.app", {
-      display_name:"Alice Updated",offers_uncategorized:false,categories:[],
+      display_name:"Alice Updated",categories:[],
     },0)).rejects.toBeInstanceOf(SenderProfileConflictError);
     const second = await service.createOrReuse("alice@racrproto.app", {
       display_name: "Alice Updated",
-      offers_uncategorized: false,
       categories: [],
     },1);
 
@@ -119,19 +116,18 @@ describe("SenderProfileService", () => {
   });
 
   it("strictly parses profile definitions",()=>{
-    expect(parseSenderProfileDefinition({display_name:"Alice",offers_uncategorized:false,
-      categories:[{id:"updates",label:"Updates"}]}).categories).toHaveLength(1);
-    expect(()=>parseSenderProfileDefinition({display_name:"Alice",offers_uncategorized:false,categories:[],extra:true})).toThrow("invalid shape");
-    const v2=parseSenderProfileDefinition({version:2,display_name:"Alice",offers_uncategorized:false,categories:[],avatar});
+    expect(parseSenderProfileDefinition({display_name:"Alice",categories:[{id:"updates",label:"Updates"}]}).categories).toHaveLength(1);
+    expect(()=>parseSenderProfileDefinition({display_name:"Alice",categories:[],extra:true})).toThrow("invalid shape");
+    const v2=parseSenderProfileDefinition({version:2,display_name:"Alice",categories:[],avatar});
     expect(v2.avatar?.role).toBe("avatar");
     expect(v2.avatar?.width).toBe(1);
-    expect(()=>parseSenderProfileDefinition({version:1,display_name:"Alice",offers_uncategorized:false,categories:[],avatar})).toThrow("v1");
+    expect(()=>parseSenderProfileDefinition({version:1,display_name:"Alice",categories:[],avatar})).toThrow("v1");
   });
 
   it("creates and reuses a v2 profile with one bundled avatar",async()=>{
     const {account,encryptor,repository,resolver}=await fixture();
     const service=new SenderProfileService(repository,encryptor,resolver,"https://hailproto.app/hail");
-    const definition=parseSenderProfileDefinition({version:2,display_name:"Alice",offers_uncategorized:false,categories:[],avatar});
+    const definition=parseSenderProfileDefinition({version:2,display_name:"Alice",categories:[],avatar});
     const created=await service.createOrReuse(account.canonicalAddress,definition);
     expect(created.payload.version).toBe(2);
     if(created.payload.version!==2)throw new Error("Expected Sender Profile v2");
@@ -142,8 +138,7 @@ describe("SenderProfileService", () => {
   it("persists avatar removal in a signed revision without changing other profile fields", async () => {
     const {account, encryptor, repository, resolver, keys} = await fixture();
     const service = new SenderProfileService(repository, encryptor, resolver, "https://hailproto.app/hail");
-    const base = {version: 2, display_name: "Alice", description: "About", offers_uncategorized: true,
-      categories: [{id: "general", label: "General"}, {id: "news", label: "News"}]};
+    const base = {version: 2, display_name: "Alice", description: "About", categories: [{id: "general", label: "General"}, {id: "news", label: "News"}]};
     const first = await service.createOrReuse(account.canonicalAddress, parseSenderProfileDefinition({...base, avatar}), 0);
     await expect(service.createOrReuse(account.canonicalAddress, parseSenderProfileDefinition(base), 0)).rejects.toBeInstanceOf(SenderProfileConflictError);
     const removed = await service.createOrReuse(account.canonicalAddress, parseSenderProfileDefinition(base), 1);
@@ -158,7 +153,7 @@ describe("SenderProfileService", () => {
 
   it("rejects malformed and oversized avatar bytes before signing", () => {
     for (const bytes of [Buffer.from("not a PNG"), Buffer.concat([Buffer.from(avatar, "base64url"), Buffer.alloc(32768)])]) {
-      expect(() => parseSenderProfileDefinition({version: 2, display_name: "Alice", offers_uncategorized: false, categories: [],
+      expect(() => parseSenderProfileDefinition({version: 2, display_name: "Alice", categories: [],
         avatar: bytes.toString("base64url")})).toThrow();
     }
   });
@@ -182,7 +177,6 @@ describe("SenderProfileService", () => {
     await expect(
       service.createOrReuse("alice@racrproto.app", {
         display_name: "Alice",
-        offers_uncategorized: false,
         categories: [],
       }),
     ).rejects.toThrow("does not authorize");

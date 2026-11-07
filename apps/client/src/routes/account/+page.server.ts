@@ -9,7 +9,7 @@ export async function load({cookies, url}) {
     loadAccountSecurity(client),
   ]);
   let revision = 0;
-  let definition: ProfileDefinition = {version: 2, display_name: account.address.split('@')[0], offers_uncategorized: false, categories: [{id: "general", label: "General"}]};
+  let definition: ProfileDefinition = {version: 2, display_name: account.address.split('@')[0], categories: [{id: "general", label: "General"}]};
   if (profile) {
     const {payload}=profile;
     if (payload.did !== account.did) throw new Error("Sender Profile belongs to another account");

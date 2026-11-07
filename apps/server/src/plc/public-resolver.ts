@@ -1,4 +1,4 @@
-import { storePublicResolution } from "./evidence-storage.js";
+import { storePublicResolution, type PublicResolutionRow } from "./evidence-storage.js";
 import { isDeepStrictEqual } from "node:util";
 import { encode as encodeDagCbor } from "@ipld/dag-cbor";
 import { decodeDeterministic, encodeBase64Url, type HailValue } from "@racrproto/codec";
@@ -55,7 +55,26 @@ export class VerifiedPublicPlcResolver implements HailDidResolver {
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30_000) throw new Error("Public PLC resolution deadline must be 1–30000 ms");
   }
 
+  private readonly pending = new Map<string, Promise<ResolvedHailDid>>();
+
+  private readonly observations = new WeakMap<ResolvedHailDid, { row: PublicResolutionRow; audit: readonly ExportedOp[] }>();
+
   async resolve(did: string): Promise<ResolvedHailDid> {
+    const resolved = await this.resolveForAuthentication(did);
+    await this.retainAuthenticatedResolution(resolved);
+    return resolved;
+  }
+
+  resolveForAuthentication(did: string): Promise<ResolvedHailDid> {
+    const previous = this.pending.get(did);
+    if (previous) return previous;
+    if (this.pending.size >= 32) return Promise.reject(new Error("PLC resolution capacity exhausted"));
+    const result = this.resolveFresh(did).finally(() => this.pending.delete(did));
+    this.pending.set(did, result);
+    return result;
+  }
+
+  private async resolveFresh(did: string): Promise<ResolvedHailDid> {
     if (!/^did:plc:[a-z2-7]{24}$/.test(did)) throw new Error("DID is not canonical did:plc");
     const signal=AbortSignal.timeout(this.timeoutMs),deadline=Date.now()+this.timeoutMs,started=this.now(),failures:unknown[]=[];
     const previous=(await withAbort(this.sql<{bundle_bytes:Uint8Array}[]>`SELECT bundle_bytes FROM public_plc_resolution_contents
@@ -95,18 +114,29 @@ export class VerifiedPublicPlcResolver implements HailDidResolver {
         signed_operations:checked.audit.map(entry=>({cid:entry.cid,dag_cbor:new Uint8Array(encodeDagCbor(entry.operation))}))}],
     } as unknown as HailValue);
     const digest=evidenceHash(bytes);
-    await withAbort(this.sql.begin(async tx=>{
-      signal.throwIfAborted();
-      await tx`SELECT pg_advisory_xact_lock(hashtextextended(${did},0))`;
-      const lockedPrevious=(await tx<{bundle_bytes:Uint8Array}[]>`SELECT bundle_bytes FROM public_plc_resolution_contents
-        WHERE did=${did} ORDER BY verified_at DESC LIMIT 1`)[0];
-      if(lockedPrevious)assertNoHistoryRegression(lockedPrevious.bundle_bytes,checked.audit);
-      await storePublicResolution(tx as SQL, {evidence_digest:digest,did,operation_cid:checked.operationCid,
-        verified_at:verifiedAt,bundle_bytes:bytes,record_version:1,read_evidence_policy_version:PLC_READ_EVIDENCE_POLICY_VERSION});
-      signal.throwIfAborted();
-    }),signal);
-    return {...resolved,evidence:{...resolved.evidence,verification:{profile:"strict-public-v1",digest:encodeBase64Url(digest),
-      operationCid:checked.operationCid,verifiedAt:verifiedAt.toISOString()}}};
+    const result: ResolvedHailDid = {...selected.resolved,
+      evidence:{...selected.resolved.evidence,verification:{profile:"strict-public-v1",digest:encodeBase64Url(digest),
+        operationCid:checked.operationCid,verifiedAt:verifiedAt.toISOString()}}};
+    this.observations.set(result, {row:{evidence_digest:digest,did,operation_cid:checked.operationCid,
+      verified_at:verifiedAt,bundle_bytes:bytes,record_version:1,read_evidence_policy_version:PLC_READ_EVIDENCE_POLICY_VERSION},
+      audit:checked.audit});
+    return result;
+  }
+
+  async retainAuthenticatedResolution(resolved: ResolvedHailDid, transaction?: SQL): Promise<void> {
+    const observation = this.observations.get(resolved);
+    if (!observation) throw new Error("Resolution was not verified by this resolver");
+    const {row, audit} = observation;
+    if (Math.abs(this.now().getTime() - row.verified_at.getTime()) > 30_000) throw new Error("Resolution expired before retention");
+    const retain = async (tx: SQL) => {
+      await tx`SELECT pg_advisory_xact_lock(hashtextextended(${row.did},0))`;
+      const previous=(await tx<{bundle_bytes:Uint8Array}[]>`SELECT bundle_bytes FROM public_plc_resolution_contents
+        WHERE did=${row.did} ORDER BY verified_at DESC LIMIT 1`)[0];
+      if(previous) assertNoHistoryRegression(previous.bundle_bytes,audit);
+      await storePublicResolution(tx,row);
+    };
+    if (transaction) await retain(transaction);
+    else await this.sql.begin(tx=>retain(tx as SQL));
   }
 }
 

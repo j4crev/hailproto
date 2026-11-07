@@ -1,3 +1,4 @@
+import { ProtectedResponseSchedule } from "../src/http/protected-schedule.js";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 import { GrantReceiveError, type GrantReceiver } from "../src/grants/receiver.js";
@@ -14,6 +15,30 @@ function appFor(receive = vi.fn<GrantReceiver["receive"]>()) {
 }
 
 describe("Grant routes", () => {
+  it("bounds unauthenticated concurrency before reading more bodies",async()=>{
+    const app=new Hono();
+    const schedule=new ProtectedResponseSchedule({minimumResponseMs:5,processingDeadlineMs:50,maxInFlight:1});
+    const receive=vi.fn(async()=>{throw new GrantReceiveError(400,"Bad Request",false);});
+    registerGrantRoutes(app,"https://hailproto.app/hail",{receive} as unknown as GrantReceiver,schedule);
+    const options={method:'PUT',headers:{'Content-Type':mediaType},body:new Uint8Array([1])};
+    expect((await app.request(path,options)).status).toBe(400);
+    expect((await app.request(path,options)).status).toBe(429);
+    expect(receive).toHaveBeenCalledTimes(1);
+    await new Promise(resolve=>setTimeout(resolve,55));
+    expect((await app.request(path,options)).status).toBe(400);
+  });
+
+  it("lets a valid slow verification finish rather than returning an early grant failure",async()=>{
+    const app=new Hono();
+    const schedule=new ProtectedResponseSchedule({minimumResponseMs:5,processingDeadlineMs:100,maxInFlight:1});
+    const receive=vi.fn(async()=>{
+      await new Promise(resolve=>setTimeout(resolve,20));
+      return {status:204,etag:'"digest"',created:false};
+    });
+    registerGrantRoutes(app,"https://hailproto.app/hail",{receive} as unknown as GrantReceiver,schedule);
+    expect((await app.request(path,{method:'PUT',headers:{'Content-Type':mediaType},body:new Uint8Array([1])})).status).toBe(204);
+  });
+
   it("maps successful creation to a bodyless response with ETag and Location", async () => {
     const { app, receive } = appFor(
       vi.fn(async () => ({ status: 201, etag: `"${"A".repeat(43)}"`, created: true })),
@@ -34,6 +59,7 @@ describe("Grant routes", () => {
       grantId,
       new Uint8Array([1, 2, 3]),
       { ifMatch: null, ifNoneMatch: "*" },
+      expect.any(AbortSignal),
     );
   });
 

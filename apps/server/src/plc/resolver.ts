@@ -1,3 +1,4 @@
+import type { SQL } from "bun";
 import { isIP } from "node:net";
 import { domainToASCII } from "node:url";
 import { isDeepStrictEqual } from "node:util";
@@ -24,6 +25,8 @@ export interface PlcResolutionEvidence {
 
 export interface HailDidResolver {
   resolve(did: string): Promise<ResolvedHailDid>;
+  resolveForAuthentication?(did: string): Promise<ResolvedHailDid>;
+  retainAuthenticatedResolution?(resolved: ResolvedHailDid, transaction?: SQL): Promise<void>;
 }
 
 export function canonicalizeHailServiceBase(input: string): string {

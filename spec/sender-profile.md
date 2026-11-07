@@ -30,7 +30,6 @@ Diagnostic JSON for the current v2 payload (without an optional avatar):
   "revision": 1,
   "display_name": "Example Store",
   "description": "Receipts and account notifications",
-  "offers_uncategorized": false,
   "categories": [
     {
       "id": "receipts",
@@ -76,10 +75,6 @@ Required plain text from 1 through 128 UTF-8 bytes after NFC normalization. It c
 ### `description`
 
 Optional plain text from 1 through 1024 UTF-8 bytes after NFC normalization. It contains no Unicode `Cc` or `Cf` characters, including bidirectional controls, and contains no markup. Clients render it as inert text.
-
-### `offers_uncategorized`
-
-Required boolean. `true` means the sender offers an uncategorized subscription. It does not grant permission; the recipient must still create a grant with the `uncategorized` selector.
 
 ### `categories`
 
@@ -140,13 +135,13 @@ The complete canonical `did:plc` value is inserted as one literal path segment w
 
 Clients do not follow redirects. Provider migration is discovered through PLC. A client may retry at a newly resolved Hail service under the endpoint-refresh rules in [http-binding.md](http-binding.md).
 
-The complete signed representation is limited to 65536 bytes. A profile may contain no active subscription choices when `categories` is empty and `offers_uncategorized` is false; clients then display it as unavailable for new grants.
+The complete signed representation is limited to 65536 bytes. A profile may contain no active subscription choices when `categories` is empty; clients then display it as unavailable for new grants.
 
 A cached profile never extends the PLC cache lifetime or authorization of its signing key. Before using a profile for new consent, the client verifies it against PLC state fresh enough for new Hail signature acceptance under [did-profile.md](did-profile.md). If `#hail-messaging` was removed, the cached profile is unusable even when its HTTP freshness lifetime has not ended.
 
 ## Grant Creation
 
-For categorized consent, every selected grant category must appear in the verified profile revision. For uncategorized consent, `offers_uncategorized` must be `true`.
+Every selected grant category must appear in the verified profile revision. General (`general`) is an ordinary explicitly offered category, not a wildcard.
 
 The client shows the verified address, DID, profile display name, description, and offered choices. Display names and descriptions never replace the verified address as the visible identity anchor.
 

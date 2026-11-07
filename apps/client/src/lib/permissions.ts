@@ -4,7 +4,7 @@ import type {startAuthentication} from "@simplewebauthn/browser";
 
 export const APPROVAL_STORAGE="hail.pending-grant-approval.v1";
 export interface SenderReview {previousDids?:string[];address:string;did:string;displayName:string;addressDigest:string;profileDigest:string;
-  offersUncategorized:boolean;categories:{id:string;label:string;description?:string}[];}
+  categories:{id:string;label:string;description?:string}[];}
 export interface PermissionResult {grantId:string;revision:number;status:"active"|"revoked";publication:"durable";}
 export interface BatchPermissionResult {items:{grantId:string;result:PermissionResult|null;error:string|null}[];}
 export interface Approval {previousDids?:string[];previousScope?:HailGrantScope[];requestId:string;action:"allow"|"revoke"|"revoke-batch"|"restrict";expiresAt:string;approved:boolean;
@@ -15,7 +15,7 @@ export interface Approval {previousDids?:string[];previousScope?:HailGrantScope[
 const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/,DID=/^did:plc:[a-z2-7]{24}$/;
 export function subscriptionScopeLabel(scope:HailGrantScope|undefined){
   if(!scope)return "Permission unavailable";
-  return scope.type==="categories"?scope.values.map(value=>value==="general"?"General":value).join(", "):"Legacy uncategorized";
+  return scope.type==="categories"?scope.values.map(value=>value==="general"?"General":value).join(", "):"Permission unavailable";
 }
 export function senderLink(origin:string,address:string,did:string){
   const url=new URL(origin);
@@ -40,12 +40,12 @@ function validPermission(permission:any):boolean{
   const scope=permission?.scope?.[0];
   return !!permission&&UUID.test(permission.grant_id)&&Number.isSafeInteger(permission.revision)&&permission.revision>=1&&DID.test(permission.grantor)&&DID.test(permission.grantee)&&
     Array.isArray(permission.scope)&&permission.scope.length===1&&!!scope&&
-    (scope.type==="uncategorized"||scope.type==="categories"&&Array.isArray(scope.values)&&scope.values.length>0&&scope.values.every((v:unknown)=>typeof v==="string"&&/^[a-z0-9][a-z0-9._-]{0,63}$/.test(v)))&&
+    (scope.type==="categories"&&Array.isArray(scope.values)&&scope.values.length>0&&scope.values.every((v:unknown)=>typeof v==="string"&&/^[a-z0-9][a-z0-9._-]{0,63}$/.test(v)))&&
     (permission.expires_at===null||Number.isSafeInteger(permission.expires_at)&&permission.expires_at>0)&&
     typeof permission.consent_context?.grantee_address==="string"&&permission.consent_context.grantee_address.length<=254;
 }
 function validScope(scope:any):scope is HailGrantScope[]{
-  return Array.isArray(scope)&&scope.length===1&&(scope[0]?.type==="uncategorized"||scope[0]?.type==="categories"&&Array.isArray(scope[0].values)&&
+  return Array.isArray(scope)&&scope.length===1&&(scope[0]?.type==="categories"&&Array.isArray(scope[0].values)&&
     scope[0].values.length>0&&scope[0].values.every((v:unknown)=>typeof v==="string"&&/^[a-z0-9][a-z0-9._-]{0,63}$/.test(v)));
 }
 function validResult(result:any):boolean{

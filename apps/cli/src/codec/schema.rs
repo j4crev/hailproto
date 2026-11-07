@@ -115,7 +115,6 @@ fn profile(p: &V) -> Result<(), Error> {
             "did",
             "revision",
             "display_name",
-            "offers_uncategorized",
             "categories",
             "updated_at",
             "key_id",
@@ -133,7 +132,6 @@ fn profile(p: &V) -> Result<(), Error> {
     if has(p, "description") {
         text(p.field("description"), 1024)?;
     }
-    ensure(matches!(p.field("offers_uncategorized"), V::Bool(_)))?;
     let categories = p.field("categories").array()?;
     ensure(categories.len() <= 100)?;
     let mut previous = "";
@@ -200,7 +198,6 @@ fn grant(p: &V) -> Result<(), Error> {
                 previous = value;
             }
         }
-        "uncategorized" => exact(selector, &["type"], &[])?,
         _ => return Err(invalid()),
     }
     ensure(matches!(p.field("status").text()?, "active" | "revoked"))?;

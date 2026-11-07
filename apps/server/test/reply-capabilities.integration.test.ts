@@ -49,6 +49,7 @@ integration("reply capabilities PostgreSQL integration", () => {
         access: { type: "bearer", token: randomBytes(32), expires_at: now + 31 * 86400 } },
       reply: allowedUntil === null ? { allowed: false } : { allowed: true, until: allowedUntil },
     };
+    payload.body.available_until = payload.body.access.expires_at = payload.created_at + 31 * 86400;
     const representation = await signPayload("hail.envelope", payload,
       createWebCryptoSigner(`${alice}#hail-messaging`, privateKey));
     await envelopes.createSent(payload, representation, aliceId);

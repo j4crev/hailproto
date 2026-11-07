@@ -18,6 +18,7 @@ interface ClaimRow {
   sender_did: string;
   message_id: string;
   envelope_cose: Uint8Array;
+  recipient_did: string;
   attempt_count: number;
   lease_token: string;
 }
@@ -41,15 +42,28 @@ export class DeliveryRepository {
   async claimDue(leaseSeconds = 60): Promise<DeliveryClaim | null> {
     const leaseToken = randomUUID();
     return this.sql.begin(async (tx) => {
+      await tx`SELECT pg_advisory_xact_lock(684245105)`;
       const rows = await tx<ClaimRow[]>`
-        SELECT work.sender_did, work.message_id, work.attempt_count, received.envelope_cose
+        SELECT work.sender_did, work.message_id, work.attempt_count, received.envelope_cose, received.recipient_did
         FROM delivery_work work JOIN received_envelopes received
           ON received.sender_did = work.sender_did AND received.message_id = work.message_id
+        LEFT JOIN delivery_scheduling recipient_schedule ON recipient_schedule.scope='recipient' AND recipient_schedule.did=received.recipient_did
+        LEFT JOIN delivery_scheduling sender_schedule ON sender_schedule.scope='sender' AND sender_schedule.did=work.sender_did
         WHERE work.state IN ('accepted', 'on-hold') AND work.next_attempt_at <= now()
           AND (work.lease_expires_at IS NULL OR work.lease_expires_at <= now())
           AND NOT EXISTS (SELECT 1 FROM provider_migration_fences fence
             WHERE fence.did = received.recipient_did)
-        ORDER BY work.next_attempt_at, work.message_id
+          AND NOT EXISTS (SELECT 1 FROM delivery_work running
+            WHERE running.sender_did=work.sender_did AND running.state IN ('accepted','on-hold')
+              AND running.lease_expires_at > now())
+          AND (SELECT count(*) FROM delivery_work running
+            JOIN received_envelopes r USING(sender_did,message_id)
+            WHERE r.recipient_did=received.recipient_did AND running.state IN ('accepted','on-hold')
+              AND running.lease_expires_at > now()) < 2
+        ORDER BY
+          recipient_schedule.last_attempt_at ASC NULLS FIRST,
+          sender_schedule.last_attempt_at ASC NULLS FIRST,
+          work.next_attempt_at, work.message_id
         FOR UPDATE OF work SKIP LOCKED LIMIT 1
       `;
       const row = rows[0];
@@ -64,6 +78,9 @@ export class DeliveryRepository {
           attempt_count = attempt_count + 1
         WHERE sender_did = ${row.sender_did} AND message_id = ${row.message_id}
       `;
+      await tx`INSERT INTO delivery_scheduling(scope,did,last_attempt_at)
+        VALUES('sender',${row.sender_did},clock_timestamp()),('recipient',${row.recipient_did},clock_timestamp())
+        ON CONFLICT(scope,did) DO UPDATE SET last_attempt_at=EXCLUDED.last_attempt_at`;
       return { senderDid: row.sender_did, messageId: row.message_id, leaseToken,
         attemptCount: row.attempt_count + 1, envelope };
     });

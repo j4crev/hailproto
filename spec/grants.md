@@ -152,7 +152,7 @@ Fields:
 - `address_binding_hash`: A closed map containing `algorithm` with exact value `sha-256` and `value` with the exact 32-byte SHA-256 digest of the verified Address Binding's complete signed representation bytes.
 - `sender_profile_hash`: A closed map containing `algorithm` with exact value `sha-256` and `value` with the exact 32-byte SHA-256 digest of the verified Sender Profile's complete signed representation bytes.
 
-The retained Address Binding's canonical `address` must exactly equal `grantee_address`, and its `did` must exactly equal the grant's `grantee`. The retained Sender Profile's `did` must also equal `grantee`. On revision `1`, every selected category must appear in that profile revision; for uncategorized consent, its `offers_uncategorized` value must be `true`.
+The retained Address Binding's canonical `address` must exactly equal `grantee_address`, and its `did` must exactly equal the grant's `grantee`. The retained Sender Profile's `did` must also equal `grantee`. On revision `1`, every selected category must appear in that profile revision.
 
 The grantor retains both exact COSE representations and their PLC verification evidence for as long as it retains the corresponding grant revision or consent evidence. The digests commit to the matching binding and profile payloads, protected signer keys, and signatures that were verified, as defined in [address-binding.md](address-binding.md#binding-representation-digest) and [sender-profile.md](sender-profile.md#representation-digest).
 
@@ -168,33 +168,27 @@ The absolute DID URL of the grantor's `#hail-identity` key, as defined by [did-p
 
 It is not an open extension system.
 
-v0 defines exactly two selector types:
-
-```text
-categories
-uncategorized
-```
+The current profile defines exactly one selector type: `categories`.
+General (`general`) is an ordinary category and requires explicit offer and consent; it is not a wildcard.
 
 Adding a future selector requires a Hail specification amendment, security review, interoperability tests, and capability advertisement. Vendor-defined, sender-defined, URI-namespaced, or silently ignored scope types are not permitted.
 
 General scope rules:
 
-- The array must contain at least one selector.
+- The array must contain exactly one `categories` selector.
 - Unknown or unsupported selector types cause grant rejection.
 - Unsupported selectors must never be ignored.
 - Duplicate selector types are invalid.
-- Different selector types are combined with logical AND.
 - Multiple values within one selector are combined with logical OR.
 - Empty value arrays are invalid.
-- v0 grants contain exactly one selector because `categories` and `uncategorized` are mutually exclusive.
 
-The AND rule is defined now so a small number of future, broadly applicable selectors can be composed without creating a Boolean authorization language. Any future change to v0 relationship cardinality or alternative authorization paths requires an explicit specification amendment.
+Any future change to v0 relationship cardinality or alternative authorization paths requires an explicit specification amendment.
 
 ### Scope Boundaries
 
 Scope describes what messages the exact grantee DID may deliver. It does not redefine who the grantee is.
 
-- Direct person-to-person grants use `uncategorized` scope between exact individual DIDs.
+- Category-free direct messages use connection or reply authorization, not a subscription Grant.
 - Trust between partner organizations targets an organization DID and requires separately verifiable delegation to employee or service DIDs.
 - Company mergers use DID continuity, succession, or delegation rules rather than a merger-specific scope selector.
 - Expiration, rate limits, body limits, attachment policy, and reply capability are constraints or separate authorization mechanisms, not scope selector types.
@@ -231,25 +225,6 @@ Rules:
 Category IDs are scoped to the grantee DID. The tuple `(grantee DID, category ID)` is globally unambiguous, so category IDs do not need to be URLs.
 
 A sender must not repurpose an existing category ID for materially different content. A materially new purpose requires a new category ID and explicit opt-in.
-
-### Uncategorized Scope
-
-```json
-{
-  "scope": [
-    {
-      "type": "uncategorized"
-    }
-  ]
-}
-```
-
-Rules:
-
-- The selector has no additional fields.
-- It authorizes only messages that omit category.
-- It does not authorize any category introduced later.
-- If a previously uncategorized sender introduces categories, each category requires explicit opt-in.
 
 ## Relationship Cardinality
 
@@ -288,7 +263,7 @@ High-level creation flow:
 1. The recipient resolves and verifies the sender's Hail Address Binding.
 2. The client retrieves and verifies the sender's current signed Sender Profile.
 3. The client displays the verified address, DID, sender profile, and available categories.
-4. The recipient explicitly selects categorized or uncategorized delivery.
+4. The recipient explicitly selects one or more offered categories.
 5. The recipient creates revision `1` with the verified Address Binding and Sender Profile consent context and signs it with `#hail-identity`.
 6. The recipient server verifies and stores the grant locally.
 7. The grant becomes active locally immediately.
@@ -350,14 +325,13 @@ Updates can:
 
 - add explicitly approved categories
 - remove categories
-- switch between categorized and uncategorized scope after explicit consent
 - renew or change expiration
 - update consent context
 - revoke the grant
 
-Removing the last selected category revokes the grant unless the recipient explicitly approves uncategorized scope.
+Removing the last selected category revokes the grant; no Grant revision can have an empty selection. The revocation retains the preceding category selection and changes status to `revoked`.
 
-An active revision that adds any category, replaces any category with a new category, or switches between categorized and uncategorized scope requires explicit consent against a current verified Address Binding and Sender Profile. The profile must offer every newly authorized choice, and the revision replaces `consent_context` with hashes of that current evidence.
+An active revision that adds any category or replaces any category with a new category requires explicit consent against a current verified Address Binding and Sender Profile. The profile must offer every newly authorized choice, and the revision replaces `consent_context` with hashes of that current evidence.
 
 A revision that only removes categories, shortens expiration, or revokes the grant carries the preceding `consent_context` forward unchanged. Restricting or revoking authorization must not depend on sender profile availability. Other revisions may preserve the preceding context or replace it only after re-verifying both evidence objects. No revision may omit `consent_context`.
 
@@ -582,7 +556,7 @@ The proof of concept implements:
 
 - UUIDv7 grant IDs
 - one active grant per grantor/grantee pair
-- `categories` and `uncategorized` scope selectors only
+- exactly one nonempty `categories` scope selector
 - required Address Binding and Sender Profile consent context on every revision
 - full-state signed revisions
 - local authoritative state

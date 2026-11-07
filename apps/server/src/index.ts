@@ -255,16 +255,21 @@ setInterval(async () => {
   } finally { statusRunning = false; }
 }, 5_000);
 
-let deliveryRunning = false;
-setInterval(async () => {
-  if (deliveryRunning) return;
-  deliveryRunning = true;
-  try { await withFreshServingGenerations(database.sql,()=>deliveryWorker.processOne()); }
-  catch (error) {
-    console.error(JSON.stringify({ level: "error", message: "delivery worker failed",
-      error: error instanceof Error ? error.message : "unknown error" }));
-  } finally { deliveryRunning = false; }
-}, 5_000);
+// Eight bounded workers; database claims enforce fairness and per-party concurrency
+// across processes. Poll frequently so fast deliveries can drain a backlog.
+for (let slot = 0; slot < 8; slot++) {
+  let deliveryRunning = false;
+  setInterval(async () => {
+    if (deliveryRunning) return;
+    deliveryRunning = true;
+    try { await withFreshServingGenerations(database.sql,()=>deliveryWorker.processOne()); }
+    catch (error) {
+      console.error(JSON.stringify({ level: "error", message: "delivery worker failed",
+        error: error instanceof Error ? error.message : "unknown error" }));
+    } finally { deliveryRunning = false; }
+  }, 250);
+}
+
 }
 
 const checkReadiness = async () => {

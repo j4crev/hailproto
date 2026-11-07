@@ -163,7 +163,7 @@ integration("private PLC transfer between disposable POC providers", () => {
     const bindingCose=await signPayload("hail.address-binding",peerBinding,createWebCryptoSigner(peerBinding.key_id,peerIdentity));
     const rawPeer=await peerEncryptor.decrypt(peerAccount,peerMessaging.role,peerMessaging.algorithm,peerMessaging.publicKey,peerMessaging);
     let peerSigner:CryptoKey;try{peerSigner=await importEd25519PrivateKey(rawPeer);}finally{rawPeer.fill(0);}
-    const profile:HailSenderProfile={type:"hail.sender-profile",version:1,did:peerDid,revision:1,updated_at:now,display_name:"Remote peer",offers_uncategorized:false,categories:[{id:"updates",label:"Updates"}],key_id:`${peerDid}#hail-messaging`};
+    const profile:HailSenderProfile={type:"hail.sender-profile",version:1,did:peerDid,revision:1,updated_at:now,display_name:"Remote peer",categories:[{id:"updates",label:"Updates"}],key_id:`${peerDid}#hail-messaging`};
     const profileCose=await signPayload("hail.sender-profile",profile,createWebCryptoSigner(profile.key_id,peerSigner));
     const peerEvidence={document:await plc.getDocument(peerDid),data:await plc.getDocumentData(peerDid),log:await plc.getOperationLog(peerDid)};
     const grant:HailGrant={type:"hail.grant",version:1,grant_id:Bun.randomUUIDv7(),revision:1,previous:null,grantor:genesis.did,grantee:peerDid,
@@ -390,7 +390,7 @@ integration("private PLC transfer between disposable POC providers", () => {
     const request=JSON.parse(destinationRequests[0]!);request.binding=encodeBase64Url(new Uint8Array([1]));
     const changed=await app.request("https://target.example.com/.well-known/hail/transfers/completions",{method:"POST",headers:{"Content-Type":"application/hail-transfer+json"},body:JSON.stringify(request)});
     expect(changed.status).toBe(400);
-    const webfinger=await app.request(`https://target.example.com/.well-known/webfinger?resource=${encodeURIComponent(`acct:${destinationAddress}`)}&rel=${encodeURIComponent("https://hailproto.com/rel/address-binding")}`);
+    const webfinger=await app.request(`https://target.example.com/.well-known/webfinger?resource=${encodeURIComponent(`acct:${destinationAddress}`)}&rel=${encodeURIComponent("https://racrproto.com/rel/address-binding")}`);
     expect(webfinger.status).toBe(200);
     const receipt = await activation.issueReceipt(offer.transfer_id);
     await sourceFence.retire(genesis.did, offer.transfer_id, receipt);

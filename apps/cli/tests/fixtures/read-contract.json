@@ -1989,7 +1989,7 @@
       "exit": 0,
       "stdout": {
         "revision": 1,
-        "digest": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+        "digest": "ftM3fOdELebzhkTfkI-nwP56LRXmB_OK9zb7WyvZPR0",
         "profile": {
           "did": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
           "type": "hail.sender-profile",
@@ -2008,8 +2008,7 @@
           ],
           "updated_at": 1787851200,
           "description": "Receipts and account notifications",
-          "display_name": "Example Store",
-          "offers_uncategorized": false
+          "display_name": "Example Store"
         },
         "cliContractVersion": 2
       },
@@ -2030,7 +2029,7 @@
       "exit": 0,
       "stdout": {
         "revision": 2,
-        "digest": "FoIxMiBb2XOxqwX0jG9jKjM2FKyYMNCZBEjt4iTrAg8",
+        "digest": "KGDoVyeSy6-acPwY96dv4RQQrnFf2GM-raDMGykcrAs",
         "profile": {
           "did": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
           "type": "hail.sender-profile",
@@ -2068,8 +2067,7 @@
           ],
           "updated_at": 1787851200,
           "description": "Receipts and account notifications",
-          "display_name": "Example Store",
-          "offers_uncategorized": false
+          "display_name": "Example Store"
         },
         "cliContractVersion": 2
       },
@@ -2092,7 +2090,7 @@
       "stdout": {
         "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
         "localRole": "grantor",
-        "digest": "hV5mgyCCNLeo7xki6b1yWAmv8MtgC4YAnjvIu8Vmgb4",
+        "digest": "9wAxXXyXcxzCkWuIB7oZV463U597_X74VfvXI2t9kUk",
         "grant": {
           "type": "hail.grant",
           "scope": [
@@ -2118,7 +2116,7 @@
           "consent_context": {
             "grantee_address": "updates@store.example.com",
             "sender_profile_hash": {
-              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "value": "ftM3fOdELebzhkTfkI-nwP56LRXmB_OK9zb7WyvZPR0",
               "algorithm": "sha-256"
             },
             "address_binding_hash": {
@@ -2149,7 +2147,7 @@
       "stdout": {
         "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
         "localRole": "grantor",
-        "digest": "_9BABSqQq-4HG7hsWTyOHiXMExaDlAUE_DvMesc3wKE",
+        "digest": "1ntulJDP-HjA24l0o1tPx2DzKhjg2kdLNNBemxTKaNI",
         "grant": {
           "type": "hail.grant",
           "scope": [
@@ -2167,7 +2165,7 @@
           "grantor": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
           "version": 1,
           "grant_id": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
-          "previous": "hV5mgyCCNLeo7xki6b1yWAmv8MtgC4YAnjvIu8Vmgb4",
+          "previous": "9wAxXXyXcxzCkWuIB7oZV463U597_X74VfvXI2t9kUk",
           "revision": 2,
           "issued_at": 1787851200,
           "expires_at": null,
@@ -2175,7 +2173,7 @@
           "consent_context": {
             "grantee_address": "updates@store.example.com",
             "sender_profile_hash": {
-              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "value": "ftM3fOdELebzhkTfkI-nwP56LRXmB_OK9zb7WyvZPR0",
               "algorithm": "sha-256"
             },
             "address_binding_hash": {
@@ -2842,7 +2840,7 @@
       "exit": 0,
       "stdout": {
         "revision": 1,
-        "digest": "Djyrl3F0AXZaeNRrI_PQzSZswOMOx_H6zOC1MRBDzTM",
+        "digest": "MABQch2cKfZX8d3o_AXr1Azp9rgYnyBUmMfHBGU3DtQ",
         "profile": {
           "did": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
           "type": "hail.sender-profile",
@@ -2861,8 +2859,7 @@
           ],
           "updated_at": 1787851200,
           "description": "Receipts and account notifications",
-          "display_name": "Example Store",
-          "offers_uncategorized": false
+          "display_name": "Example Store"
         },
         "cliContractVersion": 2
       },
@@ -3503,7 +3500,7 @@
       "stdout": {
         "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
         "localRole": "grantor",
-        "digest": "lNn0LgtTFEM5bdCTVlgu_h_VMwl4aM0abmk4blsVfgU",
+        "digest": "-JKTwStgsYojA9JI2RC73d1C5jE3pO7HXeP6M7_gYcA",
         "grant": {
           "type": "hail.grant",
           "scope": [
@@ -3529,7 +3526,7 @@
           "consent_context": {
             "grantee_address": "alice@example.com",
             "sender_profile_hash": {
-              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "value": "ftM3fOdELebzhkTfkI-nwP56LRXmB_OK9zb7WyvZPR0",
               "algorithm": "sha-256"
             },
             "address_binding_hash": {
@@ -3560,7 +3557,7 @@
       "stdout": {
         "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
         "localRole": "grantor",
-        "digest": "hyojVCb1IIb8HUX6dxZuD5ZdeAbhtEOsdEY5YQz-AeI",
+        "digest": "PjWn761jTdd8tJ5iDuz_YtDJykEvIU0z7B0WQe7Z0Fg",
         "grant": {
           "type": "hail.grant",
           "scope": [
@@ -3586,7 +3583,7 @@
           "consent_context": {
             "grantee_address": "alice@a.co.uk",
             "sender_profile_hash": {
-              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "value": "ftM3fOdELebzhkTfkI-nwP56LRXmB_OK9zb7WyvZPR0",
               "algorithm": "sha-256"
             },
             "address_binding_hash": {
@@ -3617,7 +3614,7 @@
       "stdout": {
         "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
         "localRole": "grantor",
-        "digest": "OElCMtOKAOP8Ine2RwHtJpgolETQTHm2I9dvV6LS04k",
+        "digest": "yCZJKZdkdwyCqJuUrVg58avw0HE6hQOcWuzSRIqUpQE",
         "grant": {
           "type": "hail.grant",
           "scope": [
@@ -3643,7 +3640,7 @@
           "consent_context": {
             "grantee_address": "alice@a.github.io",
             "sender_profile_hash": {
-              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "value": "ftM3fOdELebzhkTfkI-nwP56LRXmB_OK9zb7WyvZPR0",
               "algorithm": "sha-256"
             },
             "address_binding_hash": {
@@ -3674,7 +3671,7 @@
       "stdout": {
         "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
         "localRole": "grantor",
-        "digest": "5KH5uGHxhaDuKXax9TtfL6F-SK_-bAQYZbUiKK5uKuw",
+        "digest": "-TQtyRg-O3Gjl-dMx1kDnFeF2ezDBowzyiiGtxUlgSY",
         "grant": {
           "type": "hail.grant",
           "scope": [
@@ -3700,7 +3697,7 @@
           "consent_context": {
             "grantee_address": "alice@xn--bcher-kva.de",
             "sender_profile_hash": {
-              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "value": "ftM3fOdELebzhkTfkI-nwP56LRXmB_OK9zb7WyvZPR0",
               "algorithm": "sha-256"
             },
             "address_binding_hash": {
@@ -3731,7 +3728,7 @@
       "stdout": {
         "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
         "localRole": "grantor",
-        "digest": "eObgzNVU9JTl_1n4VHaqSmd-I9g5_CKMt27Cr2qAiWE",
+        "digest": "Rdqbw_M-JeEJAajOVvNjWdItv89JbvNlVWi1fVKdFaQ",
         "grant": {
           "type": "hail.grant",
           "scope": [
@@ -3757,7 +3754,7 @@
           "consent_context": {
             "grantee_address": "alice@www.ck",
             "sender_profile_hash": {
-              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "value": "ftM3fOdELebzhkTfkI-nwP56LRXmB_OK9zb7WyvZPR0",
               "algorithm": "sha-256"
             },
             "address_binding_hash": {
@@ -3790,7 +3787,7 @@
       "stdout": {
         "grantId": "01954144-8097-7a9d-a7a8-ef29a823eaf1",
         "localRole": "grantor",
-        "digest": "hV5mgyCCNLeo7xki6b1yWAmv8MtgC4YAnjvIu8Vmgb4",
+        "digest": "9wAxXXyXcxzCkWuIB7oZV463U597_X74VfvXI2t9kUk",
         "grant": {
           "type": "hail.grant",
           "scope": [
@@ -3816,7 +3813,7 @@
           "consent_context": {
             "grantee_address": "updates@store.example.com",
             "sender_profile_hash": {
-              "value": "FtwzyXOXCJTLnSdQ4U4kI9-QH35XcBeLtUkn7zRVq44",
+              "value": "ftM3fOdELebzhkTfkI-nwP56LRXmB_OK9zb7WyvZPR0",
               "algorithm": "sha-256"
             },
             "address_binding_hash": {
@@ -3833,7 +3830,7 @@
         "/grants/01954144-8097-7a9d-a7a8-ef29a823eaf1"
       ],
       "saved": {
-        "hex": "d2845852a3013203781b6170706c69636174696f6e2f6861696c2d6772616e742b63626f7204582e6469643a706c633a616161616161616161616161616161616161616161616161236861696c2d6964656e74697479a0590235ae64747970656a6861696c2e6772616e746573636f706581a264747970656a63617465676f726965736676616c756573826872656365697074736f73656375726974792d616c65727473666b65795f6964782e6469643a706c633a616161616161616161616161616161616161616161616161236861696c2d6964656e746974796673746174757366616374697665676772616e74656578206469643a706c633a626262626262626262626262626262626262626262626262676772616e746f7278206469643a706c633a6161616161616161616161616161616161616161616161616776657273696f6e01686772616e745f6964782430313935343134342d383039372d376139642d613761382d6566323961383233656166316870726576696f7573f6687265766973696f6e01696973737565645f61741a6a9071c06a657870697265735f6174f66a757064617465645f61741a6a9071c06f636f6e73656e745f636f6e74657874a36f6772616e7465655f616464726573737819757064617465734073746f72652e6578616d706c652e636f6d7373656e6465725f70726f66696c655f68617368a26576616c7565582016dc33c973970894cb9d2750e14e2423df901f7e5770178bb54927ef3455ab8e69616c676f726974686d677368612d32353674616464726573735f62696e64696e675f68617368a26576616c75655820d8a38b735dd3c12b1c2dda8ccc8841633d387a8db22265409321bfeb19e0512469616c676f726974686d677368612d32353658402c3ec01e1a839b43e544968f94269f74f260cc67693c905c25b9fe78e03e14f75855925a77917f161adae38d761f78d14bc06da63b848aa22e787cb63de4640c",
+        "hex": "d2845852a3013203781b6170706c69636174696f6e2f6861696c2d6772616e742b63626f7204582e6469643a706c633a616161616161616161616161616161616161616161616161236861696c2d6964656e74697479a0590235ae64747970656a6861696c2e6772616e746573636f706581a264747970656a63617465676f726965736676616c756573826872656365697074736f73656375726974792d616c65727473666b65795f6964782e6469643a706c633a616161616161616161616161616161616161616161616161236861696c2d6964656e746974796673746174757366616374697665676772616e74656578206469643a706c633a626262626262626262626262626262626262626262626262676772616e746f7278206469643a706c633a6161616161616161616161616161616161616161616161616776657273696f6e01686772616e745f6964782430313935343134342d383039372d376139642d613761382d6566323961383233656166316870726576696f7573f6687265766973696f6e01696973737565645f61741a6a9071c06a657870697265735f6174f66a757064617465645f61741a6a9071c06f636f6e73656e745f636f6e74657874a36f6772616e7465655f616464726573737819757064617465734073746f72652e6578616d706c652e636f6d7373656e6465725f70726f66696c655f68617368a26576616c756558207ed3377ce7442de6f38644df908fa7c0fe7a2d15e607f38af736fb5b2bd93d1d69616c676f726974686d677368612d32353674616464726573735f62696e64696e675f68617368a26576616c75655820d8a38b735dd3c12b1c2dda8ccc8841633d387a8db22265409321bfeb19e0512469616c676f726974686d677368612d3235365840e2cebcfdb21130d3bad9d2a6870923bfbf7d8df9e137db6b0f330364bd891938b208e6bc9ed3ccf211df367d5a067a88e6990b1127fbe8214816628b777a390a",
         "mode": 384
       }
     }

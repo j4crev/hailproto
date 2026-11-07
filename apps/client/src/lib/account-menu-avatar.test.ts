@@ -3,7 +3,7 @@ const mocks = vi.hoisted(() => ({isConfigured: vi.fn(), canaryAccount: vi.fn(), 
 vi.mock("$lib/server/canary.js", () => mocks);
 import {load} from "../routes/+layout.server.js";
 const did = "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa";
-const payload = {did, version: 2, display_name: "Alice", offers_uncategorized: false, categories: [], assets: {assets: [{data: new Uint8Array([1, 2, 3])}]}};
+const payload = {did, version: 2, display_name: "Alice", categories: [], assets: {assets: [{data: new Uint8Array([1, 2, 3])}]}};
 const run = (path = "/") => load({cookies: {}, depends: vi.fn(), url: new URL(path, "https://example.com")} as never);
 beforeEach(() => {
   vi.resetAllMocks();

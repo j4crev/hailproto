@@ -484,7 +484,7 @@ async function collectManagedTables(tx: SQL, did: string, accountId: string): Pr
   const detached_bodies = await collect(tx`SELECT to_jsonb(t) AS row FROM detached_bodies t WHERE sender_account_id=${accountId} ORDER BY digest`);
   const body_authorizations = await collect(tx`SELECT to_jsonb(t) AS row FROM body_authorizations t WHERE sender_account_id=${accountId} ORDER BY token_hash`);
   const sent_envelopes = await collect(tx`SELECT to_jsonb(t) AS row FROM sent_envelopes t WHERE sender_account_id=${accountId} ORDER BY sender_did,message_id`);
-  const received_envelopes = await collect(tx`SELECT to_jsonb(t) AS row FROM received_envelopes t WHERE local_account_id=${accountId} ORDER BY sender_did,message_id`);
+  const received_envelopes = await collect(tx`SELECT (to_jsonb(t)-'admission_bytes') AS row FROM received_envelopes t WHERE local_account_id=${accountId} ORDER BY sender_did,message_id`);
   const reply_capabilities = await collect(tx`SELECT to_jsonb(t) AS row FROM reply_capabilities t WHERE original_sender_did=${did} ORDER BY original_message_id`);
   const delivery_work = await collect(tx`SELECT (to_jsonb(t)-'lease_token'-'lease_expires_at') AS row FROM delivery_work t JOIN received_envelopes owner USING(sender_did,message_id)
     WHERE owner.local_account_id=${accountId} ORDER BY t.sender_did,t.message_id`);

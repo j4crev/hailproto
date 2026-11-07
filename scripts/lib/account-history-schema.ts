@@ -79,6 +79,7 @@ export async function accountHistorySchema(sql:SQL):Promise<Schema>{
         const excluded=name==='provider_accounts'?['address_released_at','closed_at']:name==='account_keys'
           ?['encrypted_private_key','encryption_nonce','kek_id',...(domain==='managed'?['encryption_version']:[])]:
           domain==='managed'&&['grant_publications','delivery_work','terminal_status_publications'].includes(name)?['lease_token','lease_expires_at']:[];
+        if(name==='received_envelopes')excluded.push('admission_bytes');
         selected=selected.filter(c=>!excluded.includes(c.column_name));
       }
       if(!selected.length)throw Error('Missing record '+name);
@@ -109,7 +110,7 @@ export async function accountHistorySchema(sql:SQL):Promise<Schema>{
       connections:ref('connection-history'),connectionCheckpointDigest:digest,conversations:ref('conversation-history'),conversationCheckpointDigest:digest,
       tables:records(domain,tables)});
   }
-  return {$schema:'http://json-schema.org/draft-07/schema#',$id:'https://hailproto.com/schemas/account-history-v7-v8.json',
+  return {$schema:'http://json-schema.org/draft-07/schema#',$id:'https://racrproto.com/schemas/account-history-v7-v8.json',
     title:'Hail current account history: portable v7 / managed v8',
     description:'Storage-independent logical record contract for the current wire manifests. All records and fields are closed. Cross-record authority and consistency requirements are normative in account-history.md. The x-reference-storage annotations are informative only.',
     oneOf:[ref('portable'),ref('managed')],definitions};

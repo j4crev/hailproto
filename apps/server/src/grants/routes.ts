@@ -1,3 +1,4 @@
+import { ProtectedResponseSchedule } from "../http/protected-schedule.js";
 import type { Context, Hono } from "hono";
 import { isCoseSign1MediaType } from "../http/media-type.js";
 import { GrantReceiveError, type GrantReceiver } from "./receiver.js";
@@ -28,43 +29,49 @@ function titleFor(status: number): string {
   )[status] ?? "Bad Request";
 }
 
-async function requestBytes(request: Request): Promise<Uint8Array> {
+async function requestBytes(request: Request, signal: AbortSignal): Promise<Uint8Array> {
   const declared = request.headers.get("content-length");
   if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > MAX_GRANT_BYTES)) {
     throw new GrantReceiveError(413, "Grant request exceeds its transport limit");
   }
   if (!request.body) return new Uint8Array();
   const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    length += value.length;
-    if (length > MAX_GRANT_BYTES) {
-      await reader.cancel();
-      throw new GrantReceiveError(413, "Grant request exceeds its transport limit");
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  signal.addEventListener("abort", cancel, { once: true });
+  try {
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    while (true) {
+      signal.throwIfAborted();
+      const { done, value } = await reader.read();
+      signal.throwIfAborted();
+      if (done) break;
+      length += value.length;
+      if (length > MAX_GRANT_BYTES) {
+        await reader.cancel();
+        throw new GrantReceiveError(413, "Grant request exceeds its transport limit");
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(length);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return bytes;
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return bytes;
+  } finally { signal.removeEventListener("abort", cancel); reader.releaseLock(); }
 }
 
 export function registerGrantRoutes(
   app: Hono,
   hailServiceBase: string,
   receiver: GrantReceiver,
+  schedule = new ProtectedResponseSchedule(),
 ): void {
   const rateLimit=new FixedWindowRateLimit();
 
   app.all("/hail/grants/:grantId", async (context) => {
-    const startedAt = Date.now();
     const headers: Record<string, string> = {
       "Cache-Control": "no-store",
       "Content-Type": "application/problem+json",
@@ -85,47 +92,49 @@ export function registerGrantRoutes(
     ) {
       return context.json(problem(415, titleFor(415)), 415, headers);
     }
-    try {
-      const grantId = context.req.param("grantId");
-      if (!GRANT_ID_PATTERN.test(grantId)) throw new GrantReceiveError(400, "Bad Request", false);
-      const result = await receiver.receive(grantId, await requestBytes(context.req.raw), {
-        ifMatch: context.req.header("if-match") ?? null,
-        ifNoneMatch: context.req.header("if-none-match") ?? null,
-      });
-      const successHeaders: Record<string, string> = {
-        "Cache-Control": "no-store",
-        ETag: result.etag,
-      };
-      if (result.status === 412) {
-        return context.json(problem(412, titleFor(412)), 412, {
-          ...successHeaders,
-          "Content-Type": "application/problem+json",
-        });
-      }
-      if (result.created) successHeaders.Location = `${hailServiceBase}/grants/${grantId}`;
-      return new Response(null, { status: result.status, headers: successHeaders });
-    } catch (error) {
-      const failure =
-        error instanceof GrantReceiveError
-          ? error
-          : new GrantReceiveError(503, "Grant processing is temporarily unavailable");
-      if (failure.status === 400 && !failure.disclose) {
-        const remaining = 500 - (Date.now() - startedAt);
-        if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
-      }
-      return context.json(
-        problem(
+    const scheduled = await schedule.run(async signal => {
+      try {
+        const grantId = context.req.param("grantId");
+        if (!GRANT_ID_PATTERN.test(grantId)) throw new GrantReceiveError(400, "Bad Request", false);
+        const result = await receiver.receive(grantId, await requestBytes(context.req.raw, signal), {
+          ifMatch: context.req.header("if-match") ?? null,
+          ifNoneMatch: context.req.header("if-none-match") ?? null,
+        }, signal);
+        const successHeaders: Record<string, string> = {
+          "Cache-Control": "no-store",
+          ETag: result.etag,
+        };
+        if (result.status === 412) {
+          return context.json(problem(412, titleFor(412)), 412, {
+            ...successHeaders,
+            "Content-Type": "application/problem+json",
+          });
+        }
+        if (result.created) successHeaders.Location = `${hailServiceBase}/grants/${grantId}`;
+        return new Response(null, { status: result.status, headers: successHeaders });
+      } catch (error) {
+        const failure =
+          error instanceof GrantReceiveError
+            ? error
+            : new GrantReceiveError(503, "Grant processing is temporarily unavailable");
+        return context.json(
+          problem(
+            failure.status,
+            titleFor(failure.status),
+            failure.disclose ? failure.message : undefined,
+          ),
           failure.status,
-          titleFor(failure.status),
-          failure.disclose ? failure.message : undefined,
-        ),
-        failure.status,
-        {
-          ...headers,
-          ...(failure.status === 503 ? { "Retry-After": "30" } : {}),
-        },
-      );
-    }
+          {
+            ...headers,
+            ...(failure.status === 503 ? { "Retry-After": "30" } : {}),
+          },
+        );
+      }
+    }, true, clientAddress(context.req.raw));
+    if (scheduled.kind === "busy") return context.json(problem(429, titleFor(429)), 429,
+      { ...headers, "Retry-After": "10" });
+    if (scheduled.kind === "detailed") return scheduled.value;
+    return context.json(problem(400, "Bad Request"), 400, headers);
   });
 
   const malformedPath = (context: Context) => {

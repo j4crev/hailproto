@@ -245,7 +245,7 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     assert(request.headers.get("Cookie")?.includes("hail_session="+sessionToken));
     const step=path.split("/").at(-1)!;
     if(step==="review"){assert.equal(input.sender,peerAddress);if(input.senderDid)assert.equal(input.senderDid,peerDid);
-      return json({address:peerAddress,did:peerDid,displayName:"Test sender",addressDigest:"A".repeat(43),profileDigest:"A".repeat(43),offersUncategorized:!generalAvailable,categories:[{id:"updates",label:"Updates"},...(generalAvailable?[{id:"general",label:"General"}]:[])]});}
+      return json({address:peerAddress,did:peerDid,displayName:"Test sender",addressDigest:"A".repeat(43),profileDigest:"A".repeat(43),categories:[{id:"updates",label:"Updates"},...(generalAvailable?[{id:"general",label:"General"}]:[])]});}
     if(step==="prepare"){
       assert(["allow","revoke"].includes(input.action));
       if(input.action==="allow"){
@@ -283,10 +283,10 @@ const server=Bun.serve({hostname:"::",port:0,async fetch(request){
     if(request.method==="POST"){
       if(!recentlyVerified)return json({},403);
       if(input.expectedRevision!==(ownProfile?.revision??0))return json({},409);
-      assert(input.definition.display_name);assert.equal(input.definition.offers_uncategorized,false);
+      assert(input.definition.display_name);
       const payload={type:"hail.sender-profile",version:input.definition.version,did,revision:(ownProfile?.revision??0)+1,
         display_name:input.definition.display_name,...(input.definition.description?{description:input.definition.description}:{}),
-        offers_uncategorized:input.definition.offers_uncategorized,categories:input.definition.categories,updated_at:Math.floor(Date.now()/1000),key_id:did+"#hail-messaging"};
+        categories:input.definition.categories,updated_at:Math.floor(Date.now()/1000),key_id:did+"#hail-messaging"};
       const cose=await signPayload("hail.sender-profile",payload,createWebCryptoSigner(payload.key_id,permissionSigner.privateKey));
       ownProfile={type:"racr.sender-profile",version:1,revision:payload.revision,cose:encodeBase64Url(cose),
         digest:encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256",Uint8Array.from(cose)))),profile:toDiagnosticJson("hail.sender-profile",payload)};
@@ -982,7 +982,6 @@ try{
   assert.equal(await evaluate(`document.querySelector('input[placeholder="sender@example.com"]').value`),peerAddress);
   await click("Continue");
   await wait(async()=>evaluate(`!!document.querySelector('input[value=general]')`),"General is an ordinary offered category");
-  assert(!await has("Allow uncategorized messages instead"));
   await evaluate(`document.querySelector('input[value=general]').click()`);
   await click("Subscribe");
   await wait(async()=>evaluate(`[...document.querySelectorAll('[aria-label="Subscriptions"] article dd')].some(p=>p.textContent==='General')`),"new General subscription saved");

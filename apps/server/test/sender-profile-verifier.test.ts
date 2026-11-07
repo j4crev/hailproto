@@ -39,7 +39,6 @@ async function signedProfile(revision = 1, updatedAt = 1_790_467_200) {
     did,
     revision,
     display_name: "Alice",
-    offers_uncategorized: false,
     categories: [{ id: "receipts", label: "Receipts" }],
     updated_at: updatedAt,
     key_id: `${did}#hail-messaging`,

@@ -212,7 +212,7 @@ bundled images use `spt-3`.
 
 The minimum UTC Unix timestamp through which the sender commits to serving the body.
 
-It must be at least 30 days after the envelope's `created_at` time. A body reused by a later envelope receives a correspondingly later availability commitment.
+It must be at least 30 days and no more than 31 days (2678400 seconds) after the envelope's `created_at` time. The bearer `access.expires_at` must also be no later than that 31-day bound and no earlier than `available_until`. A body reused by a later envelope receives a correspondingly later availability commitment.
 
 ### `access`
 

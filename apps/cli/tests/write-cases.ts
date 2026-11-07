@@ -34,11 +34,11 @@ export async function writeCases(binary:string,root:string,directory:string,prov
    await writeFile(file,"Changed text");let n=calls.filter(c=>c.path==="/messages").length;await run(args,false);assert.equal(calls.filter(c=>c.path==="/messages").length,n);await writeFile(file,text);
    fail="fenced";await run(args,false);fail="";
   }
-  const definition=join(directory,`profile-${index}.json`);await writeFile(definition,JSON.stringify({display_name:"Example",offers_uncategorized:false,categories:[]}),{mode:0o600});
+  const definition=join(directory,`profile-${index}.json`);await writeFile(definition,JSON.stringify({display_name:"Example",categories:[]}),{mode:0o600});
   await run(["profile","create","--file",definition]);assert.equal(calls.at(-1).body.expectedRevision,0);
   await run(["profile","update","--file",definition]);assert.equal(calls.at(-1).body.expectedRevision,profile.revision);
   fail="digest";await run(["profile","create","--file",definition],false);fail="";
-  await writeFile(definition,JSON.stringify({display_name:"Example",offers_uncategorized:false,categories:[],extra:true}));let n=calls.length;await run(["profile","create","--file",definition],false);assert.equal(calls.length,n);
+  await writeFile(definition,JSON.stringify({display_name:"Example",categories:[],extra:true}));let n=calls.length;await run(["profile","create","--file",definition],false);assert.equal(calls.length,n);
  }
  console.log(`Messaging/profile regression: ${cases} cases passed`);
 }

@@ -918,3 +918,41 @@ routes documented in the [CLI contract](../cli/docs/cli-contract.md#shared-conve
 Managed and owner-controlled accounts use the same messaging authority. Existing
 browser session and identity-signing requirements remain in force. These additions
 reuse migrations 0092–0096; no additional migration is needed.
+
+### Federation resource policy
+
+Migration 0104 adds derived rejection-byte accounting and local queue scheduling
+history. It preserves all existing envelope and evidence bytes; these local fields
+are excluded from portable/managed history formats. Rollback removes only these
+local accounting and scheduling metadata.
+
+New envelope admission is serialized in PostgreSQL. Outstanding accepted/on-hold
+work is limited to 16 per sender, 64 per recipient, and 256 provider-wide. Each
+slot implicitly reserves the maximum 1 MiB body plus 25 MiB attachment allowance
+(up to 6.5 GiB provider-wide), independently of the body size claimed by a sender.
+Rejected replay records are limited to 64 / 1 MiB of envelope/evidence bytes per
+sender and 4096 / 64 MiB provider-wide. Existing records are preserved even if
+already over a new limit; new admission fails closed. Rejection budgets do not
+consume the separate accepted-work budget. Exact authenticated retries recover
+existing state at capacity, while new refused work receives `429` without a replay
+record or capability mutation. These defaults live in `envelopes/admission.ts`.
+
+Eight workers poll every 250 ms. Database claims allow one live retrieval per
+sender and two per recipient across processes, choosing least-recently-served
+recipients and senders before queue age. Quotas include on-hold work, so failing
+retrievals cannot accumulate an unlimited backlog. Existing cancellation controls
+still terminate accepted work; grant revocation itself retains its specified
+future-acceptance semantics.
+
+Envelope signatures are verified before any protected relationship lookup, so an
+invalid signature cannot probe relationships through different resolution work.
+Envelope/status admission uses 32 fixed ten-second slots (at most eight per trusted
+network source), with a 750 ms response
+floor. Slots do not become available early when a protected lookup misses. A
+separate 32-operation cap contains work that ignores cancellation without exposing
+its occupancy as `429`. Grants have a separate equivalent admission budget and
+wait for completion up to the processing deadline, rather than returning an early
+receipt. Public PLC authentication reads coalesce concurrently, are read-only,
+and retain verified evidence only for admitted writes. Completed observations are
+not cached across refreshes. These are per-process transport budgets; durable
+queue/rejection quotas and retrieval leases are shared in PostgreSQL.

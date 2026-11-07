@@ -109,7 +109,7 @@ validation is not itself proof of when an old Hail object was accepted.
 
 ### 2. Preconditions And Discovery
 
-Before grant creation, the recipient verifies the sender's Address Binding and current signed Sender Profile, displays the verified address separately from profile metadata, and selects only offered categories or uncategorized delivery. Before initial delivery, a sender resolves a human-readable recipient address through its signed Address Binding when necessary, then resolves the recipient DID's current `#hail` service and keys. Routine federation between known DIDs resolves the DID directly and does not re-resolve a human-readable address on every operation.
+Before grant creation, the recipient verifies the sender's Address Binding and current signed Sender Profile, displays the verified address separately from profile metadata, and selects one or more offered categories. Before initial delivery, a sender resolves a human-readable recipient address through its signed Address Binding when necessary, then resolves the recipient DID's current `#hail` service and keys. Routine federation between known DIDs resolves the DID directly and does not re-resolve a human-readable address on every operation.
 
 The DID profile distinguishes the POC cache rules from the current strict-public
 fresh-read policy. Canonical service-base URLs, endpoint refresh, redirect
@@ -177,7 +177,7 @@ Bulk submission remains deferred. Submission outcomes, disclosure, timing, retri
 
 ### 7. Recipient Validation Order
 
-The normative validation order is defined in [envelopes.md](envelopes.md). It permits a cheap preliminary authorization lookup using claimed fields, requires externally uniform unauthenticated rejection, verifies the signature before state mutation or body retrieval, then atomically reserves idempotency and reply-capability state.
+The normative validation order is defined in [envelopes.md](envelopes.md). It applies relationship-independent admission limits, verifies the signature before protected relationship lookup, state mutation, or body retrieval, then atomically applies resource budgets and reserves idempotency and reply-capability state. Invalid signatures cannot select a different public-key workload based on protected relationship existence.
 
 In this Grant-authorized flow, authorization is fixed by atomic acceptance. Envelope expiration is re-checked before completed delivery. Permanent and retryable body failures and delivery states are defined in [delivery-state.md](delivery-state.md).
 

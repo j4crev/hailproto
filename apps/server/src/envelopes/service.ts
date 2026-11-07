@@ -51,8 +51,7 @@ export class EnvelopeService {
       throw new EnvelopeAuthorizationError("No active received Grant for this sender");
     }
     const scope = grant.payload.scope[0];
-    if (!scope || (scope.type === "categories" && !scope.values.includes(category)) ||
-      (scope.type === "uncategorized" && category !== "")) throw new EnvelopeAuthorizationError("Category is outside Grant scope");
+    if (!scope || scope.type !== "categories" || !scope.values.includes(category)) throw new EnvelopeAuthorizationError("Category is outside Grant scope");
     return this.createSigned(senderDid, grant.payload.grantor, { type: "grant", grant_id: grantId },
       digestText, category || undefined, replyUntil,messageId);
   }

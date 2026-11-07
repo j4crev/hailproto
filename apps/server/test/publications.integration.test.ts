@@ -47,7 +47,7 @@ it.skipIf(!process.env.DATABASE_URL)("snapshots category audiences, resumes exac
     const resolver:HailDidResolver={async resolve(did){const user=users.find(user=>user.did===did);if(!user)throw new Error("Unknown fixture identity");
       return {did,identityDidKey:user.keys.identityDidKey,messagingDidKey:user.keys.messagingDidKey,serviceBase:base,evidence};}};
     const profile=await new SenderProfileService(onboarding,encryptor,resolver,base).createOrReuse(sender.address,
-      {display_name:"Publisher",offers_uncategorized:false,categories:[{id:"general",label:"General"},{id:"sales",label:"Sales"}]});
+      {display_name:"Publisher",categories:[{id:"general",label:"General"},{id:"sales",label:"Sales"}]});
     const now=Math.floor(Date.now()/1000),binding={type:"hail.address-binding" as const,version:2 as const,address:sender.address,did:sender.did,issued_at:now,key_id:sender.did+"#hail-identity"};
     const raw=await signPayload("hail.address-binding",binding,createWebCryptoSigner(binding.key_id,sender.keys.identityPrivateKey));
     const hash=(bytes:Uint8Array)=>new Uint8Array(createHash("sha256").update(bytes).digest());

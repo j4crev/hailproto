@@ -252,7 +252,6 @@ function validateSenderProfile(payload: HailRecord): void {
       "did",
       "revision",
       "display_name",
-      "offers_uncategorized",
       "categories",
       "updated_at",
       "key_id",
@@ -266,7 +265,6 @@ function validateSenderProfile(payload: HailRecord): void {
   if (payload.description !== undefined) {
     profileText(payload.description, 1, 1_024, "$.description");
   }
-  boolean(payload.offers_uncategorized, "$.offers_uncategorized");
   const categories = array(payload.categories, "$.categories");
   if (categories.length > 100) fail("must contain at most 100 entries", "$.categories");
   let previous = "";
@@ -337,8 +335,6 @@ function validateGrant(payload: HailRecord): void {
       if (current <= previous) fail("must be unique and bytewise ascending", `$.scope[0].values[${index}]`);
       previous = current;
     });
-  } else if (selectorType === "uncategorized") {
-    exactKeys(selector, ["type"], [], "$.scope[0]");
   } else {
     fail("unknown scope selector", "$.scope[0].type");
   }
@@ -476,6 +472,7 @@ function validateEnvelope(payload: HailRecord): void {
     if(payload.version!==1)fail("subscription authorization uses envelope version 1","$.version");
     exactKeys(authorization, ["type", "grant_id"], [], "$.authorization");
     uuid(authorization.grant_id, "$.authorization.grant_id");
+    category(payload.category, "$.category");
   } else if (authorizationType === "reply") {
     if(payload.version!==1&&payload.version!==3)fail("reply authorization uses envelope version 1 or 3","$.version");
     exactKeys(authorization, ["type", "reply_to"], [], "$.authorization");
@@ -543,15 +540,16 @@ function validateEnvelope(payload: HailRecord): void {
   }
   if (!["spt-1", "spt-2", "spt-3"].includes(text(body.profile, "$.body.profile"))) fail("unsupported body profile", "$.body.profile");
   const availableUntil = integer(body.available_until, "$.body.available_until");
-  if (availableUntil < createdAt + 2_592_000 || availableUntil < expiresAt + 300) {
+  if (availableUntil < createdAt + 2_592_000 || availableUntil < expiresAt + 300 || availableUntil - createdAt > 2_678_400) {
     fail("does not satisfy the required availability window", "$.body.available_until");
   }
   const access = record(body.access, "$.body.access");
   exactKeys(access, ["type", "token", "expires_at"], [], "$.body.access");
   if (text(access.type, "$.body.access.type") !== "bearer") fail("must equal bearer", "$.body.access.type");
   bytes(access.token, 32, "$.body.access.token");
-  if (integer(access.expires_at, "$.body.access.expires_at") < availableUntil) {
-    fail("must not precede available_until", "$.body.access.expires_at");
+  if (integer(access.expires_at, "$.body.access.expires_at") < availableUntil ||
+      integer(access.expires_at, "$.body.access.expires_at") - createdAt > 2_678_400) {
+    fail("must be between available_until and created_at plus 31 days", "$.body.access.expires_at");
   }
   const reply = record(payload.reply, "$.reply");
   const allowed = boolean(reply.allowed, "$.reply.allowed");

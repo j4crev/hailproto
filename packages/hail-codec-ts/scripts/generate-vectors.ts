@@ -497,6 +497,9 @@ const unknownAddressMember = {
   unknown: true,
 };
 const negativePayload: Array<{id:string;type:string;hex:string;expected_error:string;cddl_valid?:boolean}> = [
+  {id: "grant-envelope-category-required", type: "hail.envelope",
+    hex: hex(encode(Object.fromEntries(Object.entries(envelope).filter(([key])=>key!=="category")),rfc8949EncodeOptions)), expected_error:"schema-violation",cddl_valid:true},
+
   {
     id: "grant-previous-absent",
     type: "hail.grant",
@@ -516,6 +519,17 @@ const negativePayload: Array<{id:string;type:string;hex:string;expected_error:st
     expected_error: "schema-violation",
   },
 ];
+
+for (const [id, availability, token] of [
+  ['envelope-availability-over-31-days', 2_678_401, 2_678_401],
+  ['envelope-token-over-31-days', 2_678_400, 2_678_401],
+] as const) {
+  const value = structuredClone(envelope);
+  value.body.available_until = value.created_at + availability;
+  value.body.access.expires_at = value.created_at + token;
+  negativePayload.push({id, type:'hail.envelope', hex:hex(encode(value,rfc8949EncodeOptions)),
+    expected_error:'schema-violation', cddl_valid:true});
+}
 
 const inlineInvalid: Array<[string, (body: any) => void]> = [
   ['inline-image-missing-asset',body=>body.blocks[1].asset='missing'],

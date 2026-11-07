@@ -221,7 +221,7 @@ func senderProfileValue(value *SenderProfile) map[any]any {
 		}
 		categories[i] = item
 	}
-	result := map[any]any{"type": value.Type, "version": value.Version, "did": value.DID, "revision": value.Revision, "display_name": value.DisplayName, "offers_uncategorized": value.OffersUncategorized, "categories": categories, "updated_at": value.UpdatedAt, "key_id": value.KeyID}
+	result := map[any]any{"type": value.Type, "version": value.Version, "did": value.DID, "revision": value.Revision, "display_name": value.DisplayName, "categories": categories, "updated_at": value.UpdatedAt, "key_id": value.KeyID}
 	if value.Description != "" {
 		result["description"] = value.Description
 	}
@@ -670,7 +670,7 @@ func validateAddressBinding(m map[any]any) error {
 	return keyID(m["key_id"], signer, "hail-identity", "$.key_id")
 }
 func validateSenderProfile(m map[any]any) error {
-	req := []string{"type", "version", "did", "revision", "display_name", "offers_uncategorized", "categories", "updated_at", "key_id"}
+	req := []string{"type", "version", "did", "revision", "display_name", "categories", "updated_at", "key_id"}
 	version, e := intValue(m["version"], "$.version", 1)
 	if e != nil || version != 1 && version != 2 {
 		return errors.New("$.version must equal 1 or 2")
@@ -696,9 +696,6 @@ func validateSenderProfile(m map[any]any) error {
 		if e = profileText(m["description"], 1, 1024, "$.description"); e != nil {
 			return e
 		}
-	}
-	if _, e = boolValue(m["offers_uncategorized"], "$.offers_uncategorized"); e != nil {
-		return e
 	}
 	cats, e := arrayValue(m["categories"], "$.categories")
 	if e != nil {
@@ -799,10 +796,6 @@ func validateGrant(m map[any]any) error {
 			}
 			prev = s
 		}
-	} else if typ == "uncategorized" {
-		if e = exact(sel, []string{"type"}, nil, "$.scope[0]"); e != nil {
-			return e
-		}
 	} else {
 		return errors.New("unknown scope selector")
 	}
@@ -879,6 +872,9 @@ func validateEnvelope(m map[any]any) error {
 	}
 	switch typ {
 	case "grant":
+		if _, e = category(m["category"], "$.category"); e != nil {
+			return e
+		}
 		if version != 1 {
 			return errors.New("subscription authorization uses envelope version 1")
 		}
@@ -989,7 +985,7 @@ func validateEnvelope(m map[any]any) error {
 		return errors.New("unsupported body profile")
 	}
 	available, e := intValue(b["available_until"], "$.body.available_until", 0)
-	if e != nil || available < created+2592000 || available < expires+300 {
+	if e != nil || available < created+2592000 || available < expires+300 || available-created > 2678400 {
 		return errors.New("invalid body availability")
 	}
 	access, e := mapValue(b["access"], "$.body.access")
@@ -1006,7 +1002,7 @@ func validateEnvelope(m map[any]any) error {
 		return e
 	}
 	accessExpiry, e := intValue(access["expires_at"], "$.body.access.expires_at", 0)
-	if e != nil || accessExpiry < available {
+	if e != nil || accessExpiry < available || accessExpiry-created > 2678400 {
 		return errors.New("invalid access expiry")
 	}
 	r, e := mapValue(m["reply"], "$.reply")

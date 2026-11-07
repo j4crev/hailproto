@@ -141,7 +141,7 @@ registration at a provider; they do not replace public delegation.
 Hail address discovery uses WebFinger, defined by RFC 7033, with an `acct` URI defined by RFC 7565. The permanent Hail Address Binding link relation is:
 
 ```text
-https://hailproto.com/rel/address-binding
+https://racrproto.com/rel/address-binding
 ```
 
 This is an RFC 8288 extension relation URI. Clients compare it as the exact lowercase string above and do not dereference it during discovery.
@@ -161,7 +161,7 @@ acct:alice@example.com
 and requests:
 
 ```http
-GET https://example.com/.well-known/webfinger?resource=acct%3Aalice%40example.com&rel=https%3A%2F%2Fhailproto.com%2Frel%2Faddress-binding
+GET https://example.com/.well-known/webfinger?resource=acct%3Aalice%40example.com&rel=https%3A%2F%2Fracrproto.com%2Frel%2Faddress-binding
 Accept: application/jrd+json
 Accept-Encoding: identity
 ```
@@ -173,7 +173,7 @@ Conceptual response:
   "subject": "acct:alice@example.com",
   "links": [
     {
-      "rel": "https://hailproto.com/rel/address-binding",
+      "rel": "https://racrproto.com/rel/address-binding",
       "type": "application/cose; cose-type=\"cose-sign1\"",
       "href": "https://example.com/.well-known/hail/addresses/alice"
     }
@@ -396,7 +396,7 @@ The POC needs:
 - case-insensitive ASCII local parts and IDNA2008 A-label domains
 - canonical LDH-style address validation and lowercase serialization
 - WebFinger lookup using canonical `acct:` URIs
-- exact `https://hailproto.com/rel/address-binding` relation and one Address Binding link
+- exact `https://racrproto.com/rel/address-binding` relation and one Address Binding link
 - at most three HTTPS WebFinger redirects and no binding redirects
 - delegated cross-origin binding hosting with strict safe-fetch behavior
 - one closed Address Binding payload map embedded in one complete tagged COSE_Sign1 representation

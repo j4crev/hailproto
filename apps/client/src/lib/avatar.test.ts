@@ -3,8 +3,7 @@ import {avatarDefinition, prepareAvatar} from "./avatar.js";
 import type {ProfileDefinition} from "./sender-profile.js";
 
 afterEach(() => vi.unstubAllGlobals());
-const base: ProfileDefinition = {version: 1, display_name: "Alice", description: "About", offers_uncategorized: true,
-  categories: [{id: "general", label: "General"}, {id: "news", label: "News", description: "Updates"}]};
+const base: ProfileDefinition = {version: 1, display_name: "Alice", description: "About", categories: [{id: "general", label: "General"}, {id: "news", label: "News", description: "Updates"}]};
 it("upgrades legacy profiles and replaces/removes only the avatar", () => {
   expect(avatarDefinition(base, "AQID")).toEqual({...base, version: 2, avatar: "AQID"});
   expect(avatarDefinition({...base, version: 2, avatar: "old"}, null)).toEqual({...base, version: 2});

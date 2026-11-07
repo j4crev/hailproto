@@ -88,7 +88,7 @@ integration.each([[false,false],[true,false],[true,true]])("same-provider custod
     await onboarding.activate(prepared.accountId,attestation);
 
     const grantee=`did:plc:${"b".repeat(24)}`,grantId=uuidV7(),grant:HailGrant={type:"hail.grant",version:1,grant_id:grantId,
-      revision:1,previous:null,grantor:did,grantee,scope:[{type:"uncategorized"}],status:"active",issued_at:now,updated_at:now,
+      revision:1,previous:null,grantor:did,grantee,scope:[{type:"categories",values:["general"]}],status:"active",issued_at:now,updated_at:now,
       expires_at:null,consent_context:{grantee_address:"peer@peer.example.com",address_binding_hash:{algorithm:"sha-256",value:randomBytes(32)},
         sender_profile_hash:{algorithm:"sha-256",value:randomBytes(32)}},key_id:`${did}#hail-identity`};
     const grantCose=await signPayload("hail.grant",grant,createWebCryptoSigner(`${did}#hail-identity`,identity.pair.privateKey)),grantDigest=new Uint8Array(createHash("sha256").update(grantCose).digest());

@@ -133,7 +133,7 @@ message delivery. A valid signature alone must not make a connection active.
 
 The existing `hail.grant` remains unchanged for subscription authorization and
 historical decoding. Connection intent has distinct protected COSE content types,
-not a `general`/`uncategorized` selector or an unsigned database label:
+not a subscription category selector or an unsigned database label:
 
 | Type | Protected content type | Signing authority |
 | --- | --- | --- |

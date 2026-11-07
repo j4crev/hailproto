@@ -23,7 +23,6 @@ export interface SenderProfileDefinition {
   version?: 1 | 2;
   display_name: string;
   description?: string;
-  offers_uncategorized: boolean;
   categories: HailSenderCategory[];
   avatar?: HailBundledImageAsset | null;
 }
@@ -54,9 +53,9 @@ function avatarAsset(data: Uint8Array): HailBundledImageAsset {
 
 export function parseSenderProfileDefinition(value: unknown): SenderProfileDefinition {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Sender Profile definition must be an object");
-  const record = value as Record<string, unknown>,allowed=["version","display_name","description","offers_uncategorized","categories","avatar"];
+  const record = value as Record<string, unknown>,allowed=["version","display_name","description","categories","avatar"];
   if(Object.keys(record).some(key=>!allowed.includes(key))||typeof record.display_name!=="string"||
-    record.description!==undefined&&typeof record.description!=="string"||typeof record.offers_uncategorized!=="boolean"||
+    record.description!==undefined&&typeof record.description!=="string"||
     !Array.isArray(record.categories)||record.version!==undefined&&record.version!==1&&record.version!==2||
     record.avatar!==undefined&&record.avatar!==null&&typeof record.avatar!=="string")throw new Error("Sender Profile definition has an invalid shape");
   const version:1|2=record.version===2?2:1;
@@ -70,7 +69,7 @@ export function parseSenderProfileDefinition(value: unknown): SenderProfileDefin
     return category.description===undefined?{id:category.id,label:category.label}:
       {id:category.id,label:category.label,description:category.description};
   });
-  const base={version,display_name:record.display_name,offers_uncategorized:record.offers_uncategorized,categories,
+  const base={version,display_name:record.display_name,categories,
     ...(record.avatar===undefined?{}:{avatar:record.avatar===null?null:avatarAsset(decodeBase64Url(record.avatar))})};
   return record.description===undefined?base:{...base,description:record.description};
 }
@@ -85,7 +84,7 @@ function normalizedDefinition(definition: SenderProfileDefinition): SenderProfil
     .sort((left, right) => Buffer.from(left.id).compare(Buffer.from(right.id)));
   const version=definition.version??1;
   if(version===1&&definition.avatar)throw new Error("Sender Profile v1 cannot contain an avatar");
-  const base={version,offers_uncategorized:definition.offers_uncategorized,categories,
+  const base={version,categories,
     ...(definition.avatar?{avatar:definition.avatar}:{})};
   return definition.description === undefined
     ? {
@@ -110,7 +109,6 @@ function matchesDefinition(
     ...(profile.payload.description === undefined
       ? {}
       : { description: profile.payload.description }),
-    offers_uncategorized: profile.payload.offers_uncategorized,
     categories: profile.payload.categories,
     ...(profile.payload.version===2&&profile.payload.assets?{avatar:profile.payload.assets.assets[0]}:{}),
   };
@@ -174,7 +172,6 @@ export class SenderProfileService {
       revision,
       display_name: definition.display_name,
       ...(definition.description === undefined ? {} : { description: definition.description }),
-      offers_uncategorized: definition.offers_uncategorized,
       categories: definition.categories,
       updated_at: updatedAt,
       key_id: keyId,

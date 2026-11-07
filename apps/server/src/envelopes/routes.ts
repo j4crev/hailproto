@@ -52,15 +52,17 @@ export function registerEnvelopeRoutes(app: Hono, receiver: Pick<EnvelopeReceive
     if (!bytes) return problem(413, "Content Too Large");
     const result = await schedule.run(async (signal) => {
       const outcome = await receiver.receive(bytes, signal);
+      if (outcome === "rate-limited") return "rate-limited" as const;
       if (!signer || !["accepted", "duplicate"].includes(outcome)) return null;
       signal.throwIfAborted();
       const envelope = inspectSignedPayload("hail.envelope", bytes).payload;
       const snapshot = await signer.signCurrent(envelope.from, envelope.message_id);
       signal.throwIfAborted();
       return snapshot;
-    });
+    }, false, clientAddress(context.req.raw));
     if (result.kind === "busy") return problem(429, "Too Many Requests", { "Retry-After": "1" });
-    if (result.kind === "detailed") return new Response(Uint8Array.from(result.value), { status: 200,
+    if (result.kind === "detailed" && result.value === "rate-limited") return problem(429, "Too Many Requests", { "Retry-After": "30" });
+    if (result.kind === "detailed" && typeof result.value !== "string") return new Response(Uint8Array.from(result.value), { status: 200,
       headers: { "Content-Type": COSE_SIGN1_MEDIA_TYPE, "Cache-Control": "no-store" } });
     return new Response('{"outcome":"received"}', {
       status: 202,

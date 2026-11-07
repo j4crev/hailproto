@@ -50,7 +50,7 @@ export class GrantPermissions {
     if(input.senderDid!==undefined&&input.senderDid!==address.did)throw new PermissionError(409,"This QR identity no longer matches the address. Ask the sender for a current code");
     return {address:address.address,did:address.did,addressDigest:encodeBase64Url(address.digest),profileDigest:encodeBase64Url(profile.digest),
       previousDids:await previousAddressIdentities(this.sql,session.account_id,address.address,address.did),
-      displayName:profile.profile.display_name,categories:profile.profile.categories,offersUncategorized:profile.profile.offers_uncategorized};
+      displayName:profile.profile.display_name,categories:profile.profile.categories};
   }
 
   private async row(session:AccountApiSession,id:string,sql=this.sql){
@@ -102,8 +102,6 @@ export class GrantPermissions {
       throw new PermissionError(429,"Too many unfinished approvals; wait for them to expire");
     let payload:HailGrant|HailGrant[];
     if(input.action==="allow"){
-      if((input.scope as Record<string,unknown>|undefined)?.type==="uncategorized")
-        throw new PermissionError(400,"Subscribe to General instead; the publisher must offer that category first");
       if(typeof input.sender!=="string"||input.sender.length>254||typeof input.senderDid!=="string"||!DID.test(input.senderDid)||input.senderDid===session.did||
         typeof input.addressDigest!=="string"||typeof input.profileDigest!=="string"||(input.expiresAt!==null&&(!Number.isSafeInteger(input.expiresAt)||
         Number(input.expiresAt)<=Math.floor(Date.now()/1000)||Number(input.expiresAt)>Math.floor(Date.now()/1000)+366*86400)))

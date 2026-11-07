@@ -31,9 +31,7 @@ function definition(value: unknown): GrantDefinition {
   }
   const scopeRecord = rawScope as Record<string, unknown>;
   let scope: HailGrantScope;
-  if (scopeRecord.type === "uncategorized" && Object.keys(scopeRecord).length === 1) {
-    scope = { type: "uncategorized" };
-  } else if (
+  if (
     scopeRecord.type === "categories" &&
     Object.keys(scopeRecord).every((key) => ["type", "values"].includes(key)) &&
     Object.keys(scopeRecord).length === 2 &&

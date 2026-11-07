@@ -2,7 +2,7 @@ import {expect, it} from "vitest";
 import {editableProfile, profileDraft, type ProfileDefinition} from "./sender-profile.js";
 import type {HailSenderProfile} from "@racrproto/codec";
 
-const base: ProfileDefinition = {version: 2, display_name: "Original", description: "Old", offers_uncategorized: true, categories: [], avatar: "AQID"};
+const base: ProfileDefinition = {version: 2, display_name: "Original", description: "Old", categories: [], avatar: "AQID"};
 it("preserves existing avatar and legacy delivery settings while updating and sorting categories", () => {
   expect(profileDraft(base, " Updated ", "", [{id: "z", label: "Last"}, {id: "general", label: " General ", description: " Updates "}]))
     .toEqual({...base, display_name: "Updated", description: undefined, categories: [{id: "general", label: "General"}, {id: "z", label: "Last"}]});
@@ -16,8 +16,8 @@ it("rejects duplicate IDs, invalid IDs, and UTF-8 byte overflow before requestin
   expect(() => profileDraft(base, "Valid", "a".repeat(1025), [])).toThrow();
 });
 it("projects an existing signed profile without losing its bundled avatar", () => {
-  const payload = {version: 2, display_name: "Sender", description: "About", offers_uncategorized: false, categories: [{id: "general", label: "General"}], assets: {assets: [{data: new Uint8Array([1, 2, 3])}]}} as unknown as HailSenderProfile;
-  expect(editableProfile(payload)).toEqual({version: 2, display_name: "Sender", description: "About", offers_uncategorized: false, categories: [{id: "general", label: "General"}], avatar: "AQID"});
+  const payload = {version: 2, display_name: "Sender", description: "About", categories: [{id: "general", label: "General"}], assets: {assets: [{data: new Uint8Array([1, 2, 3])}]}} as unknown as HailSenderProfile;
+  expect(editableProfile(payload)).toEqual({version: 2, display_name: "Sender", description: "About", categories: [{id: "general", label: "General"}], avatar: "AQID"});
 });
 
 it("always includes fixed General and reserves one of the 100 category slots", () => {

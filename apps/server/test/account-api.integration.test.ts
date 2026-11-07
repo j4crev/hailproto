@@ -150,7 +150,7 @@ integration("authenticated account API and real racr HTTPS CLI", () => {
       serviceBase: "https://target.example.com/hail", identityDidKey: senderIdentityKey, messagingDidKey: senderKey,
       plcEvidence: evidence, verifiedAt: new Date() };
     const profile: HailSenderProfile = { type: "hail.sender-profile", version: 1, did: senderDid, revision: 1,
-      display_name: "API sender", offers_uncategorized: false, categories: [{ id: "updates", label: "Updates" }],
+      display_name: "API sender", categories: [{ id: "updates", label: "Updates" }],
       updated_at: now, key_id: `${senderDid}#hail-messaging` };
     const profileBytes = await signPayload("hail.sender-profile", profile, createWebCryptoSigner(profile.key_id, sender.privateKey));
     const verifiedProfile: VerifiedSenderProfile = { did: senderDid, profile, representation: profileBytes,

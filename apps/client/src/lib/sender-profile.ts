@@ -3,12 +3,11 @@ import {encodeBase64Url} from "@racrproto/codec/base64url";
 
 export type Category = {id: string; label: string; description?: string};
 export const GENERAL_CATEGORY: Readonly<Category> = Object.freeze({id: "general", label: "General"});
-export type ProfileDefinition = {version: 1 | 2; display_name: string; description?: string; offers_uncategorized: boolean; categories: Category[]; avatar?: string};
+export type ProfileDefinition = {version: 1 | 2; display_name: string; description?: string; categories: Category[]; avatar?: string};
 
 export function editableProfile(profile: HailSenderProfile): ProfileDefinition {
   return {version: profile.version, display_name: profile.display_name,
     ...(profile.description === undefined ? {} : {description: profile.description}),
-    offers_uncategorized: profile.offers_uncategorized,
     categories: profile.categories.map(category => ({...category})),
     ...(profile.version === 2 && profile.assets ? {avatar: encodeBase64Url(profile.assets.assets[0]!.data)} : {})};
 }

@@ -130,7 +130,6 @@ create a Grant for them:
 {
   "display_name": "Example sender",
   "description": "Service notifications",
-  "offers_uncategorized": false,
   "categories": [{ "id": "updates", "label": "Updates" }]
 }
 ```
@@ -171,7 +170,7 @@ racr grant revoke "$grant_id" \
 ```
 
 Use repeated `--category` flags for multiple named categories; use `general` for
-General subscriptions. Uncategorized authoring is no longer supported. Omit expiry
+General subscriptions. Every subscription selects named categories. Omit expiry
 flags on update to preserve the current expiry. Use `--refresh-consent` when a
 fresh sender consent is required. Owner-controlled accounts need `--vault` for
 signing; managed accounts omit it. In both profiles, retain outputs and request

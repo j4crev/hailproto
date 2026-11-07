@@ -15,7 +15,6 @@ const payload: HailSenderProfile = {
   did,
   revision: 1,
   display_name: "Alice",
-  offers_uncategorized: false,
   categories: [],
   updated_at: 1,
   key_id: `${did}#hail-messaging`,

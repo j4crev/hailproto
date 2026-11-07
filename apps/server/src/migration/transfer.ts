@@ -619,7 +619,7 @@ export class MigrationTransferService {
     const bodies = await collect(tx`SELECT to_jsonb(t) AS row FROM detached_bodies t WHERE sender_account_id = ${accountId} ORDER BY digest`);
     const bodyAuth = await collect(tx`SELECT to_jsonb(t) AS row FROM body_authorizations t WHERE sender_account_id = ${accountId} ORDER BY token_hash`);
     const sent = await collect(tx`SELECT to_jsonb(t) AS row FROM sent_envelopes t WHERE sender_account_id = ${accountId} ORDER BY sender_did, message_id`);
-    const received = await collect(tx`SELECT to_jsonb(t) AS row FROM received_envelopes t WHERE local_account_id = ${accountId} ORDER BY sender_did, message_id`);
+    const received = await collect(tx`SELECT (to_jsonb(t)-'admission_bytes') AS row FROM received_envelopes t WHERE local_account_id = ${accountId} ORDER BY sender_did, message_id`);
     const replies = await collect(tx`SELECT to_jsonb(t) AS row FROM reply_capabilities t WHERE original_sender_did = ${did} ORDER BY original_message_id`);
     const work = await collect(tx`SELECT to_jsonb(t) AS row FROM delivery_work t JOIN received_envelopes owner
       ON owner.sender_did = t.sender_did AND owner.message_id = t.message_id

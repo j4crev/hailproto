@@ -1,3 +1,4 @@
+import { admitEnvelope, EnvelopeCapacityError, ENVELOPE_ADMISSION, type EnvelopeAdmissionLimits } from "./admission.js";
 import { createHash } from "node:crypto";
 import { encodePayload, inspectSignedPayload, type HailEnvelope } from "@racrproto/codec";
 import type { SQL } from "bun";
@@ -22,13 +23,14 @@ export interface EnvelopeDecision {
   recipientEvidence?: PlcResolutionEvidence;
   recipientServiceBase?: string;
   now: number;
+  retainAuthority?: (tx: SQL) => Promise<void>;
   conversationDescriptor?:VerifiedHailObject<HailConversation>;
 }
 
-export type EnvelopeOutcome = "accepted" | "duplicate" | "conflict" | "unauthorized" | "message-expired";
+export type EnvelopeOutcome = "accepted" | "duplicate" | "conflict" | "unauthorized" | "message-expired" | "rate-limited";
 
 export class EnvelopeRepository {
-  constructor(private readonly sql: SQL) {}
+  constructor(private readonly sql: SQL, private readonly admission: EnvelopeAdmissionLimits = ENVELOPE_ADMISSION) {}
 
   async sent(senderDid: string, messageId: string): Promise<Uint8Array | null> {
     const rows = await this.sql<{ envelope_cose: Uint8Array }[]>`
@@ -167,29 +169,40 @@ export class EnvelopeRepository {
   }
 
   async accept(input: EnvelopeDecision, signal?: AbortSignal): Promise<EnvelopeOutcome> {
+    try { return await this.acceptWithinBudget(input, signal); }
+    catch (error) { if (error instanceof EnvelopeCapacityError) return "rate-limited"; throw error; }
+  }
+
+  private async acceptWithinBudget(input: EnvelopeDecision, signal?: AbortSignal): Promise<EnvelopeOutcome> {
     const { payload, localAccountId, payloadDigest } = input;
     if(payload.authorization.type==='conversation'){
       const authorization=payload.authorization;
       return this.sql.begin(async tx=>{
         signal?.throwIfAborted();
+        await tx`SELECT pg_advisory_xact_lock(684245104)`;
         const owner={account_id:localAccountId,did:payload.to};
         if(!(await tx`SELECT id FROM provider_accounts WHERE id=${localAccountId} AND did=${payload.to}`).length)return 'unauthorized';
+        const previous=await this.previousOutcome(tx as SQL,payload,payloadDigest);if(previous)return previous;
         const intro=payload.conversation_introduction;
+        if(intro&&input.conversationDescriptor) {
+          await admitEnvelope(tx as SQL,input,true,this.admission);
+          await input.retainAuthority?.(tx as SQL);
+        }
         if(intro&&input.conversationDescriptor)await admitConversation(tx as SQL,owner,input.conversationDescriptor,
           {signingKey:input.signingPublicKey,evidence:input.evidence,connection:{type:'connection',connection_id:intro.connection_id,epoch:intro.epoch}});
         const permitted=await conversationMessageAllowed(tx as SQL,payload.to,payload.from,{creator:authorization.creator,conversationId:authorization.conversation_id},authorization.descriptor_hash.value,true);
-        const previous=await this.previousOutcome(tx as SQL,payload,payloadDigest);if(previous)return previous;
         // A reply may race initial admission. Do not permanently reserve its ID
         // while membership is unknown: an exact retry can succeed after admission.
         if(!permitted)return 'unauthorized';
         const now=Number((await tx<{instant:string}[]>`SELECT extract(epoch FROM clock_timestamp()) AS instant`)[0]!.instant);
         const outcome=now>Math.min(payload.expires_at+300,payload.body.available_until,payload.body.access.expires_at)?'message-expired':'accepted';
-        const inserted=await this.insertReceived(tx as SQL,input,null,null,outcome,now);
+        const inserted=await this.insertReceived(tx as SQL,input,null,null,outcome,now,!!intro&&!!input.conversationDescriptor);
         return inserted?outcome:(await this.previousOutcome(tx as SQL,payload,payloadDigest))??'conflict';
       });
     }
     if(payload.authorization.type==="connection")return this.sql.begin(async tx=>{
       signal?.throwIfAborted();
+      await tx`SELECT pg_advisory_xact_lock(684245104)`;
       if(!(await tx`SELECT id FROM provider_accounts WHERE id=${localAccountId} AND did=${payload.to}`).length)return "unauthorized";
       const permitted=await connectionMessageAllowed(tx as SQL,payload.to,payload.from,payload.authorization as Extract<HailEnvelope["authorization"],{type:"connection"}>,true,true);
       const previous=await this.previousOutcome(tx as SQL,payload,payloadDigest);if(previous)return previous;
@@ -203,6 +216,7 @@ export class EnvelopeRepository {
       const replyTo = payload.authorization.reply_to;
       return this.sql.begin(async (tx): Promise<EnvelopeOutcome> => {
         signal?.throwIfAborted();
+        await tx`SELECT pg_advisory_xact_lock(684245104)`;
         const claims = await tx<{ sender_account_id: string; reply_until: number | string | bigint;
           state: string; envelope_cose: Uint8Array }[]>`
           SELECT sent.sender_account_id, capability.reply_until, capability.state, sent.envelope_cose
@@ -244,6 +258,7 @@ export class EnvelopeRepository {
     // Revocation and acceptance serialize on the same lineage row.
     return this.sql.begin(async (tx): Promise<EnvelopeOutcome> => {
       signal?.throwIfAborted();
+      await tx`SELECT pg_advisory_xact_lock(684245104)`;
       const lineages = await tx<{
         local_account_id: string; current_status: string; expires_at: string | number | bigint | null;
         scope_payload: unknown;
@@ -268,8 +283,7 @@ export class EnvelopeRepository {
       const selector = Array.isArray(scope) ? scope[0] : null;
       const permitted = lineage.current_status === "active" &&
         (lineage.expires_at === null || Number(lineage.expires_at) >= now) &&
-        ((selector?.type === "categories" && typeof payload.category === "string" && selector.values?.includes(payload.category)) ||
-         (selector?.type === "uncategorized" && payload.category === undefined));
+        (selector?.type === "categories" && typeof payload.category === "string" && selector.values?.includes(payload.category));
       const deadline = Math.min(payload.expires_at + 300, payload.body.available_until, payload.body.access.expires_at);
       const outcome = now > deadline ? "message-expired" : permitted ? "accepted" : "unauthorized";
       const inserted = await this.insertReceived(tx, input, grantId, null, outcome, now);
@@ -286,8 +300,10 @@ export class EnvelopeRepository {
   }
 
   private async insertReceived(tx: SQL, input: EnvelopeDecision, grantId: string | null,
-    replyTo: string | null, outcome: "accepted" | "unauthorized" | "message-expired", now: number): Promise<boolean> {
+    replyTo: string | null, outcome: "accepted" | "unauthorized" | "message-expired", now: number, authorityRetained = false): Promise<boolean> {
     const { payload, representation, envelopeDigest, payloadDigest, localAccountId, signingPublicKey, evidence } = input;
+    await admitEnvelope(tx, input, outcome === "accepted", this.admission);
+    if (outcome === "accepted" && !authorityRetained) await input.retainAuthority?.(tx);
     const inserted = await tx<{ payload_digest: Uint8Array }[]>`
         INSERT INTO received_envelopes
           (sender_did, message_id, recipient_did, grant_id, reply_to_message_id,
